@@ -1,0 +1,63 @@
+{
+  "retired": {
+    "sourceTopic": "Die Quelle „Thema“ gibt es nicht mehr — es gibt keine Themen. Wähle eine Art, eine Sammlung oder eine Liste."
+  },
+  "error": {
+    "upstream": "Der vorherige Schritt ist misslungen.",
+    "noStep": "Diesen Schritt gibt es nicht.",
+    "noPort": "Diesen Eingang oder Ausgang gibt es nicht.",
+    "mismatch": "Das passt nicht: „{out}“ gibt nicht, was „{into}“ braucht.",
+    "wouldCycle": "So entstünde ein Kreis — der Schritt hinge von sich selbst ab.",
+    "selfLoop": "Ein Schritt kann nicht zu sich selbst führen.",
+    "unknownKind": "Unbekannte Art von Schritt: „{type}“.",
+    "edgeNoInput": "Die Verbindung führt zu einem Eingang, den es nicht gibt.",
+    "edgeMismatch": "Die Verbindung „{out}“ → „{into}“ passt nicht.",
+    "oneEdge": "Der Eingang „{into}“ nimmt eine Verbindung.",
+    "cycle": "Der Graph hat einen Kreis.",
+    "stepFailed": "Dieser Schritt ist misslungen."
+  },
+  "json": {
+    "notJson": "das ist kein JSON",
+    "invalid": "Das ist noch kein gültiges JSON: {error}"
+  },
+  "thisBase": "diese Basis",
+  "paletteHint": "Klicke, um einen Schritt hinzuzufügen; verbinde einen Ausgang (rechts) mit einem Eingang (links). Lösche den markierten mit der Entf-Taste.",
+  "removeStep": "Schritt entfernen",
+  "flowStart": "Anfang des Ablaufs",
+  "startHere": "Hier beginnen",
+  "linksNoDrag": "Verbindungen ohne Ziehen",
+  "cyclesAllowed": "Ein Ablauf darf zurückführen (z. B. zur Kapitelwahl).",
+  "settingsJson": "Einstellungen als JSON",
+  "source": {
+    "anywhere": "— von überall",
+    "thisBase": "diese Wissensbasis",
+    "libraryMark": " (Bibliothek)"
+  },
+  "flowFallback": "Ablauf",
+  "viewFallback": "Ansicht",
+  "rule": {
+    "compare": "Vergleich",
+    "anchors": "Abgleich (Tippfehler)",
+    "bidirectional": "von beiden Seiten",
+    "prefix": "vom Anfang",
+    "threshold": "Schwelle zum Bestehen (0–1)",
+    "similar": "ähnliche Buchstaben (ą/a, ł/l) zählen halb",
+    "punctuation": "ohne Satzzeichen",
+    "caseSensitive": "Groß- und Kleinschreibung zählt",
+    "spaces": "Leerzeichen zählen nicht",
+    "scripts": "Indizes (₂, ²) wie normale Ziffern"
+  },
+  "options": {
+    "legend": "Möglichkeiten (jede hat ihren Ausgang)",
+    "placeholder": "Möglichkeit {n}",
+    "onlyWhen": "Nur wenn:",
+    "afterChoice": "Nach der Wahl:",
+    "add": "+ Möglichkeit"
+  },
+  "media": {
+    "noKey": "Du hast den Schlüssel dieses Bereichs nicht.",
+    "uploadFailed": "Die Datei ließ sich nicht hochladen.",
+    "remove": "Datei entfernen",
+    "uploading": "Wird hochgeladen…"
+  }
+}

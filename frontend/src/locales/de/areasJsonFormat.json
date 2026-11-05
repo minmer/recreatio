@@ -1,0 +1,98 @@
+{
+  "title": "Bereich als JSON (\"{format}\", Version 1)",
+  "section": {
+    "keys": "Bereich",
+    "usage": "Wie die App diese Daten verwendet",
+    "refs": "Verweise",
+    "roles": "Rollen und Links",
+    "appointments": "Termine des Bereichs",
+    "pages": "Seiten des Bereichs",
+    "subforms": "Unterformulare",
+    "example": "Beispiel: Veranstaltung",
+    "group": "Beispiel: Gruppe"
+  },
+  "sample": {
+    "event": "Veranstaltung: Exerzitien mit Anmeldung und einer Seite danach",
+    "group": "Gruppe: Chor mit Proben"
+  },
+  "intro": "Ein Dokument beschreibt den ganzen Bereich: eine Veranstaltung, eine Gruppe, eine Pfarrei oder einen Kurs — sein Profil und seine Visitenkarte, Rollen (mit Links), Termine mit Programm, Seiten (mit Formularen), Unterformulare, Gespräche und die Listen, auf denen er erscheinen soll.\nWas der Import tut:\n- Zuerst prüft er und zeigt den Plan, Schritt für Schritt; er speichert erst nach „Importieren“, in dieser Reihenfolge: Profil, Rollen, Termine, Formulare und Seiten, Unterformulare, Gespräche, Visitenkarte, Listen.\n- Alles heißt mit kurzen Schlüsseln (\"key\" von Rollen, Seiten, Terminen, Unterformularen; \"id\" von Modulen auf einer Seite). Der Bereich merkt sich, was der Import unter welchem Schlüssel angelegt hat: Dasselbe Dokument noch einmal importiert ÄNDERT dasselbe, statt es zu verdoppeln. Ein Dokument aus einem anderen Bereich (z. B. der Export der Veranstaltung vom letzten Jahr) legt hier alles neu an — es ändert nie Seiten, Formulare oder Rollen jenes Bereichs.\n- Was nicht im Dokument steht, bleibt unverändert (Rolle, Seite, Termin, Modul). Ausnahme: das Programm eines Termins — seine Punkte stehen vollständig im Dokument, also verschwindet ein Punkt, der fehlt.\n- Rollen, die es schon gibt, bleiben, wie sie waren (der Import ändert ihre Rechte nicht); neue Rollen und Links entstehen einmal.\n- Antworten von Formularen gehen immer in diesen Bereich — für die Daten ist sein Verantwortlicher zuständig. Fragen, Termin und Visitenkarte können in einem anderen Bereich sichtbar sein (\"publish\") — meist im öffentlichen Bereich darüber, wie „Veranstaltungen“ einer Pfarrei.\n- Schlüssel und Seitenadressen sieht der Dienst — schreib keine personenbezogenen Daten hinein.\nGib EIN JSON-Objekt zurück, ohne Kommentare.",
+  "keys": {
+    "kind": "Art des Bereichs: {kinds}; weggelassen — bleibt, wie sie war (ein neues Profil braucht sie)",
+    "name": "Name des Bereichs — nur zur Information (der Import ändert ihn nicht)",
+    "category": "ein Wort für Filter in Listen, z. B. \"exerzitien\" (bis 40 Zeichen) oder null",
+    "address": "vorgeschlagene Adresse der Hauptseite, z. B. \"pfarrei/exerzitien-2026\" — wer importiert, kann sie ändern; die Seitenadressen zählen von ihr aus",
+    "publish": "\"auto\" — öffentliche Teile (Visitenkarte, Termin, Fragen der Formulare) gehen in den nächsten öffentlichen Bereich über dem, den du leitest; \"area\" — sie bleiben in diesem Bereich (nur seine Personen sehen sie); oder die Kennung eines Bereichs (aus einem Export)",
+    "archive": "\"auto\" — eine Stunde nach dem Ende des Haupttermins schließen sich die Formulare, und die Seite „nach der Veranstaltung“ erscheint; \"manual\" — von Hand",
+    "card": "Visitenkarte in Listen und Karten: { \"title\", \"lead\", \"image\", \"publish\" } — \"image\": \"page-image:@schluessel\" (eine Datei, beschrieben in \"images\" der Hauptseite) oder \"page-image:<id>\"; null — ohne Visitenkarte",
+    "roles": "Rollen des Bereichs (höchstens {max}) — unten: Rollen und Links",
+    "appointments": "Termine im Kalender des Bereichs, mit Programm — unten: Termine des Bereichs",
+    "pages": "Seiten des Bereichs (höchstens {max}), jede mit einem Seitendokument — unten: Seiten des Bereichs",
+    "subforms": "Unterformulare von Formularen dieser Seiten (höchstens {max}) — unten: Unterformulare",
+    "chats": "\"area\" — Gespräch aller Personen des Bereichs, \"channel\" — Ankündigungskanal (Leitende schreiben); oder { \"kind\": \"area\", \"forms\": [\"@form:seite/modul\"] } — mit den über diese Formulare Angemeldeten (mit ihren eigenen Links)",
+    "listings": "Adressen von Seiten mit einer Liste „Veranstaltungen“, auf denen der Bereich um einen Platz bittet (höchstens {max}); \"events\" — der Katalog recreatio.pl/events (der Betreiber entscheidet, eine Karte ohne personenbezogene Daten)"
+  },
+  "refs": {
+    "lead": "Das Dokument verwendet keine Kennungen des Dienstes — es zeigt über Verweise auf seine Teile. Ein Verweis ist der GANZE Wert (oder eine Liste mit Kommas), nie ein Stück Text:",
+    "area": "dieser Bereich — z. B. \"area\" des Moduls \"event\" (Visitenkarte), \"areas\" des Moduls \"events\"",
+    "form": "ein Formular aus diesem Dokument: \"key\" der Seite und \"id\" des Moduls (z. B. \"@form:main/zapisy\"); oder \"@form:schluessel\" eines Unterformulars — z. B. \"form\" des Moduls \"entries\", \"formId\" in der Logikkarte",
+    "page": "die Adresse einer Seite aus diesem Dokument — z. B. im Menü (\"kind\": \"abs\") oder im Feld „Seite“",
+    "role": "eine Rolle aus diesem Dokument; in \"memberRoles\" und \"virtualAreas\" von Formularen genügt \"@schluessel\"",
+    "item": "in den Kalenderfeldern der Module (\"item\", \"calendar\", \"calendars\") — ein Termin aus \"appointments\" nach \"key\" (auch ein Programmpunkt mit eigenem \"key\"); \"{entry}\" — der Kalender des Bereichs",
+    "tail": "Das Modul \"program\" mit \"item\": \"@termin\" und leerem \"calendar\" bekommt von selbst den Kalender des Bereichs. Der Export schreibt Verweise in derselben Form."
+  },
+  "roles": {
+    "lead": "Ein Eintrag in \"roles\":",
+    "key": "ein kurzer Name (Buchstaben, Ziffern, - und _, bis 32 Zeichen), z. B. \"organisatoren\"",
+    "name": "Name der Rolle, z. B. \"Organisatoren\" (Leitende sehen ihn)",
+    "level": "was die Rolle im Bereich darf: {levels}",
+    "link": "true oder { \"days\": 1–365 (Vorgabe 30), \"once\": true — einmalig, \"lead\": true — wer ihn öffnet, kann selbst andere in die Rolle aufnehmen, \"label\" } — Einladungslink zu dieser Rolle; er öffnet die Ansicht des Bereichs (in einer Veranstaltung eine Rolle, die nur liest — ihre Hauptseite); er entsteht einmal und erscheint nach dem Import",
+    "tail": "Jede neue Rolle braucht gut zehn Sekunden Schlüsselberechnung im Browser. Teilnehmende, die sich über ein Formular anmelden, bekommen die Rolle aus \"memberRoles\" des Formulars (z. B. [\"@teilnehmer\"]) — für sie ist kein Link nötig."
+  },
+  "appointments": {
+    "lead": "Ein Eintrag in \"appointments\" hat die Schlüssel eines Termins einer Seite (unten: Termine für den Kalender) — \"key\", \"title\", \"start\", \"end\", \"allDay\", \"location\", \"notes\", \"link\", \"linkLabel\", \"repeat\", \"every\", \"weekdays\", \"until\", \"points\" — und dazu:",
+    "key": "Pflicht — über ihn ändert ein erneuter Import denselben Termin (ohne ihn bekommt er „termin-1“, „termin-2“…)",
+    "main": "true — der Haupttermin: sein Ende ist das Ende der Veranstaltung (Karten, Archiv); einer, ohne Wiederholung; ein einzelner Termin einer Veranstaltung ist von selbst der Haupttermin",
+    "publish": "\"area\", \"auto\" oder die Kennung eines Bereichs — wo der Termin (und sein Programm) sichtbar ist; weggelassen — wie \"publish\" des Bereichs",
+    "tail": "Alle Termine gehen in den Kalender des Bereichs (\"calendar\" und \"calendars\" sind hier überflüssig). Programmpunkte (\"points\") ändert ein erneuter Import an Ort und Stelle der Reihe nach; ein Punkt, der im Dokument fehlt, verschwindet aus dem Kalender."
+  },
+  "pages": {
+    "lead": "Ein Eintrag in \"pages\":",
+    "key": "ein kurzer Name der Seite (bis 24 Zeichen), z. B. \"main\", \"zapisy\", \"po\"",
+    "path": "\"\" — die Adresse der Hauptseite; \"zapisy\" — darunter (\"parafia/rekolekcje-2026/zapisy\"); \"/andere/adresse\" — genau diese Adresse; weggelassen — \"\" für die Hauptseite, sonst \"key\"",
+    "main": "true — die Hauptseite des Bereichs (Karten führen zu ihr); ohne das — die Seite mit \"path\": \"\"",
+    "after": "true — die Seite „nach der Veranstaltung“: vorbereitet, aber bis zum Ende des Haupttermins verborgen; danach erscheint sie auf den Karten",
+    "access": "\"public\" — alle; \"members\" — nur Personen des Bereichs; weggelassen — bleibt, wie es war (neu: öffentlich)",
+    "page": "das Seitendokument — wie unten (Seite als JSON), ohne \"path\", \"appointments\" und \"calendars\"",
+    "modulesLead": "In den Modulen der Seite (\"modules\") ergänzt das Dokument eines Bereichs:",
+    "id": "Name des Moduls auf dieser Seite (Buchstaben, Ziffern, - und _, bis 32 Zeichen) — über ihn ändert ein erneuter Import dasselbe Modul; ein Formular muss ihn haben (sonst träfe er nach einer Umstellung ein anderes Formular und seine Einsendungen)",
+    "members": "true — das Modul sehen nur Personen des Bereichs (mit Konto, Link oder eigenem Link aus einem Formular), z. B. Fotos und Materialien auf der Seite „nach der Veranstaltung“; false — alle",
+    "publish": "nur \"form\": \"area\", \"auto\" oder die Kennung eines Bereichs — wo die Fragen liegen (ein öffentliches Formular in einem privaten Bereich: Fragen unter dem Schlüssel eines öffentlichen Bereichs, Antworten hier); weggelassen — wie \"publish\" des Bereichs",
+    "answer": "nur \"seat-ask\" („Schreib uns“): wer antwortet — Rollen aus \"roles\", z. B. [\"@role:organizatorzy\"]; weggelassen — Rollen mit \"level\": \"admin\" (ohne sie nur, wer importiert); eine Person mit Link liest „Schreib an: …“ mit ihren Namen",
+    "forms": "nur \"seat-ask\": wessen Personen ein Gespräch beginnen können — Formulare aus diesem Dokument, z. B. [\"@form:main/zapisy\"]; weggelassen — alle Formulare der Seiten des Dokuments",
+    "tail": "\"module\" wird im Dokument eines Bereichs übergangen, \"answersTo\" von Fragen ebenso (Antworten gehen in diesen Bereich). Eine Seite, die schon existiert, aber keine Seite dieses Bereichs ist, wird nicht geändert, außer wer importiert, erlaubt es."
+  },
+  "subforms": {
+    "lead": "Ein Eintrag in \"subforms\" — ein Formular, das ein Formular einer Seite erweitert (Einwilligungen, Umfrage nach der Veranstaltung, Gesundheitsbogen):",
+    "key": "ein kurzer Name (bis 32 Zeichen)",
+    "of": "das Formular, das es erweitert: \"@form:seite/modul\"",
+    "name": "Name des Unterformulars",
+    "audience": "\"person\" — füllt die Person über ihren Link aus; \"office\" — nur Leitende",
+    "repeat": "\"once\", \"day\", \"week\", \"month\", \"year\" — wie oft (meist \"once\")",
+    "publish": "wie bei einem Formular auf einer Seite",
+    "questions": "Fragen — wie im Formular (unten: Formular); dazu \"design\", \"needs\", \"memberRoles\", \"virtualAreas\", \"group\""
+  },
+  "usage": "- Der Bereich bekommt einen ersten Reiter, der nach seiner Art heißt. Wer den Bereich liest, sieht darin die Visitenkarte, Termin und Ort, „Anmeldung offen“ und Links zu Seiten und Gesprächen; nur Leitende — „Zu erledigen“, den Editor der Visitenkarte, die Werkzeuge der Art und diesen Import.\n- Die Visitenkarte ist mit dem Schlüssel des Bereichs verschlüsselt, in dem sie veröffentlicht wurde: aus einem öffentlichen Bereich liest sie jede Person, aus einem anderen — nur, wer ihn liest.\n- Karten in den Modulen „Veranstaltungen“ und „Visitenkarte“ führen zur Hauptseite. In Listen steht der Bereich nur mit einer öffentlichen, unverschlüsselten Hauptseite (ohne öffentliche Visitenkarte nimmt die Karte Titel und Text dieser Seite); das Datum zeigt sie, wenn der Haupttermin öffentlich sichtbar ist, und „Anmeldung offen“ — wenn ein Formular wirklich annimmt (offen, öffentlich, auf einer öffentlichen Seite, mit Verantwortlichem).\n- \"listings\" sind Bitten um einen Platz: eine Liste, die du leitest, zeigt den Bereich sofort; eine andere bestätigt ihr Besitzer, den Katalog \"events\" — der Betreiber des Dienstes.\n- Termine stehen im Kalender des Bereichs: im Kalender und im Modul \"program\" sieht sie, wer den Bereich liest, in dem sie sichtbar sind (\"publish\").\n- Die Seite „nach der Veranstaltung“ ist nach dem Ende des Haupttermins oder nach „Jetzt beenden“ sichtbar (vorher nur für die, die sie leiten); eine öffentliche zeigen dann auch die Karten. Mit \"archive\": \"auto\" schließen sich alle offenen Formulare des Bereichs nach dem Ende von selbst, und „Wiederherstellen“ öffnet sie wieder.\n- Ohne Verantwortlichen (eigenen oder aus einem Bereich darüber) nehmen Formulare keine Einsendungen an, Gespräche des Bereichs entstehen nicht, und öffentliche Seiten lassen sich nicht speichern. Hat er einen, gibt der Import die öffentlichen Seiten des Dokuments in die Verantwortung dieses Bereichs.\n- Der Import veröffentlicht nicht in einem Bereich, den du nicht leitest — die öffentlichen Teile bleiben dann hier, mit einer Warnung im Plan.",
+  "prompt": {
+    "kind": " (Art: {kind})",
+    "fromTemplate": "Unten steht der Export des Bereichs „{name}“ — der vorigen Veranstaltung. Mach nach seinem Vorbild eine neue: Behalte den Aufbau der Seiten, die Module, die Fragen der Formulare, die Rollen, ihre \"key\" und die \"id\" der Module; ändere Daten, Titel, Beschreibungen und alles, was die neue betrifft. Entferne, was nur die vorige betraf (z. B. ihre Fotos und Materialien auf der Seite „nach der Veranstaltung“). Setze \"address\" auf die neue Adresse.",
+    "fromCurrent": "Unten steht der aktuelle Export dieses Bereichs. Ändere ihn nach meinen Hinweisen — behalte alle \"key\" und \"id\", damit der Import ändert, was da ist, statt es zu verdoppeln.",
+    "fromScratch": "Bau den Bereich nach meinen Hinweisen von Grund auf.",
+    "head": "Bereite ein JSON-Dokument im Format „{format}“ vor (die Beschreibung des Formats steht unten) für den Bereich „{name}“{kind}.",
+    "rules": "Regeln:\n- Gib EIN JSON-Objekt zurück — ohne Kommentare, ohne Text davor oder danach.\n- Trag keine personenbezogenen Daten ein (Vor- und Nachnamen, Telefonnummern, E-Mail-Adressen bestimmter Personen), außer ich gebe sie ausdrücklich zur Veröffentlichung an.\n- Erfinde keine Fakten — Daten, Orte, Preise, Personen, Einwilligungen oder Rechtsgrundlagen, die ich nicht angegeben habe. Was du nicht weißt, lass leer.\n- Beschreibe Fotos und Dateien, die es noch nicht gibt, in \"images\" der Seite und setze \"{need}schluessel\" ein. \"page-image:<id>\" aus der Vorlage kannst du lassen — es ist dieselbe Datei.\n- Ein Formular muss eine \"id\" haben; Antworten gehen in diesen Bereich, also lass \"answersTo\" weg.",
+    "hints": "Meine Hinweise: (ergänze — Daten, Ort, was anders sein soll)",
+    "short": "Die Beschreibung des Formats ist gekürzt — ohne seltene Module und Kapitel ({left}). Wenn du eines davon brauchst, sag es — du bekommst die vollständige Beschreibung.",
+    "formatHead": "=== BESCHREIBUNG DES FORMATS ===",
+    "templateHead": "=== VORLAGE: VORIGE VERANSTALTUNG ===",
+    "currentHead": "=== AKTUELLER BEREICH ==="
+  }
+}

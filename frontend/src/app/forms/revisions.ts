@@ -3,6 +3,7 @@
  */
 
 import { KEY_SIZE, seal, sealText, toBase64Url, wrapKey } from '../core/crypto';
+import { t } from '../core/i18n';
 import { call } from '../core/session';
 import { valueAad } from './form';
 import type { Answer } from './submissions';
@@ -95,7 +96,7 @@ async function sealEach(
   return Promise.all(answers.map(async (one) => {
     const areaId = keys.areaOf.get(one.fieldId);
     const intake = areaId === undefined ? undefined : keys.intakes.get(areaId);
-    if (intake === undefined) throw new Error(`Pole ${one.fieldId} nie ma klucza przyjmowania.`);
+    if (intake === undefined) throw new Error(t('forms.errors.fieldNoIntake', { id: one.fieldId }));
 
     const key = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
     const label = valueAad(one.fieldId);

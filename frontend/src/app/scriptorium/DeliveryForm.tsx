@@ -17,6 +17,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { rich, useT } from '../core/i18n';
 import { keysFor } from '../core/ringOf';
 import { WorkspaceError, whoIsThere } from '../core/session';
 import { loadChildren } from '../areas/profile';
@@ -60,6 +61,7 @@ function CoverageEditor({ store, library, entry, data, set, readOnly, now }: {
   /** Wo der Player gerade steht — `null`: kein Player. */
   now: (() => number | null) | null;
 }) {
+  const t = useT();
   const parts = deliveryPlan(entry, store);
   const all = parts.flatMap((p) => p.points);
   const coverage = coverageOf(data);
@@ -86,25 +88,25 @@ function CoverageEditor({ store, library, entry, data, set, readOnly, now }: {
 
   if (parts.length === 0) {
     return (
-      <section className="lib-cover" aria-label="Co z planu">
-        <h2 className="wk-h2">Co z planu zostało powiedziane</h2>
-        <p className="lib-cover-lead">Najpierw wybierz wyżej kazanie (tekst) — jego plan pojawi się tutaj, punkt po punkcie.</p>
+      <section className="lib-cover" aria-label={t('scriptorium.delivery.coverage.label')}>
+        <h2 className="wk-h2">{t('scriptorium.delivery.coverage.title')}</h2>
+        <p className="lib-cover-lead">{t('scriptorium.delivery.coverage.pickFirst')}</p>
       </section>
     );
   }
 
   return (
-    <section className="lib-cover" aria-label="Co z planu">
-      <h2 className="wk-h2">Co z planu zostało powiedziane</h2>
+    <section className="lib-cover" aria-label={t('scriptorium.delivery.coverage.label')}>
+      <h2 className="wk-h2">{t('scriptorium.delivery.coverage.title')}</h2>
       {counts !== '' && <p className="lib-cover-lead">{counts}</p>}
       {parts.map(({ text, points }) => {
         const numbers = pointNumbers(points);
         return (
           <div key={text.id} className="lib-cover-text-block">
-            {parts.length > 1 && <h3 className="lib-section">{str(text.data, 'title') || 'Bez tytułu'}</h3>}
+            {parts.length > 1 && <h3 className="lib-section">{str(text.data, 'title') || t('common.untitled')}</h3>}
             {points.length === 0 ? (
               <p className="lib-cover-lead">
-                Ten tekst nie ma jeszcze planu — <a href={viewPath('scriptorium', library.libraryId, text.id)}>dopisz go w tekście</a> (zakładka „Plan”), a tu zaznaczysz, co z niego padło.
+                {rich(t('scriptorium.delivery.coverage.noPlan'), { a: (s) => <a href={viewPath('scriptorium', library.libraryId, text.id)}>{s}</a> })}
               </p>
             ) : (
               <ol className="lib-cover-list">
@@ -114,8 +116,8 @@ function CoverageEditor({ store, library, entry, data, set, readOnly, now }: {
                   return (
                     <li key={p.id} className={`lib-cover-row is-d${p.depth} is-${state === '' ? 'open' : state}`}>
                       <span className="lib-point-no">{numbers.get(p.id)}</span>
-                      <span className="lib-cover-point">{pointLine(p.text, store, 240) || '(pusty punkt)'}</span>
-                      <span className="wk-seg lib-cover-states" role="group" aria-label="Jak">
+                      <span className="lib-cover-point">{pointLine(p.text, store, 240) || t('scriptorium.delivery.coverage.emptyPoint')}</span>
+                      <span className="wk-seg lib-cover-states" role="group" aria-label={t('scriptorium.delivery.coverage.how')}>
                         {COVERAGE_STATES.map((s) => (
                           <button key={s.value} type="button" disabled={readOnly} aria-pressed={state === s.value}
                             className={state === s.value ? `wk-seg-opt wk-seg-on is-${s.value}` : 'wk-seg-opt'}
@@ -125,15 +127,15 @@ function CoverageEditor({ store, library, entry, data, set, readOnly, now }: {
                         ))}
                       </span>
                       <span className="lib-cover-time">
-                        <input value={item?.at ?? ''} disabled={readOnly} placeholder="m:ss" aria-label="Czas w nagraniu" inputMode="numeric"
+                        <input value={item?.at ?? ''} disabled={readOnly} placeholder={t('scriptorium.delivery.timePlaceholder')} aria-label={t('scriptorium.delivery.timeInRecording')} inputMode="numeric"
                           onChange={(e) => change(p.id, { at: e.target.value.trim() })} />
                         {now !== null && !readOnly && (
-                          <button type="button" className="wk-link-btn" title="Wpisz czas z odtwarzacza" aria-label="Czas z odtwarzacza"
+                          <button type="button" className="wk-link-btn" title={t('scriptorium.delivery.timeFromPlayerTitle')} aria-label={t('scriptorium.delivery.timeFromPlayer')}
                             onClick={() => { const s = now(); if (s !== null) change(p.id, { at: timeText(s), state: state === '' ? 'said' : state }); }}>⏱</button>
                         )}
                       </span>
-                      <input className="lib-cover-note" value={item?.note ?? ''} disabled={readOnly} placeholder="Uwaga: co było inaczej"
-                        aria-label="Uwaga" onChange={(e) => change(p.id, { note: e.target.value })} />
+                      <input className="lib-cover-note" value={item?.note ?? ''} disabled={readOnly} placeholder={t('scriptorium.delivery.coverage.notePlaceholder')}
+                        aria-label={t('scriptorium.delivery.coverage.note')} onChange={(e) => change(p.id, { note: e.target.value })} />
                     </li>
                   );
                 })}
@@ -144,15 +146,15 @@ function CoverageEditor({ store, library, entry, data, set, readOnly, now }: {
       })}
       {!readOnly && all.length > 0 && (
         <div className="wk-actions">
-          <button type="button" className="wk-link-btn" onClick={() => markRest('said')}>Resztę oznacz: powiedziane</button>
-          <button type="button" className="wk-link-btn" onClick={() => markRest('skipped')}>Resztę oznacz: pominięte</button>
-          {coverage.length > 0 && <button type="button" className="wk-link-btn" onClick={() => set({ coverage: [] })}>Wyczyść oznaczenia</button>}
+          <button type="button" className="wk-link-btn" onClick={() => markRest('said')}>{t('scriptorium.delivery.coverage.restSaid')}</button>
+          <button type="button" className="wk-link-btn" onClick={() => markRest('skipped')}>{t('scriptorium.delivery.coverage.restSkipped')}</button>
+          {coverage.length > 0 && <button type="button" className="wk-link-btn" onClick={() => set({ coverage: [] })}>{t('scriptorium.delivery.coverage.clear')}</button>}
         </div>
       )}
       {orphans.length > 0 && (
         <p className="wk-warn">
-          {orphans.length} {orphans.length === 1 ? 'oznaczenie dotyczy punktu' : 'oznaczeń dotyczy punktów'}, których nie ma już w planie.{' '}
-          {!readOnly && <button type="button" className="wk-link-btn" onClick={() => set({ coverage: coverage.filter((c) => !orphans.includes(c)).map(coverageData) })}>Usuń je</button>}
+          {t('scriptorium.delivery.coverage.orphans', { count: orphans.length })}{' '}
+          {!readOnly && <button type="button" className="wk-link-btn" onClick={() => set({ coverage: coverage.filter((c) => !orphans.includes(c)).map(coverageData) })}>{t('scriptorium.delivery.coverage.removeThem')}</button>}
         </p>
       )}
     </section>
@@ -169,6 +171,7 @@ function AddedEditor({ store, entry, data, set, readOnly, now }: {
   readOnly: boolean;
   now: (() => number | null) | null;
 }) {
+  const t = useT();
   const rows = addedRows(data);
   const points = deliveryPlan(entry, store).flatMap((p) => p.points);
   const numbers = pointNumbers(points);
@@ -176,34 +179,34 @@ function AddedEditor({ store, entry, data, set, readOnly, now }: {
   const change = (at: number, patch: Partial<AddedItem>) => write(rows.map((row, i) => (i === at ? { ...row, ...patch } : row)));
 
   return (
-    <section className="lib-cover" aria-label="Co doszło">
-      <h2 className="wk-h2">Co doszło</h2>
-      {rows.length === 0 && <p className="lib-cover-lead">To, co zostało powiedziane, a nie było w planie — przykład, ogłoszenie, nowa myśl.</p>}
+    <section className="lib-cover" aria-label={t('scriptorium.delivery.added.title')}>
+      <h2 className="wk-h2">{t('scriptorium.delivery.added.title')}</h2>
+      {rows.length === 0 && <p className="lib-cover-lead">{t('scriptorium.delivery.added.lead')}</p>}
       {rows.length > 0 && (
         <ul className="lib-added-list">
           {rows.map((row, at) => (
             <li key={at} className="lib-added-row">
-              <textarea rows={2} value={row.text} disabled={readOnly} placeholder="Co padło (jedno-dwa zdania)" aria-label="Co doszło"
+              <textarea rows={2} value={row.text} disabled={readOnly} placeholder={t('scriptorium.delivery.added.placeholder')} aria-label={t('scriptorium.delivery.added.title')}
                 onChange={(e) => change(at, { text: e.target.value })} />
               <span className="lib-cover-time">
-                <input value={row.at} disabled={readOnly} placeholder="m:ss" aria-label="Czas w nagraniu" onChange={(e) => change(at, { at: e.target.value.trim() })} />
+                <input value={row.at} disabled={readOnly} placeholder={t('scriptorium.delivery.timePlaceholder')} aria-label={t('scriptorium.delivery.timeInRecording')} onChange={(e) => change(at, { at: e.target.value.trim() })} />
                 {now !== null && !readOnly && (
-                  <button type="button" className="wk-link-btn" title="Wpisz czas z odtwarzacza" aria-label="Czas z odtwarzacza"
+                  <button type="button" className="wk-link-btn" title={t('scriptorium.delivery.timeFromPlayerTitle')} aria-label={t('scriptorium.delivery.timeFromPlayer')}
                     onClick={() => { const s = now(); if (s !== null) change(at, { at: timeText(s) }); }}>⏱</button>
                 )}
               </span>
-              <select value={row.after} disabled={readOnly} aria-label="Po którym punkcie" onChange={(e) => change(at, { after: e.target.value })}>
-                <option value="">— na końcu —</option>
-                {points.map((p) => <option key={p.id} value={p.id}>po {numbers.get(p.id)} {pointLine(p.text, undefined, 50)}</option>)}
+              <select value={row.after} disabled={readOnly} aria-label={t('scriptorium.delivery.added.after')} onChange={(e) => change(at, { after: e.target.value })}>
+                <option value="">{t('scriptorium.delivery.added.atEnd')}</option>
+                {points.map((p) => <option key={p.id} value={p.id}>{t('scriptorium.delivery.added.afterPoint', { no: numbers.get(p.id) ?? '', text: pointLine(p.text, undefined, 50) })}</option>)}
               </select>
-              {!readOnly && <button type="button" className="wk-link-btn lib-danger-link" aria-label="Usuń" onClick={() => write(rows.filter((_, i) => i !== at))}>×</button>}
+              {!readOnly && <button type="button" className="wk-link-btn lib-danger-link" aria-label={t('common.remove')} onClick={() => write(rows.filter((_, i) => i !== at))}>×</button>}
             </li>
           ))}
         </ul>
       )}
       {!readOnly && (
         <div className="wk-actions">
-          <button type="button" className="wk-link-btn" onClick={() => { const s = now === null ? null : now(); write([...rows, { text: '', at: s === null ? '' : timeText(s), after: '' }]); }}>+ Co doszło</button>
+          <button type="button" className="wk-link-btn" onClick={() => { const s = now === null ? null : now(); write([...rows, { text: '', at: s === null ? '' : timeText(s), after: '' }]); }}>{t('scriptorium.delivery.added.add')}</button>
         </div>
       )}
     </section>
@@ -216,6 +219,7 @@ interface ClassChoice { readonly areaId: string; readonly name: string }
 
 /** Die Klassen im Bereich dieses Skryptorium (einer Szkoła) — `null`: wird gefragt. */
 function useClasses(areaId: string): readonly ClassChoice[] | null {
+  const t = useT();
   const [found, setFound] = useState<readonly ClassChoice[] | null>(null);
   useEffect(() => {
     let alive = true;
@@ -226,11 +230,11 @@ function useClasses(areaId: string): readonly ClassChoice[] | null {
       if (!alive) return;
       const names = new Map(areas.map((a) => [a.areaId.toLowerCase(), a.name] as const));
       setFound(children.filter((c) => c.kind === 'class')
-        .map((c) => ({ areaId: c.areaId.toLowerCase(), name: names.get(c.areaId.toLowerCase()) ?? 'klasa' }))
-        .sort((a, b) => a.name.localeCompare(b.name, 'pl', { numeric: true })));
+        .map((c) => ({ areaId: c.areaId.toLowerCase(), name: names.get(c.areaId.toLowerCase()) ?? t('scriptorium.delivery.lesson.classFallback') }))
+        .sort((a, b) => a.name.localeCompare(b.name, t.locale, { numeric: true })));
     });
     return () => { alive = false; };
-  }, [areaId]);
+  }, [areaId, t]);
   return found;
 }
 
@@ -246,6 +250,7 @@ function LessonSection({ store, library, data, set, readOnly }: {
   set: (patch: EntryData) => void;
   readOnly: boolean;
 }) {
+  const t = useT();
   const classes = useClasses(library.areaId);
   const [sending, setSending] = useState(false);
   const classArea = str(data, 'classArea').trim().toLowerCase();
@@ -256,42 +261,42 @@ function LessonSection({ store, library, data, set, readOnly }: {
     setSending(true);
     try {
       const who = await whoIsThere();
-      if (who === null) throw new WorkspaceError('Zaloguj się, żeby napisać do klasy.');
+      if (who === null) throw new WorkspaceError(t('scriptorium.delivery.lesson.signIn'));
       const keys = await keysFor(who);
       const person = selfOf(keys.graph);
-      if (keys.ring === null || person === null) throw new WorkspaceError('Najpierw podaj hasło — klucze nie są otwarte w tej karcie.');
+      if (keys.ring === null || person === null) throw new WorkspaceError(t('scriptorium.delivery.lesson.passwordFirst'));
       const text = store.get(ids(data, 'texts')[0] ?? '');
       await postToClass(keys.ring, {
         classAreaId: classArea, personId: person.id,
         text: lessonMessage({ date: str(data, 'date'), title: text === undefined ? null : str(text.data, 'title'), summary: str(data, 'summary'), homework: str(data, 'homework') })
       });
-      toast('Wysłane do klasy.', { kind: 'ok' });
+      toast(t('scriptorium.delivery.lesson.sent'), { kind: 'ok' });
     } catch (e) {
-      toast(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać do klasy.', { kind: 'error' });
+      toast(e instanceof WorkspaceError ? e.message : t('scriptorium.delivery.lesson.sendFailed'), { kind: 'error' });
     } finally {
       setSending(false);
     }
   };
 
   return (
-    <section className="lib-cover sc-lesson" aria-label="Lekcja w klasie" data-lesson-form="">
-      <h2 className="wk-h2">Lekcja w klasie</h2>
+    <section className="lib-cover sc-lesson" aria-label={t('scriptorium.delivery.lesson.title')} data-lesson-form="">
+      <h2 className="wk-h2">{t('scriptorium.delivery.lesson.title')}</h2>
       <p className="lib-cover-lead">
-        Temat lekcji to tekst z programu — wybierasz go niżej (pole „Kazanie (tekst)”). Poniżej, punkt po punkcie, zaznaczysz, co z jego planu było w tej klasie.
+        {t('scriptorium.delivery.lesson.lead')}
       </p>
       <label className="wk-field">
-        <span>Klasa</span>
+        <span>{t('scriptorium.delivery.lesson.class')}</span>
         <select value={classArea} disabled={readOnly} data-lesson-class="" onChange={(e) => set({ classArea: e.target.value })}>
-          <option value="">— bez klasy (zwykłe wygłoszenie) —</option>
+          <option value="">{t('scriptorium.delivery.lesson.noClass')}</option>
           {classes.map((c) => <option key={c.areaId} value={c.areaId}>{c.name}</option>)}
-          {classArea !== '' && !classes.some((c) => c.areaId === classArea) && <option value={classArea}>inna klasa</option>}
+          {classArea !== '' && !classes.some((c) => c.areaId === classArea) && <option value={classArea}>{t('scriptorium.delivery.lesson.otherClass')}</option>}
         </select>
       </label>
       {classArea !== '' && (
         <>
           <div className="wk-field">
-            <span>Stan lekcji</span>
-            <span className="wk-seg sc-states" role="group" aria-label="Stan lekcji">
+            <span>{t('scriptorium.delivery.lesson.state')}</span>
+            <span className="wk-seg sc-states" role="group" aria-label={t('scriptorium.delivery.lesson.state')}>
               {LESSON_STATES.map((s) => (
                 <button key={s.value} type="button" disabled={readOnly} aria-pressed={state === s.value} data-lesson-state={s.value}
                   className={state === s.value ? `wk-seg-opt wk-seg-on is-${s.value}` : 'wk-seg-opt'}
@@ -302,16 +307,16 @@ function LessonSection({ store, library, data, set, readOnly }: {
             </span>
           </div>
           <label className="wk-field">
-            <span>Zadanie dla klasy</span>
-            <textarea rows={2} value={str(data, 'homework')} disabled={readOnly} placeholder="np. Przeczytać Rdz 1,1-31" data-lesson-homework=""
+            <span>{t('scriptorium.delivery.lesson.homework')}</span>
+            <textarea rows={2} value={str(data, 'homework')} disabled={readOnly} placeholder={t('scriptorium.delivery.lesson.homeworkPlaceholder')} data-lesson-homework=""
               onChange={(e) => set({ homework: e.target.value })} />
           </label>
           {!readOnly && (
             <div className="wk-actions">
               <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={sending} data-lesson-send="" onClick={() => void send()}>
-                {sending ? 'Wysyłanie…' : 'Wyślij klasie'}
+                {sending ? t('scriptorium.delivery.lesson.sending') : t('scriptorium.delivery.lesson.send')}
               </button>
-              <span className="lib-cover-lead">Temat, „Krótko o tym wygłoszeniu” i zadanie — do kanału klasy (albo jej rozmowy).</span>
+              <span className="lib-cover-lead">{t('scriptorium.delivery.lesson.sendLead')}</span>
             </div>
           )}
         </>
@@ -331,6 +336,7 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
   set: (patch: EntryData) => void;
   readOnly: boolean;
 }) {
+  const t = useT();
   const media = useRef<HTMLMediaElement | null>(null);
   const audio = str(data, 'audio');
   const video = str(data, 'video');
@@ -342,8 +348,8 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
       <LessonSection store={store} library={library} data={data} set={set} readOnly={readOnly} />
       <FieldList store={store} kind="delivery" data={data} set={set} readOnly={readOnly} only={['texts', 'date', 'occasion', 'place', 'audience', 'readings']} />
 
-      <section className="lib-cover" aria-label="Nagranie">
-        <h2 className="wk-h2">Nagranie</h2>
+      <section className="lib-cover" aria-label={t('scriptorium.delivery.recording')}>
+        <h2 className="wk-h2">{t('scriptorium.delivery.recording')}</h2>
         <FieldList store={store} kind="delivery" data={data} set={set} readOnly={readOnly} only={['audio', 'video', 'duration']} />
         {(audio !== '' || video !== '') && (
           <div className="lib-recordings">
@@ -351,7 +357,7 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
             {video !== '' && <MediaPlayer url={video} kind="video" media={mediaFile(audio) === null && mediaFile(video) !== null ? media : undefined} />}
           </div>
         )}
-        {file && <p className="lib-cover-lead">Słuchając, naciśnij ⏱ przy punkcie — wpisze się czas z odtwarzacza.</p>}
+        {file && <p className="lib-cover-lead">{t('scriptorium.delivery.listenHint')}</p>}
       </section>
 
       <CoverageEditor store={store} library={library} entry={entry} data={data} set={set} readOnly={readOnly} now={now} />
@@ -360,17 +366,17 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
       <FieldList store={store} kind="delivery" data={data} set={set} readOnly={readOnly} only={['summary']} />
 
       <details className="wk-fold">
-        <summary>Zapis wygłoszenia (transkrypcja)</summary>
+        <summary>{t('scriptorium.delivery.transcript')}</summary>
         <WritingArea store={store} value={str(data, 'transcript')} readOnly={readOnly}
-          placeholder="To, co zostało powiedziane, słowo w słowo — akapity oddzielone pustą linią." onChange={(next) => set({ transcript: next })} />
+          placeholder={t('scriptorium.delivery.transcriptPlaceholder')} onChange={(next) => set({ transcript: next })} />
       </details>
 
       {!readOnly && (
         <JsonPanel
-          summary="Z nagrania albo zapisu — przez AI we własnym czacie"
-          lead={<>Skopiuj polecenie — jest w nim plan z identyfikatorami punktów. Wklej je w swoim czacie razem z nagraniem albo zapisem, a odpowiedź (JSON) wklej tutaj: trafi do tego formularza.</>}
+          summary={t('scriptorium.delivery.ai.summary')}
+          lead={t('scriptorium.delivery.ai.lead')}
           fileName={`wyglosznie-${str(data, 'date') || entry.id.slice(0, 8)}.json`}
-          exportDoc={() => exportScriptorium('wygłoszenie', [entry], store)}
+          exportDoc={() => exportScriptorium(t('scriptorium.delivery.exportName'), [entry], store)}
           description={() => deliveryPrompt(entry, store)}
           preview={(doc) => {
             const found = patchFromDoc(doc, { id: entry.id, kind: 'delivery' }, store, SCRIPTORIUM_SPEC);
@@ -380,15 +386,15 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
             const unknown = orphanCoverage(coverage, all).length;
             return {
               lines: [...found.lines, ...(coverage.length > 0 ? [countsLine(coverageCounts(all, coverage, addedRows(found.patch)))] : [])],
-              warnings: [...found.warnings, ...(unknown > 0 ? [`${unknown} oznaczeń wskazuje punkty, których nie ma w planie.`] : [])]
+              warnings: [...found.warnings, ...(unknown > 0 ? [t('scriptorium.delivery.ai.unknownPoints', { count: unknown })] : [])]
             };
           }}
-          importLabel="Wpisz do formularza"
+          importLabel={t('scriptorium.delivery.ai.import')}
           onImport={async (doc) => {
             const found = patchFromDoc(doc, { id: entry.id, kind: 'delivery' }, store, SCRIPTORIUM_SPEC);
             if ('error' in found) throw new Error(found.error);
             set(found.patch);
-            return { lines: ['Wpisane do formularza — zapisze się samo.'], warnings: found.warnings };
+            return { lines: [t('scriptorium.delivery.ai.imported')], warnings: found.warnings };
           }}
         />
       )}
@@ -399,25 +405,26 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
 /* -- Am Text: seine Wygłoszenia ------------------------------------------------------------------ */
 
 export function DeliveriesBox({ store, library, text, readOnly }: { store: LibraryStore; library: OpenLibrary; text: LibEntry; readOnly: boolean }) {
+  const t = useT();
   const list = deliveriesOf(text, store);
   const plan = planOf(text.data);
   return (
     <section className="lib-box">
-      <h2 className="lib-box-h">Wygłoszenia</h2>
-      {list.length === 0 ? <p>Jeszcze nie wygłoszony. Po kazaniu dopisz, kiedy i gdzie — i co z planu padło.</p> : (
+      <h2 className="lib-box-h">{t('scriptorium.delivery.box.title')}</h2>
+      {list.length === 0 ? <p>{t('scriptorium.delivery.box.none')}</p> : (
         <ul className="lib-rel">
           {list.map((d) => {
             const counts = countsLine(coverageCounts(plan, coverageOf(d.data), addedRows(d.data).filter((a) => a.text.trim() !== '')));
             return (
               <li key={d.id}>
-                <a href={viewPath('scriptorium', library.libraryId, d.id)}>{[str(d.data, 'date') || 'bez daty', str(d.data, 'occasion')].filter(Boolean).join(' · ')}</a>
+                <a href={viewPath('scriptorium', library.libraryId, d.id)}>{[str(d.data, 'date') || t('scriptorium.noDate'), str(d.data, 'occasion')].filter(Boolean).join(' · ')}</a>
                 {counts !== '' && <span className="lib-row-meta"> — {counts}</span>}
               </li>
             );
           })}
         </ul>
       )}
-      {!readOnly && <a className="wk-link-btn" href={viewPath('scriptorium', library.libraryId, 'nowy', 'delivery', `texts=${text.id}`)}>+ Wygłoszenie</a>}
+      {!readOnly && <a className="wk-link-btn" href={viewPath('scriptorium', library.libraryId, 'nowy', 'delivery', `texts=${text.id}`)}>{t('scriptorium.delivery.box.add')}</a>}
     </section>
   );
 }

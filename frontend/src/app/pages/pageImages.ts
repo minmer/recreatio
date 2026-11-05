@@ -16,6 +16,7 @@
  */
 
 import { API, call, WorkspaceError } from '../core/session';
+import { t } from '../core/i18n';
 
 export interface PageImageRow {
   readonly id: string;
@@ -96,11 +97,11 @@ export async function uploadPageFile(path: string, file: File | Blob, name: stri
   const image = isImageType(type);
   const media = isMediaType(type);
   if (!image && !media && !Object.values(FILE_TYPES).includes(type)) {
-    throw new WorkspaceError('Tylko obrazy (JPEG, PNG, WebP, GIF, AVIF), filmy (MP4, WebM), dźwięki (MP3, M4A, OGG, WAV), PDF, dokumenty Office i OpenDocument albo ślad GPX.');
+    throw new WorkspaceError(t('pages.files.badType'));
   }
   const most = image ? MAX_IMAGE_BYTES : media ? MAX_MEDIA_BYTES : MAX_FILE_BYTES;
   if (file.size > most) {
-    throw new WorkspaceError(image ? 'Obraz może mieć najwyżej 8 MB.' : media ? 'Film albo dźwięk może mieć najwyżej 30 MB.' : 'Plik może mieć najwyżej 25 MB.');
+    throw new WorkspaceError(t(image ? 'pages.files.imageTooBig' : media ? 'pages.files.mediaTooBig' : 'pages.files.fileTooBig'));
   }
 
   let response: Response;
@@ -112,18 +113,18 @@ export async function uploadPageFile(path: string, file: File | Blob, name: stri
       body: file
     });
   } catch {
-    throw new WorkspaceError('Nie udało się połączyć z usługą.');
+    throw new WorkspaceError(t('pages.files.noConnection'));
   }
 
   const said = await response.json().catch(() => null) as { id?: string; error?: string; contentType?: string; size?: number } | null;
   if (!response.ok || said?.id === undefined) {
-    throw new WorkspaceError(said?.error ?? (image ? 'Nie udało się wgrać obrazu.' : 'Nie udało się wgrać pliku.'));
+    throw new WorkspaceError(said?.error ?? t(image ? 'pages.files.imageFailed' : 'pages.files.fileFailed'));
   }
   return { id: said.id, contentType: said.contentType ?? type, size: said.size ?? file.size, name, createdAt: new Date().toISOString() };
 }
 
 export async function uploadPageImage(path: string, file: File): Promise<PageImageRow> {
-  if (!isImageType(file.type)) throw new WorkspaceError('Tylko obrazy: JPEG, PNG, WebP, GIF albo AVIF.');
+  if (!isImageType(file.type)) throw new WorkspaceError(t('pages.files.onlyImages'));
   return uploadPageFile(path, file, file.name, file.type);
 }
 

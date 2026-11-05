@@ -26,7 +26,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
-import { plural } from '../core/plural';
+import { useT, type T } from '../core/i18n';
 import type { PartSize } from '../pages/part';
 import { Loading } from '../ui/Loading';
 import { Segment } from '../ui/Segment';
@@ -45,10 +45,10 @@ const PAGE = 30;
 
 /** Wie das Archiv geordnet ist — nach dem letzten Halten (Datum) oder nach dem Titel. */
 const ORDERS: readonly { readonly value: Order; readonly label: string }[] = [
-  { value: '-sort', label: 'najnowsze' },
-  { value: 'sort', label: 'najstarsze' },
-  { value: 'key', label: 'tytuł A–Z' },
-  { value: '-key', label: 'tytuł Z–A' }
+  { value: '-sort', label: 'scriptorium.archive.order.newest' },
+  { value: 'sort', label: 'scriptorium.archive.order.oldest' },
+  { value: 'key', label: 'scriptorium.archive.order.titleAz' },
+  { value: '-key', label: 'scriptorium.archive.order.titleZa' }
 ];
 
 export function WritingsCard({ library, title, project, layout, size, whole = false, prefix }: {
@@ -61,6 +61,7 @@ export function WritingsCard({ library, title, project, layout, size, whole = fa
   whole?: boolean;
   prefix: string;
 }) {
+  const t = useT();
   const big = whole || size.height === 'tall';
   const top = useRef<HTMLDivElement | null>(null);
   const { store, revision, state } = usePageLibrary(library === '' ? null : library);
@@ -81,7 +82,7 @@ export function WritingsCard({ library, title, project, layout, size, whole = fa
   if (open !== null) {
     return (
       <div className="lib-archive-one" ref={top}>
-        <button type="button" className="wk-link-btn" onClick={() => pick(null)}>← Wszystkie teksty</button>
+        <button type="button" className="wk-link-btn" onClick={() => pick(null)}>{t('scriptorium.archive.allTexts')}</button>
         <WritingCard
           library={library} entryId={open.text} size={size} whole prefix={prefix} delivery={open.delivery}
           onDelivery={(delivery) => { setOpen({ text: open.text, delivery }); setHashParams({ tw: delivery }); }}
@@ -90,8 +91,8 @@ export function WritingsCard({ library, title, project, layout, size, whole = fa
     );
   }
 
-  if (state === 'loading') return <div ref={top} className="lib-archive-wrap"><Head title={title} /><Loading label="Wczytywanie…" /></div>;
-  if (store === null) return <div ref={top} className="lib-archive-wrap"><Head title={title} /><p className="wk-card-text">Tego skryptorium nie widzisz — jego obszar nie jest publiczny.</p></div>;
+  if (state === 'loading') return <div ref={top} className="lib-archive-wrap"><Head title={title} /><Loading label={t('common.loading')} /></div>;
+  if (store === null) return <div ref={top} className="lib-archive-wrap"><Head title={title} /><p className="wk-card-text">{t('scriptorium.archive.notPublic')}</p></div>;
 
   return (
     <div ref={top} className="lib-archive-wrap">
@@ -103,19 +104,19 @@ export function WritingsCard({ library, title, project, layout, size, whole = fa
 }
 
 /** Die Texte dieses Skryptorium als Zeilen, ihre Achsen (Felder der Rodzaje tekstów, Projekte) — neu, wenn sich etwas ändert. */
-function useArchive(store: LibraryStore, revision: number): { rows: readonly ArchiveRow[]; facets: readonly Facet[]; projects: readonly { id: string; title: string }[] } {
+function useArchive(store: LibraryStore, revision: number, t: T): { rows: readonly ArchiveRow[]; facets: readonly Facet[]; projects: readonly { id: string; title: string }[] } {
   return useMemo(() => {
     const rows = store.ofKind('text').map((t) => archiveRow(t, store));
-    const projects = store.ofKind('project').map((p) => ({ id: p.id, title: str(p.data, 'title') || 'Projekt' })).sort((a, b) => a.title.localeCompare(b.title, 'pl'));
+    const projects = store.ofKind('project').map((p) => ({ id: p.id, title: str(p.data, 'title') || t('scriptorium.archive.project') })).sort((a, b) => a.title.localeCompare(b.title, t.locale));
     return { rows, projects, facets: facetsOf(rows, projects) };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store, revision]);
+  }, [store, revision, t]);
 }
 
 /* -- Klein: die letzten Texte ------------------------------------------------------------------- */
 
-const metaOf = (row: ArchiveRow): string =>
-  [row.date === '' ? '' : dateWords(row.date), row.occasion, row.held > 1 ? `wygłoszony ${row.held}×` : '', row.recorded ? 'z nagraniem' : '']
+const metaOf = (row: ArchiveRow, t: T): string =>
+  [row.date === '' ? '' : dateWords(row.date, t.lang), row.occasion, row.held > 1 ? t('scriptorium.heldTimes', { count: row.held }) : '', row.recorded ? t('scriptorium.archive.recorded') : '']
     .filter(Boolean).join(' · ');
 
 function Recent({ store, revision, title, project, size, onOpen }: {
@@ -126,24 +127,25 @@ function Recent({ store, revision, title, project, size, onOpen }: {
   size: PartSize;
   onOpen: (id: string) => void;
 }) {
+  const t = useT();
   const take = size.height === 'strip' ? 1 : size.width === 'narrow' ? 4 : 6;
   const [shown, setShown] = useState(take);
   useEffect(() => { setShown(take); }, [take]);
-  const archive = useArchive(store, revision);
+  const archive = useArchive(store, revision, t);
   const found = useMemo(() => browseLocal(archive.rows, { groups: [[project]], matching: null, order: '-sort' }).rows, [archive, project]);
   const rows = found.slice(0, shown);
 
   return (
     <div className="lib-archive">
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
-      {rows.length === 0 && <p className="wk-card-text">Nie ma jeszcze tekstów.</p>}
+      {rows.length === 0 && <p className="wk-card-text">{t('scriptorium.archive.noTexts')}</p>}
       {rows.length > 0 && (
         <ul className="lib-archive-list">
           {rows.map((row) => (
             <li key={row.id}>
               <button type="button" className="lib-archive-item" onClick={() => onOpen(row.id)}>
                 <span className="lib-archive-title">{row.title}</span>
-                <span className="lib-meta">{metaOf(row)}</span>
+                <span className="lib-meta">{metaOf(row, t)}</span>
                 {size.height !== 'strip' && size.width !== 'narrow' && row.summary !== '' && <span className="lib-archive-lead">{row.summary}</span>}
               </button>
             </li>
@@ -151,7 +153,7 @@ function Recent({ store, revision, title, project, size, onOpen }: {
         </ul>
       )}
       {rows.length < found.length && size.height !== 'strip' && (
-        <button type="button" className="wk-link-btn" onClick={() => setShown((n) => n + take)}>Więcej ({found.length - rows.length})</button>
+        <button type="button" className="wk-link-btn" onClick={() => setShown((n) => n + take)}>{t('scriptorium.archive.more', { count: found.length - rows.length })}</button>
       )}
     </div>
   );
@@ -167,6 +169,7 @@ function Browser({ store, revision, title, project, initial, onOpen }: {
   initial: Layout;
   onOpen: (id: string) => void;
 }) {
+  const t = useT();
   const [layout, setLayout] = useState<Layout>(() => { const word = hashParam('tu'); return word === null ? initial : layoutOf(word); });
   const [query, setQuery] = useState(() => hashParam('tq') ?? '');
   const [chosen, setChosen] = useState<readonly string[]>(() => (hashParam('tf') ?? '').split(',').filter((id) => /^[0-9a-f-]{36}$/i.test(id)));
@@ -174,7 +177,7 @@ function Browser({ store, revision, title, project, initial, onOpen }: {
   const [shown, setShown] = useState(PAGE);
   useEffect(() => { setShown(PAGE); }, [query, chosen, order]);
 
-  const archive = useArchive(store, revision);
+  const archive = useArchive(store, revision, t);
   const facets = archive.facets;
   const projectIds = useMemo(() => new Set(archive.projects.map((p) => p.id)), [archive]);
   const keyOf = useMemo(() => (id: string) => facetKey(id, facets, projectIds), [facets, projectIds]);
@@ -212,23 +215,23 @@ function Browser({ store, revision, title, project, initial, onOpen }: {
     <>
       <div className="lib-results-bar">
         <p className="lib-results" role="status">
-          {found.total} {plural(found.total, 'tekst', 'teksty', 'tekstów')}{query.trim() === '' ? '' : ` — „${query.trim()}”`}
+          {query.trim() === '' ? t('scriptorium.archive.count', { count: found.total }) : t('scriptorium.archive.countFor', { count: found.total, query: query.trim() })}
         </p>
         <label className="lib-order">
-          <span>Kolejność</span>
+          <span>{t('scriptorium.archive.order.label')}</span>
           <select value={order} onChange={(e) => setOrder(orderOf(e.target.value) ?? '-sort')}>
-            {ORDERS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {ORDERS.map((o) => <option key={o.value} value={o.value}>{t(o.label)}</option>)}
           </select>
         </label>
       </div>
       {rows.length === 0 && (
-        <p className="wk-card-text">{searching ? 'Nic nie pasuje — zmień filtry albo wyszukiwanie.' : 'Nie ma jeszcze tekstów.'}</p>
+        <p className="wk-card-text">{searching ? t('scriptorium.archive.noMatch') : t('scriptorium.archive.noTexts')}</p>
       )}
       {rows.length > 0 && (layout === 'table'
         ? <Table rows={rows} facets={facets} order={order} onOrder={setOrder} onOpen={onOpen} onPick={pick} />
         : <Rows rows={rows} order={order} onOpen={onOpen} onPick={pick} />)}
       {rows.length < found.total && (
-        <button type="button" className="wk-link-btn" onClick={() => setShown((n) => n + PAGE)}>Więcej ({found.total - rows.length})</button>
+        <button type="button" className="wk-link-btn" onClick={() => setShown((n) => n + PAGE)}>{t('scriptorium.archive.more', { count: found.total - rows.length })}</button>
       )}
     </>
   );
@@ -237,9 +240,9 @@ function Browser({ store, revision, title, project, initial, onOpen }: {
     <div className={`lib-archive lib-browse is-${layout}`}>
       <Head title={title} />
       <div className="lib-browse-bar">
-        <input className="lib-archive-search" type="search" value={query} placeholder="Szukaj w tekstach…" aria-label="Szukaj w tekstach" onChange={(e) => setQuery(e.target.value)} />
+        <input className="lib-archive-search" type="search" value={query} placeholder={t('scriptorium.archive.searchPlaceholder')} aria-label={t('scriptorium.archive.search')} onChange={(e) => setQuery(e.target.value)} />
         {/* 2026-10-22 (Schritt 10) — die Tabela ist ausgemustert (Baustein „Widok"); wer sie eingestellt hat, behält sie bis zur Umstellung. */}
-        <Segment now={layout} options={initial === 'table' || layout === 'table' ? LAYOUTS : LAYOUTS.filter((l) => l.value !== 'table')} busy={false} onPick={setLayout} />
+        <Segment now={layout} options={(initial === 'table' || layout === 'table' ? LAYOUTS : LAYOUTS.filter((l) => l.value !== 'table')).map((l) => ({ ...l, label: t(l.label) }))} busy={false} onPick={setLayout} />
       </div>
 
       {layout !== 'tree' && facets.length > 0 && (
@@ -253,7 +256,7 @@ function Browser({ store, revision, title, project, initial, onOpen }: {
                   const next = e.target.value;
                   setChosen((was) => (next === '' ? was.filter((id) => keyOf(id) !== facet.id) : choose(was.filter((id) => keyOf(id) !== facet.id), next, keyOf, false)));
                 }}>
-                  <option value="">wszystkie</option>
+                  <option value="">{t('scriptorium.archive.allValues')}</option>
                   {facet.values.filter((v) => { const n = countOf(facet.id, v.id); return n === null || n > 0 || v.id === value; }).map((v) => {
                     const n = countOf(facet.id, v.id);
                     return <option key={v.id} value={v.id}>{v.name}{n === null ? '' : ` (${n})`}</option>;
@@ -270,10 +273,10 @@ function Browser({ store, revision, title, project, initial, onOpen }: {
           {chosen.map((id) => (
             <span key={id} className="lib-chip is-on">
               {facetName(id) !== '' && <span className="lib-chip-aspect">{facetName(id)}:</span>}{nameOf(id)}
-              <button type="button" className="lib-chip-x" aria-label={`Bez filtra: ${nameOf(id)}`} onClick={() => setChosen((was) => was.filter((one) => one !== id))}>×</button>
+              <button type="button" className="lib-chip-x" aria-label={t('scriptorium.archive.removeFilter', { name: nameOf(id) })} onClick={() => setChosen((was) => was.filter((one) => one !== id))}>×</button>
             </span>
           ))}
-          <button type="button" className="wk-link-btn" onClick={() => setChosen([])}>Wyczyść filtry</button>
+          <button type="button" className="wk-link-btn" onClick={() => setChosen([])}>{t('scriptorium.archive.clearFilters')}</button>
         </p>
       )}
 
@@ -292,6 +295,7 @@ const Head = ({ title }: { title: string }) => (title === '' ? null : <h2 classN
 /* -- Lista ------------------------------------------------------------------------------------------ */
 
 function Rows({ rows, order, onOpen, onPick }: { rows: readonly ArchiveRow[]; order: Order; onOpen: (id: string) => void; onPick: (id: string) => void }) {
+  const t = useT();
   const byDate = order === 'sort' || order === '-sort';
   let year = '';
   return (
@@ -305,7 +309,7 @@ function Rows({ rows, order, onOpen, onPick }: { rows: readonly ArchiveRow[]; or
           <li key={row.id} className="lib-archive-entry">
             <button type="button" className="lib-archive-item" onClick={() => onOpen(row.id)}>
               <span className="lib-archive-title">{row.title}</span>
-              {metaOf(row) !== '' && <span className="lib-meta">{metaOf(row)}</span>}
+              {metaOf(row, t) !== '' && <span className="lib-meta">{metaOf(row, t)}</span>}
               {row.summary !== '' && <span className="lib-archive-lead">{row.summary}</span>}
             </button>
             {(row.marks.length > 0 || row.project !== null) && (
@@ -331,6 +335,7 @@ function Table({ rows, facets, order, onOrder, onOpen, onPick }: {
   onOpen: (id: string) => void;
   onPick: (id: string) => void;
 }) {
+  const t = useT();
   const columns = facets.slice(0, 6);
   const sorted = (by: 'sort' | 'key') => (order === by ? 'ascending' : order === `-${by}` ? 'descending' : 'none');
   const arrow = (by: 'sort' | 'key') => (order === by ? ' ↑' : order === `-${by}` ? ' ↓' : '');
@@ -339,8 +344,8 @@ function Table({ rows, facets, order, onOrder, onOpen, onPick }: {
       <table className="lib-table">
         <thead>
           <tr>
-            <th scope="col" aria-sort={sorted('key')}><button type="button" onClick={() => onOrder(order === 'key' ? '-key' : 'key')}>Tytuł{arrow('key')}</button></th>
-            <th scope="col" aria-sort={sorted('sort')}><button type="button" onClick={() => onOrder(order === '-sort' ? 'sort' : '-sort')}>Kiedy{arrow('sort')}</button></th>
+            <th scope="col" aria-sort={sorted('key')}><button type="button" onClick={() => onOrder(order === 'key' ? '-key' : 'key')}>{t('scriptorium.archive.col.title')}{arrow('key')}</button></th>
+            <th scope="col" aria-sort={sorted('sort')}><button type="button" onClick={() => onOrder(order === '-sort' ? 'sort' : '-sort')}>{t('scriptorium.archive.col.when')}{arrow('sort')}</button></th>
             {columns.map((f) => <th key={f.id} scope="col">{f.name}</th>)}
           </tr>
         </thead>
@@ -351,8 +356,8 @@ function Table({ rows, facets, order, onOrder, onOpen, onPick }: {
                 <button type="button" className="lib-table-title" onClick={() => onOpen(row.id)}>{row.title}</button>
                 {row.plan.length > 0 && <span className="lib-table-sub">{row.plan.slice(0, 3).join(' · ')}</span>}
               </td>
-              <td className="lib-table-date" data-label="Kiedy">
-                {row.date === '' ? '' : dateWords(row.date)}
+              <td className="lib-table-date" data-label={t('scriptorium.archive.col.when')}>
+                {row.date === '' ? '' : dateWords(row.date, t.lang)}
                 {(row.occasion !== '' || row.held > 1) && <span className="lib-table-sub">{[row.occasion, row.held > 1 ? `${row.held}×` : ''].filter(Boolean).join(' · ')}</span>}
               </td>
               {columns.map((f) => {
@@ -380,9 +385,10 @@ function TreeNav({ facets, chosen, keyOf, countOf, onPick }: {
   countOf: (facet: string, id: string) => number | null;
   onPick: (id: string) => void;
 }) {
+  const t = useT();
   const [facetId, setFacetId] = useState(() => (chosen.length > 0 ? keyOf(chosen[chosen.length - 1]) : facets[0]?.id ?? ''));
   const facet = facets.find((f) => f.id === facetId) ?? facets[0];
-  if (facet === undefined) return <nav className="lib-tree" aria-label="Według czego"><p className="wk-card-text">Teksty nie mają jeszcze pól, według których można je przeglądać (rodzaj tekstu z polem-odwołaniem).</p></nav>;
+  if (facet === undefined) return <nav className="lib-tree" aria-label={t('scriptorium.archive.byWhat')}><p className="wk-card-text">{t('scriptorium.archive.noFacets')}</p></nav>;
 
   const node = (v: { id: string; name: string }): ReactElement | null => {
     const count = countOf(facet.id, v.id);
@@ -400,9 +406,9 @@ function TreeNav({ facets, chosen, keyOf, countOf, onPick }: {
   };
 
   return (
-    <nav className="lib-tree" aria-label="Według czego">
+    <nav className="lib-tree" aria-label={t('scriptorium.archive.byWhat')}>
       {facets.length > 1 && (
-        <div className="lib-tree-tabs" role="group" aria-label="Według czego">
+        <div className="lib-tree-tabs" role="group" aria-label={t('scriptorium.archive.byWhat')}>
           {facets.map((f) => (
             <button key={f.id} type="button" className={f.id === facet.id ? 'lib-chip is-on' : 'lib-chip'} aria-pressed={f.id === facet.id} onClick={() => setFacetId(f.id)}>{f.name}</button>
           ))}

@@ -23,6 +23,7 @@
  * Ausschnitt und Maske mischen sich mit (`mixCrop`, `mixMask`, `maskCss`).
  */
 
+import { texts } from '../../core/i18n';
 import {
   ORIGIN_AT, type Arrival, type Between, type Ease, type Frame, type FrameValues, type Mask, type Origin, type Place, type Progress,
   type SceneChange, type Words
@@ -609,9 +610,9 @@ export function scatterWords(words: Words, perspective = 1000): WordSpot[] {
 export const ARRANGEMENTS = ['ring', 'row', 'column', 'quarters', 'grid', 'stack'] as const;
 export type Arrangement = (typeof ARRANGEMENTS)[number];
 
-export const ARRANGEMENT_LABEL: Record<Arrangement, string> = {
-  ring: 'W kręgu', row: 'W rzędzie', column: 'W kolumnie', quarters: 'Ćwiartki', grid: 'Siatka', stack: 'Jeden pod drugim'
-};
+export const ARRANGEMENT_LABEL: Record<Arrangement, string> = texts({
+  ring: 'pagePresentation.arrangement.ring', row: 'pagePresentation.arrangement.row', column: 'pagePresentation.arrangement.column', quarters: 'pagePresentation.arrangement.quarters', grid: 'pagePresentation.arrangement.grid', stack: 'pagePresentation.arrangement.stack'
+});
 
 export interface Spot {
   readonly x: number;

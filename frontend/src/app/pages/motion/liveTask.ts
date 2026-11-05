@@ -20,6 +20,7 @@
  * Ziel, ein Zahnrad seine Zähne.
  */
 
+import { appLang, tIn } from '../../core/i18n';
 import { toNum, truth, type Env, type Expr } from './expr';
 import type { TaskSpec, VarSpec } from './liveModel';
 import type { World } from './liveWorld';
@@ -60,7 +61,7 @@ export class TaskPlan {
     this.requires = (spec?.require ?? []).map((source, i) => host.compile(source, `task.require[${i}]`)).filter((e): e is Expr => e !== null);
     this.solves = Object.entries(spec?.solve ?? {}).flatMap(([key, source]): (readonly [string, Expr])[] => {
       if (!this.knows(key)) {
-        host.report({ where: 'task.solve', error: `„${key}" — nie ma takiej zmiennej ani własności rzeczy (rzecz.własność)`, source: key, at: 0 });
+        host.report({ where: 'task.solve', error: tIn(appLang(), 'pageMotion.task.unknownKey', { key }), source: key, at: 0 });
         return [];
       }
       const e = host.compile(source, `task.solve „${key}"`);

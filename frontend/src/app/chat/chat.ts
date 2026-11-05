@@ -39,6 +39,7 @@ import { newId } from '../core/ids';
 import type { Ring, SealedRole } from '../core/keys';
 import { forgetNameKeys, openFormNames, openSeatName } from '../core/names';
 import { call, WorkspaceError } from '../core/session';
+import { t } from '../core/i18n';
 
 export type ChatKind = 'area' | 'channel' | 'group' | 'direct' | 'self' | 'seat';
 
@@ -430,7 +431,7 @@ export async function sealVersion(
   keys: ReadonlyMap<number, Uint8Array>, messageId: string, authorId: string, text: string, name: string | null, extras: MessageExtras = {}
 ): Promise<{ epoch: number; sealedBody: Uint8Array; signedAt: number; bodyHash: Uint8Array }> {
   const newest = newestKey(keys);
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tej rozmowy — nie da się zmienić.');
+  if (newest === null) throw new WorkspaceError(t('chat.err.noKeyEdit'));
   const sealedBody = await sealText(newest.key, messageAad(messageId, authorId), encodeBody(text, name, extras));
   return { epoch: newest.epoch, sealedBody, signedAt: Math.floor(Date.now() / 1000), bodyHash: await sha256Bytes(sealedBody) };
 }
@@ -453,7 +454,7 @@ export async function editMessage(
   ring: Ring, messageId: string, keys: ReadonlyMap<number, Uint8Array>, authorRoleId: string, text: string,
   name: string | null, version: number, extras: MessageExtras = {}
 ): Promise<{ version: number; editedAt: string; epoch: number; bodySealed: string }> {
-  if (!ring.maySign(authorRoleId)) throw new WorkspaceError('Ta rola nie może tu podpisywać wiadomości.');
+  if (!ring.maySign(authorRoleId)) throw new WorkspaceError(t('chat.err.roleCannotSign'));
   const { epoch, sealedBody, signedAt, bodyHash } = await sealVersion(keys, messageId, authorRoleId, text, name, extras);
   const signature = await signCanonical(await ring.signKey(authorRoleId), versionValue({
     messageId, authorRoleId, bodyHash, createdAt: signedAt, version
@@ -470,7 +471,7 @@ export async function sealMessage(
   keys: ReadonlyMap<number, Uint8Array>, authorId: string, text: string, name: string | null, extras: MessageExtras & { messageId?: string } = {}
 ): Promise<{ messageId: string; epoch: number; sealedBody: Uint8Array; signedAt: number; bodyHash: Uint8Array }> {
   const newest = newestKey(keys);
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tej rozmowy — nie da się napisać.');
+  if (newest === null) throw new WorkspaceError(t('chat.err.noKeyWrite'));
 
   const messageId = extras.messageId ?? newId();
   const sealedBody = await sealText(newest.key, messageAad(messageId, authorId), encodeBody(text, name, extras));
@@ -485,7 +486,7 @@ export async function sendMessage(
   ring: Ring, chatId: string, keys: ReadonlyMap<number, Uint8Array>, authorRoleId: string, text: string,
   name: string | null, options: SendOptions = {}
 ): Promise<{ messageId: string; createdAt: string; epoch: number }> {
-  if (!ring.maySign(authorRoleId)) throw new WorkspaceError('Ta rola nie może tu podpisywać wiadomości.');
+  if (!ring.maySign(authorRoleId)) throw new WorkspaceError(t('chat.err.roleCannotSign'));
 
   const { messageId, epoch, sealedBody, signedAt, bodyHash } = await sealMessage(keys, authorRoleId, text, name, options);
   const signature = await signCanonical(await ring.signKey(authorRoleId), versionValue({
@@ -595,7 +596,7 @@ export async function setMemberName(
   areaId: string, keys: ReadonlyMap<number, Uint8Array>, roleId: string, name: string, byRoleId: string
 ): Promise<void> {
   const newest = newestKey(keys);
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru.');
+  if (newest === null) throw new WorkspaceError(t('chat.err.noAreaKey'));
 
   await call(`/workspace/area/${encodeURIComponent(areaId)}/names`, {
     method: 'POST',
@@ -698,11 +699,11 @@ export async function startOwnChat(ring: Ring, me: { role: SealedRole; name: str
   channel?: boolean;
 }): Promise<string> {
   if (what.kind === 'direct' && what.invitees.length !== 1) {
-    throw new WorkspaceError('Rozmowa we dwoje to dokładnie jedna druga osoba albo rola.');
+    throw new WorkspaceError(t('chat.err.directOne'));
   }
 
-  const areaName = what.kind === 'direct' ? 'Rozmowa' : what.title.trim();
-  if (areaName === '') throw new WorkspaceError('Nazwij rozmowę.');
+  const areaName = what.kind === 'direct' ? 'Rozmowa' : what.title.trim(); // i18n-ignore
+  if (areaName === '') throw new WorkspaceError(t('chat.err.nameChat'));
 
   const area = await createArea(ring, me.role, areaName);
   const keys = new Map([[area.epoch, area.key]]);

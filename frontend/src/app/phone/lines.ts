@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { t } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import type { Who } from '../core/session';
 import { loadContacts, nameIndex, type Contact } from './contactStore';
@@ -112,10 +113,10 @@ export function ruledNumber(o: {
 
 /** Warum diese Karte — für den Kopf des Gesprächs. */
 export const whyText = (c: Pick<LineChoice, 'why' | 'group'>): string =>
-  c.why === 'thread' ? 'wybrany dla tej rozmowy'
-    : c.why === 'group' ? `grupa „${c.group ?? ''}”`
-    : c.why === 'last' ? 'stąd przyszła ostatnia wiadomość'
-    : 'domyślny numer SMS';
+  c.why === 'thread' ? t('phoneLines.why.thread')
+    : c.why === 'group' ? t('phoneLines.why.group', { group: c.group ?? '' })
+    : c.why === 'last' ? t('phoneLines.why.last')
+    : t('phoneLines.why.default');
 
 /**
  * 2026-10-29 — DAS ZEICHEN DAVOR sagt auf einen Blick, warum diese Nummer sendet: selbst

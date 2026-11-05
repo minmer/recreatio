@@ -1,0 +1,58 @@
+{
+  "photos": {
+    "one": "{count} zdjęcie",
+    "few": "{count} zdjęcia",
+    "many": "{count} zdjęć",
+    "other": "{count} zdjęcia"
+  },
+  "gpx": {
+    "invalid": "Nie udało się odczytać pliku — to nie jest poprawny GPX.",
+    "empty": "Plik nie zawiera ani śladu trasy, ani punktów."
+  },
+  "list": {
+    "up": "Wyżej",
+    "down": "Niżej"
+  },
+  "media": {
+    "imageHint": "Adres obrazu. Wgrać obraz możesz w edytorze strony, na której stoi ten moduł.",
+    "fileLabel": "Adres pliku",
+    "fileHint": "Wgrać plik możesz w edytorze strony, na której stoi ten moduł."
+  },
+  "part": {
+    "title": "Nagłówek",
+    "intro": "Wstęp",
+    "titleKey": "Nagłówek nad treścią",
+    "titleKeyOwn": "Nagłówek nad treścią (tu: tylko nazwa w menu slajdów — moduł pokazuje własny tytuł)",
+    "introKey": "Krótki wstęp pod nagłówkiem (może być pusty)"
+  },
+  "gallery": {
+    "prevPhoto": "Poprzednie zdjęcie",
+    "nextPhoto": "Następne zdjęcie",
+    "open": "Otwórz: {name}",
+    "photo": "zdjęcie",
+    "front": "Pokaż to zdjęcie",
+    "hint": "Kliknij zdjęcie, żeby otworzyć całą galerię — {count}",
+    "title": "Galeria zdjęć",
+    "prev": "Poprzednie",
+    "next": "Następne",
+    "zoomOut": "Pomniejsz",
+    "zoomIn": "Powiększ",
+    "removeMine": "Usuń moje zdjęcie",
+    "remove": "Usuń zdjęcie",
+    "credit": "Zdjęcie: {name}",
+    "nth": "Zdjęcie {n}"
+  },
+  "map": {
+    "fullscreen": "Mapa na pełnym ekranie",
+    "zoomedIn": "Przybliżono: {place}",
+    "zoomedOut": "Oddalono: {place}",
+    "label": "Mapa punktów trasy",
+    "google": "Otwórz w Google Maps ↗",
+    "zoomIn": "Przybliż",
+    "zoomOut": "Oddal",
+    "fit": "Pokaż całą trasę",
+    "close": "Zamknij mapę",
+    "open": "Otwórz mapę",
+    "attribution": "© OpenStreetMap contributors"
+  }
+}

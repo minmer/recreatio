@@ -22,6 +22,7 @@ import { usePerson, type PagePerson } from '../pages/pagePerson';
 import { PageChatRoom } from './PageChatView';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 type RolePerson = Extract<PagePerson, { kind: 'role' }>;
 
@@ -32,6 +33,7 @@ export function OfficeSeatChats({ seatId, areaId, ring, fallback }: {
   /** Ohne Bereich und ohne Rozmowa: der Weg, eine anzufangen (dort wird der Bereich gewählt). */
   fallback?: ReactNode;
 }) {
+  const t = useT();
   const person = usePerson();
   const role: RolePerson | null = person?.chosen?.kind === 'role'
     ? person.chosen
@@ -48,9 +50,9 @@ export function OfficeSeatChats({ seatId, areaId, ring, fallback }: {
       setChats(found);
     } catch (e) {
       setChats([]);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać rozmów.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.list.loadFailed'));
     }
-  }, [seatId, areaId]);
+  }, [seatId, areaId, t]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -63,28 +65,28 @@ export function OfficeSeatChats({ seatId, areaId, ring, fallback }: {
       const { members } = await loadMembers(areaId);
       const as = members.find((m) => ring.has(m.roleId) && m.kind !== 'account'
         && (m.capabilities.includes('read') || m.capabilities.includes('write') || m.capabilities.includes('admin')));
-      if (as === undefined) throw new WorkspaceError('Żadna z Twoich ról nie czyta obszaru tej rozmowy.');
+      if (as === undefined) throw new WorkspaceError(t('chat.office.noReader'));
       await startSeatChat(areaId, as.roleId, seatId);
       await look();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zacząć rozmowy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.office.startFailed'));
     } finally {
       setBusy(false);
     }
   };
 
-  if (seatId === null) return <p className="wk-card-muted">Ta osoba nie ma własnego linku — nie ma z nią rozmowy jeden na jeden.</p>;
-  if (chats === null) return <Loading label="Wczytywanie rozmowy…" />;
-  if (role === null) return <p className="wk-card-muted">Rozmowę z tą osobą czyta się kontem koordynatora.</p>;
+  if (seatId === null) return <p className="wk-card-muted">{t('chat.office.noLink')}</p>;
+  if (chats === null) return <Loading label={t('chat.link.loading')} />;
+  if (role === null) return <p className="wk-card-muted">{t('chat.office.needCoordinator')}</p>;
 
   if (chats.length === 0) {
     return (
       <div className="wk-office-chat" data-office-chat="">
-        <p className="wk-card-muted">Nie ma jeszcze rozmowy z tą osobą.</p>
+        <p className="wk-card-muted">{t('chat.office.none')}</p>
         {areaId !== null ? (
           <div className="wk-actions">
             <button type="button" className="wk-btn" disabled={busy} data-office-chat-start="" onClick={() => void start()}>
-              {busy ? 'Otwieranie…' : 'Zacznij rozmowę z tą osobą'}
+              {busy ? t('chat.office.opening') : t('chat.office.start')}
             </button>
           </div>
         ) : fallback}
@@ -97,11 +99,11 @@ export function OfficeSeatChats({ seatId, areaId, ring, fallback }: {
     <div className="wk-office-chat" data-office-chat="">
       {chats.map((chat) => (
         <section key={chat.chatId} className="wk-seat-chat">
-          {chats.length > 1 && <h3 className="wk-seat-who">Rozmowa z prowadzącymi · {chat.areaName}</h3>}
+          {chats.length > 1 && <h3 className="wk-seat-who">{t('chat.office.withLeaders', { area: chat.areaName })}</h3>}
           <PageChatRoom chatId={chat.chatId} ring={role.ring} asRoleId={role.id} />
         </section>
       ))}
-      <p className="wk-hint">Widzisz rozmowę z wybraną osobą — odpowiadasz jako Ty, nie jako ona.</p>
+      <p className="wk-hint">{t('chat.office.youAnswer')}</p>
       {failed !== null && <p className="wk-error">{failed}</p>}
     </div>
   );

@@ -3,8 +3,9 @@
  */
 
 import type { Duty } from './calendar';
+import { appLang, localeOf, t } from '../core/i18n';
 
-export const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+export const time = (at: Date) => at.toLocaleTimeString(localeOf(appLang()), { hour: '2-digit', minute: '2-digit' });
 
 /**
  * 0079 — WIE „wer da sein muss" heisst, nach der Art: wer die Messe feiert,
@@ -12,6 +13,6 @@ export const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digi
  * neuer Name hineinkommt.
  */
 export const peopleWord = (kind: string): string =>
-  kind === 'mass' ? 'Kto odprawia' : kind === 'confession' ? 'Kto spowiada' : kind === 'devotion' ? 'Kto prowadzi' : 'Kto musi być';
+  t(kind === 'mass' ? 'calendarApp.peopleWord.mass' : kind === 'confession' ? 'calendarApp.peopleWord.confession' : kind === 'devotion' ? 'calendarApp.peopleWord.devotion' : 'calendarApp.peopleWord.other');
 
 export const dutyOf = (kind: string): Duty => (kind === 'mass' ? 'celebrant' : kind === 'devotion' ? 'lead' : 'present');

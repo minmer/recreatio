@@ -1,0 +1,115 @@
+{
+  "run": {
+    "noRevision": "There is no such review.",
+    "keyNotKept": "This review is for learning offline, but the key is not kept on this device — turn on “Key kept on this device” (Account → Security and keys) and open it again.",
+    "revision": "Review",
+    "keepFailed": "Could not save this review on this device for offline learning.",
+    "keptHere": "Saved on this device — you can do this review offline too (Learning → Offline on this device).",
+    "noPlan": "The review produced no plan.",
+    "nothing": "There is nothing to review.",
+    "noCards": "This review has no cards yet.",
+    "prepareFailed": "Could not prepare the review.",
+    "back": "Back",
+    "preparing": "Preparing cards…",
+    "answers": "Answers: {answered}, correct: {correct}.",
+    "answersPct": "Answers: {answered}, correct: {correct} ({pct}%).",
+    "nothingWaits": "Nothing is waiting.",
+    "nextReview": "Next review: {date}.",
+    "heldCards": {
+      "one": "{count} card is waiting",
+      "other": "{count} cards are waiting"
+    },
+    "heldNeeds": " for what has to be known first",
+    "heldFirst": " — first: ",
+    "heldCondition": "condition: ",
+    "heldEnd": ". They come in by themselves once the condition holds.",
+    "packetsWaiting": {
+      "one": "{count} answer packet is waiting for the internet — it will be sent by itself.",
+      "other": "{count} answer packets are waiting for the internet — they will be sent by themselves."
+    },
+    "keptSaved": "This review is also on this device without internet — as it is now.",
+    "keptNoKey": "It is not here offline: the key is not kept on this device (Account → Security and keys).",
+    "noAccount": "Without an account, progress stays in this browser.",
+    "practiceTitle": "Practice: {name}",
+    "nextLesson": "Next lesson",
+    "again": "Once more",
+    "stats": "Statistics — what I know in this review",
+    "flagThanks": "Thank you — the authors will get a report with this card and your answer (without your name).",
+    "flagClosed": "This knowledge base does not accept reports yet.",
+    "flagFailed": "Could not send the report.",
+    "progress": "Review progress",
+    "answered": {
+      "one": "{count} answer",
+      "other": "{count} answers"
+    },
+    "stop": "Finish",
+    "newTopic": "New topic",
+    "newTopics": "New topics",
+    "rateYourself": "Rate yourself. ",
+    "suspended": "This card will not be asked any more (you can undo this in Progress).",
+    "suspend": "Don't ask this",
+    "flag": "Report a problem",
+    "flagAsk": "What is wrong with this card? The authors will see the card, the question and your answer — without your name."
+  },
+  "learnView": {
+    "loadFailed": "Could not load the knowledge bases.",
+    "redirecting": "Redirecting…",
+    "offlineNote": "Without internet, <a>learning from this device</a> works.",
+    "noBase": "This knowledge base does not exist or you have no key to it.",
+    "allBases": "All knowledge bases",
+    "opening": "Opening the knowledge base…",
+    "entries": {
+      "one": "{count} entry",
+      "other": "{count} entries"
+    },
+    "entriesLearning": {
+      "one": "{count} entry · you are learning",
+      "other": "{count} entries · you are learning"
+    },
+    "onlyYou": "only you",
+    "area": "area",
+    "knowledge": "Knowledge",
+    "newBase": "New knowledge base",
+    "bases": "Knowledge bases",
+    "basesEmpty": "A knowledge base gathers, orders and links what you know: entries of your own kinds and references between them. Later you can learn from it — in Learning.",
+    "lineWrite": {
+      "one": "{count} entry · {area}",
+      "other": "{count} entries · {area}"
+    },
+    "lineRead": {
+      "one": "{count} entry · {area} · read only",
+      "other": "{count} entries · {area} · read only"
+    },
+    "lineLearn": {
+      "one": "{count} entry · {area} · you are learning",
+      "other": "{count} entries · {area} · you are learning"
+    },
+    "learning": "Learning",
+    "moreLearning": "More: Learning",
+    "offlineHere": "Offline on this device",
+    "now": "For now",
+    "nothingDue": "Nothing is waiting — everything reviewed.",
+    "later": " Next: {list}.",
+    "base": "Knowledge base",
+    "dueCards": {
+      "one": "{count} card to review",
+      "other": "{count} cards to review"
+    },
+    "sessions": "Sessions now",
+    "code": "code {code}",
+    "hosting": "you are hosting",
+    "running": "running",
+    "learnEmpty": "You are not learning from any knowledge base yet. A base is set up in Knowledge — or you join a course through a link from the teacher.",
+    "toKnowledge": "Go to Knowledge",
+    "myBase": "My knowledge base",
+    "createFailed": "Could not create the knowledge base.",
+    "namePlaceholder": "e.g. Confirmation 2027",
+    "whoSees": "Who sees it",
+    "onlyMeNew": "Only me (a private area will be created)",
+    "onlyMe": "Only me",
+    "whoHint": "Whoever reads the area learns from this base; whoever writes in it builds it.",
+    "publicWarn": "This area is public: anyone, without an account, will read {whole} of this base. If something should stay for chosen people, create the base in a closed area.",
+    "creating": "Creating…",
+    "create": "Create"
+  }
+}

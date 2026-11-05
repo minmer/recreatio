@@ -28,36 +28,75 @@
  * Benachrichtigungen und der MCP-Schnittstelle bleiben gültig.
  */
 
+import { t } from '../core/i18n';
 import { viewPath } from '../routes';
 
 export type CogitaPart = 'knowledge' | 'learn';
 
+/** Die Schlüssel der Namen je Reiter — gezeichnet in der Sprache der Stelle (`tabLabel`). */
+const TAB_KEY: Readonly<Record<string, string>> = {
+  'wpisy': 'cogitaViews.tabs.entries',
+  'dodaj': 'cogitaViews.tabs.add',
+  'schematy': 'cogitaViews.tabs.schemes',
+  'ustawienia': 'cogitaViews.tabs.settings',
+  'json': 'cogitaViews.tabs.json',
+  'do-zrobienia': 'cogitaViews.tabs.todo',
+  'propozycje': 'cogitaViews.tabs.proposals',
+  'wejscia': 'cogitaViews.tabs.anchors',
+  'nauka': 'cogitaViews.tabs.learn',
+  'sciezka': 'cogitaViews.tabs.path',
+  'powtorki': 'cogitaViews.tabs.revisions',
+  'przebiegi': 'cogitaViews.tabs.flows',
+  'sesje': 'cogitaViews.tabs.sessions',
+  'postepy': 'cogitaViews.tabs.progress',
+  'karty': 'cogitaViews.tabs.templates',
+  'mapa': 'cogitaViews.tabs.map',
+  'nagrody': 'cogitaViews.tabs.rewards',
+  'zaproponuj': 'cogitaViews.tabs.propose'
+};
+
+/** Der Name eines Reiters in der Sprache von `tr` (sonst der gelesene Name). */
+export const tabLabel = (slug: string, label: string, tr: (key: string) => string = t): string => {
+  const key = TAB_KEY[slug];
+  return key === undefined ? label : tr(key);
+};
+
+/**
+ * Ein Reiter: [Wort in der Adresse, Name] — der Name wird erst beim Lesen übersetzt (in der Sprache der Anwendung),
+ * die Gestalt bleibt ein Paar (`[slug, label]`).
+ */
+const tab = <S extends string>(slug: S): readonly [S, string] => {
+  const out = [slug] as unknown as [S, string];
+  Object.defineProperty(out, 1, { get: () => tabLabel(slug, slug), enumerable: true });
+  return out;
+};
+
 /** Die Reiter der Wiedza — die drei Tätigkeiten zuerst. */
 export const KNOWLEDGE_TABS = [
-  ['wpisy', 'Wpisy'], ['dodaj', 'Dodaj'], ['schematy', 'Schematy']
+  tab('wpisy'), tab('dodaj'), tab('schematy')
 ] as const;
 /** Was die Wiedza ausserdem hat — unter „Więcej", nicht neben den drei. */
 export const KNOWLEDGE_MORE = [
-  ['ustawienia', 'Ustawienia'], ['json', 'Import i eksport (JSON)'], ['do-zrobienia', 'Do zrobienia'], ['propozycje', 'Propozycje'],
+  tab('ustawienia'), tab('json'), tab('do-zrobienia'), tab('propozycje'),
   /* 2026-10-25 (Wywód) — die Wege aus der Bibliothek (`anchors.ts`). */
-  ['wejscia', 'Wejścia z Biblioteki']
+  tab('wejscia')
 ] as const;
 /** Die Reiter der Nauka. */
 export const LEARN_TABS = [
-  ['nauka', 'Ucz się'], ['sciezka', 'Ścieżka'], ['powtorki', 'Powtórki'], ['przebiegi', 'Przebiegi'], ['sesje', 'Sesje'], ['postepy', 'Postępy']
+  tab('nauka'), tab('sciezka'), tab('powtorki'), tab('przebiegi'), tab('sesje'), tab('postepy')
 ] as const;
 /** 2026-11-02 — „Nagrody": punkty, seria, cel dnia, poziomy, odznaki (`RewardsEditor.tsx`); auch für wer nur liest. */
-export const LEARN_MORE = [['karty', 'Szablony kart'], ['mapa', 'Mapa'], ['nagrody', 'Nagrody'], ['ustawienia', 'Ustawienia']] as const;
+export const LEARN_MORE = [tab('karty'), tab('mapa'), tab('nagrody'), tab('ustawienia')] as const;
 
 /** Wer nur liest (ein Lernender): Wiedza zum Nachlesen und Vorschlagen, Nauka zum Lernen. */
-export const KNOWLEDGE_READER_TABS = [['wpisy', 'Wpisy'], ['zaproponuj', 'Zaproponuj']] as const;
-export const LEARN_READER_TABS = [['nauka', 'Ucz się'], ['sciezka', 'Ścieżka'], ['przebiegi', 'Przebiegi'], ['sesje', 'Sesje'], ['postepy', 'Postępy'], ['mapa', 'Mapa'], ['nagrody', 'Nagrody']] as const;
+export const KNOWLEDGE_READER_TABS = [tab('wpisy'), tab('zaproponuj')] as const;
+export const LEARN_READER_TABS = [tab('nauka'), tab('sciezka'), tab('przebiegi'), tab('sesje'), tab('postepy'), tab('mapa'), tab('nagrody')] as const;
 
-/** Die drei Kategorien der Schematy — Wort in der Adresse, Name, ein Satz. */
+/** Die drei Kategorien der Schematy — Wort in der Adresse, Name, ein Satz (übersetzt beim Lesen). */
 export const SCHEMA_PARTS = [
-  { slug: 'rodzaje', label: 'Rodzaje wpisów', says: 'Jakie wpisy istnieją: ich pola i odwołania do innych wpisów.' },
-  { slug: 'dodawanie', label: 'Sposoby dodawania', says: 'Jak się wpisuje wiedzę — także kilka połączonych wpisów naraz, różnych rodzajów.' },
-  { slug: 'wyswietlanie', label: 'Sposoby wyświetlania', says: 'Co pokazać i jak — także informacje z wpisów, do których prowadzą odwołania.' }
+  { slug: 'rodzaje' as const, labelKey: 'cogitaViews.tabs.schemaKinds', saysKey: 'cogitaViews.tabs.schemaKindsSays', get label() { return t(this.labelKey); }, get says() { return t(this.saysKey); } },
+  { slug: 'dodawanie' as const, labelKey: 'cogitaViews.tabs.schemaAdd', saysKey: 'cogitaViews.tabs.schemaAddSays', get label() { return t(this.labelKey); }, get says() { return t(this.saysKey); } },
+  { slug: 'wyswietlanie' as const, labelKey: 'cogitaViews.tabs.schemaViews', saysKey: 'cogitaViews.tabs.schemaViewsSays', get label() { return t(this.labelKey); }, get says() { return t(this.saysKey); } }
 ] as const;
 export type SchemaPart = (typeof SCHEMA_PARTS)[number]['slug'];
 

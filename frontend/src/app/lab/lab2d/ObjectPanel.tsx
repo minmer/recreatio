@@ -9,9 +9,10 @@
 
 import { useEffect, useState } from 'react';
 
+import { useT } from '../../core/i18n';
 import { Icon } from '../../ui/icons';
 import type { ObjectPatch, ObjectView } from './engine/objects';
-import { num, t, type TextKey } from './i18n';
+import { num, type TextKey } from './i18n';
 
 const T0 = 273.15;
 
@@ -58,6 +59,7 @@ export function ObjectPanel({ op, view, atStart, onPatch, onRemove }: {
   onPatch: (patch: ObjectPatch) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const kind = op.op === 'beaker' ? 'beaker' : op.op === 'hotplate' ? 'hotplate' : 'body';
   const material = typeof op.material === 'string' ? op.material : 'wood';
   const id = typeof op.id === 'string' ? op.id : '';
@@ -65,46 +67,46 @@ export function ObjectPanel({ op, view, atStart, onPatch, onRemove }: {
   const T = numberOf(op.T, 20);
   const angle = numberOf(op.angle, 0);
   const [w, h] = kind === 'body' ? bodySize(op) : [numberOf(op.w, 0.07), numberOf(op.h, 0.08)];
-  const title = kind === 'beaker' ? t('appBeaker') : kind === 'hotplate' ? t('appHotplate') : t(MATERIALS.find((m) => m.key === material)?.label ?? 'matWood');
-  const state = view === null ? '' : view.state === 'gone' ? t('objGone') : t(view.state === 'pinned' ? 'bodyPinned' : view.state === 'asleep' ? 'bodyAsleep' : 'bodyMoving');
+  const title = kind === 'beaker' ? t('lab2d.appBeaker') : kind === 'hotplate' ? t('lab2d.appHotplate') : t(`lab2d.${MATERIALS.find((m) => m.key === material)?.label ?? 'matWood'}`);
+  const state = view === null ? '' : view.state === 'gone' ? t('lab2d.objGone') : t(`lab2d.${view.state === 'pinned' ? 'bodyPinned' : view.state === 'asleep' ? 'bodyAsleep' : 'bodyMoving'}`);
   const locked = !atStart;
   const sizeMax = 200;
   const hMax = kind === 'hotplate' ? 20 : kind === 'beaker' ? 150 : 200;
   return (
     <div className="lab-section-body">
-      <p className="l2d-obj-title"><strong>{title}</strong> <span className="lab-muted">{t('objName')}: {id}</span></p>
+      <p className="l2d-obj-title"><strong>{title}</strong> <span className="lab-muted">{t('lab2d.objName')}: {id}</span></p>
       {view !== null && (
-        <p className="lab-muted">{t('objNow')}: {view.state === 'gone' ? state : `${num(view.T - T0, 1)} °C · ${num(view.mass * 1000, view.mass < 0.01 ? 2 : 0)} g · ${state}`}</p>
+        <p className="lab-muted">{t('lab2d.objNow')}: {view.state === 'gone' ? state : `${num(view.T - T0, 1)} °C · ${num(view.mass * 1000, view.mass < 0.01 ? 2 : 0)} g · ${state}`}</p>
       )}
-      <label className="lab-row"><input type="checkbox" checked={pinned} onChange={(e) => onPatch({ pinned: e.currentTarget.checked })} />{t('objPinned')}</label>
+      <label className="lab-row"><input type="checkbox" checked={pinned} onChange={(e) => onPatch({ pinned: e.currentTarget.checked })} />{t('lab2d.objPinned')}</label>
       {kind === 'hotplate' && (
         <>
-          <label className="lab-row"><input type="checkbox" checked={op.on !== false} onChange={(e) => onPatch({ on: e.currentTarget.checked })} />{t('heaterOn')}</label>
-          <label className="lab-field">{t('heaterMode')}
+          <label className="lab-row"><input type="checkbox" checked={op.on !== false} onChange={(e) => onPatch({ on: e.currentTarget.checked })} />{t('lab2d.heaterOn')}</label>
+          <label className="lab-field">{t('lab2d.heaterMode')}
             <select value={op.mode === 'thermostat' ? 'thermostat' : 'power'} onChange={(e) => onPatch({ mode: e.currentTarget.value === 'thermostat' ? 'thermostat' : 'power' })}>
-              <option value="power">{t('modePower')}</option>
-              <option value="thermostat">{t('modeThermostat')}</option>
+              <option value="power">{t('lab2d.modePower')}</option>
+              <option value="thermostat">{t('lab2d.modeThermostat')}</option>
             </select>
           </label>
-          <Slider label={t('heaterPower')} unit="W" value={numberOf(op.power, 40)} min={0} max={150} step={1} onCommit={(v) => onPatch({ power: v })} />
-          {op.mode === 'thermostat' && <Slider label={t('heaterTarget')} unit="°C" value={numberOf(op.target, 150)} min={30} max={400} step={1} onCommit={(v) => onPatch({ target: T0 + v })} />}
+          <Slider label={t('lab2d.heaterPower')} unit="W" value={numberOf(op.power, 40)} min={0} max={150} step={1} onCommit={(v) => onPatch({ power: v })} />
+          {op.mode === 'thermostat' && <Slider label={t('lab2d.heaterTarget')} unit="°C" value={numberOf(op.target, 150)} min={30} max={400} step={1} onCommit={(v) => onPatch({ target: T0 + v })} />}
         </>
       )}
       {kind === 'body' && (
-        <label className="lab-field">{t('objMaterial')}
+        <label className="lab-field">{t('lab2d.objMaterial')}
           <select value={material} disabled={locked} onChange={(e) => onPatch({ material: e.currentTarget.value })}>
-            {MATERIALS.map((m) => <option key={m.key} value={m.key}>{t(m.label)}</option>)}
+            {MATERIALS.map((m) => <option key={m.key} value={m.key}>{t(`lab2d.${m.label}`)}</option>)}
           </select>
         </label>
       )}
-      <Slider label={t('objTemp')} unit="°C" value={T} min={-40} max={200} step={1} disabled={locked} onCommit={(v) => onPatch({ T: T0 + v })} />
-      <Slider label={t('objWidth')} unit="mm" value={Math.round(w * 1000)} min={kind === 'body' ? 2 : 20} max={sizeMax} step={1} disabled={locked} onCommit={(v) => onPatch({ w: v / 1000 })} />
-      <Slider label={t('objHeight')} unit="mm" value={Math.round(h * 1000)} min={2} max={hMax} step={1} disabled={locked} onCommit={(v) => onPatch({ h: v / 1000 })} />
-      <Slider label={t('objAngle')} unit="°" value={angle} min={-90} max={90} step={1} disabled={locked} onCommit={(v) => onPatch({ angle: v })} />
-      {kind === 'beaker' && <label className="lab-row"><input type="checkbox" checked={op.lid === true} disabled={locked} onChange={(e) => onPatch({ lid: e.currentTarget.checked })} />{t('objLid')}</label>}
-      {locked && <p className="lab-muted">{t('objAtStart')}</p>}
+      <Slider label={t('lab2d.objTemp')} unit="°C" value={T} min={-40} max={200} step={1} disabled={locked} onCommit={(v) => onPatch({ T: T0 + v })} />
+      <Slider label={t('lab2d.objWidth')} unit="mm" value={Math.round(w * 1000)} min={kind === 'body' ? 2 : 20} max={sizeMax} step={1} disabled={locked} onCommit={(v) => onPatch({ w: v / 1000 })} />
+      <Slider label={t('lab2d.objHeight')} unit="mm" value={Math.round(h * 1000)} min={2} max={hMax} step={1} disabled={locked} onCommit={(v) => onPatch({ h: v / 1000 })} />
+      <Slider label={t('lab2d.objAngle')} unit="°" value={angle} min={-90} max={90} step={1} disabled={locked} onCommit={(v) => onPatch({ angle: v })} />
+      {kind === 'beaker' && <label className="lab-row"><input type="checkbox" checked={op.lid === true} disabled={locked} onChange={(e) => onPatch({ lid: e.currentTarget.checked })} />{t('lab2d.objLid')}</label>}
+      {locked && <p className="lab-muted">{t('lab2d.objAtStart')}</p>}
       <div className="lab-row">
-        <button type="button" className="lab-tool" onClick={onRemove}><Icon name="trash" />{t('objRemove')}</button>
+        <button type="button" className="lab-tool" onClick={onRemove}><Icon name="trash" />{t('lab2d.objRemove')}</button>
       </div>
     </div>
   );

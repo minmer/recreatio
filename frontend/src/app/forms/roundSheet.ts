@@ -16,6 +16,7 @@
 import { isYes, type OpenField } from './form';
 import { parseAddress, placeOrder } from '../registry/postal';
 import { roundLabel, type Repeat } from './rounds';
+import { appLang, localeOf, t } from '../core/i18n';
 
 /** Eine Einsendung der Erweiterung, aufgemacht: für wen, für wann, was darin steht. */
 export interface RoundRecord {
@@ -35,7 +36,7 @@ export const quickFields = (fields: readonly OpenField[]): OpenField[] =>
 /** Die Beschriftung eines Plättchens — die Frage, gekürzt, wenn sie lang ist. */
 export function chipText(label: string): string {
   const text = label.trim().replace(/[?:]+$/, '');
-  return text.length <= 14 ? text : `${text.slice(0, 13).trimEnd()}…`;
+  return text.length <= 14 ? text : `${text.slice(0, 13).trimEnd()}…`; // i18n-ignore
 }
 
 /** Steht in der Einsendung überhaupt etwas? Eine, in der alles abgewählt wurde, ist keine. */
@@ -136,17 +137,17 @@ export function roundsCsv(
 ): string {
   const nameOf = new Map(people.map((p) => [p.baseId, p.name]));
   const shown = fields.filter((f) => f.label !== null);
-  const lines = [['Osoba', 'Okres', 'Okres (klucz)', ...shown.map((f) => f.label ?? '')].map(csvCell).join(';')];
+  const lines = [[t('forms.csv.person'), t('forms.csv.round'), t('forms.csv.roundKey'), ...shown.map((f) => f.label ?? '')].map(csvCell).join(';')];
 
   const sorted = [...records].filter((r) => nameOf.has(r.baseId) && !isBlank(r.values))
-    .sort((a, b) => a.round.localeCompare(b.round) || (nameOf.get(a.baseId) ?? '').localeCompare(nameOf.get(b.baseId) ?? '', 'pl'));
+    .sort((a, b) => a.round.localeCompare(b.round) || (nameOf.get(a.baseId) ?? '').localeCompare(nameOf.get(b.baseId) ?? '', localeOf(appLang())));
 
   for (const one of sorted) {
     lines.push([
       nameOf.get(one.baseId) ?? '', roundLabel(repeat, one.round), one.round,
       ...shown.map((f) => {
         const value = one.values.get(f.fieldId) ?? '';
-        return f.kind === 'checkbox' ? (isYes(value) ? 'tak' : '') : value;
+        return f.kind === 'checkbox' ? (isYes(value) ? t('forms.kind.yes') : '') : value;
       })
     ].map(csvCell).join(';'));
   }

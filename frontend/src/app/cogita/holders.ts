@@ -96,31 +96,43 @@ async function ownAreaIn(token: string, seatKey: Uint8Array, virtualAreaId: stri
   return opened === undefined ? null : { areaId: grant.areaId, epoch: opened.epoch, key: opened.key };
 }
 
+/** 2026-11-05 — wie weit das Laden der eigenen Fortschritte ist: geöffnete Stapel, und wie viele es sind (`null`: unbekannt). */
+export interface LearnerLoading {
+  readonly done: number;
+  readonly total: number | null;
+}
+
 /**
  * Ein Lernender in dieser Bibliothek — geladen, und neu gezeichnet, wenn sich sein Fortschritt ändert.
  * 2026-10-27 — nur der des JETZIGEN Halters: wechselt er (jemand stellt sich vor, eine andere Person wird
  * gewählt), ist es `null`, bis der neue geladen ist. Vorher galt so lange der alte weiter, und die ersten
  * Antworten gingen an ihn (im Browser statt an den Kurs).
  */
-export function useLearner(lib: CogitaLibrary | null, holder: Holder | null, override?: string | null): { learner: Learner | null; tick: number; failed: string | null } {
+export function useLearner(lib: CogitaLibrary | null, holder: Holder | null, override?: string | null): { learner: Learner | null; tick: number; failed: string | null; loading: LearnerLoading | null } {
   const [held, setHeld] = useState<{ key: string; learner: Learner } | null>(null);
   const [tick, setTick] = useState(0);
   const [failed, setFailed] = useState<string | null>(null);
+  /* 2026-11-05 — solange die eigenen Fortschritte laden: wie weit (der Kreis über dem Krajobraz). */
+  const [loading, setLoading] = useState<LearnerLoading | null>(null);
   const key = holder === null ? '' : holder.kind === 'role' ? holder.roleId : holder.kind === 'seat' ? holder.seatId : holder.id;
   const whose = `${lib?.libraryId ?? ''}|${key}|${override ?? ''}`;
   useEffect(() => {
-    if (lib === null || holder === null) { setHeld(null); return undefined; }
+    if (lib === null || holder === null) { setHeld(null); setLoading(null); return undefined; }
     let alive = true;
+    setLoading({ done: 0, total: null });
     let off = () => undefined as void;
     void (async () => {
       try {
         const { target, fallback } = await targetFor(lib, holder, override);
         const made = new Learner(lib.libraryId, holder, target, fallback);
+        let last = 0;
+        made.onLoad = (done, total) => { const now = Date.now(); if (!alive || (now - last < 120 && done !== total)) return; last = now; setLoading({ done, total }); };
         off = made.subscribe(() => setTick((n) => n + 1));
         await made.load();
-        if (alive) { setHeld({ key: whose, learner: made }); setFailed(null); }
+        made.onLoad = undefined;
+        if (alive) { setHeld({ key: whose, learner: made }); setFailed(null); setLoading(null); }
       } catch (e) {
-        if (alive) setFailed(e instanceof Error ? e.message : 'Nie udało się wczytać postępów.');
+        if (alive) { setFailed(e instanceof Error ? e.message : 'Nie udało się wczytać postępów.'); setLoading(null); }
       }
     })();
     return () => { alive = false; off(); };
@@ -137,5 +149,5 @@ export function useLearner(lib: CogitaLibrary | null, holder: Holder | null, ove
     window.addEventListener('pagehide', leave);
     return () => { window.removeEventListener('online', online); window.removeEventListener('pagehide', leave); void learner.flush().catch(() => undefined); };
   }, [learner]);
-  return useMemo(() => ({ learner, tick, failed }), [learner, tick, failed]);
+  return useMemo(() => ({ learner, tick, failed, loading }), [learner, tick, failed, loading]);
 }

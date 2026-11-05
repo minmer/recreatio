@@ -11,6 +11,7 @@
 import type { Layout } from './layout';
 import { readConfig } from '../modules/module';
 import { call, WorkspaceError } from '../core/session';
+import { t } from '../core/i18n';
 import type { Aad } from '../core/crypto';
 import type { PageKey, PageSealInfo } from './pageSeal';
 import type { PageResponsible } from '../areas/controllers';
@@ -218,7 +219,7 @@ async function sealedWrite<T>(path: string, send: (key: PageKey | null) => Promi
     if (!(e instanceof WorkspaceError) || (e.verdict !== 'sealed' && e.verdict !== 'open')) throw e;
     await loadPage(path).catch(() => undefined);
     const key = pageKeys.get(path) ?? null;
-    if (e.verdict === 'sealed' && key === null) throw new WorkspaceError('Ta strona jest zaszyfrowana, a ta przeglądarka nie ma do niej klucza.');
+    if (e.verdict === 'sealed' && key === null) throw new WorkspaceError(t('pages.sealed.noKey'));
     return send(e.verdict === 'open' ? null : key);
   }
 }

@@ -33,6 +33,7 @@ import { SeatChatBody } from './SeatChatView';
 import { loadSeatChats } from '../seats/seatChat';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { rich, useT } from '../core/i18n';
 
 /** Imię, nazwisko — und „Dołącz". */
 export function IntroduceToChat({ chat, under, onJoined }: {
@@ -40,11 +41,12 @@ export function IntroduceToChat({ chat, under, onJoined }: {
   under: string | null;
   onJoined: (person: HeldPerson) => void;
 }) {
+  const t = useT();
   const [given, setGiven] = useState('');
   const [surname, setSurname] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  const shown = `${given.trim() || 'Imię'} ${surname.trim() || 'Nazwisko'} (${chat.label})`;
+  const shown = `${given.trim() || t('chat.link.given')} ${surname.trim() || t('chat.link.surname')} (${chat.label})`;
 
   const join = async () => {
     setBusy(true);
@@ -52,7 +54,7 @@ export function IntroduceToChat({ chat, under, onJoined }: {
     try {
       onJoined(await createLinkPerson(chat, given, surname, under));
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się dołączyć.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.link.joinFailed'));
     } finally {
       setBusy(false);
     }
@@ -61,24 +63,23 @@ export function IntroduceToChat({ chat, under, onJoined }: {
   return (
     <form className="wk-form wk-introduce" data-link-introduce={chat.chatId} onSubmit={(e) => { e.preventDefault(); void join(); }}>
       <p className="wk-hint">
-        Twój link „{chat.label}" otwiera {chat.kind === 'channel' ? 'kanał' : 'rozmowę'} „{chat.areaName}".
-        Żeby {chat.kind === 'channel' ? 'go czytać' : 'pisać'}, przedstaw się — inni zobaczą: <strong>{shown}</strong>.
+        {rich(t(chat.kind === 'channel' ? 'chat.link.introChannel' : 'chat.link.introChat', { label: chat.label, area: chat.areaName, shown }), { b: (s, k) => <strong key={k}>{s}</strong> })}
       </p>
       <label className="wk-field">
-        <span>Imię</span>
+        <span>{t('chat.link.given')}</span>
         <input value={given} maxLength={80} autoComplete="given-name" data-introduce-given="" onChange={(e) => setGiven(e.target.value)} />
       </label>
       <label className="wk-field">
-        <span>Nazwisko</span>
+        <span>{t('chat.link.surname')}</span>
         <input value={surname} maxLength={100} autoComplete="family-name" data-introduce-surname="" onChange={(e) => setSurname(e.target.value)} />
       </label>
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
         <button type="submit" className="wk-btn" data-introduce-go="" disabled={busy || given.trim() === '' || surname.trim() === ''}>
-          {busy ? 'Dołączanie…' : 'Dołącz do rozmowy'}
+          {busy ? t('chat.link.joining') : t('chat.link.joinChat')}
         </button>
       </div>
-      <p className="wk-hint">Ta osoba zostaje w tej przeglądarce — przy następnej wizycie nie trzeba się przedstawiać.</p>
+      <p className="wk-hint">{t('chat.link.staysHere')}</p>
     </form>
   );
 }
@@ -101,6 +102,7 @@ export function VisitorChat({ chatId, seats, chosen, under, fallback }: {
    * jedem Zeichnen frisch aus der Seite. Sonst baute jedes Nachladen der Seite
    * die Rozmowa neu auf, und was gerade getippt wurde, wäre fort.
    */
+  const t = useT();
   const [found, setFound] = useState<{ token: string | null; link: boolean } | undefined>(undefined);
   const order = chosen === null ? seats : [chosen, ...seats.filter((one) => one.token !== chosen.token)];
   const stamp = order.map((one) => `${one.token}:${one.seatKey === null ? 0 : 1}`).join(',');
@@ -127,14 +129,14 @@ export function VisitorChat({ chatId, seats, chosen, under, fallback }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId, stamp]);
 
-  if (found === undefined) return <Loading label="Wczytywanie rozmowy…" />;
+  if (found === undefined) return <Loading label={t('chat.link.loading')} />;
 
   const seat = found.token === null ? undefined : order.find((one) => one.token === found.token);
   if (seat !== undefined) {
     return (
       <>
         {chosen !== null && seat.token !== chosen.token && (
-          <p className="ch-note">W tej rozmowie piszesz jako <strong>{seat.recipientName ?? 'osoba z linkiem'}</strong>.</p>
+          <p className="ch-note">{rich(t('chat.link.writingAs', { name: seat.recipientName ?? t('chat.author.linkPerson') }), { b: (s, k) => <strong key={k}>{s}</strong> })}</p>
         )}
         <SeatChatBody seat={seat} only={chatId} />
       </>
@@ -162,6 +164,7 @@ export function LinkChatRoom({ chatId, under, onJoined, signedIn = false }: {
   /** Angemeldet: das Konto liest hier nicht, ein Link im Browser schon — schreiben heisst dann, ihn ins Konto aufzunehmen. */
   signedIn?: boolean;
 }) {
+  const t = useT();
   const [detail, setDetail] = useState<LinkChatDetail | null | undefined>(undefined);
   const [talk, setTalk] = useState<ReadonlyMap<number, Uint8Array>>(new Map());
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
@@ -235,8 +238,8 @@ export function LinkChatRoom({ chatId, under, onJoined, signedIn = false }: {
     setMore(messages.length >= 60);
   }, [chatId, shown, talk, open]);
 
-  if (detail === undefined) return <Loading label="Wczytywanie rozmowy…" />;
-  if (detail === null) return <p className="wk-card-muted">Ta rozmowa nie jest otwarta dla Twojego linku.</p>;
+  if (detail === undefined) return <Loading label={t('chat.link.loading')} />;
+  if (detail === null) return <p className="wk-card-muted">{t('chat.link.notOpen')}</p>;
 
   const rules: MessageRules = {
     mine: () => false,
@@ -244,7 +247,7 @@ export function LinkChatRoom({ chatId, under, onJoined, signedIn = false }: {
       name: (id) => names.get(id),
       seat: (seatId) => detail.seats.find((one) => one.seatId === seatId)
     })),
-    note: (message) => (message.authorSeatId !== null ? 'z linku' : null),
+    note: (message) => (message.authorSeatId !== null ? t('chat.link.fromLink') : null),
     canEdit: () => false,
     canDelete: () => false,
     canRestore: () => false,
@@ -260,7 +263,7 @@ export function LinkChatRoom({ chatId, under, onJoined, signedIn = false }: {
   return (
     <div className="ch-room is-embedded wk-link-room" data-link-room={chatId}>
       <ChatHeader compact menu={[]} search={search} onSearch={setSearch}
-        subtitle={`${detail.kind === 'channel' ? 'kanał' : detail.kind === 'group' ? 'grupa' : 'rozmowa'} „${detail.areaName}" — czytasz przez link „${detail.label}"`} />
+        subtitle={t(detail.kind === 'channel' ? 'chat.link.subChannel' : detail.kind === 'group' ? 'chat.link.subGroup' : 'chat.link.subChat', { area: detail.areaName, label: detail.label })} />
       <ChatLog
         endpoint={chatEndpoint(chatId)}
         items={shown}
@@ -270,25 +273,25 @@ export function LinkChatRoom({ chatId, under, onJoined, signedIn = false }: {
         on={on}
         more={more}
         onEarlier={earlier}
-        empty="Jeszcze nikt nic nie napisał."
+        empty={t('chat.link.empty')}
         search={search}
       />
       {signedIn ? (
         <p className="wk-link-read-bar" data-link-read-bar="">
-          Czytasz przez link „{detail.label}" w tej przeglądarce. Żeby pisać, dodaj go do swojego konta („Dodaj do konta" u góry strony).
+          {t('chat.link.signedInBar', { label: detail.label })}
         </p>
       ) : detail.joinable ? (
         joining ? (
           <IntroduceToChat chat={detail} under={under} onJoined={onJoined} />
         ) : (
           <div className="wk-link-read-bar" data-link-read-bar="">
-            <span>Czytasz jako gość z linkiem „{detail.label}". Żeby pisać, przedstaw się — imię i nazwisko.</span>
-            <button type="button" className="wk-btn wk-btn-small" data-link-join="" onClick={() => setJoining(true)}>Przedstaw się</button>
+            <span>{t('chat.link.guestBar', { label: detail.label })}</span>
+            <button type="button" className="wk-btn wk-btn-small" data-link-join="" onClick={() => setJoining(true)}>{t('chat.link.introduce')}</button>
           </div>
         )
       ) : (
         <p className="wk-link-read-bar" data-link-read-bar="">
-          {detail.kind === 'channel' ? 'Kanał — piszą prowadzący, Ty czytasz.' : 'Czytasz — piszą członkowie grupy.'}
+          {detail.kind === 'channel' ? t('chat.link.readChannel') : t('chat.link.readGroup')}
         </p>
       )}
     </div>
@@ -301,6 +304,7 @@ export function LinkChatRoom({ chatId, under, onJoined, signedIn = false }: {
  * Ansicht dieser Person, wo ihre Rozmowy stehen.
  */
 export function LinkChatsSection({ invitationId }: { invitationId: string }) {
+  const t = useT();
   const [chats, setChats] = useState<readonly LinkChat[] | null>(null);
   const [persons, setPersons] = useState<ReadonlyMap<string, HeldPerson | null>>(new Map());
   const [joining, setJoining] = useState<string | null>(null);
@@ -321,22 +325,22 @@ export function LinkChatsSection({ invitationId }: { invitationId: string }) {
 
   return (
     <section className="wk-link-chats" data-link-chats="">
-      <h2 className="wk-h2">Rozmowy</h2>
+      <h2 className="wk-h2">{t('chat.head.chats')}</h2>
       <ul className="wk-link-chat-list">
         {chats.map((one) => {
           const person = persons.get(one.chatId) ?? null;
           return (
             <li key={one.chatId} data-link-chat={one.chatId}>
-              <span><strong>{one.kind === 'channel' ? `Kanał: ${one.areaName}` : one.areaName}</strong></span>
+              <span><strong>{one.kind === 'channel' ? t('chat.title.channel', { name: one.areaName }) : one.areaName}</strong></span>
               {person !== null ? (
-                <a className="wk-btn wk-btn-small" href={portalOf(person)}>Otwórz rozmowę</a>
+                <a className="wk-btn wk-btn-small" href={portalOf(person)}>{t('chat.link.openChat')}</a>
               ) : (
                 <span className="wk-actions">
                   {reading !== one.chatId && (
-                    <button type="button" className={one.joinable ? 'wk-link-btn' : 'wk-btn wk-btn-small'} data-link-read="" onClick={() => { setReading(one.chatId); setJoining(null); }}>Czytaj</button>
+                    <button type="button" className={one.joinable ? 'wk-link-btn' : 'wk-btn wk-btn-small'} data-link-read="" onClick={() => { setReading(one.chatId); setJoining(null); }}>{t('chat.link.read')}</button>
                   )}
                   {one.joinable && joining !== one.chatId && (
-                    <button type="button" className="wk-btn wk-btn-small" onClick={() => { setJoining(one.chatId); setReading(null); }}>Dołącz</button>
+                    <button type="button" className="wk-btn wk-btn-small" onClick={() => { setJoining(one.chatId); setReading(null); }}>{t('chat.link.join')}</button>
                   )}
                 </span>
               )}

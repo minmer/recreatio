@@ -25,6 +25,7 @@
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { initialLang, loadLang, tIn } from './i18n';
 
 /** Läuft das hier in der App (und nicht in einem Browser)? */
 export const native: boolean = Capacitor.isNativePlatform();
@@ -131,14 +132,17 @@ let granted: boolean | null = null;
 const prepared: Promise<void> | null = native
   ? (async () => {
     try {
+      /* 2026-11-05 — läuft beim Laden des Moduls, vor `startI18n`: die Sprache selbst bestimmen und laden. */
+      const lang = initialLang();
+      await loadLang(lang);
       await LocalNotifications.createChannel({
-        id: CHANNEL, name: 'Rozmowy', description: 'Nowe wiadomości w rozmowach', importance: 4, visibility: 0, sound: TONE
+        id: CHANNEL, name: tIn(lang, 'core.channel.chat.name'), description: tIn(lang, 'core.channel.chat.description'), importance: 4, visibility: 0, sound: TONE
       });
       await LocalNotifications.createChannel({
-        id: CHANNEL_NEWS, name: 'Nowości', description: 'Nowe zgłoszenia z formularzy i dołączenia przez linki', importance: 3, visibility: 0, sound: TONE
+        id: CHANNEL_NEWS, name: tIn(lang, 'core.channel.news.name'), description: tIn(lang, 'core.channel.news.description'), importance: 3, visibility: 0, sound: TONE
       });
       await LocalNotifications.createChannel({
-        id: CHANNEL_TASKS, name: 'Zadania', description: 'Przypomnienia o zadaniach: na początku, w połowie, pod koniec', importance: 4, visibility: 0, sound: TONE
+        id: CHANNEL_TASKS, name: tIn(lang, 'core.channel.tasks.name'), description: tIn(lang, 'core.channel.tasks.description'), importance: 4, visibility: 0, sound: TONE
       });
       granted = (await LocalNotifications.checkPermissions()).display === 'granted';
       await LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => {

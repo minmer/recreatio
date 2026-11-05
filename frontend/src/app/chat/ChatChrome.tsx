@@ -10,6 +10,7 @@ import { type SealedMessage, openMessage } from './chat';
 import { PreferencesEditor, type useChatExtras } from './ChatExtras';
 import { availableNow, lastOnline, useOnline } from './chatFeatures';
 import { Icon, type MenuItem, failure, localInput, whenLong } from './ChatKit';
+import { useT } from '../core/i18n';
 
 /* -- Was jede Rozmowa im Menü ⋮ hat ------------------------------------------------------------- */
 
@@ -24,6 +25,7 @@ interface Planned extends SealedMessage {
 
 /** Die eigenen geplanten Nachrichten — mit dem Text, den nur der Absender öffnen kann. */
 export function useScheduled(endpoint: string, keys: ReadonlyMap<number, Uint8Array>) {
+  const t = useT();
   const [list, setList] = useState<readonly Planned[]>([]);
   const [round, setRound] = useState(0);
 
@@ -34,7 +36,7 @@ export function useScheduled(endpoint: string, keys: ReadonlyMap<number, Uint8Ar
         const opened = await Promise.all(found.messages.map(async (m) => {
           const o = await openMessage(keys, m);
           const files = o?.attachments?.length ?? 0;
-          return { ...m, preview: o === null ? 'Wiadomość bez dostępnego klucza' : o.text !== '' ? o.text : files > 0 ? `Załącznik (${files})` : '' };
+          return { ...m, preview: o === null ? t('chat.chrome.noKeyMessage') : o.text !== '' ? o.text : files > 0 ? t('chat.chrome.attachments', { count: files }) : '' };
         }));
         if (live) setList(opened);
       })
@@ -42,7 +44,7 @@ export function useScheduled(endpoint: string, keys: ReadonlyMap<number, Uint8Ar
     void load();
     const timer = window.setInterval(load, 15_000);
     return () => { live = false; window.clearInterval(timer); };
-  }, [endpoint, keys, round]);
+  }, [endpoint, keys, round, t]);
 
   return {
     list,
@@ -64,6 +66,7 @@ export function useChatChrome({ endpoint, extras, keys, canModerate = false, onP
   canModerate?: boolean;
   onPolicy?: () => void;
 }) {
+  const t = useT();
   const scheduled = useScheduled(endpoint, keys);
   const [panel, setPanel] = useState<'prefs' | 'scheduled' | 'policy' | null>(null);
   const f = extras.features;
@@ -72,23 +75,23 @@ export function useChatChrome({ endpoint, extras, keys, canModerate = false, onP
   useOnline(endpoint.startsWith('/seat/') ? `${endpoint}/online` : '/workspace/online');
 
   const items: MenuItem[] = [
-    { label: 'Zapisane wiadomości', icon: 'star', checked: filter === 'star', disabled: f === null, onSelect: () => extras.setFilter(filter === 'star' ? 'all' : 'star') },
-    { label: 'Przypięte wiadomości', icon: 'pin', checked: filter === 'pin', disabled: f === null, onSelect: () => extras.setFilter(filter === 'pin' ? 'all' : 'pin') },
-    { label: scheduled.list.length > 0 ? `Zaplanowane (${scheduled.list.length})` : 'Zaplanowane', icon: 'clock', onSelect: () => setPanel('scheduled') },
-    { label: 'Powiadomienia i dostępność', icon: 'bell', disabled: f === null, onSelect: () => setPanel('prefs') },
-    ...(canModerate ? [{ label: 'Kto może pisać', icon: 'users' as const, disabled: f === null, onSelect: () => setPanel('policy') }] : [])
+    { label: t('chat.chrome.starred'), icon: 'star', checked: filter === 'star', disabled: f === null, onSelect: () => extras.setFilter(filter === 'star' ? 'all' : 'star') },
+    { label: t('chat.chrome.pinned'), icon: 'pin', checked: filter === 'pin', disabled: f === null, onSelect: () => extras.setFilter(filter === 'pin' ? 'all' : 'pin') },
+    { label: scheduled.list.length > 0 ? t('chat.chrome.scheduledCount', { count: scheduled.list.length }) : t('chat.chrome.scheduled'), icon: 'clock', onSelect: () => setPanel('scheduled') },
+    { label: t('chat.chrome.prefs'), icon: 'bell', disabled: f === null, onSelect: () => setPanel('prefs') },
+    ...(canModerate ? [{ label: t('chat.chrome.policy'), icon: 'users' as const, disabled: f === null, onSelect: () => setPanel('policy') }] : [])
   ];
 
   const banner = (
     <>
       {extras.loadError !== null && (
-        <p className="ch-bar is-error" role="alert">Nie udało się wczytać funkcji rozmowy. {extras.loadError}</p>
+        <p className="ch-bar is-error" role="alert">{t('chat.chrome.loadFailed', { error: extras.loadError })}</p>
       )}
       {filter !== 'all' && (
         <p className="ch-bar">
           <Icon name={filter === 'star' ? 'star' : 'pin'} />
-          <span>Tylko {filter === 'star' ? 'zapisane' : 'przypięte'} wiadomości</span>
-          <button type="button" className="wk-link-btn" onClick={() => extras.setFilter('all')}>Pokaż wszystkie</button>
+          <span>{t(filter === 'star' ? 'chat.chrome.onlyStarred' : 'chat.chrome.onlyPinned')}</span>
+          <button type="button" className="wk-link-btn" onClick={() => extras.setFilter('all')}>{t('chat.chrome.showAll')}</button>
         </p>
       )}
     </>
@@ -96,14 +99,14 @@ export function useChatChrome({ endpoint, extras, keys, canModerate = false, onP
 
   const chip = scheduled.list.length === 0 ? null : (
     <button type="button" className="ch-chip ch-sched-chip" onClick={() => setPanel('scheduled')}>
-      <Icon name="clock" /> {scheduled.list.length === 1 ? '1 zaplanowana wiadomość' : `Zaplanowane: ${scheduled.list.length}`}
+      <Icon name="clock" /> {scheduled.list.length === 1 ? t('chat.chrome.oneScheduled') : t('chat.chrome.scheduledN', { count: scheduled.list.length })}
     </button>
   );
 
   const dialogs = (
     <>
       {panel === 'prefs' && f !== null && (
-        <Modal title="Powiadomienia i dostępność" onClose={() => setPanel(null)}>
+        <Modal title={t('chat.chrome.prefs')} onClose={() => setPanel(null)}>
           <PreferencesEditor key={endpoint} value={f.settings ?? f.common} inherited={f.settings === null} onSave={async (p) => {
             await call(`${endpoint}/preferences`, { method: 'PUT', body: JSON.stringify({ settings: p }) });
             await extras.refresh();
@@ -135,12 +138,12 @@ export function useChatChrome({ endpoint, extras, keys, canModerate = false, onP
    * nicht da ist, wäre es dasselbe wie „Wyślij": dann steht es nicht im Menü.
    */
   const onlineSend = status.sharing === 0 || status.online > 0 ? null
-    : status.sharing === 1 ? 'Wyślij, gdy będzie online' : 'Wyślij, gdy ktoś będzie online';
+    : status.sharing === 1 ? t('chat.chrome.sendWhenOnline') : t('chat.chrome.sendWhenAnyOnline');
 
   /* 0111 — was der Kopf darüber sagt: „online", „online: 3", oder wann der eine, der es teilt, zuletzt da war. */
   const last = status.sharing === 1 ? f?.receipts.find((r) => r.online === false)?.onlineAt ?? null : null;
-  const presence = status.online > 0 ? (status.sharing === 1 ? 'online' : `online: ${status.online}`)
-    : last !== null ? `ostatnio w aplikacji: ${lastOnline(last)}` : null;
+  const presence = status.online > 0 ? (status.sharing === 1 ? t('chat.chrome.online') : t('chat.chrome.onlineN', { count: status.online }))
+    : last !== null ? t('chat.chrome.lastSeen', { when: lastOnline(last) }) : null;
 
   return { items, banner, chip, dialogs, status, scheduled, onlineSend, presence };
 }
@@ -152,32 +155,32 @@ function ScheduledDialog({ endpoint, scheduled, onClose, onSent }: {
   /** 0111 — eine ging gerade hinaus („Wyślij teraz"). */
   onSent?: () => void;
 }) {
+  const t = useT();
   const [said, setSaid] = useState<string | null>(null);
 
   return (
-    <Modal title="Zaplanowane wiadomości" onClose={onClose}>
+    <Modal title={t('chat.chrome.scheduledTitle')} onClose={onClose}>
       {scheduled.list.length === 0 ? (
         <p className="wk-hint">
-          W tej rozmowie nic nie czeka. Wiadomość na później — strzałka obok przycisku wysyłania (albo prawy przycisk, na telefonie przytrzymanie):
-          „Zaplanuj wysłanie…", „Wyślij bez dźwięku", a gdy ktoś pokazuje, kiedy jest w aplikacji — „Wyślij, gdy będzie online".
+          {t('chat.chrome.nothingScheduled')}
         </p>
       ) : (
         <ul className="ch-planned">
           {scheduled.list.map((m) => (
             <li key={m.messageId}>
-              <p className="ch-planned-text">{m.preview || 'Wiadomość'}</p>
+              <p className="ch-planned-text">{m.preview || t('chat.chrome.message')}</p>
               <p className={m.state === 'failed' ? 'wk-error' : 'wk-hint'}>
-                {m.whenOnline === true ? `Gdy będzie online (najpóźniej ${whenLong(m.sendAt)})` : whenLong(m.sendAt)}
-                {m.silent === true ? ' · bez dźwięku' : ''}
-                {' — '}{m.state === 'failed' ? 'niewysłana: zmienił się dostęp albo klucz. Anuluj i zaplanuj ponownie.' : 'czeka na wysłanie'}
+                {m.whenOnline === true ? t('chat.chrome.whenOnlineLatest', { when: whenLong(m.sendAt, t.lang) }) : whenLong(m.sendAt, t.lang)}
+                {m.silent === true ? ` · ${t('chat.chrome.silent')}` : ''}
+                {' — '}{m.state === 'failed' ? t('chat.chrome.notSent') : t('chat.chrome.waiting')}
               </p>
               <div className="ch-planned-tools">
                 {m.state === 'pending' && (
                   <button type="button" className="wk-link-btn" onClick={() => {
                     void call(`${endpoint}/scheduled/${m.messageId}/now`, { method: 'POST' })
-                      .then(() => { scheduled.drop(m.messageId); setSaid('Wysłano.'); onSent?.(); })
-                      .catch((e: unknown) => setSaid(failure(e, 'Nie udało się wysłać.')));
-                  }}>Wyślij teraz</button>
+                      .then(() => { scheduled.drop(m.messageId); setSaid(t('chat.chrome.sent')); onSent?.(); })
+                      .catch((e: unknown) => setSaid(failure(e, t('chat.chrome.sendFailed'))));
+                  }}>{t('chat.chrome.sendNow')}</button>
                 )}
                 {m.state === 'pending' && (
                   <Reschedule endpoint={endpoint} messageId={m.messageId} sendAt={m.whenOnline === true ? new Date(Date.now() + 3_600_000).toISOString() : m.sendAt}
@@ -185,9 +188,9 @@ function ScheduledDialog({ endpoint, scheduled, onClose, onSent }: {
                 )}
                 <button type="button" className="wk-link-btn" onClick={() => {
                   void call(`${endpoint}/scheduled/${m.messageId}`, { method: 'DELETE' })
-                    .then(() => { scheduled.drop(m.messageId); setSaid('Anulowano.'); })
-                    .catch((e: unknown) => setSaid(failure(e, 'Nie udało się anulować.')));
-                }}>Anuluj wysłanie</button>
+                    .then(() => { scheduled.drop(m.messageId); setSaid(t('chat.chrome.cancelled')); })
+                    .catch((e: unknown) => setSaid(failure(e, t('chat.chrome.cancelFailed'))));
+                }}>{t('chat.chrome.cancelSend')}</button>
               </div>
             </li>
           ))}
@@ -199,32 +202,34 @@ function ScheduledDialog({ endpoint, scheduled, onClose, onSent }: {
 }
 
 function Reschedule({ endpoint, messageId, sendAt, onDone }: { endpoint: string; messageId: string; sendAt: string; onDone: (text: string) => void }) {
+  const t = useT();
   const [value, setValue] = useState(() => localInput(new Date(sendAt)));
   return (
     <span className="ch-reschedule">
-      <input type="datetime-local" aria-label="Nowy termin wysyłki" value={value} onChange={(e) => setValue(e.target.value)} />
+      <input type="datetime-local" aria-label={t('chat.chrome.newTime')} value={value} onChange={(e) => setValue(e.target.value)} />
       <button type="button" className="wk-link-btn" onClick={() => {
-        if (value === '' || new Date(value).getTime() <= Date.now()) { onDone('Wybierz przyszły termin.'); return; }
+        if (value === '' || new Date(value).getTime() <= Date.now()) { onDone(t('chat.chrome.pickFuture')); return; }
         void call(`${endpoint}/scheduled/${messageId}`, { method: 'PUT', body: JSON.stringify({ sendAt: new Date(value).toISOString() }) })
-          .then(() => onDone('Zmieniono termin.'))
-          .catch((e: unknown) => onDone(failure(e, 'Nie udało się zmienić terminu.')));
-      }}>Zmień termin</button>
+          .then(() => onDone(t('chat.chrome.rescheduled')))
+          .catch((e: unknown) => onDone(failure(e, t('chat.chrome.rescheduleFailed'))));
+      }}>{t('chat.chrome.reschedule')}</button>
     </span>
   );
 }
 
 const POLICIES = [
-  { value: 'members', label: 'Wszyscy uczestnicy', hint: 'Każdy w rozmowie może pisać.' },
-  { value: 'writers', label: 'Kanał', hint: 'Publikują tylko osoby z prawem zapisu (write/admin); pozostali czytają i reagują.' }
+  { value: 'members', label: 'chat.policy.members', hint: 'chat.policy.membersHint' },
+  { value: 'writers', label: 'chat.policy.writers', hint: 'chat.policy.writersHint' }
 ] as const;
 
 function PolicyDialog({ endpoint, policy, onDone, onClose }: { endpoint: string; policy: string; onDone: () => void; onClose: () => void }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
   return (
-    <Modal title="Kto może pisać" onClose={onClose}>
-      <div className="ch-options" role="radiogroup" aria-label="Kto może pisać">
+    <Modal title={t('chat.chrome.policy')} onClose={onClose}>
+      <div className="ch-options" role="radiogroup" aria-label={t('chat.chrome.policy')}>
         {POLICIES.map((p) => (
           <label key={p.value} className="ch-option">
             <input type="radio" name="ch-policy" checked={policy === p.value} disabled={busy} onChange={() => {
@@ -232,10 +237,10 @@ function PolicyDialog({ endpoint, policy, onDone, onClose }: { endpoint: string;
               setFailed(null);
               void call(`${endpoint}/policy`, { method: 'PUT', body: JSON.stringify({ postingPolicy: p.value }) })
                 .then(() => { onDone(); onClose(); })
-                .catch((e: unknown) => setFailed(failure(e, 'Nie udało się zmienić.')))
+                .catch((e: unknown) => setFailed(failure(e, t('chat.chrome.changeFailed'))))
                 .finally(() => setBusy(false));
             }} />
-            <span><strong>{p.label}</strong><small>{p.hint}</small></span>
+            <span><strong>{t(p.label)}</strong><small>{t(p.hint)}</small></span>
           </label>
         ))}
       </div>

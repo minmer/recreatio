@@ -3,44 +3,38 @@
  * Ende eines Laufs „każda raz“, der Filter „Luki“ auf der Karte. Dieselben drei Sprachen wie `lang.ts` (die Baza sagt welche).
  */
 
-import type { Lang } from './lang';
+import { wordsT, type Lang } from './lang';
 
-const plPlural = (n: number, one: string, few: string, many: string): string => {
-  if (n === 1) return one;
-  const t = n % 10;
-  const h = n % 100;
-  return t >= 2 && t <= 4 && (h < 12 || h > 14) ? few : many;
-};
 
 export function selfCheckWords(lang: Lang) {
-  const L = <T>(pl: T, de: T, en: T): T => (lang === 'de' ? de : lang === 'en' ? en : pl);
-  const topics = (n: number) => L(`${n} ${plPlural(n, 'temat', 'tematy', 'tematów')}`, `${n} ${n === 1 ? 'Thema' : 'Themen'}`, `${n} ${n === 1 ? 'topic' : 'topics'}`);
+  const t = wordsT(lang);
+  const topics = (n: number) => t('cogitaLearn.count.topics', { count: n });
   return {
     /** Das Zeichen auf einer Kernfrage. */
-    core: L('kluczowe', 'Kernfrage', 'key question'),
-    coreHint: L('Pytanie kluczowe tematu: po nim widać, czy temat już umiesz', 'Kernfrage des Themas: an ihr sieht man, ob du das Thema schon kannst', 'The topic’s key question: it shows whether you already know the topic'),
+    core: t('cogitaLearn.selfCheck.core'),
+    coreHint: t('cogitaLearn.selfCheck.coreHint'),
     /** Der Knopf über der Karte. */
-    check: L('Sprawdź, co wiesz', 'Prüfe, was du weißt', 'Check what you know'),
-    checkHere: (name: string) => L(`Sprawdź, co wiesz: ${name}`, `Prüfe, was du weißt: ${name}`, `Check what you know: ${name}`),
-    checkTitle: (name: string) => L(`Sprawdź, co wiesz — ${name}`, `Prüfe, was du weißt — ${name}`, `Check what you know — ${name}`),
-    checkNone: L('Tu nie ma pytań do sprawdzenia.', 'Hier gibt es keine Fragen zum Prüfen.', 'There are no questions to check here.'),
+    check: t('cogitaLearn.selfCheck.check'),
+    checkHere: (name: string) => t('cogitaLearn.selfCheck.checkHere', { name }),
+    checkTitle: (name: string) => t('cogitaLearn.selfCheck.checkTitle', { name }),
+    checkNone: t('cogitaLearn.selfCheck.checkNone'),
     /** Der Filter danach. */
-    gaps: L('Luki', 'Lücken', 'Gaps'),
-    gapsNone: L('Bez luk — wszystkie sprawdzone tematy umiesz', 'Keine Lücken — alle geprüften Themen kannst du', 'No gaps — you know every checked topic'),
-    gapsFirst: L('Najpierw „Sprawdź, co wiesz” — potem tu widać luki', 'Erst „Prüfe, was du weißt“ — dann stehen hier die Lücken', 'First “Check what you know” — then the gaps show here'),
-    fill: L('Uzupełnij luki', 'Lücken schließen', 'Fill the gaps'),
-    fillN: (n: number) => L(`Uzupełnij luki (${n})`, `Lücken schließen (${n})`, `Fill the gaps (${n})`),
-    fillTitle: (name: string) => L(`Uzupełnij luki — ${name}`, `Lücken schließen — ${name}`, `Fill the gaps — ${name}`),
+    gaps: t('cogitaLearn.selfCheck.gaps'),
+    gapsNone: t('cogitaLearn.selfCheck.gapsNone'),
+    gapsFirst: t('cogitaLearn.selfCheck.gapsFirst'),
+    fill: t('cogitaLearn.selfCheck.fill'),
+    fillN: (n: number) => t('cogitaLearn.selfCheck.fillN', { n }),
+    fillTitle: (name: string) => t('cogitaLearn.selfCheck.fillTitle', { name }),
     /** Die Übersicht je Thema. */
-    summaryTitle: L('Twoje tematy', 'Deine Themen', 'Your topics'),
-    summaryLine: (known: number, gaps: number) => L(`Umiesz ${topics(known)} · luki: ${topics(gaps)}`, `Du kannst ${topics(known)} · Lücken: ${topics(gaps)}`, `You know ${topics(known)} · gaps: ${topics(gaps)}`),
-    known: L('umiesz', 'kannst du', 'known'),
-    gap: L('luka', 'Lücke', 'gap'),
-    openTopic: L('Temat', 'Thema', 'Topic'),
-    seeInStory: L('Zobacz w opowieści', 'In der Geschichte öffnen', 'See in the story'),
-    gapsAll: L('Pokaż wszystkie', 'Alle zeigen', 'Show all'),
+    summaryTitle: t('cogitaLearn.selfCheck.summaryTitle'),
+    summaryLine: (known: number, gaps: number) => t('cogitaLearn.selfCheck.summaryLine', { known: topics(known), gaps: topics(gaps) }),
+    known: t('cogitaLearn.selfCheck.known'),
+    gap: t('cogitaLearn.selfCheck.gap'),
+    openTopic: t('cogitaLearn.selfCheck.openTopic'),
+    seeInStory: t('cogitaLearn.selfCheck.seeInStory'),
+    gapsAll: t('cogitaLearn.selfCheck.gapsAll'),
     /** Eine Erzählung, deren Fragen alle sitzen. */
-    storyKnown: L('wszystkie pytania tej opowieści umiesz — zaliczona', 'alle Fragen dieser Geschichte kannst du — bestanden', 'you know every question of this story — passed')
+    storyKnown: t('cogitaLearn.selfCheck.storyKnown')
   };
 }
 

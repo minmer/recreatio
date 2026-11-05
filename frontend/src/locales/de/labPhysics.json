@@ -1,0 +1,295 @@
+{
+  "lab": {
+    "pause": "Pause",
+    "start": "Start",
+    "step": "Schritt (1/60 s)",
+    "restart": "Von vorn",
+    "speed": "Tempo",
+    "speedValue": "Tempo {x}×",
+    "newDraw": "Neu auslosen",
+    "fit": "Ansicht einpassen",
+    "titleSandbox": "Physiklabor",
+    "titleExperiment": "Versuch",
+    "chipSandbox": "Sandkasten",
+    "chipExperiment": "Versuch",
+    "canvas": "{title} — Szene; ziehe Körper, verschiebe den Hintergrund, zwei Finger zoomen",
+    "description": "Beschreibung",
+    "graph": "Schreiber: {label}",
+    "graphAria": "Schreiber der Werte über der Zeit",
+    "presetsAndSave": "Versuche und Speichern",
+    "loadPreset": "Versuch laden",
+    "choose": "— wählen —",
+    "save": "Speichern",
+    "saved": "Aufbau in diesem Browser gespeichert.",
+    "saveFailed": "Der Browser erlaubt kein Speichern.",
+    "nothingSaved": "Es gibt keinen gespeicherten Aufbau.",
+    "loaded": "Gespeicherter Aufbau geladen.",
+    "broken": "Der gespeicherte Aufbau ist beschädigt.",
+    "load": "Laden",
+    "json": "JSON",
+    "jsonNote": "Dieses JSON ist die Szene — füge es im Editor des Bausteins als „scene“ ein, dann bleibt der Versuch auf der Seite.",
+    "hintSandbox": "Füge Körper aus der Liste hinzu, ziehe sie, verbinde sie mit den Werkzeugen. Start lässt die Zeit laufen.",
+    "hintExperiment": "Tippe einen Körper oder Behälter an, um seine Werte zu sehen. Start lässt die Zeit laufen."
+  },
+  "panel": {
+    "add": "Hinzufügen",
+    "tools": "Werkzeuge",
+    "selected": "Ausgewählt: {label}",
+    "mass": "Masse",
+    "fixedValue": "unbeweglich",
+    "material": "Stoff",
+    "materialValue": "{name} · {density}",
+    "speed": "Geschwindigkeit",
+    "height": "Höhe",
+    "kinetic": "Kinetische Energie",
+    "potential": "Potentielle Energie",
+    "lift": "Auftriebskraft",
+    "trace": "Spur",
+    "fixed": "unbeweglich",
+    "materialOption": "{name} ({density} kg/m³)",
+    "angle": "Drehung",
+    "remove": "Löschen",
+    "basin": "Behälter",
+    "empty": "Leer.",
+    "level": "Pegel",
+    "bottomPressure": "Druck am Boden",
+    "holeOpen": "Loch {n} öffnen ({at})",
+    "holeClose": "Loch {n} schliessen ({at})",
+    "pour": "+ {name}",
+    "drain": "Ausgiessen",
+    "steps": "Versuch Schritt für Schritt",
+    "showing": "Wird gezeigt…",
+    "show": "Zeigen",
+    "next": "Nächster Schritt",
+    "view": "Ansicht",
+    "values": "Werte",
+    "grid": "Raster",
+    "pressure": "Druck",
+    "world": "Welt",
+    "air": "Luft (Luftwiderstand)",
+    "gravity": "Schwerkraft",
+    "gravityOption": "{name} ({g} m/s²)",
+    "gravityValue": "{g} m/s²"
+  },
+  "palette": {
+    "ball": "Ball",
+    "box": "Klotz",
+    "plank": "Brett",
+    "wedge": "Keil",
+    "ramp": "Rampe",
+    "wall": "Wand",
+    "pendulum": "Pendel",
+    "spring": "Feder",
+    "pulley": "Rolle",
+    "seesaw": "Wippe",
+    "basin": "Behälter"
+  },
+  "tool": {
+    "pin": "Anheften (Achse)",
+    "rope": "Seil",
+    "rod": "Stange",
+    "link": "Feder",
+    "ruler": "Lineal",
+    "probe": "Drucksonde",
+    "delete": "Löschen"
+  },
+  "toolSays": {
+    "pin": "Tippe einen Körper an: an dieser Stelle bekommt er eine Drehachse (ein Nagel in der Wand).",
+    "rope": "Ziehe von einem Körper zu einem zweiten Körper oder zu einem Punkt in der Luft.",
+    "rod": "Ziehe von einem Körper zu einem zweiten Körper oder zu einem Punkt: eine starre Stange.",
+    "link": "Ziehe von einem Körper zu einem zweiten Körper oder zu einem Punkt: eine Feder.",
+    "ruler": "Ziehe, um einen Abstand zu messen.",
+    "probe": "Tippe oder ziehe in einer Flüssigkeit: der Druck an dieser Stelle.",
+    "delete": "Tippe einen Körper an, um ihn zu löschen."
+  },
+  "vector": {
+    "v": "Geschwindigkeit",
+    "g": "Gewicht",
+    "lift": "Auftrieb",
+    "net": "resultierende Kraft"
+  },
+  "planet": {
+    "earth": "Erde",
+    "moon": "Mond",
+    "mars": "Mars",
+    "jupiter": "Jupiter",
+    "zeroG": "Schwerelosigkeit"
+  },
+  "material": {
+    "wood": "Holz",
+    "oak": "Eiche",
+    "cork": "Kork",
+    "steel": "Stahl",
+    "aluminium": "Aluminium",
+    "lead": "Blei",
+    "gold": "Gold",
+    "rubber": "Gummi",
+    "ice": "Eis",
+    "stone": "Stein",
+    "plastic": "Kunststoff",
+    "glass": "Glas",
+    "paper": "Blatt Papier",
+    "foam": "Styropor",
+    "ball": "Ball",
+    "egg": "Ei"
+  },
+  "scene": {
+    "goalDefault": "Geschafft!",
+    "wall": "Wand",
+    "ground": "Boden"
+  },
+  "draw": {
+    "probe": "p = {p}",
+    "probeDepth": "p = {p} · Tiefe {d} m",
+    "vecWeight": "FG",
+    "vecLift": "FA"
+  },
+  "ai": {
+    "format": "Szene des Physiklabors 2D (Baustein „Physiklabor“) — JSON. Die Engine ist fertig (starre Körper, Stösse, Reibung, Abprallen, Gelenke, Seile, Stangen, Federn, Rollen, Flüssigkeiten mit Druck und Auftrieb); die Szene sagt nur, WAS darin steht.\nEinheiten: Meter, Kilogramm, Sekunden; y wächst nach oben, der Boden bei y = 0. Jede Zahl kann ein Ausdruck \"=…\" mit Werten sein, die in \"vars\" gezogen werden (z. B. \"=4*tan(rad(kat))\").\n\n\"world\": { \"gravity\": 9.81, \"air\": 1 (Luftwiderstand, 0 — Vakuum), \"depth\": 0.1 (Dicke der Körper — daraus die Masse), \"ground\": true, \"speed\": 1 }\n\"vars\": [{ \"name\": \"kat\", \"from\": 15, \"to\": 40, \"step\": 5 }] oder { \"name\": \"ciecz\", \"pick\": [\"water\", \"oil\"] } — jedes Mal anders; in Texten \"{kat}\"\n\"bodies\": [{ \"id\", \"label\", \"shape\": \"circle\" (r) | \"box\" (w, h) | \"poly\" (points [[x,y],…], konvex), \"x\", \"y\", \"angle\" (Grad), \"material\", \"density\", \"friction\", \"bounce\", \"static\": true (unbeweglich), \"vx\", \"vy\", \"spin\", \"drag\": false (lässt sich nicht fassen), \"trace\": true (Spur), \"color\" }]\n  Stoffe: {materials}\n\"joints\": [{ \"type\": \"pin\" (Drehachse im Punkt \"at\"; mit \"torque\" und \"speed\" — ein Motor) | \"rod\" (Stange) | \"rope\" (Seil) | \"spring\" (Feder: \"k\" N/m, \"damping\") | \"pulley\" (Rolle: \"a\", \"b\", Räder bei \"at\" und \"at2\"), \"a\": id, \"b\": id (weggelassen — an der Welt befestigt), \"on\": [x, y] (Punkt auf \"a\", bezogen auf seine Mitte), \"at\": [x, y] (Punkt der Welt oder auf \"b\"), \"length\" }]\n\"fluids\": [{ \"id\", \"x\", \"y\" (linke untere Ecke des Inneren), \"w\", \"h\", \"wall\", \"layers\": [{ \"liquid\", \"height\" }] (von unten; leichtere steigen von selbst auf), \"holes\": [{ \"side\": \"left\"|\"right\"|\"bottom\", \"at\" (Höhe über dem Boden), \"size\", \"open\" }] }] — Flüssigkeiten: {liquids}\n\"pipes\": [{ \"a\", \"b\", \"y\", \"size\", \"open\" }] — ein Rohr, das zwei Behälter verbindet (verbundene Gefässe)\n\"show\": { \"vectors\": [{vectors}] (v — Geschwindigkeit, g — Gewicht, lift — Auftrieb, net — resultierende Kraft), \"trace\": [id], \"grid\", \"pressure\" (Druck als Farbe der Tiefe), \"values\" (Massen, Kräfte) }\n\"graph\": { \"body\": id, \"of\": [{graph}] } — ein Schreiber über der Zeit (h Höhe, v Geschwindigkeit, ek/ep/e Energien)\n\"allow\": { \"add\": false, \"palette\": [{palette}], \"tools\": [{tools}], \"edit\", \"drag\" }\n\"controls\": [{controls}] — Schalter der Welt im Feld\n\"goal\": { \"body\": id, \"area\": [x0, y0, x1, y1], \"for\": 0.5, \"say\": \"Geschafft!\" } — ein Ziel (z. B. der Ball im Korb)\n\"steps\": [{ \"say\": \"…\", \"do\": \"play\" | \"pause\" | { \"open\": idDesBehälters, \"hole\": 0 } | { \"push\": id, \"vx\": 2, \"vy\": 0 }, \"wait\": 3 }] — Schritte; „Zeigen“ führt sie der Reihe nach aus\n\"view\": [x0, y0, x1, y1] — was am Anfang zu sehen ist",
+    "prompt": "Bereite eine JSON-Szene für den Baustein „Physiklabor“ in REcreatio vor (ein Physikversuch für die Schule in 2D).\nThema: [beschreibe den Versuch, z. B. „freier Fall auf dem Mond und auf der Erde“].\nRegeln: echte Masse und Stoffe; die Schüler sollen etwas tun (starten, ziehen, messen); ein Vorgang je Szene; Beschriftungen auf Deutsch; wo es Sinn hat — Werte, die in \"vars\" gezogen werden.\nGib EIN JSON-Objekt zurück (nur die Szene). Ohne Kommentare.",
+    "example": "Beispiel:"
+  },
+  "preset": {
+    "fall": {
+      "title": "Freier Fall — mit Luft und ohne",
+      "summary": "Eine Stahlkugel, ein Blatt Papier und ein Ball fallen aus derselben Höhe — was ändert die Luft?",
+      "text": "Drei Körper fallen aus 4 m Höhe. Starte und beobachte die Spuren: welcher fällt am langsamsten?\nSchalte „Luft“ in den Einstellungen der Welt aus und wiederhole (Von vorn). Ohne Luftwiderstand fallen alle gleich — die Beschleunigung ist g.\nDer Schreiber zeigt Höhe und Geschwindigkeit der Kugel: die Geschwindigkeit wächst gleichmässig (v = g·t).",
+      "label": {
+        "kulka": "Stahlkugel",
+        "kartka": "Blatt Papier",
+        "pilka": "Wasserball"
+      },
+      "step1": "Lass alle drei Körper zugleich los.",
+      "step2": "Schalte „Luft“ aus und fange von vorn an — vergleiche die Spuren."
+    },
+    "slope": {
+      "title": "Schiefe Ebene und Reibung",
+      "summary": "Ein Holzklotz und ein Eiswürfel auf einer Rampe mit zufälligem Winkel: welcher rutscht?",
+      "text": "Der Winkel der Rampe ist jedes Mal anders. Sage zuerst voraus: rutscht der Holzklotz? Und das Eis?\nEin Klotz rutscht, wenn tan α grösser als die Reibungszahl ist (Holz auf Holz: µ ≈ 0,5, also α > 27°; Eis: µ ≈ 0,1).\nDie Pfeile zeigen die Geschwindigkeit. „Neu auslosen“ ändert den Winkel.",
+      "label": {
+        "rownia": "Rampe",
+        "drewno": "Holz",
+        "lod": "Eis"
+      },
+      "step1": "Sage voraus, dann starte."
+    },
+    "pendulum": {
+      "title": "Pendel und Energieerhaltung",
+      "summary": "Ein Pendel mit zufälliger Länge: die Periode T = 2π√(L/g) und Energie, die von potentieller in kinetische übergeht.",
+      "text": "Starte und schau auf den Schreiber: potentielle Energie (Ep) wird zu kinetischer (Ek), und die Summe (E) bleibt.\nMiss die Periode: wie viele Sekunden dauert eine volle Schwingung? Vergleiche mit T = 2π√(L/g) — die Länge misst du mit dem Lineal.\nFasse die Kugel und lass sie aus einer anderen Höhe los.",
+      "label": {
+        "kulka": "Kugel"
+      },
+      "step1": "Lass die Kugel los."
+    },
+    "spring": {
+      "title": "Schwingung an einer Feder",
+      "summary": "Ein Gewicht an einer Feder mit zufälliger Steifigkeit: die Periode T = 2π√(m/k).",
+      "text": "Die Feder hat jedes Mal eine andere Steifigkeit k. Zieh das Gewicht nach unten und lass los.\nDer Schreiber der Höhe zeigt eine Sinuskurve. Die Periode hängt von Masse und Steifigkeit ab: T = 2π√(m/k) — nicht davon, wie fest du ziehst.",
+      "label": {
+        "ciezarek": "Gewicht"
+      },
+      "step1": "Zieh das Gewicht nach unten und lass los."
+    },
+    "collisions": {
+      "title": "Stösse auf dem Lufttisch",
+      "summary": "Scheiben ohne Reibung: der Impuls vor dem Stoss ist gleich dem Impuls danach.",
+      "text": "Ein Tisch von oben gesehen — ohne Schwerkraft und ohne Reibung. Die grosse Scheibe (Stahl) trifft die kleine.\nStoss die Scheiben an (ziehen und loslassen). Die Pfeile sind Geschwindigkeiten. Die Summe von m·v vor und nach dem Stoss ist gleich.",
+      "label": {
+        "duzy": "Stahlscheibe",
+        "maly": "Aluminiumscheibe",
+        "trzeci": "Gummischeibe"
+      },
+      "step1": "Starte: die Stahlscheibe trifft die Aluminiumscheibe."
+    },
+    "cradle": {
+      "title": "Newtonpendel",
+      "summary": "Fünf Stahlkugeln an Stangen: eine stösst, eine springt weg.",
+      "text": "Zieh die äussere Kugel zur Seite und lass los. Impuls und Energie gehen durch alle Kugeln — die auf der anderen Seite springt weg.\nVersuch es mit zwei Kugeln zugleich.",
+      "label": {
+        "ball": "Kugel {n}"
+      },
+      "step1": "Lass die Kugel los."
+    },
+    "throw": {
+      "title": "Wurf in den Korb",
+      "summary": "Wirf den Ball (ziehen und loslassen) so, dass er in den Korb fällt — die Bahn ist eine Parabel.",
+      "text": "Fasse den Ball, schwing ihn mit dem Finger und lass los. Die Spur zeigt die Flugbahn — eine Parabel.\nDer Korb steht jedes Mal woanders.",
+      "label": {
+        "pilka": "Ball"
+      },
+      "goal": "Treffer! Die Bahn des Balls ist eine Parabel: gleichförmige Bewegung waagrecht und gleichmässig beschleunigte senkrecht."
+    },
+    "atwood": {
+      "title": "Atwoodsche Fallmaschine",
+      "summary": "Zwei Gewichte an einem Seil über eine Rolle: a = g·(m₁ − m₂)/(m₁ + m₂).",
+      "text": "Das schwerere Gewicht sinkt, das leichtere steigt — mit einer Beschleunigung kleiner als g.\nMiss die Fallzeit über einen Meter (Lineal) und vergleiche mit der Formel.",
+      "label": {
+        "m1": "Gewicht 10 kg",
+        "m2": "Gewicht {m2} kg"
+      },
+      "step1": "Lass die Gewichte los."
+    },
+    "lever": {
+      "title": "Hebel — eine Wippe",
+      "summary": "Bring die Wippe ins Gleichgewicht: Masse × Arm auf beiden Seiten.",
+      "text": "Ein Gewicht von 2 kg und eins von 4 kg liegen auf der Wippe. Verschiebe sie so, dass die Wippe waagrecht steht.\nBedingung für das Gleichgewicht: m₁·r₁ = m₂·r₂ (Drehmoment).",
+      "label": {
+        "deska": "Brett"
+      }
+    },
+    "floating": {
+      "title": "Schwimmen von Körpern",
+      "summary": "Kork, Holz, Eis, Kunststoff, Aluminium und Stahl im Wasser — was schwimmt, und wie tief taucht es ein?",
+      "text": "Starte: die Klötze fallen ins Wasser. Es schwimmt, was eine kleinere Dichte als Wasser (1000 kg/m³) hat.\nEin schwimmender Körper taucht so tief ein, dass er so viel Wasser verdrängt, wie er selbst wiegt: eingetauchter Teil = Dichte des Körpers / Dichte des Wassers (Eis: 92 %).\nPfeile: Gewichtskraft (FG) und Auftriebskraft (FA).",
+      "label": {
+        "korek": "Kork",
+        "drewno": "Holz",
+        "lod": "Eis",
+        "plastik": "Kunststoff",
+        "aluminium": "Aluminium",
+        "stal": "Stahl"
+      },
+      "step1": "Wirf die Klötze ins Wasser."
+    },
+    "archimedes": {
+      "title": "Archimedisches Prinzip",
+      "summary": "Ein Überlaufgefäss: das vom Klotz verdrängte Wasser läuft in ein Becherglas über, und der Kraftmesser zeigt weniger.",
+      "text": "Der Klotz hängt an einer Feder (einem Kraftmesser). Tauche ihn ins Überlaufgefäss (fassen und absenken).\nDas Wasser, das der Klotz verdrängt, fliesst in das Becherglas daneben. Die Kraft an der Feder sinkt genau um das Gewicht dieses Wassers — das ist die Auftriebskraft.",
+      "label": {
+        "klocek": "Aluminium"
+      },
+      "step1": "Fasse den Klotz und tauche ihn ins Wasser."
+    },
+    "pressure": {
+      "title": "Hydrostatischer Druck",
+      "summary": "Ein hoher Behälter mit drei Löchern: je tiefer, desto grösser der Druck und desto weiter der Strahl.",
+      "text": "Öffne die Löcher (klicke den Behälter an, dann „Öffnen“). Der Strahl aus dem untersten Loch spritzt am weitesten.\nDer Druck wächst mit der Tiefe: p = p₀ + ρ·g·h. Ausflussgeschwindigkeit: v = √(2·g·h) (Torricelli). Miss den Druck mit der Sonde.",
+      "step1": "Öffne das unterste Loch.",
+      "step2": "Öffne das mittlere.",
+      "step3": "Öffne das oberste — vergleiche die Strahlen."
+    },
+    "vessels": {
+      "title": "Verbundene Gefässe",
+      "summary": "Drei Gefässe verschiedener Breite, durch ein Rohr verbunden — das Wasser gleicht seinen Stand aus.",
+      "text": "Wasser ist nur im mittleren Gefäss, und die Rohre sind offen. Starte: die Pegel gleichen sich aus, obwohl die Gefässe verschieden breit sind.\nDer Druck am Boden hängt nur von der Höhe der Wassersäule ab, nicht von der Form des Gefässes.",
+      "step1": "Starte — das Wasser fliesst durch die Rohre."
+    },
+    "uTube": {
+      "title": "U-Rohr mit Öl und Wasser",
+      "summary": "Öl ist leichter als Wasser: die Ölsäule ist höher als das Wasser auf der anderen Seite.",
+      "text": "Im Rohr ist Wasser, im linken Schenkel dazu Öl. Die Pegel sind nicht gleich!\nAuf der Höhe der Grenze sind die Drücke gleich: ρ_Öl·h_Öl = ρ_Wasser·h_Wasser.",
+      "step1": "Starte und warte, bis sich die Pegel einstellen."
+    },
+    "egg": {
+      "title": "Ein Ei in Süss- und Salzwasser",
+      "summary": "Ein Ei sinkt in gewöhnlichem Wasser und schwimmt in Salzwasser — die Dichte der Flüssigkeit zählt.",
+      "text": "Zwei Eier fallen in zwei Behälter: einen mit Leitungswasser und einen mit stark gesalzenem.\nDie Dichte eines Eis (etwa 1035 kg/m³) ist grösser als die von Wasser, aber kleiner als die von Sole (1100 kg/m³).",
+      "label": {
+        "jajko1": "Ei",
+        "jajko2": "Ei"
+      },
+      "step1": "Wirf die Eier hinein."
+    }
+  }
+}

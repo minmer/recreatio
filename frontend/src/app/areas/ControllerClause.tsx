@@ -5,6 +5,7 @@
  * Formular, ein Termin); ohne Angabe kein Knopf.
  */
 
+import { useT } from '../core/i18n';
 import { reportPath } from '../reports/reportPath';
 import { clauseLines, type ClauseContext, type ClauseController } from './clause';
 
@@ -14,7 +15,8 @@ export function ControllerClause({ controller, context, report, className }: {
   report?: { readonly kind: string; readonly id: string } | null;
   className?: string;
 }) {
-  const l = clauseLines(controller, context);
+  const t = useT();
+  const l = clauseLines(controller, context, t.lang);
   return (
     <div className={`wk-clause${className === undefined ? '' : ` ${className}`}`} data-clause={controller === null ? 'nobody' : 'named'}>
       <p className="wk-clause-who">{l.who ?? l.nobody}</p>
@@ -23,7 +25,7 @@ export function ControllerClause({ controller, context, report, className }: {
       <p className="wk-clause-operator">
         {l.operator}
         {report !== undefined && report !== null && (
-          <> <a className="wk-link" href={reportPath(report.kind, report.id)} data-report={report.kind}>Zgłoś</a></>
+          <> <a className="wk-link" href={reportPath(report.kind, report.id)} data-report={report.kind}>{t('areas.clause.report')}</a></>
         )}
       </p>
     </div>

@@ -1,0 +1,92 @@
+{
+  "beakerOnPlate": {
+    "title": "Becherglas mit Wasser auf der Heizplatte",
+    "summary": "Siedeszene: Wasser (20 °C) in einem Becherglas mit Siedesteinen auf einer Heizplatte aus Stahl",
+    "text": "Im Becherglas ist Wasser mit Zimmertemperatur, darunter eine Heizplatte mit 40 W. Beobachte, wie sich zuerst die Platte erwärmt, dann das Glas, dann das Wasser.\nAm Boden erscheinen Blasen. Solange das Wasser kühl ist, verschwinden sie, bevor sie die Oberfläche erreichen. Der Schreiber „Wassertemperatur“ zeigt ein Plateau bei der Siedetemperatur."
+  },
+  "boilingChips": {
+    "title": "Sieden mit Siedesteinen",
+    "summary": "Wasser kurz vor dem Sieden (98 °C) auf einer heissen Platte — das Blasensieden ist sofort zu sehen",
+    "text": "Das Wasser hat 98 °C, die Platte ist heiss. Siedesteine haben viele Vertiefungen, in denen Blasen entstehen — das Wasser siedet ruhig, ohne Siedeverzug.\nUntersuche eine Blase mit dem Werkzeug „Untersuchen“: ihr Auftrieb ist hunderte Male grösser als ihr Gewicht."
+  },
+  "pressureCooker": {
+    "title": "Schnellkochtopf — eine geschlossene Kiste",
+    "summary": "dasselbe Becherglas, aber die Kiste ist geschlossen: der Druck steigt, und das Wasser siedet bei höherer Temperatur",
+    "text": "Die Kiste ist dicht verschlossen. Wenn das Wasser verdampft, kann der Dampf nicht entweichen — der Druck steigt und mit ihm die Siedetemperatur.\nVergleiche die Siedetemperatur im Inspektor mit der einer offenen Kiste."
+  },
+  "waterUnderOil": {
+    "title": "Wasser unter Öl",
+    "summary": "heisses Wasser (97 °C) unter einer Ölschicht auf einer heissen Platte — Dampfblasen brechen durch das Öl",
+    "text": "Öl ist leichter als Wasser und mischt sich nicht mit ihm, darum schwimmt es oben. Darunter beginnt das Wasser zu sieden.\nDampfblasen entstehen nur im Wasser und gehen durch das Öl hindurch — das Öl selbst verdampft nicht (bis zu seinem Rauchpunkt, etwa 200 °C)."
+  },
+  "oilWaterSeparate": {
+    "title": "Öl und Wasser trennen sich",
+    "summary": "Wasser und Öl halb und halb gemischt — die Schwerkraft trennt sie: das Öl steigt nach oben",
+    "text": "Im Becherglas ist eine feine Mischung aus Wasser und Öl. Öl ist leichter (920 kg/m³), darum steigen seine Tröpfchen auf, und das Wasser sinkt.\nÖl fliesst auch viel „zäher“: bei 20 °C ist seine Viskosität fast hundertmal grösser als die von Wasser — darum dauert das Trennen."
+  },
+  "brineBoilsLater": {
+    "title": "Sole siedet später",
+    "summary": "zwei Bechergläser auf zwei Platten: links Wasser, rechts Sole (15 % Salz) — die Sole siedet bei höherer Temperatur",
+    "text": "Links reines Wasser, rechts Sole mit 15 % Salz; beide haben 97 °C und stehen auf gleichen Platten.\nWasser beginnt bei 100 °C zu sieden, Sole erst bei etwa 103 °C. Untersuche beide mit dem Werkzeug „Untersuchen“: der Inspektor zeigt, bei welcher Temperatur die Flüssigkeit an dieser Stelle siedet.\nSalz verdampft nicht: wenn Wasser als Dampf entweicht, wird die Sole immer salziger (Einblendung „Salzgehalt“)."
+  },
+  "brineEvaporation": {
+    "title": "Sole eindampfen",
+    "summary": "eine dünne Schicht fast gesättigter Sole (25 %) auf einer Platte mit 250 °C — das Wasser verdampft, am Boden bleibt eine weisse Salzkruste",
+    "text": "Im Becherglas ist eine dünne Schicht Sole mit 25 % Salz — fast so viel, wie Wasser lösen kann. Ein Thermostat hält die Platte bei 250 °C.\nDas Wasser siedet und verdampft, das Salz bleibt. Ist die Lösung gesättigt, kristallisiert das überschüssige Salz und setzt sich als weisse Kruste am Boden ab — bis alles Wasser fort ist.\nIm Entwicklerfeld zeigt die Bilanz „NaCl“, dass kein Salz verloren geht: alles landet in der Kruste."
+  },
+  "fog": {
+    "title": "Nebel über heissem Wasser",
+    "summary": "heisses Wasser (90 °C) in einem kühlen, feuchten Zimmer — über dem Becherglas bildet sich Nebel",
+    "text": "Das Wasser im Becherglas ist heiss, das Zimmer kühl. Wasserdampf ist unsichtbar — weisser Nebel entsteht erst dort, wo sich die feuchte Luft abkühlt.\nSchalte die Einblendung „Wasserdampf“ ein, um den unsichtbaren Dampf neben dem sichtbaren Nebel zu sehen."
+  },
+  "mountain": {
+    "title": "Sieden in den Bergen",
+    "summary": "dasselbe Becherglas bei 70 kPa (etwa 3000 m ü. M.) — das Wasser siedet schon bei etwa 90 °C",
+    "text": "Hoch in den Bergen ist der Luftdruck niedriger: hier 70 kPa statt 101 kPa. Wasser siedet dann bei einer niedrigeren Temperatur — bei etwa 90 °C.\nUntersuche das Wasser mit dem Werkzeug „Untersuchen“: der Inspektor zeigt die Siedetemperatur an dieser Stelle. Vergleiche mit „Sieden mit Siedesteinen“."
+  },
+  "convection": {
+    "title": "Konvektion über einem Heizstab",
+    "summary": "ein kleiner Heizstab in kaltem Wasser — warmes Wasser steigt, kühles sinkt, und es entsteht ein Wirbel",
+    "text": "Im kalten Wasser liegt links am Boden ein kleiner Heizstab (6 W). Erwärmtes Wasser ist leichter und steigt über ihm auf, kühleres sinkt auf der anderen Seite — es entsteht ein Wirbel.\nSchalte die Einblendung „Temperatur“ ein und dann „Geschwindigkeit“ (weisse Pfeile zeigen, wie das Wasser strömt)."
+  },
+  "brineUnderWater": {
+    "title": "Sole unter Süsswasser",
+    "summary": "eine Schicht Sole (20 %) unter Süsswasser, die Platte heizt von unten — die Schichten mischen sich nicht",
+    "text": "Am Boden des Becherglases liegt Sole mit 20 % Salz, darüber Süsswasser. Die Platte heizt von unten: die Sole kreist und erwärmt sich, bleibt aber am Boden — selbst warm ist sie schwerer als das Wasser darüber.\nDie Einblendung „Salzgehalt“ zeigt, dass die Grenze scharf bleibt (Salz gelangt nur durch Diffusion hindurch, Millimeter pro Stunde). Die Einblendung „Temperatur“ zeigt, dass Wärme viel schneller durch die Grenze geht."
+  },
+  "whatFloats": {
+    "title": "Was schwimmt?",
+    "summary": "ein Holzklotz, ein Eiswürfel und ein Stein fallen in kaltes Wasser — Holz schwimmt, Eis fast ganz untergetaucht, der Stein sinkt",
+    "text": "Über dem Wasser hängen drei Körper: ein Kiefernklotz, ein Eiswürfel und ein Stein (Granit). Lass die Zeit laufen — sie fallen ins Wasser.\nHolz (510 kg/m³) taucht zur Hälfte ein, Eis (917 kg/m³) fast ganz, und der Stein (2630 kg/m³) geht auf den Grund. Ein schwimmender Körper verdrängt so viel Wasser, wie er selbst wiegt — untersuche sie mit dem Werkzeug „Untersuchen“.\nDas Wasser hat 2 °C, darum schmilzt das Eis langsam: es bleibt ein Rechteck, das mit der Zeit kleiner wird. Klicke einen Gegenstand mit dem Werkzeug „Auswählen“ an: setze im Feld „Gegenstand“ den Haken bei „Angeheftet“, und er bleibt, wo er hängt."
+  },
+  "iceInWarmWater": {
+    "title": "Eis in warmem Wasser",
+    "summary": "ein Eiswürfel (−10 °C) schwimmt in Wasser von 40 °C und schmilzt — er bleibt ein Rechteck, und an seiner Stelle erscheint Wasser",
+    "text": "Ein Eiswürfel (3 cm, −10 °C) schwimmt in Wasser von 40 °C — fast ganz unter Wasser. Er schmilzt von allen Seiten zugleich: er bleibt ein Rechteck, das immer kleiner wird, und an seiner Stelle erscheint Wasser.\nDie Einblendung „Temperatur“ zeigt das kalte Wasser aus dem schmelzenden Eis: es fliesst nach unten, denn kaltes Wasser ist schwerer als warmes. Die Energiebilanz bleibt geschlossen — die Wärme des Wassers geht ins Schmelzen des Eises: 334 J für jedes Gramm."
+  },
+  "iceWithSalt": {
+    "title": "Eis mit Salz — eine Kältemischung",
+    "summary": "drei Eiswürfel schwimmen in starker Sole (23 %) — das Eis schmilzt unter 0 °C und kühlt die Sole weit unter null",
+    "text": "In Sole mit 23 % Salz schwimmen drei Eiswürfel. Salz senkt die Schmelztemperatur des Eises: in solcher Sole schmilzt Eis noch bei −20 °C und entzieht ihr Wärme, darum kühlt sich die Sole weit unter 0 °C ab. Das ist eine Kältemischung — früher machte man darin Speiseeis.\nWasser aus dem schmelzenden Eis verdünnt die Sole, und schwächere Sole gefriert bei höherer Temperatur: die Mischung bleibt bei der Gefriertemperatur ihrer Sole stehen und sinkt nie unter das Eutektikum (−21,2 °C). Das Werkzeug „Untersuchen“ zeigt die Gefriertemperatur der Sole an dieser Stelle."
+  },
+  "saltIntoWater": {
+    "title": "Salz ins Wasser gestreut",
+    "summary": "eine Handvoll Salz (Körner 0,5 mm) fällt in kaltes Wasser — es sinkt, löst sich langsam, und salziges Wasser sammelt sich am Boden",
+    "text": "Über einem Becherglas mit Wasser von 20 °C hängt eine Handvoll Salz. Lass die Zeit laufen: die Körner fallen, werden im Wasser langsamer und sinken mit einigen Zentimetern pro Sekunde (Widerstand des Wassers) auf den Boden, wo sie ein Häufchen bilden.\nSalz löst sich nur dort, wo das Wasser noch nicht gesättigt ist. Am Boden entsteht dichte Sole, die unten bleibt — ohne Umrühren dauert das Lösen lange. Die Einblendung „Salzgehalt“ zeigt die salzige Schicht, und „Temperatur“, dass das Lösen sie leicht abkühlt."
+  },
+  "saltSuperheated": {
+    "title": "Salz in überhitztes Wasser",
+    "summary": "Wasser, auf 104 °C überhitzt (ohne Siedesteine), und eine Prise Salz — in den Spalten der Körner ist Luft, darum siedet das Wasser plötzlich an jedem Korn",
+    "text": "Das Wasser im Becherglas hat 104 °C — mehr als die Siedetemperatur, aber glattes Glas hat keine Vertiefungen, in denen eine Blase entstehen könnte, darum siedet das Wasser nicht (es ist überhitzt). Darüber hängt eine Prise Salz.\nDie Körner haben Spalten mit Luft. Fallen sie in das überhitzte Wasser, entstehen an jedem Dampfblasen — das Wasser siedet heftig, bis die Überhitzung aufgebraucht ist. Das Labor hält an und fragt, wie weiter gerechnet wird: genau (Wasser kann aus dem Gefäss spritzen) oder milder. So kann es in der Küche mit Wasser aus der Mikrowelle gehen. Salz kühlt das Wasser hier nicht: bei 100 °C gibt sein Lösen etwas Wärme ab."
+  },
+  "tippedBeaker": {
+    "title": "Kippendes Becherglas",
+    "summary": "ein Becherglas mit Wasser steht auf der Kante einer Steinstufe, zu weit draussen — es kippt, und das Wasser läuft aus",
+    "text": "Ein Becherglas mit Wasser (frei, nicht angeheftet) steht so auf der Kante einer Stufe, dass sein Schwerpunkt schon jenseits der Kante liegt. Lass die Zeit laufen — das Becherglas dreht sich um die Kante und fällt, und das Wasser läuft aus.\nKlicke das Becherglas mit dem Werkzeug „Auswählen“ an: setze im Feld „Gegenstand“ den Haken bei „Angeheftet“, und es bleibt stehen. Ziehe es näher an die Wand der Stufe und entferne den Haken bei „Angeheftet“ — liegt sein Schwerpunkt über der Stufe, bleibt es stehen."
+  },
+  "emptyBox": {
+    "title": "Leere Kiste",
+    "summary": "eine Kiste voller Luft — male Wasser, zeichne Wände, füge Gegenstände hinzu: Eiswürfel, Klötze, Bechergläser, Heizplatten",
+    "text": "Die Kiste ist voller Luft. Male Wasser, zeichne Wände und füge Gegenstände hinzu (einen Eiswürfel, einen Holzklotz, einen Stein, ein Becherglas, eine Heizplatte) — freie fallen, schwimmen oder sinken, Eis schmilzt. Klicke einen Gegenstand mit dem Werkzeug „Auswählen“ an, um seine Einstellungen zu ändern, z. B. „Angeheftet“ — dann fällt er nicht."
+  }
+}

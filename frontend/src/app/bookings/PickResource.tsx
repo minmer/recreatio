@@ -15,12 +15,14 @@ import { useEffect, useState } from 'react';
 
 import { KIND_LABEL, loadResources, type ResourceRow } from './resource';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 export function PickResource({ value, busy, onPick }: {
   value: string;
   busy: boolean;
   onPick: (resourceId: string) => void;
 }) {
+  const t = useT();
   const [rows, setRows] = useState<readonly ResourceRow[] | null>(null);
 
   useEffect(() => {
@@ -31,14 +33,14 @@ export function PickResource({ value, busy, onPick }: {
     return () => { alive = false; };
   }, []);
 
-  if (rows === null) return <Loading label="Wczytywanie zasobów…" />;
+  if (rows === null) return <Loading label={t('bookings.pick.loading')} />;
 
   const known = value === '' || rows.some((r) => r.resourceId === value);
 
   return (
     <>
       <select value={known ? value : ''} disabled={busy} onChange={(e) => onPick(e.target.value)}>
-        <option value="">— wybierz —</option>
+        <option value="">{t('bookings.editor.pick')}</option>
         {rows.map((r) => (
           <option key={r.resourceId} value={r.resourceId}>
             {r.name} · {KIND_LABEL[r.kind]}
@@ -48,12 +50,12 @@ export function PickResource({ value, busy, onPick }: {
 
       {!known && (
         <span className="wk-blocker">
-          Teraz stoi tu „{value}" — to nie jest żaden zasób. Wybierz właściwy.
+          {t('bookings.pick.unknown', { value })}
         </span>
       )}
 
       {rows.length === 0 && (
-        <span className="wk-hint">Nie ma jeszcze zasobów — załóż je w Rezerwacjach.</span>
+        <span className="wk-hint">{t('bookings.pick.none')}</span>
       )}
     </>
   );

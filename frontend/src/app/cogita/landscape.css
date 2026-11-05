@@ -551,3 +551,13 @@
 .cg-wm-way-icon { width: 1.4rem; height: 0.95rem; flex: none; overflow: visible; }
 .cg-wm-way-icon-arc { fill: none; stroke: var(--cg-ls-goal); stroke-width: 1.6; stroke-dasharray: 2.6 2.4; stroke-linecap: round; }
 .cg-wm-way-icon-dot { fill: var(--cg-ls-goal); stroke: var(--wk-surface); stroke-width: 1.2; }
+
+/* 2026-11-05 — solange die eigenen Fortschritte laden: der Kreis über dem Krajobraz, darunter nimmt nichts an (inert). */
+.cg-ls-host.is-loading { position: relative; }
+.cg-ls-host.is-loading > :not(.cg-ls-loading) { opacity: 0.45; filter: grayscale(0.4); pointer-events: none; user-select: none; }
+.cg-ls-loading {
+  position: absolute; inset: 0; z-index: 5; display: grid; align-content: start; justify-items: center; gap: var(--wk-space-2);
+  padding: clamp(2rem, 18vh, 10rem) var(--wk-space-3) var(--wk-space-3); cursor: progress;
+}
+.cg-ls-loading > .ui-ring { padding: var(--wk-space-3) var(--wk-space-4); border-radius: var(--wk-radius); background: var(--wk-surface); border: 1px solid var(--wk-line); box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.12); }
+.cg-ls-loading-note { margin: 0; max-width: 22rem; text-align: center; font-size: var(--wk-text-sm); }

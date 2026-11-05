@@ -21,11 +21,12 @@ import { Modal } from '../ui/Modal';
 import { useRecent } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
 import {
-  archiveTask, everyWords, REMIND, REMIND_WORD, saveTask,
+  archiveTask, everyWords, REMIND, saveTask,
   type OpenTask, type ReminderKind, type TaskKind, type TaskOrigin
 } from './tasks';
 import { bitOf, fromLocal, localDate, localTime, PRIVATE, Weekdays, WhoSees } from '../areas/WhoSees';
 import { askText } from '../ui/dialogs';
+import { fmtDate, useT } from '../core/i18n';
 
 /** Das Ende eines Fensters, aus Anfang und Länge — nur für das erste Anzeigen. */
 const endOf = (from: Date, minutes: number): Date => new Date(from.getTime() + Math.max(0, minutes) * 60_000);
@@ -33,29 +34,14 @@ const endOf = (from: Date, minutes: number): Date => new Date(from.getTime() + M
 /** Ein Jahr; darüber ist es kein Fenster mehr, sondern ein Vorsatz (0055). */
 const MAX_WINDOW_MINUTES = 366 * 24 * 60;
 
-const UNITS: readonly { minutes: number; label: string }[] = [
-  { minutes: 60, label: 'godzin' }, { minutes: 1440, label: 'dni' }, { minutes: 10080, label: 'tygodni' }
-];
+/* Schlüssel `calendarApp.taskDialog.unit.<minutes>` und `….everyUnit.<minutes>`. */
+const UNITS: readonly number[] = [60, 1440, 10080];
 
-const REPEATS: readonly { value: RepeatKind; label: string }[] = [
-  { value: 'daily', label: 'Codziennie' }, { value: 'weekly', label: 'W wybrane dni tygodnia' },
-  { value: 'monthly', label: 'Co miesiąc' }, { value: 'yearly', label: 'Co rok' }, { value: 'none', label: 'Raz' }
-];
+const REPEATS: readonly RepeatKind[] = ['daily', 'weekly', 'monthly', 'yearly', 'none'];
 
-const KINDS: readonly { value: TaskKind; label: string; says: string }[] = [
-  {
-    value: 'window', label: 'O określonej porze',
-    says: 'Ma swoją porę, która może wracać — np. modlitwa o 21:00 każdego dnia. Odhaczasz każde wystąpienie; przegapione widać.'
-  },
-  {
-    value: 'period', label: 'Przez pewien czas, regularnie',
-    says: 'Ma czas na wykonanie i wraca co jakiś czas — np. sprzątanie kościoła: 3 dni na wykonanie, co 2 tygodnie. Pojawia się na początku i staje się coraz pilniejsze aż do końca.'
-  },
-  {
-    value: 'after', label: 'Co pewien czas od wykonania',
-    says: 'Liczy czas od ostatniego wykonania — np. podlać kwiaty co 3 dni. Gdy odhaczysz, licznik zaczyna od nowa.'
-  }
-];
+const KINDS: readonly TaskKind[] = ['window', 'period', 'after'];
+
+const LONG: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' };
 
 /** Ein Abstand in die grösste Einheit, die ihn glatt teilt. */
 function split(minutes: number): { amount: number; unit: number } {
@@ -67,6 +53,7 @@ function split(minutes: number): { amount: number; unit: number } {
 function Amount({ label, amount, unit, onAmount, onUnit }: {
   label: string; amount: number; unit: number; onAmount: (n: number) => void; onUnit: (n: number) => void;
 }) {
+  const t = useT();
   return (
     <>
       <label className="wk-field wk-ev-every">
@@ -75,8 +62,8 @@ function Amount({ label, amount, unit, onAmount, onUnit }: {
       </label>
       <label className="wk-field">
         <span>&nbsp;</span>
-        <select value={unit} aria-label="Jednostka" onChange={(e) => onUnit(Number(e.target.value))}>
-          {UNITS.map((one) => <option key={one.minutes} value={one.minutes}>{one.label}</option>)}
+        <select value={unit} aria-label={t('calendarApp.taskDialog.unitLabel')} onChange={(e) => onUnit(Number(e.target.value))}>
+          {UNITS.map((one) => <option key={one} value={one}>{t(`calendarApp.taskDialog.unit.u${one}`)}</option>)}
         </select>
       </label>
     </>
@@ -97,6 +84,7 @@ export function TaskDialog({ me, areas, task, at, origin, initialTitle, initialA
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const recent = useRecent('calendar.who');
   const personal = areas.find((a) => a.personal === true);
   const start = task !== null ? new Date(task.startsAt) : (at ?? new Date());
@@ -138,7 +126,7 @@ export function TaskDialog({ me, areas, task, at, origin, initialTitle, initialA
       onSaved();
       onClose();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.taskDialog.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -166,18 +154,18 @@ export function TaskDialog({ me, areas, task, at, origin, initialTitle, initialA
   };
 
   const save = () => run(async () => {
-    if (title.trim() === '') throw new WorkspaceError('Nazwij zadanie.');
+    if (title.trim() === '') throw new WorkspaceError(t('calendarApp.taskDialog.needsTitle'));
     if (kind === 'window' && endsAt.getTime() < startsAt.getTime()) {
-      throw new WorkspaceError('Koniec wypada przed początkiem.');
+      throw new WorkspaceError(t('calendarApp.taskDialog.endBeforeStart'));
     }
     if (kind === 'window' && windowMinutes > MAX_WINDOW_MINUTES) {
-      throw new WorkspaceError('Okno dłuższe niż rok — to już nie termin, tylko postanowienie.');
+      throw new WorkspaceError(t('calendarApp.taskDialog.windowTooLong'));
     }
     if (kind === 'period' && everyMinutes < periodMinutes) {
-      throw new WorkspaceError('Zadanie nie może wracać częściej, niż trwa — wydłuż odstęp albo skróć czas na wykonanie.');
+      throw new WorkspaceError(t('calendarApp.taskDialog.tooOften'));
     }
     if (kind === 'period' && periodMinutes > MAX_WINDOW_MINUTES) {
-      throw new WorkspaceError('Czas na wykonanie dłuższy niż rok — to już postanowienie, nie zadanie.');
+      throw new WorkspaceError(t('calendarApp.taskDialog.periodTooLong'));
     }
     const areaId = who === PRIVATE ? await ensurePrivateArea(me.ring, me.person, areas) : who;
     if (who !== PRIVATE && areas.find((a) => a.areaId === who)?.personal !== true) recent.touch(who);
@@ -193,31 +181,31 @@ export function TaskDialog({ me, areas, task, at, origin, initialTitle, initialA
   });
 
   const due = fromLocal(date, time);
-  const says = KINDS.find((k) => k.value === kind)?.says ?? '';
+  const says = t(`calendarApp.taskDialog.kind.${kind}.says`);
 
   /* Was eine Erinnerung bei dieser Art heisst — bei „co pewien czas od wykonania" gibt es nur den Termin. */
   const reminderKinds: readonly ReminderKind[] = kind === 'after' ? ['start'] : ['start', 'middle', 'end'];
 
   return (
-    <Modal title={task === null ? 'Nowe zadanie' : 'Zadanie'} onClose={onClose} wide>
+    <Modal title={task === null ? t('calendarApp.taskDialog.newTitle') : t('calendarApp.kindWord.task')} onClose={onClose} wide>
       <form className="wk-form wk-ev-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         {origin != null && task === null && (
-          <p className="wk-note">Z rozmowy — zadanie zapamięta, z której wiadomości powstało, i pokaże się przy niej.</p>
+          <p className="wk-note">{t('calendarApp.taskDialog.fromChat')}</p>
         )}
 
-        <div className="wk-seg wk-ev-scope" role="group" aria-label="Rodzaj zadania">
+        <div className="wk-seg wk-ev-scope" role="group" aria-label={t('calendarApp.taskDialog.kindLabel')}>
           {KINDS.map((one) => (
-            <button key={one.value} type="button" aria-pressed={kind === one.value}
-              className={kind === one.value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
-              onClick={() => setKind(one.value)}>{one.label}</button>
+            <button key={one} type="button" aria-pressed={kind === one}
+              className={kind === one ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
+              onClick={() => setKind(one)}>{t(`calendarApp.taskDialog.kind.${one}.label`)}</button>
           ))}
         </div>
         <p className="wk-hint">{says}</p>
 
         <label className="wk-field">
-          <span>Co</span>
+          <span>{t('calendarApp.taskDialog.what')}</span>
           <input value={title} maxLength={200}
-            placeholder={kind === 'window' ? 'np. Apel Jasnogórski' : kind === 'period' ? 'np. Posprzątać kościół' : 'np. Podlać kwiaty'}
+            placeholder={t(`calendarApp.taskDialog.kind.${kind}.placeholder`)}
             onChange={(e) => setTitle(e.target.value)} />
         </label>
 
@@ -225,25 +213,25 @@ export function TaskDialog({ me, areas, task, at, origin, initialTitle, initialA
           <>
             <div className="wk-ev-when-row">
               <label className="wk-field">
-                <span>Od dnia</span>
+                <span>{t('calendarApp.taskDialog.fromDay')}</span>
                 <input type="date" value={date} onChange={(e) => moveStart(e.target.value, time)} />
               </label>
               <label className="wk-field">
-                <span>o godz.</span>
+                <span>{t('calendarApp.taskDialog.atTime')}</span>
                 <input type="time" value={time} step={300} onChange={(e) => moveStart(date, e.target.value)} />
               </label>
               <label className="wk-field">
-                <span>Do dnia</span>
+                <span>{t('calendarApp.taskDialog.toDay')}</span>
                 <input type="date" value={endDate} min={date} onChange={(e) => setEndDate(e.target.value)} />
               </label>
               <label className="wk-field">
-                <span>o godz.</span>
+                <span>{t('calendarApp.taskDialog.atTime')}</span>
                 <input type="time" value={endTime} step={300} onChange={(e) => setEndTime(e.target.value)} />
               </label>
               <label className="wk-field">
-                <span>Jak często</span>
+                <span>{t('calendarApp.taskDialog.howOften')}</span>
                 <select value={repeat} onChange={(e) => setRepeat(e.target.value as RepeatKind)}>
-                  {REPEATS.map((one) => <option key={one.value} value={one.value}>{one.label}</option>)}
+                  {REPEATS.map((one) => <option key={one} value={one}>{t(`calendarApp.taskDialog.repeat.${one}`)}</option>)}
                 </select>
               </label>
             </div>
@@ -253,31 +241,33 @@ export function TaskDialog({ me, areas, task, at, origin, initialTitle, initialA
           <>
             <div className="wk-ev-when-row">
               <label className="wk-field">
-                <span>Pierwszy raz od</span>
+                <span>{t('calendarApp.taskDialog.firstFrom')}</span>
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </label>
               <label className="wk-field">
-                <span>o godz.</span>
+                <span>{t('calendarApp.taskDialog.atTime')}</span>
                 <input type="time" value={time} step={300} onChange={(e) => setTime(e.target.value)} />
               </label>
-              <Amount label="Czas na wykonanie" amount={lastAmount} unit={lastUnit} onAmount={setLastAmount} onUnit={setLastUnit} />
-              <Amount label="Wraca co" amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />
+              <Amount label={t('calendarApp.taskDialog.timeToDo')} amount={lastAmount} unit={lastUnit} onAmount={setLastAmount} onUnit={setLastUnit} />
+              <Amount label={t('calendarApp.taskDialog.returnsEvery')} amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />
             </div>
             <p className="wk-hint">
-              Pierwszy raz: od {due.toLocaleString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-              {' '}do {new Date(due.getTime() + periodMinutes * 60_000).toLocaleString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-              {' '}— potem {everyWords(everyMinutes)}.
+              {t('calendarApp.taskDialog.periodHint', {
+                from: fmtDate(due, LONG, t.lang),
+                to: fmtDate(new Date(due.getTime() + periodMinutes * 60_000), LONG, t.lang),
+                every: everyWords(everyMinutes)
+              })}
             </p>
           </>
         ) : (
           <div className="wk-ev-when-row">
-            <Amount label="Co" amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />
+            <Amount label={t('calendarApp.taskDialog.every')} amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />
             <label className="wk-field">
-              <span>{task?.lastDoneAt ? 'Pierwszy raz był' : 'Pierwszy raz'}</span>
+              <span>{task?.lastDoneAt ? t('calendarApp.taskDialog.firstWas') : t('calendarApp.taskDialog.first')}</span>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </label>
             <label className="wk-field">
-              <span>o godz.</span>
+              <span>{t('calendarApp.taskDialog.atTime')}</span>
               <input type="time" value={time} step={300} onChange={(e) => setTime(e.target.value)} />
             </label>
           </div>
@@ -285,41 +275,43 @@ export function TaskDialog({ me, areas, task, at, origin, initialTitle, initialA
 
         {kind === 'after' && task === null && (
           <p className="wk-hint">
-            Pierwszy raz: {due.toLocaleString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-            {' '}— potem co {amount} {UNITS.find((u) => u.minutes === unit)?.label} od każdego wykonania.
+            {t('calendarApp.taskDialog.afterHint', {
+              first: fmtDate(due, LONG, t.lang),
+              every: t(`calendarApp.taskDialog.everyUnit.u${UNITS.includes(unit) ? unit : 60}`, { count: amount })
+            })}
           </p>
         )}
 
         <fieldset className="wk-field wk-remind">
-          <legend>Przypomnij</legend>
+          <legend>{t('calendarApp.taskDialog.remind')}</legend>
           <div className="wk-remind-row">
             {reminderKinds.map((r) => (
               <label key={r} className="wk-check">
                 <input type="checkbox" checked={(remind & REMIND[r]) !== 0}
                   onChange={(e) => setRemind((was) => e.target.checked ? was | REMIND[r] : was & ~REMIND[r])} />
-                <span>{kind === 'after' ? 'gdy przyjdzie pora' : REMIND_WORD[r]}</span>
+                <span>{kind === 'after' ? t('calendarApp.taskDialog.whenDue') : t(`calendarApp.remind.${r}`)}</span>
               </label>
             ))}
           </div>
-          <span className="wk-hint">Przypomnienie przychodzi na urządzenia, na których masz włączone powiadomienia.</span>
+          <span className="wk-hint">{t('calendarApp.taskDialog.remindHint')}</span>
         </fieldset>
 
         <WhoSees areas={areas} recent={recent.ids} value={who} onChange={setWho} />
 
         <label className="wk-field">
-          <span>Notatka</span>
+          <span>{t('calendarApp.taskDialog.notes')}</span>
           <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
 
         {failed !== null && <p className="wk-error">{failed}</p>}
 
         <div className="wk-actions">
-          <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>
-          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>Anuluj</button>
+          <button type="submit" className="wk-btn" disabled={busy}>{busy ? t('common.saving') : t('common.save')}</button>
+          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>{t('common.cancel')}</button>
           {task !== null && (
             <button type="button" className="wk-link-btn wk-danger wk-ev-delete" disabled={busy}
-              onClick={async () => { if (await askText('Usunąć to zadanie? Historia wykonania zostaje w archiwum.')) void run(() => archiveTask(task.taskId)); }}>
-              Usuń
+              onClick={async () => { if (await askText(t('calendarApp.taskDialog.deleteAsk'))) void run(() => archiveTask(task.taskId)); }}>
+              {t('common.delete')}
             </button>
           )}
         </div>

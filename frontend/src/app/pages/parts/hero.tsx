@@ -13,6 +13,7 @@
  * Überschrift jeder Kachel.
  */
 
+import { t, useT } from '../../core/i18n';
 import { asOptionalText, asRecord, asStringList, asText, AreaRow, defineEventPart, LinesRow, ListEditor, mapEntries, SelectRow, TextRow } from '../event/kit';
 
 type Action = { label: string; href: string; variant: 'cta' | 'ghost' };
@@ -32,36 +33,36 @@ type TitleConfig = {
 
 export const heroPart = defineEventPart<TitleConfig>({
   kind: 'hero',
-  label: 'Tytuł',
-  use: 'Pierwszy ekran wydarzenia: hasło, termin, krótki opis i przyciski.',
+  label: 'moduleContent.hero.label',
+  use: 'moduleContent.hero.use',
   box: { colSpan: 6, rowSpan: 3 },
   ownHeading: true,
 
   blank: () => ({ badge: null, badgeLook: 'pill', size: 'display', headline: '', lede: null, paragraphs: [], actions: [], footnote: null }),
   example: () => ({
-    badge: '28–29.08.2026 · Kraków → Częstochowa',
+    badge: '28–29.08.2026 · Kraków → Częstochowa', // i18n-ignore
     badgeLook: 'pill',
     size: 'display',
     headline: 'Pielgrzymka rowerowa',
-    lede: 'Dwa dni, 140 km, jedna wspólnota.',
-    paragraphs: ['Jedziemy razem na Jasną Górę — w swoim tempie, z przerwami na modlitwę i odpoczynek.'],
-    actions: [{ label: 'Zapisz się', href: '#zapisy', variant: 'cta' }, { label: 'Program', href: '#plan', variant: 'ghost' }],
+    lede: 'Dwa dni, 140 km, jedna wspólnota.', // i18n-ignore
+    paragraphs: ['Jedziemy razem na Jasną Górę — w swoim tempie, z przerwami na modlitwę i odpoczynek.'], // i18n-ignore
+    actions: [{ label: 'Zapisz się', href: '#zapisy', variant: 'cta' }, { label: 'Program', href: '#plan', variant: 'ghost' }], // i18n-ignore
     footnote: null
   }),
 
   /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
   keys: {
-    badge: 'Plakietka nad hasłem, np. termin i miejsce (albo null)',
-    badgeLook: '"pill" — plakietka w obwódce (zwykłe), "kicker" — nadtytuł: wersaliki, rozstrzelone, w kolorze akcentu',
-    size: '"display" — hasło bardzo duże (pierwszy ekran), "title" — mniejsze (kolejne slajdy pokazu, dłuższe hasła)',
-    headline: 'Hasło — duży tytuł modułu',
-    lede: 'Podtytuł przy haśle (albo null)',
-    paragraphs: 'Akapity opisu — lista tekstów',
-    actions: 'Przyciski — lista',
-    'actions[].label': 'Napis na przycisku',
-    'actions[].href': 'Dokąd prowadzi: "#nazwa-slajdu" (np. "#zapisy" — skok do modułu o tej nazwie w menu), adres strony albo pełny adres https://…',
-    'actions[].variant': '"cta" — wyróżniony, "ghost" — zwykły',
-    footnote: 'Dopisek drobnym drukiem (albo null)'
+    badge: 'moduleContent.hero.key.badge',
+    badgeLook: 'moduleContent.hero.key.badgeLook',
+    size: 'moduleContent.hero.key.size',
+    headline: 'moduleContent.hero.key.headline',
+    lede: 'moduleContent.hero.key.lede',
+    paragraphs: 'moduleContent.hero.key.paragraphs',
+    actions: 'moduleContent.hero.key.actions',
+    'actions[].label': 'moduleContent.hero.key.actionLabel',
+    'actions[].href': 'moduleContent.hero.key.actionHref',
+    'actions[].variant': 'moduleContent.hero.key.actionVariant',
+    footnote: 'moduleContent.hero.key.footnote'
   },
 
   parse: (raw) => {
@@ -83,7 +84,7 @@ export const heroPart = defineEventPart<TitleConfig>({
 
   hasContent: (c) => c.headline !== '' || c.paragraphs.length > 0,
 
-  shows: (_c, size) => size.height === 'strip' ? 'Hasło i przyciski.' : 'Plakietka, hasło z podtytułem, opis i przyciski.',
+  shows: (_c, size) => size.height === 'strip' ? t('moduleContent.hero.showsStrip') : t('moduleContent.hero.showsAll'),
 
   Body: ({ config, ctx }) => {
     const actions = config.actions.filter((a) => a.label !== '' && a.href !== '');
@@ -115,45 +116,48 @@ export const heroPart = defineEventPart<TitleConfig>({
     );
   },
 
-  Edit: ({ config, onChange }) => (
+  Edit: function HeroEdit({ config, onChange }) {
+    const t = useT();
+    return (
     <>
-      <TextRow label="Plakietka" value={config.badge ?? ''} hint="Np. termin i miejsce." onChange={(badge) => onChange({ ...config, badge: badge || null })} />
+      <TextRow label={t('moduleContent.hero.badge')} value={config.badge ?? ''} hint={t('moduleContent.hero.badgeHint')} onChange={(badge) => onChange({ ...config, badge: badge || null })} />
       <SelectRow<TitleConfig['badgeLook']>
-        label="Wygląd plakietki"
+        label={t('moduleContent.hero.badgeLook')}
         value={config.badgeLook}
-        options={[{ value: 'pill', label: 'W obwódce' }, { value: 'kicker', label: 'Nadtytuł — wersaliki w kolorze akcentu' }]}
+        options={[{ value: 'pill', label: t('moduleContent.hero.badgePill') }, { value: 'kicker', label: t('moduleContent.hero.badgeKicker') }]}
         onChange={(badgeLook) => onChange({ ...config, badgeLook })}
       />
-      <TextRow label="Hasło" value={config.headline} onChange={(headline) => onChange({ ...config, headline })} />
+      <TextRow label={t('moduleContent.hero.headline')} value={config.headline} onChange={(headline) => onChange({ ...config, headline })} />
       <SelectRow<TitleConfig['size']>
-        label="Wielkość hasła"
+        label={t('moduleContent.hero.size')}
         value={config.size}
-        options={[{ value: 'display', label: 'Bardzo duże — pierwszy ekran' }, { value: 'title', label: 'Mniejsze — kolejne slajdy, dłuższe hasła' }]}
+        options={[{ value: 'display', label: t('moduleContent.hero.sizeDisplay') }, { value: 'title', label: t('moduleContent.hero.sizeTitle') }]}
         onChange={(size) => onChange({ ...config, size })}
       />
-      <TextRow label="Podtytuł" value={config.lede ?? ''} onChange={(lede) => onChange({ ...config, lede: lede || null })} />
-      <LinesRow label="Akapity" values={config.paragraphs} rows={4} hint="Jeden akapit w wierszu." onChange={(paragraphs) => onChange({ ...config, paragraphs })} />
+      <TextRow label={t('moduleContent.hero.lede')} value={config.lede ?? ''} onChange={(lede) => onChange({ ...config, lede: lede || null })} />
+      <LinesRow label={t('moduleContent.hero.paragraphs')} values={config.paragraphs} rows={4} hint={t('moduleContent.hero.paragraphsHint')} onChange={(paragraphs) => onChange({ ...config, paragraphs })} />
       <ListEditor<Action>
-        legend="Przyciski"
+        legend={t('moduleContent.hero.actions')}
         items={config.actions}
-        addLabel="Dodaj przycisk"
-        blank={() => ({ label: 'Zapisz się', href: '#', variant: 'cta' })}
-        titleOf={(item) => item.label || 'Przycisk'}
+        addLabel={t('moduleContent.hero.addAction')}
+        blank={() => ({ label: t('moduleContent.hero.newAction'), href: '#', variant: 'cta' })}
+        titleOf={(item) => item.label || t('moduleContent.hero.action')}
         onChange={(actions) => onChange({ ...config, actions })}
         renderItem={(item, update) => (
           <>
-            <TextRow label="Napis" value={item.label} onChange={(label) => update({ ...item, label })} />
-            <TextRow label="Dokąd" value={item.href} hint="#nazwa-slajdu (np. #zapisy), adres strony albo pełny adres https://…" onChange={(href) => update({ ...item, href })} />
+            <TextRow label={t('moduleContent.hero.actionLabel')} value={item.label} onChange={(label) => update({ ...item, label })} />
+            <TextRow label={t('moduleContent.hero.actionHref')} value={item.href} hint={t('moduleContent.hero.actionHrefHint')} onChange={(href) => update({ ...item, href })} />
             <SelectRow<Action['variant']>
-              label="Styl"
+              label={t('moduleContent.hero.actionVariant')}
               value={item.variant}
-              options={[{ value: 'cta', label: 'Wyróżniony' }, { value: 'ghost', label: 'Zwykły' }]}
+              options={[{ value: 'cta', label: t('moduleContent.hero.variantCta') }, { value: 'ghost', label: t('moduleContent.hero.variantGhost') }]}
               onChange={(variant) => update({ ...item, variant })}
             />
           </>
         )}
       />
-      <AreaRow label="Dopisek" rows={2} value={config.footnote ?? ''} onChange={(footnote) => onChange({ ...config, footnote: footnote || null })} />
+      <AreaRow label={t('moduleContent.hero.footnote')} rows={2} value={config.footnote ?? ''} onChange={(footnote) => onChange({ ...config, footnote: footnote || null })} />
     </>
-  )
+    );
+  }
 });

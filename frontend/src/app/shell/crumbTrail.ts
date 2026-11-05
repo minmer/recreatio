@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useSyncExternalStore } from 'react';
+import { t } from '../core/i18n';
 
 import { tilesPath, VIEWS, viewPath, type Spot } from '../routes';
 
@@ -116,7 +117,7 @@ export function trailOf(spot: Spot, deep: readonly Crumb[]): readonly Crumb[] {
    */
   const out: Crumb[] = [];
 
-  if (spot.kind === 'tiles') out.push({ label: 'Teraz', href: null });
+  if (spot.kind === 'tiles') out.push({ label: t('shell.nav.home'), href: null });
 
   if (spot.kind === 'view') {
     out.push({ label: VIEWS[spot.view], href: viewPath(spot.view) });
@@ -124,7 +125,7 @@ export function trailOf(spot: Spot, deep: readonly Crumb[]): readonly Crumb[] {
   }
 
   if (spot.kind === 'stray') {
-    out.push({ label: 'Teraz', href: tilesPath() }, { label: spot.word, href: null });
+    out.push({ label: t('shell.nav.home'), href: tilesPath() }, { label: spot.word, href: null });
   }
 
   return out.map((crumb, at) =>

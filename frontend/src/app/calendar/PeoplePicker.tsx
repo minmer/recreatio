@@ -14,6 +14,7 @@ import { loadMembers } from '../areas/area';
 import { DUTY_LABEL, type Duty } from './calendar';
 import { areaKeys, loadAreaNames, openNames } from '../chat/chat';
 import type { Me } from '../core/me';
+import { appLang, localeOf, useT } from '../core/i18n';
 
 export interface Pinned {
   readonly roleId: string;
@@ -42,7 +43,7 @@ export function useAreaPeople(me: Me, areaId: string | null): readonly Candidate
         const people = members
           .filter((m) => m.kind === 'person' || m.kind === 'role')
           .map((m) => ({ roleId: m.roleId, name: names.get(m.roleId) ?? me.names.get(m.roleId) ?? short(m.roleId) }))
-          .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+          .sort((a, b) => a.name.localeCompare(b.name, localeOf(appLang())));
         if (alive) setFound({ areaId, people });
       } catch {
         if (alive) setFound({ areaId, people: [] });
@@ -65,6 +66,7 @@ export function PeoplePicker({ me, candidates, value, onChange, defaultDuty }: {
   onChange: (next: readonly Pinned[]) => void;
   defaultDuty: Duty;
 }) {
+  const t = useT();
   const free = (candidates ?? []).filter((c) => !value.some((v) => v.roleId === c.roleId));
 
   return (
@@ -74,11 +76,11 @@ export function PeoplePicker({ me, candidates, value, onChange, defaultDuty }: {
           {value.map((one) => (
             <li key={one.roleId} className="wk-people-chip">
               <strong>{nameOfPinned(me, candidates, one.roleId)}</strong>
-              <select value={one.duty} aria-label="Rola przy terminie"
+              <select value={one.duty} aria-label={t('calendarApp.people.duty')}
                 onChange={(e) => onChange(value.map((v) => v.roleId === one.roleId ? { ...v, duty: e.target.value as Duty } : v))}>
                 {(Object.keys(DUTY_LABEL) as Duty[]).map((d) => <option key={d} value={d}>{DUTY_LABEL[d]}</option>)}
               </select>
-              <button type="button" className="wk-chip-x" aria-label="Usuń z terminu"
+              <button type="button" className="wk-chip-x" aria-label={t('calendarApp.people.remove')}
                 onClick={() => onChange(value.filter((v) => v.roleId !== one.roleId))}>×</button>
             </li>
           ))}
@@ -86,15 +88,15 @@ export function PeoplePicker({ me, candidates, value, onChange, defaultDuty }: {
       )}
 
       {candidates === null ? (
-        <span className="wk-hint">Wczytywanie osób z grupy…</span>
+        <span className="wk-hint">{t('calendarApp.people.loading')}</span>
       ) : free.length === 0 ? (
-        value.length === 0 && <span className="wk-hint">W tej grupie nie ma jeszcze innych osób.</span>
+        value.length === 0 && <span className="wk-hint">{t('calendarApp.people.empty')}</span>
       ) : (
-        <select value="" aria-label="Dodaj osobę" onChange={(e) => {
+        <select value="" aria-label={t('calendarApp.people.add')} onChange={(e) => {
           if (e.target.value === '') return;
           onChange([...value, { roleId: e.target.value, duty: defaultDuty }]);
         }}>
-          <option value="">+ dodaj osobę…</option>
+          <option value="">{t('calendarApp.people.addOption')}</option>
           {free.map((c) => <option key={c.roleId} value={c.roleId}>{c.name}</option>)}
         </select>
       )}

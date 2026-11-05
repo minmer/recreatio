@@ -24,6 +24,7 @@ import { openValues, saveDayValues, type OpenValue } from './schemeValues';
 import { areaKeys, newestKey } from '../chat/chat';
 import { fromBase64Url, openText } from '../core/crypto';
 import type { Ring } from '../core/keys';
+import { t } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { loadOffice, type OfficeMass } from '../masses/mass';
 
@@ -44,7 +45,7 @@ const startOfDay = (at: Date): Date => new Date(at.getFullYear(), at.getMonth(),
 const plusDays = (at: Date, n: number): Date => new Date(at.getFullYear(), at.getMonth(), at.getDate() + n);
 const plusYears = (at: Date, n: number): Date => new Date(at.getFullYear() + n, at.getMonth(), at.getDate());
 const sameId = (a: string | null | undefined, b: string | null | undefined): boolean => (a ?? '').toLowerCase() === (b ?? '').toLowerCase();
-const reason = (e: unknown): string => (e instanceof WorkspaceError || e instanceof Error ? e.message : 'nie udało się');
+const reason = (e: unknown): string => (e instanceof WorkspaceError || e instanceof Error ? e.message : t('calendarDataJson.run.failed'));
 
 /** Ein Zeitraum in Stücken, die der Dienst nimmt. */
 export function spansOf(from: Date, to: Date, max = MAX_WINDOWS): Span[] {
@@ -265,8 +266,8 @@ export async function exportCalendarRange(ring: Ring, info: CalendarInfo, choice
     const last = readDay(choice.to);
     to = last === null ? null : plusDays(last, 1);
   }
-  if (from === null || to === null || to.getTime() <= from.getTime()) throw new WorkspaceError('Podaj zakres eksportu: dzień „od” i dzień „do” (nie wcześniej niż „od”).');
-  if (to.getTime() > plusDays(from, MAX_WINDOWS * WINDOW_DAYS).getTime()) throw new WorkspaceError(`Zakres eksportu najwyżej ${MAX_WINDOWS} lat — wybierz krótszy albo „wszystko”.`);
+  if (from === null || to === null || to.getTime() <= from.getTime()) throw new WorkspaceError(t('calendarDataJson.run.rangeBad'));
+  if (to.getTime() > plusDays(from, MAX_WINDOWS * WINDOW_DAYS).getTime()) throw new WorkspaceError(t('calendarDataJson.run.rangeLong', { max: MAX_WINDOWS }));
   return exportCalendar(await loadCalendarState(ring, info, spansOf(from, to)));
 }
 
@@ -303,12 +304,12 @@ export async function runCalendarImport(input: {
   for (const one of plan.items) {
     if (one.save === null && !one.program) continue;
     n += 1;
-    stage(`Terminy: ${n} z ${writes} — „${one.label}”…`);
+    stage(t('calendarDataJson.run.stageItems', { n, total: writes, label: one.label }));
     const parentId = one.parent === undefined ? undefined
       : one.parent === null ? null
       : 'ref' in one.parent ? ids.get(one.parent.ref) : one.parent.itemId;
     if (one.parent != null && parentId === undefined) {
-      failed.push(`„${one.label}” — jego termin nadrzędny nie powstał; pominięty.`);
+      failed.push(t('calendarDataJson.run.noParent', { label: one.label }));
       broken.add(one.ref);
       continue;
     }
@@ -343,7 +344,7 @@ export async function runCalendarImport(input: {
         changed += 1;
       }
     } catch (e) {
-      failed.push(`„${one.label}” — ${one.itemId === null ? 'nie dodano' : 'nie zmieniono'}: ${reason(e)}.`);
+      failed.push(t(one.itemId === null ? 'calendarDataJson.run.notAdded' : 'calendarDataJson.run.notChanged', { label: one.label, reason: reason(e) }));
       broken.add(one.ref);
     }
   }
@@ -355,7 +356,7 @@ export async function runCalendarImport(input: {
     const found = new Map<string, string>();
     const unknown = pending.filter(({ op }) => op.at === null).map(({ op }) => op.day).sort();
     if (unknown.length > 0) {
-      stage('Dni serii — szukanie w kalendarzu…');
+      stage(t('calendarDataJson.run.stageSearch'));
       const spans: Span[] = [];
       for (const day of unknown) {
         const at = readDay(day);
@@ -368,7 +369,7 @@ export async function runCalendarImport(input: {
           const office = await loadOffice(calendar.calendarId, span.from, span.to, ITEM_KINDS);
           for (const one of office.masses) found.set(`${one.itemId.toLowerCase()}|${dayOf(new Date(one.occurrenceAt))}`, one.occurrenceAt);
         } catch (e) {
-          failed.push(`Dni serii od ${dayOf(span.from)}: ${reason(e)}.`);
+          failed.push(t('calendarDataJson.run.daysFrom', { day: dayOf(span.from), reason: reason(e) }));
         }
       }
     }
@@ -380,8 +381,8 @@ export async function runCalendarImport(input: {
     for (const [i, { one, op }] of pending.entries()) {
       const itemId = ids.get(one.ref)!;
       const at = op.at ?? found.get(`${itemId.toLowerCase()}|${op.day}`);
-      if (at === undefined) { failed.push(`„${one.label}”: dnia ${op.day} nie ma w serii — pominięty.`); continue; }
-      stage(`Dni serii: ${i + 1} z ${pending.length}…`);
+      if (at === undefined) { failed.push(t('calendarDataJson.run.noDay', { label: one.label, day: op.day })); continue; }
+      stage(t('calendarDataJson.run.stageDays', { n: i + 1, total: pending.length }));
       try {
         if (op.cancel === true) await setOccurrence(itemId, at, { cancelled: true });
         else if (op.restore === true) await setOccurrence(itemId, at, { restore: true });
@@ -389,12 +390,12 @@ export async function runCalendarImport(input: {
         if (op.values !== undefined) {
           const area = areas.get(one.ref) ?? calendar.visibilityAreaId;
           const key = await newest(area);
-          if (key === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
+          if (key === null) throw new WorkspaceError(t('calendarDataJson.run.noKey'));
           await saveDayValues(itemId, at, key, area, op.values);
         }
         days += 1;
       } catch (e) {
-        failed.push(`„${one.label}”, ${op.day}: ${reason(e)}.`);
+        failed.push(t('calendarDataJson.run.dayFailed', { label: one.label, day: op.day, reason: reason(e) }));
       }
     }
   }
@@ -402,21 +403,21 @@ export async function runCalendarImport(input: {
   /* 3 — zuletzt, was fallen soll (mit seinen Punkten — so löscht der Dienst). */
   let removed = 0;
   for (const [i, one] of plan.removals.entries()) {
-    stage(`Usuwanie: ${i + 1} z ${plan.removals.length} — „${one.label}”…`);
+    stage(t('calendarDataJson.run.stageRemove', { n: i + 1, total: plan.removals.length, label: one.label }));
     try {
       await deleteEvent(one.itemId);
       removed += 1;
     } catch (e) {
-      failed.push(`„${one.label}” — nie usunięto: ${reason(e)}.`);
+      failed.push(t('calendarDataJson.run.notRemoved', { label: one.label, reason: reason(e) }));
     }
   }
 
   return {
     lines: [
-      `Nowe terminy: ${created}.`,
-      `Zmienione terminy: ${changed}.`,
-      ...(days > 0 ? [`Dni serii: ${days}.`] : []),
-      ...(plan.removals.length > 0 ? [`Usunięte terminy: ${removed} z ${plan.removals.length}.`] : [])
+      t('calendarDataJson.run.created', { count: created }),
+      t('calendarDataJson.run.changed', { count: changed }),
+      ...(days > 0 ? [t('calendarDataJson.run.days', { count: days })] : []),
+      ...(plan.removals.length > 0 ? [t('calendarDataJson.run.removed', { count: removed, total: plan.removals.length })] : [])
     ],
     warnings: failed
   };

@@ -221,6 +221,17 @@ export const hasKey = (key: string, lang: Lang = S.app): boolean => find(lang, k
 export const tOr = (key: string, fallback: string, params?: Params, lang: Lang = S.app): string =>
   hasKey(key, lang) ? tIn(lang, key, params) : fallback;
 
+/**
+ * Eine Tabelle von Bezeichnungen, die wie früher als Objekt gelesen wird (`VIEWS.calendar`), deren Text aber erst
+ * beim Lesen geholt wird — in der Sprache der Anwendung zu diesem Zeitpunkt. Für Tabellen, die andere Module
+ * importieren: `export const VIEWS = texts({ calendar: 'workspace.view.calendar', … })`.
+ */
+export function texts<K extends string>(keys: Readonly<Record<K, string>>): Readonly<Record<K, string>> {
+  const out = {} as Record<K, string>;
+  for (const k of Object.keys(keys) as K[]) Object.defineProperty(out, k, { get: () => t(keys[k]), enumerable: true });
+  return out;
+}
+
 /* -- In Komponenten ---------------------------------------------------------- */
 
 export type T = ((key: string, params?: Params) => string) & { readonly lang: Lang; readonly locale: string };

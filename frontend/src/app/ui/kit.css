@@ -402,3 +402,15 @@ ul.wk-box, ol.wk-box { list-style: none; margin: 0; padding: 0; }
 .ui-tree.is-inline .ui-tree-list { max-height: 18rem; }
 .ui-pick-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--wk-space-2); padding: var(--wk-space-3) var(--wk-space-3) 0 var(--wk-space-4); }
 @media (pointer: coarse) { .ui-tree-row { min-height: 2.75rem; } }
+
+/* 2026-11-05 — ProgressRing: ein Kreis, der sich füllt (ohne bekannte Menge: ein kreisender Bogen). */
+.ui-ring { display: grid; justify-items: center; gap: var(--wk-space-1); text-align: center; }
+.ui-ring-svg { width: 4.5rem; height: 4.5rem; }
+.ui-ring-track { fill: none; stroke: var(--wk-line); stroke-width: 6; }
+.ui-ring-bar { fill: none; stroke: var(--wk-accent); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 0.25s ease; }
+.ui-ring-svg.is-open { animation: ui-ring-spin 1.1s linear infinite; }
+.ui-ring-pct { font-size: var(--wk-text-sm); font-weight: 600; fill: var(--wk-ink); }
+.ui-ring-label { font-weight: 600; }
+.ui-ring-detail { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+@keyframes ui-ring-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ui-ring-svg.is-open { animation-duration: 3s; } .ui-ring-bar { transition: none; } }

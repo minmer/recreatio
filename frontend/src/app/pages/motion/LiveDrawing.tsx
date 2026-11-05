@@ -35,6 +35,7 @@
 
 import { useContext, useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, type CSSProperties } from 'react';
 
+import { tIn, useLang } from '../../core/i18n';
 import { toNum } from './expr';
 import type { Drawing } from './drawing';
 import { usePhase, useReducedMotion } from './MotionBox';
@@ -92,6 +93,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
   const box = useRef<HTMLDivElement | null>(null);
   const phase = usePhase(svg);
   const reduced = useReducedMotion();
+  const lang = useLang();
   const clock = useContext(ShowClock);
   const prefix = `lv${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const fixedKey = fixed === null ? '' : JSON.stringify(fixed);
@@ -388,17 +390,17 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
         case 'save':
           try {
             localStorage.setItem(storeKey, JSON.stringify(program.worldSnapshot()));
-            program.say('Zapisano układ (w tej przeglądarce).');
+            program.say(tIn(lang, 'pageMotion.drawing.saved'));
           } catch {
-            program.say('Nie udało się zapisać — przeglądarka nie pozwala.', 'miss');
+            program.say(tIn(lang, 'pageMotion.drawing.saveFailed'), 'miss');
           }
           break;
         case 'load': {
           let text: string | null = null;
           try { text = localStorage.getItem(storeKey); } catch { text = null; }
           const shot = text === null ? null : shotOfText(text);
-          if (shot === null) program.say('Nie ma zapisanego układu.', 'miss');
-          else { shop?.load(shot); program.say('Wczytano zapisany układ.'); }
+          if (shot === null) program.say(tIn(lang, 'pageMotion.drawing.noSaved'), 'miss');
+          else { shop?.load(shot); program.say(tIn(lang, 'pageMotion.drawing.loaded')); }
           break;
         }
       }

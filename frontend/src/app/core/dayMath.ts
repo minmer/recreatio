@@ -12,6 +12,8 @@
  * Aushang der Pfarrei.
  */
 
+import { appLang, fmtDate, localeOf, t, type Lang } from './i18n';
+
 export const startOfDay = (at: Date): Date => {
   const out = new Date(at);
   out.setHours(0, 0, 0, 0);
@@ -56,44 +58,43 @@ export const sameDay = (a: Date, b: Date): boolean => keyOf(a) === keyOf(b);
 export const sameMonth = (a: Date, b: Date): boolean =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 
-const MONTHS = [
-  'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
-  'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'
-];
-
-const MONTHS_OF = [
-  'stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca',
-  'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'
-];
-
-const WEEKDAYS = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
+/*
+ * 2026-11-05 — Namen von Tagen und Monaten kommen aus `Intl` in der Sprache der Anwendung (oder `lang`);
+ * nur die kurzen Köpfe des Monatsblatts stehen in `core.date.weekHead` (`Intl` kürzt polnisch „pon.").
+ * Schmale Leerzeichen aus `Intl` werden zu gewöhnlichen — die Prüfungen vergleichen Text.
+ */
+const plain = (s: string): string => s.replace(/[  ]/g, ' ');
 
 /** „czwartek" — der Name des Tages. */
-export const weekdayName = (at: Date): string => WEEKDAYS[at.getDay()];
+export const weekdayName = (at: Date, lang?: Lang): string => fmtDate(at, { weekday: 'long' }, lang);
 
 /** „listopada" — der Monat im Genitiv, wie hinter einer Zahl. */
-export const monthOfName = (at: Date): string => MONTHS_OF[at.getMonth()];
+export const monthOfName = (at: Date, lang?: Lang): string =>
+  new Intl.DateTimeFormat(localeOf(lang ?? appLang()), { day: 'numeric', month: 'long' }).formatToParts(at).find((p) => p.type === 'month')?.value ?? '';
 
-/** Die Köpfe eines Monatsblatts, Montag zuerst. */
-export const WEEK_HEADS = ['pn', 'wt', 'śr', 'czw', 'pt', 'sob', 'nd'] as const;
+const HEAD_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
+/** Die Köpfe eines Monatsblatts, Montag zuerst — beim Lesen übersetzt. */
+export const WEEK_HEADS: readonly string[] = (() => {
+  const out: string[] = [];
+  HEAD_KEYS.forEach((k, i) => Object.defineProperty(out, i, { get: () => t(`core.date.weekHead.${k}`), enumerable: true }));
+  out.length = HEAD_KEYS.length;
+  return Object.freeze(out);
+})();
 
 /** „wrzesień 2026" — der Monat als Überschrift, im Nominativ. */
-export const monthTitle = (at: Date): string => `${MONTHS[at.getMonth()]} ${at.getFullYear()}`;
+export const monthTitle = (at: Date, lang?: Lang): string => fmtDate(at, { month: 'long', year: 'numeric' }, lang);
 
 /** „wtorek, 29 września 2026" — für Vorleseprogramme und Tooltips. */
-export const longDate = (at: Date): string =>
-  `${WEEKDAYS[at.getDay()]}, ${at.getDate()} ${MONTHS_OF[at.getMonth()]} ${at.getFullYear()}`;
+export const longDate = (at: Date, lang?: Lang): string =>
+  fmtDate(at, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }, lang);
 
 /**
  * Eine Spanne in Worten — „2–4 października 2026", „29 września – 5
  * października 2026". Das Ende ist AUSSCHLIESSLICH, wie bei jeder Spanne hier.
  */
-export function rangeTitle(from: Date, toExclusive: Date): string {
+export function rangeTitle(from: Date, toExclusive: Date, lang?: Lang): string {
   const last = addDays(toExclusive, -1);
-  if (sameDay(from, last)) return `${from.getDate()} ${MONTHS_OF[from.getMonth()]} ${from.getFullYear()}`;
-  if (sameMonth(from, last)) return `${from.getDate()}–${last.getDate()} ${MONTHS_OF[last.getMonth()]} ${last.getFullYear()}`;
-  if (from.getFullYear() === last.getFullYear()) {
-    return `${from.getDate()} ${MONTHS_OF[from.getMonth()]} – ${last.getDate()} ${MONTHS_OF[last.getMonth()]} ${last.getFullYear()}`;
-  }
-  return `${from.getDate()} ${MONTHS_OF[from.getMonth()]} ${from.getFullYear()} – ${last.getDate()} ${MONTHS_OF[last.getMonth()]} ${last.getFullYear()}`;
+  const f = new Intl.DateTimeFormat(localeOf(lang ?? appLang()), { day: 'numeric', month: 'long', year: 'numeric' });
+  return plain(sameDay(from, last) ? f.format(from) : (f as Intl.DateTimeFormat & { formatRange(a: Date, b: Date): string }).formatRange(from, last));
 }

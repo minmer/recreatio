@@ -14,6 +14,7 @@
  * behauptet, gerechnet zu haben.
  */
 
+import { LangScope, rich, useT, type Section } from '../core/i18n';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { formsPath, pageSteps, PATH_SHAPE, ROOT_STEP, tilesPath, viewPath, VIEWS, type Spot, type View } from '../routes';
@@ -68,6 +69,7 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /** `undefined` = noch nicht nachgesehen, `null` = ging nicht. */
   const [desk, setDesk] = useState<Desk | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   const look = useCallback(async () => {
     try {
@@ -75,9 +77,9 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
       setFailed(null);
     } catch (e) {
       setDesk(null);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać warsztatu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('workspace.main.loadFailed'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -96,9 +98,9 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   if (spot.kind === 'stray') {
     return (
       <>
-        <h1 className="wk-h1">Nie ma tu takiego widoku</h1>
+        <h1 className="wk-h1">{t('workspace.main.strayTitle')}</h1>
         <p className="wk-lede">
-          Warsztat nie zna części <code>{spot.word}</code>.
+          {rich(t('workspace.main.strayText', { word: spot.word }), { code: (s, key) => <code key={key}>{s}</code> })}
         </p>
 
         {/* Der Weg hinaus steht oben, wie überall. Zwei Ausgänge sind keiner mehr. */}
@@ -111,10 +113,10 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   if (desk === null) {
     return (
       <>
-        <h1 className="wk-h1">Warsztat</h1>
+        <h1 className="wk-h1">{t('workspace.main.title')}</h1>
         <p className="wk-error">{failed}</p>
         <p>
-          <button type="button" className="wk-btn" onClick={() => void look()}>Spróbuj ponownie</button>
+          <button type="button" className="wk-btn" onClick={() => void look()}>{t('common.retry')}</button>
         </p>
       </>
     );
@@ -145,13 +147,15 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
         {/* Zadania sind ein Reiter des Kalenders, kein eigener Ort. */}
         {spot.trail.length === 0 && (spot.view === 'calendar' || spot.view === 'tasks') && <CalendarTabs at={spot.view} />}
 
-        <Inside
-          view={spot.view}
-          trail={spot.trail}
-          desk={desk}
-          who={who}
-          onChanged={() => void look()}
-        />
+        <LangScope section={SECTION_OF[spot.view] ?? 'workspace'}>
+          <Inside
+            view={spot.view}
+            trail={spot.trail}
+            desk={desk}
+            who={who}
+            onChanged={() => void look()}
+          />
+        </LangScope>
       </>
     );
   }
@@ -159,6 +163,14 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /* 0094 — die Seite des Warsztat ist ein Widok (`WorkspaceHome`): was neu ist, Termine, Teile auf Wunsch. */
   return <WorkspaceHome who={who} desk={desk} />;
 }
+
+/** 2026-11-05 — welcher Teil der Anwendung eine Ansicht ist: seine eigene Sprache, wenn jemand eine gewählt hat (core/i18n.tsx). */
+const SECTION_OF: Partial<Record<View, Section>> = {
+  areas: 'areas', calendar: 'calendar', tasks: 'calendar', chat: 'chat', forms: 'forms', modules: 'forms', pages: 'pages',
+  library: 'library', scriptorium: 'scriptorium', knowledge: 'knowledge', learn: 'learn', masses: 'masses', bookings: 'bookings',
+  wspolnoty: 'communities', roles: 'roles', addresses: 'addresses', sms: 'sms', contacts: 'sms', lamps: 'lamps',
+  registry: 'registry', sprawy: 'reports', account: 'account'
+};
 
 /** Ansichten, die ihren Titel selbst tragen. */
 const OWN_TITLE: ReadonlySet<View> = new Set<View>(['chat', 'widok', 'library', 'scriptorium', 'knowledge', 'learn', 'forms', 'areas', 'sms', 'contacts', 'lamps', 'roles', 'bookings']);
@@ -168,10 +180,11 @@ const TITLE_OF: Partial<Record<View, View>> = { tasks: 'calendar' };
 
 /** Kalendarz | Zadania — zwei Reiter, zwei Adressen. */
 function CalendarTabs({ at }: { at: 'calendar' | 'tasks' }) {
+  const t = useT();
   return (
-    <nav className="wk-tabs" aria-label="Kalendarz">
-      <a className={at === 'calendar' ? 'wk-tab wk-tab-on' : 'wk-tab'} aria-current={at === 'calendar' ? 'page' : undefined} href={viewPath('calendar')}>Terminy</a>
-      <a className={at === 'tasks' ? 'wk-tab wk-tab-on' : 'wk-tab'} aria-current={at === 'tasks' ? 'page' : undefined} href={viewPath('tasks')}>Zadania</a>
+    <nav className="wk-tabs" aria-label={t('workspace.main.calendar')}>
+      <a className={at === 'calendar' ? 'wk-tab wk-tab-on' : 'wk-tab'} aria-current={at === 'calendar' ? 'page' : undefined} href={viewPath('calendar')}>{t('workspace.main.terms')}</a>
+      <a className={at === 'tasks' ? 'wk-tab wk-tab-on' : 'wk-tab'} aria-current={at === 'tasks' ? 'page' : undefined} href={viewPath('tasks')}>{t('workspace.main.tasks')}</a>
     </nav>
   );
 }
@@ -205,6 +218,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   who: Who;
   onChanged: () => void;
 }) {
+  const t = useT();
   if (view === 'forms') return <Modules who={who} trail={formsTrail(trail)} forms />;
   /* Die alte Adresse eines Formulars (`modules/form/<kennung>`) — eine Adresse je Ding. */
   if (view === 'modules' && trail[0] === 'form') return <Redirect to={formsPath(...trail.slice(1))} />;
@@ -239,7 +253,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'sprawy') return <Suspense fallback={<Loading />}><SprawyView who={who} trail={trail} /></Suspense>;
 
   /* Jede Ansicht steht oben; was hier ankommt, gibt es (noch) nicht. */
-  return <p className="wk-note">Tej części warsztatu jeszcze nie ma.</p>;
+  return <p className="wk-note">{t('workspace.main.noSuchPart')}</p>;
 }
 
 /* -- Strony: übernehmen, nicht anlegen ------------------------------------- */
@@ -303,6 +317,7 @@ function Pages({ desk, who, trail, onClaimed }: {
   const known = new Set(desk.pages.map((one) => one.path));
   const { path: editing, moduleId } = splitTrail(trail, known);
   const names = useRoleNames(who);
+  const t = useT();
 
   /* 0054 — die zuletzt bearbeiteten Seiten stehen über dem Baum (gemerkt versiegelt). */
   useTouched('pages', editing);
@@ -374,12 +389,12 @@ function Pages({ desk, who, trail, onClaimed }: {
      Adress-Code schon abgelehnt worden. */
   const blocker =
     busy ? null
-    : desk.roles.length === 0 ? 'Nie masz roli, która mogłaby przejąć adres.'
-    : typed === '' ? 'Wpisz adres.'
-    : !isRoot && !PATH_SHAPE.test(path) ? 'Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.'
-    : path === 'workspace' || path.startsWith('workspace/') ? 'Adres „workspace” należy do samego warsztatu.'
-    : code.trim() === '' ? 'Wpisz kod adresu.'
-    : roleId === '' ? 'Wybierz rolę.'
+    : desk.roles.length === 0 ? t('workspace.claim.noRole')
+    : typed === '' ? t('workspace.claim.enterAddress')
+    : !isRoot && !PATH_SHAPE.test(path) ? t('workspace.claim.shape')
+    : path === 'workspace' || path.startsWith('workspace/') ? t('workspace.claim.reserved')
+    : code.trim() === '' ? t('workspace.claim.enterCode')
+    : roleId === '' ? t('workspace.claim.pickRole')
     : null;
 
   const go = async () => {
@@ -394,7 +409,7 @@ function Pages({ desk, who, trail, onClaimed }: {
       setCode('');
       onClaimed();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przejąć adresu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('workspace.claim.failed'));
     } finally {
       setBusy(false);
     }
@@ -406,15 +421,12 @@ function Pages({ desk, who, trail, onClaimed }: {
   return (
     <>
       {desk.pages.length === 0 ? (
-        <p className="wk-lede">
-          Nie prowadzisz jeszcze żadnego adresu. Adres się przejmuje: musi być
-          na liście i trzeba mieć do niego kod.
-        </p>
+        <p className="wk-lede">{t('workspace.claim.noAddresses')}</p>
       ) : editing !== null || moduleId !== null ? null : (
         <>
-        <div className="wk-seg" role="group" aria-label="Jak pokazać strony">
-          <button type="button" className={shape !== 'tree' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={shape !== 'tree'} onClick={() => setShape('list')}>Lista</button>
-          <button type="button" className={shape === 'tree' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={shape === 'tree'} onClick={() => setShape('tree')}>Drzewo adresów</button>
+        <div className="wk-seg" role="group" aria-label={t('workspace.claim.shapeLabel')}>
+          <button type="button" className={shape !== 'tree' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={shape !== 'tree'} onClick={() => setShape('list')}>{t('workspace.claim.list')}</button>
+          <button type="button" className={shape === 'tree' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={shape === 'tree'} onClick={() => setShape('tree')}>{t('workspace.claim.tree')}</button>
         </div>
         {shape !== 'tree' ? <PageList desk={desk} who={who} /> : (
         <SlugTree
@@ -441,7 +453,7 @@ function Pages({ desk, who, trail, onClaimed }: {
       */}
       {moduleId !== null && (
         module === null ? (
-          <p className="wk-empty">Tego modułu nie ma — albo nie jest Twój.</p>
+          <p className="wk-empty">{t('workspace.claim.noModule')}</p>
         ) : (
           <>
             <h2 className="wk-h2">{module.name}</h2>
@@ -474,7 +486,7 @@ function Pages({ desk, who, trail, onClaimed }: {
         tut. Zugeklappt steht dort eine Zeile; wer sie braucht, klappt sie auf.
       */}
       <details className="wk-fold">
-        <summary>Przejmij adres</summary>
+        <summary>{t('workspace.claim.summary')}</summary>
 
 
         <form
@@ -482,17 +494,17 @@ function Pages({ desk, who, trail, onClaimed }: {
           onSubmit={(e) => { e.preventDefault(); if (blocker === null) void go(); }}
         >
           <label className="wk-field">
-            <span>Adres</span>
-            <input value={wanted} onChange={(e) => setWanted(e.target.value)} placeholder="schola" />
+            <span>{t('workspace.claim.address')}</span>
+            <input value={wanted} onChange={(e) => setWanted(e.target.value)} placeholder={t('workspace.claim.addressPlaceholder')} />
           </label>
 
           {/* Sonst wäre die Wurzel die einzige Adresse, die man nicht tippen kann. */}
           <p className="wk-hint">
-            Sam <code>/</code> to <code>recreatio.pl</code>.
+            {rich(t('workspace.claim.rootHint'), { code: (s, key) => <code key={key}>{s}</code> })}
           </p>
 
           <label className="wk-field">
-            <span>Kod adresu</span>
+            <span>{t('workspace.claim.code')}</span>
             <input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" />
           </label>
 
@@ -501,7 +513,7 @@ function Pages({ desk, who, trail, onClaimed }: {
             przeoczyć, a decyduje o tym, co się stanie, gdy ktoś odejdzie.
           */}
           <label className="wk-field">
-            <span>Kto będzie odpowiadał</span>
+            <span>{t('workspace.claim.who')}</span>
             <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
               {takers(desk.roles).map((role) => (
                 <option key={role.id} value={role.id}>{roleLabel(role, names)}</option>
@@ -511,21 +523,18 @@ function Pages({ desk, who, trail, onClaimed }: {
 
           <p className="wk-hint">
             {isRoot ? (
-              <>Wybrana rola odpowiada za sam adres <code>recreatio.pl</code>.</>
+              <>{rich(t('workspace.claim.rootRole'), { code: (s, key) => <code key={key}>{s}</code> })}</>
             ) : (
-              <>
-                Wybrana rola odpowiada za ten adres i za wszystko pod nim —
-                <code>{path === '' ? 'schola' : path}/…</code> idzie razem z nim.
-              </>
+              <>{rich(t('workspace.claim.subRole', { path: path === '' ? t('workspace.claim.addressPlaceholder') : path }), { code: (s, key) => <code key={key}>{s}</code> })}</>
             )}
           </p>
 
           {failed !== null && <p className="wk-error">{failed}</p>}
-          {done !== null && <p className="wk-done">Adres <code>recreatio.pl/{done}</code> jest Twój.</p>}
+          {done !== null && <p className="wk-done">{rich(t('workspace.claim.done', { path: done }), { code: (s, key) => <code key={key}>{s}</code> })}</p>}
 
           <div className="wk-actions">
             <button type="submit" className="wk-btn" disabled={blocker !== null || busy}>
-              {busy ? 'Sprawdzanie…' : 'Przejmij'}
+              {busy ? t('workspace.parts.checking') : t('workspace.claim.claim')}
             </button>
 
             {blocker !== null && !busy && <span className="wk-blocker">{blocker}</span>}
@@ -541,6 +550,7 @@ function Pages({ desk, who, trail, onClaimed }: {
  * teilen. Der Baum (Unterseiten, Übernehmen) ist der erweiterte Weg.
  */
 function PageList({ desk, who }: { desk: Desk; who: Who }) {
+  const t = useT();
   const pages = desk.pages.filter((one) => one.aliasOf === null).sort((a, b) => a.path.localeCompare(b.path));
   return (
     <>
@@ -550,11 +560,11 @@ function PageList({ desk, who }: { desk: Desk; who: Who }) {
           return (
             <li key={one.path} data-page={one.path}>
               <a className="wk-page-path" href={viewPath('pages', ...pageSteps(one.path))}>{one.path === '' ? 'recreatio.pl' : one.path}</a>
-              {areas.length > 0 && <span className="wk-tag">z dostępem</span>}
+              {areas.length > 0 && <span className="wk-tag">{t('workspace.parts.withAccess')}</span>}
               <span className="wk-part-acts">
-                <a className="wk-link-btn" href={`#/${one.path}`}>Otwórz</a>
-                <a className="wk-link-btn" href={viewPath('pages', ...pageSteps(one.path))}>Edytuj</a>
-                <ShareButton who={who} label="Udostępnij" className="wk-link-btn"
+                <a className="wk-link-btn" href={`#/${one.path}`}>{t('common.open')}</a>
+                <a className="wk-link-btn" href={viewPath('pages', ...pageSteps(one.path))}>{t('common.edit')}</a>
+                <ShareButton who={who} label={t('workspace.parts.share')} className="wk-link-btn"
                   target={{ title: one.path === '' ? 'recreatio.pl' : one.path, aim: one.path === '' ? null : one.path, areaIds: areas, open: areas.length === 0 }} />
               </span>
             </li>

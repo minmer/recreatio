@@ -21,6 +21,7 @@
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { t } from '../core/i18n';
 import { rewardWords, type Lang, type RewardWords } from './lang';
 import { dayStart } from './lessons';
 import {
@@ -284,8 +285,8 @@ function CategoryTile({ c, W, readOnly, open, closest, controls, onToggle }: { c
         <MaterialPips steps={c.ladders.flatMap((x) => x.steps)} />
         <span className="cg-bp-cat-mat">{c.top === null ? W.noMaterial : W.material[c.top]}</span>
       </span>
-      {next === null ? <span className="cg-bp-left is-done"><span aria-hidden>✓ </span>{W.allTiers}</span>
-        : !next.measured ? <span className="cg-bp-left is-map"><span aria-hidden>◇ </span>{readOnly ? W.onMapShortOther : W.onMapShort}</span>
+      {next === null ? (<span className="cg-bp-left is-done"><span aria-hidden>{'✓ '}</span>{W.allTiers}</span>)
+        : !next.measured ? (<span className="cg-bp-left is-map"><span aria-hidden>{'◇ '}</span>{readOnly ? W.onMapShortOther : W.onMapShort}</span>)
           : (
             <span className="cg-bp-cat-next">
               <Meter value={c.share} label={W.meter(name)} text={toNextStep(W, next)} />
@@ -333,7 +334,7 @@ function CategorySteps({ c, W, readOnly, date, id }: { c: BadgeCategory; W: Rewa
                           <span className="cg-bp-status is-going">{leftOf(W, s)}</span>
                         </>
                       )}
-                      {phase === 'map' && <span className="cg-bp-status is-map"><span aria-hidden>◇ </span>{readOnly ? W.onMapShortOther : W.onMapShort}</span>}
+                      {phase === 'map' && <span className="cg-bp-status is-map"><span aria-hidden>{'◇ '}</span>{readOnly ? W.onMapShortOther : W.onMapShort}</span>}
                       {phase === 'later' && <span className="cg-bp-status is-none"><span aria-hidden>○ </span>{W.later}</span>}
                     </span>
                   </li>
@@ -389,7 +390,7 @@ function History({ state, W }: { state: RewardState; W: RewardWords }) {
     const m = e.kind === 'badge' ? materials.get(e.badge ?? '') : undefined;
     const name = e.kind === 'level' ? rules.levels[(e.value ?? 1) - 1]?.name ?? String(e.value ?? '')
       : e.kind === 'badge' ? `${badge?.name ?? e.badge ?? ''}${m === undefined ? '' : ` · ${W.material[m]}`}` : '';
-    return W.event(e.kind, e.value, name, rules.combo.every) ?? (e.kind === 'badge' ? `odznaka: ${name}` : eventText(e, rules));
+    return W.event(e.kind, e.value, name, rules.combo.every) ?? (e.kind === 'badge' ? t('cogitaViewsRewards.event.badge', { name }) : eventText(e, rules));
   };
   const iconOf = (e: RewardEvent): BadgeIcon | null => (e.kind === 'badge' ? rules.badges.find((x) => x.id === e.badge)?.icon ?? 'medal' : EVENT_ICON[e.kind] ?? null);
   return (

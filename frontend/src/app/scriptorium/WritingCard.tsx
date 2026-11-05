@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useT } from '../core/i18n';
 import { ids, str, type LibEntry, type Lookup } from '../library/libraryKinds';
 import { excerpt } from '../library/libraryMarkup';
 import { findOnPage } from '../library/libraryOpen';
@@ -58,6 +59,7 @@ export function WritingCard({ library, entryId, size, whole = false, prefix, del
   delivery?: string | null;
   onDelivery?: (id: string | null) => void;
 }) {
+  const t = useT();
   const loaded = usePageEntry(library, entryId);
   const [open, setOpen] = useState(false);
   /* 2026-10-22 — ein eigener Eintrag, auf den der Text verweist (ein Link, keine Fussnote), öffnet sich unter dem Text. */
@@ -66,8 +68,8 @@ export function WritingCard({ library, entryId, size, whole = false, prefix, del
   const links = useMemo<MarkupLinkTo>(() => ({ open: (e) => setOpened(e) }), []);
   useEffect(() => { if (opened !== null) openedAt.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [opened]);
 
-  if (loaded === null) return <Loading label="Wczytywanie tekstu…" />;
-  if (loaded === 'missing') return <p className="wk-card-text">Tego tekstu nie ma albo nie możesz go zobaczyć.</p>;
+  if (loaded === null) return <Loading label={t('scriptorium.card.loading')} />;
+  if (loaded === 'missing') return <p className="wk-card-text">{t('scriptorium.card.missing')}</p>;
 
   const full = whole || open || size.height === 'tall';
   if (full) {
@@ -84,12 +86,12 @@ export function WritingCard({ library, entryId, size, whole = false, prefix, del
         <p className="lib-print">
           <button type="button" className="wk-link-btn" onClick={() => void saveBlob(
             new Blob([textToLatex(loaded.entry, loaded.look)], { type: 'application/x-tex' }), latexFileName(loaded.entry))}>
-            Pobierz do druku (LaTeX)
+            {t('scriptorium.card.latex')}
           </button>
           {hasPlan && (
             <button type="button" className="wk-link-btn" onClick={() => void saveBlob(
               new Blob([planToLatex(loaded.entry, loaded.look)], { type: 'application/x-tex' }), latexFileName(loaded.entry, '-plan'))}>
-              Sam plan (LaTeX)
+              {t('scriptorium.card.latexPlan')}
             </button>
           )}
         </p>
@@ -106,10 +108,10 @@ export function WritingCard({ library, entryId, size, whole = false, prefix, del
   return (
     <div className="lib-teaser">
       <h2 className="wk-card-title">{str(d, 'title')}</h2>
-      <p className="lib-meta">{[when === '' ? '' : dateWords(when), str(held[0]?.data ?? {}, 'occasion') || str(d, 'occasion'), held.length > 1 ? `wygłoszony ${held.length}×` : ''].filter(Boolean).join(' · ')}</p>
+      <p className="lib-meta">{[when === '' ? '' : dateWords(when, t.lang), str(held[0]?.data ?? {}, 'occasion') || str(d, 'occasion'), held.length > 1 ? t('scriptorium.heldTimes', { count: held.length }) : ''].filter(Boolean).join(' · ')}</p>
       {lead !== '' && <p className="wk-card-text">{lead}</p>}
-      {thoughts.length > 0 && <ol className="lib-teaser-plan">{thoughts.map((t, i) => <li key={i}>{t}</li>)}</ol>}
-      <button type="button" className="wk-link-btn wk-card-more" onClick={() => setOpen(true)}>{held.length > 0 ? 'Plan, nagrania i całość' : 'Czytaj całość'}</button>
+      {thoughts.length > 0 && <ol className="lib-teaser-plan">{thoughts.map((one, i) => <li key={i}>{one}</li>)}</ol>}
+      <button type="button" className="wk-link-btn wk-card-more" onClick={() => setOpen(true)}>{held.length > 0 ? t('scriptorium.card.openAll') : t('scriptorium.card.readAll')}</button>
     </div>
   );
 }

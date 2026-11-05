@@ -1,0 +1,163 @@
+{
+  "place": {
+    "unreadable": "This place cannot be read in this work's layout.",
+    "spansParts": {
+      "one": "This place spans {count} part of the text.",
+      "other": "This place spans {count} parts of the text."
+    },
+    "notInParts": "This place is not in the saved parts of the text.",
+    "noPages": "The text has no saved pages — this page cannot be found in it.",
+    "pageAmbiguous": "This page occurs in several parts of the text — it is unclear which one is meant.",
+    "pageNotInParts": "This page is not in the saved parts of the text.",
+    "noParts": "The text has no parts yet."
+  },
+  "import": {
+    "oneObject": "Expected one JSON object (a “recreatio/source-text” document).",
+    "notSourceText": "This is not a source text: \"format\" must be \"{format}\".",
+    "unknownVersion": "Unknown version {version} — this app reads version {known}.",
+    "otherWork": "This text is for another work (“{work}”) — open the right work or correct \"work\".",
+    "unknownScheme": "Unknown place layout \"{scheme}\" — allowed: {list}.",
+    "schemeDiffers": "The work has the place layout “{label}” (\"{scheme}\"), but the text gives \"{asked}\".",
+    "psalmsOnlyBible": "\"edition.psalms\" applies only to Holy Scripture — skipped.",
+    "portionKey": "\"portion.key\" — a short key for the part (letters, digits, spaces, . : - _), at most 60 characters, e.g. \"J\" or \"rozdz-3\".",
+    "blocks": "\"blocks\" — a list of text blocks, in the order of the original.",
+    "unreadablePage": "{where}: unreadable page “{page}” {place}.",
+    "in": {
+      "block": "in the block",
+      "list": "in a list",
+      "table": "in a table",
+      "tableCaption": "in a table caption",
+      "note": "in a footnote",
+      "caption": "in a caption",
+      "figureAlt": "in a figure description",
+      "code": "in code",
+      "text": "in the text"
+    },
+    "pageOrder": "{where}: page {page} after a higher page — check the order.",
+    "pdfOrder": "{where}: PDF page {pdf} after a higher one.",
+    "notObject": "{where}: not an object — skipped.",
+    "unknownType": "{where}: unknown type \"{type}\" — skipped.",
+    "locUnreadable": "{where}: the place “{loc}” cannot be read in the layout “{scheme}” — it stays, but quotes will not find it.",
+    "locRest": "{where}: in the place “{loc}” an unread part “{rest}”.",
+    "locTwice": "{where}: the place “{loc}” was already in: {seen}.",
+    "pageWithout": "{where}: \"page\" without a readable page — skipped.",
+    "listWithout": "{where}: list without \"items\" — skipped.",
+    "tableWithout": "{where}: table without \"rows\" — skipped.",
+    "noteWithoutId": "{where}: footnote without \"id\" — skipped.",
+    "noteTwice": "{where}: footnote \"{id}\" repeated.",
+    "noteEmpty": "{where}: empty footnote \"{id}\".",
+    "kindUnknownOther": "{where}: unknown kind \"{kind}\" — saved with the label only.",
+    "kindUnknownTaken": "{where}: unknown kind \"{kind}\" — taken as “{label}” (from the label).",
+    "statementBare": "{where}: \"statement\" without \"kind\" and \"label\" — skipped (enter the content as ordinary blocks).",
+    "tooDeep": "{where}: statement nested deeper than {count} levels — skipped.",
+    "statementEmpty": "{where}: “{head}” without content (\"text\" or \"blocks\").",
+    "figureBare": "{where}: figure without \"label\", \"text\" and \"alt\" — skipped.",
+    "codeEmpty": "{where}: empty code — skipped.",
+    "textEmpty": "{where}: empty text — skipped.",
+    "block": "block {n}",
+    "refWithoutNote": "Reference {{note {ref}}} has no footnote with \"id\": \"{ref}\".",
+    "noteWithoutRef": "Footnote \"{id}\" has no reference {{note {id}}} in the text.",
+    "nothing": "No block can be saved.",
+    "tooBig": "This part is too big (over 3.5 MB of text) — split it into smaller ones (e.g. chapters) and import them one by one.",
+    "texFixed": "Fixed in formulas ({n}×): {what}.",
+    "macrosHoisted": "Macros from definitions in formulas ({list}) added to the text's macros — they work in the whole text.",
+    "strayDollar": "A single $ sign ({list}) — write a dollar as \\$, a formula as $…$ without spaces right next to the $ signs.",
+    "andOthers": {
+      "one": " and {count} other",
+      "other": " and {count} others"
+    },
+    "andOtherGaps": {
+      "one": " and {count} other gap",
+      "other": " and {count} other gaps"
+    },
+    "texError": "{where}: formula {tex} — {error}",
+    "texMore": {
+      "one": "…and {count} more formula that cannot be typeset — the reader will show it as LaTeX code.",
+      "other": "…and {count} more formulas that cannot be typeset — the reader will show them as LaTeX code."
+    },
+    "labelTwice": "The same label several times: {list} — references will hit the first one.",
+    "refNoNumber": "“{label}” ({where}, no number)",
+    "refAt": "“{label}” ({where})",
+    "refsMissing": "References {{ref …}} without a target in the saved text: {list} — the target may be in a part that is not there yet.",
+    "gapAt": "{pages} (before: {where})",
+    "pagesMissing": "Missing pages: {list} — mark empty pages and full-page figures too ({{page …}} or a \"page\" block), so it is clear nothing got lost."
+  },
+  "describe": {
+    "examplesHead": "## Examples",
+    "exampleHead": "### {label} (\"{id}\")",
+    "mathExample": "### A textbook with formulas (theorems, a proof, matrices, a figure, a table, code)",
+    "useHead": "## How the app uses this data",
+    "mathAsk": "Transcribe formulas, matrices and mathematical symbols in LaTeX ($…$ in a sentence, $$…$$ on their own, with the number \\tag{…} as printed), reading them from the page image; definitions, theorems, lemmas, proofs and examples — as \"statement\" blocks with a label; references to them and to formulas — {{ref …}}; figures — a \"figure\" block with a caption and a description. In JSON double every LaTeX backslash (\"\\\\frac\").",
+    "schemeLine": "- \"{id}\" — {label}: {says} Examples: {examples}",
+    "use": "- On the work's page the “Source text” box shows which texts there are (parts, words, in which library) and opens the reader (“Read”).\n- The reader (#/workspace/library/<biblioteka>/<dzieło>/tekst/<miejsce>): list of parts, places in the margin, page breaks, footnotes; “Go to” a place, search in the whole text, “Beside” — another edition or translation of this work, aligned by places in the structure.\n- A selected passage can be added as a quote (with the work and the place) or copied with its place.\n- Every place already quoted somewhere (a footnote, a quote, a reference in a knowledge-base entry, a field with a place) gets “show in text” if it is in this text: the passage opens at the place, also on a page. Nothing is saved — the link is made while reading.\n- A place in the structure (verse, number, article) also leads to the text of another edition of this work (\"editionOf\"); a page — only to the text of this edition.\n- “In Knowledge” on the work and in the reader: entries of knowledge bases the reader may open that point to this work or its places.\n- The text is sealed with the area key of the library in which it was saved — this can be a different (e.g. private) library than the one with the work. Whoever does not read it does not see the text: not in the reader, not in search, not on a page.\n- “AI access” (an area link, MCP server), if it covers the library with the text, gives it to the assistant to read: list_texts, read_text (by place), search_text.\n- The text is not in the library JSON (\"recreatio/library\"); the export in the “Source text” box gives it out — in this format.\n- The reader typesets formulas ($…$, $$…$$) as in print (KaTeX), including matrices, systems and formula numbers; a formula that cannot be typeset stays visible as LaTeX code. The import checks every formula and says which do not pass.\n- Theorems, definitions, proofs, examples stand in labelled boxes; a proof ends with ∎. “Go to” also accepts labels (“Twierdzenie 2.3”, “(2.4)”, “Rys. 1.2”), and a reference {{ref …}} in the text leads to its target — also in another part.\n- Search in the text also finds formulas: by words and symbols (“α”, “∫”, “sin”) and by LaTeX (“\\frac”, “x^2”). A selected passage with a formula goes into a quote and the clipboard as LaTeX ($…$).\n- “AI access” gives formulas as LaTeX in $…$ and $$…$$; read_text also accepts a label (“Twierdzenie 2.3”, “(2.4)”).",
+    "rules": "## Rules\n- Do not invent text or numbers: what is not visible in the source is not in the JSON. Mark what is uncertain with {{? …}} or \"uncertain\": true.\n- Page numbers: as printed, as in the book (also roman: \"xii\"); the page number of the PDF file in \"pdf\", if it differs.\n- Footnotes and endnotes: a \"note\" block (after the paragraph or at the end of the part) and {{note …}} at the place of the reference mark.\n- One part — at most about 2 million characters.\n- Every page has its break — also an empty one or one taken up entirely by a figure ({{page …}} or a \"page\" block); the import checks that none is missing.\n\n## The whole text\n- Divide the text by its own division: books of the Bible (key: the book's abbreviation, e.g. \"J\"), chapters of a book (\"rozdz-1\", \"rozdz-2\"), questions of the Summa (\"I-q2\"), chapters of a document; a short article or document can be one part.\n- Keys short and stable; \"order\" — the order in the work (1, 2, 3…). Introduction, preface, table of contents, bibliography, index — separate parts only if they are in the source.\n- Every chapter is a separate part, with its number and title as headings (\"heading\") — check at the end that the number of parts matches the table of contents and that no chapter was left in the middle of the previous one.\n- Every part starts with a \"page\" block with the page on which it starts — also when the previous part ends on the same page (a chapter starting mid-page). This shared page does not duplicate text.\n- Put endnotes (at the end of the book or chapter) in the part they refer to.\n- When the text does not fit into one answer: transcribe the following parts in following documents (with the same \"work\", \"scheme\" and \"edition\"), starting exactly where you stopped. Never break off a part in the middle — finish it, or start the next document with it (the same part a second time replaces the previous one).\nReturn ONE JSON object, without comments.",
+    "head": "# Source text as JSON (\"{format}\", version {version})\n\nThe text of a work consists of PARTS (e.g. a book of the Bible, a chapter of a book, a whole short document or article). A JSON document holds one part (\"portion\" + \"blocks\") or several at once (\"portions\": [ … ] — also the whole text). A part with the same \"portion.key\" replaces the previous one, others stay — so a long work can be sent in several documents one after another, and a repeated document duplicates nothing.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"work\": \"@work-key\",              — key (or identifier) of the work's entry in the Library; the text belongs to THIS edition/translation\n  \"scheme\": \"{scheme}\",                — the work's place layout (below); must match the work\n  \"edition\": {                       — optional\n    \"pdfPageOffset\": 12,            — printed page = PDF page − 12 (when constant)\n    \"language\": \"pl\",\n    \"psalms\": \"hebrew\" | \"greek\",   — Holy Scripture only: psalm numbering (most modern translations: hebrew; Vulgate: greek)\n    \"macros\": { \"\\\\R\": \"\\\\mathbb{R}\" }  — the author's own macros in formulas (below: Formulas)\n  },\n  \"portion\": { \"key\": \"rozdz-1\", \"label\": \"Chapter 1\", \"order\": 1 },\n  \"blocks\": [ … ]                    — blocks in the order of the original\n}\n\nOr several parts (e.g. the whole text) in one document — instead of \"portion\" and \"blocks\":\n  \"portions\": [\n    { \"portion\": { \"key\": \"wstep\", \"label\": \"Introduction\", \"order\": 1 }, \"blocks\": [ … ] },\n    { \"portion\": { \"key\": \"rozdz-1\", \"label\": \"Chapter 1\", \"order\": 2 }, \"blocks\": [ … ] }\n  ]\n\n## Blocks\n  {\"type\": \"heading\", \"level\": 1-4, \"text\": \"…\", \"loc\": \"…\"}    heading\n  {\"type\": \"paragraph\", \"text\": \"…\", \"loc\": \"…\"}               paragraph (also a verse, a point of a document, a theorem)\n  {\"type\": \"quote\", \"text\": \"…\", \"loc\": \"…\"}                   block quote in the source\n  {\"type\": \"list\", \"items\": [\"…\", \"…\"], \"ordered\": true, \"loc\": \"…\"}\n  {\"type\": \"table\", \"columns\": [\"…\"], \"rows\": [[\"…\", \"…\"]], \"loc\": \"…\"}\n  {\"type\": \"note\", \"id\": \"1\", \"text\": \"…\"}                     footnote (the footnote text); in the text the reference {{note 1}}\n  {\"type\": \"page\", \"page\": \"46\", \"pdf\": 52}                   page 46 (printed) starts here = page 52 of the PDF file;\n                                                              the page as printed — also with series marks: \"12*\", \"3'\", \"(7)\", \"A12\", \"xii\"\n  {\"type\": \"statement\", \"kind\": \"theorem\", \"label\": \"Theorem 2.3\", \"title\": \"…\", \"text\": \"…\"}\n                                                              definition, theorem, lemma, proof, example… (below); longer content: \"blocks\": [ … ] instead of \"text\"\n  {\"type\": \"figure\", \"label\": \"Fig. 2.1\", \"text\": \"caption\", \"alt\": \"what the figure shows\"}\n                                                              figure, chart, diagram — the caption from the book, and in \"alt\" a short description of what is visible\n  {\"type\": \"code\", \"lang\": \"python\", \"text\": \"…\"}             code or pseudocode — character for character, with indentation and line breaks\n  {\"type\": \"table\", \"label\": \"Table 2.1\", \"text\": \"caption\", \"columns\": […], \"rows\": […]}   a table with a label and caption (both optional)\n  \"uncertain\": true                                           on any block: uncertain reading\n\n## Marks in the text\n  {{page 46}}  or  {{page 46 pdf 52}}      page break in the middle of a paragraph (exactly where it falls)\n  {{note 3}}                               reference to footnote \"3\"\n  {{? word}}                               uncertain reading of this word;  {{?}} — illegible\n  {{gap}}                                  omitted / missing passage\n  {{ref theorem 2.3}}  {{ref (2.4)}}       reference to a theorem, formula, figure, table of the same work — written as in the text\n  $x^2$   $$\\\\int_0^1 f(x)\\\\,dx$$         a formula in a sentence and a displayed formula (on its own) — LaTeX (below)\nEverything else is plain text. Keep the exact wording, order, paragraphs and punctuation of the original. Do not correct, do not summarise, do not translate.\n\n## Formulas (LaTeX)\n- Write every formula, symbol and mathematical notation (also a single variable letter, an index, a unit in an expression) in LaTeX: in a sentence between $ … $, a displayed formula (on its own line) between $$ … $$ — in the paragraph exactly where it stands in the source; a paragraph can have several displayed formulas and continue after them.\n- There is no space after the opening $ and before the closing $. A literal dollar sign in the text: \\\\$.\n- In JSON every LaTeX backslash is doubled: \"$\\\\frac{a}{b}$\", \"$$\\\\sum_{k=1}^{n} k = \\\\frac{n(n+1)}{2}$$\". A single backslash breaks the formula (in JSON \"\\f\", \"\\t\", \"\\n\" are control characters).\n- The formula number as printed: $$ … \\\\tag{2.4}$$ (in a multi-line layout \\\\tag on its line). A formula without a number — without \\\\tag. Do not number on your own.\n- Step-by-step derivations and systems: \\\\begin{aligned} … \\\\end{aligned} (or align*, gather*), cases: cases; matrices: pmatrix, bmatrix, vmatrix, array (with rules: {cc|c}, \\\\hline); commutative diagrams: \\\\begin{CD}; chemistry: \\\\ce{H2O}, units: \\\\pu{9,81 m/s^2}.\n- Do not turn formulas into plain text or Unicode characters (x², α, √) — always LaTeX ($x^2$, $\\\\alpha$, $\\\\sqrt{x}$). Do not simplify, transform or correct — transcribe what is printed, in the same form.\n- Give the author's own macros (e.g. \\\\R, \\\\norm{x}) once in \"edition.macros\" ({\"\\\\norm\": \"\\\\left\\\\lVert #1 \\\\right\\\\rVert\"}) and use them in formulas; an ordinary \\\\newcommand in a formula works too.\n- Formulas are read by KaTeX. It does not have: \\\\label and \\\\ref (references use {{ref …}}), tabular and \\\\multicolumn (a table is a \"table\" block), tikz, \\\\includegraphics (a figure is a \"figure\" block), \\\\sideset.\n- A page break never in the middle of a formula — {{page …}} before the formula or after it.\n- Read formulas from the page image, not from the PDF text layer: the text layer usually loses indices, fractions and symbols.\n\n## Theorems, definitions, proofs (\"statement\")\n  {\"type\": \"statement\", \"kind\": \"definition\", \"label\": \"Definition 2.1\", \"text\": \"A sequence $(a_n)$ converges if …\"}\n  {\"type\": \"statement\", \"kind\": \"theorem\", \"label\": \"Theorem 2.2\", \"title\": \"squeeze theorem\", \"text\": \"…\"}\n  {\"type\": \"statement\", \"kind\": \"proof\", \"label\": \"Proof\", \"blocks\": [ {\"type\": \"paragraph\", \"text\": \"…\"}, … ]}\n- \"kind\": {kinds}, other (other — then \"label\" counts).\n- \"label\" — exactly as printed, with its number (\"Lemma 4.1\", \"Exercise 7*\"); \"title\" — the name in brackets after the label, if there is one (without the brackets).\n- Content as one paragraph: \"text\". Longer (several paragraphs, displayed formulas, lists, cases, page breaks): \"blocks\" — ordinary blocks, also nested statements (e.g. a lemma inside a proof).\n- A proof, solution, answer — a separate \"statement\" right after what it is about. Do not transcribe the end-of-proof sign (□, ∎, Q.E.D.): the app adds it itself.\n\n## References and labels\n- In the text write a reference to a theorem, formula, figure or table of the same work as {{ref …}} — in the words of the source: \"by {{ref theorem 2.3}}\", \"from {{ref (2.4)}}\", \"cf. {{ref Fig. 1.2}}\". The reader turns them into links.\n- Labels (label, \\\\tag) must be unique in the whole work — as in the book.\n\n## \"loc\" — the place in the structure of the work\nGive \"loc\" on every block that has its own number in the structure of the work (verse, point, article, theorem, paragraph, chapter). Blocks without their own number (e.g. a paragraph in the middle of a chapter) have no \"loc\" — they belong to the place given earlier. Pages do NOT go into \"loc\": pages are \"page\" blocks and {{page …}} marks, because they belong to this one edition."
+  },
+  "prompt": {
+    "work": "Work: {title}{key}.",
+    "workKey": " — put \"@{key}\" in the \"work\" field",
+    "scheme": "Place layout of this work: \"{scheme}\" ({label}).",
+    "portion": "Part to transcribe: {portion}.",
+    "intro": "Turn the attached source text (PDF, scan or file) into a JSON document for import into the Recreatio Library.",
+    "faithful": "Transcribe the text faithfully — word for word, in the order of the original, divided into paragraphs, with headings, lists, tables and footnotes, with page breaks exactly where they fall (also in the middle of a paragraph). Do not correct, do not summarise, do not add anything that is not in the source. Mark whatever is illegible or uncertain."
+  },
+  "preview": {
+    "partPrefix": "Part {n}: ",
+    "blocks": {
+      "one": "{count} block",
+      "other": "{count} blocks"
+    },
+    "words": {
+      "one": "{count} word",
+      "other": "{count} words"
+    },
+    "notes": {
+      "one": "{count} footnote",
+      "other": "{count} footnotes"
+    },
+    "formulas": {
+      "one": "{count} formula",
+      "other": "{count} formulas"
+    },
+    "frames": {
+      "one": "{count} box (theorems, definitions, proofs…)",
+      "other": "{count} boxes (theorems, definitions, proofs…)"
+    },
+    "places": "places {first}",
+    "placesRange": "places {first} – {last}",
+    "formulasOk": "{formulas} (all typeset)",
+    "formulasBad": "{formulas} ({errors} with an error)",
+    "adds": "Will add the part “{label}” ({key}): {items}.",
+    "replaces": "Will replace the part “{label}” ({key}): {items}.",
+    "setScheme": "Place layout of the work: {label} (“{scheme}”).",
+    "overlap": "the part “{other}” covers the same places — isn't it the same passage under another key?",
+    "nothing": "Nothing to import.",
+    "typesetting": "Typesetting the formulas ({n}) is still running — in a moment the preview will say whether they all pass."
+  },
+  "write": {
+    "unchanged": "“{label}”: no changes.",
+    "saving": "Saving part {n} of {total}…",
+    "added": "“{label}”: added.",
+    "replaced": "“{label}”: replaced.",
+    "schemeFailed": "Could not save the place layout on the work — the text has it anyway.",
+    "nothing": "Nothing was saved."
+  },
+  "withWork": {
+    "expected": "Expected a \"{format}\" document with a work (\"work\") and its text (\"portions\" or \"portion\" and \"blocks\").",
+    "workInvalid": "The work from \"work\" cannot be saved — check its fields.",
+    "workUnknown": "There is no work “{work}” in the library — describe it in \"work\" as an object (the work's fields) and it will be created together with the text.",
+    "workMissing": "\"work\" — the work: an object with the fields of a new work (e.g. {\"key\": \"kowalski2020\", \"data\": {\"workType\": \"article\", \"title\": \"…\"}}) or the key of an existing one (\"@kowalski2020\").",
+    "noText": "The document has no text (\"portions\" or \"portion\" and \"blocks\") — only the work will be saved.",
+    "newWork": "New work: “{title}”{key}.",
+    "fillWork": "Will complete the work: “{title}”{key}.",
+    "work": "Work: “{title}”{key}.",
+    "besides": "Besides it in the library: {list}.",
+    "other": "{kind} “{title}”",
+    "otherChanged": "{kind} “{title}” (change)",
+    "textHead": "## Text",
+    "exampleHead": "## Full example (a journal article, the text in two parts)",
+    "use": "## How the app uses this data\n- The work and the entries from \"entries\" go into the library in which the document is imported; the text — into the library chosen at import. After saving, the work's page opens.\n- The work, the authors and the periodical are ordinary Library entries (whoever sees its area sees them): they have their pages and are cited by key — [@kowalski2020, s. 47] in a Scriptorium text, in a knowledge-base entry or in a page's “Text” module becomes a footnote.",
+    "prompt": "Turn the attached source (a PDF, scan or file with a book or article) into ONE JSON document for import into the Recreatio Library: the description of the work (bibliographic data from the title page or the article's header), its authors and — if it is an article or chapter — the periodical or book it is in, and the whole text divided into parts.\n\nTranscribe the text faithfully — word for word, in the order of the original, divided into paragraphs, with headings, lists, tables and footnotes, with page breaks exactly where they fall (also in the middle of a paragraph). Do not correct, do not summarise, do not add anything that is not in the source. Mark whatever is illegible or uncertain. If the whole does not fit into one answer, give \"work\", \"entries\" and the first parts in the first one, and in the following ones — \"work\": \"@work-key\" and the next parts.",
+    "head": "# A work with its full text as JSON (\"{format}\", version {version})\n\nOne document creates in the Library the entry of a work (a book, article, chapter, document…), the entries it points to (authors, periodical, edited volume) and its full text. A work with a key that is already in the library is completed (the given fields), not duplicated; the same goes for an author or periodical with an existing key.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"work\": { \"key\": \"surname2020\", \"data\": { … fields of the work … } },   — or the \"@key\" of a work that already exists\n  \"entries\": [ { \"kind\": \"person\", \"key\": \"…\", \"data\": { … } }, { \"kind\": \"work\", \"key\": \"…\", \"data\": { \"workType\": \"periodical\", … } } ],\n  \"scheme\": \"pages\",          — how places in this work are referred to (below)\n  \"edition\": { … },           — optional: PDF page offset, language\n  \"portions\": [ { \"portion\": { \"key\", \"label\", \"order\" }, \"blocks\": [ … ] }, … ]\n}\n\n- References in the work's fields (\"authors\", \"editors\", \"translators\", \"container\") are keys with \"@\": to entries from \"entries\" or to ones that are already in the library.\n- Take the description of the work from the title page, the imprint or the article's header; do not enter what is not there.\n\n## Fields of the work and the person"
+  }
+}

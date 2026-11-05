@@ -47,13 +47,14 @@ import {
   type RoundRecord
 } from './roundSheet';
 import { formPath } from '../routes';
+import { fmtDate, rich, t, useT, type T } from '../core/i18n';
 import { WorkspaceError, type Who } from '../core/session';
 import { askText } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 
 /** Wie ein Mensch in einer Liste heisst — sein voller Name, sonst die erste Antwort. */
 export function nameIn(values: ReadonlyMap<string, string> | undefined, fields: readonly OpenField[]): string {
-  if (values === undefined) return '— zapieczętowane —';
+  if (values === undefined) return t('forms.ext.sealedName');
 
   const full = fullNameOf(fields, (fieldId) => values.get(fieldId));
   if (full !== null) return full;
@@ -79,6 +80,7 @@ export function ExtensionEntry({ extensionId, ext, baseRegistrationId, entry, ed
   onSaved: () => void;
   round?: string;
 }) {
+  const t = useT();
   const values = entry === undefined ? undefined : ext.opened.get(entry.registrationId);
 
   const [editing, setEditing] = useState(false);
@@ -127,7 +129,7 @@ export function ExtensionEntry({ extensionId, ext, baseRegistrationId, entry, ed
       setEditing(false);
       onSaved();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('forms.ext.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -148,14 +150,14 @@ export function ExtensionEntry({ extensionId, ext, baseRegistrationId, entry, ed
 
         <div className="wk-actions">
           <button type="submit" className="wk-btn" disabled={busy || missing.length > 0}>
-            {busy ? 'Zapisywanie…' : 'Zapisz'}
+            {busy ? t('common.saving') : t('common.save')}
           </button>
           <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setEditing(false)}>
-            Anuluj
+            {t('common.cancel')}
           </button>
           {missing.length > 0 && (
             <span className="wk-blocker">
-              Brakuje: {missing.map((id) => byId.get(id)?.label ?? 'zapieczętowane').join(', ')}
+              {t('forms.card.missing', { list: missing.map((id) => byId.get(id)?.label ?? t('forms.card.sealed')).join(', ') })}
             </span>
           )}
         </div>
@@ -166,14 +168,14 @@ export function ExtensionEntry({ extensionId, ext, baseRegistrationId, entry, ed
   return (
     <>
       {entry === undefined ? (
-        <p className="wk-empty">Jeszcze nic nie uzupełniono.</p>
+        <p className="wk-empty">{t('forms.ext.nothingYet')}</p>
       ) : values === undefined || values.size === 0 ? (
-        <p className="wk-empty">Uzupełnione {new Date(entry.submittedAt).toLocaleDateString('pl-PL')} — tych odpowiedzi nie otworzysz tym kluczem.</p>
+        <p className="wk-empty">{t('forms.ext.filledSealed', { date: fmtDate(new Date(entry.submittedAt), { dateStyle: 'short' }, t.lang) })}</p>
       ) : (
         <dl className="wk-card-lines">
           {ext.fields.filter((f) => values.has(f.fieldId)).map((f) => (
             <div key={f.fieldId}>
-              <dt className="wk-row-side">{f.label ?? 'zapieczętowane pytanie'}</dt>
+              <dt className="wk-row-side">{f.label ?? t('forms.ext.sealedQuestion')}</dt>
               <dd>{values.get(f.fieldId) === '' ? '—' : values.get(f.fieldId)}</dd>
             </div>
           ))}
@@ -183,10 +185,10 @@ export function ExtensionEntry({ extensionId, ext, baseRegistrationId, entry, ed
       {editable && (
         <div className="wk-actions">
           <button type="button" className="wk-link-btn" onClick={start} disabled={writable.length === 0}>
-            {entry === undefined ? 'Uzupełnij' : 'Edytuj'}
+            {entry === undefined ? t('forms.ext.fill') : t('common.edit')}
           </button>
-          {ext.fields.length === 0 && <span className="wk-hint">To rozszerzenie nie ma jeszcze pytań.</span>}
-          {ext.fields.length > 0 && writable.length === 0 && <span className="wk-hint">Te odpowiedzi wpisuje i poprawia tylko sama osoba.</span>}
+          {ext.fields.length === 0 && <span className="wk-hint">{t('forms.ext.noQuestions')}</span>}
+          {ext.fields.length > 0 && writable.length === 0 && <span className="wk-hint">{t('forms.ext.personOnly')}</span>}
         </div>
       )}
     </>
@@ -204,7 +206,7 @@ export function ExtensionEntry({ extensionId, ext, baseRegistrationId, entry, ed
  * <b>Pflichtfragen halten die Kanzlei nicht auf</b> — sie weiss oft erst den
  * Namen und die Adresse, und trägt den Rest nach. Nur ganz leer geht nicht.
  */
-export function OfficeAdd({ formId, fields: allFields, design, onAdded, label = 'Dodaj osobę' }: {
+export function OfficeAdd({ formId, fields: allFields, design, onAdded, label: labelGiven }: {
   formId: string;
   fields: readonly OpenField[];
   design: FormDesign | null;
@@ -216,6 +218,8 @@ export function OfficeAdd({ formId, fields: allFields, design, onAdded, label = 
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [done, setDone] = useState(0);
+  const t = useT();
+  const label = labelGiven ?? t('forms.ext.addPerson');
 
   /* 0093 — was nur der Mensch schreibt, trägt die Kanzlei nicht für ihn ein. */
   const fields = useMemo(() => allFields.filter((f) => f.personOnly !== true), [allFields]);
@@ -250,7 +254,7 @@ export function OfficeAdd({ formId, fields: allFields, design, onAdded, label = 
       setDone((n) => n + 1);
       await onAdded();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się dopisać osoby.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('forms.ext.addFailed'));
     } finally {
       setBusy(false);
     }
@@ -262,7 +266,7 @@ export function OfficeAdd({ formId, fields: allFields, design, onAdded, label = 
         <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={!readable} onClick={() => { setOpen(true); setFailed(null); }}>
           <Icon name="plus" />{label}
         </button>
-        {!readable && <span className="wk-hint">Bez klucza formularza nie da się nikogo dopisać.</span>}
+        {!readable && <span className="wk-hint">{t('forms.ext.addNoKey')}</span>}
       </>
     );
   }
@@ -271,8 +275,7 @@ export function OfficeAdd({ formId, fields: allFields, design, onAdded, label = 
     <form className="wk-form wk-office-add" onSubmit={(e) => { e.preventDefault(); if (given.length > 0) void save(); }}>
       <h4 className="wk-h3">{label}</h4>
       <p className="wk-hint">
-        Wpisujesz osobę, która nie zapisuje się sama (zgłosiła się telefonicznie, na kartce, albo ktoś ją zgłosił).
-        Odpowiedzi są zapieczętowane jak każde zgłoszenie. Taka osoba nie ma własnego linku.
+        {t('forms.ext.addHint')}
       </p>
 
       <FormFlow
@@ -284,18 +287,18 @@ export function OfficeAdd({ formId, fields: allFields, design, onAdded, label = 
       />
 
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {done > 0 && failed === null && <p className="wk-done">Dopisano ({done}). Możesz wpisać następną osobę.</p>}
+      {done > 0 && failed === null && <p className="wk-done">{t('forms.ext.added', { count: done })}</p>}
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={busy || given.length === 0}>
-          {busy ? 'Zapisywanie…' : 'Dopisz do listy'}
+          {busy ? t('common.saving') : t('forms.ext.addToList')}
         </button>
         <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { setOpen(false); setDone(0); }}>
-          Zamknij
+          {t('common.close')}
         </button>
         {missing.length > 0 && given.length > 0 && (
           <span className="wk-hint">
-            Do uzupełnienia później: {missing.map((id) => byId.get(id)?.label ?? 'zapieczętowane').join(', ')}
+            {t('forms.ext.laterMissing', { list: missing.map((id) => byId.get(id)?.label ?? t('forms.card.sealed')).join(', ') })}
           </span>
         )}
       </div>
@@ -308,7 +311,7 @@ export function OfficeAdd({ formId, fields: allFields, design, onAdded, label = 
 const html = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`);
+const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`); // i18n-ignore
 
 interface Row {
   readonly r: Submission;
@@ -323,12 +326,25 @@ interface Row {
  * je „Tak / nie"-Frage ein Kästchen (angekreuzt, wo schon eingetragen). In
  * einem eigenen Fenster; `false`, wenn der Browser keines gab.
  */
-function printSheet(title: string, rows: readonly Row[], quick: readonly OpenField[], withAddress: boolean, withPhone: boolean): boolean {
+const PRINT_CSS = `body { font: 11pt/1.35 Georgia, 'Times New Roman', serif; color: #000; margin: 1.2cm; }
+  h1 { font-size: 14pt; margin: 0 0 0.5cm; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #555; padding: 0.12cm 0.18cm; text-align: left; vertical-align: top; }
+  th { font-size: 9pt; background: #eee; }
+  td.n { width: 0.8cm; text-align: right; }
+  td.b { width: 1.1cm; text-align: center; font-size: 14pt; }
+  td.t { white-space: nowrap; }
+  td.u { width: 4.5cm; }
+  tr { break-inside: avoid; }
+  @media print { body { margin: 0.8cm; } }
+`;
+
+function printSheet(t: T,title: string, rows: readonly Row[], quick: readonly OpenField[], withAddress: boolean, withPhone: boolean): boolean {
   const opened = globalThis.open('about:blank', '_blank');
   if (opened === null) return false;
 
-  const head = ['Lp.', 'Osoba', ...(withAddress ? ['Adres'] : []), ...(withPhone ? ['Telefon'] : []),
-    ...quick.map((f) => chipText(f.label ?? '')), 'Uwagi'];
+  const head = [t('forms.ext.print.no'), t('forms.ext.print.person'), ...(withAddress ? [t('forms.ext.print.address')] : []), ...(withPhone ? [t('forms.ext.print.phone')] : []),
+    ...quick.map((f) => chipText(f.label ?? '')), t('forms.ext.print.notes')];
 
   const body = rows.map((row, i) => `<tr>
     <td class="n">${i + 1}</td>
@@ -340,20 +356,8 @@ function printSheet(title: string, rows: readonly Row[], quick: readonly OpenFie
   </tr>`).join('');
 
   opened.document.open();
-  opened.document.write(`<!doctype html><html lang="pl"><head><meta charset="utf-8"><title>${html(title)}</title>
-<style>
-  body { font: 11pt/1.35 Georgia, 'Times New Roman', serif; color: #000; margin: 1.2cm; }
-  h1 { font-size: 14pt; margin: 0 0 0.5cm; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { border: 1px solid #555; padding: 0.12cm 0.18cm; text-align: left; vertical-align: top; }
-  th { font-size: 9pt; background: #eee; }
-  td.n { width: 0.8cm; text-align: right; }
-  td.b { width: 1.1cm; text-align: center; font-size: 14pt; }
-  td.t { white-space: nowrap; }
-  td.u { width: 4.5cm; }
-  tr { break-inside: avoid; }
-  @media print { body { margin: 0.8cm; } }
-</style></head><body>
+  opened.document.write(`<!doctype html><html lang="${t.lang}"><head><meta charset="utf-8"><title>${html(title)}</title>
+<style>${PRINT_CSS}</style></head><body>
 <h1>${html(title)}</h1>
 <table><thead><tr>${head.map((h) => `<th>${html(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
 <script>window.addEventListener('load', function () { window.print(); });</script>
@@ -377,6 +381,7 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
   repeat?: Repeat;
   name?: string;
 }) {
+  const t = useT();
   const repeat = repeatOf(given);
   const repeating = repeat !== 'once';
 
@@ -431,7 +436,7 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
   const look = useCallback(async (withBase = true) => {
     try {
       const { ring } = await keysFor(who);
-      if (ring === null) throw new WorkspaceError('Bez hasła w tej karcie nie da się otworzyć zgłoszeń.');
+      if (ring === null) throw new WorkspaceError(t('forms.ext.noPassword'));
 
       const options = rangeFrom === '' ? {} : { range: { from: rangeFrom, to: rangeTo } };
       const [b, e] = await Promise.all([
@@ -447,9 +452,9 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
       })));
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć zgłoszeń.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('forms.ext.openFailed'));
     }
-  }, [who, baseId, extensionId, rangeFrom, rangeTo, apply]);
+  }, [who, baseId, extensionId, rangeFrom, rangeTo, apply, t]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -458,7 +463,7 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
   const mine = useMemo(() => byPerson(records), [records]);
 
   if (failed !== null && (base === null || ext === null)) return <p className="wk-error">{failed}</p>;
-  if (base === null || ext === null) return <p className="wk-card-text">Otwieranie…</p>;
+  if (base === null || ext === null) return <p className="wk-card-text">{t('forms.ext.opening')}</p>;
 
   const addressField = base.fields.find((f) => f.identityRole === 'address');
   const phoneField = base.fields.find((f) => f.identityRole === 'phone') ?? base.fields.find((f) => f.kind === 'phone');
@@ -483,11 +488,11 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
 
   const rows = people
     .filter((row) => only === 'all' || !filled(row))
-    .sort((a, b) => (byAddress ? addressOrder(a.address, b.address) : 0) || a.name.localeCompare(b.name, 'pl'));
+    .sort((a, b) => (byAddress ? addressOrder(a.address, b.address) : 0) || a.name.localeCompare(b.name, t.locale));
 
   const missingCount = people.filter((row) => !filled(row)).length;
   const here = records.filter((r) => r.round === round);
-  const title = `${name ?? 'Lista'}${repeating ? ` — ${roundLabel(repeat, round)}` : ''}`;
+  const title = `${name ?? t('forms.ext.list')}${repeating ? ` — ${roundLabel(repeat, round)}` : ''}`;
 
   /**
    * EINE FRAGE ANTIPPEN. Je Mensch nacheinander (zwei schnelle Tipps dürfen
@@ -526,7 +531,7 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
 
     const before = queue.current.get(baseRegistrationId) ?? Promise.resolve();
     const after = before.then(run)
-      .catch((e: unknown) => { setNote(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać — spróbuj ponownie.'); })
+      .catch((e: unknown) => { setNote(e instanceof WorkspaceError ? e.message : t('forms.ext.saveRetry')); })
       .finally(() => {
         setPending((was) => {
           const next = new Map(was);
@@ -539,13 +544,13 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
   };
 
   const drop = async (row: Row) => {
-    if (!(await askText(`Zdjąć z listy: ${row.name}? Wcześniejsze wpisy zostają; osobę można przywrócić w formularzu głównym („Pokaż też ukryte").`))) return;
+    if (!(await askText(t('forms.ext.dropAsk', { name: row.name })))) return;
     try {
       await hideSubmission(row.r.registrationId, true);
       setOpenId(null);
       await look();
     } catch (e) {
-      setNote(e instanceof WorkspaceError ? e.message : 'Nie udało się zdjąć z listy.');
+      setNote(e instanceof WorkspaceError ? e.message : t('forms.ext.dropFailed'));
     }
   };
 
@@ -555,41 +560,41 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
   return (
     <section className="wk-panel">
       <div className="wk-sms-bar">
-        <h3 className="wk-h2">Osoby ({people.length})</h3>
+        <h3 className="wk-h2">{t('forms.ext.people', { count: people.length })}</h3>
         <label className="wk-inline">
-          <span className="wk-hint">Pokaż:</span>
+          <span className="wk-hint">{t('forms.ext.show')}</span>
           <select value={only} onChange={(e) => setOnly(e.target.value === 'missing' ? 'missing' : 'all')}>
-            <option value="all">wszystkie osoby</option>
-            <option value="missing">{repeating ? 'bez wpisu w tym okresie' : 'bez uzupełnienia'} ({missingCount})</option>
+            <option value="all">{t('forms.ext.showAll')}</option>
+            <option value="missing">{t(repeating ? 'forms.ext.showMissingRound' : 'forms.ext.showMissing', { count: missingCount })}</option>
           </select>
         </label>
         {addressField !== undefined && (
           <label className="wk-inline">
-            <span className="wk-hint">Kolejność:</span>
+            <span className="wk-hint">{t('forms.ext.order')}</span>
             <select value={byAddress ? 'address' : 'name'} onChange={(e) => setSort(e.target.value)}>
-              <option value="name">według nazwiska</option>
-              <option value="address">według adresu (trasa)</option>
+              <option value="name">{t('forms.ext.byName')}</option>
+              <option value="address">{t('forms.ext.byAddress')}</option>
             </select>
           </label>
         )}
       </div>
 
       {repeating && (
-        <div className="wk-round-bar" role="group" aria-label="Okres">
-          <button type="button" className="wk-btn wk-btn-quiet" aria-label="Poprzedni okres" onClick={() => { setOpenId(null); setRound(shiftRound(repeat, round, -1)); }}>‹</button>
+        <div className="wk-round-bar" role="group" aria-label={t('forms.ext.round')}>
+          <button type="button" className="wk-btn wk-btn-quiet" aria-label={t('forms.ext.roundPrev')} onClick={() => { setOpenId(null); setRound(shiftRound(repeat, round, -1)); }}>‹</button>
           <strong className="wk-round-now" aria-live="polite">{roundLabel(repeat, round)}</strong>
-          <button type="button" className="wk-btn wk-btn-quiet" aria-label="Następny okres" disabled={roundAhead(repeat, next)} onClick={() => { setOpenId(null); setRound(next); }}>›</button>
+          <button type="button" className="wk-btn wk-btn-quiet" aria-label={t('forms.ext.roundNext')} disabled={roundAhead(repeat, next)} onClick={() => { setOpenId(null); setRound(next); }}>›</button>
           {round !== current && (
-            <button type="button" className="wk-link-btn" onClick={() => { setOpenId(null); setRound(current); }}>bieżący okres</button>
+            <button type="button" className="wk-link-btn" onClick={() => { setOpenId(null); setRound(current); }}>{t('forms.ext.roundNow')}</button>
           )}
         </div>
       )}
 
       <p className="wk-hint">
         {audience === 'office'
-          ? 'To wypełnia tylko koordynator — osoba nie widzi ani pytań, ani odpowiedzi.'
-          : 'To uzupełnia osoba przez swój link. Tutaj widzisz, co wpisała.'}
-        {quick.length > 0 && ' Pytania „tak / nie” zaznaczasz jednym dotknięciem w wierszu.'}
+          ? t('forms.ext.officeHint')
+          : t('forms.ext.personHint')}
+        {quick.length > 0 && ` ${t('forms.ext.quickHint')}`}
       </p>
 
       {note !== null && <p className="wk-error" role="alert">{note}</p>}
@@ -597,7 +602,7 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
 
       {rows.length === 0 ? (
         <p className="wk-empty">
-          {people.length === 0 ? 'Na liście nie ma jeszcze nikogo.' : repeating ? 'W tym okresie wszyscy mają wpis.' : 'Wszyscy mają uzupełnione.'}
+          {people.length === 0 ? t('forms.ext.emptyList') : repeating ? t('forms.ext.allRound') : t('forms.ext.allDone')}
         </p>
       ) : (
         <ul className="wk-entry-list">
@@ -626,7 +631,7 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
                   </div>
 
                   {quick.length > 0 ? (
-                    <span className="wk-round-chips" role="group" aria-label={`${row.name} — ${roundLabel(repeat, round) || 'wpis'}`}>
+                    <span className="wk-round-chips" role="group" aria-label={`${row.name} — ${roundLabel(repeat, round) || t('forms.ext.entry')}`}>
                       {quick.map((f) => {
                         const waiting = (pending.get(`${r.registrationId}|${f.fieldId}`) ?? 0) % 2 === 1;
                         const on = isYes(record?.values.get(f.fieldId)) !== waiting;
@@ -644,8 +649,8 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
                   ) : (
                     <span className="wk-tags">
                       {has
-                        ? <span className="wk-tag wk-tag-open">{shownQuick.length > 0 && cellText(shownQuick, record) !== '•' ? cellText(shownQuick, record) : 'uzupełnione'}</span>
-                        : <span className="wk-tag">brak</span>}
+                        ? <span className="wk-tag wk-tag-open">{shownQuick.length > 0 && cellText(shownQuick, record) !== '•' ? cellText(shownQuick, record) : t('forms.ext.tagDone')}</span>
+                        : <span className="wk-tag">{t('forms.ext.tagNone')}</span>}
                     </span>
                   )}
 
@@ -653,7 +658,7 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
                     type="button" className="wk-link-btn wk-entry-more" aria-expanded={open}
                     onClick={() => setOpenId(open ? null : r.registrationId)}
                   >
-                    {open ? 'Mniej' : audience === 'office' && !has && quick.length === 0 ? 'Uzupełnij' : 'Więcej'}
+                    {open ? t('common.less') : audience === 'office' && !has && quick.length === 0 ? t('forms.ext.fill') : t('common.more')}
                   </button>
                 </div>
 
@@ -677,9 +682,9 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
                     )}
 
                     <div className="wk-actions">
-                      <a className="wk-link-btn" href={formPath(baseId)}>Dane osoby w formularzu głównym</a>
+                      <a className="wk-link-btn" href={formPath(baseId)}>{t('forms.ext.personInMain')}</a>
                       {audience === 'office' && (
-                        <button type="button" className="wk-link-btn" onClick={() => void drop(row)}>Zdejmij z listy</button>
+                        <button type="button" className="wk-link-btn" onClick={() => void drop(row)}>{t('forms.ext.drop')}</button>
                       )}
                     </div>
                   </div>
@@ -693,11 +698,11 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
       {repeating && range !== null && (
         <div className="wk-round-totals">
           <p>
-            <strong>{roundLabel(repeat, round)}</strong>: wpisy {tallyOf(ext.fields, here).records} z {people.length}
+            {rich(t('forms.ext.roundTotal', { round: roundLabel(repeat, round), count: tallyOf(ext.fields, here).records, of: people.length }), { b: (s, k) => <strong key={k}>{s}</strong> })}
             {tallyText(ext.fields, tallyOf(ext.fields, here)) !== '' && ` · ${tallyText(ext.fields, tallyOf(ext.fields, here))}`}
           </p>
           <p className="wk-hint">
-            Razem {range.label}: wpisy {tallyOf(ext.fields, records).records}
+            {t('forms.ext.rangeTotal', { range: range.label, count: tallyOf(ext.fields, records).records })}
             {tallyText(ext.fields, tallyOf(ext.fields, records)) !== '' && ` · ${tallyText(ext.fields, tallyOf(ext.fields, records))}`}
           </p>
         </div>
@@ -705,15 +710,15 @@ export function ExtensionSheet({ extensionId, baseId, audience, who, repeat: giv
 
       <div className="wk-actions">
         <button type="button" className="wk-link-btn" disabled={rows.length === 0} onClick={() => {
-          if (!printSheet(title, rows, shownQuick, addressField !== undefined, phoneField !== undefined)) {
-            setNote('Przeglądarka zablokowała nowe okno — pozwól na wyskakujące okna dla tej strony.');
+          if (!printSheet(t, title, rows, shownQuick, addressField !== undefined, phoneField !== undefined)) {
+            setNote(t('forms.ext.popupBlocked'));
           }
-        }}>Drukuj listę</button>
+        }}>{t('forms.ext.printList')}</button>
         {repeating && range !== null && (
           <button type="button" className="wk-link-btn" disabled={records.length === 0} onClick={() => {
             const csv = roundsCsv(repeat, ext.fields, people.map((p) => ({ baseId: p.r.registrationId, name: p.name })), records);
-            void saveBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `${(name ?? 'wpisy').replace(/[^\p{L}\p{N}]+/gu, '-')}-${range.label}.csv`);
-          }}>Pobierz CSV ({range.label})</button>
+            void saveBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `${(name ?? t('forms.ext.csvName')).replace(/[^\p{L}\p{N}]+/gu, '-')}-${range.label}.csv`);
+          }}>{t('forms.ext.csv', { range: range.label })}</button>
         )}
       </div>
 
@@ -740,6 +745,7 @@ function History({ repeat, from, to, label, round, quick, mine, onPick }: {
   mine: ReadonlyMap<string, RoundRecord> | undefined;
   onPick: (round: string) => void;
 }) {
+  const t = useT();
   const now = roundOf(repeat);
   const all = roundsBetween(repeat, from, to < now ? to : now);
   const shown = repeat === 'month' || repeat === 'year' ? all : all.filter((key) => mine?.has(key) === true || key === round);
@@ -751,8 +757,8 @@ function History({ repeat, from, to, label, round, quick, mine, onPick }: {
 
   return (
     <div className="wk-round-past">
-      <h4 className="wk-h3">Historia — {label}</h4>
-      <div className="wk-round-history" role="group" aria-label={`Historia — ${label}`}>
+      <h4 className="wk-h3">{t('forms.ext.history', { range: label })}</h4>
+      <div className="wk-round-history" role="group" aria-label={t('forms.ext.history', { range: label })}>
         {shown.map((key) => {
           const text = cellText(quick, mine?.get(key));
           return (
@@ -767,7 +773,7 @@ function History({ repeat, from, to, label, round, quick, mine, onPick }: {
           );
         })}
       </div>
-      {last.length > 0 && <p className="wk-hint">Ostatnio — {last.join(' · ')}</p>}
+      {last.length > 0 && <p className="wk-hint">{t('forms.ext.lastly', { list: last.join(' · ') })}</p>}
     </div>
   );
 }

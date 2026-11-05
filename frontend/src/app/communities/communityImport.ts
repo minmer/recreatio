@@ -19,6 +19,7 @@ import { createArea, dropFromArea, joinArea, loadAreas, loadMembers, renameArea,
 import { DEFAULT_AREA_IMPORT, readAreaDocument } from '../areas/areaJson';
 import { runAreaImport } from '../areas/areaImport';
 import { loadImportKeys } from '../areas/profile';
+import { t } from '../core/i18n';
 import type { Ring, SealedRole } from '../core/keys';
 import { forgetKeys, keysFor } from '../core/ringOf';
 import { WorkspaceError, type Who } from '../core/session';
@@ -29,7 +30,7 @@ import { addressOf, compileCouncil, compileUnit, desiredAccess, joinMark, linkLa
 import { EMPTY_STATE, type LinkMark, type StoredCommunity } from './communityJson';
 import { loadSetup, saveSetup, setParent } from './communityStore';
 
-const failure = (e: unknown): string => (e instanceof Error ? e.message : 'nie udało się').replace(/[.\s]+$/, '');
+const failure = (e: unknown): string => (e instanceof Error ? e.message : t('communities.run.failedWord')).replace(/[.\s]+$/, '');
 
 export interface RunResult {
   readonly rootAreaId: string;
@@ -81,12 +82,12 @@ export async function runCommunityImport(input: {
   const warnings: string[] = [];
   const links: { name: string; url: string }[] = [];
 
-  stage('Klucze…');
+  stage(t('communities.run.keys'));
   let held = await keysFor(who);
-  if (held.ring === null) throw new WorkspaceError('Najpierw podaj hasło — import pieczętuje w tej przeglądarce.');
+  if (held.ring === null) throw new WorkspaceError(t('communities.run.needPassword'));
   let ring: Ring = held.ring;
   const person: SealedRole | null = held.graph.roles.find((r) => r.kind === 'person' && ring.maySign(r.id)) ?? null;
-  if (person === null) throw new WorkspaceError('To konto nie ma jeszcze osoby, która mogłaby to zrobić.');
+  if (person === null) throw new WorkspaceError(t('communities.run.noPerson'));
   const refresh = async () => { forgetKeys(); held = await keysFor(who); if (held.ring !== null) ring = held.ring; };
 
   /* Was die Wspólnota schon weiss. */
@@ -95,9 +96,9 @@ export async function runCommunityImport(input: {
   let before: Pick<StoredCommunity, 'doc' | 'state'> | null = input.seed ?? null;
   if (rootAreaId !== null) {
     const row = await loadSetup(ring, rootAreaId);
-    if (row.missing) throw new WorkspaceError('Migracja 0137 (wspólnoty) nie jest jeszcze zastosowana na serwerze.');
-    if (row.unreadable) throw new WorkspaceError('Nie można otworzyć ustawień wspólnoty tym kontem.');
-    if (row.stored?.kind === 'unit') throw new WorkspaceError(`Ten obszar jest jednostką wspólnoty „${row.stored.view.community.name}” — zmieniaj ją tam.`);
+    if (row.missing) throw new WorkspaceError(t('communities.migrationMissing'));
+    if (row.unreadable) throw new WorkspaceError(t('communities.run.unreadable'));
+    if (row.stored?.kind === 'unit') throw new WorkspaceError(t('communities.run.isUnit', { name: row.stored.view.community.name }));
     if (row.stored?.kind === 'community') before = row.stored;
     version = row.version;
   }
@@ -121,17 +122,17 @@ export async function runCommunityImport(input: {
     const u = f.unit;
     if (u.remove === true) continue;
     const parentArea = f.parent === null ? undefined : s.units[f.parent];
-    if (f.parent !== null && parentArea === undefined) { warnings.push(`„${u.name}”: jednostka wyżej nie powstała — pominięta.`); continue; }
-    stage(`Jednostka „${u.name}”…`);
+    if (f.parent !== null && parentArea === undefined) { warnings.push(t('communities.run.noParent', { name: u.name })); continue; }
+    stage(t('communities.run.stageUnit', { name: u.name }));
     try {
       let id = s.units[u.key];
       if (id === undefined && u.area !== undefined) {
-        if (areaOf(u.area)?.myLevel !== 'admin') throw new WorkspaceError('tego obszaru nie prowadzisz');
+        if (areaOf(u.area)?.myLevel !== 'admin') throw new WorkspaceError(t('communities.run.notYourArea'));
         id = u.area;
         s.units[u.key] = id;
       }
       if (id === undefined || areaOf(id) === undefined) {
-        if (id !== undefined) warnings.push(`„${u.name}”: obszaru jednostki już nie ma — powstaje nowy.`);
+        if (id !== undefined) warnings.push(t('communities.run.areaGone', { name: u.name }));
         id = (await createArea(ring, person, u.name, parentArea)).areaId;
         s.units[u.key] = id;
         made += 1;
@@ -147,12 +148,12 @@ export async function runCommunityImport(input: {
         else if (areaOf(cid)!.name !== council.name) await renameArea(cid, council.name);
       }
     } catch (e) {
-      warnings.push(`„${u.name}”: ${failure(e)} — pominięta.`);
+      warnings.push(t('communities.run.unitSkipped', { name: u.name, why: failure(e) }));
     }
   }
   rootAreaId = s.units[full.unit.key] ?? null;
-  if (rootAreaId === null) throw new WorkspaceError(`Nie powstała jednostka „${full.unit.name}” — nic więcej nie zrobiono.${warnings.length > 0 ? ` ${warnings.join(' ')}` : ''}`);
-  lines.push(`Jednostki: nowe — ${made}, przeniesione — ${moved}, wszystkich — ${flatten(full.unit).filter((x) => x.unit.remove !== true).length}.`);
+  if (rootAreaId === null) throw new WorkspaceError(`${t('communities.run.noRoot', { name: full.unit.name })}${warnings.length > 0 ? ` ${warnings.join(' ')}` : ''}`);
+  lines.push(t('communities.run.unitsLine', { made, moved, all: flatten(full.unit).filter((x) => x.unit.remove !== true).length }));
   await refresh();
   areas = (await loadAreas()).areas;
 
@@ -161,7 +162,7 @@ export async function runCommunityImport(input: {
     const stored: StoredCommunity = { kind: 'community', doc, state: s, view: unitView(full, s, full.unit.key, rootAreaId!, null) };
     version = await saveSetup(ring, rootAreaId!, stored, version, null);
   };
-  try { await remember(); } catch (e) { warnings.push(`Nie zapisano stanu wspólnoty (${failure(e)}).`); }
+  try { await remember(); } catch (e) { warnings.push(t('communities.run.stateNotSaved', { why: failure(e) })); }
 
   /* -- 2. Werkzeuge: das Dokument jedes Bereichs ------------------------------------- */
   const homes = new Map<string, string | null>();
@@ -170,7 +171,7 @@ export async function runCommunityImport(input: {
     if ('error' in read) { warnings.push(`${label}: ${read.error}`); return; }
     const result = await runAreaImport({
       who, areaId, areaName, doc: read.doc, options: { ...DEFAULT_AREA_IMPORT, base }, imageFor: {},
-      hooks: { stage: (t) => stage(`${label}: ${t}`), step: () => undefined }
+      hooks: { stage: (what) => stage(`${label}: ${what}`), step: () => undefined }
     });
     warnings.push(...[...read.warnings, ...result.warnings].map((w) => `${label}: ${w}`));
     for (const l of result.links) links.push({ name: `${label} — ${l.name}`, url: l.url });
@@ -182,9 +183,9 @@ export async function runCommunityImport(input: {
     const compiled = compileUnit(full, f);
     homes.set(u.key, compiled.home);
     try {
-      await run(areaId, u.name, compiled.doc, addressOf(full, u.key), `„${u.name}”`);
+      await run(areaId, u.name, compiled.doc, addressOf(full, u.key), t('communities.run.quoted', { name: u.name }));
     } catch (e) {
-      warnings.push(`„${u.name}”: ${failure(e)}.`);
+      warnings.push(t('communities.run.failedFor', { name: u.name, why: failure(e) }));
     }
     try {
       const { keys } = await loadImportKeys(areaId);
@@ -192,18 +193,18 @@ export async function runCommunityImport(input: {
         const k = keys.find((x) => x.kind === 'role' && x.key === p.key && x.refId !== null);
         if (k?.refId) s.roles[roleKey(u.key, p.key)] = k.refId;
       }
-    } catch (e) { warnings.push(`„${u.name}”: nie odczytano ról (${failure(e)}).`); }
+    } catch (e) { warnings.push(t('communities.run.rolesNotRead', { name: u.name, why: failure(e) })); }
     const council = councilOf(full, u);
     const cid = council === undefined ? undefined : s.councils[council.key];
     if (council !== undefined && cid !== undefined) {
-      try { await run(cid, council.name, compileCouncil(council.name), '', `„${council.name}”`); } catch (e) { warnings.push(`„${council.name}”: ${failure(e)}.`); }
+      try { await run(cid, council.name, compileCouncil(council.name), '', t('communities.run.quoted', { name: council.name })); } catch (e) { warnings.push(t('communities.run.failedFor', { name: council.name, why: failure(e) })); }
     }
   }
-  try { await remember(); } catch (e) { warnings.push(`Nie zapisano stanu wspólnoty (${failure(e)}).`); }
+  try { await remember(); } catch (e) { warnings.push(t('communities.run.stateNotSaved', { why: failure(e) })); }
   await refresh();
 
   /* -- 3. Zugänge aus dem Baum ---------------------------------------------------------- */
-  stage('Dostępy z drzewa…');
+  stage(t('communities.run.stageAccess'));
   const { joins, holds } = desiredAccess(full, s);
   const members = new Map<string, Awaited<ReturnType<typeof loadMembers>>['members']>();
   const issuers = new Map<string, string | null>();
@@ -225,22 +226,22 @@ export async function runCommunityImport(input: {
         await dropFromArea(j.areaId, j.roleId);
         dropped += 1;
       } else if (has !== undefined && top >= rankOf(j.level)) { keepJoins.push(joinMark(j)); continue; }
-      if (role === undefined) { warnings.push(`Dostęp (${j.why}): roli nie ma w Twoim koncie — pominięty.`); continue; }
+      if (role === undefined) { warnings.push(t('communities.run.accessNoRole', { why: j.why })); continue; }
       if (!issuers.has(j.areaId)) issuers.set(j.areaId, await issuerIn(ring, j.areaId));
       const issuer = issuers.get(j.areaId);
-      if (issuer === null || issuer === undefined) { warnings.push(`Dostęp (${j.why}): w tym obszarze nie możesz nikogo wpuścić — pominięty.`); continue; }
-      stage(`Dostęp: ${j.why}…`);
+      if (issuer === null || issuer === undefined) { warnings.push(t('communities.run.accessNoIssuer', { why: j.why })); continue; }
+      stage(t('communities.run.stageJoin', { why: j.why }));
       await joinArea(ring, j.areaId, { id: role.id, kind: role.kind, wrapPublicKey: role.wrapPublicKey }, issuer, j.level);
       keepJoins.push(joinMark(j));
       joined += 1;
     } catch (e) {
-      warnings.push(`Dostęp (${j.why}): ${failure(e)}.`);
+      warnings.push(t('communities.run.accessFailed', { why: j.why, error: failure(e) }));
     }
   }
   for (const mark of s.joins) {
     const [areaId, roleId] = mark.split('|');
     if (joins.some((j) => j.areaId === areaId && j.roleId === roleId)) continue;
-    try { await dropFromArea(areaId, roleId); dropped += 1; } catch (e) { warnings.push(`Nie zdjęto dostępu (${failure(e)}).`); keepJoins.push(mark); }
+    try { await dropFromArea(areaId, roleId); dropped += 1; } catch (e) { warnings.push(t('communities.run.dropFailed', { why: failure(e) })); keepJoins.push(mark); }
   }
   s.joins = keepJoins;
   const keepHolds: string[] = [];
@@ -249,11 +250,11 @@ export async function runCommunityImport(input: {
     if (held.graph.edges.some((e) => e.fromRoleId === h.holder && e.toRoleId === h.held && e.edgeKind === 'holds')) { keepHolds.push(mark); continue; }
     const holder = held.graph.roles.find((r) => r.id === h.holder);
     if (holder === undefined || !ring.has(h.held)) continue;
-    try { await addHolder(ring, h.held, holder, 'holds', true); keepHolds.push(mark); } catch (e) { warnings.push(`Prowadzenie pozycji: ${failure(e)}.`); }
+    try { await addHolder(ring, h.held, holder, 'holds', true); keepHolds.push(mark); } catch (e) { warnings.push(t('communities.run.holdFailed', { why: failure(e) })); }
   }
   s.holds = keepHolds;
-  lines.push(`Dostępy z drzewa: dodane — ${joined}, zdjęte — ${dropped}, wszystkich — ${joins.length}.`);
-  try { await remember(); } catch (e) { warnings.push(`Nie zapisano stanu wspólnoty (${failure(e)}).`); }
+  lines.push(t('communities.run.accessLine', { joined, dropped, all: joins.length }));
+  try { await remember(); } catch (e) { warnings.push(t('communities.run.stateNotSaved', { why: failure(e) })); }
   await refresh();
 
   /* -- 4. Personen: ein Link je Person ------------------------------------------------- */
@@ -263,24 +264,24 @@ export async function runCommunityImport(input: {
     const mark = s.links[p.key];
     if (p.remove === true || p.places.length === 0) {
       if (mark !== undefined) {
-        try { await revokeLink(mark.invitationId, true); revoked += 1; delete s.links[p.key]; } catch (e) { warnings.push(`${p.name}: link nie został cofnięty (${failure(e)}).`); }
+        try { await revokeLink(mark.invitationId, true); revoked += 1; delete s.links[p.key]; } catch (e) { warnings.push(t('communities.run.revokeFailed', { name: p.name, why: failure(e) })); }
       }
       continue;
     }
     const want = personRoles(full, s, p.key);
-    if (want.length === 0) { warnings.push(`${p.name}: role jej miejsc jeszcze nie istnieją — bez linku.`); continue; }
+    if (want.length === 0) { warnings.push(t('communities.run.noRoles', { name: p.name })); continue; }
     const ids = want.map((w) => w.roleId);
     if (mark !== undefined && mark.roles.join(',') === ids.join(',') && !(input.renew ?? []).includes(p.key)) continue;
     const missing = want.filter((w) => !ring.has(w.roleId) || (w.lead && !ring.maySign(w.roleId)));
-    if (missing.length > 0) { warnings.push(`${p.name}: nie trzymasz wszystkich ról jej miejsc (prowadzący wspólnoty może dać ten link) — pominięta.`); continue; }
+    if (missing.length > 0) { warnings.push(t('communities.run.notAllRoles', { name: p.name })); continue; }
     try {
-      stage(`Link: ${p.name}…`);
-      const link = await createLink(ring, person, { label: linkLabel(full, p.key), roles: want, once: false, maxUses: null, expiresDays: 365, aim: 'moje' }, (t) => stage(`${p.name}: ${t}`));
+      stage(t('communities.run.stageLink', { name: p.name }));
+      const link = await createLink(ring, person, { label: linkLabel(full, p.key), roles: want, once: false, maxUses: null, expiresDays: 365, aim: 'moje' }, (what) => stage(`${p.name}: ${what}`));
       links.push({ name: p.name, url: link.url });
       created.set(p.key, link.invitationId);
       s.links[p.key] = { invitationId: link.invitationId, linkRoleId: '', roles: ids, at: new Date().toISOString() };
       if (mark !== undefined) {
-        try { await revokeLink(mark.invitationId, true); } catch (e) { warnings.push(`${p.name}: stary link nie został cofnięty (${failure(e)}).`); }
+        try { await revokeLink(mark.invitationId, true); } catch (e) { warnings.push(t('communities.run.oldRevokeFailed', { name: p.name, why: failure(e) })); }
         renewed += 1;
       } else fresh += 1;
     } catch (e) {
@@ -296,11 +297,11 @@ export async function runCommunityImport(input: {
       }
     } catch { /* ohne Rolle des Links — die Begrüssung nennt dann keinen Namen */ }
   }
-  lines.push(`Osobiste linki: nowe — ${fresh}, odnowione — ${renewed}, cofnięte — ${revoked}.`);
+  lines.push(t('communities.run.linksLine', { fresh, renewed, revoked }));
 
   /* -- 5. Merken: das Ganze in der Wurzel, das Eigene in jeder Einheit --------------------- */
-  stage('Zapisywanie…');
-  try { await remember(); } catch (e) { warnings.push(`Nie zapisano wspólnoty (${failure(e)}).`); }
+  stage(t('communities.run.stageSave'));
+  try { await remember(); } catch (e) { warnings.push(t('communities.run.notSaved', { why: failure(e) })); }
   const root = rootAreaId;
   const saveView = async (areaId: string, unitKey: string, home: string | null) => {
     if (areaId === root) return;
@@ -311,7 +312,7 @@ export async function runCommunityImport(input: {
   for (const f of flatten(full.unit)) {
     const areaId = s.units[f.unit.key];
     if (areaId === undefined || f.unit.remove === true) continue;
-    try { await saveView(areaId, f.unit.key, homes.get(f.unit.key) ?? null); } catch (e) { warnings.push(`„${f.unit.name}”: widok jednostki nie zapisany (${failure(e)}).`); }
+    try { await saveView(areaId, f.unit.key, homes.get(f.unit.key) ?? null); } catch (e) { warnings.push(t('communities.run.viewNotSaved', { name: f.unit.name, why: failure(e) })); }
     const council = councilOf(full, f.unit);
     const cid = council === undefined ? undefined : s.councils[council.key];
     if (council !== undefined && cid !== undefined) {
@@ -325,7 +326,7 @@ export async function runCommunityImport(input: {
   try {
     const stored: StoredCommunity = { kind: 'community', doc, state: s, view: unitView(full, s, full.unit.key, root, homes.get(full.unit.key) ?? null) };
     version = await saveSetup(ring, root, stored, version, null);
-  } catch (e) { warnings.push(`Nie zapisano wspólnoty (${failure(e)}).`); }
+  } catch (e) { warnings.push(t('communities.run.notSaved', { why: failure(e) })); }
 
   /* Der Bund kennt die eben entstandenen Linkrollen sonst nicht („Kopiuj link“ bliebe leer bis zum Neuladen). */
   forgetKeys();

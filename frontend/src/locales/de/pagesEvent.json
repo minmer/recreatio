@@ -1,0 +1,56 @@
+{
+  "photos": {
+    "one": "{count} Foto",
+    "other": "{count} Fotos"
+  },
+  "gpx": {
+    "invalid": "Die Datei konnte nicht gelesen werden — sie ist kein gültiges GPX.",
+    "empty": "Die Datei enthält weder eine Spur noch Punkte."
+  },
+  "list": {
+    "up": "Nach oben",
+    "down": "Nach unten"
+  },
+  "media": {
+    "imageHint": "Adresse des Bildes. Ein Bild hochladen kannst du im Editor der Seite, auf der dieses Modul steht.",
+    "fileLabel": "Adresse der Datei",
+    "fileHint": "Eine Datei hochladen kannst du im Editor der Seite, auf der dieses Modul steht."
+  },
+  "part": {
+    "title": "Überschrift",
+    "intro": "Einleitung",
+    "titleKey": "Überschrift über dem Inhalt",
+    "titleKeyOwn": "Überschrift über dem Inhalt (hier: nur der Name im Folienmenü — das Modul zeigt seinen eigenen Titel)",
+    "introKey": "Eine kurze Einleitung unter der Überschrift (darf leer sein)"
+  },
+  "gallery": {
+    "prevPhoto": "Vorheriges Foto",
+    "nextPhoto": "Nächstes Foto",
+    "open": "Öffnen: {name}",
+    "photo": "Foto",
+    "front": "Dieses Foto zeigen",
+    "hint": "Klick auf ein Foto, um die ganze Galerie zu öffnen — {count}",
+    "title": "Fotogalerie",
+    "prev": "Vorheriges",
+    "next": "Nächstes",
+    "zoomOut": "Verkleinern",
+    "zoomIn": "Vergrößern",
+    "removeMine": "Mein Foto entfernen",
+    "remove": "Foto entfernen",
+    "credit": "Foto: {name}",
+    "nth": "Foto {n}"
+  },
+  "map": {
+    "fullscreen": "Karte im Vollbild",
+    "zoomedIn": "Vergrößert: {place}",
+    "zoomedOut": "Verkleinert: {place}",
+    "label": "Karte der Wegpunkte",
+    "google": "In Google Maps öffnen ↗",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "fit": "Ganze Route zeigen",
+    "close": "Karte schließen",
+    "open": "Karte öffnen",
+    "attribution": "© OpenStreetMap-Mitwirkende"
+  }
+}

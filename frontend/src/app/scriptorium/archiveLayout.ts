@@ -7,10 +7,11 @@
 
 export type Layout = 'list' | 'table' | 'tree';
 
+/** `label` ist ein Schlüssel der Texte — übersetzt wird beim Zeichnen. */
 export const LAYOUTS: readonly { readonly value: Layout; readonly label: string }[] = [
-  { value: 'list', label: 'Lista' },
-  { value: 'table', label: 'Tabela' },
-  { value: 'tree', label: 'Drzewo' }
+  { value: 'list', label: 'scriptorium.archive.layout.list' },
+  { value: 'table', label: 'scriptorium.archive.layout.table' },
+  { value: 'tree', label: 'scriptorium.archive.layout.tree' }
 ];
 
 /** Ein Wort aus der Einstellung oder der Adresse — polnisch oder englisch; sonst die Liste. */

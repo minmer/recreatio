@@ -26,7 +26,8 @@
  * Versprechen, das die Seite nicht hält.
  */
 
-import type { PartModule } from '../part';
+import { appLang, hasKey, langLoaded, t } from '../../core/i18n';
+import type { FieldDef, PartJson, PartModule } from '../part';
 
 import { animationPart } from './animation';
 import { calendarPart } from './calendar';
@@ -72,7 +73,53 @@ import { pathPart } from './path';
  */
 export const palette = (): readonly PartModule[] => PARTS.filter((one) => one.retired === undefined);
 
-export const PARTS: readonly PartModule[] = [
+/*
+ * 2026-11-05 — DIE TEXTE EINER ART ALS SCHLÜSSEL. `definePart` kopiert Name,
+ * Zweck, Felder und die Sätze des JSON beim Laden des Moduls — bevor ein
+ * Wörterbuch da ist. Die Arten tragen deshalb Schlüssel (`moduleContent.text.label`),
+ * und hier werden sie beim Lesen übersetzt, in der Sprache der Anwendung. Ein
+ * Schlüssel kann auch mitten im Satz stehen (`flatJson` setzt „Feld — Art"
+ * zusammen); was kein Schlüssel ist, bleibt, wie es ist.
+ */
+const KEY_IN = /\b[a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+/g;
+const tx = (s: string): string => (s.includes('.') ? s.replace(KEY_IN, (k) => (hasKey(k) ? t(k) : k)) : s);
+
+function localized(def: PartModule): PartModule {
+  /* Je Sprache (und ob ihr Wörterbuch schon da ist) einmal gerechnet — dieselben Objekte für React. */
+  const memo = <V>(make: () => V): (() => V) => {
+    let at = '';
+    let value: V | undefined;
+    return () => {
+      const now = `${appLang()}:${langLoaded(appLang()) ? 1 : 0}`;
+      if (value === undefined || at !== now) { value = make(); at = now; }
+      return value;
+    };
+  };
+  const fields = memo((): readonly FieldDef[] => def.fields.map((f) => ({
+    ...f,
+    label: tx(f.label),
+    ...(f.hint === undefined ? {} : { hint: tx(f.hint) }),
+    ...(f.none === undefined ? {} : { none: tx(f.none) }),
+    ...(f.options === undefined ? {} : { options: f.options.map((o) => ({ ...o, label: tx(o.label) })) })
+  })));
+  const json = memo((): PartJson => ({
+    ...def.json,
+    keys: Object.fromEntries(Object.entries(def.json.keys).map(([k, v]) => [k, tx(v)]))
+  }));
+  const strip = memo(() => (def.strip === null ? null : { title: tx(def.strip.title), open: tx(def.strip.open) }));
+  const out = { ...def } as Record<string, unknown>;
+  const lazy = (key: string, get: () => unknown) => Object.defineProperty(out, key, { get, enumerable: true, configurable: true });
+  lazy('label', () => tx(def.label));
+  lazy('use', () => tx(def.use));
+  const retired = def.retired;
+  if (retired !== undefined) lazy('retired', () => tx(retired));
+  lazy('fields', fields);
+  lazy('json', json);
+  lazy('strip', strip);
+  return out as unknown as PartModule;
+}
+
+export const PARTS: readonly PartModule[] = ([
   /* Was auf jeder Seite steht. */
   textPart,
   noticePart,
@@ -163,7 +210,7 @@ export const PARTS: readonly PartModule[] = [
   seatAskPart,
   /* 0109 — die Powtórki eines Kurses für den Menschen hinter dem Link. */
   seatLearnPart
-];
+] as readonly PartModule[]).map(localized);
 
 const BY_KIND = new Map(PARTS.map((one) => [one.kind, one]));
 
@@ -176,7 +223,7 @@ const STAND_INS = new Map<string, PartModule>();
 
 export function standIn(kind: string, def: PartModule | null): void {
   if (def === null) STAND_INS.delete(kind);
-  else STAND_INS.set(kind, def);
+  else STAND_INS.set(kind, localized(def));
 }
 
 /**
@@ -191,7 +238,7 @@ export const partOf = (kind: string): PartModule | undefined => STAND_INS.get(ki
 
 /** Der Name einer Art — oder ihr Wort, wenn es sie hier nicht gibt. */
 export const partLabel = (kind: string): string =>
-  partOf(kind)?.label ?? (kind === 'blocked' ? 'Zablokowane po zgłoszeniu (decyduje operator serwisu)' : kind);
+  partOf(kind)?.label ?? (kind === 'blocked' ? t('moduleContent.blocked') : kind);
 
 /** Erzeugt diese Art Plätze? Dann muss dastehen, wem sie gehören (0038). */
 export const takesEntries = (kind: string): boolean => partOf(kind)?.takes === true;

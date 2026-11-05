@@ -1,0 +1,8 @@
+{
+  "learnerLoading": {
+    "title": "Loading your progress…",
+    "count": "{done} of {total}",
+    "countOpen": "{done} loaded",
+    "note": "The landscape is ready to use once your progress is in."
+  }
+}

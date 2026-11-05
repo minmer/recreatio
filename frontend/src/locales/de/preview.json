@@ -1,0 +1,140 @@
+{
+  "matrix": {
+    "title": {
+      "one": "M{n} · {label} — {breakpoint} ({count} Spalte)",
+      "other": "M{n} · {label} — {breakpoint} ({count} Spalten)"
+    },
+    "folded": "zugeklappt",
+    "unknown": "Das Modul „{kind}\" ist dieser Version der Seite nicht bekannt."
+  },
+  "app": {
+    "error": "Fehler",
+    "baseFailed": "Die Seite „{path}” lässt sich nicht abrufen ({why}) — nur öffentliche Seiten, und nur mit Live-Daten.",
+    "baseLocked": "Die Seite „{path}” ist verschlüsselt — die Vorschau öffnet sie nicht.",
+    "noModule": "Kein solches Modul: {which} — gib M1…M{count}, \"modules[i]\", eine Kennung oder eine Art an.",
+    "viewLabel": "V1 Ansicht",
+    "pasteTitle": "Seitenvorschau aus JSON",
+    "pasteLede": "Füge ein Seitendokument ein (<code>recreatio/page</code>, ein Modul oder ein altes Veranstaltungsdokument) — du siehst die Seite so, wie sie nach dem Import aussieht. Nichts wird gespeichert.",
+    "doc": "JSON-Dokument",
+    "live": "Live-Daten (Kalender, Messen — nur lesen)",
+    "show": "Seite zeigen",
+    "bar": "Vorschau · nichts wird gespeichert",
+    "change": "JSON ändern",
+    "gone": "Diese Vorschau gibt es nicht mehr (der Vorschau-Server wurde beendet).",
+    "gonePaste": "Diese Vorschau gibt es nicht mehr (der Vorschau-Server wurde beendet) — füge JSON ein."
+  },
+  "doc": {
+    "none": "Kein JSON-Dokument.",
+    "invalid": "Ungültiges JSON: {why}",
+    "unreadable": "nicht lesbar",
+    "noTitle": "Die Seite hat keinen Titel — der Import speichert weder Titel noch Seitentext (\"title\" ist nötig, um \"lead\" zu speichern).",
+    "images": "Dateien aus \"images\" ({count}): In der Vorschau stehen vom Assistenten gegebene Dateien oder Platzhalterbilder mit Beschreibung — die echten fügt die importierende Person hinzu.",
+    "appointments": "Termine aus \"appointments\" ({count}) entstehen erst beim Import, im Kalender, den die importierende Person wählt — Module, die darauf zeigen (\"@schlüssel\"), zeigen sie erst nach dem Import.",
+    "form": "{form}: Die Fragen aus dem Dokument ({count}) entstehen beim Import — die Vorschau zeichnet sie aus dem Dokument (Aufbau und Logik funktionieren; ohne die Klausel des Verantwortlichen, die aus dem Bereich der Antworten kommt; Senden abgeschaltet).",
+    "formWord": "Formular",
+    "formAt": "Formular (modules[{at}])",
+    "menu": "Menü wie auf der Seite „{page}” — die Vorschau nimmt es von dieser Seite, wenn sie öffentlich ist."
+  },
+  "fetch": {
+    "noWrite": "Die Vorschau speichert nichts.",
+    "noSession": "Niemand ist angemeldet (Vorschau).",
+    "offline": "Vorschau ohne Live-Daten."
+  },
+  "files": {
+    "image": "FOTO",
+    "video": "VIDEO",
+    "sound": "TON",
+    "file": "DATEI"
+  },
+  "form": {
+    "note": "Vorschau: Dieses Formular entsteht beim Import. Über den Fragen steht die Klausel des Verantwortlichen des Bereichs, in den die Antworten gehen; Senden ist hier abgeschaltet.",
+    "missing": "Es fehlt: {list}"
+  },
+  "knowledge": {
+    "noView": "Es gibt keine Ansicht „{view}” — Ansichten dieser Basis: {list}.",
+    "none": "keine",
+    "unknownAsked": "Diese Version der App kennt die Gestalt „{mode}” noch nicht — die gespeicherte wird gezeigt.",
+    "allEntries": "Alle Einträge",
+    "noSavedView": "Die Basis hat keine gespeicherte Ansicht — alle Einträge werden gezeigt.",
+    "unknownSaved": "Die Ansicht hat die Gestalt „{mode}”, die diese Version der App noch nicht kennt — sie wird als Tabelle gezeigt.",
+    "question": "Frage",
+    "clicked": "Angeklickter Eintrag: {label}",
+    "view": "Ansicht „{name}”",
+    "cards": "Karten: {list}",
+    "mood": {
+      "known": "bekannt",
+      "due": "zur Wiederholung",
+      "forgotten": "vergessen",
+      "wrong": "zuletzt falsch",
+      "new": "neu"
+    }
+  },
+  "lint": {
+    "droppedKey": "beim Import übergangen (unbekannt, ungültig oder gleich dem Standard): {value}",
+    "readsAs": "der Import liest {input} als {output}",
+    "dropped": "beim Import übergangen: {value}",
+    "listShort": "von {count} Einträgen nimmt der Import {kept} — die übrigen sind ungültig oder unbekannt",
+    "unknownPartKey": "unbekannter Schlüssel des Moduls „{label}” ({kind}) — nichts liest ihn",
+    "unknownScreen": "unbekannte Bildschirmgröße — erlaubt: {list}",
+    "unknownFrameKey": "unbekannter Schlüssel — ein Platz ist \"position\" { row, col } und \"size\" { colSpan, rowSpan }",
+    "noSize": "ohne die Zahlen \"size.colSpan\" und \"size.rowSpan\" — der Import übergeht diesen Platz (das Modul kommt auf den ersten freien)",
+    "colSpanScreen": "{from} → {to} (Breiten 2, 3, 4, 6; auf diesem Bildschirm höchstens {max})",
+    "rowSpanWords": "{from} → {to} (Höhen 1 Streifen, 3 Block, 5 hoch)",
+    "colMoved": {
+      "one": "{from} → {to} (das Modul passt nicht in {count} Spalte)",
+      "other": "{from} → {to} (das Modul passt nicht in {count} Spalten)"
+    },
+    "unknownAllowed": "unbekannter Schlüssel — erlaubt: {list}",
+    "notColour": "{value} ist keine Farbe #rrggbb — der Import nimmt die Standardfarbe",
+    "notNightColour": "{value} ist keine Farbe #rrggbb — keine Nachtfarben (alle vier sind nötig)",
+    "unknownMenuKey": "unbekannter Schlüssel eines Menüpunkts — erlaubt: {list}",
+    "menuNoLabel": "Punkt ohne \"label\" — der Import übergeht ihn",
+    "menuNoImage": "kein Bild (page-image:<id>, https://… oder /datei.svg) — nur der Name bleibt",
+    "menuDepth": "das Menü hat höchstens 5 Ebenen — tiefere Punkte werden übergangen",
+    "unknownPageKey": "unbekannter Schlüssel der Seite — erlaubt: {list}",
+    "unknownEntryKey": "unbekannter Schlüssel des Moduls — erlaubt: {list}",
+    "configNotObject": "\"config\" ist kein Objekt — das Modul bleibt leer",
+    "owned": "„{key}” führt das Modul selbst — der Import setzt es nicht",
+    "ownedNeeds": "„{key}” führt das Modul selbst — der Import setzt es nicht (Anforderungen des Formulars: \"needs\" neben \"questions\")",
+    "colSpan": "{from} → {to} (Breiten 2, 3, 4, 6)",
+    "rowSpan": "{from} → {to} (Höhen 1, 3, 5)"
+  },
+  "probe": {
+    "requests": {
+      "one": "{count} Anfrage an den Dienst",
+      "other": "{count} Anfragen an den Dienst"
+    },
+    "fresh": "frische Antwort",
+    "modules": {
+      "one": "{count} Modul lädt noch",
+      "other": "{count} Module laden noch"
+    },
+    "images": {
+      "one": "{count} Bild unterwegs",
+      "other": "{count} Bilder unterwegs"
+    },
+    "fonts": "Schriften",
+    "sheets": {
+      "one": "{count} Stylesheet",
+      "other": "{count} Stylesheets"
+    },
+    "broken": {
+      "one": "{count} von {total} Bildern lädt nicht",
+      "other": "{count} von {total} Bildern laden nicht"
+    },
+    "cutRight": "„{text}” rechts um {px} px abgeschnitten",
+    "cutBottom": "„{text}” unten um {px} px abgeschnitten",
+    "cutBottomClamp": "„{text}” unten um {px} px abgeschnitten (Zeilenkürzung)",
+    "scrolls": "„{text}” scrollt innen ({px} px verborgen)",
+    "spills": "Inhalt ragt über die Karte hinaus: {list}",
+    "tiny": {
+      "one": "{count} Text kleiner als 12 px (kleinster {min} px)",
+      "other": "{count} Texte kleiner als 12 px (kleinster {min} px)"
+    },
+    "sparse": "der Inhalt füllt {share}% der Kartenhöhe ({px} px leerer Platz) — eine kleinere Höhe (rowSpan) oder mehr Inhalt",
+    "stillLoading": "lud beim Foto noch",
+    "empty": "die Karte zeigt nichts",
+    "offScreen": "außerhalb des Bildschirms",
+    "edgeCut": "vom Bildschirmrand abgeschnitten — {share}% sichtbar"
+  }
+}

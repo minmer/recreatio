@@ -18,6 +18,7 @@
  */
 
 import type { Opened, SealedMessage } from './chat';
+import { t } from '../core/i18n';
 
 export interface GraphLike {
   readonly roles: readonly { readonly id: string; readonly kind: string }[];
@@ -126,23 +127,23 @@ export interface Author {
 export function messageAuthor(message: SealedMessage, opened: Opened | null, look: AuthorLook): Author {
   if (message.authorSeatId !== null) {
     const seat = look.seat?.(message.authorSeatId);
-    return { name: opened?.name ?? seat?.name ?? 'osoba z linkiem', via: opened?.via ?? seat?.via ?? null };
+    return { name: opened?.name ?? seat?.name ?? t('chat.author.linkPerson'), via: opened?.via ?? seat?.via ?? null };
   }
 
   const role = message.authorRoleId ?? '';
   const person = message.authorPersonId ?? null;
 
   if (person !== null && person !== role) {
-    return { name: look.name(person) ?? opened?.name ?? 'osoba', via: look.name(role) ?? opened?.via ?? 'rola' };
+    return { name: look.name(person) ?? opened?.name ?? t('chat.author.person'), via: look.name(role) ?? opened?.via ?? t('chat.author.role') };
   }
 
-  return { name: look.name(role) ?? opened?.name ?? 'ktoś', via: null };
+  return { name: look.name(role) ?? opened?.name ?? t('chat.author.someone'), via: null };
 }
 
 export const authorText = (author: Author): string => (author.via === null ? author.name : `${author.name} (${author.via})`);
 
 /** Wie ein Sprecher heisst — in der Wahl und im Feld („Wiadomość jako …"). */
 export function speakerText(one: Speaker, name: (id: string) => string | null | undefined): string {
-  const person = name(one.personId) ?? 'osoba';
-  return throughRole(one) ? `${person} (${name(one.roleId) ?? 'rola'})` : person;
+  const person = name(one.personId) ?? t('chat.author.person');
+  return throughRole(one) ? `${person} (${name(one.roleId) ?? t('chat.author.role')})` : person;
 }

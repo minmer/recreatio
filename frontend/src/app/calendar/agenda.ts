@@ -24,6 +24,7 @@ import { fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
 import { newId } from '../core/ids';
 import type { Ring, SealedRole } from '../core/keys';
 import { call, WorkspaceError } from '../core/session';
+import { t } from '../core/i18n';
 
 export interface Series {
   readonly startsAt: string;
@@ -114,11 +115,12 @@ export const LITURGY: readonly string[] = ['mass', 'confession', 'devotion'];
 export const isLiturgy = (kind: string | undefined | null): boolean => kind != null && LITURGY.includes(kind);
 
 const KIND_WORD: Record<string, string> = {
-  appointment: 'Termin', task: 'Zadanie', mass: 'Msza', confession: 'Spowiedź', visit: 'Odwiedziny', devotion: 'Nabożeństwo'
+  appointment: 'calendarApp.kindWord.appointment', task: 'calendarApp.kindWord.task', mass: 'calendarApp.kindWord.mass',
+  confession: 'calendarApp.kindWord.confession', visit: 'calendarApp.kindWord.visit', devotion: 'calendarApp.kindWord.devotion'
 };
 
 /** Wie ein Eintrag ohne eigenen Namen heisst: „Msza", „Nabożeństwo". */
-export const kindWord = (kind: string): string => KIND_WORD[kind] ?? 'Termin';
+export const kindWord = (kind: string): string => t(KIND_WORD[kind] ?? 'calendarApp.kindWord.appointment');
 
 export interface OpenedItem {
   readonly occurrence: AgendaOccurrence;
@@ -311,7 +313,7 @@ export const forever = (from: Date): string => {
 export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string): Promise<string> {
   const id = itemId ?? newId();
   const newest = newestKey(await areaKeys(ring, draft.areaId, true));
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
+  if (newest === null) throw new WorkspaceError(t('calendarApp.noAreaKey'));
 
   const seal = async (field: ItemField, text: string): Promise<SealedField> => ({
     field,

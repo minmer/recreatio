@@ -12,7 +12,7 @@
 import { useContext, useRef, useState, type ReactNode } from 'react';
 
 import { WorkspaceError } from '../core/session';
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 import type { JsonPreview } from '../ui/JsonPanel';
 import { ImportBlocked, structurePreview, type ImportPlan } from './json';
 import { changeSummary, defaultDecisions, editedValue, editText, importSession, type Decisions, type ImportChange, type ImportSession } from './importReview';
@@ -39,6 +39,7 @@ export function useImportReview(lib: CogitaLibrary): {
   options: (doc: unknown) => ReactNode;
   decide: (doc: unknown) => ImportPlan;
 } {
+  const t = useT();
   const [review, setReview] = useState<{ doc: unknown; decisions: Decisions } | null>(null);
   /*
     2026-11-05 (Prompt 24) — VERWEISE IN ANDERE BAZY: nach der Vorschau einmal je Dokument und Stand der Baza gegen jene geprüft
@@ -80,7 +81,7 @@ export function useImportReview(lib: CogitaLibrary): {
     const changes = one.changes();
     const changed = new Set(changes.filter((c) => !c.isNew).map((c) => c.targetId));
     const cross = crossOf(doc, plan);
-    const crossLines = cross === null ? (me !== null && (crossUses(lib, plan).length > 0 || (plan.removals ?? []).length > 0) ? ['Sprawdzanie odwołań do innych światów…'] : [])
+    const crossLines = cross === null ? (me !== null && (crossUses(lib, plan).length > 0 || (plan.removals ?? []).length > 0) ? [t('cogitaData.reviewPanel.checkingWorlds')] : [])
       : [...(cross.check?.warnings ?? []), ...(cross.incoming === '' ? [] : [cross.incoming])];
     return { lines: [...changeSummary(changes), ...(extra && changes.length > 0 ? structurePreview(lib, plan, 80, changed) : [])], warnings: [...plan.warnings, ...crossLines] };
   };
@@ -91,7 +92,7 @@ export function useImportReview(lib: CogitaLibrary): {
   const decide = (doc: unknown): ImportPlan => {
     const decided = session(doc).decide(decisionsFor(doc));
     if ('error' in decided) throw new WorkspaceError(decided.error);
-    if (decided.invalid.length > 0) throw new WorkspaceError(`Popraw zmienione wartości: ${decided.invalid.join('; ')}`);
+    if (decided.invalid.length > 0) throw new WorkspaceError(t('cogitaData.reviewPanel.fixEdited', { list: decided.invalid.join('; ') }));
     if (decided.blocked.length > 0) throw new ImportBlocked(decided.blocked);
     /* 2026-11-05 (Prompt 24) — gefundene andere Bazy gehen im selben Zapis in die Ustawienia ("worlds"). */
     const add = typeof doc === 'object' && doc !== null ? crossDone.current.get(doc)?.check?.add ?? [] : [];
@@ -100,9 +101,8 @@ export function useImportReview(lib: CogitaLibrary): {
   return { preview, options, decide };
 }
 
-const count = (n: number, one: string, few: string, many: string) => `${n} ${plural(n, one, few, many)}`;
-
 function ImportReview({ session, decisions, onDecisions, incoming }: { session: ImportSession; decisions: Decisions | null; onDecisions: (d: Decisions) => void; incoming: string }) {
+  const t = useT();
   const changes = session.changes();
   const now = decisions ?? defaultDecisions(changes);
   const fresh = changes.filter((c) => c.isNew);
@@ -136,27 +136,29 @@ function ImportReview({ session, decisions, onDecisions, incoming }: { session: 
 
   return (
     <div className="cg-review" data-import-review="">
-      <p className="wk-json-h">Przegląd przed zapisem</p>
+      <p className="wk-json-h">{t('cogitaData.reviewPanel.title')}</p>
       <p className="cg-muted" data-review-summary="">
-        Zapisze się: {count(freshOn, 'nowy element', 'nowe elementy', 'nowych elementów')} z {fresh.length}
-        {edits.length > 0 && <> i {count(editsOn, 'zmiana', 'zmiany', 'zmian')} z {edits.length} w tym, co już jest</>}
-        {gone.length > 0 && <>; usunie się {goneOn} z {gone.length}</>}.
-        {edits.length > 0 && ' Zmiany w tym, co już jest, zapisują się dopiero po przyjęciu — każdą można też poprawić.'}
-        {' Wszystko zapisze się w jednym zapisie — albo nic.'}
+        {t('cogitaData.reviewPanel.summary', {
+          fresh: t('cogitaData.reviewPanel.freshCount', { count: freshOn }), total: fresh.length,
+          edits: edits.length > 0 ? t('cogitaData.reviewPanel.summaryEdits', { edits: t('cogitaData.reviewPanel.editsCount', { count: editsOn }), total: edits.length }) : '',
+          gone: gone.length > 0 ? t('cogitaData.reviewPanel.summaryGone', { on: goneOn, total: gone.length }) : ''
+        })}
+        {edits.length > 0 && ` ${t('cogitaData.reviewPanel.editsNeedAccept')}`}
+        {` ${t('cogitaData.reviewPanel.allOrNothing')}`}
       </p>
       {blocked.length > 0 && (
         <div className="wk-error" role="alert" data-review-blocked={blocked.length}>
-          <p>Tak zaznaczone nie zapisze się — wskazywałoby na coś, czego nie będzie:</p>
-          <ul>{blocked.slice(0, 20).map((line, i) => <li key={i}>{line}</li>)}{blocked.length > 20 && <li>… i {blocked.length - 20} innych</li>}</ul>
+          <p>{t('cogitaData.reviewPanel.blocked')}</p>
+          <ul>{blocked.slice(0, 20).map((line, i) => <li key={i}>{line}</li>)}{blocked.length > 20 && <li>{t('cogitaData.reviewPanel.more', { count: blocked.length - 20 })}</li>}</ul>
         </div>
       )}
 
       {edits.length > 0 && (
-        <section className="cg-review-part" aria-label="Zmiany w tym, co już jest">
+        <section className="cg-review-part" aria-label={t('cogitaData.reviewPanel.edits')}>
           <div className="cg-row">
-            <strong>Zmiany w tym, co już jest ({edits.length})</strong>
-            <button type="button" className="wk-link-btn" onClick={() => set(edits.map((c) => c.id), true)}>Przyjmij wszystkie</button>
-            <button type="button" className="wk-link-btn" onClick={() => set(edits.map((c) => c.id), false)}>Odrzuć wszystkie</button>
+            <strong>{t('cogitaData.reviewPanel.editsHead', { count: edits.length })}</strong>
+            <button type="button" className="wk-link-btn" onClick={() => set(edits.map((c) => c.id), true)}>{t('cogitaData.reviewPanel.acceptAll')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => set(edits.map((c) => c.id), false)}>{t('cogitaData.reviewPanel.rejectAll')}</button>
           </div>
           {[...groups.values()].map((list) => (
             <div key={`${list[0]!.target}:${list[0]!.targetId}`} className="cg-review-item" data-review-target={list[0]!.targetId}>
@@ -170,13 +172,13 @@ function ImportReview({ session, decisions, onDecisions, incoming }: { session: 
       )}
 
       {gone.length > 0 && (
-        <section className="cg-review-part" aria-label="Do usunięcia" data-review-removals={gone.length}>
+        <section className="cg-review-part" aria-label={t('cogitaData.reviewPanel.gone')} data-review-removals={gone.length}>
           <div className="cg-row">
-            <strong>Do usunięcia ({gone.length})</strong>
-            <button type="button" className="wk-link-btn" onClick={() => set(gone.map((c) => c.id), true)}>Wszystkie</button>
-            <button type="button" className="wk-link-btn" onClick={() => set(gone.map((c) => c.id), false)}>Żadne</button>
+            <strong>{t('cogitaData.reviewPanel.goneHead', { count: gone.length })}</strong>
+            <button type="button" className="wk-link-btn" onClick={() => set(gone.map((c) => c.id), true)}>{t('common.all')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => set(gone.map((c) => c.id), false)}>{t('cogitaData.reviewPanel.noneOf')}</button>
           </div>
-          <p className="cg-muted">Usunięte wpisy można przywrócić z historii wersji. Odpowiedzi uczących się zostają — liczą się znowu, gdy wpis wróci.</p>
+          <p className="cg-muted">{t('cogitaData.reviewPanel.goneNote')}</p>
           {incoming !== '' && <p className="wk-note" data-review-incoming="">{incoming}</p>}
           <ul className="cg-review-new">
             {gone.map((c) => (
@@ -192,14 +194,14 @@ function ImportReview({ session, decisions, onDecisions, incoming }: { session: 
       )}
 
       {fresh.length > 0 && (
-        <section className="cg-review-part" aria-label="Nowe">
+        <section className="cg-review-part" aria-label={t('cogitaData.reviewPanel.fresh')}>
           <div className="cg-row">
-            <strong>Nowe ({fresh.length})</strong>
-            <button type="button" className="wk-link-btn" onClick={() => set(fresh.map((c) => c.id), true)}>Wszystkie</button>
-            <button type="button" className="wk-link-btn" onClick={() => set(fresh.map((c) => c.id), false)}>Żadne</button>
+            <strong>{t('cogitaData.reviewPanel.freshHead', { count: fresh.length })}</strong>
+            <button type="button" className="wk-link-btn" onClick={() => set(fresh.map((c) => c.id), true)}>{t('common.all')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => set(fresh.map((c) => c.id), false)}>{t('cogitaData.reviewPanel.noneOf')}</button>
           </div>
           <details open={fresh.length <= 30 || undefined}>
-            <summary>{count(freshOn, 'zaznaczony', 'zaznaczone', 'zaznaczonych')} z {fresh.length}</summary>
+            <summary>{t('cogitaData.reviewPanel.marked', { marked: t('cogitaData.reviewPanel.markedCount', { count: freshOn }), total: fresh.length })}</summary>
             <ul className="cg-review-new">
               {fresh.map((c) => (
                 <li key={c.id}>
@@ -219,35 +221,36 @@ function ImportReview({ session, decisions, onDecisions, incoming }: { session: 
 
 /** Eine Änderung: annehmen oder nicht, vorher und nachher, und der vorgeschlagene Wert zum Ändern. */
 function ChangeRow({ change, on, edited, onToggle, onEdit }: { change: ImportChange; on: boolean; edited: string | undefined; onToggle: (on: boolean) => void; onEdit: (text: string | null) => void }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const problem = edited === undefined ? null : (() => { const read = editedValue(change, edited); return 'error' in read ? read.error : null; })();
   return (
     <li className="cg-review-field" data-review-change={change.id}>
       <label className="pe-check">
-        <input type="checkbox" checked={on} onChange={(e) => onToggle(e.target.checked)} aria-label={`Przyjmij: ${change.fieldLabel ?? change.title}`} />
-        <span><strong>{change.fieldLabel ?? 'Całość'}</strong>{change.target === 'kind' && change.afterText !== '' && <> — {change.afterText}</>}</span>
+        <input type="checkbox" checked={on} onChange={(e) => onToggle(e.target.checked)} aria-label={t('cogitaData.reviewPanel.acceptOne', { name: change.fieldLabel ?? change.title })} />
+        <span><strong>{change.fieldLabel ?? t('cogitaData.reviewPanel.whole')}</strong>{change.target === 'kind' && change.afterText !== '' && <> — {change.afterText}</>}</span>
       </label>
       {change.target !== 'kind' && (
         <div className="cg-review-values">
-          <p><span className="cg-muted">było: </span>{change.beforeText}</p>
-          <p><span className="cg-muted">{edited === undefined ? 'będzie: ' : 'będzie (poprawione): '}</span>{edited === undefined ? change.afterText : edited}</p>
+          <p><span className="cg-muted">{t('cogitaData.reviewPanel.before')} </span>{change.beforeText}</p>
+          <p><span className="cg-muted">{edited === undefined ? t('cogitaData.reviewPanel.after') : t('cogitaData.reviewPanel.afterEdited')} </span>{edited === undefined ? change.afterText : edited}</p>
           {problem !== null && <p className="wk-error">{problem}</p>}
         </div>
       )}
       {change.edit !== null && !open && (
         <div className="cg-row">
-          <button type="button" className="wk-link-btn" onClick={() => { setDraft(edited ?? editText(change)); setOpen(true); }}>Popraw propozycję</button>
-          {edited !== undefined && <button type="button" className="wk-link-btn" onClick={() => onEdit(null)}>Wróć do propozycji</button>}
+          <button type="button" className="wk-link-btn" onClick={() => { setDraft(edited ?? editText(change)); setOpen(true); }}>{t('cogitaData.reviewPanel.editProposal')}</button>
+          {edited !== undefined && <button type="button" className="wk-link-btn" onClick={() => onEdit(null)}>{t('cogitaData.reviewPanel.backToProposal')}</button>}
         </div>
       )}
       {open && (
         <div className="cg-review-edit">
-          <textarea rows={change.edit === 'json' ? 6 : change.edit === 'blocks' ? 5 : 2} value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={`Poprawiona wartość: ${change.fieldLabel ?? ''}`} spellCheck={change.edit !== 'json'} />
-          {change.edit === 'blocks' && <p className="wk-hint">Akapity oddziela pusta linia.</p>}
+          <textarea rows={change.edit === 'json' ? 6 : change.edit === 'blocks' ? 5 : 2} value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={t('cogitaData.reviewPanel.editedValue', { name: change.fieldLabel ?? '' })} spellCheck={change.edit !== 'json'} />
+          {change.edit === 'blocks' && <p className="wk-hint">{t('cogitaData.reviewPanel.paragraphsHint')}</p>}
           <div className="cg-row">
-            <button type="button" className="wk-btn wk-btn-line" onClick={() => { onEdit(draft); setOpen(false); }}>Gotowe</button>
-            <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>Anuluj</button>
+            <button type="button" className="wk-btn wk-btn-line" onClick={() => { onEdit(draft); setOpen(false); }}>{t('common.done')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>{t('common.cancel')}</button>
           </div>
         </div>
       )}

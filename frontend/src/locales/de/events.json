@@ -1,0 +1,22 @@
+{
+  "listing": {
+    "asked": "wartet auf eine Entscheidung",
+    "shown": "gezeigt",
+    "refused": "abgelehnt"
+  },
+  "listings": {
+    "giveAddress": "Gib die Adresse der Seite mit der Liste ein.",
+    "already": "Steht schon auf dieser Liste.",
+    "sentOperator": "Bitte gesendet — der Betreiber des Dienstes entscheidet.",
+    "sentOwner": "Bitte gesendet — wer diese Liste führt, entscheidet.",
+    "sendFailed": "Die Bitte konnte nicht gesendet werden.",
+    "title": "Auf anderen Listen",
+    "loadFailed": "Die Listen konnten nicht geladen werden.",
+    "none": "Steht noch auf keiner fremden Liste.",
+    "noPage": "Liste ohne Seite",
+    "showAlso": "Auch zeigen auf…",
+    "placeholder": "Adresse der Seite mit der Liste, z. B. recreatio.pl/#/pfarrei/veranstaltungen",
+    "ask": "Bitten",
+    "askCatalogue": "Um einen Platz im Katalog recreatio.pl/{path} bitten — der Betreiber des Dienstes entscheidet"
+  }
+}

@@ -1,0 +1,464 @@
+{
+  "fn": {
+    "sin": "sine (angle in radians — rad(30) converts degrees)",
+    "cos": "cosine (radians)",
+    "tan": "tangent (radians)",
+    "asin": "arc sine — result in radians (deg(...) converts to degrees)",
+    "acos": "arc cosine (radians)",
+    "atan": "arc tangent (radians)",
+    "atan2": "atan2(y, x) — angle of the vector (x, y) in radians",
+    "sinh": "hyperbolic sine",
+    "cosh": "hyperbolic cosine",
+    "tanh": "hyperbolic tangent",
+    "sqrt": "square root",
+    "cbrt": "cube root",
+    "abs": "absolute value",
+    "sign": "sign: −1, 0 or 1",
+    "floor": "round down to a whole number",
+    "ceil": "round up to a whole number",
+    "trunc": "integer part",
+    "round": "round(x) or round(x, digits) — rounding",
+    "min": "smallest of the numbers",
+    "max": "largest of the numbers",
+    "clamp": "clamp(x, from, to) — x limited to the interval",
+    "lerp": "lerp(a, b, t) — from a to b: t = 0 gives a, t = 1 gives b",
+    "exp": "e to the power of x",
+    "ln": "natural logarithm",
+    "log10": "common (base-10) logarithm",
+    "log2": "base-2 logarithm",
+    "pow": "pow(a, b) — same as a^b",
+    "hypot": "hypot(x, y) — length of the vector",
+    "deg": "radians to degrees",
+    "rad": "degrees to radians",
+    "mod": "mod(a, b) — remainder, always from 0 to b (also for negative numbers)",
+    "step": "step(edge, x) — 0 before the edge, 1 from the edge on",
+    "smooth": "smooth(from, to, x) — smoothly from 0 to 1 as x goes from “from” to “to”",
+    "tri": "tri(x) — triangle wave 0 → 1 → 0, period 1 (bouncing, zigzag)",
+    "rand": "rand(x) — a “random” number 0–1, always the same for the same x (e.g. rand(i) for each copy)",
+    "onstep": "onstep(x, step) — 1 when x lies on the step grid (onstep(2.25, 0.25) → 1): a condition for random tasks so that the solution can be set",
+    "root": "root(x, n) — n-th root (root(27, 3) → 3; of a negative number only for odd n)",
+    "log": "log(x) — base 10, log(x, b) — base b: log(8, 2) → 3",
+    "sig": "sig(x, n) — rounding to n significant digits: sig(0.012345, 2) → 0.012",
+    "fact": "fact(n) — factorial n! (n a whole number 0–170)",
+    "binom": "binom(n, k) — binomial coefficient: how many ways to choose k out of n",
+    "isint": "isint(x) — 1 when x is a whole number (condition: the result must be whole)",
+    "fmt": "fmt(x, digits) — number as text with a decimal comma: fmt(9.81, 1) → \"9,8\"",
+    "fmtpi": "fmtpi(x, digits) — number as a multiple of π: fmtpi(2.356) → \"0,75π\", fmtpi(3.1416) → \"π\" (up to 2 places, no trailing zeros)"
+  },
+  "listFn": {
+    "len": "len(x) — how many items a list has (or characters a text)",
+    "first": "first(list) — the first item",
+    "last": "last(list) — the last item",
+    "at": "at(list, i) — the item at place i, counting from 0 (−1: the last); same as list[i]",
+    "take": "take(list, k) — the first k items",
+    "drop": "drop(list, k) — without the first k items",
+    "slice": "slice(list, from, to) — a piece: from inclusive, to exclusive (from 0; negative counts from the end)",
+    "reverse": "reverse(list) — in reverse order",
+    "sort": "sort(list) — ascending: numbers by value, texts alphabetically, entries by name (descending: reverse(sort(list)))",
+    "shuffle": "shuffle(list) — randomly shuffled (the task’s draw: same task number, same order)",
+    "choose": "choose(list, k) — k different items chosen at random (no repeats)",
+    "pick": "pick(list) — one item chosen at random",
+    "contains": "contains(list, x) — 1 when x is in the list (for a text: when the text contains x)",
+    "index": "index(list, x) — the place of x in the list, from 0 (−1: not there)",
+    "unique": "unique(list) — each item once",
+    "range": "range(from, to, step) — numbers from…to INCLUSIVE (range(1, 5) → [1, 2, 3, 4, 5]); step defaults to 1",
+    "join": "join(list, separator) — the items in one text (comma by default)",
+    "concat": "concat(a, b, …) — lists joined into one (a single value is added as an item)",
+    "list": "list(a, b, …) — a list of these values (same as [a, b, …])",
+    "get": "get(entry, \"key\") — a field of the entry by key (same as entry.key)",
+    "str": "str(x) — as text; a number with a decimal comma, up to 12 significant digits",
+    "num": "num(text) — a number from a text (\"3,5\" → 3.5)",
+    "sub": "sub(x) — digits and the signs + − ( ) as subscript: \"SO\" + sub(4) → \"SO₄\"",
+    "sup": "sup(x) — as superscript: \"Al\" + sup(\"3+\") → \"Al³⁺\"",
+    "plain": "plain(x) — sub- and superscripts back to plain characters: \"Al₂(SO₄)₃\" → \"Al2(SO4)3\"",
+    "upper": "upper(text) — in capital letters",
+    "lower": "lower(text) — in small letters",
+    "gcd": "gcd(a, b, …) — greatest common divisor of whole numbers (lists too)",
+    "lcm": "lcm(a, b, …) — least common multiple (lists too): lcm(3, 2) → 6"
+  },
+  "lazyFn": {
+    "if": "if(condition, a, b) — a when the condition holds, otherwise b (same as condition ? a : b)",
+    "filter": "filter(list, condition) — the items for which the condition holds: filter(jony, it.ladunek > 0)",
+    "map": "map(list, expression) — the expression for each item: map(wydarzenia, it.label)",
+    "sortby": "sortby(list, key) — ascending by the expression: sortby(wydarzenia, it.data) — earliest first",
+    "find": "find(list, condition) — the first item that meets the condition (none: \"\")",
+    "any": "any(list, condition) — 1 when at least one item meets the condition",
+    "all": "all(list, condition) — 1 when every item meets the condition",
+    "count": "count(list) — how many items; count(list, condition) — how many meet the condition",
+    "sum": "sum(list) or sum(list, expression) — the sum: sum(skladniki, it.masa)",
+    "avg": "avg(list) or avg(list, expression) — the average",
+    "min": "min(a, b, …) — the smallest number; min(list); min(list, expression)",
+    "max": "max(a, b, …) — the largest number; max(list); max(list, expression)",
+    "minby": "minby(list, key) — the item with the smallest key: minby(wydarzenia, it.data) — the earliest",
+    "maxby": "maxby(list, key) — the item with the largest key"
+  },
+  "expr": {
+    "unclosedText": "unclosed text — a quotation mark is missing",
+    "singleEquals": "a single “=” — to compare, use “==”",
+    "tooManyClose": "too many “)”",
+    "shouldEnd": "the expression should end here",
+    "tooDeep": "the expression is nested too deeply",
+    "fieldAfterDot": "a field name was expected after the dot",
+    "breaksOff": "the expression breaks off — something is missing",
+    "tooManyArgs": "too many arguments",
+    "empty": "empty expression",
+    "missingBrace": "“}” is missing",
+    "logicDouble": "“{c}” — in logic use “{cc}”",
+    "unknownChar": "unknown character “{c}”",
+    "needsEach": "{fn}({set}, …) needs an expression after the comma",
+    "expected": "“{v}” expected",
+    "listTooLong": "a list in the expression has more than {n} items",
+    "needsParens": "“{name}” is a function — it needs parentheses: {name}(…)",
+    "unknownName": "unknown name “{name}”",
+    "unexpected": "unexpected “{v}”",
+    "dotOnlyInWorld": "“{path}” — a dot in a name only works in a world (“world”)",
+    "unknownNameIn": "unknown name “{name}” (in “{path}”)",
+    "afterDot": "“{path}” — after the dot: parent, root, outer or self",
+    "arity": {
+      "exactOne": "{name}(…) takes {min} argument but got {got}",
+      "exactMany": "{name}(…) takes {min} arguments but got {got}",
+      "rangeOne": "{name}(…) takes {min} to {max} argument but got {got}",
+      "rangeMany": "{name}(…) takes {min} to {max} arguments but got {got}"
+    },
+    "unknownFunction": "unknown function “{name}”",
+    "tooLong": "expression longer than {n} characters"
+  },
+  "exprHelp": {
+    "intro": "Expressions (values computed on the fly) — text, e.g. \"v0*cos(rad(kat))\":",
+    "numbers": "  numbers: 3, 0.5, 2e-3 (decimal point); texts in apostrophes: 'ok'; names: variables, computed values, simulation state and built-in names",
+    "ops": "  operations: + - * / % (remainder) ^ (power; -x^2 is −(x²)); parentheses ( )",
+    "compare": "  comparisons: < <= > >= == != — give 1 (yes) or 0 (no); logic: && (and), || (or), ! (not); condition: w ? a : b",
+    "text": "  text + number joins text (number with a decimal comma, up to 3 places); fmt(x, digits) — number with a chosen number of places",
+    "constants": "  constants: pi, tau (2·pi), e, true (1), false (0) — an own variable with such a name (e.g. \"e\" as the coefficient of restitution) takes precedence",
+    "functions": "  functions:",
+    "angles": "  Angles: sin/cos/tan work in radians — rad(angle) converts an angle in degrees, deg(...) converts the result of asin/acos/atan2.",
+    "world": "  In a world (\"world\"): parent.x, root.x — value of the parent, of the root (parent.parent.x — of the grandparent); outer.x — of the thing that is summing up; name.x — of the thing with that \"id\"",
+    "can": "    can — 1 when the person may change something in this thing (drag, set), 0 when it is given; can.pos — when they may change \"pos\" in particular (e.g. colour for given vs changeable, arrows ↔)",
+    "end": "  An unknown name is an error (the editor shows where); division by 0 gives infinity — such a shape is not drawn for the moment.",
+    "aggregates": "  summaries: {list} — e.g. sum(children, total*arm), count(children), count(odwaznik, mass > 5), all(belka, abs(mom) < 0.05)",
+    "sets": "    sets: children, descendants (all below), siblings, others (others of this kind), things (all) or the name of a kind; the expression after the comma is computed in EACH thing of the set (its names, its parent), and outer.x reaches the one that asks",
+    "lists": "  lists (e.g. range(1, 10)): {list} — described in Cogita’s generated tasks; in filter/map/sortby… \"it\" is the item, \"i\" its place"
+  },
+  "genHelp": {
+    "intro": "Expressions in generated tasks — the same language as in drawings (numbers with a decimal point, texts in apostrophes, + - * / % ^, < <= > >= == !=, && || !, w ? a : b), plus:",
+    "lists": "  lists: [1, 2, 3], [a, b]; item: list[0] (from 0; list[-1] — the last); list + list — joined",
+    "entry": "  entry (drawn from the base): entry.field (e.g. kation.ladunek), entry.id, entry.label; a number field with a quantity: entry.field_si (in SI), entry.field_unit; date: entry.date (number yyyymmdd, for comparisons), entry.date_text (in words); reference: entry.period.label (one step further)",
+    "each": "  an expression for each item (filter, map, sortby, count, any, all, find, sum, avg, min, max, minby, maxby): \"it\" — the item, \"i\" — its place (from 0), e.g. filter(jony, it.ladunek < 0), map(wydarzenia, it.label)",
+    "compare": "  texts compare alphabetically (\"Ala\" < \"Ola\"); == also compares lists (item by item) and entries (by id)",
+    "random": "  drawing at random in an expression (shuffle, choose, pick) uses the task number — the same number gives the same task",
+    "numberFns": "  number functions:",
+    "listFns": "  functions for lists, texts and entries:",
+    "limits": "  Limits: a list up to {items} items, up to {work} steps over lists in one expression — more gives NaN (the task is not drawn)."
+  },
+  "motion": {
+    "move": {
+      "label": "Moves",
+      "says": "changes place: \"to\": [x, y] — to a point (from \"from\", usually [0, 0]), or \"path\": [[x, y], …] — along a way through the points (\"times\": when at each, 0–1)"
+    },
+    "size": {
+      "label": "Changes size",
+      "says": "grows or shrinks: \"from\" → \"to\" (1 — as it is; a number or [width, height])"
+    },
+    "turn": {
+      "label": "Turns",
+      "says": "turns: \"from\" → \"to\" in degrees (360 — a full turn)"
+    },
+    "color": {
+      "label": "Changes colour",
+      "says": "changes the fill (text) colour: \"from\" → \"to\""
+    },
+    "reveal": {
+      "label": "Reveals",
+      "says": "is revealed from the left: \"from\" → \"to\" (0 — nothing, 1 — all of it)"
+    },
+    "keys": {
+      "label": "Frames",
+      "says": "everything at once, frame by frame: \"keys\": [{ \"at\": 0–1, \"x\", \"y\", \"scale\", \"sx\", \"sy\", \"rotate\", \"opacity\", \"blur\", \"draw\", \"color\", \"stroke\", \"glow\", \"reveal\", \"clip\", \"ease\" }]"
+    },
+    "fade": {
+      "label": "Fades",
+      "says": "changes opacity: \"from\" → \"to\" (0 — invisible, 1 — fully; usually 0 → 1)"
+    },
+    "draw": {
+      "label": "Draws itself",
+      "says": "a line is drawn from start to end: \"from\" → \"to\" (0 — nothing, 1 — all of it; below 0 — nothing for a moment longer, above 1 (up to 10) — finished before the motion ends)",
+      "param": {
+        "length": "Line length (outside a drawing)"
+      }
+    },
+    "rise": {
+      "label": "Rises",
+      "says": "appears, rising a few pixels — slide text after arriving",
+      "param": {
+        "y": "From (px lower)"
+      }
+    },
+    "assemble": {
+      "label": "Assembles",
+      "says": "a layer appears, slightly raised and scaled down; the next ones, with growing delay, assemble the sign",
+      "param": {
+        "y": "From (px lower)",
+        "scale": "Scale at the start"
+      }
+    },
+    "focus": {
+      "label": "Comes into focus",
+      "says": "from a slight blur and from below into focus",
+      "param": {
+        "y": "From (px lower)",
+        "blur": "Blur (px)"
+      }
+    },
+    "float": {
+      "label": "Floats",
+      "says": "sways gently by a few pixels and comes back",
+      "param": {
+        "x": "Sideways (px)",
+        "y": "Vertically (px)"
+      }
+    },
+    "breathe": {
+      "label": "Breathes",
+      "says": "grows and brightens, shrinks and fades",
+      "param": {
+        "low": "Smallest scale",
+        "high": "Largest scale",
+        "dim": "Lowest opacity"
+      }
+    },
+    "glow": {
+      "label": "Pulses with glow",
+      "says": "the glow grows and dims",
+      "param": {
+        "low": "Smallest scale",
+        "high": "Largest scale",
+        "dim": "Lowest opacity",
+        "bright": "Highest opacity"
+      }
+    },
+    "drift": {
+      "label": "Drifts",
+      "says": "moves slowly diagonally and grows, then returns — background, mist",
+      "param": {
+        "from": "Scale at the start",
+        "shift": "Shift (%)",
+        "to": "Scale at the end"
+      }
+    },
+    "sway": {
+      "label": "Sways",
+      "says": "waves up and down very slowly, stretching vertically — background threads",
+      "param": {
+        "x": "Sideways (%)",
+        "y": "Vertically (%)",
+        "stretch": "Stretch",
+        "x0": "Rest position sideways (%)",
+        "y0": "Rest position vertically (%)"
+      }
+    },
+    "wave": {
+      "label": "Wave",
+      "says": "flows sideways and vertically along an irregular way — bands of waves",
+      "param": {
+        "x": "Sideways (%)",
+        "y": "Vertically (%)",
+        "x0": "Rest position sideways (%)",
+        "y0": "Rest position vertically (%)"
+      }
+    },
+    "blink": {
+      "label": "Blinks",
+      "says": "dims and flares up — a warning, an error",
+      "param": {
+        "dim": "Lowest opacity",
+        "bright": "Highest opacity"
+      }
+    }
+  },
+  "desc": {
+    "delay": ", delay {ms} ms",
+    "alternate": ", there and back",
+    "knobs": "; settings: {list}",
+    "intro": "Motion (\"motion\") — on a module on a slide and in a presentation scene, on a layer of a layered picture, on a background layer and on every element of a drawing (\"animation\"):",
+    "shape": "  { \"name\": \"move\", \"to\": [40, -12], \"duration\": 900, \"delay\": 120, \"repeat\": \"once\", \"ease\": \"inOut\" } or a list of up to three of them (outermost first); the plain word \"rise\" is enough too",
+    "times": "  \"duration\", \"delay\" — in milliseconds; for a looping motion \"delay\" may be negative (it starts mid-cycle)",
+    "repeat": "  \"repeat\" — \"once\" (once, when the thing is reached; again on the next arrival — until then it stays at the first frame), \"loop\" (over and over while visible), \"alternate\" (there and back), or a number of repeats",
+    "ease": "  \"ease\" — how it passes from frame to frame: \"linear\", \"ease\", \"in\", \"out\", \"inOut\", \"step\" or \"cubic-bezier(a, b, c, d)\"",
+    "unit": "  \"unit\" — \"px\" (usually; in a drawing — drawing units) or \"%\" (percent of its own size)",
+    "by": "  \"by\" — only in a presentation scene: the motion follows not the clock but the PROGRESS of the scene — \"scene\" (inside the scene: from the first to the last step), \"enter\" (the scene coming in), \"leave\" (the scene going out); 0 — the first frame, 1 — the last. Scrolling back reverses the motion, stopping stops it; \"duration\", \"delay\" and \"repeat\" then play no role",
+    "verbs": "  Basic words (any motion can be built from them):",
+    "frame": "  Frame (\"keys\"): \"at\" 0–1 — when; \"x\", \"y\" — shift; \"scale\" or \"sx\", \"sy\" — size; \"rotate\" — degrees; \"opacity\" 0–1; \"blur\" — blur in px;",
+    "frame2": "    \"draw\" — how much of the line is drawn (0–1); \"color\" — fill or text colour; \"stroke\" — line colour; \"glow\" — a glow \"x y blur colour\" (e.g. \"0 0 10px rgba(160, 220, 255, 0.75)\");",
+    "frame3": "    \"reveal\" 0–1 — how much is visible from the left; \"clip\" — a cut-out \"inset(top right bottom left round 1rem)\", a circle \"circle(40% at 50% 50%)\" or an oval \"ellipse(60% 40% at 50% 50%)\" (with \"by\" — a mask that grows with progress); \"ease\" — the passage to the next frame. What a frame does not give flows in one motion between the frames that give it; before the first such frame — as the thing is by itself, after the last — it stays.",
+    "colors": "  Colours: \"#rrggbb\", \"rgba(…)\", theme names \"accent\", \"ink\", \"ground\", \"muted\", \"ok\", \"danger\" — with \"/35\" at the end: 35 % opacity.",
+    "presets": "  Ready-made motions (from the old Cogita show) — entrances:",
+    "loops": "  — looping:",
+    "reduced": "  With the system setting “reduce motion” nothing moves — everything stands as described without motion."
+  },
+  "field": {
+    "repeat": {
+      "default": "as usual",
+      "once": "once (on arrival)",
+      "loop": "over and over",
+      "alternate": "there and back"
+    },
+    "ease": {
+      "default": "as usual",
+      "linear": "evenly",
+      "ease": "gently",
+      "in": "speeds up",
+      "out": "slows down",
+      "inOut": "starts and slows down",
+      "step": "in a jump"
+    },
+    "keys": "Frames (JSON): [{ \"at\": 0–1, \"x\", \"y\", \"scale\", \"rotate\", \"opacity\", \"color\" … }]",
+    "motion": "Motion",
+    "none": "No motion.",
+    "kind": "Kind of motion",
+    "verbs": "Words — what changes",
+    "presets": "Ready-made (Cogita show)",
+    "remove": "Remove motion",
+    "fromColor": "From colour",
+    "toColor": "To colour",
+    "toX": "To x",
+    "toY": "To y",
+    "path": {
+      "one": "A way through {count} point (from JSON).",
+      "other": "A way through {count} points (from JSON)."
+    },
+    "from": "From",
+    "to": "To",
+    "delay": "Delay (ms)",
+    "duration": "Duration (ms)",
+    "repeatLabel": "Repeat",
+    "easeLabel": "Transition",
+    "add": "+ Motion"
+  },
+  "live": {
+    "intro": "A drawing to move (\"animation\" with the keys below) — a person sets something (slider, drag, button) and sees the effect at once; there may also be a simulation (motion from equations) and a goal to reach. Just like Brilliant lessons: first doing, then explaining.",
+    "keys": "Keys (next to \"size\", \"symbols\", \"elements\"):",
+    "vars": "  \"vars\" — values to set (up to {n}): [{ \"name\": \"kat\", \"value\": 45, \"min\": 0, \"max\": 90, \"step\": 1, \"unit\": \"°\", \"label\": \"Angle\", \"random\": [from, to] }] — \"random\": a different value from the interval each time it opens (in Cogita: on each attempt)",
+    "let": "  \"let\" — values computed from others, in this order, anew in every frame: [{ \"name\": \"zasieg\", \"value\": \"v0^2*sin(rad(2*kat))/g\" }]",
+    "sim": "  \"sim\" — simulation: { \"state\": [{ \"name\": \"y\", \"value\": \"h0\" (start), \"rate\": \"vy\" (rate of change = time derivative) }, …],",
+    "events": "      \"events\": [{ \"when\": \"y < 0 && vy < 0\", \"set\": { \"y\": \"-y\", \"vy\": \"-e*vy\" }, \"stop\": false, \"say\": \"Bounce!\", \"mood\": \"info\" }] — when the condition BECOMES true (collision, bounce, end); \"set\" computes all values at once and only then assigns them,",
+    "until": "      \"until\": \"t > 5\" (end), \"dt\": 0.002 (step in s), \"speed\": 1 (pace), \"auto\": true (starts by itself when the drawing is visible; otherwise the \"run\" button), \"loop\": true (again after the end), \"max\": 600 (longest, s), \"sleep\": true (falls asleep when nothing moves any more and wakes on a change) }",
+    "rk4": "      Computed with the 4th-order Runge-Kutta method in fixed steps — on a slow phone the result is the same. Changing a value the start depends on restarts the simulation; changing a value in \"rate\" (e.g. gravity) takes effect at once.",
+    "controls": "  \"controls\" — controls below the drawing (up to {n}), \"type\": {types}:",
+    "slider": "      { \"type\": \"slider\", \"var\": \"kat\", \"label\": \"Angle\", \"unit\": \"°\", \"digits\": 0 } — a slider (range and step from \"vars\"); \"number\" — a number field;",
+    "toggle": "      { \"type\": \"toggle\", \"var\": \"sily\", \"label\": \"Show forces\" } — a 0/1 switch; { \"type\": \"choice\", \"var\": \"g\", \"label\": \"Planet\", \"options\": [{ \"value\": 9.81, \"label\": \"Earth\" }, { \"value\": 1.62, \"label\": \"Moon\" }] };",
+    "button": "      { \"type\": \"button\", \"label\": \"Throw!\", \"do\": {actions}, \"set\": { \"kat\": 45 }, \"go\": \"next\" } — a button; { \"type\": \"readout\", \"label\": \"Range\", \"value\": \"zasieg\", \"unit\": \"m\", \"digits\": 1 } — a readout",
+    "rules": "  \"rules\" — rules (up to {n}): [{ \"when\": \"abs(x - cel) < 0.5 && y <= 0\", \"say\": \"Hit at {fmt(kat,0)}°!\", \"mood\": \"ok\"|\"miss\"|\"info\", \"goal\": true, \"once\": true, \"set\": {…}, \"do\": \"pause\", \"go\": \"next\" }]",
+    "rules2": "      acts when the condition BECOMES true (checked after every simulation step — flying through a hoop counts too); \"say\" appears below the drawing ({…} — computed);",
+    "goal": "      \"goal\": true — this is the goal: reached = task solved (in Cogita: a correct answer); \"go\" — in a presentation: \"next\" (onward), \"back\", a scene key or \"link:<id>\"; \"for\": 1 — the condition must hold this many seconds without a break (“steadily”)",
+    "show": "  every control may have \"show\": \"solved\" — it is visible only when the expression is true (e.g. a “Next” button after solving)",
+    "predict": "  \"predict\" — predict first, then see: true or { \"start\": true, \"say\": \"…\", \"check\": \"Check\", \"again\": \"Adjust\", \"hold\": \"Predict\" }; the drawing stands still (simulation stopped, rules silent, no goal) while the person sets their prediction; “Check” lets it run, “Adjust” (or any change after checking) stops it again; \"start\": false — runs at once, and “Predict” stops it on request.",
+    "held": "      In expressions \"held\" = 1 while it stands still — whatever gives away the result waits: \"stroke\": \"=held ? 'ink' : (ok ? 'ok' : 'danger')\", \"show\": \"!held\"; \"tries\" — how many times it has been checked (e.g. “first time!”). In Cogita the drawing stands until the card’s “Check”.",
+    "task": "  \"task\" — a different task each time, equally hard: { \"require\": [\"onstep(s, 0.5)\", \"abs(s - r0) >= 1\"], \"solve\": \"w2.pos = 3 + s\", \"new\": \"New task\", \"tries\": 200 }",
+    "task2": "      values with \"random\" are drawn (variables and properties of things; a property may be an expression of them: \"m\": \"=a\", \"pos\": \"=3 - d\") until every \"require\" condition is true, the task is not solved at the start (no \"goal\" rule holds) and the \"solve\" solution can be set by hand (within the limits, on something that may be changed);",
+    "task3": "      comparable difficulty comes from the conditions alone: the same steps, numbers from the same range, the result on the slider grid (onstep), far enough from the start. When nothing fits, the task from the \"value\" values stays. \"new\" — a “New task” button (false — none); in Cogita every attempt draws the same way and remembers the numbers, and \"solve\" is the solution of the question unless the question gives its own.",
+    "panel": "  \"panel\" — \"below\" (controls below the drawing, usual) or \"side\" (beside it, when the drawing is wide; on a phone always below)",
+    "elements": "In the elements of the drawing:",
+    "anyNumber": "  every number (x, y, w, h, r, x2, y2, rotate, scale, opacity, width, size) and colour (fill, stroke) may be an expression: \"x\": \"=x0 + v*t\", \"fill\": \"=trafione ? 'ok' : 'accent'\"",
+    "text": "  \"text\": \"Angle: {fmt(kat, 0)}°\" — text with values in {…} (or \"=expression\")",
+    "showStep": "  \"show\": \"step >= 1\" — visible only when the condition is true",
+    "drag": "  \"drag\": { \"x\": \"cel\" } — dragging sets the value to the finger position (x, y); or { \"set\": { \"kat\": \"deg(atan2(py, px))\" }, \"label\": \"Direction\" } — from the finger position (px, py); \"label\" for screen readers. The handle can be grabbed from 44 px and works with the arrow keys",
+    "tap": "  \"tap\": \"run\" or { \"set\": { \"widac\": \"1 - widac\" }, \"do\": \"toggle\", \"go\": \"next\", \"label\": \"Flip\" } — a click on the element (also Enter/space)",
+    "repeat": "  \"repeat\": 20 — this many copies of the element; in each \"i\" (0, 1, …) and \"n\" (how many) — e.g. gas particles, a scale (up to {n})",
+    "kinds": "  new kinds: \"arrow\" (a vector from x, y to x2, y2; \"head\" — arrowhead size), \"poly\" (\"points\": [[x, y], …] — numbers or \"=…\"; \"closed\": true — a polygon),",
+    "plot": "    \"plot\" (a curve: \"fn\": \"A*sin(k*u)\" — y of u, or \"fx\", \"fy\" — a way; \"var\" (usually \"u\"), \"from\", \"to\", \"samples\" (up to {n})),",
+    "trace": "    \"trace\" (a trail: \"fx\": \"x\", \"fy\": \"y\" — a point every \"every\" s of simulation, the last \"keep\" points; cleared on restart),",
+    "frame": "    \"frame\" (a frame with a world: the rectangle x, y, w, h shows a part of the world \"view\": [x0, y0, x1, y1] — y grows UPWARD, units are e.g. metres; \"axes\": { \"x\": \"x [m]\", \"y\": \"y [m]\", \"grid\": true }, \"clip\": true — what goes outside the frame disappears;",
+    "frame2": "      in a frame positions are in world units and sizes (r, width, size, head) in drawing units; a \"rect\" stands with its lower-left corner at (x, y); a group in a frame shifts by world x, y and rotates counter-clockwise)",
+    "world": "A world of things (\"world\") — when the drawing is a set-up of things that are added, moved, hung and removed (a balance of beams and weights, a mobile, gears). You do not write a game, you describe kinds of things, the things at the start and the rules:",
+    "worldKinds": "  \"kinds\" — kinds (up to {n}): { \"name\": \"belka\", \"label\": \"Beam\",",
+    "props": "      \"props\": [{ \"name\": \"pos\", \"value\": 1, \"min\": 0, \"max\": \"=parent.length\", \"step\": 0.25, \"unit\": \"m\", \"label\": \"Place\", \"apart\": 0.25, \"new\": \"parent.pivot + 1\", \"when\": \"!isroot\" }] — properties with limits (limits may be expressions; \"apart\" — distance from siblings; \"new\" — where a new thing stands; \"when\" — when the property applies to the thing),",
+    "thingLet": "      \"let\": [{ \"name\": \"total\", \"value\": \"bm + sum(children, total)\" }] — values computed in each thing (the order follows from what they read),",
+    "thingState": "      \"state\": [{ \"name\": \"angle\", \"value\": 0, \"rate\": \"omega\" }] and \"events\" — the motion of each thing (the same Runge-Kutta; \"sim\" then gives only \"dt\", \"speed\", \"auto\", \"sleep\"),",
+    "shapes": "      \"shapes\": [elements as in \"elements\"] — the look of one thing, computed in it (\"=x\" is ITS x; in a frame — world coordinates),",
+    "thingDrag": "      \"drag\": { \"pos\": \"parent.pivot + (px - parent.x)*cos(parent.angle)\" } — what dragging sets (the finger in the world: px, py; the handle lies at its \"x\", \"y\", radius \"hit\"),",
+    "can": "      \"can\": { \"edit\": [\"m\", \"pos\"], \"add\": [\"ciezarek\"], \"remove\": true, \"copy\": true }, \"readouts\": [{ \"label\", \"value\", \"unit\", \"digits\" }] (the panel of the chosen thing), \"children\": 8,",
+    "brief": "      \"brief\": \"{m} kg\" — what the thing is called in the panel (“Weight 2 kg”); \"mark\": false — no dashed ring around things that may be changed (when the kind shows it itself: by colour and arrows from \"can\", \"can.pos\") }",
+    "things": "  \"things\" — the things at the start: [{ \"id\": \"w1\", \"kind\": \"ciezarek\", \"parent\": \"b1\", \"m\": 4, \"pos\": 1.5, \"lock\": [\"m\"] }] — properties directly; { \"random\": [from, to] } — at random (in Cogita on each attempt); \"=a + 1\" — an expression of the drawing’s values (random tasks); \"lock\": true — nothing may change, a list — these properties may not",
+    "allow": "  \"allow\" — what is allowed in this world: { \"add\", \"remove\", \"copy\", \"edit\", \"drag\" (true/false), \"roots\": [\"belka\"] (what may be placed at the top) }; \"limits\": { \"things\": 40, \"depth\": 6 }",
+    "keep": "  \"keep\": [{ \"when\": \"edits <= 2\", \"say\": \"Only two moves!\" }] — must always hold: a change after which it does not hold is undone; \"save\": true — a workshop (save, load, JSON); \"hint\" — a hint when nothing is chosen ({…} — computed)",
+    "panelGiven": "  The panel shows what is given (“Given”: things that may not be changed) and what the person sets (“You set”: in a puzzle each changeable property as its own slider, without choosing a thing); \"list\": true/false forces or turns off these rows (by default: when nothing may be added or removed and there are at most 6).",
+    "worldEl": "  In the elements: { \"type\": \"world\" } in a frame — the things stand here; frame \"camera\": true — zooming (+, −, Ctrl+wheel, two fingers) and panning; \"view\" computed from the things, e.g. \"=min(things, bx0)\".",
+    "worldExpr": "  In the expressions of things: parent.x, root.x, w1.x (a thing by id), outer.x (the one summing up); summaries sum/avg/min/max/count/all/any over a set: children, descendants, siblings, others, things or the name of a kind; built into things: isroot, depth, index, selected, nchildren; in the whole drawing: edits (how many changes since “Start over”), nthings.",
+    "worldUndo": "  Every change (drag, panel, adding) goes through the rules of the world and has “Undo” (Ctrl+Z); in Cogita the answer is the arranged world — replayed by the same rules and checked by simulating to the end; solution: \"w2.pos = 5\". Pattern: the example “Balance — workshop”.",
+    "builtins": "Built-in names: {list} — t: simulation time (s), time: time since the drawing was shown (s; motion without a simulation, e.g. \"y\": \"=sin(2*time)\"), step: the place in a presentation scene (0 at its start, 1 after the first step, smoothly in between — for revealing), i/n: copy number and how many copies, u: the course of a curve, px/py: the finger while dragging; edits: how many changes in the world, nthings: how many things; held: 1 while the drawing stands still for a prediction, tries: how many times it was checked; in a thing can: 1 when the person may change it.",
+    "light": "To keep the drawing light (phone): up to about 300 elements, no \"blur\"/\"glow\" on many elements, \"dt\" 0.001–0.005, always \"until\" or an event with \"stop\", at most 4–6 controls. The drawing computes only when something changes and stops when it is not visible.",
+    "physics": "Physics — patterns: projectile (x, y, vx, vy; \"rate\" vy: \"-g\"), pendulum (th, om; om: \"-g/L*sin(th)\"), spring (x, v; v: \"-k/m*x - c*v\"), incline (a = g*(sin − μ·cos)), collision (an event, \"set\" both velocities at once), refraction (let: angle from asin(n1/n2*sin)), wave (\"plot\" with \"fn\" of u and time)."
+  },
+  "prompt": {
+    "intro": "Prepare the JSON of a drawing to move for the “Animation” module in REcreatio (a page or a presentation; the same drawing can be a question in Cogita).",
+    "topic": "Topic: [describe the phenomenon, e.g. “projectile motion — the learner sets the angle and hits the target”].",
+    "rules": "Rules: first the person does something (slider, drag, button), then sees the effect; one idea per drawing; labels in English; a goal (\"goal\") only when it is a task.",
+    "return": "Return ONE JSON object with the keys \"alt\", \"size\", \"elements\" and — as needed — \"vars\", \"let\", \"sim\", \"controls\", \"rules\", \"predict\", \"task\", \"panel\", \"symbols\", \"world\". No comments.",
+    "example": "Example:"
+  },
+  "world": {
+    "less": "{name}: less",
+    "more": "{name}: more",
+    "number": "{name} (number)",
+    "view": "View",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fit": "Fit",
+    "givenGroup": "Given — you do not change this",
+    "given": "Given",
+    "youSet": "You set",
+    "tools": "Tools",
+    "changes": "Changes",
+    "undo": "Undo (Ctrl+Z)",
+    "redo": "Redo (Ctrl+Y)",
+    "reset": "Start over",
+    "pause": "Pause",
+    "givenBadge": "given",
+    "changeBadge": "you change",
+    "duplicate": "Duplicate",
+    "layout": "Layout",
+    "load": "Load",
+    "layoutJson": "Layout as JSON",
+    "loadThis": "Load this layout",
+    "notLayout": "This is not a layout (JSON with a “things” list)."
+  },
+  "action": {
+    "run": "Start",
+    "pause": "Pause",
+    "toggle": "Start / pause",
+    "reset": "Start over"
+  },
+  "model": {
+    "newTask": "New task",
+    "predictSay": "Predict first: set everything the way you think — then click “Check” and see what happens.",
+    "check": "Check",
+    "again": "Adjust",
+    "hold": "Predict"
+  },
+  "run": {
+    "nameTaken": "this name is already a variable or a computed value",
+    "noVar": "there is no variable “{name}” in \"vars\"",
+    "notSettable": "“{name}” is neither a variable nor simulation state — it cannot be set",
+    "infinite": "the simulation gave infinity or NaN — check “rate” (division by 0?)",
+    "notAllowed": "That is not allowed in this task."
+  },
+  "task": {
+    "unknownKey": "“{key}” — there is no such variable or property of a thing (thing.property)"
+  },
+  "things": {
+    "notOwn": "“{name}” is neither a property nor state of the kind “{kind}”",
+    "notProp": "“{name}” is not a property of this kind",
+    "noKind": "there is no kind “{name}”",
+    "cycle": "computed values depend on each other in a circle — computing them in list order"
+  },
+  "build": {
+    "handle": "Handle — drag it",
+    "button": "Button"
+  },
+  "drawing": {
+    "saved": "Layout saved (in this browser).",
+    "saveFailed": "Could not save — the browser does not allow it.",
+    "noSaved": "There is no saved layout.",
+    "loaded": "Saved layout loaded."
+  }
+}

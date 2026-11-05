@@ -11,6 +11,7 @@
 import { sealText, toBase64Url } from '../core/crypto';
 import type { Ring } from '../core/keys';
 import { newId } from '../core/ids';
+import { t } from '../core/i18n';
 import { call, WorkspaceError } from '../core/session';
 import { itemFieldAad } from '../calendar/calendar';
 import { areaKeys, newestKey } from '../chat/chat';
@@ -49,7 +50,7 @@ export async function savePublishedItem(ring: Ring, input: {
 }): Promise<string> {
   const id = input.itemId ?? newId();
   const newest = newestKey(await areaKeys(ring, input.visibilityAreaId, true));
-  if (newest === null) throw new WorkspaceError('Nie masz klucza obszaru, w którym ma być widoczny termin.');
+  if (newest === null) throw new WorkspaceError(t('areas.noKeyItem'));
 
   const seal = async (field: string, text: string) => ({
     field, areaId: input.visibilityAreaId, epoch: newest.epoch,

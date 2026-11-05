@@ -1,0 +1,95 @@
+{
+  "ask": {
+    "verb": {
+      "delete": "Delete",
+      "withdraw": "Withdraw",
+      "callOff": "Call off",
+      "unsubscribe": "Remove",
+      "takeDown": "Take down",
+      "detach": "Disconnect",
+      "archive": "Archive",
+      "finish": "Finish",
+      "add": "Add",
+      "join": "Join",
+      "connect": "Connect",
+      "issue": "Issue"
+    }
+  },
+  "modal": {
+    "backToPage": "Back to the page",
+    "back": "‹ Back",
+    "closeFull": "Close full screen"
+  },
+  "month": {
+    "previous": "Previous month",
+    "next": "Next month",
+    "today": "{date} (today)"
+  },
+  "password": {
+    "hide": "Hide password",
+    "show": "Show password"
+  },
+  "scanner": {
+    "noCode": "No code visible in the photo — move closer, avoid glare, hold the code level.",
+    "video": "Camera image",
+    "starting": "Starting the camera…",
+    "denied": "No permission for the camera. Take a photo of the code or type the number.",
+    "none": "The camera is not available here. Take a photo of the code or type the number.",
+    "reading": "Reading…",
+    "photo": "Photo of the code",
+    "orType": "…or type the number",
+    "placeholder": "978-… or a library number"
+  },
+  "tex": {
+    "failed": "This formula cannot be typeset: {error}"
+  },
+  "tree": {
+    "searchIn": "Search: {label}",
+    "recent": "Recent",
+    "collapse": "Collapse: {label}",
+    "expand": "Expand: {label}",
+    "inside": {
+      "one": "{count} inside",
+      "other": "{count} inside"
+    },
+    "empty": "Nothing here.",
+    "noMatch": "Nothing matches.",
+    "choose": "— choose —",
+    "otherArea": "another area"
+  },
+  "json": {
+    "entries": {
+      "one": "{count} entry",
+      "other": "{count} entries"
+    },
+    "treeLabel": "What this format contains",
+    "repaired": {
+      "one": "JSON repaired before reading ({count} place): single backslashes (e.g. in LaTeX formulas), line breaks inside text or a wrapper around the JSON. Check the preview.",
+      "other": "JSON repaired before reading ({count} places): single backslashes (e.g. in LaTeX formulas), line breaks inside text or a wrapper around the JSON. Check the preview."
+    },
+    "exportFailed": "Could not prepare the export.",
+    "importing": "Importing…",
+    "importFailed": "The import failed.",
+    "export": "Export",
+    "import": "Import",
+    "preparing": "Preparing…",
+    "show": "Show JSON",
+    "refresh": "Refresh",
+    "download": "Download .json file",
+    "editInImport": "Edit in import",
+    "exportText": "Export JSON",
+    "importText": "Import JSON",
+    "placeholder": "Paste JSON — from an export or written following the format description.",
+    "sample": "Insert an example",
+    "loadFile": "Load file…",
+    "clear": "Clear",
+    "invalid": "Invalid JSON: {error}",
+    "changes": "What will change",
+    "imported": "Imported.",
+    "format": "Format description",
+    "copiedDoc": "Description copied",
+    "copyDoc": "Copy description (for AI)",
+    "fold": "Collapse",
+    "unfold": "Show"
+  }
+}

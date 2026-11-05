@@ -6,6 +6,8 @@
  * simplified before it is saved and the original file is never kept.
  */
 
+import { t } from '../../core/i18n';
+
 export type TrackPoint = [lat: number, lon: number];
 
 /** One route drawn on the map. A map may carry several. */
@@ -127,7 +129,7 @@ export function parseGpx(text: string): GpxContents {
   const document = new DOMParser().parseFromString(text, 'application/xml');
 
   if (document.querySelector('parsererror')) {
-    throw new Error('Nie udało się odczytać pliku — to nie jest poprawny GPX.');
+    throw new Error(t('pagesEvent.gpx.invalid'));
   }
 
   const readPoints = (selector: string): TrackPoint[] => {
@@ -155,7 +157,7 @@ export function parseGpx(text: string): GpxContents {
   }
 
   if (route.length === 0 && waypoints.length === 0) {
-    throw new Error('Plik nie zawiera ani śladu trasy, ani punktów.');
+    throw new Error(t('pagesEvent.gpx.empty'));
   }
 
   // The name belongs to the track or route element, not to a waypoint.

@@ -1,0 +1,109 @@
+{
+  "alone": {
+    "state": {
+      "checking": "Connecting to the account…",
+      "cut": "Offline",
+      "none": "Not signed in",
+      "back": "Connected"
+    },
+    "tabs": "Offline",
+    "full": "Full version",
+    "retry": "Retry"
+  },
+  "crumbs": {
+    "label": "Where you are",
+    "back": "Back",
+    "beside": "Next to „{label}\""
+  },
+  "lang": {
+    "browser": "Language: as the browser"
+  },
+  "nav": {
+    "home": "Now",
+    "parish": "Parish",
+    "studium": "Studium",
+    "settings": "Settings",
+    "newCount": {
+      "one": "{count} new",
+      "other": "{count} new"
+    }
+  },
+  "phone": {
+    "label": "Shortcuts"
+  },
+  "account": {
+    "named": "Account · {login}",
+    "menu": "Account: {login}",
+    "account": "Account and password",
+    "notifications": "Notifications",
+    "security": "Security and keys",
+    "transfer": "Data transfer",
+    "workspace": "Workspace",
+    "signOut": "Sign out"
+  },
+  "guard": {
+    "title": "This view has stopped",
+    "lede": "Something went wrong while showing this part. Try again — and if the error comes back, pass on the message below.",
+    "reload": "Reload the page"
+  },
+  "unlock": {
+    "failed": "Could not open the keys.",
+    "kept": "The key is computed from the password. It will be kept — sealed with this device's key, which the service doesn't know — so we won't ask for it again after a restart.",
+    "memory": "The key is computed from the password and stays only in memory — after closing all tabs it has to be computed again.",
+    "busy": "Computing the key…",
+    "go": "Open the keys"
+  },
+  "signIn": {
+    "needBoth": "Enter the account name and password.",
+    "needLogin": "Enter the account name.",
+    "needPassword": "Enter the password.",
+    "loginShort": "Account name: at least 3 characters.",
+    "passwordShort": "Password: at least 8 characters.",
+    "needName": "Enter the first person's name.",
+    "noKeys": "The keys are not available in this tab.",
+    "noRole": "The account has no role yet.",
+    "creating": "Creating the account and keys…",
+    "creatingPerson": "Creating the first person…",
+    "personFailedWhy": "The account was created, but the person could not be created: {why}",
+    "personFailed": "The account was created, but the person could not be created. Finish it in the „Roles\" tab — click „Account\".",
+    "failed": "Could not sign in.",
+    "create": "Create an account",
+    "ledeIn": "Your workspace: groups, forms, calendar and chats.",
+    "ledeNew": "The account is yours — only you hold its key.",
+    "login": "Account name",
+    "password": "Password",
+    "name": "Your name",
+    "namePlaceholder": "e.g. Michael",
+    "nameHint": "Only those you give access see the name. You can delete the account yourself at any time.",
+    "passwordStays": "The password never leaves this device.",
+    "keysTakeTime": "Encryption keys are being created — this takes a dozen seconds or so. Don't close the page.",
+    "go": "Sign in",
+    "noAccount": "Don't have an account?",
+    "createIt": "Create one",
+    "haveAccount": "Already have an account?"
+  },
+  "frame": {
+    "menu": "Menu",
+    "find": "Search people, forms, pages…",
+    "findKey": "Ctrl K",
+    "cutTitle": "The service is not responding. Offline, learning from this device works."
+  },
+  "search": {
+    "kind": {
+      "view": "Workspace section",
+      "area": "Area",
+      "page": "Page",
+      "chat": "Chat"
+    },
+    "hint": {
+      "notify": "bell order device phone",
+      "security": "password key encryption",
+      "transfer": "old data migration transfer"
+    },
+    "placeholder": "Area, form, page, chat…",
+    "label": "Search the workspace",
+    "goTo": "Go to:",
+    "results": "Results",
+    "nothing": "Nothing found."
+  }
+}

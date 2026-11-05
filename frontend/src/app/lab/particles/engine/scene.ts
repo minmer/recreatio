@@ -99,24 +99,24 @@ function readComposition(v: unknown): Record<string, number> | null {
 const celsiusIn = (v: unknown, fallback: number): number => T0 + num(v, fallback - T0, -50, 1200);
 
 function readOp(v: unknown, warnings: string[], at: number): Op | null {
-  if (!isObj(v)) { warnings.push(`ops[${at}]: nie obiekt`); return null; }
+  if (!isObj(v)) { warnings.push(`ops[${at}]: not an object`); return null; }
   const T = celsiusIn(v.T, T0 + 20);
   switch (v.op) {
     case 'fill': {
       const region = readRegion(v.region);
       const composition = readComposition(v.composition);
-      if (region === null || composition === null) { warnings.push(`ops[${at}]: fill bez obszaru albo składu`); return null; }
+      if (region === null || composition === null) { warnings.push(`ops[${at}]: fill without a region or composition`); return null; }
       return { op: 'fill', region, composition, phase: v.phase === 'gas' ? 'gas' : 'liquid', T };
     }
     case 'erase': {
       const region = readRegion(v.region);
-      if (region === null) { warnings.push(`ops[${at}]: erase bez obszaru`); return null; }
+      if (region === null) { warnings.push(`ops[${at}]: erase without a region`); return null; }
       return { op: 'erase', region };
     }
     case 'solid': {
       const region = readRegion(v.region);
       const material = typeof v.material === 'string' && spIndex(v.material) >= 0 ? v.material : null;
-      if (region === null || material === null) { warnings.push(`ops[${at}]: solid bez obszaru albo materiału`); return null; }
+      if (region === null || material === null) { warnings.push(`ops[${at}]: solid without a region or material`); return null; }
       return { op: 'solid', region, material, T };
     }
     case 'beaker':
@@ -131,7 +131,7 @@ function readOp(v: unknown, warnings: string[], at: number): Op | null {
         mode: v.mode === 'thermostat' ? 'thermostat' : 'power', power: num(v.power, 50, 0, 2000), target: celsiusIn(v.target, T0 + 150), on: v.on !== false
       };
     default:
-      warnings.push(`ops[${at}]: nieznana operacja „${String(v.op)}”`);
+      warnings.push(`ops[${at}]: unknown operation "${String(v.op)}"`);
       return null;
   }
 }
@@ -139,13 +139,13 @@ function readOp(v: unknown, warnings: string[], at: number): Op | null {
 /** Eine Szene aus JSON — Unbekanntes wird übergangen (mit Warnung), Fehlendes ergänzt. */
 export function readScene(raw: unknown): { scene: Scene; warnings: string[] } {
   const warnings: string[] = [];
-  if (!isObj(raw)) return { scene: EMPTY_SCENE, warnings: raw === null || raw === undefined ? [] : ['scena: nie obiekt'] };
+  if (!isObj(raw)) return { scene: EMPTY_SCENE, warnings: raw === null || raw === undefined ? [] : ['scene: not an object'] };
   const box = isObj(raw.box) ? raw.box : {};
   const amb = isObj(raw.ambient) ? raw.ambient : {};
   const sides = isObj(raw.sides) ? raw.sides : {};
   const side = (v: unknown, d: Side): Side => (v === 'open' ? 'open' : v === 'wall' ? 'wall' : d);
   const quality: Quality = isQuality(raw.quality) ? raw.quality : EMPTY_SCENE.quality;
-  if (raw.quality !== undefined && !isQuality(raw.quality)) warnings.push(`quality: nieznana jakość „${String(raw.quality)}” — przyjęto „${quality}”`);
+  if (raw.quality !== undefined && !isQuality(raw.quality)) warnings.push(`quality: unknown quality "${String(raw.quality)}", using "${quality}"`);
   const ops: Op[] = [];
   if (Array.isArray(raw.ops)) raw.ops.forEach((o, k) => { const op = readOp(o, warnings, k); if (op !== null) ops.push(op); });
   const scene: Scene = {

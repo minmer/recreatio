@@ -1,0 +1,89 @@
+{
+  "noKey": "Bez klucza z adresu nie da się tego otworzyć.",
+  "roleNoLink": "Osoba „{name}\" nie otworzyła tu żadnego linku — to, co wysłała z linku, pokaże się po jego otwarciu.",
+  "pickWho": "Wybierz u góry strony, za kogo.",
+  "fromForm": "Z którego formularza",
+  "exForm": "<id-formularza>",
+  "openChat": "Otwórz rozmowę",
+  "chatShowsStrip": "Nagłówek i przycisk — rozmowa rozwija się po kliknięciu.",
+  "office": {
+    "dataLater": "Dane osoby pojawią się po wyborze u góry strony.",
+    "pick": "Wybierz osobę u góry strony.",
+    "nothing": "Tę część osoba widzi w swoim linku — tu nie ma nic do pokazania o niej.",
+    "chatLoading": "Wczytywanie rozmowy…"
+  },
+  "submission": {
+    "label": "Zgłoszenie osoby",
+    "use": "Pokazuje tej osobie to, co sama wysłała w wybranym formularzu.",
+    "title": "Twoje zgłoszenie",
+    "show": "Które odpowiedzi widać",
+    "titleHint": "np. Twoje zgłoszenie",
+    "open": "Pokaż zgłoszenie",
+    "showsStrip": "Nagłówek i przycisk — zgłoszenie rozwija się po kliknięciu.",
+    "showsBlock": "Wszystkie wybrane odpowiedzi osoby, z możliwością poprawienia.",
+    "missingForm": "Wybierz formularz, z którego pochodzą odpowiedzi.",
+    "missingShow": "Wybierz, które odpowiedzi ta osoba zobaczy.",
+    "empty": "Tu pojawi się zgłoszenie osoby, która otworzy swój link.",
+    "otherForm": "Ten moduł pokazuje inny formularz niż ten, z którego wybrano osobę u góry strony."
+  },
+  "shared": {
+    "label": "Wspólne terminy",
+    "use": "Terminy, które widzi cała grupa — jeśli miejsce niesie jej klucz.",
+    "exTitle": "Najbliższe spotkania",
+    "titleHint": "np. Najbliższe spotkania",
+    "open": "Pokaż terminy",
+    "showsStrip": "Nagłówek i przycisk — terminy rozwijają się po kliknięciu.",
+    "showsBlock": "Terminy grupy na najbliższe tygodnie.",
+    "empty": "Tu pojawią się wspólne terminy, jeśli miejsce niesie klucz grupy.",
+    "office": "Tu osoba widzi wspólne terminy swojej grupy.",
+    "none": "Nic na najbliższe tygodnie.",
+    "sealed": "zapieczętowane",
+    "seenBy": "Widzą to wszyscy: {names}."
+  },
+  "steps": {
+    "label": "Kroki osoby",
+    "use": "Lista kroków osoby — z mapy logiki strony, a bez kroków na mapie: kroki formularza (potwierdzenie danych, uzupełnienia, znaczniki, zadania).",
+    "title": "Twoje kroki",
+    "titleHint": "np. Twoje kroki",
+    "open": "Pokaż kroki",
+    "empty": "Tu pojawi się lista kroków osoby, która otworzy swój link.",
+    "showsStrip": "Nagłówek i przycisk — kroki rozwijają się po kliknięciu.",
+    "showsBlock": "Lista kroków osoby, z tym, co już zrobione."
+  },
+  "tasks": {
+    "label": "Zadania osoby",
+    "use": "Zadania na pewien czas (np. różaniec w październiku) — osoba odpowiada przy każdym dniu w kalendarzu.",
+    "title": "Twoje zadania",
+    "titleHint": "np. Twoje zadania",
+    "open": "Pokaż zadania",
+    "none": "Na razie nie ma żadnych zadań.",
+    "noneNow": "Teraz nie ma zadań do zrobienia.",
+    "past": "Zakończone ({count})",
+    "waiting": {
+      "one": "{count} zadanie czeka",
+      "few": "{count} zadania czekają",
+      "many": "{count} zadań czeka",
+      "other": "{count} zadania czeka"
+    },
+    "showsStrip": "Nagłówek, ile zadań czeka, i przycisk — zadania rozwijają się po kliknięciu.",
+    "showsBlock": "Zadania osoby na teraz: decyzja i dni wykonania; zakończone zwinięte poniżej.",
+    "empty": "Tu pojawią się zadania osoby, która otworzy swój link.",
+    "officeNone": "Ta osoba nie ma zadań."
+  },
+  "chat": {
+    "label": "Rozmowa grupy",
+    "use": "Rozmowy osoby z linkiem: z prowadzącymi, kanały i rozmowy grup, do których należy.",
+    "titleHint": "np. Rozmowa grupy",
+    "showsTall": "Rozmowa z dłuższym widokiem wiadomości.",
+    "showsBlock": "Rozmowa: ostatnie wiadomości i pole do pisania.",
+    "empty": "Tu pojawi się rozmowa grupy — dla osoby, która otworzy swój link."
+  },
+  "ask": {
+    "label": "Napisz do nas",
+    "use": "Osoba z linkiem (z wybranych formularzy) sama zaczyna rozmowę z wybranymi rolami — inni z formularza jej nie widzą.",
+    "exTitle": "Napisz do księdza",
+    "says": "nagłówek; kto odpowiada i z których formularzy można pisać, ustawia się w module (nie w JSON)",
+    "showsBlock": "Przycisk „Napisz do: …\", a potem rozmowa tej osoby z wybranymi rolami.",
+    "empty": "Tu osoba, która otworzy swój link, napisze do wybranych osób — tylko one i ona widzą tę rozmowę."
+  }
+}

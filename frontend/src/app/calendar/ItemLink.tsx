@@ -8,13 +8,15 @@
  * `iframe`) auch die eigenen, damit der Besucher nicht im Rähmchen landet.
  */
 
-import { linkWord, safeLink } from './calendar';
+import { safeLink } from './calendar';
+import { useT } from '../core/i18n';
 
 const inFrame = (): boolean => {
   try { return window.self !== window.top; } catch { return true; }
 };
 
 export function ItemLink({ url, label, compact = false }: { url: string | null | undefined; label?: string | null; compact?: boolean }) {
+  const t = useT();
   const safe = safeLink(url);
   if (safe === null) return null;
   const framed = !safe.external && inFrame();
@@ -27,7 +29,7 @@ export function ItemLink({ url, label, compact = false }: { url: string | null |
       {...(away ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
       onClick={(e) => e.stopPropagation()}
     >
-      {linkWord(label)}{away ? <span aria-hidden="true"> ↗</span> : null}
+      {(label ?? '').trim() || t('calendarApp.moreInfo')}{away ? <span aria-hidden="true"> ↗</span> : null}
     </a>
   );
 }

@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../core/i18n';
 
 import { readFrame, readPhoto } from '../library/barcode';
 import { Modal } from './Modal';
@@ -20,6 +21,7 @@ export function Scanner({ title, lead, onCode, onClose }: {
   onCode: (code: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const video = useRef<HTMLVideoElement | null>(null);
   const [camera, setCamera] = useState<CameraState>('starting');
   const [typed, setTyped] = useState('');
@@ -38,7 +40,7 @@ export function Scanner({ title, lead, onCode, onClose }: {
       if (done.current) return;
       done.current = true;
       navigator.vibrate?.(60);
-      stream?.getTracks().forEach((t) => t.stop());
+      stream?.getTracks().forEach((track) => track.stop());
       found.current(code.trim());
     };
 
@@ -60,7 +62,7 @@ export function Scanner({ title, lead, onCode, onClose }: {
         if (alive) setCamera(e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'denied' : 'none');
         return;
       }
-      if (!alive) { stream.getTracks().forEach((t) => t.stop()); return; }
+      if (!alive) { stream.getTracks().forEach((track) => track.stop()); return; }
       /* Scharf auf nahe Dinge — wo das Telefon es kann. */
       const track = stream.getVideoTracks()[0];
       await track?.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }).catch(() => undefined);
@@ -75,7 +77,7 @@ export function Scanner({ title, lead, onCode, onClose }: {
     return () => {
       alive = false;
       window.clearTimeout(timer);
-      stream?.getTracks().forEach((t) => t.stop());
+      stream?.getTracks().forEach((track) => track.stop());
     };
   }, []);
 
@@ -85,7 +87,7 @@ export function Scanner({ title, lead, onCode, onClose }: {
     setFailed(null);
     const code = await readPhoto(file).catch(() => null);
     setReading(false);
-    if (code === null) { setFailed('Na zdjęciu nie widać kodu — podejdź bliżej, bez odblasku, kod poziomo.'); return; }
+    if (code === null) { setFailed(t('ui.scanner.noCode')); return; }
     done.current = true;
     onCode(code.trim());
   };
@@ -95,25 +97,25 @@ export function Scanner({ title, lead, onCode, onClose }: {
       <div className="scan">
         <p className="wk-hint">{lead}</p>
         <div className={`scan-view is-${camera}`}>
-          <video ref={video} playsInline muted aria-label="Obraz z aparatu" />
+          <video ref={video} playsInline muted aria-label={t('ui.scanner.video')} />
           {camera === 'live' && <span className="scan-line" aria-hidden="true" />}
-          {camera === 'starting' && <p className="scan-say">Włączanie aparatu…</p>}
-          {camera === 'denied' && <p className="scan-say">Brak zgody na aparat. Zrób zdjęcie kodu albo wpisz numer.</p>}
-          {camera === 'none' && <p className="scan-say">Aparat nie jest tu dostępny. Zrób zdjęcie kodu albo wpisz numer.</p>}
+          {camera === 'starting' && <p className="scan-say">{t('ui.scanner.starting')}</p>}
+          {camera === 'denied' && <p className="scan-say">{t('ui.scanner.denied')}</p>}
+          {camera === 'none' && <p className="scan-say">{t('ui.scanner.none')}</p>}
         </div>
         <div className="wk-actions">
           <label className="wk-btn scan-photo">
-            {reading ? 'Odczytywanie…' : 'Zdjęcie kodu'}
+            {reading ? t('ui.scanner.reading') : t('ui.scanner.photo')}
             <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => { void fromPhoto(e.target.files?.[0]); e.target.value = ''; }} />
           </label>
         </div>
         {failed !== null && <p className="wk-error">{failed}</p>}
         <form className="scan-type" onSubmit={(e) => { e.preventDefault(); if (typed.trim() !== '') { done.current = true; onCode(typed.trim()); } }}>
           <label className="wk-field">
-            <span>…albo wpisz numer</span>
-            <input value={typed} inputMode="text" placeholder="978-83-… albo numer w bibliotece" onChange={(e) => setTyped(e.target.value)} />
+            <span>{t('ui.scanner.orType')}</span>
+            <input value={typed} inputMode="text" placeholder={t('ui.scanner.placeholder')} onChange={(e) => setTyped(e.target.value)} />
           </label>
-          <button type="submit" className="wk-link-btn" disabled={typed.trim() === ''}>Szukaj</button>
+          <button type="submit" className="wk-link-btn" disabled={typed.trim() === ''}>{t('common.search')}</button>
         </form>
       </div>
     </Modal>

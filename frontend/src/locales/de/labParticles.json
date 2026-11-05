@@ -1,0 +1,125 @@
+{
+  "title": "Teilchenlabor",
+  "loading": "Engine startet…",
+  "play": "Start",
+  "pause": "Pause",
+  "step": "Ein Schritt",
+  "speed": "Zeitraffer",
+  "tools": "Werkzeuge",
+  "materials": "Stoffe",
+  "apparatus": "Geräte",
+  "settings": "Einstellungen",
+  "inspect": "Untersuchen",
+  "toolPaint": "Malen",
+  "toolErase": "Radieren",
+  "toolPlace": "Stellen",
+  "toolWall": "Wand",
+  "toolInspect": "Untersuchen",
+  "matWater": "Wasser",
+  "matAir": "Luft",
+  "matGlass": "Glas",
+  "matSteel": "Stahl",
+  "matChips": "Siedesteine",
+  "appBeaker": "Becherglas",
+  "appHotplate": "Heizplatte",
+  "quality": "Qualität (Auflösung)",
+  "qualityVeryHigh": "Sehr hoch (empfohlen)",
+  "qualityHigh": "Hoch",
+  "qualityMedium": "Mittel (schwächerer Rechner)",
+  "slow": "Der Rechner kommt nicht nach: die Simulation läuft mit {x}× Echtzeit.",
+  "slowLower": "Qualität senken",
+  "slowLowest": "Das ist schon die niedrigste Stufe. Die Zeit läuft langsamer, die Ergebnisse bleiben dieselben.",
+  "m1Note": "Stufe M1a: Mechanik — Flüssigkeit und Gas, Wände, Oberflächenspannung, Auftrieb. Wärme und Sieden folgen.",
+  "airNote": "Luft fern von allem wird ohne Teilchen gerechnet: ruhig, mit Raumtemperatur (der Hintergrund der Kiste). Luftteilchen gibt es nur nahe Flüssigkeit und Geräten.",
+  "fullPower": "Alle Kerne",
+  "fullPowerTitle": "Das Labor in einem neuen Tab öffnen — es rechnet auf allen Prozessorkernen",
+  "fullPowerSlow": "In einem neuen Tab rechnet das Labor auf allen Kernen:",
+  "threads": "Threads",
+  "airParticles": "Luft",
+  "ambientAir": "Umgebungsluft (ohne Teilchen)",
+  "pressure": "Druck",
+  "hud": "Entwicklerfeld",
+  "hudButton": "HUD",
+  "brush": "Pinsel",
+  "temperature": "Temperatur beim Malen",
+  "showAir": "Luftteilchen zeigen",
+  "restart": "Von vorn",
+  "emptyBox": "Leere Kiste",
+  "hintPaint": "Ziehe über die Kiste, um mit dem gewählten Stoff zu malen.",
+  "hintErase": "Ziehe, um zu löschen — in die leere Stelle kommt Luft zurück.",
+  "hintPlace": "Klicke dorthin, wo das gewählte Gerät stehen soll (seine Unterseite an der Klickstelle).",
+  "hintWall": "Ziehe vom Anfang bis zum Ende der Wand.",
+  "hintInspect": "Klicke ein Teilchen an, um seine Daten zu sehen.",
+  "nothingHere": "Hier ist kein Teilchen.",
+  "phase": "Phase",
+  "phaseSolid": "fest",
+  "phaseLiquid": "flüssig",
+  "phaseGas": "Gas",
+  "fixed": "unbeweglich (Wand, Gerät)",
+  "heater": "Heizelement",
+  "temp": "Temperatur",
+  "mass": "Masse",
+  "velocity": "Geschwindigkeit",
+  "density": "Dichte",
+  "enthalpy": "Spezifische Enthalpie",
+  "neighbours": "Nachbarn",
+  "composition": "Zusammensetzung",
+  "particles": "Teilchen",
+  "liquid": "flüssig",
+  "gas": "Gas",
+  "solidFixed": "unbeweglich",
+  "stepsPerSecond": "Schritte/s",
+  "simRate": "Simulationstempo",
+  "fps": "Bilder/s",
+  "renderWorker": "zeichnet im Arbeitsthread",
+  "renderMain": "zeichnet die Seite",
+  "engineStopped": "Die Engine ist ausgefallen.",
+  "noWebgl2": "Dieser Browser kann kein WebGL2 — das Labor rechnet, zeichnet aber nicht.",
+  "pageTitle": "{title} — REcreatio",
+  "ai": {
+    "format": "Szene des Teilchenlabors (Baustein „Teilchenlabor“) — JSON. Die Engine rechnet alles aus lokalen Regeln und der Stoffdatenbank; die Szene sagt nur, was am Anfang wo steht (der Anfangsaufbau, nicht der Ablauf).\nEinheiten: Meter (Ursprung in der linken unteren Ecke des Inneren der Kiste, y nach oben), Temperaturen in °C, Druck in kPa, Leistung in W (je Schichtdicke).\n\n{ \"format\": \"recreatio/particles\", \"version\": 1, \"seed\": Zahl (wiederholbarer Zufall),\n  \"box\": { \"w\": Breite, \"h\": Höhe, \"depth\": Dicke der 2D-Schicht (meist 0.01) },\n  \"ambient\": { \"p\": kPa (101.325), \"T\": °C, \"g\": m/s² (0 — Schwerelosigkeit), \"air\": { \"N2\": 0.7676, \"O2\": 0.2324 } },\n  \"sides\": { \"left\" | \"right\" | \"bottom\" | \"top\": \"wall\" oder \"open\" (eine offene Seite ist das Zimmer) },\n  \"quality\": \"very-high\" | \"high\" | \"medium\" (Teilchengrösse 2 / 2,5 / 3 mm; meist \"very-high\"),\n  \"ops\": [ Bauschritte der Reihe nach ] }\n\nSchritte (\"op\"):\n  { \"op\": \"fill\", \"region\": Gebiet, \"composition\": { Stoff: Massenanteil }, \"phase\": \"liquid\" | \"gas\", \"T\": °C } — füllt das Gebiet mit Flüssigkeit oder Gas (was da war, weicht)\n  { \"op\": \"erase\", \"region\": Gebiet } — entfernt alles im Gebiet; Luft kommt zurück\n  { \"op\": \"solid\", \"region\": Gebiet, \"material\": Stoff, \"T\": °C } — ein unbeweglicher Feststoff (Wand, Siedesteine)\n  { \"op\": \"beaker\", \"x\": Mitte, \"y\": Boden, \"w\": Breite, \"h\": Höhe, \"wall\": Wanddicke, \"material\": \"glass\" } — ein Becherglas (Querschnitt)\n  { \"op\": \"hotplate\", \"x\": Mitte, \"y\": Boden, \"w\", \"h\", \"material\": \"steel\", \"mode\": \"power\" | \"thermostat\", \"power\": W, \"target\": °C, \"on\": true } — eine Heizplatte\nGebiet: { \"rect\": [x0, y0, x1, y1] } | { \"circle\": [x, y, r] } | { \"poly\": [[x, y], …] } | { \"line\": [x0, y0, x1, y1], \"width\": Dicke }",
+    "lists": "Stoffe (Flüssigkeiten und Gase): {fluids}. Werkstoffe der Feststoffe: {solids}.",
+    "prompt": "Bereite einen JSON-Anfangsaufbau für den Baustein „Teilchenlabor“ in REcreatio vor (ein 2D-Sandkasten aus Teilchen für die Schule).\nThema: [beschreibe, was in der Kiste stehen soll, z. B. „ein Becherglas mit Wasser auf einer Heizplatte und Siedesteine am Boden“].\nRegeln: echte Grössen (Becherglas 7 cm breit, Platte 16 cm), Dinge überlappen sich nicht, Geräte stehen auf dem Boden (y = 0) oder auf einem anderen Ding. Gib EIN JSON-Objekt zurück, ohne Kommentare.",
+    "example": "Beispiel:"
+  },
+  "species": {
+    "H2O": {
+      "name": "Wasser",
+      "solid": "Eis",
+      "liquid": "Wasser",
+      "gas": "Wasserdampf"
+    },
+    "N2": {
+      "name": "Stickstoff",
+      "gas": "Stickstoff"
+    },
+    "O2": {
+      "name": "Sauerstoff",
+      "gas": "Sauerstoff"
+    },
+    "glass": {
+      "name": "Borosilikatglas",
+      "solid": "Glas"
+    },
+    "steel": {
+      "name": "Edelstahl",
+      "solid": "Stahl"
+    },
+    "ceramic": {
+      "name": "poröse Keramik (Siedesteine)",
+      "solid": "Keramik"
+    }
+  },
+  "preset": {
+    "beakerOnPlate": {
+      "title": "Becherglas mit Wasser auf der Heizplatte",
+      "summary": "Siedeszene: ein Becherglas mit Wasser (20 °C) auf einer Heizplatte aus Stahl in einer Kiste voller Luft",
+      "text": "Im Becherglas ist Wasser mit Zimmertemperatur, darunter eine Heizplatte.\nUntersuche die Teilchen mit dem Werkzeug „Untersuchen“ — jedes hat seine eigene Zusammensetzung, Temperatur und Masse."
+    },
+    "emptyBox": {
+      "title": "Leere Kiste",
+      "summary": "eine Kiste voller Luft — male Wasser, stelle Wände und Geräte auf",
+      "text": "Die Kiste ist voller Luft. Male Wasser, zeichne Wände, stelle Bechergläser und Heizplatten auf."
+    }
+  }
+}

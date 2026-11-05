@@ -1,0 +1,125 @@
+{
+  "title": "Laboratorium cząstek",
+  "loading": "Uruchamianie silnika…",
+  "play": "Start",
+  "pause": "Pauza",
+  "step": "Jeden krok",
+  "speed": "Tempo czasu",
+  "hud": "Panel deweloperski",
+  "hudButton": "HUD",
+  "tools": "Narzędzia",
+  "materials": "Materiały",
+  "apparatus": "Aparatura",
+  "settings": "Ustawienia",
+  "inspect": "Badanie",
+  "toolPaint": "Maluj",
+  "toolErase": "Gumka",
+  "toolPlace": "Umieść",
+  "toolWall": "Ściana",
+  "toolInspect": "Badaj",
+  "matWater": "Woda",
+  "matAir": "Powietrze",
+  "matGlass": "Szkło",
+  "matSteel": "Stal",
+  "matChips": "Kamyczki wrzenne",
+  "appBeaker": "Zlewka",
+  "appHotplate": "Płyta grzejna",
+  "brush": "Pędzel",
+  "temperature": "Temperatura malowania",
+  "quality": "Jakość (rozdzielczość)",
+  "qualityVeryHigh": "Bardzo wysoka (zalecana)",
+  "qualityHigh": "Wysoka",
+  "qualityMedium": "Średnia (słabszy komputer)",
+  "slow": "Komputer nie nadąża: symulacja biegnie w tempie {x}× czasu rzeczywistego.",
+  "slowLower": "Obniż jakość",
+  "slowLowest": "To już najniższa jakość. Czas w symulacji płynie wolniej, ale wyniki są te same.",
+  "showAir": "Pokaż cząstki powietrza",
+  "restart": "Od nowa",
+  "emptyBox": "Pusta skrzynka",
+  "hintPaint": "Przeciągnij po skrzynce, żeby malować wybranym materiałem.",
+  "hintErase": "Przeciągnij, żeby usunąć — w puste miejsce wraca powietrze.",
+  "hintPlace": "Kliknij, gdzie ma stanąć wybrana aparatura (dół w miejscu kliknięcia).",
+  "hintWall": "Przeciągnij od początku do końca ściany.",
+  "hintInspect": "Kliknij cząstkę, żeby zobaczyć jej dane.",
+  "nothingHere": "Tu nie ma cząstki.",
+  "phase": "Faza",
+  "phaseSolid": "ciało stałe",
+  "phaseLiquid": "ciecz",
+  "phaseGas": "gaz",
+  "fixed": "nieruchoma (ściana, aparatura)",
+  "heater": "element grzejny",
+  "temp": "Temperatura",
+  "mass": "Masa",
+  "velocity": "Prędkość",
+  "density": "Gęstość",
+  "enthalpy": "Entalpia właściwa",
+  "neighbours": "Sąsiedzi",
+  "composition": "Skład",
+  "particles": "cząstek",
+  "liquid": "ciecz",
+  "gas": "gaz",
+  "solidFixed": "nieruchome",
+  "stepsPerSecond": "kroków/s",
+  "simRate": "tempo symulacji",
+  "fps": "klatek/s",
+  "renderWorker": "rysuje wątek roboczy",
+  "renderMain": "rysuje strona",
+  "m1Note": "Etap M1a: mechanika — ciecz i gaz, ścianki, napięcie powierzchniowe, wypór. Ciepło i wrzenie przyjdą w kolejnych etapach.",
+  "airNote": "Powietrze z dala od wszystkiego liczy się bez cząstek: spokojne, o temperaturze pokoju (tło skrzynki). Cząstki powietrza są tylko w pobliżu cieczy i aparatury.",
+  "fullPower": "Wszystkie rdzenie",
+  "fullPowerTitle": "Otwórz laboratorium w nowej karcie — liczy na wszystkich rdzeniach procesora",
+  "fullPowerSlow": "W nowej karcie laboratorium liczy na wszystkich rdzeniach:",
+  "threads": "wątki",
+  "airParticles": "powietrze",
+  "ambientAir": "Powietrze otoczenia (bez cząstek)",
+  "pressure": "Ciśnienie",
+  "engineStopped": "Silnik przestał działać.",
+  "noWebgl2": "Ta przeglądarka nie obsługuje WebGL2 — laboratorium liczy, ale nie rysuje.",
+  "pageTitle": "{title} — REcreatio",
+  "ai": {
+    "format": "Scena laboratorium cząstek (moduł „Laboratorium cząstek”) — JSON. Silnik liczy wszystko z lokalnych reguł i bazy substancji; scena mówi tylko, co i gdzie stoi na początku (to układ startowy, nie przebieg).\nJednostki: metry (początek układu w lewym dolnym rogu wnętrza skrzynki, y w górę), temperatury w °C, ciśnienie w kPa, moc w W (na grubość warstwy).\n\n{ \"format\": \"recreatio/particles\", \"version\": 1, \"seed\": liczba (losowość powtarzalna),\n  \"box\": { \"w\": szerokość, \"h\": wysokość, \"depth\": grubość warstwy 2D (zwykle 0.01) },\n  \"ambient\": { \"p\": kPa (101.325), \"T\": °C, \"g\": m/s² (0 — nieważkość), \"air\": { \"N2\": 0.7676, \"O2\": 0.2324 } },\n  \"sides\": { \"left\" | \"right\" | \"bottom\" | \"top\": \"wall\" albo \"open\" (otwarta strona to pokój) },\n  \"quality\": \"very-high\" | \"high\" | \"medium\" (rozmiar cząstki 2 / 2,5 / 3 mm; zwykle \"very-high\"),\n  \"ops\": [ kroki budowy po kolei ] }\n\nKroki (\"op\"):\n  { \"op\": \"fill\", \"region\": obszar, \"composition\": { substancja: udział masowy }, \"phase\": \"liquid\" | \"gas\", \"T\": °C } — wypełnia obszar cieczą albo gazem (to, co było, ustępuje)\n  { \"op\": \"erase\", \"region\": obszar } — usuwa wszystko w obszarze; wraca powietrze\n  { \"op\": \"solid\", \"region\": obszar, \"material\": materiał, \"T\": °C } — nieruchome ciało stałe (ściana, kamyczki wrzenne)\n  { \"op\": \"beaker\", \"x\": środek, \"y\": dół, \"w\": szerokość, \"h\": wysokość, \"wall\": grubość ścianki, \"material\": \"glass\" } — zlewka (przekrój)\n  { \"op\": \"hotplate\", \"x\": środek, \"y\": dół, \"w\", \"h\", \"material\": \"steel\", \"mode\": \"power\" | \"thermostat\", \"power\": W, \"target\": °C, \"on\": true } — płyta grzejna\nObszar: { \"rect\": [x0, y0, x1, y1] } | { \"circle\": [x, y, r] } | { \"poly\": [[x, y], …] } | { \"line\": [x0, y0, x1, y1], \"width\": grubość }",
+    "lists": "Substancje (ciecze i gazy): {fluids}. Materiały ciał stałych: {solids}.",
+    "prompt": "Przygotuj układ startowy JSON dla modułu „Laboratorium cząstek” w REcreatio (szkolna piaskownica 2D z cząstek).\nTemat: [opisz, co ma stać w skrzynce, np. „zlewka z wodą na płycie grzejnej i kamyczki wrzenne na dnie”].\nZasady: realne rozmiary (zlewka 7 cm szerokości, płyta 16 cm), rzeczy nie nachodzą na siebie, aparatura stoi na dnie (y = 0) albo na innej rzeczy. Zwróć JEDEN obiekt JSON, bez komentarzy.",
+    "example": "Przykład:"
+  },
+  "species": {
+    "H2O": {
+      "name": "woda",
+      "solid": "lód",
+      "liquid": "woda",
+      "gas": "para wodna"
+    },
+    "N2": {
+      "name": "azot",
+      "gas": "azot"
+    },
+    "O2": {
+      "name": "tlen",
+      "gas": "tlen"
+    },
+    "glass": {
+      "name": "szkło borokrzemowe",
+      "solid": "szkło"
+    },
+    "steel": {
+      "name": "stal nierdzewna",
+      "solid": "stal"
+    },
+    "ceramic": {
+      "name": "ceramika porowata (kamyczki wrzenne)",
+      "solid": "ceramika"
+    }
+  },
+  "preset": {
+    "beakerOnPlate": {
+      "title": "Zlewka z wodą na płycie grzejnej",
+      "summary": "scena wrzenia: zlewka z wodą (20 °C) na stalowej płycie grzejnej w skrzynce pełnej powietrza",
+      "text": "W zlewce jest woda o temperaturze pokojowej, pod nią płyta grzejna.\nZbadaj cząstki narzędziem „Badaj” — każda ma swój skład, temperaturę i masę."
+    },
+    "emptyBox": {
+      "title": "Pusta skrzynka",
+      "summary": "skrzynka pełna powietrza — maluj wodę, stawiaj ściany i aparaturę",
+      "text": "Skrzynka jest pełna powietrza. Maluj wodę, rysuj ściany, stawiaj zlewki i płyty grzejne."
+    }
+  }
+}

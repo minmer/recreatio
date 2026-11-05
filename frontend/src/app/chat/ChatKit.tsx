@@ -19,6 +19,7 @@ import { createPortal } from 'react-dom';
 
 import { authorOf as roleOrSeatOf, type Opened, type SealedMessage } from './chat';
 import { ICON_PATHS, type IconName } from '../ui/icons';
+import { appLang, fmtDate, fmtNumber, localeOf, tIn, useT, type Lang } from '../core/i18n';
 
 /*
  * 0095 — WER SPRICHT, für die Gruppen im Verlauf, die Farbe und das Bild: die
@@ -67,7 +68,7 @@ export const initialsOf = (name: string): string => {
   if (words.length === 0) return '?';
   const first = (w: string) => Array.from(w.replace(/^[^\p{L}\p{N}]+/u, ''))[0] ?? '';
   const out = words.length === 1 ? Array.from(words[0]).slice(0, 2).join('') : first(words[0]) + first(words[words.length - 1]);
-  return out.toLocaleUpperCase('pl-PL');
+  return out.toLocaleUpperCase();
 };
 
 export function Avatar({ seed, name, icon, size = 'md' }: { seed: string; name: string; icon?: IconName; size?: 'sm' | 'md' | 'lg' }) {
@@ -83,37 +84,37 @@ export function Avatar({ seed, name, icon, size = 'md' }: { seed: string; name: 
 /** Markierte kopieren: mit „wer und wann" (`yes`) oder nur den Text (`no`) — gemerkt am Konto, für Rozmowy und SMS (2026-10-26). */
 export const COPY_WHO_PREF = 'msg.copyWho';
 
-export const clock = (at: string) => new Date(at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
-export const full = (at: string) => new Date(at).toLocaleString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+export const clock = (at: string, lang?: Lang) => fmtDate(new Date(at), { hour: '2-digit', minute: '2-digit' }, lang);
+export const full = (at: string, lang?: Lang) => fmtDate(new Date(at), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }, lang);
 export const dayKey = (at: string) => new Date(at).toDateString();
 const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-const capital = (s: string) => s.charAt(0).toLocaleUpperCase('pl-PL') + s.slice(1);
+const capital = (s: string, lang: Lang) => s.charAt(0).toLocaleUpperCase(localeOf(lang)) + s.slice(1);
 
 /** Die Tagesmarke im Verlauf: Dzisiaj, Wczoraj, der Wochentag, sonst das Datum. */
-export function dayLabel(at: string, now = new Date()): string {
+export function dayLabel(at: string, now = new Date(), lang: Lang = appLang()): string {
   const d = new Date(at);
   const days = Math.round((midnight(now) - midnight(d)) / 86_400_000);
-  if (days === 0) return 'Dzisiaj';
-  if (days === 1) return 'Wczoraj';
-  if (days > 1 && days < 7) return capital(d.toLocaleDateString('pl-PL', { weekday: 'long' }));
-  return d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', ...(d.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
+  if (days === 0) return tIn(lang, 'common.today');
+  if (days === 1) return tIn(lang, 'common.yesterday');
+  if (days > 1 && days < 7) return capital(fmtDate(d, { weekday: 'long' }, lang), lang);
+  return fmtDate(d, { day: 'numeric', month: 'long', ...(d.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) }, lang);
 }
 
 /** Die Zeit in der Liste der Rozmowy: heute die Uhrzeit, dann „wczoraj", der Wochentag, das Datum. */
-export function listTime(at: string, now = new Date()): string {
+export function listTime(at: string, now = new Date(), lang: Lang = appLang()): string {
   const d = new Date(at);
   const days = Math.round((midnight(now) - midnight(d)) / 86_400_000);
-  if (days === 0) return clock(at);
-  if (days === 1) return 'wczoraj';
-  if (days > 1 && days < 7) return d.toLocaleDateString('pl-PL', { weekday: 'short' });
-  return d.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  if (days === 0) return clock(at, lang);
+  if (days === 1) return tIn(lang, 'chat.time.yesterday');
+  if (days > 1 && days < 7) return fmtDate(d, { weekday: 'short' }, lang);
+  return fmtDate(d, { day: '2-digit', month: '2-digit', year: '2-digit' }, lang);
 }
 
-export const whenLong = (at: string) => new Date(at).toLocaleString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+export const whenLong = (at: string, lang?: Lang) => fmtDate(new Date(at), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }, lang);
 
 export const sizeOf = (bytes: number) => bytes < 1024 * 1024
   ? `${Math.max(1, Math.round(bytes / 1024))} KB`
-  : `${(bytes / 1024 / 1024).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} MB`;
+  : `${fmtNumber(bytes / 1024 / 1024, { maximumFractionDigits: 1 })} MB`;
 
 export const coarsePointer = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true;
 
@@ -312,6 +313,7 @@ export function ChatHeader({ back, title, avatar, subtitle, menu, search, onSear
   heading?: 'h1' | 'h2' | 'p';
   compact?: boolean;
 }) {
+  const t = useT();
   const [searching, setSearching] = useState(search !== '');
   const more = useButtonMenu();
   const Title = heading;
@@ -325,22 +327,22 @@ export function ChatHeader({ back, title, avatar, subtitle, menu, search, onSear
           className="ch-search"
           autoFocus
           value={search}
-          placeholder="Szukaj w rozmowie…"
-          aria-label="Szukaj w rozmowie"
+          placeholder={t('chat.head.searchHint')}
+          aria-label={t('chat.head.search')}
           onChange={(e) => onSearch(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); stop(); } }}
         />
-        <button type="button" className="ch-icon-btn" aria-label="Zamknij wyszukiwanie" onClick={stop}><Icon name="x" /></button>
+        <button type="button" className="ch-icon-btn" aria-label={t('chat.head.closeSearch')} onClick={stop}><Icon name="x" /></button>
       </header>
     );
   }
 
-  const bell = quiet ? <span className="ch-quiet" title="Tryb cichy — powiadomienia są wyciszone"><Icon name="bell-off" label="wyciszona" /></span> : null;
+  const bell = quiet ? <span className="ch-quiet" title={t('chat.head.quietTitle')}><Icon name="bell-off" label={t('chat.head.quiet')} /></span> : null;
 
   return (
     <header className={cls('ch-head', compact && 'is-compact')}>
       {back !== undefined && (
-        <a className="ch-icon-btn ch-back" href={back} aria-label="Wróć do listy rozmów" title="Rozmowy"><Icon name="back" /></a>
+        <a className="ch-icon-btn ch-back" href={back} aria-label={t('chat.head.back')} title={t('chat.head.chats')}><Icon name="back" /></a>
       )}
       {avatar}
       <div className="ch-head-text">
@@ -349,14 +351,14 @@ export function ChatHeader({ back, title, avatar, subtitle, menu, search, onSear
           <span className="ch-head-sub">{title === undefined && bell}{subtitle}</span>
         )}
       </div>
-      <button type="button" className="ch-icon-btn" aria-label="Szukaj w rozmowie" title="Szukaj" onClick={() => setSearching(true)}>
+      <button type="button" className="ch-icon-btn" aria-label={t('chat.head.search')} title={t('common.search')} onClick={() => setSearching(true)}>
         <Icon name="search" />
       </button>
       {menu.length > 0 && <button
         type="button"
         className="ch-icon-btn"
-        aria-label="Więcej opcji rozmowy"
-        title="Więcej"
+        aria-label={t('chat.head.moreOptions')}
+        title={t('common.more')}
         aria-haspopup="menu"
         aria-expanded={more.open !== null}
         onClick={(e) => more.toggle(e.currentTarget)}
@@ -364,7 +366,7 @@ export function ChatHeader({ back, title, avatar, subtitle, menu, search, onSear
         <Icon name="more" />
       </button>}
       {more.open !== null && (
-        <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label="Opcje rozmowy" items={menu} onClose={more.close} />
+        <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label={t('chat.head.options')} items={menu} onClose={more.close} />
       )}
     </header>
   );

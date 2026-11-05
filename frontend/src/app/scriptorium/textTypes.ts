@@ -23,6 +23,7 @@
  * Skryptorium mit `cogita/schema.ts` (`TextTypeEditor.tsx`).
  */
 
+import { t } from '../core/i18n';
 import { ids, kindOf, str, type EntryData, type LibEntry, type Lookup } from '../library/libraryKinds';
 
 /**
@@ -33,7 +34,14 @@ export const TEXT_TYPE_FIELD_TYPES = ['line', 'text', 'number', 'date', 'bool', 
 export type TypeFieldType = (typeof TEXT_TYPE_FIELD_TYPES)[number];
 
 /** Die Schlüssel der festen Felder eines Textes — mit ihrem Namen (für die Warnung im Editor). */
-export const CORE_KEYS: ReadonlyMap<string, string> = new Map(kindOf('text')!.fields.map((f) => [f.key, `stałe pole tekstu „${f.label}”`]));
+class CoreKeys extends Map<string, string> {
+  /* Der Satz erst beim Lesen — in der Sprache, die dann gilt. */
+  override get(key: string): string | undefined {
+    if (!super.has(key)) return undefined;
+    return t('scriptorium.type.coreField', { label: kindOf('text')?.fields.find((f) => f.key === key)?.label ?? key });
+  }
+}
+export const CORE_KEYS: ReadonlyMap<string, string> = new CoreKeys(kindOf('text')!.fields.map((f) => [f.key, f.key]));
 
 /** Ein Feld eines Rodzaj tekstu, so weit ein Leser es braucht. */
 export interface TypeField {
@@ -76,7 +84,7 @@ export function typeFieldsOf(raw: unknown): TypeField[] {
       type,
       multi: one.multi === true,
       ...(options === undefined ? {} : { options }),
-      ...(Array.isArray(one.to) ? { to: one.to.filter((t): t is string => typeof t === 'string') } : {}),
+      ...(Array.isArray(one.to) ? { to: one.to.filter((x): x is string => typeof x === 'string') } : {}),
       ...(one.locator === true ? { locator: true } : {}),
       ...(typeof one.unit === 'string' && one.unit !== '' ? { unit: one.unit } : {}),
       ...(typeof one.says === 'string' && one.says !== '' ? { says: one.says } : {})
@@ -90,7 +98,7 @@ export function readTextType(entry: Pick<LibEntry, 'id' | 'key' | 'data'>): Text
   return {
     id: entry.id,
     ...(entry.key === undefined ? {} : { key: entry.key }),
-    name: str(entry.data, 'name').trim() || 'Rodzaj tekstu',
+    name: str(entry.data, 'name').trim() || t('scriptorium.type.name'),
     description: str(entry.data, 'description'),
     fields: typeFieldsOf(entry.data.fields)
   };
@@ -110,7 +118,7 @@ function partsOf(field: TypeField, raw: unknown): { id?: string; text: string; l
     const locator = isObject(one) && typeof one.locator === 'string' && one.locator.trim() !== '' ? one.locator.trim() : undefined;
     if (value === undefined || value === null || value === '') return [];
     if (field.type === 'ref') return typeof value === 'string' ? [{ id: value, text: '', ...(locator === undefined ? {} : { locator }) }] : [];
-    if (field.type === 'bool') return [{ text: value === true || value === 'yes' ? 'tak' : value === false || value === 'no' ? 'nie' : String(value) }];
+    if (field.type === 'bool') return [{ text: value === true || value === 'yes' ? t('scriptorium.type.yes') : value === false || value === 'no' ? t('scriptorium.type.no') : String(value) }];
     if (field.type === 'choice') return [{ text: field.options?.find((o) => o.value === value)?.label ?? String(value) }];
     if (isObject(value)) return [{ text: typeof value.value === 'number' || typeof value.value === 'string' ? `${value.value}${typeof value.unit === 'string' ? ` ${value.unit}` : ''}` : '' }];
     return [{ text: `${String(value)}${field.type === 'number' && field.unit !== undefined ? ` ${field.unit}` : ''}` }];
@@ -137,7 +145,7 @@ export function typeLines(data: EntryData, look: Lookup): { label: string; value
       if (target === undefined) return [];
       const name = nameOf(target, look);
       return [p.locator === undefined ? name : `${name}, ${p.locator}`];
-    }).filter((t) => t.trim() !== '');
+    }).filter((s) => s.trim() !== '');
     if (parts.length > 0) out.push({ label: field.label, value: parts.join(', ') });
   }
   return out;

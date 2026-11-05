@@ -9,7 +9,7 @@
 import type { FormContent, QuestionJson } from './formJson';
 import { EMPTY_DESIGN, layoutWith, type FormDesign, type LayoutItem, type LogicEdge, type LogicNode } from './formDesign';
 import { newId } from '../core/ids';
-import { choiceOf, NEED_SIGNER, needOf, type FormNeed, type NeedChoice, type NeedShape, type Q } from './needs';
+import { choiceOf, isNeedSigner, needOf, type FormNeed, type NeedChoice, type NeedShape, type Q } from './needs';
 
 /* -- Was ein eingeschaltetes Wymaganie hält (config.needs) ----------------------------- */
 
@@ -454,7 +454,7 @@ export function paperAfter(need: FormNeed, shape: NeedShape, now: NeedOn | null,
     return { set: { paper: shape.paper, ...(shape.signer === undefined ? {} : { paperSigner: shape.signer }) }, paper: true };
   }
   if (now?.paper === true && need.papers.includes(rule)) {
-    return { set: { paper: '', ...((config.paperSigner ?? '') === NEED_SIGNER ? { paperSigner: '' } : {}) }, paper: false };
+    return { set: { paper: '', ...(isNeedSigner(config.paperSigner ?? '') ? { paperSigner: '' } : {}) }, paper: false };
   }
   return { set: {}, paper: false };
 }

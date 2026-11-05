@@ -12,6 +12,7 @@
 
 import { fromBase64Url, openText } from '../core/crypto';
 import { API, call } from '../core/session';
+import { texts } from '../core/i18n';
 import { itemFieldAad } from '../calendar/calendar';
 import type { ControllerInfo } from '../areas/controllers';
 import { openCard as openProfileCard, type ProfileKind, type SealedCard } from '../areas/profile';
@@ -59,7 +60,7 @@ export const clearAreaEvent = (areaId: string): Promise<{ mark: null }> =>
 
 export type ListingState = 'asked' | 'shown' | 'refused';
 
-export const LISTING_WORDS: Record<ListingState, string> = { asked: 'czeka na decyzję', shown: 'pokazane', refused: 'odmówiono' };
+export const LISTING_WORDS: Record<ListingState, string> = texts({ asked: 'events.listing.asked', shown: 'events.listing.shown', refused: 'events.listing.refused' });
 
 export interface Listing {
   readonly moduleId: string;

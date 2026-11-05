@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 
+import { useT, type T } from '../core/i18n';
 import type { Who } from '../core/session';
 import { viewPath } from '../routes';
 import { PageHeader } from '../ui/PageHeader';
@@ -17,11 +18,11 @@ import { EXAMPLES } from './communityExamples';
 import { RunDialog } from './CommunityRun';
 import { UnitSettings } from './UnitSettings';
 
-const blank = (name: string): CommunityDoc => ({
+const blank = (name: string, t: T): CommunityDoc => ({
   name,
   positions: [
-    { key: 'prowadzacy', name: 'Prowadzący', rights: 'lead' },
-    { key: 'czlonek', name: 'Członek', rights: 'member' }
+    { key: 'prowadzacy', name: t('communities.wizard.leader'), rights: 'lead' },
+    { key: 'czlonek', name: t('communities.wizard.member'), rights: 'member' }
   ],
   fields: [], blueprints: [],
   unit: { key: 'wspolnota', name, kind: 'group', positions: ['prowadzacy', 'czlonek'] },
@@ -29,6 +30,7 @@ const blank = (name: string): CommunityDoc => ({
 });
 
 export function Wizard({ who }: { who: Who }) {
+  const t = useT();
   const [name, setName] = useState('');
   const [doc, setDoc] = useState<CommunityDoc | null>(null);
   const [step, setStep] = useState<Step>(1);
@@ -38,13 +40,13 @@ export function Wizard({ who }: { who: Who }) {
   if (doc === null) {
     return (
       <div className="wk-narrow ui-page" data-cm-wizard="start">
-        <PageHeader title="Nowa wspólnota" meta="Pięć pytań; każdą odpowiedź zmienisz później w ustawieniach." />
-        <label className="wk-field"><span>Jak się nazywa?</span><input value={name} autoFocus placeholder="np. Chór parafialny, Rejon XIII, Klasa 2b" onChange={(e) => setName(e.target.value)} data-cm-name="" /></label>
+        <PageHeader title={t('communities.list.new')} meta={t('communities.wizard.meta')} />
+        <label className="wk-field"><span>{t('communities.wizard.nameLabel')}</span><input value={name} autoFocus placeholder={t('communities.wizard.namePlaceholder')} onChange={(e) => setName(e.target.value)} data-cm-name="" /></label>
         <div className="wk-actions">
-          <button type="button" className="wk-btn" disabled={name.trim() === ''} onClick={() => setDoc(blank(name.trim()))} data-cm-begin="">Zacznij</button>
+          <button type="button" className="wk-btn" disabled={name.trim() === ''} onClick={() => setDoc(blank(name.trim(), t))} data-cm-begin="">{t('communities.wizard.begin')}</button>
         </div>
-        <h2 className="wk-h3">Albo zacznij od przykładu</h2>
-        <p className="wk-note">To nie są typy — tylko gotowe ustawienia do zmiany.</p>
+        <h2 className="wk-h3">{t('communities.wizard.fromExample')}</h2>
+        <p className="wk-note">{t('communities.wizard.notTypes')}</p>
         <ul className="wk-cm-children">
           {EXAMPLES.map((e) => (
             <li key={e.key}>
@@ -69,8 +71,8 @@ export function Wizard({ who }: { who: Who }) {
   };
   return (
     <div className="wk-narrow ui-page" data-cm-wizard={step}>
-      <PageHeader title={doc.name} meta={`Krok ${step} z 5 — ${STEP_TITLES[step]}`} />
-      <ol className="wk-cm-steps" aria-label="Kroki">
+      <PageHeader title={doc.name} meta={t('communities.wizard.stepMeta', { step, title: STEP_TITLES[step] })} />
+      <ol className="wk-cm-steps" aria-label={t('communities.wizard.steps')}>
         {([1, 2, 3, 4, 5] as const).map((s) => (
           <li key={s} className={s === step ? 'is-on' : s < step ? 'is-done' : undefined}>
             <button type="button" className="wk-link-btn" onClick={() => setStep(s)}>{s}. {STEP_TITLES[s]}</button>
@@ -79,12 +81,12 @@ export function Wizard({ who }: { who: Who }) {
       </ol>
       <UnitSettings doc={doc} unitKey={doc.unit.key} onChange={setDoc} only={step} />
       <div className="wk-actions">
-        {step > 1 && <button type="button" className="wk-btn wk-btn-line" onClick={() => setStep((s) => (s - 1) as Step)}>Wstecz</button>}
-        {step < 5 ? <button type="button" className="wk-btn" onClick={next} data-cm-next="">Dalej</button>
-          : <button type="button" className="wk-btn" onClick={() => setRun(true)} data-cm-create="">Zobacz plan i utwórz</button>}
+        {step > 1 && <button type="button" className="wk-btn wk-btn-line" onClick={() => setStep((s) => (s - 1) as Step)}>{t('common.back')}</button>}
+        {step < 5 ? <button type="button" className="wk-btn" onClick={next} data-cm-next="">{t('common.next')}</button>
+          : <button type="button" className="wk-btn" onClick={() => setRun(true)} data-cm-create="">{t('communities.wizard.planAndCreate')}</button>}
       </div>
       {run && (
-        <RunDialog who={who} rootAreaId={null} doc={doc} lines={planLines(doc, null, new Map())} title="Plan nowej wspólnoty"
+        <RunDialog who={who} rootAreaId={null} doc={doc} lines={planLines(doc, null, new Map())} title={t('communities.wizard.planTitle')}
           onClose={() => { setRun(false); if (made !== null) window.location.hash = viewPath('wspolnoty', made); }} onDone={(r) => setMade(r.rootAreaId)} />
       )}
     </div>

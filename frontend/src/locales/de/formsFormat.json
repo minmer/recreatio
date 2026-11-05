@@ -1,0 +1,63 @@
+{
+  "example": "Beispiel:",
+  "module": {
+    "needs": "\"needs\" — Anforderungen des Formulars: Minderjährige, Gesundheit, Versicherung, Regeln — jede mit Einstellungen (unten: Anforderungen des Formulars)",
+    "extends": "\"extends\", \"audience\" — nur in einer Erweiterung (Unterformular): welches Formular sie erweitert und wer sie ausfüllt (\"person\" — die Person über ihren Link, \"office\" — nur der Koordinator). \"extends\" ist nur eine Information; \"audience\" ändert der Import, solange das Unterformular keinen Eintrag hat",
+    "group": "\"group\" — die Formulargruppe (Ordner), in der es steht: ihr Name; null — ohne Gruppe. Der Import verschiebt das Formular in die Gruppe dieses Namens (gibt es sie nicht — legt er sie an). Für die Ausfüllenden ändert sich nichts",
+    "repeat": "\"repeat\" — nur in einer Erweiterung: wie oft jede Person der Liste einen Eintrag bekommt — \"once\" (einmal), \"day\", \"week\", \"month\", \"year\". Der Import ändert das, solange die Erweiterung keinen Eintrag hat",
+    "memberRoles": "\"memberRoles\" — Rollen der Teilnehmer: eine Liste von Rollenkennungen, die jeder bekommt, der das Formular sendet (Zugang zu ihren Bereichen, Seiten, Kalendern, Gesprächen); eine leere Liste — keine. Der Import setzt sie nur, wenn du diese Rollen hast; wer schon zu einer Rolle gehört, bleibt. Vorhandene Anmeldungen überträgt man im Modul („Vorhandene Anmeldungen übertragen“). Die ältere Form \"memberRole\" (eine Rolle oder null) wird auch gelesen",
+    "virtualAreas": "\"virtualAreas\" — Bereiche der Personen: eine Liste von Regeln; jede Person, die das Formular sendet, bekommt nach jeder Regel einen eigenen Bereich (Gespräch, Termine, Aufgaben nur für sie). Regel: { \"name\": Name, \"submitter\": was die Person tut — \"write\" (schreibt), \"read\" (liest), \"none\" (sieht ihn nicht: ein Bereich nur für die Leitung), \"roles\": [{ \"role\": Rollenkennung, \"level\": \"read\" | \"write\" | \"admin\" (leitet) }] } — jede dieser Rollen sieht einen solchen Bereich jeder Person. Der Import legt Regeln an, deren Namen es noch nicht gibt, ändert \"submitter\" und fügt Rollen hinzu, die du hast; er entfernt nichts"
+  },
+  "sample": {
+    "name": "Anmeldung zur Fahrt",
+    "sentTitle": "Danke für die Anmeldung!",
+    "email": "E-Mail für den Kontakt",
+    "phone": "Telefon",
+    "birth": "Formular mit Minderjährigen — Geburtsdatum, alle Möglichkeiten",
+    "ask": "Formular mit Minderjährigen — nur „ist minderjährig“, alle Möglichkeiten"
+  },
+  "needs": {
+    "title": "Anforderungen des Formulars (\"needs\")",
+    "intro": "Anforderungen sind fertige Teile eines Formulars für das, was eine Veranstaltung verlangt. Eine eingeschaltete Anforderung fügt ihre Fragen, Gruppen und Logik hinzu (was das Formular schon fragt — Vorname, Nachname, Geburtsdatum — verwendet sie weiter); solange sie eingeschaltet ist, lassen sich ihre Fragen und ihre Logik nicht löschen, die Fragen aber verschieben und umformulieren.",
+    "importDoes": "Was der Import tut:",
+    "import1": "- Eine Anforderung, die das Formular nicht hat, wird mit den angegebenen Einstellungen eingeschaltet.",
+    "import2": "- Eine eingeschaltete mit anderen Einstellungen wird umgestellt: was beide brauchen, bleibt mit seinen Antworten an seinem Platz; Fragen, die die neuen Einstellungen nicht brauchen, verschwinden (die mit Antworten — nur aus dem Formular genommen; die Antworten bleiben in den Anmeldungen).",
+    "import3": "- Mit \"holds\" (aus einem Export) übernimmt der Import Fragen, Gruppen und Logik aus dem Dokument, statt sie ein zweites Mal hinzuzufügen — so zieht ein Formular auf eine andere Seite oder in die nächste Ausgabe um.",
+    "import4": "- Eingeschaltete Anforderungen, die nicht im Dokument stehen, bleiben — ausgeschaltet werden sie erst mit „Fragen und Anforderungen entfernen, die nicht im Dokument stehen“.",
+    "list": "Anforderungen (mit den Einstellungen, die der Import ohne Angabe vorschlägt):",
+    "minors": "Minderjährige: wer mit einem Elternteil kommt — nichts weiter; mit einer volljährigen Aufsichtsperson — nur deren Vor- und Nachname; allein — Vor- und Nachname des Elternteils, sein Telefon und die Zustimmung: das Formular zeigt ihren Text ohne Ankreuzfeld, und am Ende (und nach dem Senden) „Zustimmung zum Unterschreiben drucken“ (\"paper\": \"sign\" in \"config\"). Ist nur eine Möglichkeit offen, wählt niemand — sie gilt (z. B. eine Fahrt nur für Kinder: \"ways\": [\"consent\"]).",
+    "wholeExample": "Beispiel eines ganzen Formulars (Moduldokument) mit allen Möglichkeiten für Minderjährige:"
+  },
+  "usage": {
+    "title": "Wie die App diese Daten verwendet",
+    "text": "- Ein Formular füllt man ohne Konto auf der Seite aus, auf der es steht (auch in einem Widget); ein Unterformular — nur über einen persönlichen Link oder nur das Büro (\"audience\"). Dasselbe Formular auf mehreren Seiten sammelt eine Liste von Anmeldungen.\n- Die Fragen liest jeder, wenn der Bereich, in dem sie liegen, öffentlich ist; sonst nur, wer ihn liest (Konto oder Link).\n- Anmeldungen nimmt es nur an, wenn der Bereich des Formulars (oder ein Bereich darüber) einen Verantwortlichen hat — seine Klausel steht über den Fragen und auf dem Ausdruck zum Unterschreiben.\n- Die Antworten verschlüsselt der Browser der ausfüllenden Person; der Server liest sie nicht. Öffnen können sie die Koordinatoren des Formulars: die Reiter „Anmeldungen“ und „Tabelle“, die Seitenmodule „Personenliste“ und „Personenpanel“. Wer nur die Seite führt, sieht, dass es Anmeldungen gibt — ohne ihren Inhalt.\n- Eine neue Anmeldung steht in der Glocke der Personen, die den Bereich des Formulars lesen (auch als Benachrichtigung).\n- Wer das Formular sendet, bekommt einen eigenen Link (er sieht ihn einmal; das Büro kann ihn per SMS schicken). Darunter sieht er seine Antworten und korrigiert die mit \"selfEdit\", ergänzt Unterformulare mit \"audience\": \"person\", hakt seine Schritte ab und schreibt in Gesprächen.\n- Über diesen Link wirken \"memberRoles\" und \"virtualAreas\": die Person gehört sofort zu den Rollen, und die Rollenschlüssel und Bereiche der Personen verteilt ohne Klick der Browser des Büros oder der Leitung (wenn sie das Formular oder die Glocke öffnen).\n- Ein Unterformular gibt der Person einen Schritt „Ausfüllen: …“ (ein Unterformular des Büros — ein Schritt nur für das Büro sichtbar). Anmeldungen nutzen auch die Schritte (Reiter „Schritte“), die Logikkarte der Seite (\"registered\", \"confirmed\", \"answer\", \"mark\"), mit dem Formular verbundene Gespräche und „Schreib uns“.\n- Der Import öffnet und schließt keine Anmeldungen und ändert weder Schritte noch Antworten von irgendwem."
+  },
+  "form": {
+    "title": "Formular (Modul \"form\")",
+    "intro": "Ein Eintrag des Moduls \"form\" — auf einer Seite und im Moduldokument — trägt neben Namen und Inhalt (\"config\") das, was zum Formular gehört: Fragen, Aufbau und Logik, Anforderungen, Rollen der Teilnehmer, Bereiche der Personen, Gruppe. Seite und Modul importieren sie gleich. Die Fragen werden im Browser mit dem Schlüssel des Formularbereichs verschlüsselt: der Export zeigt nur die, die sich mit deinen Schlüsseln öffnen lassen (andere haben \"label\": null und bleiben beim Import unberührt). Der Import versiegelt neue und geänderte Fragen hier, bevor sie zum Dienst gehen.\n- Eine Frage mit \"id\" aus dem Export wird geändert — ihre Antworten bleiben.\n- Eine Frage ohne \"id\" oder mit eigener (z. B. \"q1\") entsteht neu, am Ende; denselben Namen kann man in \"design\" verwenden.\n- Fragen, die nicht im Dokument stehen, löscht der Import nicht — außer du kreuzt „Fragen und Anforderungen entfernen, die nicht im Dokument stehen“ an. Fragen mit Antworten nimmt der Dienst nur aus dem Formular (ihre Antworten bleiben), und Fragen eingeschalteter Anforderungen löscht er nicht.\n- Die Reihenfolge vorhandener Fragen lässt sich nicht ändern — die Reihenfolge im Formular bestimmt \"design.layout\"."
+  },
+  "keys": {
+    "questions": "Fragen des Formulars — eine Liste, in Reihenfolge",
+    "qId": "Kennung der Frage. Eine aus dem Export — die Frage wird geändert (Antworten bleiben). Eine neue oder eigene (z. B. \"q1\") — es entsteht eine neue Frage; denselben Namen kann man in \"design\" verwenden. Eine aus dem Formular genommene Frage (sie hatte Antworten) steht nicht im Export; ihre Kennung im Dokument holt sie samt Antworten zurück",
+    "qKind": "Art: {kinds}",
+    "qLabel": "Text der Frage",
+    "qHelp": "Hinweis unter der Frage (oder null). Bei \"consent\" — der volle Text der Erklärung; eine angekreuzte Zustimmung wird zusammen mit ihm gespeichert (\"tak: …\"). \"pesel\" prüft die Prüfziffer",
+    "qOptions": "Auswahlmöglichkeiten — eine Liste (nur für \"choice\")",
+    "qRequired": "true — Antwort erforderlich",
+    "qHalfWidth": "true — Feld in halber Breite",
+    "qIdentity": "Welche Angabe der Person es betrifft (das Formular füllt sie selbst aus dem Profil): {roles}; eine gewöhnliche Frage: \"none\"",
+    "qSelfEdit": "true — die Person kann die Antwort später über ihren Link korrigieren",
+    "qPersonOnly": "true — die Antwort trägt nur die Person selbst ein und korrigiert sie (über ihren Link); das Büro liest sie, ändert sie aber nicht und trägt nicht für sie ein (z. B. eigene Ziele eines Kandidaten). Schaltet auch \"selfEdit\" ein. Weggelassen: false",
+    "qAnswersTo": "Kennung des Bereichs, in den die Antworten gehen (wer sie liest). Weggelassen: der beim Import gewählte Bereich. Eine Änderung bei einer vorhandenen Frage verschiebt die Antworten nicht — das geschieht im Modul",
+    "design": "Aufbau und Logik des Formulars (oder null — eine einfache Liste). Braucht den Bereich des Formulars",
+    "designVersion": "Immer 1",
+    "designLayout": "Reihenfolge und Gruppen — eine Liste von Elementen; Fragen, die hier fehlen, stehen am Ende. Gruppe: {\"type\":\"group\",\"id\":\"g1\",\"kind\":\"group\"|\"page\"|\"tab\",\"title\":\"…\",\"items\":[…]} (\"page\" — ein eigener Schritt des Formulars, \"tab\" — ein Reiter)",
+    "layoutType": "\"field\" — eine Frage, \"text\" — Text zwischen Fragen, \"group\" — eine Gruppe (siehe oben)",
+    "layoutId": "Bei \"field\": die Kennung der Frage (auch eine eigene aus \"questions\", z. B. \"q1\"); bei Text und Gruppe: beliebig, eindeutig",
+    "layoutText": "Bei \"text\": der Inhalt",
+    "layoutPrint": "Bei \"field\": true / false — ob die Antwort auf den Ausdruck zum Unterschreiben kommt. Weggelassen: Vor- und Nachname, Daten der Eltern (Name, Telefon), Zustimmungen und Erklärungen ja; der Rest (Alter, Schule…) nein",
+    "layoutSign": "Bei \"text\": true — eine Erklärung zum Unterschreiben auf dem Ausdruck (z. B. Zustimmung der Eltern): im Formular zum Lesen, ohne Ankreuzfeld; auf dem Ausdruck über der Unterschriftslinie",
+    "designNodes": "Logikknoten: {\"id\",\"kind\",\"x\",\"y\", \"fieldId\"?, \"value\"?, \"op\"?, \"target\"?}; kind: answer, const, age, compare, and, or, not, xor, show, message, label, require. \"age\" — Alter in vollen Jahren aus einer Frage mit Geburtsdatum oder PESEL (\"fieldId\"), am Tag \"value\" (JJJJ-MM-TT; leer — heute); mit 18 verglichen zeigt es die Felder für Minderjährige",
+    "designEdges": "Logikverbindungen: {\"id\",\"from\",\"to\",\"port\":\"a\"|\"b\"|\"in\"}"
+  }
+}

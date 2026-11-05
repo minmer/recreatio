@@ -14,6 +14,7 @@
  * Anfang, „Czytaj całość" klappt auf; hoch und im Vollbild das Ganze.
  */
 
+import { t } from '../../core/i18n';
 import { definePart, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
 
@@ -30,26 +31,26 @@ export const writingPart = definePart<WritingConfig>({
   kind: 'writing',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { scriptorium: '<id-skryptorium>', entry: '<id-tekstu>' },
-  label: 'Tekst ze skryptorium',
-  use: 'Kazanie albo inny tekst ze Skryptorium — z planem, nagraniami wygłoszeń (co powiedziano, co pominięto), przypisami i źródłami z Biblioteki. Dłuższy tekst trzymaj w Skryptorium i pokaż tym modułem; krótki napis zostaje w module „Tekst”.',
+  example: { scriptorium: '<id-skryptorium>', entry: '<id-tekstu>' }, // i18n-ignore
+  label: 'moduleContent.writing.label',
+  use: 'moduleContent.writing.use',
   box: { colSpan: 6, rowSpan: 5 },
 
   fields: [
-    { key: 'scriptorium', label: 'Ze skryptorium', kind: 'scriptorium' },
-    { key: 'entry', label: 'Który tekst', kind: 'libraryEntry', of: 'scriptorium', entryKinds: ['text'] }
+    { key: 'scriptorium', label: 'moduleContent.writing.scriptorium', kind: 'scriptorium' },
+    { key: 'entry', label: 'moduleContent.writing.entry', kind: 'libraryEntry', of: 'scriptorium', entryKinds: ['text'] }
   ],
 
   read: (raw: RawConfig): WritingConfig => ({ scriptorium: text(raw, 'scriptorium') || text(raw, 'library'), entry: text(raw, 'entry') }),
 
   hasContent: (c) => c.scriptorium !== '' && c.entry !== '',
-  missing: (c) => (c.scriptorium === '' || c.entry === '' ? 'Wybierz skryptorium i tekst.' : null),
+  missing: (c) => (c.scriptorium === '' || c.entry === '' ? t('moduleContent.writing.missing') : null),
 
-  strip: { title: 'Tekst', open: 'Czytaj' },
+  strip: { title: 'moduleContent.writing.stripTitle', open: 'moduleContent.writing.stripOpen' },
   fullscreen: true,
-  shows: (_c, size) => size.height === 'strip' ? 'Przycisk, który otwiera tekst.'
-    : size.height === 'tall' ? 'Cały tekst: plan, wygłoszenia z nagraniem (co powiedziano, co pominięto), treść, przypisy i źródła.'
-    : 'Tytuł, data, główne myśli planu — całość po kliknięciu.',
+  shows: (_c, size) => size.height === 'strip' ? t('moduleContent.writing.showsStrip')
+    : size.height === 'tall' ? t('moduleContent.writing.showsTall')
+    : t('moduleContent.writing.showsBlock'),
 
   View: ({ config, ctx }) => (
     <WritingCard library={config.scriptorium} entryId={config.entry} size={ctx.size} whole={ctx.whole === true} prefix={`w${ctx.moduleId.slice(0, 8)}-`} />

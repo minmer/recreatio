@@ -26,6 +26,7 @@ import { InviteePicker, KIND, nameOf, useKnown, useKnownInAreas } from '../roles
 import { WorkspaceError } from '../core/session';
 import { askText } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 interface Answerer {
   readonly roleId: string;
@@ -38,8 +39,11 @@ interface Answerer {
 const LEADS = ['admin', 'certify'];
 
 export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
+  const t = useT();
   const who = useWho();
   const me = useMe(who);
+  const youMark = ` (${t('chat.askSetup.youMark')})`;
+  const plainName = (n: string) => (n.endsWith(youMark) ? n.slice(0, -youMark.length) : n);
   const moduleId = ctx.moduleId ?? null;
 
   const [row, setRow] = useState<ModuleRow | null | undefined>(undefined);
@@ -81,16 +85,16 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
   const known = useMemo<readonly Invitee[]>(() => {
     if (me == null) return [];
     const out = new Map<string, Invitee>();
-    for (const r of me.roles) out.set(r.id, { roleId: r.id, kind: r.kind as Invitee['kind'], wrapPublicKey: r.wrapPublicKey, name: `${me.names.get(r.id) ?? KIND[r.kind] ?? 'rola'} (Ty)` });
+    for (const r of me.roles) out.set(r.id, { roleId: r.id, kind: r.kind as Invitee['kind'], wrapPublicKey: r.wrapPublicKey, name: `${me.names.get(r.id) ?? KIND[r.kind] ?? t('chat.askSetup.role')}${youMark}` });
     for (const one of [...fromAreas, ...fromChats]) if (!out.has(one.roleId)) out.set(one.roleId, one);
     return [...out.values()].filter((one) => !answerers.some((a) => a.roleId === one.roleId));
-  }, [me, fromAreas, fromChats, answerers]);
+  }, [me, fromAreas, fromChats, answerers, youMark, t]);
 
   const run = async (what: string, todo: () => Promise<void>) => {
     setWorking(what);
     setFailed(null);
     try { await todo(); await look(); } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally { setWorking(null); }
   };
 
@@ -102,16 +106,16 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
     if (me == null) return;
     for (const one of list) {
       await joinArea(me.ring, target, { id: one.roleId, kind: one.kind, wrapPublicKey: one.wrapPublicKey }, by, 'write');
-      const plain = one.name.replace(/ \(Ty\)$/, '').trim();
+      const plain = plainName(one.name).trim();
       if (plain !== '') await setMemberName(target, await areaKeys(me.ring, target, true), one.roleId, plain, by).catch(() => undefined);
     }
   };
 
   /* Zum ersten Mal: den Bereich anlegen — als eine der gewählten eigenen Rollen, sonst als meine Person. */
-  const create = () => void run('Zapisywanie…', async () => {
+  const create = () => void run(t('common.saving'), async () => {
     if (me == null || moduleId === null) return;
-    if (adding.length === 0) throw new WorkspaceError('Wybierz, kto odpowiada.');
-    const called = (shownAs.trim() || adding.map((a) => a.name.replace(/ \(Ty\)$/, '')).join(', ')).slice(0, 200);
+    if (adding.length === 0) throw new WorkspaceError(t('chat.askSetup.pickAnswerers'));
+    const called = (shownAs.trim() || adding.map((a) => plainName(a.name)).join(', ')).slice(0, 200);
     const own = adding.find((a) => me.ring.maySign(a.roleId));
     const creator = me.roles.find((r) => r.id === own?.roleId) ?? me.person;
     const made = await createArea(me.ring, creator, called);
@@ -123,38 +127,37 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
   });
 
   if (moduleId === null) {
-    return <p className="wk-hint">Zapisz stronę — potem wybierzesz, kto odpowiada i z których formularzy można pisać.</p>;
+    return <p className="wk-hint">{t('chat.askSetup.saveFirst')}</p>;
   }
-  if (who === null) return <p className="wk-hint">Zaloguj się, żeby wybrać, kto odpowiada.</p>;
-  if (me === null) return <p className="wk-hint">Odblokuj klucze (hasło), żeby wybrać, kto odpowiada.</p>;
-  if (row === undefined || me === undefined) return <Loading label="Wczytywanie…" />;
-  if (row === null) return <p className="wk-hint">Zapisz stronę — potem wybierzesz, kto odpowiada i z których formularzy można pisać.</p>;
+  if (who === null) return <p className="wk-hint">{t('chat.askSetup.signIn')}</p>;
+  if (me === null) return <p className="wk-hint">{t('chat.askSetup.unlock')}</p>;
+  if (row === undefined || me === undefined) return <Loading label={t('common.loading')} />;
+  if (row === null) return <p className="wk-hint">{t('chat.askSetup.saveFirst')}</p>;
 
   const blocked = busy || working !== null;
 
   return (
     <section className="wk-ask-setup">
       <label className="wk-field">
-        <span>Nagłówek</span>
-        <input value={raw.title ?? ''} placeholder="np. Napisz do księdza" disabled={blocked} onChange={(e) => onSet({ title: e.target.value })} />
+        <span>{t('chat.askSetup.heading')}</span>
+        <input value={raw.title ?? ''} placeholder={t('chat.askSetup.headingHint')} disabled={blocked} onChange={(e) => onSet({ title: e.target.value })} />
       </label>
 
-      <h4 className="pb-h">Kto odpowiada</h4>
+      <h4 className="pb-h">{t('chat.askSetup.answerers')}</h4>
       {areaId === null ? (
         <>
           <p className="wk-hint">
-            Wybierz osoby albo role (np. swoją rolę „Ksiądz"). Tylko one zobaczą rozmowy z tego modułu.
-            Jeśli nie wybierzesz żadnej swojej roli, będziesz wśród nich także Ty.
+            {t('chat.askSetup.answerersHint')}
           </p>
           <InviteePicker known={known} chosen={adding} single={false} busy={blocked} onChange={setAdding} />
           <label className="wk-field">
-            <span>Jak ich zobaczy osoba z linkiem</span>
+            <span>{t('chat.askSetup.shownAs')}</span>
             <input value={shownAs} maxLength={200} disabled={blocked}
-              placeholder={adding.map((a) => a.name.replace(/ \(Ty\)$/, '')).join(', ') || 'np. Ksiądz Jan'}
+              placeholder={adding.map((a) => plainName(a.name)).join(', ') || t('chat.askSetup.shownAsHint')}
               onChange={(e) => setShownAs(e.target.value)} />
           </label>
           <div className="wk-actions">
-            <button type="button" className="wk-btn" disabled={blocked || adding.length === 0} onClick={create}>Zapisz, kto odpowiada</button>
+            <button type="button" className="wk-btn" disabled={blocked || adding.length === 0} onClick={create}>{t('chat.askSetup.saveAnswerers')}</button>
           </div>
         </>
       ) : (
@@ -164,15 +167,15 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
               <li key={a.roleId} className="wk-row">
                 <span>
                   <strong>{a.name}</strong>
-                  <span className="wk-row-side"> · {KIND[a.kind] ?? a.kind}{a.leads ? ' · prowadzi listę' : ''}{a.mine ? ' · to Ty' : ''}</span>
+                  <span className="wk-row-side"> · {KIND[a.kind] ?? a.kind}{a.leads ? ` · ${t('chat.askSetup.leads')}` : ''}{a.mine ? ` · ${t('chat.askSetup.isYou')}` : ''}</span>
                 </span>
                 {issuer !== null && !a.leads && (
                   <button type="button" className="wk-link-btn wk-danger" disabled={blocked}
                     onClick={async () => {
-                      if (!(await askText(`Usunąć „${a.name}" z odpowiadających? Rozmów, które już czytał(a), to nie zabiera.`))) return;
-                      void run('Usuwanie…', async () => { await dropFromArea(areaId, a.roleId); });
+                      if (!(await askText(t('chat.askSetup.removeAsk', { name: a.name })))) return;
+                      void run(t('chat.askSetup.removing'), async () => { await dropFromArea(areaId, a.roleId); });
                     }}>
-                    Usuń
+                    {t('common.remove')}
                   </button>
                 )}
               </li>
@@ -184,21 +187,21 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
               {adding.length > 0 && (
                 <div className="wk-actions">
                   <button type="button" className="wk-btn wk-btn-quiet" disabled={blocked}
-                    onClick={() => void run('Dodawanie…', async () => { await join(areaId, issuer, adding); setAdding([]); })}>
-                    Dodaj do odpowiadających
+                    onClick={() => void run(t('chat.askSetup.adding'), async () => { await join(areaId, issuer, adding); setAdding([]); })}>
+                    {t('chat.askSetup.addAnswerers')}
                   </button>
                 </div>
               )}
               <form className="wk-inline-form" onSubmit={(e) => {
                 e.preventDefault();
-                void run('Zapisywanie…', async () => { await renameArea(areaId, shownAs.trim()); });
+                void run(t('common.saving'), async () => { await renameArea(areaId, shownAs.trim()); });
               }}>
                 <label className="wk-field">
-                  <span>Jak ich zobaczy osoba z linkiem</span>
+                  <span>{t('chat.askSetup.shownAs')}</span>
                   <input value={shownAs} maxLength={200} disabled={blocked} onChange={(e) => setShownAs(e.target.value)} />
                 </label>
                 {shownAs.trim() !== '' && shownAs.trim() !== (row.areaName ?? '') && (
-                  <div className="wk-actions"><button type="submit" className="wk-btn wk-btn-quiet" disabled={blocked}>Zmień</button></div>
+                  <div className="wk-actions"><button type="submit" className="wk-btn wk-btn-quiet" disabled={blocked}>{t('common.change')}</button></div>
                 )}
               </form>
             </>
@@ -207,10 +210,10 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
       )}
 
       {areaId === null
-        ? <p className="wk-hint">Z których formularzy można pisać — wybierzesz, gdy zapiszesz, kto odpowiada.</p>
-        : <AudienceForms kind="module" subjectId={moduleId} mode="one" forms={forms} byRoleId={writer} what="ten moduł" onChanged={() => void look()} />}
+        ? <p className="wk-hint">{t('chat.askSetup.formsLater')}</p>
+        : <AudienceForms kind="module" subjectId={moduleId} mode="one" forms={forms} byRoleId={writer} what={t('chat.askSetup.thisModule')} onChanged={() => void look()} />}
 
-      {forms.length === 0 && areaId !== null && <p className="wk-blocker">Dołącz co najmniej jeden formularz — inaczej nikt nie może tu napisać.</p>}
+      {forms.length === 0 && areaId !== null && <p className="wk-blocker">{t('chat.askSetup.needForm')}</p>}
       {failed !== null && <p className="wk-error">{failed}</p>}
       {working !== null && <p className="wk-hint" role="status">{working}</p>}
     </section>

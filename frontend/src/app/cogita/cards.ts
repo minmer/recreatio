@@ -32,12 +32,13 @@
  */
 
 import { checkBuild, checkCode, checkDate, checkFlash, checkGaps, checkMany, checkMatch, checkNumber, checkOne, checkOrder, checkPoint, checkText, checkTrueFalse, GAP_RULE, readDateAnswer, readRule, TEXT_RULE, type AnswerForm, type FlashGrade, type Outcome, type PointGiven, type TextRule } from './check';
-import { ancestors, evaluate, readGraph, type Graph, type RunOutput } from './graph';
+import { ancestors, evaluate, readGraph, upstreamFailed, type Graph, type RunOutput } from './graph';
 import { dateKey, fieldsOf, plainOf, readNumber, valuesOf, type DatePrecision, type Entity, type Lookup } from './schema';
 import { type AnswerSpec, type Card, type CardTest, type CodeTest, type Fragment, type GapSlot, type Item, type ParamValue, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, readParams, rngOf, shuffle, shuffleAway, shuffledPairs, stable, str } from './cardBasics';
 import { type Draft, type GeneratorRun, TEMPLATE_PALETTE } from './cardPalette';
 import { checkInteractive, interactiveExpected, interactiveSpec } from './interactive';
 import { convert, findUnit, guessKind, kindById, measures, parseQuantity } from '../core/quantities';
+import { t } from '../core/i18n';
 import { hasTex, plainWithTex } from '../core/tex';
 import { choicesOf, GAP, pairsOf, rawList, showOf } from './questionTypes';
 import { drawInstance, drawsEntries, readParamsSpec, storedValues, withParams, type GenWorld } from './generator';
@@ -268,9 +269,9 @@ export function templateProblems(template: Template): string[] {
   const cards = template.graph.nodes.filter((n) => n.type === 'card').length;
   const loops = template.graph.nodes.filter((n) => n.type === 'each').length;
   const out: string[] = [];
-  if (cards === 0) out.push('Szablon nie ma kroku „Karta".');
-  if (cards > 1) out.push('Szablon ma więcej niż jeden krok „Karta".');
-  if (loops > 1) out.push('Szablon może mieć najwyżej jedną pętlę „Dla każdej wartości".');
+  if (cards === 0) out.push(t('cogitaViews.cards.noCard'));
+  if (cards > 1) out.push(t('cogitaViews.cards.manyCards'));
+  if (loops > 1) out.push(t('cogitaViews.cards.manyLoops'));
   return out;
 }
 
@@ -330,7 +331,7 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
     if (graph.nodes.some((n) => (n.type === 'when' || n.type === 'generate') && result.outputs.get(n.id)?.pass === false)) continue;
     const error = result.errors.get(cardNode.id);
     if (error !== undefined) {
-      const first = [...result.errors.entries()].find(([, text]) => text !== 'Poprzedni krok się nie udał.');
+      const first = [...result.errors.entries()].find(([, text]) => text !== upstreamFailed());
       problems.push(first ? first[1] : error);
       continue;
     }
@@ -657,7 +658,7 @@ export function generatorProblem(entity: Entity, seed = '', world?: GenWorld): s
   if (spec === null) return null;
   if (drawsEntries(spec) && world === undefined) return null;
   const made = drawInstance(spec, rngOf(`${seed}:${entity.id}`), world);
-  return made.held ? null : made.problem ?? 'Zadania nie dało się wylosować.';
+  return made.held ? null : made.problem ?? t('cogitaViews.cards.noDraw');
 }
 
 /**
@@ -834,7 +835,7 @@ export function questionCards(entity: Entity, seed = '', world?: GenWorld): Card
       answer: matchAnswer(shuffle([pair, ...others], rng), heads, rng, sentenceSet(d, entity.id)),
       fingerprint: hashOf(stable({ f: 'pair', l: pair.left, r: pair.right, n: show })),
       varies: true,
-      label: `${pair.left} — ${pair.right}`,
+      label: `${pair.left} — ${pair.right}`, // i18n-ignore
       facts: [pairFact(sentenceSet(d, entity.id), pair.left, pair.right)]
     };
   });

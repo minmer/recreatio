@@ -166,7 +166,7 @@ function renderShape(s: Shape, ctx: Ctx, key: string): ReactNode {
  * folgt nicht der Uhr, sondern dem Fortschritt der Szene: eine Linie, die sich
  * beim Rollen zeichnet, und zurückrollend wieder verschwindet.
  */
-export function useMotionPlan(svg: RefObject<SVGSVGElement | null>, plan: readonly { readonly id: number; readonly use: MotionUse; readonly shift: number }[], quiet: boolean, phase: Phase): void {
+export function useMotionPlan(svg: RefObject<SVGSVGElement | null>, plan: readonly { readonly id: number; readonly use: MotionUse; readonly shift: number }[], quiet: boolean, phase: Phase): void { // i18n-ignore
   const anims = useRef<Animation[]>([]);
   const armed = useRef(true);
   const clock = useContext(ShowClock);

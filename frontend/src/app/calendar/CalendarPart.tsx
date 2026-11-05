@@ -49,8 +49,9 @@ import { Modal } from '../ui/Modal';
 import type { PartContext } from '../pages/part';
 import { usePerson } from '../pages/pagePerson';
 import { Loading } from '../ui/Loading';
+import { fmtDate, rich, useT, type Lang } from '../core/i18n';
 
-const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+const time = (at: Date, lang: Lang) => fmtDate(at, { hour: '2-digit', minute: '2-digit' }, lang);
 
 interface Detail { location: string | null; notes: string | null; link: string | null; linkLabel: string | null }
 
@@ -111,6 +112,7 @@ function linkAreas(links: readonly HeldInfo[], known: readonly AreaRow[]): AreaR
 let startsNew: string | null = null;
 
 export function CalendarPartView({ title, calendarIds, ctx }: { title: string; calendarIds: readonly string[]; ctx: PartContext }) {
+  const t = useT();
   const who = useWho();
   const me = useMe(who);
 
@@ -123,14 +125,14 @@ export function CalendarPartView({ title, calendarIds, ctx }: { title: string; c
   const own = useOwnCalendars(identity, ids);
   const writes = own?.some((c) => c.mayWrite === true && c.archived !== true) ?? false;
 
-  const head = <h2 className="wk-card-title">{title.trim() === '' ? 'Kalendarz' : title}</h2>;
+  const head = <h2 className="wk-card-title">{title.trim() === '' ? t('calendarApp.linkCalendar.title') : title}</h2>;
 
   if (calendarIds.length === 0) {
-    return <>{head}<p className="wk-card-muted">Tu pojawią się terminy — trzeba jeszcze wybrać kalendarz.</p></>;
+    return <>{head}<p className="wk-card-muted">{t('calendarApp.part.noCalendar')}</p></>;
   }
 
   if (ctx.whole === true && identity != null) {
-    if (own === undefined) return <Loading label="Wczytywanie…" />;
+    if (own === undefined) return <Loading label={t('common.loading')} />;
 
     /*
      * IM VOLLBILD DER GANZE KALENDER — für den, der ihn hat. Das Konto, wenn
@@ -178,6 +180,7 @@ function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
   /** Wer hier schreibt: ein neuer Termin (im ganzen Fenster). */
   onAdd?: () => void;
 }) {
+  const t = useT();
   const person = usePerson();
   const seat = person?.chosen?.kind === 'seat' ? person.chosen.seat.token : undefined;
   const now = useNow();
@@ -256,7 +259,7 @@ function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
               key,
               source: 'item',
               /* Ohne eigenen Titel: der Name des Kalenders („Spotkania z kandydatami") — nicht bloss die Art. */
-              title: found.title ?? o.titlePublic ?? day.title ?? ITEM_LABEL[o.kind as ItemKind] ?? 'termin',
+              title: found.title ?? o.titlePublic ?? day.title ?? ITEM_LABEL[o.kind as ItemKind] ?? t('calendarApp.part.item'),
               start: new Date(o.startsAt),
               end: new Date(o.endsAt),
               allDay: o.allDay,
@@ -297,8 +300,8 @@ function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
     return () => { alive = false; };
   }, [ids, me, identity, signedIn, seat, fromMs, toMs, linksStamp]);
 
-  if (failed) return <p className="wk-card-muted">Nie udało się wczytać terminów.</p>;
-  if (data === null) return <Loading label="Wczytywanie…" />;
+  if (failed) return <p className="wk-card-muted">{t('calendarApp.part.loadFailed')}</p>;
+  if (data === null) return <Loading label={t('common.loading')} />;
 
   const upcoming = data.events.filter((e) => e.end.getTime() >= now.getTime());
   const descriptions = data.calendars.filter((c) => c.description !== null && c.description.trim() !== '');
@@ -307,12 +310,12 @@ function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
     const next = upcoming[0];
     return (
       <p className="wk-cal-part-next">
-        {next === undefined ? 'W najbliższym czasie nic.' : <>Najbliższy: <strong>{next.title}</strong> · {longDate(next.start)}{next.allDay ? '' : `, ${time(next.start)}`}</>}
+        {next === undefined ? t('calendarApp.part.nothingSoon') : rich(t('calendarApp.part.next', { title: next.title, when: `${longDate(next.start, t.lang)}${next.allDay ? '' : `, ${time(next.start, t.lang)}`}` }), { b: (s) => <strong>{s}</strong> })}
       </p>
     );
   }
 
-  const label = shownView === 'day' ? longDate(anchor) : shownView === 'month' ? monthTitle(anchor) : rangeTitle(range.from, range.to);
+  const label = shownView === 'day' ? longDate(anchor, t.lang) : shownView === 'month' ? monthTitle(anchor, t.lang) : rangeTitle(range.from, range.to, t.lang);
   const days = shownView === 'day' ? [anchor] : Array.from({ length: 7 }, (_, i) => addDays(range.from, i));
   const detail = open === null ? null : data.details.get(open.key);
 
@@ -332,10 +335,11 @@ function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
       {joinable.map((one) => (
         <p key={one.token} className="wk-note wk-cal-part-join">
           <span>
-            Link{one.info!.label !== null ? ` „${one.info!.label}”` : ''} w tej przeglądarce pozwala tu dopisywać terminy
-            ({accessWords(one.info!.areas)}). Jesteś zalogowany — dodaj go do konta, a będziesz pisać jako Ty.
+            {one.info!.label !== null
+              ? t('calendarApp.part.joinNamed', { label: one.info!.label, access: accessWords(one.info!.areas) })
+              : t('calendarApp.part.join', { access: accessWords(one.info!.areas) })}
           </span>
-          <a className="wk-btn wk-btn-line" href={`#/dolacz/${one.token}`}>Dodaj do konta</a>
+          <a className="wk-btn wk-btn-line" href={`#/dolacz/${one.token}`}>{t('calendarApp.part.joinButton')}</a>
         </p>
       ))}
 
@@ -352,18 +356,18 @@ function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
       {big && (
         <div className="wk-cal2-bar">
           <div className="wk-mass-nav">
-            <button type="button" className="wk-mass-step" aria-label="Wcześniej" onClick={() => setAnchor(stepView(shownView, anchor, -1))}>‹</button>
-            <button type="button" className="wk-mass-today" aria-pressed={sameDay(anchor, now)} onClick={() => setAnchor(startOfDay(new Date()))}>Dziś</button>
-            <button type="button" className="wk-mass-step" aria-label="Później" onClick={() => setAnchor(stepView(shownView, anchor, 1))}>›</button>
+            <button type="button" className="wk-mass-step" aria-label={t('calendarApp.nav.earlier')} onClick={() => setAnchor(stepView(shownView, anchor, -1))}>‹</button>
+            <button type="button" className="wk-mass-today" aria-pressed={sameDay(anchor, now)} onClick={() => setAnchor(startOfDay(new Date()))}>{t('calendarApp.nav.today')}</button>
+            <button type="button" className="wk-mass-step" aria-label={t('calendarApp.nav.later')} onClick={() => setAnchor(stepView(shownView, anchor, 1))}>›</button>
           </div>
           <p className="wk-mass-range">{label}</p>
-          <div className="wk-seg" role="group" aria-label="Widok">
-            {([['week', 'Tydzień'], ['month', 'Miesiąc'], ['list', 'Lista']] as const).map(([value, text]) => (
+          <div className="wk-seg" role="group" aria-label={t('calendarApp.nav.view')}>
+            {(['week', 'month', 'list'] as const).map((value) => (
               <button key={value} type="button" aria-pressed={view === value}
-                className={view === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} onClick={() => setView(value)}>{text}</button>
+                className={view === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} onClick={() => setView(value)}>{t(`calendarApp.view.${value}`)}</button>
             ))}
           </div>
-          {onAdd !== undefined && <div className="wk-cal2-add"><button type="button" className="wk-btn" onClick={onAdd}>+ Termin</button></div>}
+          {onAdd !== undefined && <div className="wk-cal2-add"><button type="button" className="wk-btn" onClick={onAdd}>{t('calendarApp.part.add')}</button></div>}
         </div>
       )}
 
@@ -381,17 +385,17 @@ function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
 
       {/* Klein: derselbe Weg zum Eintragen, unter der Liste. */}
       {!big && onAdd !== undefined && (
-        <div className="wk-actions"><button type="button" className="wk-btn wk-btn-quiet" onClick={onAdd}>+ Termin</button></div>
+        <div className="wk-actions"><button type="button" className="wk-btn wk-btn-quiet" onClick={onAdd}>{t('calendarApp.part.add')}</button></div>
       )}
 
       {open !== null && (
         <Modal title={open.title} onClose={() => setOpen(null)}>
-          <p className="wk-ev-when">{longDate(open.start)}{open.allDay ? '' : `, ${time(open.start)}–${time(open.end)}`}</p>
-          {detail?.location && <p><strong>Miejsce:</strong> {detail.location}</p>}
+          <p className="wk-ev-when">{longDate(open.start, t.lang)}{open.allDay ? '' : `, ${time(open.start, t.lang)}–${time(open.end, t.lang)}`}</p>
+          {detail?.location && <p>{rich(t('calendarApp.part.place', { place: detail.location }), { b: (s) => <strong>{s}</strong> })}</p>}
           {detail?.notes && <p className="wk-ev-notes">{detail.notes}</p>}
           {detail?.link && <p><ItemLink url={detail.link} label={detail.linkLabel} /></p>}
-          {open.cancelled && <p className="wk-note">Ten termin jest odwołany.</p>}
-          <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => setOpen(null)}>Zamknij</button></div>
+          {open.cancelled && <p className="wk-note">{t('calendarApp.part.cancelled')}</p>}
+          <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => setOpen(null)}>{t('common.close')}</button></div>
         </Modal>
       )}
     </div>

@@ -19,6 +19,7 @@
 import type { Layout } from '../layout';
 import { motionsJson, readMotions, type MotionUse } from '../motion/motion';
 import { type Layer, layersJson, num, readLayers, record, str, within } from './slideLook';
+import { texts } from '../../core/i18n';
 
 /* -- Wie ein Slajd kommt (0084) ------------------------------------------------- */
 
@@ -30,31 +31,31 @@ import { type Layer, layersJson, num, readLayers, record, str, within } from './
 export const TRANSITIONS = ['scroll', 'flow', 'fade', 'cover', 'reveal', 'zoom', 'side', 'dissolve'] as const;
 export type Transition = (typeof TRANSITIONS)[number];
 
-export const TRANSITION_LABEL: Record<Transition, string> = {
-  scroll: 'Przewinięcie — wjeżdża od dołu, jak kartka (zwykłe)',
+export const TRANSITION_LABEL: Readonly<Record<Transition, string>> = texts({
+  scroll: 'pagesSlides.transition.scroll',
   /* 2026-10-24 — Wunsch des Nutzers: der Vordergrund fährt hinauf UND blendet über (nicht nur das eine oder das andere). */
-  flow: 'Przepływ — jedzie w górę razem z przewijaniem i przenika się z poprzednim',
-  fade: 'Przenikanie — poprzedni stoi, ten pojawia się na nim',
-  cover: 'Nakrycie — ten wjeżdża na poprzedni, który stoi i przygasa',
-  reveal: 'Odsłonięcie — poprzedni odjeżdża w górę i odsłania ten',
-  zoom: 'Przybliżenie — poprzedni rośnie i znika, ten wyłania się z głębi',
-  side: 'Z boku — ten wjeżdża z prawej, poprzedni odsuwa się w lewo',
+  flow: 'pagesSlides.transition.flow',
+  fade: 'pagesSlides.transition.fade',
+  cover: 'pagesSlides.transition.cover',
+  reveal: 'pagesSlides.transition.reveal',
+  zoom: 'pagesSlides.transition.zoom',
+  side: 'pagesSlides.transition.side',
   /* 0107 — der Wechsel des Altbestands von Cogita (.cogita-intro-slide: 480 ms, 12 px, Unschärfe 2 px). */
-  dissolve: 'Rozmycie — poprzedni gaśnie, rozmywa się i opada, ten wyostrza się, unosząc (jak pokaz Cogita)'
-};
+  dissolve: 'pagesSlides.transition.dissolve'
+});
 
 /** Wie der INHALT eines Slajds erscheint, während er hereinkommt — ebenfalls an der Bahn, nicht an der Uhr. */
 export const ENTERS = ['none', 'rise', 'fade', 'zoom', 'left', 'right'] as const;
 export type Enter = (typeof ENTERS)[number];
 
-export const ENTER_LABEL: Record<Enter, string> = {
-  none: 'Bez efektu',
-  rise: 'Wynurza się z dołu',
-  fade: 'Rozjaśnia się',
-  zoom: 'Przybliża się',
-  left: 'Wsuwa się z lewej',
-  right: 'Wsuwa się z prawej'
-};
+export const ENTER_LABEL: Readonly<Record<Enter, string>> = texts({
+  none: 'pagesSlides.enter.none',
+  rise: 'pagesSlides.enter.rise',
+  fade: 'pagesSlides.enter.fade',
+  zoom: 'pagesSlides.enter.zoom',
+  left: 'pagesSlides.enter.left',
+  right: 'pagesSlides.enter.right'
+});
 
 /** Eigene Farben eines Slajds — `null` je Farbe: die der Seite. Zwischen zwei Slajdy gehen sie fliessend über. */
 export interface SlideColors {
@@ -348,7 +349,7 @@ export const remapStage = remapSlide;
  * den Slajd „Zapisy" führt.
  */
 export const anchorOf = (label: string): string =>
-  label.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
+  label.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')  // i18n-ignore
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
 /**

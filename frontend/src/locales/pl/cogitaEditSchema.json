@@ -1,0 +1,36 @@
+{
+  "introWrites": "Wybierz rodzaj z listy albo dodaj nowy. Rodzaj mówi, jakie pola ma wpis, jak się nazywa (wzór etykiety) i czym różnią się wpisy o tej samej nazwie.",
+  "intro": "Wybierz rodzaj z listy. Rodzaj mówi, jakie pola ma wpis, jak się nazywa (wzór etykiety) i czym różnią się wpisy o tej samej nazwie.",
+  "jsonLead": "Rodzaje z ich szablonami kart i formularzami dodawania jako jeden dokument. Import tworzy niezależną kopię: zmiany tutaj nie zmieniają bazy, z której przyszła [B12]. Żeby korzystać z rodzajów innej bazy bez kopiowania, dodaj ją w Ustawieniach jako źródło. Gotowe schematy (Komentarz, Słownik, Psałterz) to pliki <code>templates/cogita/*.json</code> w repozytorium — importuje się je tutaj.",
+  "noKinds": "Ta baza wiedzy nie ma jeszcze własnych rodzajów. Dodaj własny — albo zaimportuj schemat jako JSON (np. gotowy Komentarz z <code>templates/cogita/komentarz.json</code>, pojęcia z kolejnością nauki z <code>templates/cogita/podstawy.json</code>).",
+  "entries": {
+    "one": "{count} wpisów",
+    "few": "{count} wpisów",
+    "many": "{count} wpisów",
+    "other": "{count} wpisów"
+  },
+  "fields": {
+    "one": "{count} pól",
+    "few": "{count} pól",
+    "many": "{count} pól",
+    "other": "{count} pól"
+  },
+  "qtype": {
+    "kind": "Rodzaj pytania",
+    "does": "Co robi uczący się",
+    "fields": "Pola",
+    "shared": "Każde pytanie ma: {fields}. „{form}” decyduje, które pola dochodzą — edytor pytania pokazuje tylko je.",
+    "title": "Rodzaje pytań — jeden schemat"
+  },
+  "newKind": "Nowy rodzaj",
+  "askDelete": "Usunąć rodzaj „{name}”?",
+  "askDeleteBody": "Tego nie da się cofnąć. Razem z nim:",
+  "deleteKind": "Usuń rodzaj",
+  "deleted": "Usunięto rodzaj „{name}”.",
+  "jsonSummary": "Schemat jako JSON — kopia do innej bazy wiedzy",
+  "importSave": "Zapisz przyjęte",
+  "kinds": "Rodzaje",
+  "addKind": "+ Rodzaj",
+  "system": "system",
+  "builtIn": "wbudowany"
+}

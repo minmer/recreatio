@@ -7,6 +7,7 @@
 
 import { AREA_FORMAT } from '../areas/areaJson';
 import { DEFAULT_ENTRY } from '../calendar/appointmentsJson';
+import { t } from '../core/i18n';
 import {
   councilOf, flatten, kindOf, levelOf, positionsOf, rankOf, slug, unitsOf, valueOf,
   type CommunityDoc, type FlatUnit, type Level, type Position, type Unit
@@ -34,7 +35,8 @@ export function addressOf(doc: CommunityDoc, unitKey: string): string {
   return `${addressOf(doc, here.parent)}/${here.unit.key.replace(/_/g, '-')}`.slice(0, 180);
 }
 
-const WEEKDAYS = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'];
+const WEEKDAYS = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd']; // i18n-ignore
+const DAY_NAMES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const two = (n: number) => String(n).padStart(2, '0');
 
 /** Der nächste Tag dieser Woche ab heute: „cz" → „2026-11-05". */
@@ -59,11 +61,11 @@ function yearEnd(until: string, from: Date = new Date()): string {
   return `${y}-${two(m)}-${two(d)}`;
 }
 
-const SIGNUP = [
-  { id: 'imie', kind: 'line', label: 'Imię', required: true, halfWidth: true, identity: 'given_name' },
-  { id: 'nazwisko', kind: 'line', label: 'Nazwisko', required: true, halfWidth: true, identity: 'surname' },
-  { id: 'telefon', kind: 'phone', label: 'Telefon', required: true, halfWidth: true, identity: 'phone' },
-  { id: 'email', kind: 'email', label: 'E-mail', required: false, halfWidth: true, identity: 'email' }
+const signupQuestions = () => [
+  { id: 'imie', kind: 'line', label: t('communities.compile.givenName'), required: true, halfWidth: true, identity: 'given_name' },
+  { id: 'nazwisko', kind: 'line', label: t('communities.compile.surname'), required: true, halfWidth: true, identity: 'surname' },
+  { id: 'telefon', kind: 'phone', label: t('communities.compile.phone'), required: true, halfWidth: true, identity: 'phone' },
+  { id: 'email', kind: 'email', label: t('communities.compile.email'), required: false, halfWidth: true, identity: 'email' }
 ];
 
 const QUESTION_KIND: Record<string, string> = { line: 'line', text: 'text', choice: 'choice', date: 'date', checkbox: 'checkbox', number: 'line' };
@@ -91,9 +93,9 @@ export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new D
 
   const roles = positions.map((p) => ({
     key: p.key, name: roleName(p, u), level: levelOf(p.rights),
-    ...(mode === 'link' && intake?.key === p.key ? { link: { days: 365, label: `Dołącz: ${u.name}`.slice(0, 80) } } : {})
+    ...(mode === 'link' && intake?.key === p.key ? { link: { days: 365, label: t('communities.compile.joinLink', { name: u.name }).slice(0, 80) } } : {})
   }));
-  if (roles.length > 0) says.push(`role: ${roles.map((r) => r.name).join(', ')}`);
+  if (roles.length > 0) says.push(`role: ${roles.map((r) => r.name).join(', ')}`); // i18n-ignore — Markierung, wird beim Plan herausgefiltert
 
   /* Termine: das Ganze (befristet) und das regelmässige Treffen. */
   const appointments: Record<string, unknown>[] = [];
@@ -101,21 +103,22 @@ export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new D
   const until = String(v('life.until') ?? '');
   if (v('life.duration') === 'limited' && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
     appointments.push({ key: 'main', main: true, title: u.name, start: from, end: /^\d{4}-\d{2}-\d{2}$/.test(until) ? until : from, allDay: true, ...(v('life.location') ? { location: String(v('life.location')) } : {}) });
-    says.push(`termin całości ${from}${until ? ` – ${until}` : ''}`);
+    says.push(until ? t('communities.compile.saysWholeRange', { from, until }) : t('communities.compile.saysWhole', { from }));
   }
   const rhythm = v('life.rhythm');
   const weekday = String(v('life.weekday') ?? '');
   const time = String(v('life.time') ?? '');
   if (on('tools.calendar') && (rhythm === 'weekly' || rhythm === 'monthly') && WEEKDAYS.includes(weekday) && /^\d{1,2}:\d{2}$/.test(time)) {
     const day = nextWeekday(weekday, now);
-    const t = time.padStart(5, '0');
+    const hhmm = time.padStart(5, '0');
     appointments.push({
-      key: 'spotkanie', title: `Spotkanie — ${u.name}`.slice(0, 200), start: `${day}T${t}`, end: endTime(t, Number(v('life.minutes') ?? 90) || 90),
+      key: 'spotkanie', title: t('communities.compile.meetingTitle', { name: u.name }).slice(0, 200), start: `${day}T${hhmm}`, end: endTime(hhmm, Number(v('life.minutes') ?? 90) || 90),
       repeat: rhythm, ...(rhythm === 'weekly' ? { weekdays: [weekday] } : {}),
       until: yearEnd(String(v('life.yearUntil') ?? '06-30'), now),
       ...(v('life.location') && v('life.place') !== 'online' ? { location: String(v('life.location')) } : {})
     });
-    says.push(`spotkania ${rhythm === 'weekly' ? 'co tydzień' : 'co miesiąc'} (${weekday} ${t})`);
+    const dayName = t(`communities.weekday.${DAY_NAMES[WEEKDAYS.indexOf(weekday)]}`);
+    says.push(t(rhythm === 'weekly' ? 'communities.compile.saysWeekly' : 'communities.compile.saysMonthly', { day: dayName, time: hhmm }));
   }
 
   /* Seiten. */
@@ -129,18 +132,18 @@ export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new D
     const modules: Record<string, unknown>[] = [];
     if (description !== '') modules.push({ id: 'opis', kind: 'text', config: { title: u.name, body: description } });
     const meetings = String(v('public.meetings') ?? '').trim();
-    if (meetings !== '') modules.push({ id: 'spotkania', kind: 'hours', config: { title: 'Spotkania', body: meetings } });
+    if (meetings !== '') modules.push({ id: 'spotkania', kind: 'hours', config: { title: t('communities.compile.meetings'), body: meetings } });
     const contact = String(v('public.contact') ?? '').trim();
     if (contact !== '') modules.push({ id: 'kontakt', kind: 'contact', config: contact.includes('@') ? { email: contact } : { phone: contact } });
-    if (on('public.events') && on('tools.calendar')) modules.push({ id: 'terminy', kind: 'calendar', config: { title: 'Terminy', calendars: `@${DEFAULT_ENTRY}` } });
+    if (on('public.events') && on('tools.calendar')) modules.push({ id: 'terminy', kind: 'calendar', config: { title: t('communities.compile.dates'), calendars: `@${DEFAULT_ENTRY}` } });
     if (signup) {
       const limit = Number(v('intake.limit') ?? 0) || 0;
       const lines = [
-        limit > 0 ? `Liczba miejsc: ${limit}.${on('intake.waitlist') ? ' Po ich wyczerpaniu zapisujemy na listę rezerwową.' : ''}` : '',
-        v('intake.requires') ? `Warunek: ${String(v('intake.requires'))}.` : '',
-        on('intake.confirm') ? 'Zgłoszenie potwierdzają prowadzący — wtedy przychodzi osobisty link.' : ''
+        limit > 0 ? t(on('intake.waitlist') ? 'communities.compile.placesWaitlist' : 'communities.compile.places', { count: limit }) : '',
+        v('intake.requires') ? t('communities.compile.requires', { what: String(v('intake.requires')) }) : '',
+        on('intake.confirm') ? t('communities.compile.confirm') : ''
       ].filter((l) => l !== '');
-      if (lines.length > 0) modules.push({ id: 'warunki', kind: 'text', config: { title: 'Zapisy', body: lines.join('\n') } });
+      if (lines.length > 0) modules.push({ id: 'warunki', kind: 'text', config: { title: t('communities.compile.signup'), body: lines.join('\n') } });
       const fieldQuestions = doc.fields.filter((f) => !f.leadersOnly).map((f) => ({
         id: f.key, kind: QUESTION_KIND[f.kind] ?? 'line', label: f.label, ...(f.kind === 'choice' ? { options: f.options ?? [] } : {})
       }));
@@ -148,36 +151,36 @@ export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new D
       if (on('intake.minors')) needs.push({ id: 'minor', age: 'birth', ways: ['parent', 'consent'] });
       if (on('intake.health')) needs.push('health');
       modules.push({
-        id: 'zapisy', kind: 'form', name: `Zapisy — ${u.name}`.slice(0, 120), questions: [...SIGNUP, ...fieldQuestions],
+        id: 'zapisy', kind: 'form', name: t('communities.compile.signupForm', { name: u.name }).slice(0, 120), questions: [...signupQuestions(), ...fieldQuestions],
         memberRoles: [`@${intake.key}`], ...(needs.length > 0 ? { needs } : {})
       });
       signupRef = '@form:main/zapisy';
       const secret = doc.fields.filter((f) => f.leadersOnly);
       if (secret.length > 0) {
         subforms.push({
-          key: 'dla-prowadzacych', of: signupRef, name: 'Dane tylko dla prowadzących', audience: 'person',
+          key: 'dla-prowadzacych', of: signupRef, name: t('communities.compile.leadersData'), audience: 'person',
           questions: secret.map((f) => ({ id: f.key, kind: QUESTION_KIND[f.kind] ?? 'line', label: f.label, ...(f.kind === 'choice' ? { options: f.options ?? [] } : {}) }))
         });
       }
-      says.push(`zapisy publiczne${limit > 0 ? ` (${limit} miejsc)` : ''}`);
+      says.push(limit > 0 ? t('communities.compile.saysSignupLimit', { count: limit }) : t('communities.compile.saysSignup'));
     }
     pages.push({ key: 'main', path: '', main: true, access: 'public', page: { title: u.name, ...(description === '' ? {} : { lead: description.slice(0, 300) }), modules } });
-    says.push('strona publiczna');
+    says.push(t('communities.compile.saysPublic'));
     if (on('public.reports') && v('life.duration') === 'limited') {
-      pages.push({ key: 'po', path: 'po', after: true, page: { title: `Po: ${u.name}`, modules: [{ id: 'relacja', kind: 'text', config: { title: 'Jak było', body: 'Tu prowadzący opisują, jak było.' } }] } });
+      pages.push({ key: 'po', path: 'po', after: true, page: { title: t('communities.compile.afterTitle', { name: u.name }), modules: [{ id: 'relacja', kind: 'text', config: { title: t('communities.compile.afterHeading'), body: t('communities.compile.afterBody') } }] } });
     }
   }
 
   /* Die Seite für die Menschen der Einheit. */
   const inside: Record<string, unknown>[] = [
-    { id: 'witaj', kind: 'text', config: { title: u.name, body: 'Strona dla osób tej jednostki: terminy, rozmowa, kontakt z prowadzącymi.' } }
+    { id: 'witaj', kind: 'text', config: { title: u.name, body: t('communities.compile.insideBody') } }
   ];
-  if (on('tools.calendar')) inside.push({ id: 'kalendarz', kind: 'calendar', config: { title: 'Terminy', calendars: `@${DEFAULT_ENTRY}` } });
-  if (on('tools.chat')) inside.push({ id: 'rozmowa', kind: 'seat-chat', config: { title: 'Rozmowa' } });
-  if (on('tools.askLeaders') && leads.length > 0) inside.push({ id: 'do-prowadzacych', kind: 'seat-ask', config: { title: 'Napisz do prowadzących' }, answer: leads.map((p) => `@role:${p.key}`) });
+  if (on('tools.calendar')) inside.push({ id: 'kalendarz', kind: 'calendar', config: { title: t('communities.compile.dates'), calendars: `@${DEFAULT_ENTRY}` } });
+  if (on('tools.chat')) inside.push({ id: 'rozmowa', kind: 'seat-chat', config: { title: t('communities.compile.chat') } });
+  if (on('tools.askLeaders') && leads.length > 0) inside.push({ id: 'do-prowadzacych', kind: 'seat-ask', config: { title: t('communities.compile.askLeaders') }, answer: leads.map((p) => `@role:${p.key}`) });
   /* Ohne öffentliche Seite steht die Seite der Menschen AUF der Adresse der Einheit — so haben die Einheiten darunter eine Seite über sich. */
   pages.push(publicPage
-    ? { key: 'nasze', path: 'dla-nas', access: 'members', page: { title: `${u.name} — dla nas`, modules: inside } }
+    ? { key: 'nasze', path: 'dla-nas', access: 'members', page: { title: t('communities.compile.forUsTitle', { name: u.name }), modules: inside } }
     : { key: 'main', path: '', main: true, access: 'members', page: { title: u.name, modules: inside } });
 
   const chats: unknown[] = [];
@@ -242,7 +245,7 @@ export function desiredAccess(doc: CommunityDoc, state: Pick<CommunityState, 'un
     for (const p of ps) {
       const mine = role(unit.key, p.key);
       if (p.rights === 'lead' || p.rights === 'accompany') {
-        for (const d of below(unit.key)) want(state.units[d.unit.key], mine, p.rights === 'lead' ? 'admin' : 'read', `${p.name} (${unit.name}) — ${p.rights === 'lead' ? 'prowadzi' : 'widzi'} niżej`);
+        for (const d of below(unit.key)) want(state.units[d.unit.key], mine, p.rights === 'lead' ? 'admin' : 'read', t(p.rights === 'lead' ? 'communities.access.leadsBelow' : 'communities.access.seesBelow', { position: p.name, unit: unit.name }));
       }
       if (p.rights === 'lead' && mine !== undefined) {
         for (const other of ps) {
@@ -253,17 +256,17 @@ export function desiredAccess(doc: CommunityDoc, state: Pick<CommunityState, 'un
     }
     if (valueOf(doc, unit.key, 'visibility.subunitsSee') === true) {
       for (const d of below(unit.key)) {
-        for (const q of positionsOf(doc, d.unit)) want(state.units[unit.key], role(d.unit.key, q.key), 'read', `${unit.name} widoczna niżej`);
+        for (const q of positionsOf(doc, d.unit)) want(state.units[unit.key], role(d.unit.key, q.key), 'read', t('communities.access.visibleBelow', { unit: unit.name }));
       }
     }
     const council = councilOf(doc, unit);
     if (council !== undefined) {
       const at = state.councils[council.key];
       for (const p of ps) {
-        if (council.own.includes(p.key) || p.rights === 'lead') want(at, role(unit.key, p.key), p.rights === 'lead' ? 'admin' : 'write', `grono „${council.name}”`);
+        if (council.own.includes(p.key) || p.rights === 'lead') want(at, role(unit.key, p.key), p.rights === 'lead' ? 'admin' : 'write', t('communities.access.council', { name: council.name }));
       }
       for (const child of units.filter((x) => x.parent === unit.key)) {
-        for (const q of positionsOf(doc, child.unit)) if (council.below.includes(q.key)) want(at, role(child.unit.key, q.key), 'write', `grono „${council.name}”`);
+        for (const q of positionsOf(doc, child.unit)) if (council.below.includes(q.key)) want(at, role(child.unit.key, q.key), 'write', t('communities.access.council', { name: council.name }));
       }
     }
   }
@@ -310,7 +313,7 @@ export function linkLabel(doc: CommunityDoc, personKey: string): string {
   const first = person?.places[0];
   const unit = first === undefined ? undefined : flatten(doc.unit).find((u) => u.unit.key === first.unit)?.unit;
   const pos = first === undefined ? undefined : doc.positions.find((p) => p.key === first.position);
-  return `Osobisty link · ${pos?.name ?? 'osoba'} · ${unit?.name ?? doc.name}`.slice(0, 80);
+  return t('communities.compile.linkLabel', { position: pos?.name ?? t('communities.compile.linkPerson'), unit: unit?.name ?? doc.name }).slice(0, 80);
 }
 
 /* -- Der Plan in Worten ------------------------------------------------------------------------ */
@@ -321,42 +324,45 @@ export interface PlanLine { readonly kind: 'unit' | 'person' | 'access' | 'area'
 export function planLines(doc: CommunityDoc, before: Extract<Stored, { kind: 'community' }> | null, areaNames: ReadonlyMap<string, string>): PlanLine[] {
   const out: PlanLine[] = [];
   if (before === null) {
-    out.push({ kind: 'warn', text: `Adres stron „${addressOf(doc, doc.unit.key)}” trzeba najpierw zająć (Strony → Zajmij adres) — bez niego strony jednostek nie powstaną; adresy jednostek niżej są pod nim.` });
-    out.push({ kind: 'warn', text: 'Rozmowy i zapisy powstaną dopiero, gdy obszar na górze ma administratora danych (Obszary → obszar → Ustawienia) — po jego wskazaniu zapisz wspólnotę jeszcze raz.' });
+    out.push({ kind: 'warn', text: t('communities.plan.claimAddress', { address: addressOf(doc, doc.unit.key) }) });
+    out.push({ kind: 'warn', text: t('communities.plan.needController') });
   }
   const state = before?.state;
   const old = before === null ? [] : flatten(before.doc.unit);
+  const nameOf = (key: string | null) => flatten(doc.unit).find((x) => x.unit.key === key)?.unit.name ?? '';
   for (const f of flatten(doc.unit)) {
     const u = f.unit;
     const areaId = state?.units[u.key];
     const was = old.find((o) => o.unit.key === u.key);
-    if (u.remove === true) { if (areaId !== undefined) out.push({ kind: 'unit', text: `Rozwiązana: „${u.name}” — obszar i treści zostają, wspólnota zdejmuje dostępy, które dała.` }); continue; }
-    if (u.area !== undefined && areaId === undefined) out.push({ kind: 'unit', text: `Przejęty obszar „${areaNames.get(u.area) ?? u.area}” jako „${u.name}”${f.parent ? ` — przeniesiony pod „${flatten(doc.unit).find((x) => x.unit.key === f.parent)?.unit.name}”` : ''}.` });
-    else if (areaId === undefined) out.push({ kind: 'unit', text: `Nowa jednostka: „${u.name}”${f.parent ? ` pod „${flatten(doc.unit).find((x) => x.unit.key === f.parent)?.unit.name}”` : ' (na górze)'}.` });
+    if (u.remove === true) { if (areaId !== undefined) out.push({ kind: 'unit', text: t('communities.plan.dissolved', { name: u.name }) }); continue; }
+    if (u.area !== undefined && areaId === undefined) {
+      const area = areaNames.get(u.area) ?? u.area;
+      out.push({ kind: 'unit', text: f.parent ? t('communities.plan.takenOverUnder', { area, name: u.name, parent: nameOf(f.parent) }) : t('communities.plan.takenOver', { area, name: u.name }) });
+    } else if (areaId === undefined) out.push({ kind: 'unit', text: f.parent ? t('communities.plan.newUnitUnder', { name: u.name, parent: nameOf(f.parent) }) : t('communities.plan.newUnitTop', { name: u.name }) });
     else {
-      if (was !== undefined && was.parent !== f.parent) out.push({ kind: 'unit', text: `Przeniesiona: „${u.name}” — pod „${f.parent === null ? 'nic (na górę)' : flatten(doc.unit).find((x) => x.unit.key === f.parent)?.unit.name}”.` });
+      if (was !== undefined && was.parent !== f.parent) out.push({ kind: 'unit', text: f.parent === null ? t('communities.plan.movedTop', { name: u.name }) : t('communities.plan.moved', { name: u.name, parent: nameOf(f.parent) }) });
       const now = areaNames.get(areaId);
-      if (now !== undefined && now !== u.name) out.push({ kind: 'unit', text: `Nowa nazwa: „${now}” → „${u.name}”.` });
+      if (now !== undefined && now !== u.name) out.push({ kind: 'unit', text: t('communities.plan.renamed', { from: now, to: u.name }) });
     }
     const c = councilOf(doc, u);
-    if (c !== undefined && state?.councils[c.key] === undefined) out.push({ kind: 'unit', text: `Grono: „${c.name}” (pod „${u.name}”).` });
-    for (const p of positionsOf(doc, u)) if (state?.roles[roleKey(u.key, p.key)] === undefined) out.push({ kind: 'access', text: `Rola „${roleName(p, u)}” (${levelOf(p.rights) === 'admin' ? 'prowadzi' : levelOf(p.rights) === 'write' ? 'pisze' : 'czyta'}).` });
+    if (c !== undefined && state?.councils[c.key] === undefined) out.push({ kind: 'unit', text: t('communities.plan.council', { name: c.name, unit: u.name }) });
+    for (const p of positionsOf(doc, u)) if (state?.roles[roleKey(u.key, p.key)] === undefined) out.push({ kind: 'access', text: t(`communities.plan.role.${levelOf(p.rights)}`, { name: roleName(p, u) }) });
     const compiled = compileUnit(doc, f);
-    out.push({ kind: 'area', text: `„${u.name}”: ${compiled.says.filter((s) => !s.startsWith('role:')).join('; ') || 'strona „dla nas”'}.` });
+    out.push({ kind: 'area', text: t('communities.plan.area', { name: u.name, says: compiled.says.filter((s) => !s.startsWith('role:')).join('; ') || t('communities.plan.forUsPage') }) });
   }
   for (const p of doc.persons) {
     const mark = state?.links[p.key];
-    if (p.remove === true) { if (mark !== undefined) out.push({ kind: 'person', text: `${p.name}: link przestaje działać.` }); continue; }
-    if (p.places.length === 0) { out.push({ kind: 'warn', text: `${p.name}: bez miejsca — bez linku.` }); continue; }
-    if (mark === undefined) { out.push({ kind: 'person', text: `${p.name}: nowy osobisty link.` }); continue; }
+    if (p.remove === true) { if (mark !== undefined) out.push({ kind: 'person', text: t('communities.plan.linkStops', { name: p.name }) }); continue; }
+    if (p.places.length === 0) { out.push({ kind: 'warn', text: t('communities.plan.noPlace', { name: p.name }) }); continue; }
+    if (mark === undefined) { out.push({ kind: 'person', text: t('communities.plan.newLink', { name: p.name }) }); continue; }
     const wasPerson = before?.doc.persons.find((x) => x.key === p.key);
     const same = wasPerson !== undefined && wasPerson.places.length === p.places.length
       && p.places.every((pl) => wasPerson.places.some((x) => x.unit === pl.unit && x.position === pl.position));
-    if (!same) out.push({ kind: 'person', text: `${p.name}: miejsca się zmieniły — NOWY link, stary przestaje działać.` });
+    if (!same) out.push({ kind: 'person', text: t('communities.plan.placesChanged', { name: p.name }) });
   }
   if (before !== null) {
-    for (const p of before.doc.persons) if (!doc.persons.some((x) => x.key === p.key) && p.remove !== true) out.push({ kind: 'warn', text: `${p.name}: nie ma w dokumencie — zostaje bez zmian (usunąć: "remove": true).` });
-    for (const { unit } of old) if (!flatten(doc.unit).some((x) => x.unit.key === unit.key) && unit.remove !== true) out.push({ kind: 'warn', text: `„${unit.name}”: nie ma w dokumencie — zostaje bez zmian (rozwiązać: "remove": true).` });
+    for (const p of before.doc.persons) if (!doc.persons.some((x) => x.key === p.key) && p.remove !== true) out.push({ kind: 'warn', text: t('communities.plan.personMissing', { name: p.name }) });
+    for (const { unit } of old) if (!flatten(doc.unit).some((x) => x.unit.key === unit.key) && unit.remove !== true) out.push({ kind: 'warn', text: t('communities.plan.unitMissing', { name: unit.name }) });
   }
   return out;
 }

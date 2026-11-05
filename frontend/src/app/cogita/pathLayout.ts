@@ -14,6 +14,8 @@
  * (Zeichen) —, und ein Weg leuchtet, sobald sein Anfang gelernt ist.
  */
 
+import { appLang, tIn, type Lang } from '../core/i18n';
+
 export interface PathItem {
   readonly id: string;
   readonly label: string;
@@ -487,35 +489,35 @@ export function branchOf(model: PathModel, starts: readonly string[]): Set<strin
   return out;
 }
 
-const plural = (n: number, one: string, few: string, many: string): string => {
-  if (n === 1) return one;
-  const t = n % 10;
-  const h = n % 100;
-  return t >= 2 && t <= 4 && (h < 12 || h > 14) ? few : many;
-};
-
-/** Die Zahl in Worten: „2 z 3 ścieżek". */
-export const mergeWords = (done: number, total: number): string => `${done} z ${total} ${total === 1 ? 'ścieżki' : 'ścieżek'}`;
+/** Die Zahl in Worten: „2 z 3 ścieżek". 2026-11-05: in der Sprache `lang` (Vorgabe: die der Anwendung). */
+export const mergeWords = (done: number, total: number, lang: Lang = appLang()): string => tIn(lang, 'cogitaLearn.path.merge', { done, count: total });
 
 /** Was eine Gabel zählt, in Worten: „wybierz 1 z 3", „wybrano 1 z 3", „ukończono 2 z 3 ścieżek". */
-export const forkWords = (f: PathFork): string => (f.mode === 'choose' ? (f.done === 0 ? `wybierz 1 z ${f.total}` : `wybrano ${f.done} z ${f.total}${(f.finished ?? 0) > 0 ? ` · ukończono ${f.finished}` : ''}`) : `ukończono ${mergeWords(f.done, f.total)}`);
+export const forkWords = (f: PathFork, lang: Lang = appLang()): string => (f.mode === 'choose'
+  ? (f.done === 0 ? tIn(lang, 'cogitaLearn.path.forkChoose', { total: f.total })
+    : (f.finished ?? 0) > 0 ? tIn(lang, 'cogitaLearn.path.forkChosenDone', { done: f.done, total: f.total, finished: f.finished ?? 0 })
+      : tIn(lang, 'cogitaLearn.path.forkChosen', { done: f.done, total: f.total }))
+  : tIn(lang, 'cogitaLearn.path.forkMerged', { done: f.done, count: f.total }));
 
 /** Was in einem Teil wartet, in Worten: „3 slajdy do przeczytania · 5 pytań do odpowiedzi". */
-export function partWords(nd: Pick<PathNode, 'kind' | 'slides' | 'questions'>, ask?: number): string {
+export function partWords(nd: Pick<PathNode, 'kind' | 'slides' | 'questions'>, ask?: number, lang: Lang = appLang()): string {
   const s = nd.slides ?? 0;
   const q = nd.questions ?? 0;
-  const slides = s > 0 ? `${s} ${plural(s, 'slajd', 'slajdy', 'slajdów')} do przeczytania` : '';
+  const slides = s > 0 ? tIn(lang, 'cogitaLearn.path.slides', { count: s }) : '';
   /* 2026-11-04 (Prompt 10) — gezählt wird, was wirklich gefragt wird: „2 z 5 pytań"; alles gekonnt — nur zum Lesen. */
-  const questions = q === 0 ? '' : ask === undefined || ask >= q ? `${q} ${plural(q, 'pytanie', 'pytania', 'pytań')} do odpowiedzi`
-    : ask === 0 ? 'wszystkie pytania już umiesz — tylko do przeczytania' : `${ask} z ${q} ${plural(q, 'pytania', 'pytań', 'pytań')} do odpowiedzi`;
+  const questions = q === 0 ? '' : ask === undefined || ask >= q ? tIn(lang, 'cogitaLearn.path.questions', { count: q })
+    : ask === 0 ? tIn(lang, 'cogitaLearn.path.allKnown') : tIn(lang, 'cogitaLearn.path.askOf', { ask, count: q });
   switch (nd.kind) {
-    case 'start': return 'Początek ścieżki';
-    case 'end': return 'Koniec ścieżki';
-    case 'fork': return 'Tu wybierasz drogę';
-    case 'detour': return 'Zagłębienie w inną opowieść — wchodzisz albo idziesz dalej';
-    case 'review':
-      if (q > 0 && ask === 0) return 'Przegląd — wszystkie pytania już umiesz';
-      return `Przegląd${q > 0 ? `: ${ask === undefined || ask >= q ? `${q} ${plural(q, 'pytanie', 'pytania', 'pytań')}` : `${ask} z ${q} ${plural(q, 'pytania', 'pytań', 'pytań')}`}` : ''} — powtarzasz, aż wszystkie umiesz${s > 0 ? ` (i ${slides})` : ''}`;
+    case 'start': return tIn(lang, 'cogitaLearn.path.start');
+    case 'end': return tIn(lang, 'cogitaLearn.path.end');
+    case 'fork': return tIn(lang, 'cogitaLearn.path.fork');
+    case 'detour': return tIn(lang, 'cogitaLearn.path.detour');
+    case 'review': {
+      if (q > 0 && ask === 0) return tIn(lang, 'cogitaLearn.path.reviewAllKnown');
+      const head = q === 0 ? tIn(lang, 'cogitaLearn.path.review')
+        : tIn(lang, 'cogitaLearn.path.reviewOf', { what: ask === undefined || ask >= q ? tIn(lang, 'cogitaLearn.path.reviewQuestions', { count: q }) : tIn(lang, 'cogitaLearn.path.reviewAskOf', { ask, count: q }) });
+      return s > 0 ? tIn(lang, 'cogitaLearn.path.reviewAnd', { review: head, slides }) : head;
+    }
     default: return [slides, questions].filter(Boolean).join(' · ');
   }
 }

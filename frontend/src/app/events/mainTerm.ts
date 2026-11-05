@@ -5,6 +5,8 @@
  * Beginns an jenem Tag. Ortszeit, wie das Formular eines Termins (`EventDraft`).
  */
 
+import { appLang, localeOf } from '../core/i18n';
+
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^\d{2}:\d{2}$/;
 
@@ -42,8 +44,9 @@ export function leadOf(term: MainTerm | null, place: string): string | null {
   if (term === null) return where === '' ? null : where;
   const start = new Date(`${term.date}T${term.time}:00`);
   const end = new Date(start.getTime() + term.minutes * 60_000 - (term.allDay ? 1 : 0));
-  const day = (d: Date) => d.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
-  const time = (d: Date) => d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  const locale = localeOf(appLang());
+  const day = (d: Date) => d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+  const time = (d: Date) => d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   const sameDay = start.toDateString() === end.toDateString();
   const when = term.allDay
     ? (sameDay ? day(start) : `${day(start)} – ${day(end)}`)

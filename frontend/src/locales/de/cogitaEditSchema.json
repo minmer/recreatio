@@ -1,0 +1,32 @@
+{
+  "introWrites": "Wähle eine Art aus der Liste oder füge eine neue hinzu. Eine Art sagt, welche Felder ein Eintrag hat, wie er heißt (Muster des Etiketts) und worin sich Einträge mit demselben Namen unterscheiden.",
+  "intro": "Wähle eine Art aus der Liste. Eine Art sagt, welche Felder ein Eintrag hat, wie er heißt (Muster des Etiketts) und worin sich Einträge mit demselben Namen unterscheiden.",
+  "jsonLead": "Arten mit ihren Kartenvorlagen und Formularen zum Hinzufügen als ein Dokument. Der Import macht eine unabhängige Kopie: Änderungen hier ändern nicht die Basis, aus der sie kam [B12]. Um die Arten einer anderen Basis ohne Kopie zu nutzen, füge sie in den Einstellungen als Quelle hinzu. Fertige Schemata (Kommentar, Wörterbuch, Psalter) sind die Dateien <code>templates/cogita/*.json</code> im Repository — sie werden hier importiert.",
+  "noKinds": "Diese Wissensbasis hat noch keine eigenen Arten. Füge eine eigene hinzu — oder importiere ein Schema als JSON (z. B. den fertigen Kommentar aus <code>templates/cogita/komentarz.json</code>, Begriffe mit Lernreihenfolge aus <code>templates/cogita/podstawy.json</code>).",
+  "entries": {
+    "one": "{count} Eintrag",
+    "other": "{count} Einträge"
+  },
+  "fields": {
+    "one": "{count} Feld",
+    "other": "{count} Felder"
+  },
+  "qtype": {
+    "kind": "Fragetyp",
+    "does": "Was der Lernende tut",
+    "fields": "Felder",
+    "shared": "Jede Frage hat: {fields}. „{form}“ entscheidet, welche Felder hinzukommen — der Frageneditor zeigt nur sie.",
+    "title": "Fragetypen — ein Schema"
+  },
+  "newKind": "Neue Art",
+  "askDelete": "Die Art „{name}“ löschen?",
+  "askDeleteBody": "Das lässt sich nicht rückgängig machen. Zusammen damit:",
+  "deleteKind": "Art löschen",
+  "deleted": "Die Art „{name}“ wurde gelöscht.",
+  "jsonSummary": "Schema als JSON — Kopie für eine andere Wissensbasis",
+  "importSave": "Angenommene speichern",
+  "kinds": "Arten",
+  "addKind": "+ Art",
+  "system": "System",
+  "builtIn": "eingebaut"
+}

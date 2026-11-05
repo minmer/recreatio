@@ -35,22 +35,23 @@ import { createTopic, loadTopics, openTopics, type Topic } from './chatTopics';
 import { TopicBar } from './TopicBar';
 import { Loading } from '../ui/Loading';
 import { ControllerClause } from '../areas/ControllerClause';
+import { useT, type T } from '../core/i18n';
 
 /*
  * 0069 — wie eine Rozmowa für den Menschen mit dem Link heisst, und wer darin liest.
  * 0080 — drei Arten: mit den Prowadzący EINES Bereichs (es kann mehrere geben,
  * daher mit Namen), der Kanał (er liest) und die Rozmowa der Gruppe (alle schreiben).
  */
-const seatTitle = (row: SeatChatRow) =>
-  row.kind === 'seat' ? `Rozmowa z prowadzącymi · ${row.areaName}`
-  : row.kind === 'channel' ? `Kanał: ${row.areaName}`
-  : `Rozmowa: ${row.areaName}`;
-const seatWho = (row: SeatChatRow) =>
-  row.kind === 'seat' ? `Tylko Ty i osoby prowadzące „${row.areaName}" — inni, którzy wypełnili formularz, jej nie widzą. Treść szyfruje Twoja przeglądarka.`
-  : row.kind === 'channel' ? `Piszą prowadzący „${row.areaName}"; Ty czytasz — razem z innymi, którzy wypełnili formularz. Treść szyfruje Twoja przeglądarka.`
-  : `Czytają i piszą wszyscy z grupy „${row.areaName}" — także kancelaria. Treść szyfruje Twoja przeglądarka.`;
-const seatName = (row: SeatChatRow) =>
-  row.kind === 'seat' ? 'Rozmowa z prowadzącymi' : row.kind === 'channel' ? <>Kanał „{row.areaName}"</> : <>Rozmowa grupy „{row.areaName}"</>;
+const seatTitle = (row: SeatChatRow, t: T) =>
+  row.kind === 'seat' ? t('chat.office.withLeaders', { area: row.areaName })
+  : row.kind === 'channel' ? t('chat.title.channel', { name: row.areaName })
+  : t('chat.seat.titleGroup', { area: row.areaName });
+const seatWho = (row: SeatChatRow, t: T) =>
+  row.kind === 'seat' ? t('chat.seat.whoSeat', { area: row.areaName })
+  : row.kind === 'channel' ? t('chat.seat.whoChannel', { area: row.areaName })
+  : t('chat.seat.whoGroup', { area: row.areaName });
+const seatName = (row: SeatChatRow, t: T) =>
+  row.kind === 'seat' ? t('chat.seat.nameSeat') : row.kind === 'channel' ? t('chat.target.channelNamed', { name: row.areaName }) : t('chat.target.areaNamed', { name: row.areaName });
 
 interface Ready {
   readonly row: SeatChatRow;
@@ -69,6 +70,7 @@ interface SeatChats {
 
 /** Die Rozmowy eines Platzes, mit den Schlüsseln, die schon bei ihm sind. */
 export function useSeatChats(seat: SeatView): SeatChats {
+  const t = useT();
   const [chats, setChats] = useState<readonly Ready[] | undefined>(undefined);
   const [identity, setIdentity] = useState<SeatIdentity | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export function useSeatChats(seat: SeatView): SeatChats {
       setChats(ready);
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć rozmowy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.room.openFailed'));
       setChats((was) => was ?? []);
     }
   }, [token, seatId, seatKey]);
@@ -122,14 +124,15 @@ export function SeatChatSections({ seat, frame }: {
   seat: SeatView;
   frame: (title: string, who: string, body: ReactNode, key: string) => ReactNode;
 }) {
+  const t = useT();
   const { chats, identity, failed } = useSeatChats(seat);
   if (chats === undefined || chats.length === 0) return failed === null ? null : <p className="wk-error">{failed}</p>;
 
   return (
     <>
       {chats.map((one) => frame(
-        seatTitle(one.row),
-        seatWho(one.row),
+        seatTitle(one.row, t),
+        seatWho(one.row, t),
         <SeatChatRoom seat={seat} chat={one} identity={identity} />,
         one.row.chatId
       ))}
@@ -145,29 +148,30 @@ export function SeatChatSections({ seat, frame }: {
  * Ohne `only` (der Baustein „Rozmowa grupy") stehen alle da wie bisher.
  */
 export function SeatChatBody({ seat, only }: { seat: SeatView; only?: string }) {
+  const t = useT();
   const { chats: found, identity, failed } = useSeatChats(seat);
   const chats = found === undefined || only === undefined ? found : found.filter((one) => one.row.chatId === only);
 
-  if (chats === undefined) return <Loading label="Wczytywanie rozmowy…" />;
+  if (chats === undefined) return <Loading label={t('chat.link.loading')} />;
   if (chats.length === 0 && only !== undefined && (found?.length ?? 0) > 0) {
-    return <p className="wk-card-muted">Ta rozmowa nie należy do Twojej grupy — dla Ciebie nic tu nie ma.</p>;
+    return <p className="wk-card-muted">{t('chat.seat.notYourGroup')}</p>;
   }
   if (chats.length === 0) {
     return failed !== null
       ? <p className="wk-error">{failed}</p>
-      : <p className="wk-card-muted">Ta grupa nie ma jeszcze rozmowy.</p>;
+      : <p className="wk-card-muted">{t('chat.seat.groupNoChat')}</p>;
   }
 
   return (
     <>
       {chats.map((one) => (
         <section key={one.row.chatId} className="wk-seat-chat">
-          {chats.length > 1 && <h3 className="wk-seat-who">{seatTitle(one.row)}</h3>}
+          {chats.length > 1 && <h3 className="wk-seat-who">{seatTitle(one.row, t)}</h3>}
           <SeatChatRoom seat={seat} chat={one} identity={identity} />
-          {chats.length > 1 && <p className="wk-hint">{seatWho(one.row)}</p>}
+          {chats.length > 1 && <p className="wk-hint">{seatWho(one.row, t)}</p>}
         </section>
       ))}
-      {chats.length === 1 && <p className="wk-hint">{seatWho(chats[0].row)}</p>}
+      {chats.length === 1 && <p className="wk-hint">{seatWho(chats[0].row, t)}</p>}
     </>
   );
 }
@@ -179,6 +183,7 @@ export function SeatChatBody({ seat, only }: { seat: SeatView; only?: string }) 
  * Bereich hat angefangen), steht sie gleich da.
  */
 export function SeatAskBody({ seat, moduleId }: { seat: SeatView; moduleId: string }) {
+  const t = useT();
   const { chats, identity, look } = useSeatChats(seat);
   const [to, setTo] = useState<readonly AskTarget[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -190,13 +195,13 @@ export function SeatAskBody({ seat, moduleId }: { seat: SeatView; moduleId: stri
       setTo((await loadAsk(token, moduleId)).to);
     } catch (e) {
       setTo([]);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się sprawdzić, do kogo można napisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.seat.askFailed'));
     }
-  }, [token, moduleId]);
+  }, [token, moduleId, t]);
   useEffect(() => { void lookTo(); }, [lookTo]);
 
-  if (to === null || chats === undefined) return <Loading label="Wczytywanie…" />;
-  if (to.length === 0) return <p className="wk-card-muted">{failed ?? 'Z Twojego linku nie można stąd do nikogo napisać.'}</p>;
+  if (to === null || chats === undefined) return <Loading label={t('common.loading')} />;
+  if (to.length === 0) return <p className="wk-card-muted">{failed ?? t('chat.seat.nobody')}</p>;
 
   const start = async (target: AskTarget) => {
     setBusy(target.areaId);
@@ -206,7 +211,7 @@ export function SeatAskBody({ seat, moduleId }: { seat: SeatView; moduleId: stri
       await lookTo();
       await look();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zacząć rozmowy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.office.startFailed'));
     } finally {
       setBusy(null);
     }
@@ -218,17 +223,17 @@ export function SeatAskBody({ seat, moduleId }: { seat: SeatView; moduleId: stri
         const ready = target.chatId === null ? undefined : chats.find((one) => one.row.chatId === target.chatId);
         return (
           <section key={target.areaId} className="wk-seat-chat">
-            {to.length > 1 && <h3 className="wk-seat-who">Do: {target.name}</h3>}
+            {to.length > 1 && <h3 className="wk-seat-who">{t('chat.seat.to', { name: target.name })}</h3>}
             {ready !== undefined
               ? <SeatChatRoom seat={seat} chat={ready} identity={identity} />
               : (
                 <div className="wk-actions">
                   <button type="button" className="wk-btn" disabled={busy !== null} onClick={() => void start(target)}>
-                    {busy === target.areaId ? 'Otwieranie…' : `Napisz do: ${target.name}`}
+                    {busy === target.areaId ? t('chat.office.opening') : t('chat.seat.writeTo', { name: target.name })}
                   </button>
                 </div>
               )}
-            <p className="wk-hint">Rozmowę widzisz Ty i osoby prowadzące „{target.name}" — inni, którzy wypełnili formularz, jej nie widzą.</p>
+            <p className="wk-hint">{t('chat.seat.askWho', { name: target.name })}</p>
             {/* 0129 — „Napisz do nas" ist eine Rozmowa des Bereichs: wer für ihre Daten geradesteht. */}
             {target.controller !== undefined && <ControllerClause controller={target.controller} context="collect" />}
           </section>
@@ -245,6 +250,7 @@ export function SeatAskBody({ seat, moduleId }: { seat: SeatView; moduleId: stri
  * Schlüssel ankommt. Im Kanał gibt es nichts zu schreiben — dort nur der Satz.
  */
 function Waiting({ seat, row }: { seat: SeatView; row: SeatChatRow }) {
+  const t = useT();
   const [list, setList] = useState<readonly Queued[]>(() => queuedFor(seat.seatId, row.chatId));
   const [text, setText] = useState('');
   const writes = row.kind !== 'channel';
@@ -261,8 +267,7 @@ function Waiting({ seat, row }: { seat: SeatView; row: SeatChatRow }) {
   return (
     <div className="wk-seat-wait">
       <p className="wk-note">
-        {seatName(row)} otworzy się tutaj, gdy tylko ktoś z prowadzących będzie w aplikacji — wtedy jego przeglądarka
-        przekaże Ci klucz. Strona sprawdza to sama; nie musisz nic robić.
+        {t('chat.seat.waiting', { name: seatName(row, t) })}
       </p>
       {writes && !named && <IntroduceSeat seat={seat} />}
       {writes && named && (
@@ -272,19 +277,19 @@ function Waiting({ seat, row }: { seat: SeatView; row: SeatChatRow }) {
               {list.map((one, at) => (
                 <li key={`${one.at}-${at}`}>
                   <span>{one.text}</span>
-                  <button type="button" className="wk-link-btn" onClick={() => keep(list.filter((_, i) => i !== at))}>Usuń</button>
+                  <button type="button" className="wk-link-btn" onClick={() => keep(list.filter((_, i) => i !== at))}>{t('common.remove')}</button>
                 </li>
               ))}
             </ul>
           )}
-          {list.length > 0 && <p className="wk-hint">Czeka na wysłanie — pójdzie samo, gdy rozmowa się otworzy (z tego urządzenia).</p>}
+          {list.length > 0 && <p className="wk-hint">{t('chat.seat.queued')}</p>}
           <form className="wk-form" onSubmit={(e) => { e.preventDefault(); add(); }}>
             <label className="wk-field">
-              <span>{list.length === 0 ? 'Możesz już napisać' : 'Dopisz'}</span>
+              <span>{list.length === 0 ? t('chat.seat.canWrite') : t('chat.seat.addMore')}</span>
               <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} />
             </label>
             <div className="wk-actions">
-              <button type="submit" className="wk-btn" disabled={text.trim() === ''}>Zostaw wiadomość</button>
+              <button type="submit" className="wk-btn" disabled={text.trim() === ''}>{t('chat.seat.leave')}</button>
             </div>
           </form>
         </>
@@ -294,6 +299,7 @@ function Waiting({ seat, row }: { seat: SeatView; row: SeatChatRow }) {
 }
 
 function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; identity: SeatIdentity | null }) {
+  const t = useT();
   const { token, seatId } = seat;
   const { chatId } = chat.row;
   const keys = chat.keys;
@@ -362,7 +368,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
         reportChatSeen(endpoint, opened[opened.length - 1]?.message.createdAt ?? null);
         setMore(messages.length >= 60);
       } catch (e) {
-        if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać wiadomości.');
+        if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('chat.seat.loadFailed'));
       }
     })();
     return () => { alive = false; };
@@ -418,7 +424,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
           }]);
         }
       } catch (e) {
-        setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać czekającej wiadomości.');
+        setFailed(e instanceof WorkspaceError ? e.message : t('chat.seat.queuedFailed'));
       } finally {
         flushing.current = false;
       }
@@ -443,10 +449,10 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   const rules: MessageRules = {
     mine,
     /* 0095 — „Anna Nowak (Rada)": die Person, und die Rolle oder der Link, durch die sie spricht — wie sie es in der Nachricht sagt. */
-    author: (message, opened) => (mine(message) ? 'Ty'
-      : opened === null && message.authorSeatId === null ? 'prowadzący'
+    author: (message, opened) => (mine(message) ? t('chat.you')
+      : opened === null && message.authorSeatId === null ? t('chat.seat.leader')
       : authorText(messageAuthor(message, opened, { name: () => null }))),
-    note: (message) => (message.authorSeatId !== null && !mine(message) ? 'z linku' : null),
+    note: (message) => (message.authorSeatId !== null && !mine(message) ? t('chat.link.fromLink') : null),
     canEdit: (message, opened) => mine(message) && message.deletedAt === null && opened !== null && identity !== null,
     canDelete: (message) => mine(message) && message.deletedAt === null,
     canRestore: (message) => message.deletedAt !== null && mine(message) && message.deletedBy === 'author',
@@ -470,8 +476,8 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   };
 
   const send = async (body: string, options: SendOptions) => {
-    if (identity === null) throw new WorkspaceError('Rozmowa jeszcze się otwiera — spróbuj za chwilę.');
-    if (signed === '') throw new WorkspaceError('Najpierw przedstaw się — imię i nazwisko.');
+    if (identity === null) throw new WorkspaceError(t('chat.seat.stillOpening'));
+    if (signed === '') throw new WorkspaceError(t('chat.seat.introduceFirst'));
     const done = await sendSeatMessage(token, seatId, chatId, keys, identity, body, signed, { ...options, topicId: topic, via });
     if (options.sendAt === undefined && options.whenOnline !== true) {
       setShown((was) => [...(was ?? []), {
@@ -489,9 +495,9 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
     setEditing(null);
   };
 
-  const subtitle = chrome.status.typing ? <span className="ch-typing">ktoś pisze…</span>
-    : chat.row.kind === 'seat' ? `Ty i osoby prowadzące „${chat.row.areaName}"`
-    : chat.row.kind === 'channel' || chrome.status.channel ? `kanał „${chat.row.areaName}" — czytasz` : `grupa „${chat.row.areaName}"`;
+  const subtitle = chrome.status.typing ? <span className="ch-typing">{t('chat.room.someoneTyping')}</span>
+    : chat.row.kind === 'seat' ? t('chat.seat.subSeat', { area: chat.row.areaName })
+    : chat.row.kind === 'channel' || chrome.status.channel ? t('chat.seat.subChannel', { area: chat.row.areaName }) : t('chat.seat.subGroup', { area: chat.row.areaName });
   /* 0111 — und wer von den anderen gerade in der App ist (wer es teilt). */
   const subtitleLine = typeof subtitle === 'string' && chrome.presence !== null ? `${subtitle} · ${chrome.presence}` : subtitle;
   const listens = chat.row.kind === 'channel' || extras.features?.canWrite === false;
@@ -518,7 +524,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
         on={on}
         more={more}
         onEarlier={earlier}
-        empty="Jeszcze nikt nic nie napisał — możesz zacząć."
+        empty={t('chat.room.empty')}
         onFiles={(files) => composer.current?.addFiles(files)}
         unreadAfter={unreadAfter}
         search={extras.search}
@@ -529,8 +535,8 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
         ref={composer}
         endpoint={endpoint}
         onlineSend={chrome.onlineSend}
-        readOnly={listens ? 'Ten kanał pozwala Ci tylko czytać.' : null}
-        placeholder={signed !== '' ? `Wiadomość jako ${signedLabel}` : 'Wiadomość'}
+        readOnly={listens ? t('chat.room.channelOnlyRead') : null}
+        placeholder={signed !== '' ? t('chat.room.messageAs', { name: signedLabel }) : t('chat.chrome.message')}
         reply={reply}
         onClearReply={() => setReply(null)}
         editing={editing === null ? null : { id: editing.message.messageId, text: editing.opened.text }}
@@ -543,9 +549,9 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
         }}
         onScheduled={chrome.scheduled.refresh}
         before={<>{nameBar}{chrome.chip}</>}
-        blocked={signed === '' ? 'Najpierw przedstaw się — imię i nazwisko.' : identity === null ? 'Rozmowa jeszcze się otwiera — spróbuj za chwilę.' : null}
+        blocked={signed === '' ? t('chat.seat.introduceFirst') : identity === null ? t('chat.seat.stillOpening') : null}
         sendAs={signed !== '' ? (
-          <span className="ch-sendas" title={`Piszesz jako ${signedLabel}`} aria-label={`Piszesz jako ${signedLabel}`}>
+          <span className="ch-sendas" title={t('chat.speaker.writingAs', { name: signedLabel })} aria-label={t('chat.speaker.writingAs', { name: signedLabel })}>
             <Avatar seed={seatId} name={signed} size="sm" />
           </span>
         ) : null}
@@ -564,6 +570,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
  * ändern kann ihn danach nur die Kanzlei.
  */
 function IntroduceSeat({ seat, compact = false }: { seat: SeatView; compact?: boolean }) {
+  const t = useT();
   const was = chatNameFor(seat.seatId)?.trim() ?? '';
   const cut = was.lastIndexOf(' ');
   const [given, setGiven] = useState(cut > 0 ? was.slice(0, cut) : was);
@@ -575,11 +582,11 @@ function IntroduceSeat({ seat, compact = false }: { seat: SeatView; compact?: bo
     setBusy(true);
     setFailed(null);
     try {
-      if (seat.seatKey === null) throw new WorkspaceError('Ten link nie otwiera jeszcze klucza miejsca — odśwież stronę.');
+      if (seat.seatKey === null) throw new WorkspaceError(t('chat.seat.noSeatKey'));
       await nameSeat(seat.token, seat.seatId, seat.seatKey, given.trim(), surname.trim());
       seat.reload();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.prefs.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -588,18 +595,18 @@ function IntroduceSeat({ seat, compact = false }: { seat: SeatView; compact?: bo
   return (
     <form className={compact ? 'ch-namebar wk-introduce' : 'wk-form wk-introduce'} data-introduce=""
       onSubmit={(e) => { e.preventDefault(); void save(); }}>
-      <p className="wk-hint">Przedstaw się — w rozmowie inni zobaczą Twoje imię i nazwisko przy wiadomościach.</p>
+      <p className="wk-hint">{t('chat.seat.introduceHint')}</p>
       <label className="wk-field">
-        <span>Imię</span>
+        <span>{t('chat.link.given')}</span>
         <input value={given} maxLength={80} autoComplete="given-name" data-introduce-given="" onChange={(e) => setGiven(e.target.value)} />
       </label>
       <label className="wk-field">
-        <span>Nazwisko</span>
+        <span>{t('chat.link.surname')}</span>
         <input value={surname} maxLength={100} autoComplete="family-name" data-introduce-surname="" onChange={(e) => setSurname(e.target.value)} />
       </label>
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy || given.trim() === '' || surname.trim() === ''}>{busy ? 'Zapisywanie…' : 'Gotowe'}</button>
+        <button type="submit" className="wk-btn" disabled={busy || given.trim() === '' || surname.trim() === ''}>{busy ? t('common.saving') : t('common.done')}</button>
       </div>
     </form>
   );

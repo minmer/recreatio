@@ -2,6 +2,7 @@
  * Die Wörter der Bereiche: Stufen (über mich und über andere), Arten der Mitglieder, die Reiter eines Bereichs.
  */
 
+import { texts, t } from '../core/i18n';
 import type { Member } from './area';
 
 /**
@@ -13,26 +14,26 @@ import type { Member } from './area';
  * gedacht ist, ginge verloren. `admin` schliesst es ein: wer „prowadzi",
  * lässt auch hinein — und muss es deshalb nicht eigens dastehen haben.
  */
-export const LEVEL_NAME: Record<'read' | 'write' | 'admin', string> = {
-  read: 'czytasz',
-  write: 'piszesz',
-  admin: 'prowadzisz'
-};
+export const LEVEL_NAME: Readonly<Record<'read' | 'write' | 'admin', string>> = texts({
+  read: 'areas.level.read',
+  write: 'areas.level.write',
+  admin: 'areas.level.admin'
+});
 
 /** Dieselben Wörter, aber über jemand anderen gesagt. */
-export const OTHER_LEVEL: Record<string, string> = {
-  read: 'czyta',
-  write: 'pisze',
-  admin: 'prowadzi',
-  certify: 'wpuszcza'
-};
+export const OTHER_LEVEL: Readonly<Record<string, string>> = texts({
+  read: 'areas.otherLevel.read',
+  write: 'areas.otherLevel.write',
+  admin: 'areas.otherLevel.admin',
+  certify: 'areas.otherLevel.certify'
+});
 
-export const KIND_NAME: Record<Member['kind'], string> = {
-  account: 'Konto',
-  person: 'Osoba',
-  group: 'Grupa',
-  role: 'Rola'
-};
+export const KIND_NAME: Readonly<Record<Member['kind'], string>> = texts({
+  account: 'areas.memberKind.account',
+  person: 'areas.memberKind.person',
+  group: 'areas.memberKind.group',
+  role: 'areas.memberKind.role'
+});
 
 /**
  * 2026-10-16 — die Reiter eines Bereichs, als Adresse: `areas/<kennung>/osoby`.
@@ -42,9 +43,9 @@ export const KIND_NAME: Record<Member['kind'], string> = {
 export type AreaTab = 'profil' | 'przeglad' | 'osoby' | 'dostep' | 'ustawienia';
 
 export const AREA_TABS: readonly { readonly id: AreaTab; readonly label: string }[] = [
-  { id: 'profil', label: 'Rodzaj' },
-  { id: 'przeglad', label: 'Przegląd' },
-  { id: 'osoby', label: 'Osoby' },
-  { id: 'dostep', label: 'Dostęp' },
-  { id: 'ustawienia', label: 'Ustawienia' }
+  { id: 'profil', get label() { return t('areas.tab.profil'); } },
+  { id: 'przeglad', get label() { return t('areas.tab.przeglad'); } },
+  { id: 'osoby', get label() { return t('areas.tab.osoby'); } },
+  { id: 'dostep', get label() { return t('areas.tab.dostep'); } },
+  { id: 'ustawienia', get label() { return t('areas.tab.ustawienia'); } }
 ];

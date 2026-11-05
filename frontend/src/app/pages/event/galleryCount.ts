@@ -1,18 +1,12 @@
 /* 0063 — aus dem Altbestand übernommen (legacy/pages/events/parts/galleryCount.ts). */
 
-/**
- * How a gallery says how big it is.
- *
- * Its own file so the rule can be exercised: Polish counts three ways, the
- * teens are the exception to the exception, and "13 zdjęcia" is the kind of
- * mistake that sits on a page for a year because it is only slightly wrong.
- */
-/** "1 zdjęcie", "3 zdjęcia", "24 zdjęcia" — Polish counts three ways. */
-export function photoCount(count: number): string {
-  const last = count % 10;
-  const teens = count % 100;
+import { t as inApp, type T } from '../../core/i18n';
 
-  if (count === 1) return '1 zdjęcie';
-  if (last >= 2 && last <= 4 && (teens < 12 || teens > 14)) return `${count} zdjęcia`;
-  return `${count} zdjęć`;
+/**
+ * How a gallery says how big it is — a plural key (`pagesEvent.photos`): Polish counts
+ * three ways, and the dictionary knows which (Intl.PluralRules), not this file.
+ */
+/** "1 zdjęcie", "3 zdjęcia", "24 zdjęcia" — `t` of the scope when there is one. */
+export function photoCount(count: number, t: T | typeof inApp = inApp): string {
+  return t('pagesEvent.photos', { count });
 }

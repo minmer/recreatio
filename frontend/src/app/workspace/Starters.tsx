@@ -50,6 +50,7 @@ import { WorkspaceError, type Who } from '../core/session';
 import { areasNow, invalidate, refreshDesk } from './viewData';
 import { AreaPick } from '../areas/AreaPick';
 import { leadOf, mainTermOf } from '../events/mainTerm';
+import { useT } from '../core/i18n';
 
 /* Die Prüfung der Plattform (`app-platform-check`) liest es von hier. */
 export { slugOf };
@@ -59,27 +60,20 @@ type Starter = 'signup' | 'group' | 'course' | 'school';
 /** 0131 — was nach dem Anlegen noch zu tun ist, mit dem Weg dorthin. */
 interface Note { readonly text: string; readonly href: string; readonly link: string }
 
-const STARTERS: readonly { id: Starter; title: string; says: string; makes: string }[] = [
-  { id: 'signup', title: 'Nowe wydarzenie', says: 'Rekolekcje, wyjazd, warsztaty — strona, termin i formularz zgłoszeń.',
-    makes: 'Powstanie: obszar-wydarzenie z wizytówką, główny termin, formularz (imię, nazwisko, telefon, e-mail), strona z wizytówką i formularzem oraz rola uczestników. Resztę dodasz w karcie „Wydarzenie” obszaru.' },
-  { id: 'group', title: 'Nowa grupa', says: 'Schola, oaza, rada — miejsce, rozmowa i link dla członków.',
-    makes: 'Powstanie: obszar-grupa, rola członków, rozmowa grupy i link, który otwiera grupę.' },
-  { id: 'course', title: 'Kurs do nauki', says: 'Słówka, katechizm, przygotowanie do egzaminu — powtórki dla uczących się.',
-    makes: 'Powstanie: obszar-kurs, baza wiedzy z codzienną powtórką, rola uczących się (czytają), przyjęcia odpowiedzi (widzisz postępy) i link dla uczących się.' },
-  { id: 'school', title: 'Nowa szkoła', says: 'Klasy, programy nauczania raz dla wszystkich, dziennik każdej klasy.',
-    makes: 'Powstanie: obszar-szkoła, rola nauczycieli, skryptorium na programy i lekcje oraz klasy — każda jako obszar w szkole, z rolą nauczycieli. Plan lekcji, uczniów i dziennik ustawisz w karcie każdej klasy.' }
-];
+/* Titel, Satz und „Powstanie…" je Anfang: `workspace.starter.<id>.title|says|makes`. */
+const STARTERS: readonly Starter[] = ['signup', 'group', 'course', 'school'];
 
 export function Starters({ who }: { who: Who }) {
   const [open, setOpen] = useState<Starter | null>(null);
+  const t = useT();
   return (
     <>
       <ul className="wk-starters">
         {STARTERS.map((one) => (
-          <li key={one.id}>
-            <button type="button" className="wk-starter" data-starter={one.id} onClick={() => setOpen(one.id)}>
-              <strong>{one.title}</strong>
-              <span>{one.says}</span>
+          <li key={one}>
+            <button type="button" className="wk-starter" data-starter={one} onClick={() => setOpen(one)}>
+              <strong>{t(`workspace.starter.${one}.title`)}</strong>
+              <span>{t(`workspace.starter.${one}.says`)}</span>
             </button>
           </li>
         ))}
@@ -90,7 +84,7 @@ export function Starters({ who }: { who: Who }) {
 }
 
 function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; onClose: () => void }) {
-  const def = STARTERS.find((one) => one.id === starter)!;
+  const t = useT();
   const [name, setName] = useState('');
   const [parent, setParent] = useState('');
   const [under, setUnder] = useState('');
@@ -120,22 +114,22 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
   }, []);
 
   const run = async () => {
-    if (name.trim() === '') { setFailed('Podaj nazwę.'); return; }
+    if (name.trim() === '') { setFailed(t('workspace.starter.giveName')); return; }
     setFailed(null);
     try {
-      setBusy('Otwieranie kluczy…');
+      setBusy(t('workspace.starter.openingKeys'));
       const { ring, graph } = await keysFor(who);
       const person = selfOf(graph);
-      if (ring === null || person === null) throw new WorkspaceError('Najpierw podaj hasło — klucze nie są otwarte w tej karcie.');
+      if (ring === null || person === null) throw new WorkspaceError(t('workspace.starter.needPassword'));
 
-      setBusy('Tworzenie obszaru…');
+      setBusy(t('workspace.starter.creatingArea'));
       const area = await createArea(ring, person, name.trim(), parent === '' ? undefined : parent);
 
       const notes: Note[] = [];
       const settings = viewPath('areas', area.areaId, 'ustawienia');
       const kindTab = viewPath('areas', area.areaId, 'profil');
       /* 0133 — ging das Profil nicht, steht der Bereich trotzdem; die Art setzt man dann in den Ustawienia. */
-      const kindLost = (): void => { notes.push({ text: 'Rodzaju obszaru nie udało się zapisać.', href: settings, link: 'Ustaw go w ustawieniach obszaru' }); };
+      const kindLost = (): void => { notes.push({ text: t('workspace.starter.kindLost'), href: settings, link: t('workspace.starter.kindLostLink') }); };
 
       if (starter === 'course') {
         /*
@@ -145,8 +139,8 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
          */
         await saveProfile(area.areaId, { kind: 'course' }).catch(kindLost);
         const libraryId = await createCourseBase(ring, person, area.areaId, name.trim(), setBusy);
-        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: `Uczący się: ${name.trim()}`, capability: 'read', onStage: setBusy });
-        setBusy('Tworzenie linku dla uczących się…');
+        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: t('workspace.starter.roleLearners', { name: name.trim() }), capability: 'read', onStage: setBusy });
+        setBusy(t('workspace.starter.linkLearners'));
         const link = await createLink(role.ring, person, {
           label: name.trim(), roles: [{ roleId: role.roleId, lead: false }], once: false, expiresDays: 365,
           aim: `workspace/learn/${libraryId}`
@@ -154,7 +148,7 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         forgetKeys();
         invalidate();
         refreshDesk();
-        setDone({ open: viewPath('knowledge', libraryId, 'wpisy'), label: 'Dodaj pierwsze wpisy', link: link.url, notes });
+        setDone({ open: viewPath('knowledge', libraryId, 'wpisy'), label: t('workspace.starter.addFirstEntries'), link: link.url, notes });
         return;
       }
 
@@ -164,39 +158,39 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
          * im Reiter), das Skryptorium für die Programme, dann die Klassen mit den Nauczyciele darin.
          */
         await saveProfile(area.areaId, { kind: 'school' }).catch(kindLost);
-        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: `Nauczyciele: ${name.trim()}`, capability: 'write', onStage: setBusy });
-        await saveImportKeys(area.areaId, [{ kind: 'role', key: 'teachers', refId: role.roleId, refText: 'Nauczyciele' }]).catch(() => undefined);
+        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: t('workspace.starter.roleTeachers', { name: name.trim() }), capability: 'write', onStage: setBusy });
+        await saveImportKeys(area.areaId, [{ kind: 'role', key: 'teachers', refId: role.roleId, refText: t('workspace.starter.teachers') }]).catch(() => undefined);
         const teacher = (await loadMembers(area.areaId).catch(() => ({ members: [] }))).members.find((m) => m.roleId === role.roleId) ?? null;
-        setBusy('Skryptorium na programy…');
+        setBusy(t('workspace.starter.scriptorium'));
         const [{ ensureScriptorium, parseClassNames }, { addClassesTo }] = await Promise.all([import('../areas/school'), import('../areas/SchoolTools')]);
         await ensureScriptorium(role.ring, area.areaId, name.trim()).catch((e: unknown) => {
-          notes.push({ text: `Skryptorium szkoły nie powstało (${e instanceof WorkspaceError ? e.message : 'błąd'}).`, href: kindTab, link: 'Utwórz je w karcie „Szkoła”' });
+          notes.push({ text: t('workspace.starter.scriptoriumFailed', { why: e instanceof WorkspaceError ? e.message : t('workspace.starter.error') }), href: kindTab, link: t('workspace.starter.scriptoriumLink') });
         });
         const wanted = parseClassNames(classNames);
         if (wanted.length > 0) {
           const made = await addClassesTo(role.ring, person, area.areaId, wanted,
-            teacher === null ? null : { roleId: role.roleId, wrapPublicKey: teacher.wrapPublicKey, name: `Nauczyciele: ${name.trim()}` }, setBusy);
-          if (made.note !== null) notes.push({ text: made.note, href: kindTab, link: 'Karta „Szkoła”' });
+            teacher === null ? null : { roleId: role.roleId, wrapPublicKey: teacher.wrapPublicKey, name: t('workspace.starter.roleTeachers', { name: name.trim() }) }, setBusy);
+          if (made.note !== null) notes.push({ text: made.note, href: kindTab, link: t('workspace.starter.schoolTab') });
         }
         const now = await loadProfile(area.areaId).catch(() => null);
         if (now !== null && now.controller === null) {
-          notes.push({ text: 'Listy uczniów przyjmą wpisy, gdy szkoła będzie miała administratora danych.', href: settings, link: 'Wskaż go w ustawieniach szkoły' });
+          notes.push({ text: t('workspace.starter.schoolNoController'), href: settings, link: t('workspace.starter.schoolNoControllerLink') });
         }
         forgetKeys();
         invalidate();
         refreshDesk();
-        setDone({ open: kindTab, label: 'Otwórz szkołę', notes });
+        setDone({ open: kindTab, label: t('workspace.starter.openSchool'), notes });
         return;
       }
 
       if (starter === 'group') {
         await saveProfile(area.areaId, { kind: 'group' }).catch(kindLost);
-        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: `Członkowie: ${name.trim()}`, capability: 'write', onStage: setBusy });
-        setBusy('Zakładanie rozmowy grupy…');
+        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: t('workspace.starter.roleMembers', { name: name.trim() }), capability: 'write', onStage: setBusy });
+        setBusy(t('workspace.starter.groupChat'));
         /* 0129 — eine Rozmowa des Bereichs braucht einen Administrator danych; ohne ihn sagt es der Abschluss. */
         const chatMade = await startAreaChat(area.areaId, person.id).then(() => true, () => false);
-        if (!chatMade) notes.push({ text: 'Rozmowa grupy jeszcze nie powstała: obszar nie ma administratora danych.', href: settings, link: 'Wskaż go w ustawieniach obszaru' });
-        setBusy('Tworzenie linku dla członków…');
+        if (!chatMade) notes.push({ text: t('workspace.starter.groupChatFailed'), href: settings, link: t('workspace.starter.pickControllerLink') });
+        setBusy(t('workspace.starter.linkMembers'));
         /* 0133 — der Link führt in die eigene Ansicht der Grupa. */
         const link = await createLink(role.ring, person, {
           label: name.trim(), roles: [{ roleId: role.roleId, lead: false }], once: false, expiresDays: 90,
@@ -205,7 +199,7 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         forgetKeys();
         invalidate();
         refreshDesk();
-        setDone({ open: kindTab, label: 'Otwórz grupę', link: link.url, notes });
+        setDone({ open: kindTab, label: t('workspace.starter.openGroup'), link: link.url, notes });
         return;
       }
 
@@ -215,7 +209,7 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
        * Bereich darüber, den ich führe — sonst in ihm selbst.
        */
       const publishTo = publishAreaFor(areas, parent === '' ? null : parent, area.areaId);
-      setBusy('Wydarzenie…');
+      setBusy(t('workspace.starter.event'));
       await saveProfile(area.areaId, { kind: 'event', ...(publishTo !== area.areaId ? { publishAreaId: publishTo } : {}) }).catch(kindLost);
       const first = await loadProfile(area.areaId).catch(() => null);
 
@@ -223,7 +217,7 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
       const term = mainTermOf({ date, time, endDate, endTime });
       let itemId: string | null = null;
       if (term !== null) {
-        setBusy('Główny termin w kalendarzu…');
+        setBusy(t('workspace.starter.mainTerm'));
         itemId = await savePublishedItem(ring, {
           areaId: area.areaId, visibilityAreaId: publishTo, ownerRoleId: person.id,
           item: { title: name.trim(), location: place.trim(), ...term }
@@ -232,28 +226,28 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
 
       /* Zapisy: das Formular im Bereich, seine Fragen dort, wo veröffentlicht wird. */
       const form = await createSignupForm(who, ring, { areaId: area.areaId, name: name.trim(), publishTo, onStage: setBusy });
-      if (form.note !== null) notes.push({ text: form.note, href: formPath(form.formId), link: 'Otwórz formularz' });
+      if (form.note !== null) notes.push({ text: form.note, href: formPath(form.formId), link: t('workspace.starter.openForm') });
 
       let page: string | null = null;
       if (under !== '') {
-        setBusy('Tworzenie strony…');
+        setBusy(t('workspace.starter.creatingPage'));
         page = `${under}/${slugOf(name)}`;
         /* Oben die Wizytówka, darunter das Formular; für die Seite steht der Administrator danych des Bereichs (wenn er einen hat). */
         const made = await createSubpage({
           path: page, roleId: person.id, areaId: first?.controller != null ? area.areaId : null,
           title: name.trim(), lead: leadOf(term, place), parts: [cardPart(area.areaId), formPart(form.formId)]
         });
-        if (made.note !== null) notes.push({ text: made.note, href: kindTab, link: 'Karta „Wydarzenie”' });
+        if (made.note !== null) notes.push({ text: made.note, href: kindTab, link: t('workspace.starter.eventTab') });
       }
 
       if (withRole) {
-        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: `Uczestnicy: ${name.trim()}`, capability: 'read', onStage: setBusy });
-        setBusy('Łączenie formularza z rolą uczestników…');
+        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: t('workspace.starter.roleParticipants', { name: name.trim() }), capability: 'read', onStage: setBusy });
+        setBusy(t('workspace.starter.linkingRole'));
         await setMemberRole(form.formId, role.roleId);
       }
 
       /* Die Wizytówka — unter dem Schlüssel des Bereichs, in dem sie zu sehen ist —, dazu Seite, Termin, Kategorie. */
-      setBusy('Wizytówka wydarzenia…');
+      setBusy(t('workspace.starter.card'));
       try {
         const card = await sealCard(ring, area.areaId, publishTo, { title: name.trim(), lead: leadOf(term, place) ?? '' });
         await saveProfile(area.areaId, {
@@ -264,32 +258,32 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         });
         const now = await loadProfile(area.areaId);
         if (now.controller === null) {
-          notes.push({ text: 'Formularz nie przyjmie zgłoszeń, dopóki obszar nie ma administratora danych.', href: settings, link: 'Wskaż go w ustawieniach obszaru' });
+          notes.push({ text: t('workspace.starter.formNoController'), href: settings, link: t('workspace.starter.pickControllerLink') });
         }
         if (!now.publishPublic || page === null) {
-          notes.push({ text: 'Na listach „Wydarzenia” pokaże się, gdy wizytówka będzie w jawnym obszarze, a strona publiczna — co jeszcze brakuje, widać w karcie „Wydarzenie”.', href: kindTab, link: 'Karta „Wydarzenie”' });
+          notes.push({ text: t('workspace.starter.notListed'), href: kindTab, link: t('workspace.starter.eventTab') });
         }
       } catch (e) {
-        notes.push({ text: `Wizytówki nie udało się zapisać: ${e instanceof WorkspaceError ? e.message : 'błąd'}`, href: kindTab, link: 'Spróbuj w karcie „Wydarzenie”' });
+        notes.push({ text: t('workspace.starter.cardFailed', { why: e instanceof WorkspaceError ? e.message : t('workspace.starter.error') }), href: kindTab, link: t('workspace.starter.cardFailedLink') });
       }
-      if (term === null) notes.push({ text: 'Bez daty nie powstał główny termin — dodasz go w karcie „Wydarzenie”.', href: kindTab, link: 'Karta „Wydarzenie”' });
+      if (term === null) notes.push({ text: t('workspace.starter.noDate'), href: kindTab, link: t('workspace.starter.eventTab') });
 
       forgetKeys();
       invalidate();
       refreshDesk();
-      setDone({ open: kindTab, label: 'Otwórz wydarzenie', link: page === null ? undefined : `${window.location.origin}${window.location.pathname}#/${page}`, notes });
+      setDone({ open: kindTab, label: t('workspace.starter.openEvent'), link: page === null ? undefined : `${window.location.origin}${window.location.pathname}#/${page}`, notes });
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się — część mogła już powstać; sprawdź w Obszarach.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('workspace.starter.failed'));
     } finally {
       setBusy(null);
     }
   };
 
   return (
-    <Modal title={def.title} onClose={onClose}>
+    <Modal title={t(`workspace.starter.${starter}.title`)} onClose={onClose}>
       {done !== null ? (
         <div className="wk-starter-done">
-          <p className="wk-done" role="status">Gotowe.</p>
+          <p className="wk-done" role="status">{t('workspace.starter.done')}</p>
           {done.link !== undefined && <LinkShare url={done.link} />}
           {(done.notes ?? []).map((one) => (
             <p key={one.text} className="wk-note" data-starter-note="">
@@ -298,68 +292,68 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
           ))}
           <div className="wk-actions">
             <a className="wk-btn" href={done.open} onClick={onClose}>{done.label}</a>
-            <button type="button" className="wk-link-btn" onClick={onClose}>Zamknij</button>
+            <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.close')}</button>
           </div>
         </div>
       ) : (
         <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void run(); }}>
-          <p className="wk-hint">{def.makes}</p>
+          <p className="wk-hint">{t(`workspace.starter.${starter}.makes`)}</p>
           <label className="wk-field">
-            <span>{starter === 'group' ? 'Nazwa grupy' : starter === 'course' ? 'Nazwa kursu' : starter === 'school' ? 'Nazwa szkoły' : 'Nazwa wydarzenia'}</span>
-            <input value={name} autoComplete="off" data-starter-name="" placeholder={starter === 'group' ? 'np. Schola' : starter === 'course' ? 'np. Bierzmowanie 2027 — pytania' : starter === 'school' ? 'np. Szkoła Podstawowa nr 3' : 'np. Rekolekcje 2027'} onChange={(e) => setName(e.target.value)} />
+            <span>{t(`workspace.starter.${starter}.nameLabel`)}</span>
+            <input value={name} autoComplete="off" data-starter-name="" placeholder={t(`workspace.starter.${starter}.namePlaceholder`)} onChange={(e) => setName(e.target.value)} />
           </label>
           {starter === 'school' && (
             <label className="wk-field">
-              <span>Klasy (opcjonalnie — dodasz je też później)</span>
-              <input value={classNames} autoComplete="off" maxLength={600} data-starter-classes="" placeholder="np. 1a, 1b, 2a" onChange={(e) => setClassNames(e.target.value)} />
+              <span>{t('workspace.starter.classes')}</span>
+              <input value={classNames} autoComplete="off" maxLength={600} data-starter-classes="" placeholder={t('workspace.starter.classesPlaceholder')} onChange={(e) => setClassNames(e.target.value)} />
             </label>
           )}
           <label className="wk-field">
-            <span>Wewnątrz obszaru (opcjonalnie)</span>
+            <span>{t('workspace.starter.insideOptional')}</span>
             <AreaPick
-              label="Wewnątrz obszaru" value={parent} onChange={setParent}
+              label={t('workspace.starter.inside')} value={parent} onChange={setParent}
               areas={areas} only={areas.filter((a) => a.myLevel === 'admin' && a.personal !== true)}
-              extras={[{ value: '', label: '— samodzielny —' }]}
+              extras={[{ value: '', label: t('workspace.starter.standalone') }]}
             />
           </label>
           {starter === 'signup' && (
             <>
               <label className="wk-field">
-                <span>Strona z formularzem — pod adresem</span>
+                <span>{t('workspace.starter.pageUnder')}</span>
                 <select value={under} onChange={(e) => setUnder(e.target.value)}>
-                  <option value="">— bez strony (dodasz formularz później) —</option>
-                  {(pages ?? []).map((p) => <option key={p.path} value={p.path}>recreatio.pl/{p.path}/{slugOf(name || 'wydarzenie')}</option>)}
+                  <option value="">{t('workspace.starter.noPage')}</option>
+                  {(pages ?? []).map((p) => <option key={p.path} value={p.path}>{`recreatio.pl/${p.path}/${slugOf(name || t('workspace.starter.slugFallback'))}`}</option>)}
                 </select>
               </label>
               <div className="wk-starter-when">
                 <label className="wk-field">
-                  <span>Początek</span>
+                  <span>{t('workspace.starter.start')}</span>
                   <input type="date" value={date} data-starter-date="" onChange={(e) => setDate(e.target.value)} />
                 </label>
                 <label className="wk-field">
-                  <span>Godzina (puste: cały dzień)</span>
+                  <span>{t('workspace.starter.time')}</span>
                   <input type="time" value={time} data-starter-time="" onChange={(e) => setTime(e.target.value)} />
                 </label>
                 <label className="wk-field">
-                  <span>Koniec (opcjonalnie)</span>
+                  <span>{t('workspace.starter.end')}</span>
                   <input type="date" value={endDate} min={date === '' ? undefined : date} onChange={(e) => setEndDate(e.target.value)} />
                 </label>
                 <label className="wk-field">
-                  <span>Godzina końca</span>
+                  <span>{t('workspace.starter.endTime')}</span>
                   <input type="time" value={endTime} disabled={time === ''} onChange={(e) => setEndTime(e.target.value)} />
                 </label>
               </div>
               <label className="wk-field">
-                <span>Miejsce (opcjonalnie)</span>
-                <input value={place} autoComplete="off" placeholder="np. Dom rekolekcyjny w Limanowej" onChange={(e) => setPlace(e.target.value)} />
+                <span>{t('workspace.starter.place')}</span>
+                <input value={place} autoComplete="off" placeholder={t('workspace.starter.placePlaceholder')} onChange={(e) => setPlace(e.target.value)} />
               </label>
               <label className="wk-field">
-                <span>Rodzaj (opcjonalnie)</span>
-                <input value={kind} autoComplete="off" maxLength={40} placeholder="np. rekolekcje" onChange={(e) => setKind(e.target.value)} />
+                <span>{t('workspace.starter.kind')}</span>
+                <input value={kind} autoComplete="off" maxLength={40} placeholder={t('workspace.starter.kindPlaceholder')} onChange={(e) => setKind(e.target.value)} />
               </label>
               <label className="wk-check">
                 <input type="checkbox" checked={withRole} onChange={(e) => setWithRole(e.target.checked)} />
-                <span>Rola uczestników — każdy, kto się zapisze, widzi strony, kalendarz i rozmowy wydarzenia</span>
+                <span>{t('workspace.starter.withRole')}</span>
               </label>
             </>
           )}
@@ -367,10 +361,10 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
           {busy !== null && <p className="wk-working" role="status">{busy}</p>}
           <div className="wk-actions">
             {/* Erst, wenn die Seiten da sind — sonst entstünde die Zapisy ohne Seite, nur weil jemand schnell war. */}
-            <button type="submit" className="wk-btn" disabled={busy !== null || (starter === 'signup' && pages === null)} data-starter-go="">Utwórz</button>
-            <button type="button" className="wk-link-btn" disabled={busy !== null} onClick={onClose}>Anuluj</button>
+            <button type="submit" className="wk-btn" disabled={busy !== null || (starter === 'signup' && pages === null)} data-starter-go="">{t('workspace.starter.create')}</button>
+            <button type="button" className="wk-link-btn" disabled={busy !== null} onClick={onClose}>{t('common.cancel')}</button>
           </div>
-          <p className="wk-hint">Tworzenie kluczy trwa chwilę — nie zamykaj karty.</p>
+          <p className="wk-hint">{t('workspace.starter.keysTakeTime')}</p>
         </form>
       )}
     </Modal>
@@ -387,17 +381,18 @@ const STARTER_ICON: Record<Starter, IconName> = { signup: 'form', group: 'users'
  */
 export function NewMenu({ who }: { who: Who }) {
   const [open, setOpen] = useState<Starter | null>(null);
+  const t = useT();
   return (
     <>
       <MenuButton
-        label="Utwórz"
+        label={t('workspace.starter.create')}
         icon="plus"
-        text="Nowe"
+        text={t('workspace.starter.newMenu')}
         className="wk-btn"
         items={[
-          ...STARTERS.map((one) => ({ label: `${one.title}…`, icon: STARTER_ICON[one.id], onSelect: () => setOpen(one.id) })),
-          { label: 'Pusty formularz', icon: 'file' as IconName, onSelect: () => { window.location.hash = formsPath('new').slice(1); } },
-          { label: 'Nowy obszar', icon: 'layers' as IconName, onSelect: () => { window.location.hash = viewPath('areas', 'new').slice(1); } }
+          ...STARTERS.map((one) => ({ label: t('workspace.starter.menuItem', { title: t(`workspace.starter.${one}.title`) }), icon: STARTER_ICON[one], onSelect: () => setOpen(one) })),
+          { label: t('workspace.starter.emptyForm'), icon: 'file' as IconName, onSelect: () => { window.location.hash = formsPath('new').slice(1); } },
+          { label: t('workspace.starter.newArea'), icon: 'layers' as IconName, onSelect: () => { window.location.hash = viewPath('areas', 'new').slice(1); } }
         ]}
       />
       {open !== null && <StarterDialog who={who} starter={open} onClose={() => setOpen(null)} />}

@@ -20,6 +20,7 @@
  */
 
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { t } from '../core/i18n';
 import { newId } from '../core/ids';
 import { call, WorkspaceError } from '../core/session';
 import type { PhoneCtx } from '../phone/phoneContext';
@@ -163,20 +164,20 @@ export function frameProblem(f: LampFrame): string | null {
   const read = readFrame(f.hex);
   if (read.problem !== null) return read.problem;
   if (!Number.isFinite(f.durationMs) || f.durationMs < DURATION_MIN || f.durationMs > DURATION_MAX) {
-    return `Czas nadawania od ${DURATION_MIN} do ${DURATION_MAX} ms.`;
+    return t('lamps.store.duration', { min: DURATION_MIN, max: DURATION_MAX });
   }
-  if (!Number.isFinite(f.gapMs) || f.gapMs < 0 || f.gapMs > GAP_MAX) return `Przerwa od 0 do ${GAP_MAX} ms.`;
+  if (!Number.isFinite(f.gapMs) || f.gapMs < 0 || f.gapMs > GAP_MAX) return t('lamps.store.gap', { max: GAP_MAX });
   return null;
 }
 
 /** Was ein Sygnał am Senden hindert — `null`: er geht. */
 export function signalProblem(s: LampSignal): string | null {
-  if (s.label.trim() === '') return 'Podaj nazwę sygnału (napis na przycisku).';
-  if (s.frames.length === 0) return 'Sygnał potrzebuje co najmniej jednej ramki.';
-  if (s.frames.length > FRAMES_MAX) return `Najwyżej ${FRAMES_MAX} ramek w sygnale.`;
+  if (s.label.trim() === '') return t('lamps.store.signalName');
+  if (s.frames.length === 0) return t('lamps.store.noFrames');
+  if (s.frames.length > FRAMES_MAX) return t('lamps.store.tooManyFrames', { max: FRAMES_MAX });
   for (let i = 0; i < s.frames.length; i++) {
     const problem = frameProblem(s.frames[i]);
-    if (problem !== null) return s.frames.length === 1 ? problem : `Ramka ${i + 1}: ${problem}`;
+    if (problem !== null) return s.frames.length === 1 ? problem : t('lamps.store.frameProblem', { n: i + 1, problem });
   }
   return null;
 }
@@ -184,18 +185,18 @@ export function signalProblem(s: LampSignal): string | null {
 /** Alles, was das Speichern verhindert — leer: es geht. */
 export function lampProblems(d: LampData): string[] {
   const out: string[] = [];
-  if (d.name.trim() === '' && (d.number ?? '').trim() === '') out.push('Podaj nazwę albo numer urządzenia.');
-  if (d.signals.length > SIGNALS_MAX) out.push(`Najwyżej ${SIGNALS_MAX} sygnałów na urządzenie.`);
+  if (d.name.trim() === '' && (d.number ?? '').trim() === '') out.push(t('lamps.store.lampName'));
+  if (d.signals.length > SIGNALS_MAX) out.push(t('lamps.store.tooManySignals', { max: SIGNALS_MAX }));
   d.signals.forEach((s, i) => {
     const problem = signalProblem(s);
-    if (problem !== null) out.push(`${s.label.trim() || `Sygnał ${i + 1}`}: ${problem}`);
+    if (problem !== null) out.push(`${s.label.trim() || t('lamps.signalN', { n: i + 1 })}: ${problem}`);
   });
   return out;
 }
 
 /** Wie die Lampe heisst, wo sie steht: „Lampa w sypialni · nr 3". */
 export const lampTitle = (d: Pick<LampData, 'name' | 'number'>): string =>
-  [d.name.trim() || null, d.number !== null && d.number.trim() !== '' ? `nr ${d.number.trim()}` : null].filter(Boolean).join(' · ') || 'Bez nazwy';
+  [d.name.trim() || null, d.number !== null && d.number.trim() !== '' ? t('lamps.app.number', { n: d.number.trim() }) : null].filter(Boolean).join(' · ') || t('lamps.app.noName');
 
 /** Was in die Hülle kommt — ohne Kennung und Fassung (die stehen neben ihr). */
 export const sealedJson = (d: LampData): string => JSON.stringify({ v: 1, kind: 'device', ...tidyLamp(d) });
@@ -253,11 +254,11 @@ export function actionOf(lamps: readonly Lamp[], a: LampTimerAction): { readonly
 /** Alles, was das Speichern eines Timers verhindert — leer: es geht. */
 export function timerProblems(d: LampTimerData, lamps: readonly Lamp[]): string[] {
   const out: string[] = [];
-  if (!Number.isInteger(d.minute) || d.minute < 0 || d.minute >= 24 * 60) out.push('Podaj godzinę.');
-  if (d.actions.length === 0) out.push('Dodaj co najmniej jedną akcję (urządzenie i sygnał).');
-  if (d.actions.length > ACTIONS_MAX) out.push(`Najwyżej ${ACTIONS_MAX} akcji w timerze.`);
+  if (!Number.isInteger(d.minute) || d.minute < 0 || d.minute >= 24 * 60) out.push(t('lamps.store.time'));
+  if (d.actions.length === 0) out.push(t('lamps.store.noActions'));
+  if (d.actions.length > ACTIONS_MAX) out.push(t('lamps.store.tooManyActions', { max: ACTIONS_MAX }));
   d.actions.forEach((a, i) => {
-    if (actionOf(lamps, a) === null) out.push(`Akcja ${i + 1}: tego urządzenia albo sygnału już nie ma.`);
+    if (actionOf(lamps, a) === null) out.push(t('lamps.store.actionGone', { n: i + 1 }));
   });
   return out;
 }
@@ -278,7 +279,7 @@ export function minuteOf(text: string): number | null {
 }
 
 /** Wie der Timer heisst: sein Name oder seine Uhrzeit. */
-export const timerTitle = (d: LampTimerData): string => d.name.trim() || `Timer ${timeText(d.minute)}`;
+export const timerTitle = (d: LampTimerData): string => d.name.trim() || t('lamps.timers.nameAt', { time: timeText(d.minute) });
 
 export function readLamp(json: string): LampData {
   const o = JSON.parse(json) as Record<string, unknown>;
@@ -369,8 +370,8 @@ export const removeItem = (ctx: PhoneCtx, id: string): Promise<{ deleted: boolea
 
 export function lampSaveProblem(e: unknown): string {
   if (e instanceof WorkspaceError) {
-    if (e.verdict === 'stale') return 'Ktoś zmienił to w międzyczasie — wczytaj stronę ponownie.';
+    if (e.verdict === 'stale') return t('lamps.store.stale');
     return e.message;
   }
-  return 'Nie udało się zapisać urządzenia.';
+  return t('lamps.store.saveFailed');
 }

@@ -28,12 +28,12 @@ import { Modal } from '../ui/Modal';
 import { PersonCard } from './PersonCard';
 import { PersonsJsonPanel } from './PersonsJsonPanel';
 import { TRANSFER, TransferPage } from './TransferPage';
+import { LANGUAGE, LanguagePage } from './LanguagePage';
 import { forget as forgetState } from '../core/prefs';
 import { keysFor } from '../core/ringOf';
 import { myRoleNames } from '../roles/roleNames';
 import { selfOf } from '../roles/roles';
 import { loadMySeats, type MySeat } from '../seats/seat';
-import { plural } from '../core/plural';
 import { PasswordInput } from '../ui/PasswordInput';
 import { useCrumbs } from '../shell/crumbTrail';
 import { WorkspaceLook } from '../notify/WorkspaceLook';
@@ -47,12 +47,20 @@ import {
 } from '../core/session';
 import { Loading } from '../ui/Loading';
 import { forgetAway } from '../core/away';
+import { LANG_NAME, rich, useT, type T } from '../core/i18n';
+
+/** <b>…</b> fett, <em>…</em> betont — für Sätze mit Auszeichnung. */
+const marks = {
+  b: (s: string, key: number) => <strong key={key}>{s}</strong>,
+  em: (s: string, key: number) => <em key={key}>{s}</em>
+};
 
 /** `#/workspace/account/widok` (und `…/powiadomienia`): Powiadomienia; `…/bezpieczenstwo`: Bezpieczeństwo i klucze; `…/przeniesienie`: Przeniesienie danych; sonst das Konto. */
 export function Account({ who, trail = [] }: { who: Who; trail?: readonly string[] }) {
   if (trail[0] === 'widok' || trail[0] === 'powiadomienia') return <LookPage who={who} />;
   if (trail[0] === SECURITY) return <SecurityPage who={who} />;
   if (trail[0] === TRANSFER) return <TransferPage who={who} />;
+  if (trail[0] === LANGUAGE) return <LanguagePage />;
   return <AccountPage who={who} />;
 }
 
@@ -60,7 +68,8 @@ export function Account({ who, trail = [] }: { who: Who; trail?: readonly string
 export const SECURITY = 'bezpieczenstwo';
 
 function LookPage({ who }: { who: Who }) {
-  useCrumbs([{ label: 'Powiadomienia', href: null }]);
+  const t = useT();
+  useCrumbs([{ label: t('account.look.crumb'), href: null }]);
   return <WorkspaceLook who={who} />;
 }
 
@@ -73,6 +82,7 @@ function useKeeping(who: Who) {
   const [devices, setDevices] = useState<readonly KeptDevice[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   /* Welches der verwahrten Geräte dieses ist — die Ablage antwortet in der App erst nach einer Runde. */
   const [here, setHere] = useState<string | null>(null);
@@ -89,16 +99,16 @@ function useKeeping(who: Who) {
       setDevices(found.devices);
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać ustawień.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('account.keeping.loadFailed'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void look(); }, [look]);
 
   const choose = async (wanted: KeyKeeping) => {
     if (wanted === mode) return;
 
-    setBusy(wanted === 'tab' ? 'Usuwanie zachowanych kluczy…' : 'Włączanie…');
+    setBusy(wanted === 'tab' ? t('account.keeping.removing') : t('account.keeping.enabling'));
     setFailed(null);
 
     try {
@@ -108,8 +118,8 @@ function useKeeping(who: Who) {
         /* 2026-10-28 — „Tylko w pamięci": auch die Powtórki ohne Netz und das Anmelden ohne Netz gehen von diesem Gerät. */
         await forgetAway(who.accountId).catch(() => undefined);
         toast(done.forgotten === 0
-          ? 'Od teraz klucz żyje tylko w pamięci.'
-          : `Usunięto zachowane klucze (${done.forgotten}). Po restarcie zapytamy o hasło.`, { kind: 'ok' });
+          ? t('account.keeping.memoryOnly')
+          : t('account.keeping.removed', { count: done.forgotten }), { kind: 'ok' });
       } else {
         /*
          * Gleich verwahren, wenn dieser Tab den Schlüssel hat. Sonst sagte die
@@ -117,27 +127,27 @@ function useKeeping(who: Who) {
          * Anmelden — also genau dann nicht, wenn man es gerade eingeschaltet hat.
          */
         const now = await keepHeldKey(who);
-        toast(now ? 'Klucz jest zachowany na tym urządzeniu.' : 'Włączone. Klucz zostanie zachowany przy następnym logowaniu.', { kind: 'ok' });
+        toast(now ? t('account.keeping.keptHere') : t('account.keeping.keptNext'), { kind: 'ok' });
       }
 
       await look();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zmienić ustawienia.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('account.keeping.changeFailed'));
     } finally {
       setBusy(null);
     }
   };
 
   const forget = async (deviceId: string) => {
-    setBusy('Usuwanie…');
+    setBusy(t('account.keeping.removingOne'));
     setFailed(null);
 
     try {
       await forgetKept(deviceId);
       await look();
-      toast('Urządzenie zapyta o hasło przy następnym otwarciu.', { kind: 'ok' });
+      toast(t('account.keeping.forgotten'), { kind: 'ok' });
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('account.keeping.removeFailed'));
     } finally {
       setBusy(null);
     }
@@ -147,6 +157,7 @@ function useKeeping(who: Who) {
 }
 
 function AccountPage({ who }: { who: Who }) {
+  const t = useT();
   const keeping = useKeeping(who);
 
   /*
@@ -193,30 +204,38 @@ function AccountPage({ who }: { who: Who }) {
 
       {ring !== null && person === null && (
         <>
-          <h2 className="wk-h2">Moje dane</h2>
-          <p className="wk-note">
-            Dane należą do <strong>osoby</strong>, a konto osobą nie jest. Załóż osobę w „Role", wtedy będzie komu je przypisać.
-          </p>
+          <h2 className="wk-h2">{t('account.page.myData')}</h2>
+          <p className="wk-note">{rich(t('account.page.noPerson'), marks)}</p>
         </>
       )}
 
-      <section className="wk-box" aria-label="Logowanie i klucze">
+      <section className="wk-box" aria-label={t('account.page.loginKeys')}>
         <a className="wk-line wk-line-first" href={viewPath('account', SECURITY)}>
           <span className="wk-line-ic is-info"><Icon name="shield" /></span>
           <span className="wk-line-text">
-            <span className="wk-line-title">Bezpieczeństwo i klucze</span>
+            <span className="wk-line-title">{t('account.security.title')}</span>
             <span className="wk-line-sub">
-              {mode === null ? 'Konto ' + who.loginId
-                : `${mode === 'kept' ? 'Klucz zachowany' : 'Klucz tylko w pamięci'}${devices.length > 0 ? ` · ${devices.length} ${plural(devices.length, 'urządzenie', 'urządzenia', 'urządzeń')}` : ''}`}
+              {mode === null ? t('account.page.accountOf', { login: who.loginId })
+                : devices.length > 0
+                  ? t('account.page.keepingDevices', { mode: mode === 'kept' ? t('account.page.keyKept') : t('account.page.keyMemory'), devices: t('account.page.devices', { count: devices.length }) })
+                  : mode === 'kept' ? t('account.page.keyKept') : t('account.page.keyMemory')}
             </span>
+          </span>
+          <span className="wk-line-end"><Icon name="next" /></span>
+        </a>
+        <a className="wk-line" href={viewPath('account', LANGUAGE)}>
+          <span className="wk-line-ic"><Icon name="globe" /></span>
+          <span className="wk-line-text">
+            <span className="wk-line-title">{t('i18n.title')}</span>
+            <span className="wk-line-sub">{LANG_NAME[t.lang]}</span>
           </span>
           <span className="wk-line-end"><Icon name="next" /></span>
         </a>
         <a className="wk-line" href={viewPath('account', TRANSFER)}>
           <span className="wk-line-ic"><Icon name="refresh" /></span>
           <span className="wk-line-text">
-            <span className="wk-line-title">Przeniesienie danych</span>
-            <span className="wk-line-sub">Dane sprzed zmian platformy — do obecnej postaci</span>
+            <span className="wk-line-title">{t('account.page.transfer')}</span>
+            <span className="wk-line-sub">{t('account.page.transferSub')}</span>
           </span>
           <span className="wk-line-end"><Icon name="next" /></span>
         </a>
@@ -234,7 +253,8 @@ function AccountPage({ who }: { who: Who }) {
  * arbeiten; dazu die Wahl, wie lange der Schlüssel lebt, und die Geräte.
  */
 function SecurityPage({ who }: { who: Who }) {
-  useCrumbs([{ label: 'Bezpieczeństwo i klucze', href: null }]);
+  const t = useT();
+  useCrumbs([{ label: t('account.security.title'), href: null }]);
   const { mode, devices, here, busy, failed, choose, forget } = useKeeping(who);
 
   /* Geräte ohne Namen: dieses, und die anderen nach dem Tag, an dem sie dazukamen. */
@@ -242,30 +262,26 @@ function SecurityPage({ who }: { who: Who }) {
 
   return (
     <div className="wk-narrow ui-page wk-security">
-      <PageHeader title="Bezpieczeństwo i klucze" meta={`Konto ${who.loginId}`} />
+      <PageHeader title={t('account.security.title')} meta={t('account.page.accountOf', { login: who.loginId })} />
 
       <section aria-labelledby="sec-how">
-        <h2 className="wk-h2" id="sec-how">Jak to działa</h2>
+        <h2 className="wk-h2" id="sec-how">{t('account.security.how')}</h2>
         <ul className="wk-security-how">
-          <li><strong>Hasło zostaje na urządzeniu.</strong> Przeglądarka liczy z niego klucz; do usługi idzie tylko dowód, że go znasz.</li>
-          <li><strong>Dane są szyfrowane w przeglądarce.</strong> Imiona, nazwy, wiadomości i odpowiedzi trafiają do usługi już zaszyfrowane.</li>
-          <li><strong>Dostęp to klucz.</strong> Kto ma klucz obszaru, czyta jego dane; nadanie dostępu przekazuje klucz, wycofanie zmienia go na nowy.</li>
-          <li><strong>Link też jest kluczem.</strong> Osoba z linkiem widzi tylko to, do czego link prowadzi — i tylko dopóki go nie wycofasz.</li>
-          <li><strong>Hasła nie da się odzyskać.</strong> Bez niego nikt, także administrator, nie otworzy Twoich kluczy.</li>
+          {(['password', 'browser', 'access', 'link', 'lost'] as const).map((k) => <li key={k}>{rich(t(`account.security.point.${k}`), marks)}</li>)}
         </ul>
       </section>
 
       <section aria-labelledby="sec-key">
-        <h2 className="wk-h2" id="sec-key">Klucz na tym urządzeniu</h2>
+        <h2 className="wk-h2" id="sec-key">{t('account.security.keyHere')}</h2>
         {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
         {mode === null && failed === null ? <Loading lines={2} /> : (
           <fieldset className="ui-choices" disabled={busy !== null}>
-            <legend className="ui-sr">Jak długo żyje klucz</legend>
-            <Choice name="keeping" chosen={mode === 'kept'} title="Zachowany — nie pyta po restarcie" onPick={() => void choose('kept')}>
-              Usługa przechowuje go zapieczętowanego kluczem tego urządzenia, którego sama nie zna. Kto ma to urządzenie <em>i</em> Twoją sesję, ma wszystko.
+            <legend className="ui-sr">{t('account.security.howLong')}</legend>
+            <Choice name="keeping" chosen={mode === 'kept'} title={t('account.security.keptTitle')} onPick={() => void choose('kept')}>
+              {rich(t('account.security.keptText'), marks)}
             </Choice>
-            <Choice name="keeping" chosen={mode === 'tab'} title="Tylko w pamięci — pyta po każdym restarcie" onPick={() => void choose('tab')}>
-              Klucz żyje tylko w otwartych kartach. Wybranie tego <strong>usuwa</strong> zachowane klucze na wszystkich urządzeniach.
+            <Choice name="keeping" chosen={mode === 'tab'} title={t('account.security.tabTitle')} onPick={() => void choose('tab')}>
+              {rich(t('account.security.tabText'), marks)}
             </Choice>
           </fieldset>
         )}
@@ -273,26 +289,26 @@ function SecurityPage({ who }: { who: Who }) {
       </section>
 
       <section aria-labelledby="sec-devices">
-        <h2 className="wk-h2" id="sec-devices">Urządzenia z zachowanym kluczem</h2>
+        <h2 className="wk-h2" id="sec-devices">{t('account.security.devices')}</h2>
         {ordered.length === 0 ? (
-          <p className="wk-empty">Klucz nie jest nigdzie zachowany.</p>
+          <p className="wk-empty">{t('account.security.noDevices')}</p>
         ) : (
           <div className="wk-box">
             {ordered.map((one, i) => (
               <div className={`wk-line${i === 0 ? ' wk-line-first' : ''}`} key={one.deviceId}>
                 <span className="wk-line-ic"><Icon name={one.deviceId === here ? 'phone' : 'key'} /></span>
                 <span className="wk-line-text">
-                  <span className="wk-line-title">{one.deviceId === here ? 'To urządzenie' : `Inne urządzenie, dodane ${when(one.createdAt)}`}</span>
-                  <span className="wk-line-sub">{one.lastUsedAt === null ? 'jeszcze nieużywane' : `ostatnio ${when(one.lastUsedAt)}`}</span>
+                  <span className="wk-line-title">{one.deviceId === here ? t('account.security.thisDevice') : t('account.security.otherDevice', { date: when(one.createdAt, t) })}</span>
+                  <span className="wk-line-sub">{one.lastUsedAt === null ? t('account.security.unused') : t('account.security.lastUsed', { date: when(one.lastUsedAt, t) })}</span>
                 </span>
                 <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy !== null} onClick={() => void forget(one.deviceId)}>
-                  Zapomnij
+                  {t('account.security.forget')}
                 </button>
               </div>
             ))}
           </div>
         )}
-        <p className="wk-hint">Zapomniane urządzenie nie jest wylogowane — przy następnym otwarciu zapyta o hasło.</p>
+        <p className="wk-hint">{t('account.security.forgetHint')}</p>
       </section>
 
     </div>
@@ -322,6 +338,7 @@ function DeleteAccount({ who }: { who: Who }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -330,10 +347,10 @@ function DeleteAccount({ who }: { who: Who }) {
     setFailed(null);
     void deletionPreview()
       .then((found) => { if (alive) setPreview(found); })
-      .catch((e: unknown) => { if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się sprawdzić konta.'); });
+      .catch((e: unknown) => { if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('account.delete.checkFailed')); });
     void myRoleNames(who).then((found) => { if (alive) setNames(found); }).catch(() => undefined);
     return () => { alive = false; };
-  }, [open, who]);
+  }, [open, who, t]);
 
   const ready = typed.trim().toLowerCase() === who.loginId.toLowerCase() && password !== '' && !busy;
 
@@ -349,7 +366,7 @@ function DeleteAccount({ who }: { who: Who }) {
       setPassword('');
       setGone(true);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć konta.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('account.delete.failed'));
     } finally {
       setBusy(false);
     }
@@ -358,10 +375,10 @@ function DeleteAccount({ who }: { who: Who }) {
   /* Danach gibt es hier nichts mehr: neu laden, und die Anmeldung steht da. */
   if (gone) {
     return (
-      <Modal title="Konto usunięte" onClose={() => window.location.reload()}>
-        <p>Konto <strong>{who.loginId}</strong> zostało usunięte. Na tym urządzeniu nie ma już jego kluczy.</p>
+      <Modal title={t('account.delete.goneTitle')} onClose={() => window.location.reload()}>
+        <p>{rich(t('account.delete.goneText', { login: who.loginId }), marks)}</p>
         <div className="wk-actions">
-          <button type="button" className="wk-btn" onClick={() => window.location.reload()}>Zakończ</button>
+          <button type="button" className="wk-btn" onClick={() => window.location.reload()}>{t('account.delete.finish')}</button>
         </div>
       </Modal>
     );
@@ -371,69 +388,63 @@ function DeleteAccount({ who }: { who: Who }) {
     <>
       <section className="wk-danger-zone" aria-labelledby="account-delete">
         <div>
-          <h2 className="wk-h2" id="account-delete">Usunięcie konta</h2>
-          <p className="wk-hint">Na zawsze i na wszystkich urządzeniach. Najpierw zobaczysz, co zniknie.</p>
+          <h2 className="wk-h2" id="account-delete">{t('account.delete.title')}</h2>
+          <p className="wk-hint">{t('account.delete.lead')}</p>
         </div>
-        <button type="button" className="wk-btn wk-btn-danger" onClick={() => setOpen(true)}>Usuń konto…</button>
+        <button type="button" className="wk-btn wk-btn-danger" onClick={() => setOpen(true)}>{t('account.delete.open')}</button>
       </section>
 
       {open && (
-        <Modal title="Usunąć konto?" onClose={() => { if (!busy) setOpen(false); }}>
-          {preview === null && failed === null && <Loading label="Sprawdzanie, co zostanie usunięte…" />}
+        <Modal title={t('account.delete.ask')} onClose={() => { if (!busy) setOpen(false); }}>
+          {preview === null && failed === null && <Loading label={t('account.delete.checking')} />}
 
           {preview !== null && (
             <>
-              <p><strong>Zostanie usunięte:</strong></p>
+              <p><strong>{t('account.delete.willGo')}</strong></p>
               <ul className="wk-delete-list">
                 <li>
-                  konto <strong>{preview.loginId}</strong>, logowanie i sesje na wszystkich urządzeniach
-                  {preview.devices > 0 ? ` (zachowane klucze: ${preview.devices})` : ''};
+                  {rich(t(preview.devices === 0 ? 'account.delete.accountItem' : 'account.delete.accountItemKeys', { login: preview.loginId, count: preview.devices }), marks)}
                 </li>
                 <li>
-                  {preview.persons === 1 ? 'Twoja osoba i jej dane' : `Twoje osoby (${preview.persons}) i ich dane`}
-                  {' '}— klucze, nazwy, dane osobowe;
+                  {preview.persons === 1 ? t('account.delete.person') : t('account.delete.persons', { count: preview.persons })}
                 </li>
-                {preview.deletedAreas.some((a) => a.personal) && <li>Twój osobisty kalendarz i zadania;</li>}
+                {preview.deletedAreas.some((a) => a.personal) && <li>{t('account.delete.personal')}</li>}
                 {preview.messages > 0 && (
-                  <li>treść Twoich wiadomości ({preview.messages}) — w rozmowach zostanie „wiadomość usunięta”;</li>
+                  <li>{t('account.delete.messages', { count: preview.messages })}</li>
                 )}
-                <li>Twoje przyszłe rezerwacje terminów.</li>
+                <li>{t('account.delete.bookings')}</li>
               </ul>
 
               <p>
-                <strong>Zostaje</strong>, bo należy do wspólnot: zgłoszenia wysłane w formularzach, minione terminy
-                {preview.pages.length > 0 ? `, strony: ${preview.pages.join(', ')}` : ''}.
+                {rich(preview.pages.length > 0 ? t('account.delete.staysPages', { pages: preview.pages.join(', ') }) : t('account.delete.stays'), marks)}
               </p>
 
               {(groups.length > 0 || preview.orphanedAreas.length > 0 || preview.offices.length > 0) && (
                 <div className="wk-note wk-delete-warn">
-                  <p><strong>Uwaga — tylko Ty masz do tego klucze.</strong></p>
+                  <p><strong>{t('account.delete.onlyYou')}</strong></p>
                   {groups.length > 0 && (
                     <>
-                      <p>Te grupy zostaną <strong>usunięte</strong> razem z kontem — z kalendarzami, zadaniami i rozmowami:</p>
+                      <p>{rich(t('account.delete.groups'), marks)}</p>
                       <ul>{groups.map((a) => <li key={a.id}>„{a.name}”</li>)}</ul>
                     </>
                   )}
                   {(preview.orphanedAreas.length > 0 || preview.offices.length > 0) && (
                     <>
-                      <p>To zostanie, ale nikt już tego nie otworzy ani nie poprowadzi:</p>
+                      <p>{t('account.delete.orphans')}</p>
                       <ul>
-                        {preview.orphanedAreas.map((a) => <li key={a.id}>obszar „{a.name}”</li>)}
-                        {preview.offices.map((id) => <li key={id}>rola „{names.get(id) ?? 'bez nazwy'}”</li>)}
+                        {preview.orphanedAreas.map((a) => <li key={a.id}>{t('account.delete.orphanArea', { name: a.name })}</li>)}
+                        {preview.offices.map((id) => <li key={id}>{t('account.delete.orphanRole', { name: names.get(id) ?? t('account.delete.noName') })}</li>)}
                       </ul>
                     </>
                   )}
-                  <p>Jeśli mają działać dalej, najpierw nadaj komuś dostęp.</p>
+                  <p>{t('account.delete.giveAccess')}</p>
                 </div>
               )}
 
               {/* 0129 — wer danach für die Daten nicht mehr geradesteht. */}
               {(preview.endingControllers ?? []).length > 0 && (
                 <div className="wk-note wk-delete-warn" data-ending-controllers="">
-                  <p>
-                    Ci administratorzy danych przestaną obowiązywać — formularze, rezerwacje i rozmowy tych obszarów niczego
-                    nie przyjmą, dopóki ktoś nie wskaże nowego:
-                  </p>
+                  <p>{t('account.delete.controllers')}</p>
                   <ul>
                     {preview.endingControllers!.map((c) => (
                       <li key={c.name}>
@@ -445,11 +456,11 @@ function DeleteAccount({ who }: { who: Who }) {
               )}
 
               <label className="wk-field">
-                <span>Wpisz nazwę konta: <strong>{who.loginId}</strong></span>
+                <span>{rich(t('account.delete.typeLogin', { login: who.loginId }), marks)}</span>
                 <input value={typed} autoComplete="off" autoCapitalize="none" onChange={(e) => setTyped(e.target.value)} />
               </label>
               <label className="wk-field">
-                <span>Hasło</span>
+                <span>{t('account.delete.password')}</span>
                 <PasswordInput value={password} autoComplete="current-password" onChange={setPassword} />
               </label>
             </>
@@ -459,9 +470,9 @@ function DeleteAccount({ who }: { who: Who }) {
 
           <div className="wk-actions">
             <button type="button" className="wk-btn wk-btn-danger" disabled={!ready || preview === null} onClick={() => void go()}>
-              {busy ? 'Usuwanie…' : 'Usuń konto na zawsze'}
+              {busy ? t('account.keeping.removingOne') : t('account.delete.go')}
             </button>
-            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setOpen(false)}>Anuluj</button>
+            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setOpen(false)}>{t('common.cancel')}</button>
           </div>
         </Modal>
       )}
@@ -480,6 +491,7 @@ function DeleteAccount({ who }: { who: Who }) {
  */
 function MySeats({ ring }: { ring: Ring }) {
   const [seats, setSeats] = useState<readonly MySeat[] | null>(null);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -495,7 +507,7 @@ function MySeats({ ring }: { ring: Ring }) {
 
   return (
     <>
-      <h2 className="wk-h2">Moje miejsca</h2>
+      <h2 className="wk-h2">{t('account.seats.title')}</h2>
 
       <ul className="wk-list">
         {seats.map((seat) => (
@@ -506,12 +518,12 @@ function MySeats({ ring }: { ring: Ring }) {
                 <span className="wk-row-side"> · {seat.recipientName}</span>
               )}
             </span>
-            <span className="wk-row-side">{seat.status === 'revoked' ? 'link wycofany' : ''}</span>
+            <span className="wk-row-side">{seat.status === 'revoked' ? t('account.seats.revoked') : ''}</span>
           </li>
         ))}
       </ul>
 
-      <p className="wk-hint">Tu docierasz także bez linku.</p>
+      <p className="wk-hint">{t('account.seats.hint')}</p>
     </>
   );
 }
@@ -540,11 +552,11 @@ function Choice({ name, chosen, title, onPick, children }: {
 }
 
 /** Kurz und ohne Uhrzeit — „wann zuletzt" ist eine Frage nach dem Tag. */
-function when(iso: string): string {
+function when(iso: string, t: T): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '—';
 
-  return at.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+  return at.toLocaleDateString(t.locale, { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 export default Account;

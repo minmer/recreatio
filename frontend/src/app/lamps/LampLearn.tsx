@@ -11,8 +11,8 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import type { PluginListenerHandle } from '@capacitor/core';
 
+import { useT, type T } from '../core/i18n';
 import { newId } from '../core/ids';
-import { plural } from '../core/plural';
 import type { PhoneCtx } from '../phone/phoneContext';
 import { viewPath } from '../routes';
 import { useCrumbs } from '../shell/crumbTrail';
@@ -33,28 +33,31 @@ const LISTEN_MS = 60_000;
 const NEW_TARGET = '+';
 const SHOWN_RUNS = 60;
 
+/* Texte: lamps.learn.rssi.<Schlüssel>. */
 const RSSI_CHOICES: readonly { readonly value: number; readonly label: string }[] = [
-  { value: -127, label: 'wszystkie' },
-  { value: -80, label: 'od −80 dBm' },
-  { value: -60, label: 'od −60 dBm (pilot przy telefonie)' }
+  { value: -127, label: 'all' },
+  { value: -80, label: 'm80' },
+  { value: -60, label: 'm60' }
 ];
 
-const span = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} s`);
+const span = (ms: number, t: T): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString(t.locale, { maximumFractionDigits: 1 })} s`);
 
 const scanSaid = (code: ScanCode, detail: string | null): string => `${scanText(code)}${detail !== null ? ` (${detail})` : ''}`;
 
-function patternText(pattern: Pattern, runs: readonly Run[]): string | null {
+function patternText(pattern: Pattern, runs: readonly Run[], t: T): string | null {
   const distinct = new Set(runs.map((r) => r.hex)).size;
   if (pattern.kind === 'none') return null;
   if (pattern.kind === 'single') {
     const r = pattern.runs[0];
     const every = intervalOf(r);
-    return `Jeden pakiet, powtórzony ${r.count}× przez ${span(r.lastAt - r.firstAt)}${every !== null ? ` (co ok. ${every} ms)` : ''}.`;
+    return every !== null
+      ? t('lamps.learn.singleEvery', { count: r.count, span: span(r.lastAt - r.firstAt, t), every })
+      : t('lamps.learn.single', { count: r.count, span: span(r.lastAt - r.firstAt, t) });
   }
   if (pattern.kind === 'cycle') {
-    return `Cykl ${pattern.runs.length} różnych pakietów, powtórzony ${pattern.repeats}×.`;
+    return t('lamps.learn.cycle', { count: pattern.runs.length, repeats: pattern.repeats });
   }
-  return `${distinct} różnych pakietów bez powtarzającego się cyklu — zaznaczony najczęstszy (${pattern.repeats}×). Jeśli każde naciśnięcie daje inny pakiet, pilot może używać zmiennego kodu.`;
+  return t('lamps.learn.noCycle', { count: distinct, repeats: pattern.repeats });
 }
 
 export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
@@ -65,7 +68,8 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
   refresh: () => void;
   onSaved: (lamp: Lamp) => void;
 }) {
-  useCrumbs([{ label: 'Odczyt z pilota', href: null }]);
+  const t = useT();
+  useCrumbs([{ label: t('lamps.learn.title'), href: null }]);
   const capture = useRef(new Capture()).current;
   const [tick, setTick] = useState(0);
   const [listening, setListening] = useState(false);
@@ -87,12 +91,12 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
     const handles: Promise<PluginListenerHandle>[] = [
       LampRadio.addListener('lampScan', (e: { packets: NativePacket[] }) => {
         capture.add(e.packets.map(packetOf).filter((p): p is Packet => p !== null));
-        setTick((t) => t + 1);
+        setTick((n) => n + 1);
       }),
       LampRadio.addListener('lampScanEnd', (e: { code: ScanCode; detail: string | null }) => {
         setListening(false);
         setStatus(scanSaid(e.code, e.detail));
-        setTick((t) => t + 1);
+        setTick((n) => n + 1);
       })
     ];
     return () => {
@@ -105,7 +109,7 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
     capture.clear();
     setChosen(null);
     setPicked(null);
-    setTick((t) => t + 1);
+    setTick((n) => n + 1);
   };
 
   const listen = async () => {
@@ -123,7 +127,7 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
       const started = await LampRadio.startScan({ minRssi, maxMs: LISTEN_MS });
       if (started.code !== 'ok') { setStatus(scanSaid(started.code, started.detail)); return; }
       setListening(true);
-      setStatus('Słucham — naciśnij teraz przycisk na pilocie, trzymając go przy telefonie.');
+      setStatus(t('lamps.learn.listening'));
     } catch (e) {
       setStatus(e instanceof Error ? e.message : scanText('error'));
     }
@@ -144,26 +148,26 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
 
   return (
     <>
-      <PageHeader title="Odczyt z pilota" meta="Telefon słucha, a Ty naciskasz przycisk pilota — najsilniejszy nadajnik to zwykle pilot." actions={(
-        <a className="wk-btn wk-btn-quiet" href={viewPath('lamps')}>Gotowe</a>
+      <PageHeader title={t('lamps.learn.title')} meta={t('lamps.learn.meta')} actions={(
+        <a className="wk-btn wk-btn-quiet" href={viewPath('lamps')}>{t('common.done')}</a>
       )} />
 
       <SupportPanel native={native} support={support} refresh={refresh} scan />
 
       {native && (
-        <section className="wk-box lp-listen" aria-label="Nasłuch">
+        <section className="wk-box lp-listen" aria-label={t('lamps.learn.listen')}>
           <div className="wk-box-body">
             <div className="lp-listen-row">
               {listening
-                ? <button type="button" className="wk-btn wk-btn-danger" onClick={() => void LampRadio.stopScan()}><Icon name="pause" />Zatrzymaj</button>
-                : <button type="button" className="wk-btn" onClick={() => void listen()}><Icon name="radio" />Słuchaj</button>}
+                ? <button type="button" className="wk-btn wk-btn-danger" onClick={() => void LampRadio.stopScan()}><Icon name="pause" />{t('lamps.learn.stop')}</button>
+                : <button type="button" className="wk-btn" onClick={() => void listen()}><Icon name="radio" />{t('lamps.learn.start')}</button>}
               <label className="lp-inline">
-                <span>Zasięg</span>
+                <span>{t('lamps.learn.range')}</span>
                 <select value={minRssi} disabled={listening} onChange={(e) => setMinRssi(Number(e.target.value))}>
-                  {RSSI_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  {RSSI_CHOICES.map((c) => <option key={c.value} value={c.value}>{t(`lamps.learn.rssi.${c.label}`)}</option>)}
                 </select>
               </label>
-              <span className="lp-count">{capture.size} {plural(capture.size, 'pakiet', 'pakiety', 'pakietów')} · {sources.length} {plural(sources.length, 'nadajnik', 'nadajniki', 'nadajników')}</span>
+              <span className="lp-count">{t('lamps.learn.packets', { count: capture.size })} · {t('lamps.learn.senders', { count: sources.length })}</span>
             </div>
             {status !== null && <p className={listening ? 'lp-said' : 'wk-working'} aria-live="polite">{status}</p>}
           </div>
@@ -173,21 +177,23 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
       <LogImport onPackets={(packets, skipped) => {
         fresh();
         capture.add(packets);
-        setTick((t) => t + 1);
-        setStatus(`Wczytano ${packets.length} ${plural(packets.length, 'pakiet', 'pakiety', 'pakietów')}${skipped > 0 ? `, pominięto ${skipped} ${plural(skipped, 'linię', 'linie', 'linii')}` : ''}.`);
+        setTick((n) => n + 1);
+        setStatus(skipped > 0
+          ? t('lamps.learn.loadedSkipped', { loaded: t('lamps.learn.packets', { count: packets.length }), skipped: t('lamps.learn.lines', { count: skipped }) })
+          : t('lamps.learn.loaded', { loaded: t('lamps.learn.packets', { count: packets.length }) }));
       }} />
 
       {source !== null && (
         <>
-          <section className="wk-box lp-live" aria-label="Najsilniejszy nadajnik">
+          <section className="wk-box lp-live" aria-label={t('lamps.learn.strongest')}>
             <div className="wk-box-head">
-              <h2 className="wk-box-title">{chosen === null ? 'Najsilniejszy nadajnik' : 'Wybrany nadajnik'}</h2>
+              <h2 className="wk-box-title">{chosen === null ? t('lamps.learn.strongest') : t('lamps.learn.chosen')}</h2>
               <span className="wk-tag">{source.strength} dBm</span>
             </div>
             <div className="wk-box-body">
               <p className="lp-card-meta">
                 <span className="lp-hex">{source.address}</span>{source.name !== null && <> · {source.name}</>}
-                {' · '}{source.count} {plural(source.count, 'pakiet', 'pakiety', 'pakietów')} · {source.distinct} {plural(source.distinct, 'rodzaj', 'rodzaje', 'rodzajów')} · teraz {source.lastRssi} dBm
+                {' · '}{t('lamps.learn.packets', { count: source.count })} · {t('lamps.learn.kinds', { count: source.distinct })} · {t('lamps.learn.now', { rssi: source.lastRssi })}
               </p>
               <p className="lp-hex lp-big">{spaced(source.lastHex)}</p>
               <FrameView hex={source.lastHex} />
@@ -196,12 +202,12 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
 
           {sources.length > 1 && (
             <details className="lp-sources">
-              <summary>Inne nadajniki w pobliżu ({sources.length - 1})</summary>
+              <summary>{t('lamps.learn.others', { count: sources.length - 1 })}</summary>
               <ul className="lp-source-list">
                 <li>
                   <label className="lp-inline">
                     <input type="radio" name="lp-source" checked={chosen === null} onChange={() => { setChosen(null); setPicked(null); }} />
-                    <span>Zawsze najsilniejszy</span>
+                    <span>{t('lamps.learn.alwaysStrongest')}</span>
                   </label>
                 </li>
                 {sources.slice(0, 12).map((s) => (
@@ -219,11 +225,11 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
             </details>
           )}
 
-          <section className="wk-box lp-runs" aria-label="Wzór">
-            <div className="wk-box-head"><h2 className="wk-box-title">Powtarzający się wzór</h2></div>
+          <section className="wk-box lp-runs" aria-label={t('lamps.learn.pattern')}>
+            <div className="wk-box-head"><h2 className="wk-box-title">{t('lamps.learn.patternTitle')}</h2></div>
             <div className="wk-box-body">
-              {patternText(pattern, runs) !== null && <p className="lp-said">{patternText(pattern, runs)}</p>}
-              <p className="wk-working">Zaznaczone pakiety staną się sygnałem (po kolei, jako ramki). Odznacz albo zaznacz inne, jeśli trzeba.</p>
+              {patternText(pattern, runs, t) !== null && <p className="lp-said">{patternText(pattern, runs, t)}</p>}
+              <p className="wk-working">{t('lamps.learn.picked')}</p>
               <ol className="lp-run-list">
                 {runs.slice(0, SHOWN_RUNS).map((r, i) => (
                   <li key={`${i}-${r.firstAt}`}>
@@ -231,7 +237,7 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
                       <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} />
                       <span className="lp-run-text">
                         <span className="lp-facts">
-                          +{span(Math.max(0, r.firstAt - runs[0].firstAt))} · {r.count}× · {span(r.lastAt - r.firstAt)} · {r.peakRssi} dBm
+                          +{span(Math.max(0, r.firstAt - runs[0].firstAt), t)} · {r.count}× · {span(r.lastAt - r.firstAt, t)} · {r.peakRssi} dBm
                         </span>
                         <span className="lp-hex">{spaced(r.hex)}</span>
                       </span>
@@ -239,18 +245,18 @@ export function LampLearn({ ctx, lamps, native, support, refresh, onSaved }: {
                   </li>
                 ))}
               </ol>
-              {runs.length > SHOWN_RUNS && <p className="wk-working">… i {runs.length - SHOWN_RUNS} dalszych.</p>}
+              {runs.length > SHOWN_RUNS && <p className="wk-working">{t('lamps.learn.moreRuns', { count: runs.length - SHOWN_RUNS })}</p>}
             </div>
           </section>
 
           <SaveLearned ctx={ctx} lamps={lamps} native={native} sending={sending} runs={chosenRuns} source={source.address}
             target={target} setTarget={setTarget}
-            onSaved={(lamp) => { onSaved(lamp); fresh(); setStatus('Zapisano. Możesz odczytać następny przycisk.'); }} />
+            onSaved={(lamp) => { onSaved(lamp); fresh(); setStatus(t('lamps.learn.savedNext')); }} />
         </>
       )}
 
       {source === null && !listening && (
-        <p className="wk-empty">{native ? 'Naciśnij „Słuchaj", a potem przycisk na pilocie.' : 'Wklej zapis z nRF Connect, aby znaleźć wzór.'}</p>
+        <p className="wk-empty">{native ? t('lamps.learn.emptyNative') : t('lamps.learn.emptyWeb')}</p>
       )}
 
       <LampConsole native={native} />
@@ -263,12 +269,13 @@ export default LampLearn;
 /* -- Ein Mitschnitt aus nRF Connect ------------------------------------------------------------ */
 
 function LogImport({ onPackets }: { onPackets: (packets: Packet[], skipped: number) => void }) {
+  const t = useT();
   const [text, setText] = useState('');
   const file = useRef<HTMLInputElement | null>(null);
 
   const read = (value: string) => {
     const { packets, skipped } = parseNrfLog(value);
-    if (packets.length === 0) { toast('Nie znaleziono żadnej linii w rodzaju „2026-10-18 03:27:06.277, -29 dBm, 0x1EFF…".'); return; }
+    if (packets.length === 0) { toast(t('lamps.learn.logNothing')); return; }
     onPackets(packets, skipped);
   };
 
@@ -280,15 +287,15 @@ function LogImport({ onPackets }: { onPackets: (packets: Packet[], skipped: numb
 
   return (
     <details className="lp-log">
-      <summary>Zapis z nRF Connect (plik TXT albo wklejony tekst)</summary>
+      <summary>{t('lamps.learn.logTitle')}</summary>
       <label className="wk-field">
-        <span>Linie w rodzaju „2026-10-18 03:27:06.277, -29 dBm, 0x1EFF…"</span>
+        <span>{t('lamps.learn.logLines')}</span>
         <textarea className="lp-hex-input" rows={5} value={text} spellCheck={false} onChange={(e) => setText(e.target.value)} />
       </label>
       <input ref={file} type="file" accept=".txt,.log,text/plain" hidden onChange={pick} />
       <div className="wk-actions">
-        <button type="button" className="wk-btn wk-btn-quiet" disabled={text.trim() === ''} onClick={() => read(text)}>Znajdź wzór</button>
-        <button type="button" className="wk-btn wk-btn-quiet" onClick={() => file.current?.click()}><Icon name="upload" />Plik TXT</button>
+        <button type="button" className="wk-btn wk-btn-quiet" disabled={text.trim() === ''} onClick={() => read(text)}>{t('lamps.learn.findPattern')}</button>
+        <button type="button" className="wk-btn wk-btn-quiet" onClick={() => file.current?.click()}><Icon name="upload" />{t('lamps.learn.txtFile')}</button>
       </div>
     </details>
   );
@@ -308,6 +315,7 @@ function SaveLearned({ ctx, lamps, native, sending, runs, source, target, setTar
   setTarget: (id: string) => void;
   onSaved: (lamp: Lamp) => void;
 }) {
+  const t = useT();
   const [label, setLabel] = useState('');
   const [name, setName] = useState('');
   const [number, setNumber] = useState('');
@@ -317,15 +325,15 @@ function SaveLearned({ ctx, lamps, native, sending, runs, source, target, setTar
   const draft: LampSignal = useMemo(() => ({
     id: 'learned',
     label,
-    note: `Odczytano z pilota ${source}, ${new Date().toLocaleString('pl-PL')}.`,
+    note: t('lamps.learn.note', { source, when: new Date().toLocaleString(t.locale) }),
     frames: framesFrom(runs)
-  }), [label, source, runs]);
-  const problem = runs.length === 0 ? 'Zaznacz co najmniej jeden pakiet.' : signalProblem(draft);
+  }), [label, source, runs, t]);
+  const problem = runs.length === 0 ? t('lamps.learn.pickOne') : signalProblem(draft);
   const lamp = lamps.find((l) => l.id === target) ?? null;
 
   const save = async () => {
     if (problem !== null) { setFailed(problem); return; }
-    if (lamp === null && name.trim() === '' && number.trim() === '') { setFailed('Podaj nazwę albo numer nowego urządzenia.'); return; }
+    if (lamp === null && name.trim() === '' && number.trim() === '') { setFailed(t('lamps.learn.needName')); return; }
     setBusy(true);
     setFailed(null);
     try {
@@ -333,7 +341,7 @@ function SaveLearned({ ctx, lamps, native, sending, runs, source, target, setTar
       const saved = lamp === null
         ? await saveLamp(ctx, null, { ...emptyLamp(), name, number: number.trim() === '' ? null : number, signals: [signal] }, 0)
         : await saveLamp(ctx, lamp.id, { ...lamp, signals: [...lamp.signals, signal] }, lamp.version);
-      toast(`Zapisano „${signal.label}" w „${lampTitle(saved)}".`);
+      toast(t('lamps.learn.savedIn', { signal: signal.label, lamp: lampTitle(saved) }));
       setTarget(saved.id);
       setLabel('');
       onSaved(saved);
@@ -345,42 +353,42 @@ function SaveLearned({ ctx, lamps, native, sending, runs, source, target, setTar
   };
 
   return (
-    <section className="wk-box lp-save" aria-label="Zapisz jako sygnał">
-      <div className="wk-box-head"><h2 className="wk-box-title">Zapisz jako sygnał</h2></div>
+    <section className="wk-box lp-save" aria-label={t('lamps.learn.saveAs')}>
+      <div className="wk-box-head"><h2 className="wk-box-title">{t('lamps.learn.saveAs')}</h2></div>
       <div className="wk-box-body">
         <div className="lp-pair">
           <label className="wk-field">
-            <span>Urządzenie</span>
+            <span>{t('lamps.device')}</span>
             <select value={target} onChange={(e) => setTarget(e.target.value)}>
               {lamps.map((l) => <option key={l.id} value={l.id}>{lampTitle(l)}</option>)}
-              <option value={NEW_TARGET}>Nowe urządzenie…</option>
+              <option value={NEW_TARGET}>{t('lamps.learn.newDeviceOption')}</option>
             </select>
           </label>
           <label className="wk-field">
-            <span>Napis na przycisku</span>
-            <input value={label} autoComplete="off" placeholder="np. Włącz" onChange={(e) => setLabel(e.target.value)} />
+            <span>{t('lamps.buttonLabel')}</span>
+            <input value={label} autoComplete="off" placeholder={t('lamps.buttonLabelPh')} onChange={(e) => setLabel(e.target.value)} />
           </label>
         </div>
         {lamp === null && (
           <div className="lp-pair">
-            <label className="wk-field"><span>Nazwa nowego urządzenia</span><input value={name} autoComplete="off" placeholder="np. Lampa w salonie" onChange={(e) => setName(e.target.value)} /></label>
-            <label className="wk-field"><span>Numer urządzenia</span><input value={number} autoComplete="off" placeholder="np. 2" onChange={(e) => setNumber(e.target.value)} /></label>
+            <label className="wk-field"><span>{t('lamps.learn.newName')}</span><input value={name} autoComplete="off" placeholder={t('lamps.learn.newNamePh')} onChange={(e) => setName(e.target.value)} /></label>
+            <label className="wk-field"><span>{t('lamps.deviceNumber')}</span><input value={number} autoComplete="off" placeholder={t('lamps.learn.newNumberPh')} onChange={(e) => setNumber(e.target.value)} /></label>
           </div>
         )}
         <p className="wk-working">
           {draft.frames.length === 1
-            ? `Jedna ramka, nadawana ${draft.frames[0].durationMs} ms.`
-            : `${draft.frames.length} ramki po kolei: ${draft.frames.map((f) => `${f.durationMs} ms`).join(', ')} — Android utrzyma te czasy tylko w przybliżeniu.`}
+            ? t('lamps.learn.oneFrame', { ms: draft.frames[0].durationMs })
+            : t('lamps.learn.frames', { count: draft.frames.length, list: draft.frames.map((f) => `${f.durationMs} ms`).join(', ') })}
         </p>
         {failed !== null && <p className="wk-error">{failed}</p>}
         {failed === null && problem !== null && label.trim() !== '' && <p className="wk-error">{problem}</p>}
         <div className="wk-actions">
-          <button type="button" className="wk-btn" disabled={busy} onClick={() => void save()}>{busy ? 'Zapisywanie…' : 'Zapisz sygnał'}</button>
+          <button type="button" className="wk-btn" disabled={busy} onClick={() => void save()}>{busy ? t('common.saving') : t('lamps.learn.saveSignal')}</button>
           {native && (
-            <SendKey className="wk-btn wk-btn-quiet" disabled={sending || runs.length === 0 || signalProblem({ ...draft, label: draft.label.trim() || 'Próba' }) !== null}
-              title="Krótko: cały sygnał. Przytrzymaj: nadaje, dopóki trzymasz."
-              onSend={(hold) => void transmit(LampRadio, { name: 'Próba z pilota', number: null }, { ...draft, label: label.trim() || 'Próba' }, null, hold)}>
-              <Icon name="send" />Wyślij próbnie
+            <SendKey className="wk-btn wk-btn-quiet" disabled={sending || runs.length === 0 || signalProblem({ ...draft, label: draft.label.trim() || t('lamps.learn.trial') }) !== null}
+              title={t('lamps.holdTip')}
+              onSend={(hold) => void transmit(LampRadio, { name: t('lamps.learn.trialLamp'), number: null }, { ...draft, label: label.trim() || t('lamps.learn.trial') }, null, hold)}>
+              <Icon name="send" />{t('lamps.trySend')}
             </SendKey>
           )}
         </div>

@@ -17,6 +17,7 @@
  */
 
 import { useState } from 'react';
+import { useT } from '../core/i18n';
 
 import {
   addMonths, firstOfMonth, keyOf, longDate, mondayOf, monthGrid, monthTitle, sameDay, sameMonth, WEEK_HEADS
@@ -31,15 +32,16 @@ export function MonthPicker({ value, week, today, onPick }: {
   today: Date;
   onPick: (day: Date) => void;
 }) {
+  const t = useT();
   const [month, setMonth] = useState(() => firstOfMonth(value ?? today));
   const monday = value === null ? null : keyOf(mondayOf(value));
 
   return (
     <div className="wk-cal">
       <div className="wk-cal-head">
-        <button type="button" className="wk-cal-step" aria-label="Poprzedni miesiąc" onClick={() => setMonth(addMonths(month, -1))}>‹</button>
-        <span className="wk-cal-title" aria-live="polite">{monthTitle(month)}</span>
-        <button type="button" className="wk-cal-step" aria-label="Następny miesiąc" onClick={() => setMonth(addMonths(month, 1))}>›</button>
+        <button type="button" className="wk-cal-step" aria-label={t('ui.month.previous')} onClick={() => setMonth(addMonths(month, -1))}>‹</button>
+        <span className="wk-cal-title" aria-live="polite">{monthTitle(month, t.lang)}</span>
+        <button type="button" className="wk-cal-step" aria-label={t('ui.month.next')} onClick={() => setMonth(addMonths(month, 1))}>›</button>
       </div>
 
       <div className="wk-cal-grid">
@@ -59,7 +61,7 @@ export function MonthPicker({ value, week, today, onPick }: {
               key={keyOf(day)}
               type="button"
               className={cls}
-              aria-label={`${longDate(day)}${sameDay(day, today) ? ' (dziś)' : ''}`}
+              aria-label={sameDay(day, today) ? t('ui.month.today', { date: longDate(day, t.lang) }) : longDate(day, t.lang)}
               aria-pressed={chosen}
               onClick={() => onPick(day)}
             >

@@ -25,7 +25,7 @@ export interface SearchEntry {
 
 /** Klein, ohne diakritische Zeichen, ł → l. */
 export const fold = (text: string): string => text.toLocaleLowerCase('pl-PL')
-  .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+  .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l'); // i18n-ignore: Suchnorm, keine Oberfläche
 
 /** Wie gut ein Eintrag passt — kleiner ist besser, `null`: gar nicht. */
 export function scoreOf(words: readonly string[], entry: SearchEntry): number | null {

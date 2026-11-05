@@ -1,0 +1,181 @@
+{
+  "place": {
+    "unreadable": "Tego miejsca nie da się odczytać w układzie tego dzieła.",
+    "spansParts": {
+      "one": "To miejsce obejmuje {count} części tekstu.",
+      "few": "To miejsce obejmuje {count} części tekstu.",
+      "many": "To miejsce obejmuje {count} części tekstu.",
+      "other": "To miejsce obejmuje {count} części tekstu."
+    },
+    "notInParts": "Tego miejsca nie ma w zapisanych częściach tekstu.",
+    "noPages": "Tekst nie ma zapisanych stron — tej strony nie da się w nim wskazać.",
+    "pageAmbiguous": "Ta strona występuje w kilku częściach tekstu — nie wiadomo, o którą chodzi.",
+    "pageNotInParts": "Tej strony nie ma w zapisanych częściach tekstu.",
+    "noParts": "Tekst nie ma jeszcze żadnej części."
+  },
+  "import": {
+    "oneObject": "Oczekiwano jednego obiektu JSON (dokument „recreatio/source-text\").",
+    "notSourceText": "To nie jest tekst źródła: \"format\" musi być \"{format}\".",
+    "unknownVersion": "Nieznana wersja {version} — ta aplikacja czyta wersję {known}.",
+    "otherWork": "Ten tekst jest dla innego dzieła („{work}\") — otwórz właściwe dzieło albo popraw \"work\".",
+    "unknownScheme": "Nieznany układ miejsc \"{scheme}\" — dozwolone: {list}.",
+    "schemeDiffers": "Dzieło ma układ miejsc „{label}\" (\"{scheme}\"), a tekst podaje \"{asked}\".",
+    "psalmsOnlyBible": "\"edition.psalms\" dotyczy tylko Pisma Świętego — pominięte.",
+    "portionKey": "\"portion.key\" — krótki klucz części (litery, cyfry, spacje, . : - _), najwyżej 60 znaków, np. \"J\" albo \"rozdz-3\".",
+    "blocks": "\"blocks\" — lista bloków tekstu, w kolejności oryginału.",
+    "unreadablePage": "{where}: nieczytelna strona „{page}\" {place}.",
+    "in": {
+      "block": "w bloku",
+      "list": "w liście",
+      "table": "w tabeli",
+      "tableCaption": "w podpisie tabeli",
+      "note": "w przypisie",
+      "caption": "w podpisie",
+      "figureAlt": "w opisie rysunku",
+      "code": "w kodzie",
+      "text": "w tekście"
+    },
+    "pageOrder": "{where}: strona {page} po stronie wyższej — sprawdź kolejność.",
+    "pdfOrder": "{where}: strona PDF {pdf} po wyższej.",
+    "notObject": "{where}: to nie obiekt — pominięty.",
+    "unknownType": "{where}: nieznany typ \"{type}\" — pominięty.",
+    "locUnreadable": "{where}: miejsca „{loc}\" nie da się odczytać w układzie „{scheme}\" — zostaje, ale cytaty go nie znajdą.",
+    "locRest": "{where}: w miejscu „{loc}\" nieodczytana część „{rest}\".",
+    "locTwice": "{where}: miejsce „{loc}\" było już w: {seen}.",
+    "pageWithout": "{where}: \"page\" bez czytelnej strony — pominięty.",
+    "listWithout": "{where}: lista bez \"items\" — pominięta.",
+    "tableWithout": "{where}: tabela bez \"rows\" — pominięta.",
+    "noteWithoutId": "{where}: przypis bez \"id\" — pominięty.",
+    "noteTwice": "{where}: przypis \"{id}\" powtórzony.",
+    "noteEmpty": "{where}: pusty przypis \"{id}\".",
+    "kindUnknownOther": "{where}: nieznany rodzaj \"{kind}\" — zapisany z samą etykietą.",
+    "kindUnknownTaken": "{where}: nieznany rodzaj \"{kind}\" — przyjęty „{label}” (z etykiety).",
+    "statementBare": "{where}: \"statement\" bez \"kind\" i \"label\" — pominięty (treść wpisz jako zwykłe bloki).",
+    "tooDeep": "{where}: twierdzenie zagnieżdżone głębiej niż {count} poziomy — pominięte.",
+    "statementEmpty": "{where}: „{head}” bez treści (\"text\" albo \"blocks\").",
+    "figureBare": "{where}: rysunek bez \"label\", \"text\" i \"alt\" — pominięty.",
+    "codeEmpty": "{where}: pusty kod — pominięty.",
+    "textEmpty": "{where}: pusty tekst — pominięty.",
+    "block": "blok {n}",
+    "refWithoutNote": "Odwołanie {{note {ref}}} nie ma przypisu o \"id\": \"{ref}\".",
+    "noteWithoutRef": "Przypis \"{id}\" nie ma odwołania {{note {id}}} w tekście.",
+    "nothing": "Żaden blok nie nadaje się do zapisania.",
+    "tooBig": "Ta część jest za duża (ponad 3,5 MB tekstu) — podziel ją na mniejsze (np. rozdziały) i importuj po kolei.",
+    "texFixed": "Poprawione we wzorach ({n}×): {what}.",
+    "macrosHoisted": "Makra z definicji we wzorach ({list}) dopisane do makr tekstu — działają w całym tekście.",
+    "strayDollar": "Pojedynczy znak $ ({list}) — dolar zapisz jako \\$, wzór jako $…$ bez spacji tuż przy znakach $.",
+    "andOthers": {
+      "one": " i {count} innych",
+      "few": " i {count} innych",
+      "many": " i {count} innych",
+      "other": " i {count} innych"
+    },
+    "andOtherGaps": {
+      "one": " i {count} innych luk",
+      "few": " i {count} innych luk",
+      "many": " i {count} innych luk",
+      "other": " i {count} innych luk"
+    },
+    "texError": "{where}: wzór {tex} — {error}",
+    "texMore": {
+      "one": "…i jeszcze {count} wzorów, których nie da się złożyć — w czytniku pokażą się jako kod LaTeX.",
+      "few": "…i jeszcze {count} wzorów, których nie da się złożyć — w czytniku pokażą się jako kod LaTeX.",
+      "many": "…i jeszcze {count} wzorów, których nie da się złożyć — w czytniku pokażą się jako kod LaTeX.",
+      "other": "…i jeszcze {count} wzorów, których nie da się złożyć — w czytniku pokażą się jako kod LaTeX."
+    },
+    "labelTwice": "Ta sama etykieta kilka razy: {list} — odwołania trafią w pierwszą.",
+    "refNoNumber": "„{label}” ({where}, bez numeru)",
+    "refAt": "„{label}” ({where})",
+    "refsMissing": "Odwołania {{ref …}} bez celu w zapisanym tekście: {list} — cel może być w części, której jeszcze nie ma.",
+    "gapAt": "{pages} (przed: {where})",
+    "pagesMissing": "Brak stron: {list} — puste strony i całostronicowe rysunki też oznacz ({{page …}} albo blok \"page\"), żeby było widać, że nic nie zginęło."
+  },
+  "describe": {
+    "head": "# Tekst źródła jako JSON (\"{format}\", wersja {version})\n\nTekst dzieła składa się z CZĘŚCI (np. księga Biblii, rozdział książki, cały krótki dokument albo artykuł). Dokument JSON zawiera jedną część (\"portion\" + \"blocks\") albo kilka naraz (\"portions\": [ … ] — także cały tekst). Część z tym samym \"portion.key\" zastępuje poprzednią, inne zostają — więc długie dzieło można przysyłać w kilku dokumentach po kolei, a powtórzony dokument niczego nie zdubluje.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"work\": \"@klucz-dzieła\",          — klucz (albo identyfikator) wpisu dzieła w Bibliotece; tekst należy do TEGO wydania/przekładu\n  \"scheme\": \"{scheme}\",                — układ miejsc dzieła (niżej); musi zgadzać się z dziełem\n  \"edition\": {                       — opcjonalnie\n    \"pdfPageOffset\": 12,            — strona drukowana = strona PDF − 12 (gdy stały)\n    \"language\": \"pl\",\n    \"psalms\": \"hebrew\" | \"greek\",   — tylko Pismo Święte: numeracja psalmów (BT: hebrew; Wulgata: greek)\n    \"macros\": { \"\\\\R\": \"\\\\mathbb{R}\" }  — własne makra autora we wzorach (niżej: Wzory)\n  },\n  \"portion\": { \"key\": \"rozdz-1\", \"label\": \"Rozdział 1\", \"order\": 1 },\n  \"blocks\": [ … ]                    — bloki w kolejności oryginału\n}\n\nAlbo kilka części (np. cały tekst) w jednym dokumencie — zamiast \"portion\" i \"blocks\":\n  \"portions\": [\n    { \"portion\": { \"key\": \"wstep\", \"label\": \"Wstęp\", \"order\": 1 }, \"blocks\": [ … ] },\n    { \"portion\": { \"key\": \"rozdz-1\", \"label\": \"Rozdział 1\", \"order\": 2 }, \"blocks\": [ … ] }\n  ]\n\n## Bloki\n  {\"type\": \"heading\", \"level\": 1-4, \"text\": \"…\", \"loc\": \"…\"}    nagłówek\n  {\"type\": \"paragraph\", \"text\": \"…\", \"loc\": \"…\"}               akapit (także werset, punkt dokumentu, twierdzenie)\n  {\"type\": \"quote\", \"text\": \"…\", \"loc\": \"…\"}                   cytat blokowy w źródle\n  {\"type\": \"list\", \"items\": [\"…\", \"…\"], \"ordered\": true, \"loc\": \"…\"}\n  {\"type\": \"table\", \"columns\": [\"…\"], \"rows\": [[\"…\", \"…\"]], \"loc\": \"…\"}\n  {\"type\": \"note\", \"id\": \"1\", \"text\": \"…\"}                     przypis (tekst przypisu); w tekście odwołanie {{note 1}}\n  {\"type\": \"page\", \"page\": \"46\", \"pdf\": 52}                   tu zaczyna się strona 46 (drukowana) = strona 52 pliku PDF;\n                                                              strona tak, jak jest wydrukowana — także ze znakami serii: \"12*\", \"3'\", \"(7)\", \"A12\", \"xii\"\n  {\"type\": \"statement\", \"kind\": \"theorem\", \"label\": \"Twierdzenie 2.3\", \"title\": \"…\", \"text\": \"…\"}\n                                                              definicja, twierdzenie, lemat, dowód, przykład… (niżej); dłuższa treść: \"blocks\": [ … ] zamiast \"text\"\n  {\"type\": \"figure\", \"label\": \"Rys. 2.1\", \"text\": \"podpis\", \"alt\": \"co pokazuje rysunek\"}\n                                                              rysunek, wykres, schemat — podpis z książki, a w \"alt\" krótki opis tego, co widać\n  {\"type\": \"code\", \"lang\": \"python\", \"text\": \"…\"}             kod albo pseudokod — znak w znak, z wcięciami i podziałem wierszy\n  {\"type\": \"table\", \"label\": \"Tabela 2.1\", \"text\": \"podpis\", \"columns\": […], \"rows\": […]}   tabela z etykietą i podpisem (oba opcjonalne)\n  \"uncertain\": true                                           przy dowolnym bloku: odczyt niepewny\n\n## Znaki w tekście\n  {{page 46}}  albo  {{page 46 pdf 52}}    granica strony w środku akapitu (dokładnie tam, gdzie wypada)\n  {{note 3}}                               odwołanie do przypisu \"3\"\n  {{? słowo}}                              niepewny odczyt tego słowa;  {{?}} — nieczytelne\n  {{gap}}                                  pominięty / brakujący fragment\n  {{ref twierdzenia 2.3}}  {{ref (2.4)}}   odwołanie do twierdzenia, wzoru, rysunku, tabeli tego samego dzieła — napisane tak, jak w tekście\n  $x^2$   $$\\\\int_0^1 f(x)\\\\,dx$$         wzór w zdaniu i wzór wystawiony (osobno) — LaTeX (niżej)\nWszystko inne jest zwykłym tekstem. Zachowaj dokładne brzmienie, kolejność, akapity i interpunkcję oryginału. Nie poprawiaj, nie streszczaj, nie tłumacz.\n\n## Wzory (LaTeX)\n- Każdy wzór, symbol i oznaczenie matematyczne (także pojedyncza litera-zmienna, indeks, jednostka w wyrażeniu) zapisz w LaTeX: w zdaniu między $ … $, wzór wystawiony (w osobnym wierszu) między $$ … $$ — w akapicie dokładnie tam, gdzie stoi w źródle; akapit może mieć kilka wzorów wystawionych i ciągnąć się dalej po nich.\n- Po otwierającym $ i przed zamykającym $ nie ma spacji. Dosłowny znak dolara w tekście: \\\\$.\n- W JSON każdy ukośnik LaTeX jest podwójny: \"$\\\\frac{a}{b}$\", \"$$\\\\sum_{k=1}^{n} k = \\\\frac{n(n+1)}{2}$$\". Pojedynczy ukośnik psuje wzór (w JSON \"\\f\", \"\\t\", \"\\n\" to znaki sterujące).\n- Numer wzoru tak, jak wydrukowany: $$ … \\\\tag{2.4}$$ (w układzie wielu wierszy \\\\tag przy wierszu). Wzór bez numeru — bez \\\\tag. Nie numeruj sam.\n- Wyprowadzenia krok po kroku i układy: \\\\begin{aligned} … \\\\end{aligned} (albo align*, gather*), przypadki: cases; macierze: pmatrix, bmatrix, vmatrix, array (z kreskami: {cc|c}, \\\\hline); diagramy przemienne: \\\\begin{CD}; chemia: \\\\ce{H2O}, jednostki: \\\\pu{9,81 m/s^2}.\n- Nie zamieniaj wzorów na zwykły tekst ani znaki Unicode (x², α, √) — zawsze LaTeX ($x^2$, $\\\\alpha$, $\\\\sqrt{x}$). Nie upraszczaj, nie przekształcaj, nie poprawiaj — przepisz to, co jest wydrukowane, w tej samej postaci.\n- Własne makra autora (np. \\\\R, \\\\norm{x}) podaj raz w \"edition.macros\" ({\"\\\\norm\": \"\\\\left\\\\lVert #1 \\\\right\\\\rVert\"}) i używaj ich we wzorach; zwykłe \\\\newcommand we wzorze też zadziała.\n- Wzory czyta KaTeX. Nie ma w nim: \\\\label i \\\\ref (do odwołań służy {{ref …}}), tabular i \\\\multicolumn (tabela to blok \"table\"), tikz, \\\\includegraphics (rysunek to blok \"figure\"), \\\\sideset.\n- Granica strony nigdy w środku wzoru — {{page …}} przed wzorem albo po nim.\n- Wzory odczytuj z obrazu strony, nie z warstwy tekstowej PDF: warstwa tekstowa zwykle gubi indeksy, ułamki i znaki.\n\n## Twierdzenia, definicje, dowody (\"statement\")\n  {\"type\": \"statement\", \"kind\": \"definition\", \"label\": \"Definicja 2.1\", \"text\": \"Ciąg $(a_n)$ jest zbieżny, gdy …\"}\n  {\"type\": \"statement\", \"kind\": \"theorem\", \"label\": \"Twierdzenie 2.2\", \"title\": \"o trzech ciągach\", \"text\": \"…\"}\n  {\"type\": \"statement\", \"kind\": \"proof\", \"label\": \"Dowód\", \"blocks\": [ {\"type\": \"paragraph\", \"text\": \"…\"}, … ]}\n- \"kind\": {kinds}, other (inne — wtedy liczy się \"label\").\n- \"label\" — dokładnie tak, jak wydrukowane, z numerem (\"Lemat 4.1\", \"Ćwiczenie 7*\"); \"title\" — nazwa w nawiasie po etykiecie, jeśli jest (bez nawiasów).\n- Treść jednym akapitem: \"text\". Dłuższa (kilka akapitów, wzory wystawione, listy, przypadki, granice stron): \"blocks\" — zwykłe bloki, także zagnieżdżone twierdzenia (np. lemat wewnątrz dowodu).\n- Dowód, rozwiązanie, odpowiedź — osobny \"statement\" zaraz po tym, czego dotyczy. Znaku końca dowodu (□, ∎, c.n.d.) nie przepisuj: aplikacja stawia go sama.\n\n## Odwołania i etykiety\n- W tekście odwołanie do twierdzenia, wzoru, rysunku albo tabeli tego samego dzieła zapisz {{ref …}} — tymi słowami, co w źródle: \"z {{ref twierdzenia 2.3}}\", \"na mocy {{ref (2.4)}}\", \"por. {{ref Rys. 1.2}}\". Czytnik zrobi z nich odnośniki.\n- Etykiety (label, \\\\tag) muszą być jednoznaczne w całym dziele — tak, jak w książce.\n\n## \"loc\" — miejsce w strukturze dzieła\nPodawaj \"loc\" przy każdym bloku, który ma własny numer w strukturze dzieła (werset, punkt, artykuł, twierdzenie, paragraf, rozdział). Bloki bez własnego numeru (np. akapit w środku rozdziału) nie mają \"loc\" — należą do miejsca podanego wcześniej. Strony NIE wpisuje się do \"loc\": strony to bloki \"page\" i znaki {{page …}}, bo należą do tego jednego wydania.",
+    "schemeLine": "- \"{id}\" — {label}: {says} Przykłady: {examples}",
+    "rules": "## Zasady\n- Nie wymyślaj tekstu ani numerów: czego nie widać w źródle, tego nie ma w JSON. Niepewne oznacz {{? …}} albo \"uncertain\": true.\n- Numery stron: drukowane, tak jak w książce (także rzymskie: \"xii\"); numer strony pliku PDF w \"pdf\", jeśli się różni.\n- Przypisy dolne i końcowe: blok \"note\" (po akapicie albo na końcu części) i {{note …}} w miejscu odsyłacza.\n- Jedna część — najwyżej ok. 2 mln znaków.\n- Każda strona ma swoją granicę — także pusta albo zajęta w całości przez rysunek ({{page …}} albo blok \"page\"); import sprawdza, czy żadnej nie brakuje.\n\n## Cały tekst\n- Podziel tekst według jego własnego podziału: księgi Biblii (klucz: skrót księgi, np. \"J\"), rozdziały książki (\"rozdz-1\", \"rozdz-2\"), kwestie Sumy (\"I-q2\"), rozdziały dokumentu; krótki artykuł albo dokument może być jedną częścią.\n- Klucze krótkie i stałe; \"order\" — kolejność w dziele (1, 2, 3…). Wstęp, przedmowa, spis treści, bibliografia, indeks — osobne części tylko wtedy, gdy są w źródle.\n- Każdy rozdział to osobna część, z numerem i tytułem jako nagłówkami (\"heading\") — sprawdź na końcu, czy liczba części zgadza się ze spisem treści i czy żaden rozdział nie został w środku poprzedniego.\n- Każda część zaczyna się blokiem \"page\" ze stroną, na której się zaczyna — także gdy poprzednia część kończy się na tej samej stronie (rozdział od połowy strony). Ta wspólna strona nie dubluje tekstu.\n- Przypisy końcowe (na końcu książki albo rozdziału) wpisz w tej części, do której odsyłają.\n- Gdy tekst nie mieści się w jednej odpowiedzi: przepisz kolejne części w kolejnych dokumentach (z tym samym \"work\", \"scheme\" i \"edition\"), zaczynając dokładnie tam, gdzie skończyłeś. Nigdy nie przerywaj części w połowie — dokończ ją albo zacznij od niej następny dokument (ta sama część drugi raz zastąpi poprzednią).\nZwróć JEDEN obiekt JSON, bez komentarzy.",
+    "use": "- Na stronie dzieła ramka „Tekst źródła” pokazuje, jakie teksty są (części, słowa, w której bibliotece), i otwiera czytnik („Czytaj”).\n- Czytnik (#/workspace/library/<biblioteka>/<dzieło>/tekst/<miejsce>): spis części, miejsca na marginesie, granice stron, przypisy; „Przejdź” do miejsca, szukanie w całym tekście, „Obok” — inne wydanie albo przekład tego dzieła, wyrównane według miejsc w strukturze.\n- Zaznaczony fragment można dodać jako cytat (z dziełem i miejscem) albo skopiować z miejscem.\n- Każde miejsce, które już gdzieś zacytowano (przypis, cytat, odwołanie we wpisie bazy wiedzy, pole z miejscem), dostaje „pokaż w tekście”, jeśli jest w tym tekście: fragment otwiera się na miejscu, także na stronie. Nic się przy tym nie zapisuje — połączenie powstaje przy czytaniu.\n- Miejsce w strukturze (werset, numer, artykuł) prowadzi też do tekstu innego wydania tego dzieła (\"editionOf\"); strona — tylko do tekstu tego wydania.\n- „W Wiedzy” przy dziele i w czytniku: wejścia z baz wiedzy, które czytający może otworzyć, wskazujące to dzieło albo jego miejsca.\n- Tekst jest zapieczętowany kluczem obszaru biblioteki, w której go zapisano — może to być inna (np. prywatna) biblioteka niż ta z dziełem. Kto jej nie czyta, nie widzi tekstu: ani w czytniku, ani w szukaniu, ani na stronie.\n- „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje bibliotekę z tekstem, daje go asystentowi do czytania: list_texts, read_text (według miejsca), search_text.\n- Tekstu nie ma w JSON biblioteki (\"recreatio/library\"); oddaje go eksport w ramce „Tekst źródła” — w tym formacie.\n- Wzory ($…$, $$…$$) czytnik składa jak w druku (KaTeX), także macierze, układy i numery wzorów; wzór, którego nie da się złożyć, zostaje widoczny jako kod LaTeX. Import sprawdza każdy wzór i mówi, które nie przechodzą.\n- Twierdzenia, definicje, dowody, przykłady stoją w ramkach z etykietą; dowód kończy ∎. „Przejdź” przyjmuje też etykiety („Twierdzenie 2.3”, „(2.4)”, „Rys. 1.2”), a odwołanie {{ref …}} w tekście prowadzi do celu — także w innej części.\n- Szukanie w tekście znajduje też wzory: po słowach i znakach („α”, „∫”, „sin”) i po LaTeX („\\frac”, „x^2”). Zaznaczony fragment ze wzorem trafia do cytatu i schowka jako LaTeX ($…$).\n- „Dostęp dla AI” oddaje wzory jako LaTeX w $…$ i $$…$$; read_text przyjmuje też etykietę („Twierdzenie 2.3”, „(2.4)”).",
+    "mathAsk": "Wzory, macierze i symbole matematyczne przepisz w LaTeX ($…$ w zdaniu, $$…$$ osobno, z numerem \\tag{…} tak jak w druku), odczytując je z obrazu strony; definicje, twierdzenia, lematy, dowody i przykłady — jako bloki \"statement\" z etykietą; odwołania do nich i do wzorów — {{ref …}}; rysunki — blok \"figure\" z podpisem i opisem. W JSON każdy ukośnik LaTeX podwój (\"\\\\frac\").",
+    "examplesHead": "## Przykłady",
+    "exampleHead": "### {label} (\"{id}\")",
+    "mathExample": "### Podręcznik ze wzorami (twierdzenia, dowód, macierze, rysunek, tabela, kod)",
+    "useHead": "## Jak aplikacja używa tych danych"
+  },
+  "prompt": {
+    "intro": "Przekształć załączony tekst źródła (PDF, skan albo plik) w dokument JSON do importu w Bibliotece Recreatio.",
+    "faithful": "Przepisz tekst wiernie — słowo w słowo, w kolejności oryginału, z podziałem na akapity, nagłówkami, listami, tabelami i przypisami, z granicami stron dokładnie tam, gdzie wypadają (także w środku akapitu). Nie poprawiaj, nie streszczaj, nie dopisuj niczego, czego nie ma w źródle. Co nieczytelne albo niepewne — oznacz.",
+    "work": "Dzieło: {title}{key}.",
+    "workKey": " — w polu \"work\" wpisz \"@{key}\"",
+    "scheme": "Układ miejsc tego dzieła: \"{scheme}\" ({label}).",
+    "portion": "Część do przepisania: {portion}."
+  },
+  "preview": {
+    "partPrefix": "Część {n}:",
+    "blocks": {
+      "one": "{count} blok",
+      "few": "{count} bloki",
+      "many": "{count} bloków",
+      "other": "{count} bloku"
+    },
+    "words": {
+      "one": "{count} słowo",
+      "few": "{count} słowa",
+      "many": "{count} słów",
+      "other": "{count} słowa"
+    },
+    "notes": {
+      "one": "{count} przypis",
+      "few": "{count} przypisy",
+      "many": "{count} przypisów",
+      "other": "{count} przypisu"
+    },
+    "formulas": {
+      "one": "{count} wzór",
+      "few": "{count} wzory",
+      "many": "{count} wzorów",
+      "other": "{count} wzoru"
+    },
+    "frames": {
+      "one": "{count} ramka (twierdzenia, definicje, dowody…)",
+      "few": "{count} ramki (twierdzenia, definicje, dowody…)",
+      "many": "{count} ramek (twierdzenia, definicje, dowody…)",
+      "other": "{count} ramki (twierdzenia, definicje, dowody…)"
+    },
+    "places": "miejsca {first}",
+    "placesRange": "miejsca {first} – {last}",
+    "formulasOk": "{formulas} (wszystkie się składają)",
+    "formulasBad": "{formulas} ({errors} z błędem)",
+    "adds": "Doda część „{label}” ({key}): {items}.",
+    "replaces": "Zastąpi część „{label}” ({key}): {items}.",
+    "setScheme": "Układ miejsc dzieła: {label} („{scheme}”).",
+    "overlap": "część „{other}” obejmuje te same miejsca — czy to nie ten sam fragment pod innym kluczem?",
+    "nothing": "Nic do zaimportowania.",
+    "typesetting": "Składanie wzorów ({n}) jeszcze trwa — za chwilę podgląd powie, czy wszystkie przechodzą."
+  },
+  "write": {
+    "unchanged": "„{label}”: bez zmian.",
+    "saving": "Zapisywanie części {n} z {total}…",
+    "added": "„{label}”: dodana.",
+    "replaced": "„{label}”: zastąpiona.",
+    "schemeFailed": "Nie udało się zapisać układu miejsc przy dziele — tekst ma go i tak.",
+    "nothing": "Nic nie zapisano."
+  },
+  "withWork": {
+    "expected": "Oczekiwano dokumentu \"{format}\" z dziełem (\"work\") i jego tekstem (\"portions\" albo \"portion\" i \"blocks\").",
+    "workInvalid": "Dzieła z \"work\" nie da się zapisać — sprawdź jego pola.",
+    "workUnknown": "Nie ma w bibliotece dzieła „{work}” — opisz je w \"work\" jako obiekt (pola dzieła), a powstanie razem z tekstem.",
+    "workMissing": "\"work\" — dzieło: obiekt z polami nowego dzieła (np. {\"key\": \"kowalski2020\", \"data\": {\"workType\": \"article\", \"title\": \"…\"}}) albo klucz istniejącego (\"@kowalski2020\").",
+    "noText": "Dokument nie ma tekstu (\"portions\" albo \"portion\" i \"blocks\") — zapisze się tylko dzieło.",
+    "newWork": "Nowe dzieło: „{title}”{key}.",
+    "fillWork": "Uzupełni dzieło: „{title}”{key}.",
+    "work": "Dzieło: „{title}”{key}.",
+    "besides": "Oprócz niego w bibliotece: {list}.",
+    "other": "{kind} „{title}”",
+    "otherChanged": "{kind} „{title}” (zmiana)",
+    "head": "# Dzieło z pełnym tekstem jako JSON (\"{format}\", wersja {version})\n\nJeden dokument tworzy w Bibliotece wpis dzieła (książki, artykułu, rozdziału, dokumentu…), wpisy, na które ono wskazuje (autorzy, czasopismo, książka zbiorowa), i jego pełny tekst. Dzieło o kluczu, który już jest w bibliotece, zostaje uzupełnione (podane pola), nie zdublowane; tak samo autor albo czasopismo o istniejącym kluczu.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"work\": { \"key\": \"nazwisko2020\", \"data\": { … pola dzieła … } },   — albo \"@klucz\" dzieła, które już jest\n  \"entries\": [ { \"kind\": \"person\", \"key\": \"…\", \"data\": { … } }, { \"kind\": \"work\", \"key\": \"…\", \"data\": { \"workType\": \"periodical\", … } } ],\n  \"scheme\": \"pages\",          — jak wskazuje się miejsca w tym dziele (niżej)\n  \"edition\": { … },           — opcjonalnie: przesunięcie stron PDF, język\n  \"portions\": [ { \"portion\": { \"key\", \"label\", \"order\" }, \"blocks\": [ … ] }, … ]\n}\n\n- Odwołania w polach dzieła (\"authors\", \"editors\", \"translators\", \"container\") to klucze z \"@\": do wpisów z \"entries\" albo do takich, które już są w bibliotece.\n- Opis dzieła bierz ze strony tytułowej, metryczki albo nagłówka artykułu; czego tam nie ma, nie wpisuj.\n\n## Pola dzieła i osoby",
+    "exampleHead": "## Pełny przykład (artykuł w czasopiśmie, tekst w dwóch częściach)",
+    "use": "## Jak aplikacja używa tych danych\n- Dzieło i wpisy z \"entries\" trafiają do biblioteki, w której importuje się dokument; tekst — do biblioteki wybranej przy imporcie. Po zapisie otwiera się strona dzieła.\n- Dzieło, autorzy i czasopismo to zwykłe wpisy Biblioteki (widzi je, kto widzi jej obszar): mają swoje strony i cytuje się je kluczem — [@kowalski2020, s. 47] w tekście Skryptorium, we wpisie bazy wiedzy albo w module strony „Tekst” staje się przypisem.",
+    "prompt": "Przekształć załączone źródło (PDF, skan albo plik z książką lub artykułem) w JEDEN dokument JSON do importu w Bibliotece Recreatio: opis dzieła (dane bibliograficzne ze strony tytułowej albo nagłówka artykułu), jego autorów i — jeśli to artykuł albo rozdział — czasopismo lub książkę, w której jest, oraz cały tekst podzielony na części.\n\nPrzepisz tekst wiernie — słowo w słowo, w kolejności oryginału, z podziałem na akapity, nagłówkami, listami, tabelami i przypisami, z granicami stron dokładnie tam, gdzie wypadają (także w środku akapitu). Nie poprawiaj, nie streszczaj, nie dopisuj niczego, czego nie ma w źródle. Co nieczytelne albo niepewne — oznacz. Jeśli całość nie zmieści się w jednej odpowiedzi, w pierwszej daj \"work\", \"entries\" i pierwsze części, a w następnych — \"work\": \"@klucz-dzieła\" i kolejne części.",
+    "textHead": "## Tekst"
+  }
+}

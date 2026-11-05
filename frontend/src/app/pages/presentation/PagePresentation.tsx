@@ -17,6 +17,7 @@
 import { useCallback, useContext, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useT } from '../../core/i18n';
 import type { DraftPart } from '../page';
 import { partSize, text } from '../part';
 import { usePageLogic } from '../pageLogic';
@@ -109,6 +110,7 @@ export function PagePresentation({
   /** 2026-11-03 (G) — der Pfad der Seite: mit der Stelle gemerkt, damit der Ablauf der Baza, der auf sie zeigt, sie findet. */
   pagePath?: string | null;
 }) {
+  const t = useT();
   const logic = usePageLogic();
   /* Ein Vortrag auf dem ganzen Bildschirm — von der Stelle aus, an der die Seite gerade steht; sie selbst steht solange still. */
   const [presenting, setPresenting] = useState<{ readonly at: number; readonly route: readonly string[] | null } | null>(null);
@@ -145,7 +147,7 @@ export function PagePresentation({
       /* 0130 — nach einer Meldung gesperrt. */
       content = <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>;
     } else if (def === undefined) {
-      content = <p className="wk-card-unknown">Moduł „{part.kind}" nie jest znany tej wersji strony.</p>;
+      content = <p className="wk-card-unknown">{t('pagePresentation.unknownModule', { kind: part.kind })}</p>;
     } else if (part.kind === 'text' && piece.type !== 'auto') {
       const first = piece.type === 'display' && firstDisplay;
       if (first) firstDisplay = false;

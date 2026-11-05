@@ -9,6 +9,7 @@
  * der Editor der Abläufe lädt nur, was er für den Graphen braucht.
  */
 
+import { t } from '../../core/i18n';
 import { WorkspaceError } from '../../core/session';
 import { loadPage, toDraft, type DraftPart, type PageContent } from '../page';
 import { text } from '../part';
@@ -41,11 +42,11 @@ export async function loadStory(path: string): Promise<LoadedStory> {
   } catch (e) {
     const verdict = e instanceof WorkspaceError ? e.verdict : null;
     throw new Error(verdict === 'needsaccess' || verdict === 'noaccess'
-      ? '[odwołanie niedostępne] Ta prezentacja jest tylko dla osób z dostępem.'
-      : e instanceof Error ? e.message : 'Nie udało się wczytać prezentacji.');
+      ? t('pagePresentation.storyPage.needsAccess')
+      : e instanceof Error ? e.message : t('pagePresentation.storyPage.loadFailed'));
   }
-  if (page.locked === true) throw new Error('[odwołanie niedostępne] Ta prezentacja jest zaszyfrowana, a ta przeglądarka nie ma do niej klucza.');
-  if (page.mode !== 'presentation') throw new Error(`Pod adresem „${path}” nie ma prezentacji.`);
+  if (page.locked === true) throw new Error(t('pagePresentation.storyPage.locked'));
+  if (page.mode !== 'presentation') throw new Error(t('pagePresentation.storyPage.notPresentation', { path }));
   const parts = page.parts.map(toDraft);
   const look = readLook(page.theme ?? null);
   const read = readShow(look.show);

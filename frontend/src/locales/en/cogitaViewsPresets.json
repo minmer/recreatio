@@ -1,0 +1,161 @@
+{
+  "choice": {
+    "backRef": "{kind}: {field}",
+    "noFields": "This kind has no fields.",
+    "noRefField": "This kind has no field that refers to other entries.",
+    "noTarget": "The field “{field}” does not point to a single kind with fields — choose in the scheme what it refers to.",
+    "noText": "This kind has no text field.",
+    "noBack": "No kind refers to this one (e.g. a translation to a word) — add such a field in the scheme."
+  },
+  "asks": {
+    "wordsField": "Field with the words (reference)",
+    "langIn": "Language field in",
+    "langField": "Language field (reference)",
+    "wordText": "Field with the text of the word",
+    "backField": "Where the translations are (kind: field with the words)"
+  },
+  "tpl": {
+    "thesis": {
+      "label": "Thesis: about what → thesis",
+      "says": "On the front: what the statement is about (its reference fields, e.g. “Lk 1:35; Acts 1:8”), on the back its thesis — the first sentence. You grade yourself.",
+      "pattern": "What does this statement say about: {0}?",
+      "name": "Thesis"
+    },
+    "table": {
+      "label": "Table from the content: match the pairs",
+      "says": "The rows of the first table in the content (column 1 ↔ column 2) to join into pairs; the thesis above them.",
+      "name": "Table from the content"
+    },
+    "ask": {
+      "label": "Question about a field",
+      "says": "“Year of birth: Mickiewicz?” — type the value of the field.",
+      "pattern": "{field}: {0}?",
+      "name": "{field} (type it)"
+    },
+    "reverse": {
+      "label": "Reversed: who is it?",
+      "says": "Shows the value of a field and asks for the entry (“Who was born in 1798?”).",
+      "pattern": "Who or what — {field}: {0}?",
+      "name": "Who: {field}"
+    },
+    "choose": {
+      "label": "Choice of four",
+      "says": "The correct value of the field and three values of this field from other entries.",
+      "name": "{field} (choice)"
+    },
+    "date": {
+      "label": "Date",
+      "says": "When? — to the year, month or day.",
+      "pattern": "{field}: {0} — when?",
+      "name": "{field} (date)"
+    },
+    "flash": {
+      "label": "Flashcard",
+      "says": "The first field on the front, the second on the back — you grade yourself.",
+      "name": "Flashcard: {front} → {back}"
+    },
+    "vocabulary": {
+      "label": "Word (each translation separately)",
+      "says": "One card for each value of the second field — each translation.",
+      "pattern": "Translate: {0}",
+      "name": "Word: {front} → {back}"
+    },
+    "languages": {
+      "label": "Words: from language to language (both directions)",
+      "says": "The entry links words in several languages (e.g. a translation with a field “Words”): a separate card for each language — the words in that language with the direction (“English → Polish: house”), the answer is the words in the other languages.",
+      "name": "{field}: from language to language"
+    },
+    "whichLanguage": {
+      "label": "Words: which language is it?",
+      "says": "Shows a word and asks which language it is in — you tick every language in which a word with this spelling exists (e.g. “hotel”). Words with the same spelling make one card.",
+      "pattern": "Which language is “{0}”? Tick all in which it exists.",
+      "name": "Which language is it?"
+    },
+    "pairs": {
+      "label": "Words: match into pairs",
+      "says": "Several translations at once: words in one language on the left, in the other on the right — you match them into pairs. Takes this translation and others at random; the languages are those of this translation.",
+      "pattern": "Match into pairs: {0} — {1}",
+      "name": "Match into pairs"
+    },
+    "chooseTranslations": {
+      "label": "Words: tick the translations",
+      "says": "Shows a word; you tick all its translations — in one or several languages — among them and a few other words of those languages.",
+      "pattern": "Tick the translations: “{0}” ({1})",
+      "name": "Tick the translations"
+    },
+    "translateWord": {
+      "label": "Words: translate the word (each language separately)",
+      "says": "Shows a word and asks for its translation — a separate card for each language it has translations in; all translations into that language are correct.",
+      "name": "Translate the word"
+    },
+    "gaps": {
+      "label": "Gaps in a quote",
+      "says": "Splits the text into pieces and asks for each — the pieces first, then the whole.",
+      "name": "Gaps: {field}"
+    }
+  },
+  "rev": {
+    "temporal": {
+      "label": "By what I know",
+      "says": "First what is due (weakest first), then new and forgotten — from the basics to the details; when nothing is left, in advance what you know least well; stacks of 20.",
+      "name": "Daily review"
+    },
+    "random": {
+      "label": "20 random",
+      "says": "Twenty cards, each once.",
+      "name": "20 random"
+    },
+    "once": {
+      "label": "Everything once",
+      "says": "The whole set, each card once — a test.",
+      "name": "Everything once"
+    },
+    "levels": {
+      "label": "Levels",
+      "says": "A good answer raises the card a level, a wrong one sends it back to the first; it ends when everything is at the top.",
+      "name": "Levels"
+    },
+    "due": {
+      "label": "Only overdue",
+      "says": "Only cards that are due, by knowledge.",
+      "name": "Overdue"
+    },
+    "gated": {
+      "label": "Basics first",
+      "says": "A card comes in only once what it requires (“Must be known first”) is mastered; missing basics come in by themselves. Built from ordinary steps: “Follow the learning order”, “Knowledge filter”, order “general first”.",
+      "name": "From the basics"
+    },
+    "general": {
+      "label": "From the general to the detail",
+      "says": "The most general first; an entry that lies under another in the structure (a year under a stage, a stage under the whole life) comes in once that one is known. Built from the “Knowledge filter” and the order “general first”.",
+      "name": "From the general to the detail"
+    }
+  },
+  "flow": {
+    "story": {
+      "label": "Story about a person (template)",
+      "says": "A reminder, the person’s entry from the slot {osoba}, a question, the end — to use with different people.",
+      "opening": "To begin",
+      "show": "Who was it?",
+      "ask": "Test yourself",
+      "name": "Story about a person",
+      "slot": "Person"
+    },
+    "chapters": {
+      "label": "Course with chapters",
+      "says": "Choosing a chapter, each with content and a question; it ends when all are done.",
+      "pick": "Choose a chapter",
+      "chapter": "Chapter {n}",
+      "name": "Course"
+    },
+    "dialogue": {
+      "label": "Conversation with a character",
+      "says": "A character speaks, the learner chooses an answer; the choice changes closeness.",
+      "question": "What will you answer?",
+      "agree": "I agree",
+      "dontKnow": "I don’t know",
+      "closeness": "closeness",
+      "name": "Conversation"
+    }
+  }
+}

@@ -16,6 +16,8 @@
  * weiss, wann keine mehr unterwegs ist (`quiet`).
  */
 
+import { t } from '../core/i18n';
+
 export interface FetchEntry {
   readonly method: string;
   /** Der Pfad beim Dienst (ohne seine Adresse), oder die ganze Adresse ausserhalb. */
@@ -87,14 +89,14 @@ export function installPreviewFetch(api: string): PreviewFetch {
     }
 
     if (method !== 'GET' && method !== 'HEAD') {
-      return answer(403, { error: 'Podgląd niczego nie zapisuje.', verdict: 'preview' }, 'blocked');
+      return answer(403, { error: t('preview.fetch.noWrite'), verdict: 'preview' }, 'blocked');
     }
-    if (bare === '/session') return answer(401, { error: 'Nikt nie jest zalogowany (podgląd).' }, 'preview');
+    if (bare === '/session') return answer(401, { error: t('preview.fetch.noSession') }, 'preview');
     if (bare.startsWith('/page/')) {
       const wanted = decodePath(bare.slice('/page/'.length));
       if (page !== null && wanted === page.path) return answer(200, page.body, 'preview');
     }
-    if (!live) return answer(404, { error: 'Podgląd bez danych na żywo.' }, 'offline');
+    if (!live) return answer(404, { error: t('preview.fetch.offline') }, 'offline');
 
     pending += 1;
     try {

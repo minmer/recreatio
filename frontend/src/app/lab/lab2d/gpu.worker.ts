@@ -360,7 +360,7 @@ async function init(m: Extract<HostMessage, { type: 'init' }>): Promise<void> {
   theme(m.dark);
   charts = new GpuCharts(gpu);
   if (m.resume !== undefined) charts.copyFrom(mirrorCharts);
-  gpu.ctx.device.addEventListener('uncapturederror', (e) => post({ type: 'error', message: `WebGPU: ${e.error.message}` }));
+  gpu.ctx.device.addEventListener('uncapturederror', (e) => post({ type: 'error', message: `WebGPU: ${e.error.message}` })); // i18n-ignore (technische Meldung der Grafikkarte)
   void gpu.ctx.device.lost.then((l) => post({ type: 'gpu', ok: false, adapter, message: l.message || l.reason }));
   setWalls();
   resize(m.width, m.height, m.dpr);

@@ -12,6 +12,7 @@ import { guessKind, kindById } from '../core/quantities';
 import { hasTex } from '../core/tex';
 import { compile, isExprError, isList, isRecord, newEnv, recordId, takeOverrun, truth as isTrue, valueText as exprText, withRng, type Val } from '../pages/motion/expr';
 import { drawInstance, readParamsSpec, recordOf, storedValues, type GenWorld, type Stored } from './generator';
+import { t } from '../core/i18n';
 
 /** Was an einem Eingang ankam — alle Kanten, alle Stücke, in einer Liste. */
 const itemsAt = (inputs: Readonly<Record<string, readonly unknown[]>>, port: string): Item[] =>
@@ -63,9 +64,9 @@ function readField(ctx: TemplateContext, entities: readonly Entity[], key: strin
 }
 
 const FIELD: Kind = {
-  type: 'field', label: 'Pole', group: 'Dane',
-  says: 'Wartości jednego pola — tego wpisu albo wpisów, które przychodzą z lewej.',
-  ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('values', 'Wartości')] }),
+  type: 'field', get label() { return t('cogitaEditCard.kind.field.label'); }, get group() { return t('cogitaEditCard.group.data'); },
+  get says() { return t('cogitaEditCard.kind.field.says'); },
+  ports: () => ({ inputs: [port('of', t('cogitaEditCard.port.fromEntries'), 'items', true)], outputs: [port('values', t('cogitaEditCard.port.values'))] }),
   run: ({ config, inputs, ctx }) => ({ values: readField(ctx, sourcesOf(ctx, itemsAt(inputs, 'of')), str(config.key)) })
 };
 
@@ -83,16 +84,16 @@ const refName = (ctx: TemplateContext) => (ref: string, locator: string): string
 };
 
 const STATEMENT_THESIS: Kind = {
-  type: 'statement.thesis', label: 'Teza', group: 'Wypowiedź',
-  says: 'Pierwsze zdanie treści w blokach — teza (tego wpisu albo wpisów, które przychodzą z lewej; każdy rodzaj z polem „Treść w blokach”).',
-  ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('text', 'Teza')] }),
+  type: 'statement.thesis', get label() { return t('cogitaEditCard.kind.statementThesis.label'); }, get group() { return t('cogitaEditCard.group.statement'); },
+  get says() { return t('cogitaEditCard.kind.statementThesis.says'); },
+  ports: () => ({ inputs: [port('of', t('cogitaEditCard.port.fromEntries'), 'items', true)], outputs: [port('text', t('cogitaEditCard.port.thesis'))] }),
   run: ({ inputs, ctx }) => ({ text: sourcesOf(ctx, itemsAt(inputs, 'of')).map((e) => ({ text: thesisOf(entityBlocks(e, ctx.look)), entity: e.id })).filter((i) => i.text !== '') })
 };
 
 const STATEMENT_PART: Kind = {
-  type: 'statement.part', label: 'Część treści', group: 'Wypowiedź',
-  says: 'Blok numer n (1, 2, …) treści w blokach: akapit jako tekst, lista — każdy punkt osobno, tabela — każdy wiersz („Łk 1,35 — Dz 1,8"). Puste: wszystkie akapity.',
-  ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('values', 'Części')] }),
+  type: 'statement.part', get label() { return t('cogitaEditCard.kind.statementPart.label'); }, get group() { return t('cogitaEditCard.group.statement'); },
+  get says() { return t('cogitaEditCard.kind.statementPart.says'); },
+  ports: () => ({ inputs: [port('of', t('cogitaEditCard.port.fromEntries'), 'items', true)], outputs: [port('values', t('cogitaEditCard.port.parts'))] }),
   run: ({ config, inputs, ctx }) => {
     const n = Math.round(num(config.n, 0));
     const out: Item[] = [];
@@ -110,9 +111,9 @@ const STATEMENT_PART: Kind = {
 };
 
 const STATEMENT_TABLE: Kind = {
-  type: 'statement.table', label: 'Tabela z treści', group: 'Wypowiedź',
-  says: 'Wiersze tabeli z treści w blokach jako dwie strony: kolumna A po lewej, kolumna B po prawej (te same miejsca tworzą parę) — do „dopasowania par" albo pytań o kolumnę.',
-  ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('left', 'Kolumna A'), port('right', 'Kolumna B')] }),
+  type: 'statement.table', get label() { return t('cogitaEditCard.kind.statementTable.label'); }, get group() { return t('cogitaEditCard.group.statement'); },
+  get says() { return t('cogitaEditCard.kind.statementTable.says'); },
+  ports: () => ({ inputs: [port('of', t('cogitaEditCard.port.fromEntries'), 'items', true)], outputs: [port('left', t('cogitaEditCard.port.columnA')), port('right', t('cogitaEditCard.port.columnB'))] }),
   run: ({ config, inputs, ctx }) => {
     const a = Math.max(1, Math.round(num(config.left, 1))) - 1;
     const b = Math.max(1, Math.round(num(config.right, 2))) - 1;
@@ -135,26 +136,26 @@ const STATEMENT_TABLE: Kind = {
 };
 
 const STATEMENT_SUBJECTS: Kind = {
-  type: 'statement.subjects', label: 'O czym jest', group: 'Wypowiedź',
-  says: 'Wpisy, na które wskazują pola-odwołania wypowiedzi (np. „O czym”) — z miejscem (np. „Łk 1,35").',
-  ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('entities', 'Wpisy')] }),
+  type: 'statement.subjects', get label() { return t('cogitaEditCard.kind.statementSubjects.label'); }, get group() { return t('cogitaEditCard.group.statement'); },
+  get says() { return t('cogitaEditCard.kind.statementSubjects.says'); },
+  ports: () => ({ inputs: [port('of', t('cogitaEditCard.port.fromEntries'), 'items', true)], outputs: [port('entities', t('cogitaEditCard.port.entries'))] }),
   run: ({ inputs, ctx }) => ({
     entities: sourcesOf(ctx, itemsAt(inputs, 'of')).flatMap((e) => entityAbout(e, ctx.look).map((s) => ({ text: refName(ctx)(s.ref, s.locator), entity: s.ref })))
   })
 };
 
 const MEDIA: Kind = {
-  type: 'media', label: 'Obraz albo dźwięk', group: 'Dane',
-  says: 'Plik z pola — jako pytanie: pokaż obraz, odtwórz nagranie.',
-  ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('values', 'Pliki')] }),
+  type: 'media', get label() { return t('cogitaEditCard.kind.media.label'); }, get group() { return t('cogitaEditCard.group.data'); },
+  get says() { return t('cogitaEditCard.kind.media.says'); },
+  ports: () => ({ inputs: [port('of', t('cogitaEditCard.port.fromEntries'), 'items', true)], outputs: [port('values', t('cogitaEditCard.port.files'))] }),
   run: ({ config, inputs, ctx }) => ({ values: readField(ctx, sourcesOf(ctx, itemsAt(inputs, 'of')), str(config.key)).filter((i) => i.media !== undefined) })
 };
 
 /** Mehrere Schritte über Verweise: „autor → miejsce urodzenia". */
 const FOLLOW: Kind = {
-  type: 'follow', label: 'Przez odwołania', group: 'Dane',
-  says: 'Idzie po odwołaniach, krok po kroku (np. autor, potem jego miejsce urodzenia), i daje wpisy na końcu drogi.',
-  ports: () => ({ inputs: [port('of', 'Od wpisów', 'items', true)], outputs: [port('entities', 'Wpisy')] }),
+  type: 'follow', get label() { return t('cogitaEditCard.kind.follow.label'); }, get group() { return t('cogitaEditCard.group.data'); },
+  get says() { return t('cogitaEditCard.kind.follow.says'); },
+  ports: () => ({ inputs: [port('of', t('cogitaEditCard.port.startEntries'), 'items', true)], outputs: [port('entities', t('cogitaEditCard.port.entries'))] }),
   run: ({ config, inputs, ctx }) => {
     let current: Entity[] = sourcesOf(ctx, itemsAt(inputs, 'of'));
     let items: Item[] = [];
@@ -167,16 +168,16 @@ const FOLLOW: Kind = {
 };
 
 const LIST: Kind = {
-  type: 'list', label: 'Lista', group: 'Dane',
-  says: 'Stała lista wpisana przez autora — np. dodatkowe poprawne odpowiedzi albo własne dystraktory.',
-  ports: () => ({ inputs: [], outputs: [port('values', 'Pozycje')] }),
+  type: 'list', get label() { return t('cogitaEditCard.kind.list.label'); }, get group() { return t('cogitaEditCard.group.data'); },
+  get says() { return t('cogitaEditCard.kind.list.says'); },
+  ports: () => ({ inputs: [], outputs: [port('values', t('cogitaEditCard.port.items'))] }),
   run: ({ config }) => ({ values: lines(config.items).map((text) => ({ text })) })
 };
 
 const SELF: Kind = {
-  type: 'entity', label: 'Ten wpis', group: 'Dane',
-  says: 'Wpis, dla którego powstaje karta — z jego etykietą.',
-  ports: () => ({ inputs: [], outputs: [port('entities', 'Wpis')] }),
+  type: 'entity', get label() { return t('cogitaEditCard.kind.entity.label'); }, get group() { return t('cogitaEditCard.group.data'); },
+  get says() { return t('cogitaEditCard.kind.entity.says'); },
+  ports: () => ({ inputs: [], outputs: [port('entities', t('cogitaEditCard.port.entry'))] }),
   run: ({ ctx }) => ({ entities: [{ text: labelFor(ctx.entity, ctx.look), entity: ctx.entity.id }] })
 };
 
@@ -192,12 +193,12 @@ const sameItem = (a: Item, b: Item): boolean =>
  * Wert; ohne Feld mit dem Eintrag selbst („alle außer diesem").
  */
 const FILTER: Kind = {
-  type: 'filter', label: 'Filtr', group: 'Dane',
-  says: 'Dzieli wpisy według pola: te, których pole ma wartość z „Porównaj z" (albo wpisaną), i pozostałe — np. słowa w języku tej karty i słowa w innych językach. Bez pola porównuje same wpisy.',
-  ports: () => ({ inputs: [port('items', 'Wpisy', 'items', true), port('like', 'Porównaj z', 'items', true)], outputs: [port('kept', 'Pasujące'), port('rest', 'Pozostałe')] }),
+  type: 'filter', get label() { return t('cogitaEditCard.kind.filter.label'); }, get group() { return t('cogitaEditCard.group.data'); },
+  get says() { return t('cogitaEditCard.kind.filter.says'); },
+  ports: () => ({ inputs: [port('items', t('cogitaEditCard.port.entries'), 'items', true), port('like', t('cogitaEditCard.port.compareWith'), 'items', true)], outputs: [port('kept', t('cogitaEditCard.port.matching')), port('rest', t('cogitaEditCard.port.others'))] }),
   run: ({ config, inputs, ctx }) => {
     const targets: Item[] = [...itemsAt(inputs, 'like'), ...lines(config.value).map((text) => ({ text }))];
-    if (targets.length === 0) throw new Error('Filtr nie ma z czym porównać: podłącz „Porównaj z" albo wpisz wartość.');
+    if (targets.length === 0) throw new Error(t('cogitaEditCard.error.filterNothing'));
     const key = str(config.key);
     const kept: Item[] = [];
     const rest: Item[] = [];
@@ -210,9 +211,9 @@ const FILTER: Kind = {
 };
 
 const UNIQUE: Kind = {
-  type: 'unique', label: 'Bez powtórzeń', group: 'Dane',
-  says: 'Każdy wpis (albo tekst) tylko raz — np. języki wszystkich słów tłumaczenia, każdy jeden raz.',
-  ports: () => ({ inputs: [port('items', 'Wartości', 'items', true)], outputs: [port('items', 'Każda raz')] }),
+  type: 'unique', get label() { return t('cogitaEditCard.kind.unique.label'); }, get group() { return t('cogitaEditCard.group.data'); },
+  get says() { return t('cogitaEditCard.kind.unique.says'); },
+  ports: () => ({ inputs: [port('items', t('cogitaEditCard.port.values'), 'items', true)], outputs: [port('items', t('cogitaEditCard.port.eachOnce'))] }),
   run: ({ inputs }) => {
     const out: Item[] = [];
     for (const item of itemsAt(inputs, 'items')) if (!out.some((o) => sameItem(o, item))) out.push(item);
@@ -274,16 +275,16 @@ function sample<T>(list: readonly T[], count: number, rng: () => number): T[] {
  * Ohne diesen Eintrag, nur aus der aktuellen Sammlung, höchstens N zufällig.
  */
 const ENTRIES: Kind = {
-  type: 'entries', label: 'Wpisy rodzaju', group: 'Dane',
-  says: 'Wpisy wybranego rodzaju — wszystkie albo te, których pole ma wartość z „Gdzie pole ma" (albo wpisaną): słowa o tej samej pisowni, tłumaczenia z tym słowem, słowa w danym języku. Może pominąć ten wpis i wziąć kilka losowo.',
-  ports: () => ({ inputs: [port('like', 'Gdzie pole ma', 'items', true)], outputs: [port('entities', 'Wpisy')] }),
+  type: 'entries', get label() { return t('cogitaEditCard.kind.entries.label'); }, get group() { return t('cogitaEditCard.group.data'); },
+  get says() { return t('cogitaEditCard.kind.entries.says'); },
+  ports: () => ({ inputs: [port('like', t('cogitaEditCard.port.whereField'), 'items', true)], outputs: [port('entities', t('cogitaEditCard.port.entries'))] }),
   run: ({ node, config, inputs, ctx }) => {
     const pool = ctx.pool(str(config.kind) || ctx.entity.kinds[0] || '');
     const key = str(config.key);
     let found: readonly Entity[] = pool;
     if (key !== '') {
       const targets: Item[] = [...itemsAt(inputs, 'like'), ...lines(config.value).map((text) => ({ text }))];
-      if (targets.length === 0) throw new Error('„Wpisy rodzaju" z polem nie mają z czym porównać: podłącz „Gdzie pole ma" albo wpisz wartość.');
+      if (targets.length === 0) throw new Error(t('cogitaEditCard.error.entriesNothing'));
       const index = valueIndex(ctx, pool, key);
       const hit = new Set<Entity>();
       for (const t of targets) for (const k of lookupKeys(t)) for (const e of index.get(k) ?? []) hit.add(e);
@@ -300,11 +301,11 @@ const ENTRIES: Kind = {
 };
 
 const PATTERN: Kind = {
-  type: 'pattern', label: 'Wzór tekstu', group: 'Tekst',
-  says: 'Składa tekst z wejść: „Kto napisał {0}?". Kilka wartości na jednym wejściu łączy przecinkiem.',
+  type: 'pattern', get label() { return t('cogitaEditCard.kind.pattern.label'); }, get group() { return t('cogitaEditCard.group.text'); },
+  get says() { return t('cogitaEditCard.kind.pattern.says'); },
   ports: (config) => {
     const count = Math.max(1, Math.min(10, Math.round(num(config.inputs, 1))));
-    return { inputs: Array.from({ length: count }, (_, i) => port(`p${i}`, `{${i}}`, 'items', true)), outputs: [port('text', 'Tekst')] };
+    return { inputs: Array.from({ length: count }, (_, i) => port(`p${i}`, `{${i}}`, 'items', true)), outputs: [port('text', t('cogitaEditCard.port.text'))] };
   },
   run: ({ config, inputs }) => {
     const joiner = typeof config.joiner === 'string' ? config.joiner : ', ';
@@ -317,9 +318,9 @@ const PATTERN: Kind = {
 const words = (text: string): string[] => text.split(/(\s+)/).filter((w) => w !== '');
 
 const MASK: Kind = {
-  type: 'mask', label: 'Maska', group: 'Tekst',
-  says: 'Zakrywa część tekstu: koniec, początek albo losowe słowa. Daje tekst z luką, zakrytą część i całość.',
-  ports: () => ({ inputs: [port('text', 'Tekst')], outputs: [port('shown', 'Z luką'), port('hidden', 'Zakryte'), port('full', 'Całość')] }),
+  type: 'mask', get label() { return t('cogitaEditCard.kind.mask.label'); }, get group() { return t('cogitaEditCard.group.text'); },
+  get says() { return t('cogitaEditCard.kind.mask.says'); },
+  ports: () => ({ inputs: [port('text', t('cogitaEditCard.port.text'))], outputs: [port('shown', t('cogitaEditCard.port.withGap')), port('hidden', t('cogitaEditCard.port.hidden')), port('full', t('cogitaEditCard.port.whole'))] }),
   run: ({ node, config, inputs, ctx }) => {
     const text = texts(itemsAt(inputs, 'text')).join(' ');
     const keep = Math.max(0, Math.min(1, num(config.keep, 0.3)));
@@ -350,9 +351,9 @@ const MASK: Kind = {
 };
 
 const FRAGMENTS: Kind = {
-  type: 'fragments', label: 'Fragmenty cytatu', group: 'Tekst',
-  says: 'Dzieli cytat na kawałki (7–13 znaków) i układa je w drzewo: najpierw kawałki, potem to, co razem tworzą. Podłącz „Dla każdej wartości".',
-  ports: () => ({ inputs: [port('text', 'Cytat')], outputs: [port('fragments', 'Fragmenty')] }),
+  type: 'fragments', get label() { return t('cogitaEditCard.kind.fragments.label'); }, get group() { return t('cogitaEditCard.group.text'); },
+  get says() { return t('cogitaEditCard.kind.fragments.says'); },
+  ports: () => ({ inputs: [port('text', t('cogitaEditCard.port.quote'))], outputs: [port('fragments', t('cogitaEditCard.port.fragments'))] }),
   run: ({ config, inputs }) => {
     const text = texts(itemsAt(inputs, 'text')).join(' ');
     const tree = fragmentTree(text, num(config.min, 7), num(config.max, 13));
@@ -361,9 +362,9 @@ const FRAGMENTS: Kind = {
 };
 
 const PICK: Kind = {
-  type: 'pick', label: 'Wybierz jeden', group: 'Wybór',
-  says: 'Bierze jedną wartość z listy (losowo, pierwszą albo ostatnią) i oddaje osobno ją i resztę.',
-  ports: () => ({ inputs: [port('items', 'Lista', 'items', true)], outputs: [port('chosen', 'Wybrany'), port('rest', 'Reszta')] }),
+  type: 'pick', get label() { return t('cogitaEditCard.kind.pick.label'); }, get group() { return t('cogitaEditCard.group.choice'); },
+  get says() { return t('cogitaEditCard.kind.pick.says'); },
+  ports: () => ({ inputs: [port('items', t('cogitaEditCard.port.list'), 'items', true)], outputs: [port('chosen', t('cogitaEditCard.port.chosen')), port('rest', t('cogitaEditCard.port.rest'))] }),
   run: ({ node, config, inputs, ctx }) => {
     const list = itemsAt(inputs, 'items');
     if (list.length === 0) return { chosen: [], rest: [] };
@@ -385,9 +386,9 @@ function nearness(a: Item, b: Item): number {
 }
 
 const DISTRACTORS: Kind = {
-  type: 'distractors', label: 'Dystraktory', group: 'Wybór',
-  says: 'Błędne odpowiedzi do wyboru: to samo pole innych wpisów tego rodzaju, tylko z bieżącego zbioru, lista autora albo wartości najbliższe poprawnej.',
-  ports: () => ({ inputs: [port('expected', 'Poprawne', 'items', true), port('list', 'Lista autora', 'items', true)], outputs: [port('distractors', 'Dystraktory')] }),
+  type: 'distractors', get label() { return t('cogitaEditCard.kind.distractors.label'); }, get group() { return t('cogitaEditCard.group.choice'); },
+  get says() { return t('cogitaEditCard.kind.distractors.says'); },
+  ports: () => ({ inputs: [port('expected', t('cogitaEditCard.port.correctMany'), 'items', true), port('list', t('cogitaEditCard.port.authorList'), 'items', true)], outputs: [port('distractors', t('cogitaEditCard.port.distractors'))] }),
   run: ({ node, config, inputs, ctx }) => {
     const count = Math.max(1, Math.min(20, Math.round(num(config.count, 3))));
     const from = new Set(lines(config.from).length > 0 ? lines(config.from) : ['field']);
@@ -418,9 +419,9 @@ const DISTRACTORS: Kind = {
 
 /** Der Knoten der Schleife — sein Ausgang wird je Lauf vorgegeben (`cardsOf`). */
 const EACH: Kind = {
-  type: 'each', label: 'Dla każdej wartości', group: 'Wybór',
-  says: 'Robi osobną kartę dla każdej wartości z lewej — każde tłumaczenie, każdy fragment cytatu.',
-  ports: () => ({ inputs: [port('items', 'Wartości', 'items', true)], outputs: [port('item', 'Wartość')] }),
+  type: 'each', get label() { return t('cogitaEditCard.kind.each.label'); }, get group() { return t('cogitaEditCard.group.choice'); },
+  get says() { return t('cogitaEditCard.kind.each.says'); },
+  ports: () => ({ inputs: [port('items', t('cogitaEditCard.port.values'), 'items', true)], outputs: [port('item', t('cogitaEditCard.port.value'))] }),
   run: ({ inputs }) => ({ item: itemsAt(inputs, 'items').slice(0, 1) })
 };
 
@@ -433,19 +434,19 @@ const EACH: Kind = {
  * (zweimal „dom" liesse sich nicht richtig zuordnen).
  */
 const PAIRS: Kind = {
-  type: 'pairs', label: 'Pary', group: 'Wybór',
-  says: 'Z każdego wpisu para: wartości pola pasujące do lewej strony i te pasujące do prawej (bez prawej: wszystkie pozostałe) — np. z każdego tłumaczenia słowo angielskie i polskie. Wpis bez którejś strony odpada.',
+  type: 'pairs', get label() { return t('cogitaEditCard.kind.pairs.label'); }, get group() { return t('cogitaEditCard.group.choice'); },
+  get says() { return t('cogitaEditCard.kind.pairs.says'); },
   ports: () => ({
-    inputs: [port('items', 'Wpisy', 'items', true), port('left', 'Lewa: porównaj z', 'items', true), port('right', 'Prawa: porównaj z', 'items', true)],
-    outputs: [port('left', 'Lewa strona'), port('right', 'Prawa strona')]
+    inputs: [port('items', t('cogitaEditCard.port.entries'), 'items', true), port('left', t('cogitaEditCard.port.leftLike'), 'items', true), port('right', t('cogitaEditCard.port.rightLike'), 'items', true)],
+    outputs: [port('left', t('cogitaEditCard.port.leftSide')), port('right', t('cogitaEditCard.port.rightSide'))]
   }),
   run: ({ config, inputs, ctx }) => {
     const key = str(config.key);
     const by = str(config.by);
-    if (key === '' || by === '') throw new Error('Pary potrzebują pola z wartościami (np. słowa) i pola, według którego się dzielą (np. język).');
+    if (key === '' || by === '') throw new Error(t('cogitaEditCard.error.pairsFields'));
     const lefts: Item[] = [...itemsAt(inputs, 'left'), ...lines(config.leftValue).map((text) => ({ text }))];
     const rights: Item[] = [...itemsAt(inputs, 'right'), ...lines(config.rightValue).map((text) => ({ text }))];
-    if (lefts.length === 0) throw new Error('Pary nie wiedzą, co jest po lewej: podłącz „Lewa: porównaj z" albo wpisz wartość.');
+    if (lefts.length === 0) throw new Error(t('cogitaEditCard.error.pairsLeft'));
     const most = Math.max(2, Math.min(20, Math.round(num(config.count, 5))));
     const fits = (v: Item, targets: readonly Item[]) => readField(ctx, sourcesOf(ctx, [v]), by).some((x) => targets.some((t) => sameItem(x, t)));
     const side = (values: readonly Item[]): Item => ({ text: texts(values).join(', '), ...(values[0].entity === undefined ? {} : { entity: values[0].entity }) });
@@ -479,9 +480,9 @@ const PAIRS: Kind = {
  * Wem eine Seite fehlt, fällt weg; kein Text steht zweimal auf einer Seite.
  */
 const FIELD_PAIRS: Kind = {
-  type: 'pairs.fields', label: 'Pary z dwóch pól', group: 'Wybór',
-  says: 'Z każdego wpisu para: pole po lewej (np. fragment tekstu) i pole po prawej (puste: teza wpisu) — do „dopasowania par”, np. pięć fragmentów jednego dzieła i ich pięć tez. Wpis bez którejś strony odpada.',
-  ports: () => ({ inputs: [port('items', 'Wpisy', 'items', true)], outputs: [port('left', 'Lewa strona'), port('right', 'Prawa strona')] }),
+  type: 'pairs.fields', get label() { return t('cogitaEditCard.kind.pairsFields.label'); }, get group() { return t('cogitaEditCard.group.choice'); },
+  get says() { return t('cogitaEditCard.kind.pairsFields.says'); },
+  ports: () => ({ inputs: [port('items', t('cogitaEditCard.port.entries'), 'items', true)], outputs: [port('left', t('cogitaEditCard.port.leftSide')), port('right', t('cogitaEditCard.port.rightSide'))] }),
   run: ({ config, inputs, ctx }) => {
     const most = Math.max(2, Math.min(12, Math.round(num(config.count, 5))));
     const side = (e: Entity, key: string): string => (key === '' ? thesisOf(entityBlocks(e, ctx.look)) : texts(readField(ctx, [e], key)).join(' ')).replace(/\s+/g, ' ').trim();
@@ -504,9 +505,9 @@ const FIELD_PAIRS: Kind = {
 };
 
 const RANDOM: Kind = {
-  type: 'random', label: 'Losowa wartość', group: 'Liczby',
-  says: 'Losuje liczbę z przedziału (z krokiem) albo jedną pozycję z listy (wpisanej tu albo przychodzącej z lewej) — jeden szablon daje za każdym razem inne pytanie (karta „losowa”: jej historia nie zaczyna się od nowa przy każdym losowaniu). „Ile” > 1: tyle różnych (bez powtórzeń) — np. 4 wpisy do ułożenia w kolejności.',
-  ports: () => ({ inputs: [port('items', 'Z listy', 'items', true)], outputs: [port('value', 'Wartość')] }),
+  type: 'random', get label() { return t('cogitaEditCard.kind.random.label'); }, get group() { return t('cogitaEditCard.group.numbers'); },
+  get says() { return t('cogitaEditCard.kind.random.says'); },
+  ports: () => ({ inputs: [port('items', t('cogitaEditCard.port.fromList'), 'items', true)], outputs: [port('value', t('cogitaEditCard.port.value'))] }),
   run: ({ node, config, inputs, ctx }) => {
     const rng = rngFor(ctx, node.id);
     /* 2026-11-03 — „Ile": k różnych naraz (bez powtórzeń); bez — jedna, jak dotąd. */
@@ -515,7 +516,7 @@ const RANDOM: Kind = {
     const list = [...itemsAt(inputs, 'items'), ...lines(config.list).map((text): Item => { const n = strictNumber(text); return n === null ? { text } : { text, value: n }; })];
     if (list.length > 0) {
       if (count === 1) return { value: [list[Math.floor(rng() * list.length)]] };
-      if (list.length < count) throw new Error(`„Losowa wartość": potrzeba ${count} różnych pozycji, jest ${list.length}.`);
+      if (list.length < count) throw new Error(t('cogitaEditCard.error.randomItems', { count, have: list.length }));
       return { value: sample(list, count, rng) };
     }
     const min = num(config.min, 1);
@@ -524,7 +525,7 @@ const RANDOM: Kind = {
     const steps = Math.floor((max - min) / step + 1e-9);
     const one = (k: number): Item => { const value = Number((min + k * step).toFixed(10)); return { text: String(value).replace('.', ','), value }; };
     if (count === 1) return { value: [one(Math.floor(rng() * (steps + 1)))] };
-    if (steps + 1 < count) throw new Error(`„Losowa wartość": w przedziale jest tylko ${steps + 1} liczb, a potrzeba ${count} różnych.`);
+    if (steps + 1 < count) throw new Error(t('cogitaEditCard.error.randomRange', { have: steps + 1, count }));
     const picked = new Set<number>();
     while (picked.size < count) picked.add(Math.floor(rng() * (steps + 1)));
     return { value: [...picked].map(one) };
@@ -543,13 +544,13 @@ const numbersOf = (items: readonly Item[]): number[] =>
   items.map((i) => (typeof i.value === 'number' ? i.value : readNumber(i.text))).filter((n): n is number => n !== null);
 
 const MATH: Kind = {
-  type: 'math', label: 'Działanie', group: 'Liczby',
-  says: 'Liczy: dodawanie, odejmowanie, mnożenie, dzielenie, potęga, logarytm, zaokrąglanie, reszta z dzielenia.',
+  type: 'math', get label() { return t('cogitaEditCard.kind.math.label'); }, get group() { return t('cogitaEditCard.group.numbers'); },
+  get says() { return t('cogitaEditCard.kind.math.says'); },
   ports: (config) => {
     const op = (OPS as readonly string[]).includes(str(config.op)) ? (str(config.op) as Op) : 'add';
-    if (MANY_OPS.has(op)) return { inputs: [port('a', 'Liczby', 'items', true)], outputs: [port('value', 'Wynik')] };
-    if (ONE_OPS.has(op)) return { inputs: [port('a', 'Liczba')], outputs: [port('value', 'Wynik')] };
-    return { inputs: [port('a', 'a'), port('b', 'b')], outputs: [port('value', 'Wynik')] };
+    if (MANY_OPS.has(op)) return { inputs: [port('a', t('cogitaEditCard.port.numbers'), 'items', true)], outputs: [port('value', t('cogitaEditCard.port.result'))] };
+    if (ONE_OPS.has(op)) return { inputs: [port('a', t('cogitaEditCard.port.number'))], outputs: [port('value', t('cogitaEditCard.port.result'))] };
+    return { inputs: [port('a', 'a'), port('b', 'b')], outputs: [port('value', t('cogitaEditCard.port.result'))] };
   },
   run: ({ config, inputs }) => {
     const op = (OPS as readonly string[]).includes(str(config.op)) ? (str(config.op) as Op) : 'add';
@@ -574,7 +575,7 @@ const MATH: Kind = {
       case 'ceil': r = Math.ceil(x); break;
       case 'round': r = Math.round(x); break;
     }
-    if (!Number.isFinite(r)) throw new Error('Tego nie da się policzyć (brak liczby albo dzielenie przez zero).');
+    if (!Number.isFinite(r)) throw new Error(t('cogitaEditCard.error.cannotCompute'));
     const decimals = Math.max(0, Math.min(10, Math.round(num(config.decimals, 6))));
     const value = Number(r.toFixed(decimals));
     return { value: [{ text: String(value).replace('.', ','), value }] };
@@ -644,16 +645,16 @@ const listOfItems = (items: readonly Item[], look: TemplateContext['look']): Val
 });
 
 const CALC: Kind = {
-  type: 'calc', label: 'Oblicz', group: 'Liczby',
-  says: 'Liczy wyrażenia w języku rysunków — np. p0 * p1, mod(p0, 7), round(p0 / 3, 2), sqrt(p0), fmt(p0, 2) — każde w osobnym wierszu albo po „;”, każde daje jedną wartość (np. dystraktory „p0 + 1; p0 - 1; p0 * 2” do „Odpowiedź: jeden wybór”). p0, p1, … to pierwsza liczba z wejścia, n0, n1, … — ile wartości przyszło, l0, l1, … — wszystkie wartości wejścia jako lista (wpisy jako wpisy: sum(l0, it.masa), map(l0, it.label)). Wynik, który jest listą, daje kilka wartości; wynik, który nie jest liczbą (dzielenie przez zero), odpada; gdy wejście, z którego wyrażenie korzysta, nie dało liczby, albo żadne wyrażenie nic nie dało — krok się nie udaje i z tego wpisu nie powstaje karta.',
+  type: 'calc', get label() { return t('cogitaEditCard.kind.calc.label'); }, get group() { return t('cogitaEditCard.group.numbers'); },
+  get says() { return t('cogitaEditCard.kind.calc.says'); },
   ports: (config) => ({
     inputs: Array.from({ length: calcInputs(config) }, (_, i) => port(`p${i}`, `p${i}`, 'items', true)),
-    outputs: [port('value', 'Wynik')]
+    outputs: [port('value', t('cogitaEditCard.port.result'))]
   }),
   run: ({ node, config, inputs, ctx }) => {
     const count = calcInputs(config);
     const sources = calcExpressions(config);
-    if (sources.length === 0) throw new Error('„Oblicz” nie ma wyrażenia — wpisz np. p0 + 1.');
+    if (sources.length === 0) throw new Error(t('cogitaEditCard.error.calcEmpty'));
     /* 2026-11-03 — `shuffle`, `choose`, `pick` ziehen mit dem Zufall dieser Karte. */
     const env = withRng(newEnv(), rngFor(ctx, node.id));
     const empty = new Set<string>();
@@ -672,12 +673,12 @@ const CALC: Kind = {
       const expr = compile(source, { known, lists: true });
       if (isExprError(expr)) throw new Error(`„${source}”: ${expr.error}.`);
       const lacking = expr.reads.filter((name) => empty.has(name));
-      if (lacking.length > 0) throw new Error(`Wejście ${lacking.join(', ')} nie dało liczby (puste pole?).`);
+      if (lacking.length > 0) throw new Error(t('cogitaEditCard.error.inputNoNumber', { inputs: lacking.join(', ') }));
       const v: Val = expr.run(env);
-      if (takeOverrun()) throw new Error(`„${source}”: za dużo obliczeń.`);
+      if (takeOverrun()) throw new Error(t('cogitaEditCard.error.tooMuch', { source }));
       out.push(...itemsOfValue(v, decimals));
     }
-    if (out.length === 0) throw new Error('Żadne wyrażenie nie dało liczby (np. dzielenie przez zero).');
+    if (out.length === 0) throw new Error(t('cogitaEditCard.error.noExprNumber'));
     return { value: out };
   }
 };
@@ -701,25 +702,25 @@ export interface GeneratorRun {
 }
 
 const GENERATE: Kind = {
-  type: 'generate', label: 'Generator', group: 'Liczby',
-  says: 'Losuje zadanie: liczby z przedziałów ("params": [{"name": "s", "random": [20, 500], "step": 10}]), pozycje z list ({"name": "f", "values": ["sin", "cos"]}), wpisy z bazy ({"name": "kation", "entry": {"kind": "@chem/jon", "where": "it.ladunek > 0"}}, kilka różnych: "entries" z "count"), liczy wartości ("let": [{"name": "v", "value": "s / t"}]) i sprawdza warunki ("require": ["isint(v)"] — losuje od nowa, najwyżej 60 razy); "texts": [{"name": "pytanie", "value": "Ile to {a} + {b}?"}] — teksty z wartościami. W wyrażeniach "this" to wpis tej karty (this.pole); "only": "this.ladunek > 0" — tylko takie wpisy rodzaju dostają kartę (inne bez ostrzeżenia). Każda nazwa ma swoje wyjście. Gdy zadania nie da się wylosować, z tego wpisu nie powstaje karta — z powodem w podglądzie.',
+  type: 'generate', get label() { return t('cogitaEditCard.kind.generate.label'); }, get group() { return t('cogitaEditCard.group.numbers'); },
+  get says() { return t('cogitaEditCard.kind.generate.says'); },
   ports: (config) => ({ inputs: [], outputs: generatorNames(config).map((name) => port(name, name)) }),
   run: ({ node, config, ctx }) => {
     /* „Tylko dla": ein Eintrag, für den der Generator nicht gedacht ist, bekommt still keine Karte (kein Fehler). */
     const only = str(config.only).trim();
     if (only !== '') {
       const test = compile(only, { known: (name) => name === 'this', lists: true });
-      if (isExprError(test)) throw new Error(`Generator, „tylko dla” — „${only}”: ${test.error}.`);
+      if (isExprError(test)) throw new Error(t('cogitaEditCard.error.onlyFor', { only, error: test.error }));
       const env = newEnv();
       env.this = recordOf(ctx.entity, ctx.look);
       if (!isTrue(test.run(env))) return { pass: false };
     }
     const spec = readParamsSpec(config);
-    if (spec === null) throw new Error('Generator nie ma nic do losowania — dodaj "params", "let" albo "texts".');
+    if (spec === null) throw new Error(t('cogitaEditCard.error.generatorEmpty'));
     const world: GenWorld = { look: ctx.look, pool: ctx.pool, self: ctx.entity, ...(ctx.kindOf === undefined ? {} : { kindOf: ctx.kindOf }) };
     /* Jede Karte ihr eigenes Zadanie: der Zufall auch nach dem Eintrag (sonst zöge jeder Eintrag eines Laufs dasselbe). */
     const made = drawInstance(spec, rngOf(`${ctx.seed}:${node.id}:${ctx.variant ?? ''}:${ctx.entity.id}`), world);
-    if (!made.held) throw new Error(made.problem ?? 'Zadania nie dało się wylosować.');
+    if (!made.held) throw new Error(made.problem ?? t('cogitaEditCard.error.noTask'));
     const out: Record<string, unknown> = {};
     for (const name of generatorNames(config)) {
       const v = made.values[name];
@@ -735,9 +736,9 @@ export const AGGREGATE_OPS = ['sum', 'count', 'min', 'max', 'avg'] as const;
 type AggregateOp = (typeof AGGREGATE_OPS)[number];
 
 const AGGREGATE: Kind = {
-  type: 'aggregate', label: 'Zbierz', group: 'Liczby',
-  says: 'Zbiera wiele wartości w jedną: suma, ile ich jest, najmniejsza, największa, średnia — np. suma protonów składników związku (pole liczbowe czytane przez odwołanie do wielu wpisów: ten sam składnik dwa razy liczy się dwa razy). „Ile” liczy każdą wartość, także nieliczbową (0, gdy nic nie przyszło); pozostałe tylko liczby — bez żadnej liczby nie dają nic, i z tego wpisu nie powstaje karta.',
-  ports: () => ({ inputs: [port('values', 'Wartości', 'items', true)], outputs: [port('value', 'Wynik')] }),
+  type: 'aggregate', get label() { return t('cogitaEditCard.kind.aggregate.label'); }, get group() { return t('cogitaEditCard.group.numbers'); },
+  get says() { return t('cogitaEditCard.kind.aggregate.says'); },
+  ports: () => ({ inputs: [port('values', t('cogitaEditCard.port.values'), 'items', true)], outputs: [port('value', t('cogitaEditCard.port.result'))] }),
   run: ({ config, inputs }) => {
     const op: AggregateOp = (AGGREGATE_OPS as readonly string[]).includes(str(config.op)) ? (str(config.op) as AggregateOp) : 'sum';
     const items = itemsAt(inputs, 'values');
@@ -760,23 +761,23 @@ function ordinal(item: Item | undefined): number | null {
 }
 
 const COMPARE: Kind = {
-  type: 'compare', label: 'Porównanie', group: 'Liczby',
-  says: 'Prawda albo fałsz z porównania dwóch liczb lub dat: „urodził się przed …?".',
-  ports: () => ({ inputs: [port('a', 'a'), port('b', 'b')], outputs: [port('result', 'Prawda / fałsz')] }),
+  type: 'compare', get label() { return t('cogitaEditCard.kind.compare.label'); }, get group() { return t('cogitaEditCard.group.numbers'); },
+  get says() { return t('cogitaEditCard.kind.compare.says'); },
+  ports: () => ({ inputs: [port('a', 'a'), port('b', 'b')], outputs: [port('result', t('cogitaEditCard.port.trueFalse'))] }),
   run: ({ config, inputs }) => {
     const a = ordinal(itemsAt(inputs, 'a')[0]);
     const b = ordinal(itemsAt(inputs, 'b')[0]);
-    if (a === null || b === null) throw new Error('Do porównania potrzeba dwóch liczb albo dat.');
+    if (a === null || b === null) throw new Error(t('cogitaEditCard.error.compareNeeds'));
     const op = str(config.op) || 'lt';
     const result = op === 'gt' ? a > b : op === 'eq' ? a === b : op === 'ne' ? a !== b : op === 'le' ? a <= b : op === 'ge' ? a >= b : a < b;
-    return { result: [{ text: result ? 'prawda' : 'fałsz', value: result }] };
+    return { result: [{ text: result ? t('cogitaEditCard.value.true') : t('cogitaEditCard.value.false'), value: result }] };
   }
 };
 
 const WHEN: Kind = {
-  type: 'when', label: 'Warunek', group: 'Liczby',
-  says: 'Karta powstaje tylko wtedy, gdy warunek jest spełniony — np. gdy pole jest wypełnione.',
-  ports: () => ({ inputs: [port('items', 'Wartości', 'items', true)], outputs: [port('items', 'Dalej')] }),
+  type: 'when', get label() { return t('cogitaEditCard.kind.when.label'); }, get group() { return t('cogitaEditCard.group.numbers'); },
+  get says() { return t('cogitaEditCard.kind.when.says'); },
+  ports: () => ({ inputs: [port('items', t('cogitaEditCard.port.values'), 'items', true)], outputs: [port('items', t('cogitaEditCard.port.onward'))] }),
   run: ({ config, inputs }) => {
     const items = itemsAt(inputs, 'items');
     const want = str(config.value).trim().toLowerCase();
@@ -789,14 +790,14 @@ const WHEN: Kind = {
 };
 
 const PYTHON: Kind = {
-  type: 'python', label: 'Python', group: 'Liczby',
-  says: 'Liczy w Pythonie, w przeglądarce (Pyodide): funkcja run(*wejścia) zwraca wartość albo listę wartości.',
+  type: 'python', get label() { return t('cogitaEditCard.kind.python.label'); }, get group() { return t('cogitaEditCard.group.numbers'); },
+  get says() { return t('cogitaEditCard.kind.python.says'); },
   ports: (config) => {
     const count = Math.max(0, Math.min(6, Math.round(num(config.inputs, 1))));
-    return { inputs: Array.from({ length: count }, (_, i) => port(`p${i}`, `wejście ${i + 1}`, 'items', true)), outputs: [port('value', 'Wynik')] };
+    return { inputs: Array.from({ length: count }, (_, i) => port(`p${i}`, t('cogitaEditCard.port.inputN', { n: i + 1 }), 'items', true)), outputs: [port('value', t('cogitaEditCard.port.result'))] };
   },
   run: async ({ config, inputs, ctx }) => {
-    if (ctx.python === undefined) throw new Error('Python nie jest tu dostępny.');
+    if (ctx.python === undefined) throw new Error(t('cogitaEditCard.error.noPython'));
     const count = Math.max(0, Math.min(6, Math.round(num(config.inputs, 1))));
     const args = Array.from({ length: count }, (_, i) => itemsAt(inputs, `p${i}`).map((it) => it.value ?? it.text));
     const result = await ctx.python(str(config.code), args.map((a) => (a.length === 1 ? a[0] : a)));
@@ -808,9 +809,9 @@ const PYTHON: Kind = {
 /* -- Frage und Antwort ------------------------------------------------------------- */
 
 const PROMPT: Kind = {
-  type: 'prompt', label: 'Pytanie', group: 'Karta',
-  says: 'To, co widzi uczący się: teksty, obrazy, nagrania — w kolejności połączeń z góry na dół.',
-  ports: () => ({ inputs: [port('parts', 'Części', 'items', true)], outputs: [port('prompt', 'Pytanie', 'prompt')] }),
+  type: 'prompt', get label() { return t('cogitaEditCard.kind.prompt.label'); }, get group() { return t('cogitaEditCard.group.card'); },
+  get says() { return t('cogitaEditCard.kind.prompt.says'); },
+  ports: () => ({ inputs: [port('parts', t('cogitaEditCard.port.parts'), 'items', true)], outputs: [port('prompt', t('cogitaEditCard.port.question'), 'prompt')] }),
   run: ({ inputs }) => ({ prompt: itemsAt(inputs, 'parts').map((i): PromptPart => (i.media ? { text: i.text, media: i.media } : { text: i.text })) })
 };
 
@@ -818,12 +819,12 @@ export interface Draft {
   readonly answer: AnswerSpec;
 }
 
-const answerPort = [port('answer', 'Odpowiedź', 'answer')];
+const answerPort = () => [port('answer', t('cogitaEditCard.port.answer'), 'answer')];
 
 const ANSWER_TEXT: Kind = {
-  type: 'answer.text', label: 'Odpowiedź: tekst', group: 'Odpowiedź',
-  says: 'Uczący się wpisuje tekst. Pierwsza wartość jest wzorcowa, kolejne i „inne poprawne" też się liczą.',
-  ports: () => ({ inputs: [port('expected', 'Poprawna', 'items', true), port('accepted', 'Inne poprawne', 'items', true)], outputs: answerPort }),
+  type: 'answer.text', get label() { return t('cogitaEditCard.kind.answerText.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerText.says'); },
+  ports: () => ({ inputs: [port('expected', t('cogitaEditCard.port.correctOne'), 'items', true), port('accepted', t('cogitaEditCard.port.otherCorrect'), 'items', true)], outputs: answerPort() }),
   run: ({ config, inputs }) => {
     const accepted = [...texts(itemsAt(inputs, 'expected')), ...texts(itemsAt(inputs, 'accepted'))];
     if (accepted.length === 0) return {};
@@ -842,9 +843,9 @@ const unique = (list: readonly string[]): string[] => {
 };
 
 const ANSWER_GAP: Kind = {
-  type: 'answer.gap', label: 'Odpowiedź: luka w cytacie', group: 'Odpowiedź',
-  says: 'Uczący się uzupełnia lukę. Przyjmuje tekst z luką i zakrytą część (z maski) albo fragment cytatu.',
-  ports: () => ({ inputs: [port('shown', 'Tekst z luką'), port('hidden', 'Zakryte', 'items', true), port('fragment', 'Fragment')], outputs: answerPort }),
+  type: 'answer.gap', get label() { return t('cogitaEditCard.kind.answerGap.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerGap.says'); },
+  ports: () => ({ inputs: [port('shown', t('cogitaEditCard.port.textWithGap')), port('hidden', t('cogitaEditCard.port.hidden'), 'items', true), port('fragment', t('cogitaEditCard.port.fragment'))], outputs: answerPort() }),
   run: ({ config, inputs }) => {
     const fragment = itemsAt(inputs, 'fragment')[0];
     const rule = readRule(config.rule, GAP_RULE);
@@ -862,9 +863,9 @@ const ANSWER_GAP: Kind = {
 };
 
 const ANSWER_NUMBER: Kind = {
-  type: 'answer.number', label: 'Odpowiedź: liczba', group: 'Odpowiedź',
-  says: 'Uczący się wpisuje liczbę; tolerancja bezwzględna albo w procentach, jednostka do wpisania obok; z wielkością (np. moment siły) liczy się jednostka odpowiedzi: inna jednostka tej samej wielkości jest przeliczana, jednostka innej wielkości — błędem.',
-  ports: () => ({ inputs: [port('expected', 'Poprawna', 'items', true)], outputs: answerPort }),
+  type: 'answer.number', get label() { return t('cogitaEditCard.kind.answerNumber.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerNumber.says'); },
+  ports: () => ({ inputs: [port('expected', t('cogitaEditCard.port.correctOne'), 'items', true)], outputs: answerPort() }),
   run: ({ config, inputs }) => {
     const values = numbersOf(itemsAt(inputs, 'expected'));
     if (values.length === 0) return {};
@@ -874,9 +875,9 @@ const ANSWER_NUMBER: Kind = {
 };
 
 const ANSWER_DATE: Kind = {
-  type: 'answer.date', label: 'Odpowiedź: data', group: 'Odpowiedź',
-  says: 'Uczący się wpisuje datę z wymaganą dokładnością (rok, miesiąc, dzień); tolerancja w tych jednostkach.',
-  ports: () => ({ inputs: [port('expected', 'Poprawna', 'items', true)], outputs: answerPort }),
+  type: 'answer.date', get label() { return t('cogitaEditCard.kind.answerDate.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerDate.says'); },
+  ports: () => ({ inputs: [port('expected', t('cogitaEditCard.port.correctOne'), 'items', true)], outputs: answerPort() }),
   run: ({ config, inputs }) => {
     const values = itemsAt(inputs, 'expected')
       .map((i) => readDate(i.value) ?? readDateAnswer(i.text))
@@ -889,9 +890,9 @@ const ANSWER_DATE: Kind = {
 };
 
 const ANSWER_ONE: Kind = {
-  type: 'answer.one', label: 'Odpowiedź: jeden wybór', group: 'Odpowiedź',
-  says: 'Uczący się wybiera jedną odpowiedź spośród poprawnej i dystraktorów, w losowej kolejności.',
-  ports: () => ({ inputs: [port('expected', 'Poprawna'), port('distractors', 'Dystraktory', 'items', true)], outputs: answerPort }),
+  type: 'answer.one', get label() { return t('cogitaEditCard.kind.answerOne.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerOne.says'); },
+  ports: () => ({ inputs: [port('expected', t('cogitaEditCard.port.correctOne')), port('distractors', t('cogitaEditCard.port.distractors'), 'items', true)], outputs: answerPort() }),
   run: ({ node, inputs, ctx }) => {
     const right = texts(itemsAt(inputs, 'expected'))[0];
     if (right === undefined) return {};
@@ -902,9 +903,9 @@ const ANSWER_ONE: Kind = {
 };
 
 const ANSWER_MANY: Kind = {
-  type: 'answer.many', label: 'Odpowiedź: kilka wyborów', group: 'Odpowiedź',
-  says: 'Uczący się zaznacza wszystkie poprawne spośród poprawnych i dystraktorów.',
-  ports: () => ({ inputs: [port('expected', 'Poprawne', 'items', true), port('distractors', 'Dystraktory', 'items', true)], outputs: answerPort }),
+  type: 'answer.many', get label() { return t('cogitaEditCard.kind.answerMany.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerMany.says'); },
+  ports: () => ({ inputs: [port('expected', t('cogitaEditCard.port.correctMany'), 'items', true), port('distractors', t('cogitaEditCard.port.distractors'), 'items', true)], outputs: answerPort() }),
   run: ({ node, inputs, ctx }) => {
     const right = unique(texts(itemsAt(inputs, 'expected')));
     if (right.length === 0) return {};
@@ -921,14 +922,14 @@ function truth(item: Item | undefined): boolean | null {
   if (typeof item.value === 'boolean') return item.value;
   const t = item.text.trim().toLowerCase();
   if (['tak', 'prawda', 'true', 'yes'].includes(t)) return true;
-  if (['nie', 'fałsz', 'false', 'no'].includes(t)) return false;
+  if (['nie', 'fałsz', 'false', 'no'].includes(t)) return false; // i18n-ignore
   return null;
 }
 
 const ANSWER_TRUEFALSE: Kind = {
-  type: 'answer.truefalse', label: 'Odpowiedź: prawda albo fałsz', group: 'Odpowiedź',
-  says: 'Uczący się mówi „prawda" albo „fałsz"; wartość przychodzi np. z porównania.',
-  ports: () => ({ inputs: [port('expected', 'Prawda / fałsz')], outputs: answerPort }),
+  type: 'answer.truefalse', get label() { return t('cogitaEditCard.kind.answerTruefalse.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerTruefalse.says'); },
+  ports: () => ({ inputs: [port('expected', t('cogitaEditCard.port.trueFalse'))], outputs: answerPort() }),
   run: ({ inputs }) => {
     const value = truth(itemsAt(inputs, 'expected')[0]);
     return value === null ? {} : { answer: { answer: { form: 'truefalse', value } } satisfies Draft };
@@ -936,9 +937,9 @@ const ANSWER_TRUEFALSE: Kind = {
 };
 
 const ANSWER_ORDER: Kind = {
-  type: 'answer.order', label: 'Odpowiedź: kolejność', group: 'Odpowiedź',
-  says: 'Uczący się układa pozycje w kolejności — tej, w której przychodzą.',
-  ports: () => ({ inputs: [port('items', 'W dobrej kolejności', 'items', true)], outputs: answerPort }),
+  type: 'answer.order', get label() { return t('cogitaEditCard.kind.answerOrder.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerOrder.says'); },
+  ports: () => ({ inputs: [port('items', t('cogitaEditCard.port.inOrder'), 'items', true)], outputs: answerPort() }),
   run: ({ node, inputs, ctx }) => {
     const items = texts(itemsAt(inputs, 'items'));
     if (items.length < 2) return {};
@@ -948,9 +949,9 @@ const ANSWER_ORDER: Kind = {
 };
 
 const ANSWER_MATCH: Kind = {
-  type: 'answer.match', label: 'Odpowiedź: dopasowanie par', group: 'Odpowiedź',
-  says: 'Uczący się łączy w pary: pozycje z lewej z pozycjami z prawej (te same miejsca na listach tworzą parę).',
-  ports: () => ({ inputs: [port('left', 'Lewa strona', 'items', true), port('right', 'Prawa strona', 'items', true)], outputs: answerPort }),
+  type: 'answer.match', get label() { return t('cogitaEditCard.kind.answerMatch.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerMatch.says'); },
+  ports: () => ({ inputs: [port('left', t('cogitaEditCard.port.leftSide'), 'items', true), port('right', t('cogitaEditCard.port.rightSide'), 'items', true)], outputs: answerPort() }),
   run: ({ node, inputs, ctx }) => {
     const left = texts(itemsAt(inputs, 'left'));
     const right = texts(itemsAt(inputs, 'right'));
@@ -963,9 +964,9 @@ const ANSWER_MATCH: Kind = {
 };
 
 const ANSWER_FLASH: Kind = {
-  type: 'answer.flash', label: 'Odpowiedź: fiszka', group: 'Odpowiedź',
-  says: 'Uczący się odwraca kartę i sam ocenia: umiałem, częściowo, nie umiałem.',
-  ports: () => ({ inputs: [port('back', 'Druga strona', 'items', true)], outputs: answerPort }),
+  type: 'answer.flash', get label() { return t('cogitaEditCard.kind.answerFlash.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerFlash.says'); },
+  ports: () => ({ inputs: [port('back', t('cogitaEditCard.port.back'), 'items', true)], outputs: answerPort() }),
   run: ({ inputs }) => {
     const back = texts(itemsAt(inputs, 'back'));
     return back.length === 0 ? {} : { answer: { answer: { form: 'flash', back } } satisfies Draft };
@@ -973,9 +974,9 @@ const ANSWER_FLASH: Kind = {
 };
 
 const ANSWER_CODE: Kind = {
-  type: 'answer.code', label: 'Odpowiedź: kod (Python)', group: 'Odpowiedź',
-  says: 'Uczący się pisze funkcję w Pythonie; sprawdza ją Pyodide w przeglądarce na losowych przypadkach.',
-  ports: () => ({ inputs: [], outputs: answerPort }),
+  type: 'answer.code', get label() { return t('cogitaEditCard.kind.answerCode.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerCode.says'); },
+  ports: () => ({ inputs: [], outputs: answerPort() }),
   run: ({ config }) => ({
     answer: {
       answer: {
@@ -991,9 +992,9 @@ const ANSWER_CODE: Kind = {
 };
 
 const ANSWER_POINT: Kind = {
-  type: 'answer.point', label: 'Odpowiedź: punkt', group: 'Odpowiedź',
-  says: 'Uczący się wskazuje miejsce na mapie (z pola „miejsce") albo punkt na obrazie.',
-  ports: () => ({ inputs: [port('expected', 'Miejsce')], outputs: answerPort }),
+  type: 'answer.point', get label() { return t('cogitaEditCard.kind.answerPoint.label'); }, get group() { return t('cogitaEditCard.group.answer'); },
+  get says() { return t('cogitaEditCard.kind.answerPoint.says'); },
+  ports: () => ({ inputs: [port('expected', t('cogitaEditCard.port.place'))], outputs: answerPort() }),
   run: ({ config, inputs }) => {
     if (config.on === 'image') {
       const x = num(config.x, Number.NaN);
@@ -1009,13 +1010,13 @@ const ANSWER_POINT: Kind = {
 };
 
 const CARD: Kind = {
-  type: 'card', label: 'Karta', group: 'Karta',
-  says: 'Składa kartę: pytanie, odpowiedź i (po odpowiedzi) wyjaśnienie z połączonych wpisów. Dla zadań z generatora: „Podpowiedzi” (teksty, od łagodnej do konkretnej) i „Rozwiązanie” (tekst z wylosowanymi wartościami i wynikami pośrednimi — po odpowiedzi).',
+  type: 'card', get label() { return t('cogitaEditCard.kind.card.label'); }, get group() { return t('cogitaEditCard.group.card'); },
+  get says() { return t('cogitaEditCard.kind.card.says'); },
   ports: () => ({
-    inputs: [port('prompt', 'Pytanie', 'prompt'), port('answer', 'Odpowiedź', 'answer'), port('explain', 'Wyjaśnienie', 'items', true),
+    inputs: [port('prompt', t('cogitaEditCard.port.question'), 'prompt'), port('answer', t('cogitaEditCard.port.answer'), 'answer'), port('explain', t('cogitaEditCard.port.explanation'), 'items', true),
       /* 2026-11-03 — podpowiedzi i rozwiązanie z wartościami zadania (z „Generatora” albo „Wzoru tekstu”). */
-      port('hints', 'Podpowiedzi', 'items', true), port('solution', 'Rozwiązanie', 'items', true)],
-    outputs: [port('card', 'Karta', 'card')]
+      port('hints', t('cogitaEditCard.port.hints'), 'items', true), port('solution', t('cogitaEditCard.port.solution'), 'items', true)],
+    outputs: [port('card', t('cogitaEditCard.port.card'), 'card')]
   }),
   run: ({ inputs }) => ({
     card: {

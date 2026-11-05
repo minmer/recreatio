@@ -31,6 +31,7 @@
  * Rein und ohne Oberfläche — geprüft in `app-sim-check` und `app-generator-check`.
  */
 
+import { appLang, t, tIn } from '../../core/i18n';
 import { AGGREGATES, RELATIONS, SETS } from './liveModel';
 
 /**
@@ -268,7 +269,7 @@ interface Fun {
   readonly says: string;
 }
 
-const fun = (min: number, max: number, run: (...args: number[]) => Val, says: string): Fun => ({ min, max, run, says });
+const fun = (min: number, max: number, run: (...args: number[]) => Val, name: string): Fun => ({ min, max, run, get says() { return t(`pageMotion.fn.${name}`); } });
 
 /** Ein Zufall, der zu derselben Zahl immer derselbe ist (0–1) — für Teilchen, die verschieden aussehen sollen. */
 function hash01(x: number): number {
@@ -279,53 +280,53 @@ function hash01(x: number): number {
 }
 
 export const FUNCTIONS: Readonly<Record<string, Fun>> = {
-  sin: fun(1, 1, Math.sin, 'sinus (kąt w radianach — rad(30) zamienia stopnie)'),
-  cos: fun(1, 1, Math.cos, 'cosinus (radiany)'),
-  tan: fun(1, 1, Math.tan, 'tangens (radiany)'),
-  asin: fun(1, 1, Math.asin, 'arcus sinus — wynik w radianach (deg(...) zamienia na stopnie)'),
-  acos: fun(1, 1, Math.acos, 'arcus cosinus (radiany)'),
-  atan: fun(1, 1, Math.atan, 'arcus tangens (radiany)'),
-  atan2: fun(2, 2, (y, x) => Math.atan2(y, x), 'atan2(y, x) — kąt wektora (x, y) w radianach'),
-  sinh: fun(1, 1, Math.sinh, 'sinus hiperboliczny'),
-  cosh: fun(1, 1, Math.cosh, 'cosinus hiperboliczny'),
-  tanh: fun(1, 1, Math.tanh, 'tangens hiperboliczny'),
-  sqrt: fun(1, 1, Math.sqrt, 'pierwiastek kwadratowy'),
-  cbrt: fun(1, 1, Math.cbrt, 'pierwiastek sześcienny'),
-  abs: fun(1, 1, Math.abs, 'wartość bezwzględna'),
-  sign: fun(1, 1, Math.sign, 'znak: −1, 0 albo 1'),
-  floor: fun(1, 1, Math.floor, 'w dół do całości'),
-  ceil: fun(1, 1, Math.ceil, 'w górę do całości'),
-  trunc: fun(1, 1, Math.trunc, 'część całkowita'),
-  round: fun(1, 2, (x, d = 0) => { const f = 10 ** Math.max(0, Math.min(8, Math.round(d))); return Math.round(x * f) / f; }, 'round(x) albo round(x, cyfry) — zaokrąglenie'),
-  min: fun(1, 16, (...a) => Math.min(...a), 'najmniejsza z liczb'),
-  max: fun(1, 16, (...a) => Math.max(...a), 'największa z liczb'),
-  clamp: fun(3, 3, (x, a, b) => Math.min(Math.max(x, Math.min(a, b)), Math.max(a, b)), 'clamp(x, od, do) — x przycięte do przedziału'),
-  lerp: fun(3, 3, (a, b, t) => a + (b - a) * t, 'lerp(a, b, t) — od a do b: t = 0 daje a, t = 1 daje b'),
-  exp: fun(1, 1, Math.exp, 'e do potęgi x'),
-  ln: fun(1, 1, Math.log, 'logarytm naturalny'),
-  log10: fun(1, 1, Math.log10, 'logarytm dziesiętny'),
-  log2: fun(1, 1, Math.log2, 'logarytm o podstawie 2'),
-  pow: fun(2, 2, (a, b) => a ** b, 'pow(a, b) — to samo co a^b'),
-  hypot: fun(1, 16, (...a) => Math.hypot(...a), 'hypot(x, y) — długość wektora'),
-  deg: fun(1, 1, (x) => (x * 180) / Math.PI, 'radiany na stopnie'),
-  rad: fun(1, 1, (x) => (x * Math.PI) / 180, 'stopnie na radiany'),
-  mod: fun(2, 2, (a, b) => (b === 0 ? NaN : ((a % b) + b) % b), 'mod(a, b) — reszta, zawsze od 0 do b (także dla ujemnych)'),
-  step: fun(2, 2, (edge, x) => (x >= edge ? 1 : 0), 'step(próg, x) — 0 przed progiem, 1 od progu'),
-  smooth: fun(3, 3, (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a || 1))); return t * t * (3 - 2 * t); }, 'smooth(od, do, x) — łagodnie od 0 do 1, gdy x idzie od „od" do „do"'),
-  tri: fun(1, 1, (x) => 1 - Math.abs(2 * (x - Math.floor(x)) - 1), 'tri(x) — fala trójkątna 0 → 1 → 0, okres 1 (odbijanie, zygzak)'),
-  rand: fun(1, 1, hash01, 'rand(x) — „losowa" liczba 0–1, zawsze ta sama dla tego samego x (np. rand(i) dla każdej kopii)'),
-  onstep: fun(2, 2, (x, s) => (s > 0 && Math.abs(x / s - Math.round(x / s)) < 1e-7 ? 1 : 0), 'onstep(x, krok) — 1, gdy x leży na siatce kroku (onstep(2.25, 0.25) → 1): warunek zadań losowych, żeby rozwiązanie dało się ustawić'),
+  sin: fun(1, 1, Math.sin, 'sin'),
+  cos: fun(1, 1, Math.cos, 'cos'),
+  tan: fun(1, 1, Math.tan, 'tan'),
+  asin: fun(1, 1, Math.asin, 'asin'),
+  acos: fun(1, 1, Math.acos, 'acos'),
+  atan: fun(1, 1, Math.atan, 'atan'),
+  atan2: fun(2, 2, (y, x) => Math.atan2(y, x), 'atan2'),
+  sinh: fun(1, 1, Math.sinh, 'sinh'),
+  cosh: fun(1, 1, Math.cosh, 'cosh'),
+  tanh: fun(1, 1, Math.tanh, 'tanh'),
+  sqrt: fun(1, 1, Math.sqrt, 'sqrt'),
+  cbrt: fun(1, 1, Math.cbrt, 'cbrt'),
+  abs: fun(1, 1, Math.abs, 'abs'),
+  sign: fun(1, 1, Math.sign, 'sign'),
+  floor: fun(1, 1, Math.floor, 'floor'),
+  ceil: fun(1, 1, Math.ceil, 'ceil'),
+  trunc: fun(1, 1, Math.trunc, 'trunc'),
+  round: fun(1, 2, (x, d = 0) => { const f = 10 ** Math.max(0, Math.min(8, Math.round(d))); return Math.round(x * f) / f; }, 'round'),
+  min: fun(1, 16, (...a) => Math.min(...a), 'min'),
+  max: fun(1, 16, (...a) => Math.max(...a), 'max'),
+  clamp: fun(3, 3, (x, a, b) => Math.min(Math.max(x, Math.min(a, b)), Math.max(a, b)), 'clamp'),
+  lerp: fun(3, 3, (a, b, t) => a + (b - a) * t, 'lerp'),
+  exp: fun(1, 1, Math.exp, 'exp'),
+  ln: fun(1, 1, Math.log, 'ln'),
+  log10: fun(1, 1, Math.log10, 'log10'),
+  log2: fun(1, 1, Math.log2, 'log2'),
+  pow: fun(2, 2, (a, b) => a ** b, 'pow'),
+  hypot: fun(1, 16, (...a) => Math.hypot(...a), 'hypot'),
+  deg: fun(1, 1, (x) => (x * 180) / Math.PI, 'deg'),
+  rad: fun(1, 1, (x) => (x * Math.PI) / 180, 'rad'),
+  mod: fun(2, 2, (a, b) => (b === 0 ? NaN : ((a % b) + b) % b), 'mod'),
+  step: fun(2, 2, (edge, x) => (x >= edge ? 1 : 0), 'step'),
+  smooth: fun(3, 3, (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a || 1))); return t * t * (3 - 2 * t); }, 'smooth'),
+  tri: fun(1, 1, (x) => 1 - Math.abs(2 * (x - Math.floor(x)) - 1), 'tri'),
+  rand: fun(1, 1, hash01, 'rand'),
+  onstep: fun(2, 2, (x, s) => (s > 0 && Math.abs(x / s - Math.round(x / s)) < 1e-7 ? 1 : 0), 'onstep'),
   /* 2026-11-03 — dla zadań generowanych (`cogita/generator.ts`), w rysunkach tak samo. */
-  root: fun(2, 2, (x, n) => (n === 0 ? NaN : x < 0 && Math.abs(n % 2) === 1 ? -((-x) ** (1 / n)) : x ** (1 / n)), 'root(x, n) — pierwiastek stopnia n (root(27, 3) → 3; z liczby ujemnej tylko nieparzystego stopnia)'),
+  root: fun(2, 2, (x, n) => (n === 0 ? NaN : x < 0 && Math.abs(n % 2) === 1 ? -((-x) ** (1 / n)) : x ** (1 / n)), 'root'),
   /* Auf 15 Stellen: log(1000) ist 3, nicht 2,9999999999999996 — ein Generator rechnet mit dem Ergebnis weiter. */
-  log: fun(1, 2, (x, b = 10) => (b <= 0 || b === 1 ? NaN : Number((b === 10 ? Math.log10(x) : b === 2 ? Math.log2(x) : Math.log(x) / Math.log(b)).toPrecision(15))), 'log(x) — dziesiętny, log(x, b) — o podstawie b: log(8, 2) → 3'),
-  sig: fun(2, 2, (x, n) => (Number.isFinite(x) && n >= 1 ? Number(x.toPrecision(Math.min(15, Math.max(1, Math.round(n))))) : NaN), 'sig(x, n) — zaokrąglenie do n cyfr znaczących: sig(0.012345, 2) → 0,012'),
-  fact: fun(1, 1, (n) => { if (!Number.isInteger(n) || n < 0 || n > 170) return NaN; let r = 1; for (let k = 2; k <= n; k += 1) r *= k; return r; }, 'fact(n) — silnia n! (n całkowite 0–170)'),
-  binom: fun(2, 2, (n, k) => { if (!Number.isInteger(n) || !Number.isInteger(k) || k < 0 || n < 0 || k > n) return k > n ? 0 : NaN; let r = 1; for (let j = 1; j <= Math.min(k, n - k); j += 1) r = (r * (n - Math.min(k, n - k) + j)) / j; return Math.round(r); }, 'binom(n, k) — symbol Newtona: na ile sposobów wybrać k z n'),
-  isint: fun(1, 1, (x) => (Number.isFinite(x) && Math.abs(x - Math.round(x)) < 1e-9 ? 1 : 0), 'isint(x) — 1, gdy x jest liczbą całkowitą (warunek: wynik ma być całkowity)'),
-  fmt: fun(1, 2, (x, d = 1) => fmt(x, d), 'fmt(x, cyfry) — liczba jako tekst z przecinkiem: fmt(9.81, 1) → "9,8"'),
+  log: fun(1, 2, (x, b = 10) => (b <= 0 || b === 1 ? NaN : Number((b === 10 ? Math.log10(x) : b === 2 ? Math.log2(x) : Math.log(x) / Math.log(b)).toPrecision(15))), 'log'),
+  sig: fun(2, 2, (x, n) => (Number.isFinite(x) && n >= 1 ? Number(x.toPrecision(Math.min(15, Math.max(1, Math.round(n))))) : NaN), 'sig'),
+  fact: fun(1, 1, (n) => { if (!Number.isInteger(n) || n < 0 || n > 170) return NaN; let r = 1; for (let k = 2; k <= n; k += 1) r *= k; return r; }, 'fact'),
+  binom: fun(2, 2, (n, k) => { if (!Number.isInteger(n) || !Number.isInteger(k) || k < 0 || n < 0 || k > n) return k > n ? 0 : NaN; let r = 1; for (let j = 1; j <= Math.min(k, n - k); j += 1) r = (r * (n - Math.min(k, n - k) + j)) / j; return Math.round(r); }, 'binom'),
+  isint: fun(1, 1, (x) => (Number.isFinite(x) && Math.abs(x - Math.round(x)) < 1e-9 ? 1 : 0), 'isint'),
+  fmt: fun(1, 2, (x, d = 1) => fmt(x, d), 'fmt'),
   /* 2026-11-05 (Prompt 23, D8) — ein Winkel als Vielfaches von π (Bogenmass in Erklärungen): fmtpi(2.356) → „0,75π". */
-  fmtpi: fun(1, 2, (x, d = 2) => fmtPi(x, d), 'fmtpi(x, cyfry) — liczba jako wielokrotność π: fmtpi(2.356) → "0,75π", fmtpi(3.1416) → "π" (do 2 miejsc, bez zer na końcu)')
+  fmtpi: fun(1, 2, (x, d = 2) => fmtPi(x, d), 'fmtpi')
 };
 
 /** 2026-11-05 (Prompt 23, D8) — x als Vielfaches von π, mit Komma, ohne Nullen am Ende: 0,75π · π · −π · 2π · 0. */
@@ -443,7 +444,7 @@ interface ValueFun {
   readonly says: string;
 }
 
-const vfun = (min: number, max: number, run: (args: readonly Val[], env: Env) => Val, says: string): ValueFun => ({ min, max, run, says });
+const vfun = (min: number, max: number, run: (args: readonly Val[], env: Env) => Val, name: string): ValueFun => ({ min, max, run, get says() { return t(`pageMotion.listFn.${name}`); } });
 
 /** Die Stelle einer Liste (auch von hinten: −1 die letzte) — ausserhalb ''. Ein Text gibt sein Zeichen. */
 export function itemAt(v: Val, at: Val): Val {
@@ -457,21 +458,21 @@ export function itemAt(v: Val, at: Val): Val {
 
 /** Die Funktionen, die Werte bekommen, wie sie sind (Listen, Texte, Datensätze). */
 export const VALUE_FUNCTIONS: Readonly<Record<string, ValueFun>> = {
-  len: vfun(1, 1, ([x]) => (isList(x!) ? x.length : typeof x === 'string' ? Array.from(x).length : 0), 'len(x) — ile elementów ma lista (albo znaków tekst)'),
-  first: vfun(1, 1, ([x]) => asList(x!)[0] ?? '', 'first(lista) — pierwszy element'),
-  last: vfun(1, 1, ([x]) => { const l = asList(x!); return l[l.length - 1] ?? ''; }, 'last(lista) — ostatni element'),
-  at: vfun(2, 2, ([x, i]) => itemAt(x!, i!), 'at(lista, i) — element na miejscu i, licząc od 0 (−1: ostatni); to samo co lista[i]'),
-  take: vfun(2, 2, ([x, k]) => asList(x!).slice(0, Math.max(0, Math.floor(toNum(k!)) || 0)), 'take(lista, k) — pierwsze k elementów'),
-  drop: vfun(2, 2, ([x, k]) => asList(x!).slice(Math.max(0, Math.floor(toNum(k!)) || 0)), 'drop(lista, k) — bez pierwszych k elementów'),
-  slice: vfun(2, 3, ([x, a, b]) => asList(x!).slice(Math.trunc(toNum(a!)) || 0, b === undefined ? undefined : Math.trunc(toNum(b)) || 0), 'slice(lista, od, do) — kawałek: od włącznie, do wyłącznie (od 0; ujemne liczą od końca)'),
-  reverse: vfun(1, 1, ([x]) => asList(x!).slice().reverse(), 'reverse(lista) — w odwrotnej kolejności'),
-  sort: vfun(1, 1, ([x]) => { const l = asList(x!); spend(l.length); return l.slice().sort(order); }, 'sort(lista) — rosnąco: liczby według wartości, teksty alfabetycznie, wpisy według nazwy (malejąco: reverse(sort(lista)))'),
-  shuffle: vfun(1, 1, ([x], env) => sampleOf(asList(x!), asList(x!).length, rngIn(env)), 'shuffle(lista) — losowo przemieszana (los zadania: ten sam numer zadania, ta sama kolejność)'),
-  choose: vfun(2, 2, ([x, k], env) => sampleOf(asList(x!), toNum(k!), rngIn(env)), 'choose(lista, k) — k różnych elementów wybranych losowo (bez powtórzeń)'),
-  pick: vfun(1, 1, ([x], env) => sampleOf(asList(x!), 1, rngIn(env))[0] ?? '', 'pick(lista) — jeden element wybrany losowo'),
-  contains: vfun(2, 2, ([x, v]) => (typeof x === 'string' && typeof v === 'string' ? (x.includes(v) ? 1 : 0) : asList(x!).some((y) => same(y, v!)) ? 1 : 0), 'contains(lista, x) — 1, gdy x jest na liście (w tekście: gdy tekst zawiera x)'),
-  index: vfun(2, 2, ([x, v]) => (typeof x === 'string' && typeof v === 'string' ? x.indexOf(v) : asList(x!).findIndex((y) => same(y, v!))), 'index(lista, x) — miejsce x na liście, od 0 (−1: nie ma)'),
-  unique: vfun(1, 1, ([x]) => { const out: Val[] = []; for (const v of asList(x!)) { spend(); if (!out.some((y) => same(y, v))) out.push(v); } return out; }, 'unique(lista) — każdy element raz'),
+  len: vfun(1, 1, ([x]) => (isList(x!) ? x.length : typeof x === 'string' ? Array.from(x).length : 0), 'len'),
+  first: vfun(1, 1, ([x]) => asList(x!)[0] ?? '', 'first'),
+  last: vfun(1, 1, ([x]) => { const l = asList(x!); return l[l.length - 1] ?? ''; }, 'last'),
+  at: vfun(2, 2, ([x, i]) => itemAt(x!, i!), 'at'),
+  take: vfun(2, 2, ([x, k]) => asList(x!).slice(0, Math.max(0, Math.floor(toNum(k!)) || 0)), 'take'),
+  drop: vfun(2, 2, ([x, k]) => asList(x!).slice(Math.max(0, Math.floor(toNum(k!)) || 0)), 'drop'),
+  slice: vfun(2, 3, ([x, a, b]) => asList(x!).slice(Math.trunc(toNum(a!)) || 0, b === undefined ? undefined : Math.trunc(toNum(b)) || 0), 'slice'),
+  reverse: vfun(1, 1, ([x]) => asList(x!).slice().reverse(), 'reverse'),
+  sort: vfun(1, 1, ([x]) => { const l = asList(x!); spend(l.length); return l.slice().sort(order); }, 'sort'),
+  shuffle: vfun(1, 1, ([x], env) => sampleOf(asList(x!), asList(x!).length, rngIn(env)), 'shuffle'),
+  choose: vfun(2, 2, ([x, k], env) => sampleOf(asList(x!), toNum(k!), rngIn(env)), 'choose'),
+  pick: vfun(1, 1, ([x], env) => sampleOf(asList(x!), 1, rngIn(env))[0] ?? '', 'pick'),
+  contains: vfun(2, 2, ([x, v]) => (typeof x === 'string' && typeof v === 'string' ? (x.includes(v) ? 1 : 0) : asList(x!).some((y) => same(y, v!)) ? 1 : 0), 'contains'),
+  index: vfun(2, 2, ([x, v]) => (typeof x === 'string' && typeof v === 'string' ? x.indexOf(v) : asList(x!).findIndex((y) => same(y, v!))), 'index'),
+  unique: vfun(1, 1, ([x]) => { const out: Val[] = []; for (const v of asList(x!)) { spend(); if (!out.some((y) => same(y, v))) out.push(v); } return out; }, 'unique'),
   range: vfun(2, 3, ([a, b, s]) => {
     const from = toNum(a!);
     const to = toNum(b!);
@@ -480,20 +481,20 @@ export const VALUE_FUNCTIONS: Readonly<Record<string, ValueFun>> = {
     const n = Math.floor((to - from) / step + 1e-9) + 1;
     if (n > LIST_LIMIT) throw new Overrun();
     return capped(Array.from({ length: n }, (_v, i) => Number((from + i * step).toPrecision(12))));
-  }, 'range(od, do, krok) — liczby od…do WŁĄCZNIE (range(1, 5) → [1, 2, 3, 4, 5]); krok domyślnie 1'),
-  join: vfun(1, 2, ([x, sep]) => asList(x!).map(wordsOf).join(sep === undefined ? ', ' : text(sep)), 'join(lista, separator) — elementy w jednym tekście (domyślnie przez przecinek)'),
-  concat: vfun(1, 16, (args) => capped(args.flatMap((v) => (isList(v) ? [...v] : [v]))), 'concat(a, b, …) — listy połączone w jedną (pojedyncza wartość dochodzi jako element)'),
-  list: vfun(0, 16, (args) => [...args], 'list(a, b, …) — lista z tych wartości (to samo co [a, b, …])'),
-  get: vfun(2, 2, ([r, k]) => fieldOf(r!, text(k!)), 'get(wpis, "klucz") — pole wpisu po kluczu (to samo co wpis.klucz)'),
-  str: vfun(1, 1, ([x]) => wordsOf(x!), 'str(x) — jako tekst; liczba z przecinkiem, do 12 cyfr znaczących'),
-  num: vfun(1, 1, ([x]) => toNum(x!), 'num(tekst) — liczba z tekstu ("3,5" → 3.5)'),
-  sub: vfun(1, 1, ([x]) => subscript(wordsOf(x!)), 'sub(x) — cyfry i znaki + − ( ) w indeksie dolnym: "SO" + sub(4) → "SO₄"'),
-  sup: vfun(1, 1, ([x]) => superscript(wordsOf(x!)), 'sup(x) — w indeksie górnym: "Al" + sup("3+") → "Al³⁺"'),
-  plain: vfun(1, 1, ([x]) => plainScripts(wordsOf(x!)), 'plain(x) — indeksy z powrotem jako zwykłe znaki: "Al₂(SO₄)₃" → "Al2(SO4)3"'),
-  upper: vfun(1, 1, ([x]) => wordsOf(x!).toLocaleUpperCase('pl-PL'), 'upper(tekst) — wielkimi literami'),
-  lower: vfun(1, 1, ([x]) => wordsOf(x!).toLocaleLowerCase('pl-PL'), 'lower(tekst) — małymi literami'),
-  gcd: vfun(1, 16, (args) => gcdOf(numbersIn(args)), 'gcd(a, b, …) — największy wspólny dzielnik liczb całkowitych (także listy)'),
-  lcm: vfun(1, 16, (args) => lcmOf(numbersIn(args)), 'lcm(a, b, …) — najmniejsza wspólna wielokrotność (także listy): lcm(3, 2) → 6')
+  }, 'range'),
+  join: vfun(1, 2, ([x, sep]) => asList(x!).map(wordsOf).join(sep === undefined ? ', ' : text(sep)), 'join'),
+  concat: vfun(1, 16, (args) => capped(args.flatMap((v) => (isList(v) ? [...v] : [v]))), 'concat'),
+  list: vfun(0, 16, (args) => [...args], 'list'),
+  get: vfun(2, 2, ([r, k]) => fieldOf(r!, text(k!)), 'get'),
+  str: vfun(1, 1, ([x]) => wordsOf(x!), 'str'),
+  num: vfun(1, 1, ([x]) => toNum(x!), 'num'),
+  sub: vfun(1, 1, ([x]) => subscript(wordsOf(x!)), 'sub'),
+  sup: vfun(1, 1, ([x]) => superscript(wordsOf(x!)), 'sup'),
+  plain: vfun(1, 1, ([x]) => plainScripts(wordsOf(x!)), 'plain'),
+  upper: vfun(1, 1, ([x]) => wordsOf(x!).toLocaleUpperCase('pl-PL'), 'upper'),
+  lower: vfun(1, 1, ([x]) => wordsOf(x!).toLocaleLowerCase('pl-PL'), 'lower'),
+  gcd: vfun(1, 16, (args) => gcdOf(numbersIn(args)), 'gcd'),
+  lcm: vfun(1, 16, (args) => lcmOf(numbersIn(args)), 'lcm')
 };
 
 /** Ein Element nach dem anderen: der Ausdruck in einer Umgebung mit `it` (dem Element) und `i` (seiner Stelle, ab 0). */
@@ -514,7 +515,7 @@ interface LazyFun {
   readonly says: string;
 }
 
-const lfun = (min: number, max: number, from: number, run: (args: readonly Node[], env: Env) => Val, says: string): LazyFun => ({ min, max, from, run, says });
+const lfun = (min: number, max: number, from: number, run: (args: readonly Node[], env: Env) => Val, name: string): LazyFun => ({ min, max, from, run, get says() { return t(`pageMotion.lazyFn.${name}`); } });
 
 /** `sum(xs)`, `sum(xs, it.masa)` — die Werte, über die zusammengefasst wird. */
 function valuesBy(args: readonly Node[], env: Env): Val[] {
@@ -545,25 +546,25 @@ function extremeBy(args: readonly Node[], env: Env, sign: 1 | -1): Val {
 
 /** Die Funktionen, deren Argumente erst in ihnen gerechnet werden: `if` und die über Listen mit einem Ausdruck je Element. */
 export const LAZY_FUNCTIONS: Readonly<Record<string, LazyFun>> = {
-  if: lfun(3, 3, Infinity, (a, env) => (truth(a[0]!.run(env)) ? a[1]!.run(env) : a[2]!.run(env)), 'if(warunek, a, b) — a, gdy warunek jest spełniony, inaczej b (to samo co warunek ? a : b)'),
-  filter: lfun(2, 2, 1, (a, env) => asList(a[0]!.run(env)).filter((item, i) => truth(perItem(env, a[1]!, item, i))), 'filter(lista, warunek) — te elementy, dla których warunek jest spełniony: filter(jony, it.ladunek > 0)'),
-  map: lfun(2, 2, 1, (a, env) => capped(asList(a[0]!.run(env)).map((item, i) => perItem(env, a[1]!, item, i))), 'map(lista, wyrażenie) — wyrażenie dla każdego elementu: map(wydarzenia, it.label)'),
+  if: lfun(3, 3, Infinity, (a, env) => (truth(a[0]!.run(env)) ? a[1]!.run(env) : a[2]!.run(env)), 'if'),
+  filter: lfun(2, 2, 1, (a, env) => asList(a[0]!.run(env)).filter((item, i) => truth(perItem(env, a[1]!, item, i))), 'filter'),
+  map: lfun(2, 2, 1, (a, env) => capped(asList(a[0]!.run(env)).map((item, i) => perItem(env, a[1]!, item, i))), 'map'),
   sortby: lfun(2, 2, 1, (a, env) => {
     const list = asList(a[0]!.run(env));
     const keyed = list.map((item, i) => ({ item, key: perItem(env, a[1]!, item, i), i }));
     spend(keyed.length);
     return keyed.sort((x, y) => order(x.key, y.key) || x.i - y.i).map((x) => x.item);
-  }, 'sortby(lista, klucz) — rosnąco według wyrażenia: sortby(wydarzenia, it.data) — od najwcześniejszego'),
-  find: lfun(2, 2, 1, (a, env) => { const list = asList(a[0]!.run(env)); for (let i = 0; i < list.length; i += 1) if (truth(perItem(env, a[1]!, list[i]!, i))) return list[i]!; return ''; }, 'find(lista, warunek) — pierwszy element, który spełnia warunek (nie ma: "")'),
-  any: lfun(1, 2, 1, (a, env) => (valuesBy(a, env).some(truth) ? 1 : 0), 'any(lista, warunek) — 1, gdy choć jeden element spełnia warunek'),
-  all: lfun(1, 2, 1, (a, env) => (valuesBy(a, env).every(truth) ? 1 : 0), 'all(lista, warunek) — 1, gdy każdy element spełnia warunek'),
-  count: lfun(1, 2, 1, (a, env) => (a.length < 2 ? asList(a[0]!.run(env)).length : valuesBy(a, env).filter(truth).length), 'count(lista) — ile elementów; count(lista, warunek) — ile spełnia warunek'),
-  sum: lfun(1, 2, 1, (a, env) => valuesBy(a, env).reduce<number>((s, v) => s + toNum(v), 0), 'sum(lista) albo sum(lista, wyrażenie) — suma: sum(skladniki, it.masa)'),
-  avg: lfun(1, 2, 1, (a, env) => { const v = valuesBy(a, env); return v.length === 0 ? NaN : v.reduce<number>((s, x) => s + toNum(x), 0) / v.length; }, 'avg(lista) albo avg(lista, wyrażenie) — średnia'),
-  min: lfun(1, 16, 1, (a, env) => extreme(a, env, Math.min), 'min(a, b, …) — najmniejsza liczba; min(lista); min(lista, wyrażenie)'),
-  max: lfun(1, 16, 1, (a, env) => extreme(a, env, Math.max), 'max(a, b, …) — największa liczba; max(lista); max(lista, wyrażenie)'),
-  minby: lfun(2, 2, 1, (a, env) => extremeBy(a, env, 1), 'minby(lista, klucz) — element z najmniejszym kluczem: minby(wydarzenia, it.data) — najwcześniejsze'),
-  maxby: lfun(2, 2, 1, (a, env) => extremeBy(a, env, -1), 'maxby(lista, klucz) — element z największym kluczem')
+  }, 'sortby'),
+  find: lfun(2, 2, 1, (a, env) => { const list = asList(a[0]!.run(env)); for (let i = 0; i < list.length; i += 1) if (truth(perItem(env, a[1]!, list[i]!, i))) return list[i]!; return ''; }, 'find'),
+  any: lfun(1, 2, 1, (a, env) => (valuesBy(a, env).some(truth) ? 1 : 0), 'any'),
+  all: lfun(1, 2, 1, (a, env) => (valuesBy(a, env).every(truth) ? 1 : 0), 'all'),
+  count: lfun(1, 2, 1, (a, env) => (a.length < 2 ? asList(a[0]!.run(env)).length : valuesBy(a, env).filter(truth).length), 'count'),
+  sum: lfun(1, 2, 1, (a, env) => valuesBy(a, env).reduce<number>((s, v) => s + toNum(v), 0), 'sum'),
+  avg: lfun(1, 2, 1, (a, env) => { const v = valuesBy(a, env); return v.length === 0 ? NaN : v.reduce<number>((s, x) => s + toNum(x), 0) / v.length; }, 'avg'),
+  min: lfun(1, 16, 1, (a, env) => extreme(a, env, Math.min), 'min'),
+  max: lfun(1, 16, 1, (a, env) => extreme(a, env, Math.max), 'max'),
+  minby: lfun(2, 2, 1, (a, env) => extremeBy(a, env, 1), 'minby'),
+  maxby: lfun(2, 2, 1, (a, env) => extremeBy(a, env, -1), 'maxby')
 };
 
 export const CONSTANTS: Readonly<Record<string, number>> = { pi: Math.PI, tau: 2 * Math.PI, e: Math.E, true: 1, false: 0 };
@@ -605,7 +606,7 @@ function tokens(source: string, lists = false): Tok[] {
         value += source[j];
         j += 1;
       }
-      if (j >= source.length) throw new Fail('niezamknięty tekst — brakuje cudzysłowu', i);
+      if (j >= source.length) throw new Fail(tIn(appLang(), 'pageMotion.expr.unclosedText'), i);
       out.push({ k: 'str', v: value, at: i });
       i = j + 1;
       continue;
@@ -619,9 +620,9 @@ function tokens(source: string, lists = false): Tok[] {
     }
     const op = OPS.find((o) => source.startsWith(o, i)) ?? (lists ? LIST_OPS.find((o) => source.startsWith(o, i)) : undefined);
     if (op === undefined) {
-      if (c === '=') throw new Fail('pojedyncze „=" — do porównania służy „=="', i);
-      if (c === '&' || c === '|') throw new Fail(`„${c}" — w logice „${c}${c}"`, i);
-      throw new Fail(`nieznany znak „${c}"`, i);
+      if (c === '=') throw new Fail(tIn(appLang(), 'pageMotion.expr.singleEquals'), i);
+      if (c === '&' || c === '|') throw new Fail(tIn(appLang(), 'pageMotion.expr.logicDouble', { c, cc: c + c }), i);
+      throw new Fail(tIn(appLang(), 'pageMotion.expr.unknownChar', { c }), i);
     }
     out.push({ k: 'op', v: op, at: i });
     i += op.length;
@@ -702,7 +703,7 @@ class Reader {
       try { inner = this.ternary(); } finally { this.path.pop(); }
     }
     this.take(')');
-    if (inner === null && fn !== 'count') throw new Fail(`${fn}(${set}, …) potrzebuje wyrażenia po przecinku`, at);
+    if (inner === null && fn !== 'count') throw new Fail(tIn(appLang(), 'pageMotion.expr.needsEach', { fn, set }), at);
     /* `#world` — liest aus der Welt: ändert sich an ihr etwas, wird neu gerechnet. */
     this.reads.add('#world');
     const each = inner;
@@ -735,20 +736,20 @@ class Reader {
 
   private take(v: string): void {
     const t = this.peek();
-    if (t.k !== 'op' || t.v !== v) throw new Fail(`oczekiwano „${v}"`, t.at);
+    if (t.k !== 'op' || t.v !== v) throw new Fail(tIn(appLang(), 'pageMotion.expr.expected', { v }), t.at);
     this.at += 1;
   }
 
   whole(): Node {
     const node = this.ternary();
     const t = this.peek();
-    if (t.k !== 'end') throw new Fail(t.k === 'op' && t.v === ')' ? 'za dużo „)"' : 'tu wyrażenie powinno się kończyć', t.at);
+    if (t.k !== 'end') throw new Fail(t.k === 'op' && t.v === ')' ? tIn(appLang(), 'pageMotion.expr.tooManyClose') : tIn(appLang(), 'pageMotion.expr.shouldEnd'), t.at);
     return node;
   }
 
   private deeper<T>(work: () => T): T {
     this.depth += 1;
-    if (this.depth > EXPR_LIMITS.depth) throw new Fail('wyrażenie jest zbyt głęboko zagnieżdżone', this.peek().at);
+    if (this.depth > EXPR_LIMITS.depth) throw new Fail(tIn(appLang(), 'pageMotion.expr.tooDeep'), this.peek().at);
     try { return work(); } finally { this.depth -= 1; }
   }
 
@@ -892,7 +893,7 @@ class Reader {
       }
       if (this.isOp('.')) {
         const name = this.list[this.at + 1];
-        if (name?.k !== 'id') throw new Fail('po kropce oczekiwano nazwy pola', this.peek().at);
+        if (name?.k !== 'id') throw new Fail(tIn(appLang(), 'pageMotion.expr.fieldAfterDot'), this.peek().at);
         this.at += 2;
         const keys = name.v.split('.');
         const base = node;
@@ -920,7 +921,7 @@ class Reader {
       if (!this.isOp(']')) {
         for (;;) {
           items.push(this.ternary());
-          if (items.length > EXPR_LIMITS.items) throw new Fail(`lista w wyrażeniu ma więcej niż ${EXPR_LIMITS.items} elementów`, this.peek().at);
+          if (items.length > EXPR_LIMITS.items) throw new Fail(tIn(appLang(), 'pageMotion.expr.listTooLong', { n: EXPR_LIMITS.items }), this.peek().at);
           if (this.isOp(',')) { this.take(','); continue; }
           break;
         }
@@ -945,15 +946,15 @@ class Reader {
       /* Ein eigener Name geht vor: `e` ist in der Physik oft die Sprungzahl, nicht die Eulersche Zahl. */
       const declared = this.known !== undefined && this.known(t.v);
       if (!declared && Object.prototype.hasOwnProperty.call(CONSTANTS, t.v)) return fixed(CONSTANTS[t.v]);
-      if (!declared && Object.prototype.hasOwnProperty.call(FUNCTIONS, t.v)) throw new Fail(`„${t.v}" to funkcja — potrzebuje nawiasów: ${t.v}(…)`, t.at);
-      if (this.known !== undefined && !declared) throw new Fail(`nieznana nazwa „${t.v}"`, t.at);
+      if (!declared && Object.prototype.hasOwnProperty.call(FUNCTIONS, t.v)) throw new Fail(tIn(appLang(), 'pageMotion.expr.needsParens', { name: t.v }), t.at);
+      if (this.known !== undefined && !declared) throw new Fail(tIn(appLang(), 'pageMotion.expr.unknownName', { name: t.v }), t.at);
       this.reads.add(t.v);
       this.links.add([...this.path, t.v].join('>'));
       const name = t.v;
       return { run: (env) => env[name] ?? 0, constant: false };
     }
-    if (t.k === 'end') throw new Fail('wyrażenie urywa się — czegoś brakuje', t.at);
-    throw new Fail(`nieoczekiwane „${t.v}"`, t.at);
+    if (t.k === 'end') throw new Fail(tIn(appLang(), 'pageMotion.expr.breaksOff'), t.at);
+    throw new Fail(tIn(appLang(), 'pageMotion.expr.unexpected', { v: t.v }), t.at);
   }
 
   /**
@@ -970,18 +971,18 @@ class Reader {
     if ((this.lists && this.kinds.size === 0) || this.isLocal(head)) return this.fieldPath(path, at);
     const parts = path.split('.');
     const name = parts.pop()!;
-    if (this.kinds.size === 0) throw new Fail(`„${path}" — kropka w nazwie działa tylko w świecie („world")`, at);
+    if (this.kinds.size === 0) throw new Fail(tIn(appLang(), 'pageMotion.expr.dotOnlyInWorld', { path }), at);
     /* 2026-10-18 — `can.pos`: darf man diese Eigenschaft dieses Dings ändern? (Die Welt setzt es — keine Rechnung hängt daran.) */
     if (parts.length === 1 && parts[0] === 'can') {
-      if (this.known !== undefined && !this.known(name)) throw new Fail(`nieznana nazwa „${name}" (w „${path}")`, at);
+      if (this.known !== undefined && !this.known(name)) throw new Fail(tIn(appLang(), 'pageMotion.expr.unknownNameIn', { name, path }), at);
       this.reads.add('#world');
       this.reads.add('can');
       return { run: (env) => links(env).$can?.[name] ?? 0, constant: false };
     }
     parts.forEach((p, i) => {
-      if (i > 0 && !(RELATIONS as readonly string[]).includes(p)) throw new Fail(`„${path}" — po kropce: parent, root, outer albo self`, at);
+      if (i > 0 && !(RELATIONS as readonly string[]).includes(p)) throw new Fail(tIn(appLang(), 'pageMotion.expr.afterDot', { path }), at);
     });
-    if (this.known !== undefined && !this.known(name)) throw new Fail(`nieznana nazwa „${name}" (w „${path}")`, at);
+    if (this.known !== undefined && !this.known(name)) throw new Fail(tIn(appLang(), 'pageMotion.expr.unknownNameIn', { name, path }), at);
     /* Der Name selbst auch: hängt `y` des Elternteils von der Zeit ab, dann auch, was es liest. */
     this.reads.add('#world');
     this.reads.add(name);
@@ -1002,7 +1003,7 @@ class Reader {
     const [head, ...keys] = path.split('.');
     const name = head!;
     if (!this.isLocal(name)) {
-      if (this.known !== undefined && !this.known(name)) throw new Fail(`nieznana nazwa „${name}" (w „${path}")`, at);
+      if (this.known !== undefined && !this.known(name)) throw new Fail(tIn(appLang(), 'pageMotion.expr.unknownNameIn', { name, path }), at);
       this.reads.add(name);
       this.links.add([...this.path, name].join('>'));
     }
@@ -1022,7 +1023,7 @@ class Reader {
         } finally {
           if (each) this.locals.pop();
         }
-        if (args.length > EXPR_LIMITS.args) throw new Fail('za dużo argumentów', this.peek().at);
+        if (args.length > EXPR_LIMITS.args) throw new Fail(tIn(appLang(), 'pageMotion.expr.tooManyArgs'), this.peek().at);
         if (this.isOp(',')) { this.take(','); continue; }
         break;
       }
@@ -1033,7 +1034,7 @@ class Reader {
 
   private arity(name: string, at: number, count: number, min: number, max: number): void {
     if (count < min || count > max) {
-      throw new Fail(`${name}(…) przyjmuje ${min === max ? min : `od ${min} do ${max}`} ${max === 1 ? 'argument' : 'argumentów'}, a dostało ${count}`, at);
+      throw new Fail(tIn(appLang(), `pageMotion.expr.arity.${min === max ? 'exact' : 'range'}${max === 1 ? 'One' : 'Many'}`, { name, min, max, got: count }), at);
     }
   }
 
@@ -1058,7 +1059,7 @@ class Reader {
       return chance ? node : fold(node, args);
     }
     const f = Object.prototype.hasOwnProperty.call(FUNCTIONS, name) ? FUNCTIONS[name] : undefined;
-    if (f === undefined) throw new Fail(`nieznana funkcja „${name}"`, at);
+    if (f === undefined) throw new Fail(tIn(appLang(), 'pageMotion.expr.unknownFunction', { name }), at);
     const args = this.args();
     this.arity(name, at, args.length, f.min, f.max);
     const run: Run = args.length === 1
@@ -1094,8 +1095,8 @@ export function compile(source: string, known?: ((name: string) => boolean) | Co
 
 function compileFresh(source: string, options: CompileOptions): Expr | ExprError {
   const trimmed = source.trim();
-  if (trimmed === '') return { error: 'puste wyrażenie', at: 0, source };
-  if (trimmed.length > EXPR_LIMITS.length) return { error: `wyrażenie dłuższe niż ${EXPR_LIMITS.length} znaków`, at: EXPR_LIMITS.length, source };
+  if (trimmed === '') return { error: tIn(appLang(), 'pageMotion.expr.empty'), at: 0, source };
+  if (trimmed.length > EXPR_LIMITS.length) return { error: tIn(appLang(), 'pageMotion.expr.tooLong', { n: EXPR_LIMITS.length }), at: EXPR_LIMITS.length, source };
   try {
     const reader = new Reader(tokens(trimmed, options.lists === true), options);
     const node = reader.whole();
@@ -1141,7 +1142,7 @@ export function compileText(source: string, known?: ((name: string) => boolean) 
     const open = source.indexOf('{', i);
     if (open < 0) { parts.push(source.slice(i)); break; }
     const close = source.indexOf('}', open + 1);
-    if (close < 0) return { error: 'brakuje „}"', at: open, source };
+    if (close < 0) return { error: tIn(appLang(), 'pageMotion.expr.missingBrace'), at: open, source };
     if (open > i) parts.push(source.slice(i, open));
     const inner = compile(source.slice(open + 1, close), known);
     if (isExprError(inner)) return { error: inner.error, at: open + 1 + inner.at, source };
@@ -1160,21 +1161,21 @@ export function compileText(source: string, known?: ((name: string) => boolean) 
 /** Die Sprache der Rechnungen in Worten — für die Beschreibung des JSON und das Polecenie dla AI. */
 export function exprDescription(): string {
   return [
-    'Wyrażenia (wartości liczone na bieżąco) — tekst, np. "v0*cos(rad(kat))":',
-    '  liczby: 3, 0.5, 2e-3 (kropka dziesiętna); teksty w apostrofach: \'ok\'; nazwy: zmienne, wartości liczone, stan symulacji i nazwy wbudowane',
-    '  działania: + - * / % (reszta) ^ (potęga; -x^2 to −(x²)); nawiasy ( )',
-    '  porównania: < <= > >= == != — dają 1 (tak) albo 0 (nie); logika: && (i), || (lub), ! (nie); warunek: w ? a : b',
-    '  tekst + liczba skleja tekst (liczba z przecinkiem, do 3 miejsc); fmt(x, cyfry) — liczba z wybraną liczbą miejsc',
-    '  stałe: pi, tau (2·pi), e, true (1), false (0) — własna zmienna o takiej nazwie (np. "e" jako współczynnik odbicia) ma pierwszeństwo',
-    '  funkcje:',
+    t('pageMotion.exprHelp.intro'),
+    t('pageMotion.exprHelp.numbers'),
+    t('pageMotion.exprHelp.ops'),
+    t('pageMotion.exprHelp.compare'),
+    t('pageMotion.exprHelp.text'),
+    t('pageMotion.exprHelp.constants'),
+    t('pageMotion.exprHelp.functions'),
     ...Object.entries(FUNCTIONS).map(([name, f]) => `    ${name} — ${f.says}`),
-    '  Kąty: sin/cos/tan liczą w radianach — kąt w stopniach zamienia rad(kąt), wynik asin/acos/atan2 zamienia deg(...).',
-    '  W świecie ("world"): parent.x, root.x — wartość rodzica, korzenia (parent.parent.x — dziadka); outer.x — rzeczy, która właśnie podsumowuje; nazwa.x — rzeczy o tym "id"',
-    '    can — 1, gdy osoba może coś w tej rzeczy zmienić (przeciągnąć, ustawić), 0, gdy jest dana; can.pos — gdy może zmienić właśnie "pos" (np. kolor danego i zmienianego, strzałki ↔)',
-    `  podsumowania: ${AGGREGATES.map((a) => `${a}(…)`).join(', ')} — np. sum(children, total*arm), count(children), count(odwaznik, mass > 5), all(belka, abs(mom) < 0.05)`,
-    `    zbiory: children (dzieci), descendants (wszystkie niżej), siblings (rodzeństwo), others (inne tego rodzaju), things (wszystkie) albo nazwa rodzaju; wyrażenie po przecinku liczy się w KAŻDEJ rzeczy zbioru (jej nazwy, jej parent), a outer.x sięga do tej, która pyta`,
-    `  listy (np. range(1, 10)): ${[...Object.keys(VALUE_FUNCTIONS), ...Object.keys(LAZY_FUNCTIONS)].join(', ')} — opis w zadaniach generowanych Cogity; w filter/map/sortby… "it" to element, "i" jego miejsce`,
-    '  Nieznana nazwa to błąd (edytor pokazuje, gdzie); dzielenie przez 0 daje nieskończoność — taki kształt chwilowo się nie rysuje.'
+    t('pageMotion.exprHelp.angles'),
+    t('pageMotion.exprHelp.world'),
+    t('pageMotion.exprHelp.can'),
+    t('pageMotion.exprHelp.aggregates', { list: AGGREGATES.map((a) => `${a}(…)`).join(', ') }),
+    t('pageMotion.exprHelp.sets'),
+    t('pageMotion.exprHelp.lists', { list: [...Object.keys(VALUE_FUNCTIONS), ...Object.keys(LAZY_FUNCTIONS)].join(', ') }),
+    t('pageMotion.exprHelp.end')
   ].join('\n');
 }
 
@@ -1186,16 +1187,16 @@ export function exprDescription(): string {
 export function generatorExprDescription(): string {
   const all = { ...VALUE_FUNCTIONS, ...LAZY_FUNCTIONS };
   return [
-    'Wyrażenia w zadaniach generowanych — ten sam język co w rysunkach (liczby z kropką, teksty w apostrofach, + - * / % ^, < <= > >= == !=, && || !, w ? a : b), a do tego:',
-    '  listy: [1, 2, 3], [a, b]; element: lista[0] (od 0; lista[-1] — ostatni); lista + lista — połączone',
-    '  wpis (wylosowany z bazy): wpis.pole (np. kation.ladunek), wpis.id, wpis.label; pole liczbowe z wielkością: wpis.pole_si (w SI), wpis.pole_unit; data: wpis.data (liczba rrrrmmdd, do porównań), wpis.data_text (słowami); odwołanie: wpis.okres.label (jeden krok dalej)',
-    '  wyrażenie dla każdego elementu (filter, map, sortby, count, any, all, find, sum, avg, min, max, minby, maxby): "it" — element, "i" — jego miejsce (od 0), np. filter(jony, it.ladunek < 0), map(wydarzenia, it.label)',
-    '  teksty porównują się alfabetycznie ("Ala" < "Ola"); == porównuje też listy (element po elemencie) i wpisy (po id)',
-    '  losowanie w wyrażeniu (shuffle, choose, pick) używa numeru zadania — ten sam numer daje to samo zadanie',
-    '  funkcje liczbowe:',
+    t('pageMotion.genHelp.intro'),
+    t('pageMotion.genHelp.lists'),
+    t('pageMotion.genHelp.entry'),
+    t('pageMotion.genHelp.each'),
+    t('pageMotion.genHelp.compare'),
+    t('pageMotion.genHelp.random'),
+    t('pageMotion.genHelp.numberFns'),
     ...Object.entries(FUNCTIONS).filter(([name]) => !Object.prototype.hasOwnProperty.call(all, name)).map(([name, f]) => `    ${name} — ${f.says}`),
-    '  funkcje list, tekstów i wpisów:',
+    t('pageMotion.genHelp.listFns'),
     ...Object.entries(all).map(([name, f]) => `    ${name} — ${f.says}`),
-    `  Granice: lista do ${LIST_LIMIT} elementów, w jednym wyrażeniu do ${WORK_LIMIT} kroków po listach — więcej daje NaN (zadanie się nie losuje).`
+    t('pageMotion.genHelp.limits', { items: LIST_LIMIT, work: WORK_LIMIT })
   ].join('\n');
 }

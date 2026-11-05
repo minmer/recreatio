@@ -7,6 +7,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { useT } from '../core/i18n';
+
 import { loadCalendars, type CalendarRow } from './calendar';
 import type { EntryPoint } from './appointmentsJson';
 
@@ -51,14 +53,15 @@ export function AppointmentOptions({ entries, chosen, onChoose }: {
     }
   }, [calendars, entries]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const t = useT();
   return (
     <div className="wk-appointment-options" data-appointment-options="">
       {entries.map((entry) => (
         <label key={entry.key} className="wk-field">
-          <span>Terminy „{entry.label}” ({entry.count}) trafiają do kalendarza</span>
+          <span>{t('calendarApp.appointmentOptions.goesTo', { label: entry.label, count: entry.count })}</span>
           <select value={chosen[entry.key] ?? ''} disabled={calendars === null} data-appointment-entry={entry.key}
             onChange={(e) => onChoose(entry.key, e.target.value)}>
-            <option value="">{calendars === null ? 'Wczytywanie kalendarzy…' : calendars.length === 0 ? '— nie piszesz w żadnym kalendarzu —' : '— wybierz kalendarz —'}</option>
+            <option value="">{calendars === null ? t('calendarApp.appointmentOptions.loading') : calendars.length === 0 ? t('calendarApp.appointmentOptions.none') : t('calendarApp.appointmentOptions.choose')}</option>
             {(calendars ?? []).map((c) => (
               <option key={c.calendarId} value={c.calendarId}>{c.areaName} · {c.title}</option>
             ))}

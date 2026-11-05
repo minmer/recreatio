@@ -1,0 +1,22 @@
+{
+  "service": { "mass": "Mass", "confession": "Confession", "devotion": "Devotion" },
+  "devotionNames": {
+    "rosary": "Rosary",
+    "wayOfCross": "Way of the Cross",
+    "bitterLaments": "Bitter Lamentations (Gorzkie Żale)",
+    "may": "May devotion",
+    "june": "June devotion (Sacred Heart)",
+    "october": "October Rosary devotion",
+    "adoration": "Adoration of the Blessed Sacrament",
+    "chaplet": "Chaplet of Divine Mercy",
+    "novena": "Novena to Our Mother of Perpetual Help",
+    "holyHour": "Holy Hour",
+    "jasnaGora": "Jasna Góra Appeal",
+    "vespers": "Vespers"
+  },
+  "intentions": { "one": "{count} intention", "other": "{count} intentions" },
+  "kind": { "single": "single", "collective": "collective" },
+  "status": { "accepted": "accepted", "celebrated": "celebrated", "cancelled": "withdrawn" },
+  "weekdayBit": { "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat", "sun": "Sun" },
+  "day": { "today": "today", "tomorrow": "tomorrow", "todayFull": "today, {date}", "tomorrowFull": "tomorrow, {date}" }
+}

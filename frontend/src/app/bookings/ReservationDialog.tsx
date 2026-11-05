@@ -21,13 +21,14 @@ import {
 } from '../calendar/calendarBookings';
 import type { CalEvent } from '../calendar/calendarModel';
 import { longDate } from '../core/dayMath';
+import { fmtDate, useT } from '../core/i18n';
 import { Modal } from '../ui/Modal';
 import { officeAdd, officeClose, officeDecides, officeRemove } from './resource';
 import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
 import { askText } from '../ui/dialogs';
 
-const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+const time = (at: Date) => fmtDate(at, { hour: '2-digit', minute: '2-digit' });
 
 /** „sobota, 3 października, 9:40–10:20" — oder über mehrere Tage mit beiden Daten. */
 export function span(start: Date, end: Date): string {
@@ -39,6 +40,7 @@ export function span(start: Date, end: Date): string {
 
 /** Eine Handlung, danach neu laden — mit dem Fehler an Ort und Stelle. */
 function useAct(onChanged: () => void) {
+  const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -49,7 +51,7 @@ function useAct(onChanged: () => void) {
       await todo();
       onChanged();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally {
       setBusy(null);
     }
@@ -65,6 +67,7 @@ function ClaimLine({ claim, mayDecide, busy, act }: {
   busy: string | null;
   act: (key: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const waiting = waitsForOffice(claim);
 
   return (
@@ -79,20 +82,20 @@ function ClaimLine({ claim, mayDecide, busy, act }: {
             <>
               <button type="button" className="wk-btn wk-btn-small" disabled={busy !== null}
                 onClick={() => void act(`y:${claim.claimId}`, () => officeDecides(claim.claimId, true))}>
-                {busy === `y:${claim.claimId}` ? '…' : 'Potwierdź'}
+                {busy === `y:${claim.claimId}` ? '…' : t('bookings.dialog.confirm')}
               </button>
               <button type="button" className="wk-btn wk-btn-quiet wk-btn-small" disabled={busy !== null}
                 onClick={() => void act(`n:${claim.claimId}`, () => officeDecides(claim.claimId, false))}>
-                Odrzuć
+                {t('bookings.dialog.reject')}
               </button>
             </>
           ) : (
             <button type="button" className="wk-link-btn wk-danger" disabled={busy !== null}
               onClick={async () => {
-                if (!(await askText(`Wypisać: ${holderName(claim)}?`))) return;
+                if (!(await askText(t('bookings.dialog.removeAsk', { name: holderName(claim) })))) return;
                 void act(`x:${claim.claimId}`, () => officeRemove(claim.claimId));
               }}>
-              Wypisz
+              {t('bookings.dialog.remove')}
             </button>
           )}
         </span>
@@ -127,6 +130,7 @@ function OfferView({ event, offer, resource, onClose, onChanged, onEdit }: {
   onChanged: () => void;
   onEdit?: () => void;
 }) {
+  const t = useT();
   const { busy, failed, act } = useAct(onChanged);
   const [name, setName] = useState('');
 
@@ -140,24 +144,24 @@ function OfferView({ event, offer, resource, onClose, onChanged, onEdit }: {
       <p className="wk-ev-when">{span(event.start, event.end)}</p>
 
       <div className="wk-res-sum">
-        <span className="wk-res-seats" aria-label={`Zajęte ${offer.taken} z ${offer.capacity}`}>
+        <span className="wk-res-seats" aria-label={t('bookings.dialog.takenLabel', { taken: offer.taken, capacity: offer.capacity })}>
           {Array.from({ length: Math.min(offer.capacity, 12) }, (_, i) => (
             <span key={i} className={`wk-res-seat${i < offer.taken ? ' is-taken' : ''}`} aria-hidden="true" />
           ))}
         </span>
         <span>
-          <strong>{offer.taken} z {offer.capacity}</strong>{' '}
-          {free > 0 ? `· wolne ${free}` : '· komplet'}
-          {waiting.length > 0 && <span className="wk-res-waitnote"> · {waiting.length} czeka na potwierdzenie</span>}
+          <strong>{t('bookings.dialog.takenOf', { taken: offer.taken, capacity: offer.capacity })}</strong>{' '}
+          {free > 0 ? `· ${t('bookings.dialog.free', { count: free })}` : `· ${t('bookings.dialog.complete')}`}
+          {waiting.length > 0 && <span className="wk-res-waitnote"> · {t('bookings.dialog.waitingCount', { count: waiting.length })}</span>}
         </span>
         {offer.closedBy !== null && (
-          <span className="wk-tag">zapisy zamknięte{offer.closedBy === 'host' ? ' przez gospodarza' : ''}</span>
+          <span className="wk-tag">{offer.closedBy === 'host' ? t('bookings.dialog.closedByHost') : t('bookings.dialog.closed')}</span>
         )}
       </div>
 
       {waiting.length > 0 && (
         <section className="wk-res-block">
-          <h3 className="wk-res-h">Czekają na potwierdzenie</h3>
+          <h3 className="wk-res-h">{t('bookings.dialog.waiting')}</h3>
           <ul className="wk-res-list">
             {waiting.map((c) => <ClaimLine key={c.claimId} claim={c} mayDecide={resource.mayDecide} busy={busy} act={act} />)}
           </ul>
@@ -165,9 +169,9 @@ function OfferView({ event, offer, resource, onClose, onChanged, onEdit }: {
       )}
 
       <section className="wk-res-block">
-        <h3 className="wk-res-h">Zapisani</h3>
+        <h3 className="wk-res-h">{t('bookings.dialog.signedUp')}</h3>
         {others.length === 0
-          ? <p className="wk-hint">Nikt się jeszcze nie zapisał.</p>
+          ? <p className="wk-hint">{t('bookings.dialog.nobody')}</p>
           : (
             <ul className="wk-res-list">
               {others.map((c) => <ClaimLine key={c.claimId} claim={c} mayDecide={resource.mayDecide} busy={busy} act={act} />)}
@@ -183,10 +187,10 @@ function OfferView({ event, offer, resource, onClose, onChanged, onEdit }: {
           void act('add', async () => { await officeAdd(resource, term, { name: who }); setName(''); });
         }}>
           <label className="wk-field">
-            <span>Dopisz osobę</span>
-            <input value={name} maxLength={200} placeholder="imię i nazwisko" onChange={(e) => setName(e.target.value)} />
+            <span>{t('bookings.dialog.addPerson')}</span>
+            <input value={name} maxLength={200} placeholder={t('bookings.dialog.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
           </label>
-          <button type="submit" className="wk-btn wk-btn-quiet" disabled={busy !== null || name.trim() === ''}>Dopisz</button>
+          <button type="submit" className="wk-btn wk-btn-quiet" disabled={busy !== null || name.trim() === ''}>{t('bookings.dialog.add')}</button>
         </form>
       )}
 
@@ -196,13 +200,13 @@ function OfferView({ event, offer, resource, onClose, onChanged, onEdit }: {
         {resource.mayDecide && (
           <button type="button" className="wk-btn wk-btn-quiet" disabled={busy !== null}
             onClick={() => void act('close', () => officeClose(resource.resourceId, term, offer.closedBy === null))}>
-            {offer.closedBy === null ? 'Zamknij zapisy' : 'Otwórz zapisy'}
+            {offer.closedBy === null ? t('bookings.dialog.closeSignups') : t('bookings.dialog.openSignups')}
           </button>
         )}
         {onEdit !== undefined && (
-          <button type="button" className="wk-btn wk-btn-quiet" onClick={onEdit}>Zmień termin</button>
+          <button type="button" className="wk-btn wk-btn-quiet" onClick={onEdit}>{t('bookings.myTerm.change')}</button>
         )}
-        <a className="wk-link" href={viewPath('bookings', resource.resourceId)}>Wszystkie terminy: {resource.name}</a>
+        <a className="wk-link" href={viewPath('bookings', resource.resourceId)}>{t('bookings.dialog.allSlots', { name: resource.name })}</a>
       </div>
     </Modal>
   );
@@ -215,6 +219,7 @@ function BookingView({ event, claim, resource, onClose, onChanged }: {
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const t = useT();
   const { busy, failed, act } = useAct(onChanged);
 
   return (
@@ -224,11 +229,11 @@ function BookingView({ event, claim, resource, onClose, onChanged }: {
         <ClaimLine claim={claim} mayDecide={resource.mayDecide} busy={busy} act={act} />
       </ul>
       {waitsForOffice(claim) && resource.mayDecide && (
-        <p className="wk-hint">„Potwierdź" odpowiada na całe zgłoszenie — także na inne miejsca, o które w nim proszono.</p>
+        <p className="wk-hint">{t('bookings.dialog.confirmWhole')}</p>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
-        <a className="wk-link" href={viewPath('bookings', resource.resourceId)}>Rezerwacje: {resource.name}</a>
+        <a className="wk-link" href={viewPath('bookings', resource.resourceId)}>{t('bookings.dialog.reservationsOf', { name: resource.name })}</a>
       </div>
     </Modal>
   );
@@ -244,13 +249,14 @@ export function WaitingDialog({ reservations, onClose, onChanged, onShow }: {
   onChanged: () => void;
   onShow: (at: Date) => void;
 }) {
+  const t = useT();
   const { busy, failed, act } = useAct(onChanged);
   const resources = new Map(reservations.resources.map((r) => [r.resourceId, r]));
   const list = [...reservations.waiting].sort((a, b) => a.claim.startsAt.localeCompare(b.claim.startsAt));
 
   return (
-    <Modal title="Do potwierdzenia" onClose={onClose} wide>
-      {list.length === 0 && <p className="wk-empty">Nic nie czeka na odpowiedź.</p>}
+    <Modal title={t('bookings.dialog.toConfirm')} onClose={onClose} wide>
+      {list.length === 0 && <p className="wk-empty">{t('bookings.dialog.nothingWaits')}</p>}
       <ul className="wk-res-list">
         {list.map(({ resourceId, claim }) => {
           const resource = resources.get(resourceId);
@@ -259,18 +265,18 @@ export function WaitingDialog({ reservations, onClose, onChanged, onShow }: {
             <li key={claim.claimId} className="wk-res-claim is-waiting">
               <span className="wk-res-who">
                 <strong>{holderName(claim)}</strong>
-                <span className="wk-res-state">{resource?.name ?? 'rezerwacja'} · {span(start, new Date(claim.endsAt))}</span>
+                <span className="wk-res-state">{resource?.name ?? t('bookings.dialog.reservation')} · {span(start, new Date(claim.endsAt))}</span>
               </span>
               <span className="wk-res-tools">
                 <button type="button" className="wk-btn wk-btn-small" disabled={busy !== null}
                   onClick={() => void act(`y:${claim.claimId}`, () => officeDecides(claim.claimId, true))}>
-                  {busy === `y:${claim.claimId}` ? '…' : 'Potwierdź'}
+                  {busy === `y:${claim.claimId}` ? '…' : t('bookings.dialog.confirm')}
                 </button>
                 <button type="button" className="wk-btn wk-btn-quiet wk-btn-small" disabled={busy !== null}
                   onClick={() => void act(`n:${claim.claimId}`, () => officeDecides(claim.claimId, false))}>
-                  Odrzuć
+                  {t('bookings.dialog.reject')}
                 </button>
-                <button type="button" className="wk-link-btn" onClick={() => onShow(start)}>Pokaż</button>
+                <button type="button" className="wk-link-btn" onClick={() => onShow(start)}>{t('bookings.dialog.show')}</button>
               </span>
             </li>
           );

@@ -14,6 +14,7 @@
 
 import { fromBase64Url, toBase64Url } from '../core/crypto';
 import { newId } from '../core/ids';
+import { t } from '../core/i18n';
 import { API, call, WorkspaceError } from '../core/session';
 import type { PhoneCtx } from './phoneContext';
 import {
@@ -39,7 +40,7 @@ export interface ShareEntry {
 /** 2026-10-27 — der Absender hat das Hinauf angehalten („Przerwij"): kein Fehler, nur nichts geschehen. */
 export class ShareStopped extends Error {
   constructor() {
-    super('Przerwano wysyłanie.');
+    super(t('phoneShare.err.stopped'));
   }
 }
 
@@ -70,9 +71,9 @@ function put(
       try { said = JSON.parse(xhr.responseText); } catch { said = null; }
       if (xhr.status >= 200 && xhr.status < 300) { resolve(said); return; }
       const error = said !== null && typeof said === 'object' && 'error' in said ? String((said as { error: unknown }).error) : null;
-      reject(new WorkspaceError(error ?? (xhr.status >= 500 ? 'Usługa nie odpowiada — spróbuj za chwilę.' : 'Nie udało się wysłać pliku.')));
+      reject(new WorkspaceError(error ?? (xhr.status >= 500 ? t('phoneShare.err.service') : t('phoneShare.err.sendFailed'))));
     };
-    xhr.onerror = () => reject(new WorkspaceError('Brak połączenia — plik nie został wysłany.'));
+    xhr.onerror = () => reject(new WorkspaceError(t('phoneShare.err.offline')));
     xhr.onabort = () => reject(new ShareStopped());
     xhr.send(new Blob([body as BlobPart]));
   });
@@ -89,14 +90,14 @@ export async function shareFile(
     readonly signal?: AbortSignal;
   }
 ): Promise<{ id: string; link: string; expiresAt: string }> {
-  if (file.size > SHARE_MAX) throw new WorkspaceError('Plik przez link może mieć najwyżej 25 MB.');
+  if (file.size > SHARE_MAX) throw new WorkspaceError(t('phoneShare.err.tooBig'));
   const halt = () => { if (options.signal?.aborted === true) throw new ShareStopped(); };
   let raw: Uint8Array;
   try {
     raw = new Uint8Array(await file.arrayBuffer());
   } catch {
     /* Ein Ordner, eine Datei, die inzwischen fort ist, eine Wolkendatei ohne Netz. */
-    throw new WorkspaceError('Nie udało się odczytać pliku — czy to na pewno plik, a nie folder?');
+    throw new WorkspaceError(t('phoneShare.err.unreadable'));
   }
   halt();
   const { head, bytes } = shareHeadOf(file.name, file.type, raw);
@@ -182,7 +183,7 @@ export async function loadDevices(ctx: PhoneCtx): Promise<ShareDevice[] | null> 
   try {
     said = await call(`/workspace/phone/${encodeURIComponent(ctx.areaId)}/share-devices`);
   } catch (e) {
-    if (e instanceof WorkspaceError && e.message === 'Nie udało się.') return null;
+    if (e instanceof WorkspaceError && e.message === t('core.session.failed')) return null;
     throw e;
   }
   const out: ShareDevice[] = [];
@@ -226,12 +227,12 @@ async function goneOf(response: Response): Promise<ShareGone> {
   const said = await response.json().catch(() => null) as { error?: unknown } | null;
   const error = said !== null && typeof said.error === 'string' ? said.error : null;
   return new ShareGone(
-    error ?? (response.status === 410 ? 'Ten link wygasł.' : response.status === 404 ? 'Tego pliku nie ma — został usunięty albo link jest niepełny.' : 'Usługa nie odpowiada — spróbuj za chwilę.'),
+    error ?? (response.status === 410 ? t('phoneShare.err.expired') : response.status === 404 ? t('phoneShare.err.missing') : t('phoneShare.err.service')),
     response.status
   );
 }
 
-const unreachable = () => new ShareGone('Brak połączenia z recreatio.pl — spróbuj ponownie.', 0);
+const unreachable = () => new ShareGone(t('phoneShare.err.unreachable'), 0);
 
 /** Was der Link noch ist: wie gross, bis wann. */
 export async function shareInfo(id: string): Promise<{ size: number; createdAt: string; expiresAt: string }> {

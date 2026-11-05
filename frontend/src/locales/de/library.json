@@ -1,0 +1,120 @@
+{
+  "view": {
+    "noKey": "Ohne Schlüssel in diesem Tab ist die Bibliothek verschlossen — melde dich erneut an oder entsperre deinen Schlüssel.",
+    "loadFailed": "Die Bibliotheken konnten nicht geladen werden.",
+    "isKnowledge": "Das ist eine Wissensbasis — sie steht im Wissen.",
+    "isScriptorium": "Das ist ein Scriptorium — Texte, Vorträge und Projekte.",
+    "openKnowledge": "Öffnen",
+    "openScriptorium": "Öffnen",
+    "missing": "Diese Bibliothek gibt es nicht, oder du hast keinen Schlüssel dafür.",
+    "allLibraries": "Alle Bibliotheken"
+  },
+  "list": {
+    "defaultName": "Meine Bibliothek",
+    "createFailed": "Die Bibliothek konnte nicht angelegt werden.",
+    "onlyYou": "nur du",
+    "area": "Bereich",
+    "title": "Bibliothek",
+    "lede": "Quellen, Zitate und ihre Autoren — ein Ort für jeden Verweis. Texte schreibst du im Scriptorium, Wissen (Kommentare, Personen, Orte, Ereignisse) ordnest du im Wissen; beides zitiert von hier. Alles wird im Browser verschlüsselt. Jeder Bereich hat seine Bibliothek: die Mitglieder des Bereichs sehen sie, und wenn der Bereich öffentlich ist — alle. Du arbeitest mit allen zugleich: Verweise und Suche reichen in jede Bibliothek, die du siehst.",
+    "entries": {
+      "one": "{count} Eintrag",
+      "other": "{count} Einträge"
+    },
+    "meta": "{entries} · {area} · sichtbar für: {who}",
+    "readOnly": " · nur lesen",
+    "createFirst": "Bibliothek anlegen",
+    "createNew": "Neue Bibliothek",
+    "name": "Name",
+    "namePlaceholder": "z. B. Predigten und Quellen",
+    "whoSees": "Wer sie sieht",
+    "onlyMeNew": "Nur ich (ein privater Bereich wird angelegt)",
+    "onlyMe": "Nur ich",
+    "sharedHint": "Eine gemeinsame Bibliothek lesen und ergänzen alle, die den Schlüssel des Bereichs haben. Jeder Bereich hat eine Bibliothek.",
+    "creating": "Wird angelegt…",
+    "create": "Anlegen"
+  },
+  "home": {
+    "opening": "Bibliothek wird geöffnet…",
+    "sealed": {
+      "one": "{count} Eintrag ist mit einem Schlüssel versiegelt, den du nicht hast.",
+      "other": "{count} Einträge sind mit einem Schlüssel versiegelt, den du nicht hast."
+    },
+    "sections": "Bereiche der Bibliothek",
+    "map": "Karte",
+    "json": "Import / Export",
+    "settings": "Einstellungen",
+    "old": "Alte Einträge",
+    "oldWhere": "Texte, Vorträge und Projekte stehen jetzt im Scriptorium, Kommentare sind eine Art im Wissen."
+  },
+  "search": {
+    "placeholder": "Die ganze Bibliothek durchsuchen — Titel, Autor, Teil eines Zitats, ISBN, Nummer…",
+    "label": "In der Bibliothek suchen",
+    "none": "Nichts gefunden."
+  },
+  "kindList": {
+    "search": "Suchen: {what}",
+    "everywhere": "auch aus anderen Bibliotheken ({n})",
+    "musicHint": "Stücke, Noten und Aufnahmen — auch Aufnahmen in Stimmen (Sopran, Alt, Tenor, Bass, Instrumente), die zusammen klingen. Die Art entscheidet, welche Felder ein Eintrag hat; Dateien werden im Browser verschlüsselt.",
+    "empty": "Noch kein Eintrag dieser Art.",
+    "noMatch": "Nichts passt.",
+    "otherLibrary": "andere Bibliothek"
+  },
+  "meta": {
+    "tracks": {
+      "one": "{count} Spur",
+      "other": "{count} Spuren"
+    },
+    "files": {
+      "one": "{count} Datei",
+      "other": "{count} Dateien"
+    },
+    "number": "Nr. {number}",
+    "quotes": {
+      "one": "{count} Zitat",
+      "other": "{count} Zitate"
+    },
+    "sources": {
+      "one": "{count} Quelle",
+      "other": "{count} Quellen"
+    }
+  },
+  "settings": {
+    "failed": "Das hat nicht geklappt.",
+    "area": "Bereich: {area} — wer seinen Schlüssel hat, liest diese Bibliothek.",
+    "areaReadOnly": "Bereich: {area} — wer seinen Schlüssel hat, liest diese Bibliothek. Du kannst sie nur lesen.",
+    "unknownArea": "unbekannt",
+    "saveName": "Namen speichern",
+    "whoSees": "Wer sie sieht",
+    "seenBy": "Sichtbar für: {who}. Damit ein Eintrag öffentlich wird (oder es nicht mehr ist), verschiebe ihn in die Bibliothek eines anderen Bereichs — beim Eintrag, im Kasten „Wer sieht es“.",
+    "oldCopies": {
+      "one": "{count} Eintrag hat noch alte, getrennt veröffentlichte Kopien (vor dem 22.10.2026). Niemand liest sie mehr; man kann sie zurückziehen.",
+      "other": "{count} Einträge haben noch alte, getrennt veröffentlichte Kopien (vor dem 22.10.2026). Niemand liest sie mehr; man kann sie zurückziehen."
+    },
+    "withdraw": "Alte Kopien zurückziehen",
+    "delete": "Bibliothek löschen",
+    "deleteHint": "Löscht alle Einträge; Seiten, die sie zeigten, schreiben, dass es den Text nicht mehr gibt. Das lässt sich nicht rückgängig machen. Exportiere vorher (Import / Export).",
+    "deleteConfirm": "Gib zur Bestätigung den Namen der Bibliothek ein",
+    "deleteForever": "Endgültig löschen"
+  },
+  "settle": {
+    "before": "Diese Sammlung entstand vor der Regel „wer den Bereich sieht, sieht sie“, darum liest sie heute niemand außerhalb des Bereichs.",
+    "public": "Der Bereich ist öffentlich: nach der Bestätigung sieht alle Einträge ({n}) jeder, auch ohne Konto.",
+    "notPublic": "Der Bereich ist nicht öffentlich: nach der Bestätigung ändert sich für niemanden außerhalb des Bereichs etwas.",
+    "understood": "Ich verstehe, wer es sehen wird",
+    "confirm": "Sichtbarkeit nach Bereich bestätigen"
+  },
+  "json": {
+    "what": "Was exportieren",
+    "summary": "JSON der Bibliothek — Export und Import",
+    "summaryKind": "JSON-Import / -Export: {kind}",
+    "lead": "Alle Einträge (oder gewählte Arten) als ein Dokument — Sicherung, Umzug, Arbeit mit KI. Der Import ändert vorhandene Einträge an Ort und Stelle und fügt neue hinzu; er löscht nichts.",
+    "leadKind": "{kind} als JSON — z. B. mehrere Bücher auf einmal, von einer KI vorbereitet. Der Import nimmt auch die Personen und Quellen an, auf die sie zeigen; vorhandene Einträge ändert er an Ort und Stelle, er löscht nichts.",
+    "fileName": "bibliothek",
+    "import": "Importieren und speichern",
+    "readOnly": "In dieser Bibliothek kannst du nur lesen.",
+    "saving": "Speichere {n} von {total}…",
+    "saveFailed": "{kind} „{title}“: {error}.",
+    "notSaved": "konnte nicht gespeichert werden",
+    "saved": "{n} von {total} gespeichert."
+  }
+}

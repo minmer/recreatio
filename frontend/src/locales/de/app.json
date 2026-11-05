@@ -1,0 +1,30 @@
+{
+  "view": {
+    "areas": "Bereiche",
+    "wspolnoty": "Gemeinschaften",
+    "calendar": "Kalender",
+    "tasks": "Aufgaben",
+    "masses": "Messen und Gottesdienste",
+    "bookings": "Reservierungen",
+    "chat": "Gespräche",
+    "sms": "SMS",
+    "contacts": "Kontakte",
+    "lamps": "Lampen",
+    "forms": "Formulare",
+    "library": "Bibliothek",
+    "scriptorium": "Skriptorium",
+    "knowledge": "Wissen",
+    "learn": "Lernen",
+    "registry": "Kartei und Hausbesuche",
+    "modules": "Module",
+    "pages": "Seiten",
+    "addresses": "Adressen und Domains",
+    "roles": "Rollen",
+    "account": "Konto",
+    "sprawy": "Anliegen",
+    "widok": "Ansicht"
+  },
+  "routes": {
+    "noSlug": "Der Teil \"{route}\" benennt keine einzelnen Dinge — \"{slug}\" gehört nicht dahinter."
+  }
+}

@@ -16,6 +16,7 @@
  * sie (zufällige Adressen); das Telefon sendet ohnehin mit seiner eigenen.
  */
 
+import { hasKey, t } from '../core/i18n';
 import { normalizeHex, significantHex } from './adv';
 import { DURATION_DEFAULT, type LampFrame } from './lampStore';
 import type { NativePacket, ScanCode } from './native';
@@ -259,23 +260,5 @@ export function parseNrfLog(text: string, address = 'nRF Connect'): { readonly p
 
 /* -- Was der Scan sagt ---------------------------------------------------------------------- */
 
-const SCAN_TEXT: Readonly<Record<ScanCode, string>> = {
-  'ok': 'Nasłuch trwa.',
-  'no-bluetooth': 'Ten telefon nie ma Bluetooth.',
-  'bluetooth-off': 'Bluetooth jest wyłączony — włącz go i spróbuj ponownie.',
-  'no-scanner': 'Android nie daje skanera BLE.',
-  'no-permission': 'Bez zgody na „Urządzenia w pobliżu" aplikacja nie słyszy pilota.',
-  'location-off': 'Na tym Androidzie (11 i starszy) skanowanie wymaga włączonej lokalizacji.',
-  'already-started': 'Skanowanie już trwa (SCAN_FAILED_ALREADY_STARTED).',
-  'registration-failed': 'Android nie zarejestrował skanowania (SCAN_FAILED_APPLICATION_REGISTRATION_FAILED) — wyłącz i włącz Bluetooth.',
-  'internal-error': 'Android: wewnętrzny błąd skanowania (SCAN_FAILED_INTERNAL_ERROR).',
-  'feature-unsupported': 'Ten telefon nie obsługuje takiego skanowania (SCAN_FAILED_FEATURE_UNSUPPORTED).',
-  'out-of-resources': 'Android: brak zasobów na skanowanie (SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES).',
-  'too-frequently': 'Android: zbyt częste skanowanie — odczekaj 30 s (najwyżej 5 startów na 30 s).',
-  'timeout': 'Nasłuch zakończony po ustalonym czasie.',
-  'stopped': 'Nasłuch zatrzymany.',
-  'paused': 'Nasłuch przerwany — aplikacja zeszła z ekranu.',
-  'error': 'Skanowanie się nie udało.'
-};
-
-export const scanText = (code: ScanCode): string => SCAN_TEXT[code] ?? SCAN_TEXT.error;
+/* Texte: lamps.scan.<Code> — je Code des Telefons einer. */
+export const scanText = (code: ScanCode): string => t(hasKey(`lamps.scan.${code}`) ? `lamps.scan.${code}` : 'lamps.scan.error');

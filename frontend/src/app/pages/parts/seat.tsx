@@ -19,13 +19,14 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { definePart, picked, text, type RawConfig } from '../part';
+import { fmtDate, t, useT } from '../../core/i18n';
+import { picked, text, type RawConfig } from '../part';
+import { field, texts, textPart, withTexts } from './partTexts';
 import { usePerson } from '../pagePerson';
 import { seatName, useSeats, type SeatView } from '../../seats/seatContext';
 import { PageSteps } from '../PageLogicView';
 import { usePageLogic } from '../pageLogic';
 import { SeatChatPeek, useShownSeats } from '../../chat/ChatPeek';
-import { plural } from '../../core/plural';
 import { ChatStep, chatStepStatus } from '../../steps/ChatStep';
 import { useSeatChatRows } from '../../seats/seatUnread';
 import { answerPresence, answerTask, stepsFor, type StepState } from '../../steps/steps';
@@ -70,15 +71,16 @@ function useOfficeView(): EntrySubject | null {
 type OfficeRender = (row: DeskRow, subject: EntrySubject) => ReactNode;
 
 function OfficeView({ head, subject, children }: { head: ReactNode; subject: EntrySubject; children: OfficeRender | undefined }) {
+  const t = useT();
   /* Warum (noch) nichts dasteht, sagt die Leiste oben; hier nur ein Satz. */
-  if (subject.desk === null || subject.ring == null) return <>{head}<p className="wk-card-muted">Dane osoby pojawią się po wyborze u góry strony.</p></>;
-  if (subject.chosen === null) return <>{head}<p className="wk-card-muted">Wybierz osobę u góry strony.</p></>;
+  if (subject.desk === null || subject.ring == null) return <>{head}<p className="wk-card-muted">{t('moduleDataSeat.office.dataLater')}</p></>;
+  if (subject.chosen === null) return <>{head}<p className="wk-card-muted">{t('moduleDataSeat.office.pick')}</p></>;
   return (
     <>
       {head}
       <div className="wk-office-view" data-office-view="">
         {children === undefined
-          ? <p className="wk-card-muted">Tę część osoba widzi w swoim linku — tu nie ma nic do pokazania o niej.</p>
+          ? <p className="wk-card-muted">{t('moduleDataSeat.office.nothing')}</p>
           : children(subject.chosen, subject)}
       </div>
     </>
@@ -104,6 +106,7 @@ function OfficeChats({ row, subject, areaId }: { row: DeskRow; subject: EntrySub
 
 /** „Napisz do nas": die Rozmowa an SEINEM Bereich (der Baustein hat einen eigenen). */
 function AskOffice({ moduleId, row, subject }: { moduleId: string; row: DeskRow; subject: EntrySubject }) {
+  const t = useT();
   const [areaId, setAreaId] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
@@ -111,7 +114,7 @@ function AskOffice({ moduleId, row, subject }: { moduleId: string; row: DeskRow;
       .catch(() => { if (alive) setAreaId(null); });
     return () => { alive = false; };
   }, [moduleId]);
-  if (areaId === undefined) return <Loading label="Wczytywanie rozmowy…" />;
+  if (areaId === undefined) return <Loading label={t('moduleDataSeat.office.chatLoading')} />;
   return <OfficeChats row={row} subject={subject} areaId={areaId} />;
 }
 
@@ -133,6 +136,7 @@ export function OnSeat({ title, fallback, empty, children, office }: {
   /** 0104 — was die Kanzlei hier über den oben gewählten Menschen sieht. */
   office?: OfficeRender;
 }) {
+  const t = useT();
   const seats = useSeats();
   const person = usePerson();
   const subject = useOfficeView();
@@ -150,7 +154,7 @@ export function OnSeat({ title, fallback, empty, children, office }: {
 
     if (chosen?.kind === 'seat') {
       return <>{head}{chosen.seat.seatKey === null
-        ? <p className="wk-card-muted">Bez klucza z adresu nie da się tego otworzyć.</p>
+        ? <p className="wk-card-muted">{t('moduleDataSeat.noKey')}</p>
         : children(chosen.seat)}</>;
     }
 
@@ -159,8 +163,8 @@ export function OnSeat({ title, fallback, empty, children, office }: {
         {head}
         <p className="wk-card-muted">
           {chosen?.kind === 'role'
-            ? `Osoba „${chosen.name}" nie otworzyła tu żadnego linku — to, co wysłała z linku, pokaże się po jego otwarciu.`
-            : seats.length > 0 ? 'Wybierz u góry strony, za kogo.' : empty}
+            ? t('moduleDataSeat.roleNoLink', { name: chosen.name })
+            : seats.length > 0 ? t('moduleDataSeat.pickWho') : empty}
         </p>
       </>
     );
@@ -171,7 +175,7 @@ export function OnSeat({ title, fallback, empty, children, office }: {
   }
 
   const one = (seat: SeatView) => seat.seatKey === null
-    ? <p className="wk-card-muted">Bez klucza z adresu nie da się tego otworzyć.</p>
+    ? <p className="wk-card-muted">{t('moduleDataSeat.noKey')}</p>
     : children(seat);
 
   if (seats.length === 1) return <>{head}{one(seats[0])}</>;
@@ -208,13 +212,11 @@ interface SubmissionConfig {
   readonly show: 'all' | ReadonlySet<string> | null;
 }
 
-export const seatSubmissionPart = definePart<SubmissionConfig>({
+export const seatSubmissionPart = textPart<SubmissionConfig>(texts({ label: 'moduleDataSeat.submission.label', use: 'moduleDataSeat.submission.use' }), {
   kind: 'seat-submission',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { form: '<id-formularza>', show: '*', title: 'Twoje zgłoszenie' },
-  label: 'Zgłoszenie osoby',
-  use: 'Pokazuje tej osobie to, co sama wysłała w wybranym formularzu.',
+  example: withTexts({ show: '*' }, texts({ form: 'moduleDataSeat.exForm', title: 'moduleDataSeat.submission.title' })),
   box: { colSpan: 3, rowSpan: 3 },
   takes: true,
 
@@ -224,9 +226,9 @@ export const seatSubmissionPart = definePart<SubmissionConfig>({
    * poprawiać: tak / nie", und das galt nur für den Knopf.
    */
   fields: [
-    { key: 'form', label: 'Z którego formularza', kind: 'form' },
-    { key: 'show', label: 'Które odpowiedzi widać', kind: 'questions', of: 'form' },
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoje zgłoszenie' }
+    field({ key: 'form', kind: 'form' }, texts({ label: 'moduleDataSeat.fromForm' })),
+    field({ key: 'show', kind: 'questions', of: 'form' }, texts({ label: 'moduleDataSeat.submission.show' })),
+    field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleDataSeat.submission.titleHint' }))
   ],
 
   read: (raw: RawConfig): SubmissionConfig => ({
@@ -236,23 +238,25 @@ export const seatSubmissionPart = definePart<SubmissionConfig>({
   }),
 
   hasContent: () => true,
-  strip: { title: 'Twoje zgłoszenie', open: 'Pokaż zgłoszenie' },
+  strip: texts({ title: 'moduleDataSeat.submission.title', open: 'moduleDataSeat.submission.open' }),
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nagłówek i przycisk — zgłoszenie rozwija się po kliknięciu.'
-    : 'Wszystkie wybrane odpowiedzi osoby, z możliwością poprawienia.',
+    ? t('moduleDataSeat.submission.showsStrip')
+    : t('moduleDataSeat.submission.showsBlock'),
 
   missing: (config) =>
-    config.form === null ? 'Wybierz formularz, z którego pochodzą odpowiedzi.'
-    : config.show === null ? 'Wybierz, które odpowiedzi ta osoba zobaczy.'
+    config.form === null ? t('moduleDataSeat.submission.missingForm')
+    : config.show === null ? t('moduleDataSeat.submission.missingShow')
     : null,
 
-  View: ({ config }) => (
+  View: function SeatSubmissionView({ config }) {
+    const t = useT();
+    return (
     <OnSeat
       title={config.title}
-      fallback="Twoje zgłoszenie"
-      empty="Tu pojawi się zgłoszenie osoby, która otworzy swój link."
+      fallback={t('moduleDataSeat.submission.title')}
+      empty={t('moduleDataSeat.submission.empty')}
       office={(row, e) => config.form !== null && config.form !== e.formId
-        ? <p className="wk-card-muted">Ten moduł pokazuje inny formularz niż ten, z którego wybrano osobę u góry strony.</p>
+        ? <p className="wk-card-muted">{t('moduleDataSeat.submission.otherForm')}</p>
         : <EntryDeskPanel desk={e.desk!} row={row} ring={e.ring!} sections={['answers', 'extensions']} />}
     >
       {(seat) => (
@@ -276,7 +280,8 @@ export const seatSubmissionPart = definePart<SubmissionConfig>({
         </>
       )}
     </OnSeat>
-  )
+    );
+  }
 });
 
 /* -- Was die ganze Gruppe sieht --------------------------------------------- */
@@ -285,54 +290,55 @@ interface SharedConfig {
   readonly title: string;
 }
 
-export const seatSharedPart = definePart<SharedConfig>({
+export const seatSharedPart = textPart<SharedConfig>(texts({ label: 'moduleDataSeat.shared.label', use: 'moduleDataSeat.shared.use' }), {
   kind: 'seat-shared',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Najbliższe spotkania' },
-  label: 'Wspólne terminy',
-  use: 'Terminy, które widzi cała grupa — jeśli miejsce niesie jej klucz.',
+  example: texts({ title: 'moduleDataSeat.shared.exTitle' }),
   box: { colSpan: 3, rowSpan: 3 },
 
-  fields: [{ key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Najbliższe spotkania' }],
+  fields: [field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleDataSeat.shared.titleHint' }))],
 
   read: (raw: RawConfig): SharedConfig => ({ title: text(raw, 'title') }),
   hasContent: () => true,
-  strip: { title: 'Wspólne terminy', open: 'Pokaż terminy' },
+  strip: texts({ title: 'moduleDataSeat.shared.label', open: 'moduleDataSeat.shared.open' }),
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nagłówek i przycisk — terminy rozwijają się po kliknięciu.'
-    : 'Terminy grupy na najbliższe tygodnie.',
+    ? t('moduleDataSeat.shared.showsStrip')
+    : t('moduleDataSeat.shared.showsBlock'),
 
-  View: ({ config }) => (
+  View: function SeatSharedView({ config }) {
+    const t = useT();
+    return (
     <OnSeat
       title={config.title}
-      fallback="Wspólne terminy"
-      empty="Tu pojawią się wspólne terminy, jeśli miejsce niesie klucz grupy."
-      office={() => <p className="wk-card-muted">Tu osoba widzi wspólne terminy swojej grupy.</p>}
+      fallback={t('moduleDataSeat.shared.label')}
+      empty={t('moduleDataSeat.shared.empty')}
+      office={() => <p className="wk-card-muted">{t('moduleDataSeat.shared.office')}</p>}
     >
       {(seat) => seat.shared.length === 0 ? (
-        <p className="wk-empty">Nic na najbliższe tygodnie.</p>
+        <p className="wk-empty">{t('moduleDataSeat.shared.none')}</p>
       ) : (
         <>
           <ul className="wk-card-lines">
             {seat.shared.map((one, i) => (
               <li key={i}>
                 <strong>
-                  {new Date(one.when).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}
+                  {fmtDate(new Date(one.when), { day: 'numeric', month: 'long' }, t.lang)}
                 </strong>
                 {' — '}
-                {one.what ?? 'zapieczętowane'}
+                {one.what ?? t('moduleDataSeat.shared.sealed')}
               </li>
             ))}
           </ul>
 
           {/* Wer es sonst noch sieht. Das gehört dazu: „wspólne" ohne Namen
               ist eine Behauptung. */}
-          <p className="wk-hint">Widzą to wszyscy: {seat.sharedNames.join(', ')}.</p>
+          <p className="wk-hint">{t('moduleDataSeat.shared.seenBy', { names: seat.sharedNames.join(', ') })}</p>
         </>
       )}
     </OnSeat>
-  )
+    );
+  }
 });
 
 /* -- Was er noch tun muss (0047/0048) ------------------------------------------ */
@@ -352,12 +358,13 @@ interface StepsConfig {
  * „Nie ma tu nic do zrobienia", während die Kanzlei „do zrobienia" las.
  */
 function StepsCard({ title }: { title: string }) {
+  const t = useT();
   const person = usePerson();
   const seats = useSeats();
   const logic = usePageLogic();
   const office = useOfficeView();
   const mapped = logic !== null && logic.logic.nodes.some((node) => node.kind === 'step');
-  const head = <h2 className="wk-card-title">{title === '' ? 'Twoje kroki' : title}</h2>;
+  const head = <h2 className="wk-card-title">{title === '' ? t('moduleDataSeat.steps.title') : title}</h2>;
 
   /* 0104 — die Kanzlei: die Schritte des oben gewählten Menschen, abzuhaken wie in „Osoby". */
   if (office !== null) {
@@ -378,7 +385,7 @@ function StepsCard({ title }: { title: string }) {
       <>
         {head}
         <p className="wk-card-muted">
-          {seats.length > 0 ? 'Wybierz u góry strony, za kogo.' : 'Tu pojawi się lista kroków osoby, która otworzy swój link.'}
+          {seats.length > 0 ? t('moduleDataSeat.pickWho') : t('moduleDataSeat.steps.empty')}
         </p>
       </>
     );
@@ -387,26 +394,24 @@ function StepsCard({ title }: { title: string }) {
   return <>{head}{mapped || seat === null ? <PageSteps seat={seat} /> : <SeatSteps seat={seat} formId={null} />}</>;
 }
 
-export const seatStepsPart = definePart<StepsConfig>({
+export const seatStepsPart = textPart<StepsConfig>(texts({ label: 'moduleDataSeat.steps.label', use: 'moduleDataSeat.steps.use' }), {
   kind: 'seat-steps',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Twoje kroki' },
-  label: 'Kroki osoby',
-  use: 'Lista kroków osoby — z mapy logiki strony, a bez kroków na mapie: kroki formularza (potwierdzenie danych, uzupełnienia, znaczniki, zadania).',
+  example: texts({ title: 'moduleDataSeat.steps.title' }),
   box: { colSpan: 3, rowSpan: 3 },
 
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoje kroki' }
+    field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleDataSeat.steps.titleHint' }))
   ],
 
   read: (raw: RawConfig): StepsConfig => ({ title: text(raw, 'title') }),
 
   hasContent: () => true,
-  strip: { title: 'Twoje kroki', open: 'Pokaż kroki' },
+  strip: texts({ title: 'moduleDataSeat.steps.title', open: 'moduleDataSeat.steps.open' }),
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nagłówek i przycisk — kroki rozwijają się po kliknięciu.'
-    : 'Lista kroków osoby, z tym, co już zrobione.',
+    ? t('moduleDataSeat.steps.showsStrip')
+    : t('moduleDataSeat.steps.showsBlock'),
 
   View: ({ config }) => <StepsCard title={config.title} />
 });
@@ -428,6 +433,7 @@ const PHASE_ORDER: Record<NonNullable<StepState['task']>['phase'], number> = { a
  * zugeklappt darunter.
  */
 function SeatTasks({ seat, formId }: { seat: SeatView; formId: string | null }) {
+  const t = useT();
   const forms = seat.forms.filter((form) => formId === null || form.formId === formId);
   const rows = forms
     .flatMap((form) => stepsFor({
@@ -446,7 +452,7 @@ function SeatTasks({ seat, formId }: { seat: SeatView; formId: string | null }) 
   }).map((s) => ({ form, s })));
   const chatRows = useSeatChatRows(reads.length > 0 ? [seat.token] : []);
 
-  if (rows.length === 0 && reads.length === 0) return <p className="wk-card-muted">Na razie nie ma żadnych zadań.</p>;
+  if (rows.length === 0 && reads.length === 0) return <p className="wk-card-muted">{t('moduleDataSeat.tasks.none')}</p>;
 
   const card = ({ form, s }: (typeof rows)[number]) => (
     <li key={`${form.registrationId}:${s.stepId}`} className="wk-task-item">
@@ -468,10 +474,10 @@ function SeatTasks({ seat, formId }: { seat: SeatView; formId: string | null }) 
     <div className="wk-tasks" data-seat-tasks="">
       {now.length > 0 || readRows.length > 0
         ? <ul className="wk-task-list">{readRows}{now.map(card)}</ul>
-        : <p className="wk-card-muted">Teraz nie ma zadań do zrobienia.</p>}
+        : <p className="wk-card-muted">{t('moduleDataSeat.tasks.noneNow')}</p>}
       {past.length > 0 && (
         <details className="wk-fold">
-          <summary>Zakończone ({past.length})</summary>
+          <summary>{t('moduleDataSeat.tasks.past', { count: past.length })}</summary>
           <ul className="wk-task-list">{past.map(card)}</ul>
         </details>
       )}
@@ -486,6 +492,7 @@ function SeatTasks({ seat, formId }: { seat: SeatView; formId: string | null }) 
  * ihn aufklappt.
  */
 function SeatTasksPeek({ formId }: { formId: string | null }) {
+  const t = useT();
   const seat = useShownSeats()[0];
   if (seat === undefined) return null;
   const waiting = seat.forms
@@ -497,21 +504,19 @@ function SeatTasksPeek({ formId }: { formId: string | null }) {
     .filter((one) => one.task !== undefined && !one.task.fulfilled && (one.task.phase === 'active' || one.task.phase === 'upcoming'))
     .length;
   if (waiting === 0) return null;
-  return <span className="wk-card-peek" data-tasks-waiting={waiting}>{waiting} {plural(waiting, 'zadanie czeka', 'zadania czekają', 'zadań czeka')}</span>;
+  return <span className="wk-card-peek" data-tasks-waiting={waiting}>{t('moduleDataSeat.tasks.waiting', { count: waiting })}</span>;
 }
 
-export const seatTasksPart = definePart<TasksConfig>({
+export const seatTasksPart = textPart<TasksConfig>(texts({ label: 'moduleDataSeat.tasks.label', use: 'moduleDataSeat.tasks.use' }), {
   kind: 'seat-tasks',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Twoje zadania', form: '<id-formularza>' },
-  label: 'Zadania osoby',
-  use: 'Zadania na pewien czas (np. różaniec w październiku) — osoba odpowiada przy każdym dniu w kalendarzu.',
+  example: texts({ title: 'moduleDataSeat.tasks.title', form: 'moduleDataSeat.exForm' }),
   box: { colSpan: 3, rowSpan: 3 },
 
   fields: [
-    { key: 'form', label: 'Z którego formularza', kind: 'form', optional: true },
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoje zadania' }
+    field({ key: 'form', kind: 'form', optional: true }, texts({ label: 'moduleDataSeat.fromForm' })),
+    field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleDataSeat.tasks.titleHint' }))
   ],
 
   read: (raw: RawConfig): TasksConfig => ({
@@ -520,27 +525,30 @@ export const seatTasksPart = definePart<TasksConfig>({
   }),
 
   hasContent: () => true,
-  strip: { title: 'Twoje zadania', open: 'Pokaż zadania' },
+  strip: texts({ title: 'moduleDataSeat.tasks.title', open: 'moduleDataSeat.tasks.open' }),
   peek: ({ config }) => <SeatTasksPeek formId={config.form} />,
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nagłówek, ile zadań czeka, i przycisk — zadania rozwijają się po kliknięciu.'
-    : 'Zadania osoby na teraz: decyzja i dni wykonania; zakończone zwinięte poniżej.',
+    ? t('moduleDataSeat.tasks.showsStrip')
+    : t('moduleDataSeat.tasks.showsBlock'),
 
-  View: ({ config }) => (
+  View: function SeatTasksView({ config }) {
+    const t = useT();
+    return (
     <OnSeat
       title={config.title}
-      fallback="Twoje zadania"
-      empty="Tu pojawią się zadania osoby, która otworzy swój link."
+      fallback={t('moduleDataSeat.tasks.title')}
+      empty={t('moduleDataSeat.tasks.empty')}
       office={(row, e) => {
         const tasks = row.states.filter((s) => s.task !== undefined || s.chat !== undefined);
         return tasks.length === 0
-          ? <p className="wk-card-muted">Ta osoba nie ma zadań.</p>
+          ? <p className="wk-card-muted">{t('moduleDataSeat.tasks.officeNone')}</p>
           : <PersonSteps registrationId={row.s.registrationId} states={tasks} onChanged={() => deskChanged(e.formId)} onError={() => undefined} />;
       }}
     >
       {(seat) => <SeatTasks seat={seat} formId={config.form} />}
     </OnSeat>
-  )
+    );
+  }
 });
 
 /* -- Die Rozmowa seiner Gruppe (0053) ------------------------------------------ */
@@ -554,38 +562,39 @@ interface ChatConfig {
  * dort einen Link hat, liest und schreibt mit; welche Rozmowa, sagt sein
  * Platz, nicht der Baustein.
  */
-export const seatChatPart = definePart<ChatConfig>({
+export const seatChatPart = textPart<ChatConfig>(texts({ label: 'moduleDataSeat.chat.label', use: 'moduleDataSeat.chat.use' }), {
   kind: 'seat-chat',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Rozmowa grupy' },
-  label: 'Rozmowa grupy',
-  use: 'Rozmowy osoby z linkiem: z prowadzącymi, kanały i rozmowy grup, do których należy.',
+  example: texts({ title: 'moduleDataSeat.chat.label' }),
   box: { colSpan: 3, rowSpan: 5 },
 
-  fields: [{ key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Rozmowa grupy' }],
+  fields: [field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleDataSeat.chat.titleHint' }))],
 
   read: (raw: RawConfig): ChatConfig => ({ title: text(raw, 'title') }),
   hasContent: () => true,
   /* Eine Rozmowa im Streifen wäre ein Guckloch — dort ein Knopf; sonst der Verlauf, hoch mit mehr davon. */
-  strip: { title: 'Rozmowa grupy', open: 'Otwórz rozmowę' },
+  strip: texts({ title: 'moduleDataSeat.chat.label', open: 'moduleDataSeat.openChat' }),
   /* 0102 — zugeklappt: wie viel Neues in seinen Rozmowy liegt. */
   peek: () => <SeatChatPeek kind="all" />,
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nagłówek i przycisk — rozmowa rozwija się po kliknięciu.'
-    : size.height === 'tall' ? 'Rozmowa z dłuższym widokiem wiadomości.' : 'Rozmowa: ostatnie wiadomości i pole do pisania.',
+    ? t('moduleDataSeat.chatShowsStrip')
+    : size.height === 'tall' ? t('moduleDataSeat.chat.showsTall') : t('moduleDataSeat.chat.showsBlock'),
 
-  View: ({ config }) => (
+  View: function SeatChatView({ config }) {
+    const t = useT();
+    return (
     <OnSeat
       title={config.title}
-      fallback="Rozmowa grupy"
-      empty="Tu pojawi się rozmowa grupy — dla osoby, która otworzy swój link."
+      fallback={t('moduleDataSeat.chat.label')}
+      empty={t('moduleDataSeat.chat.empty')}
       office={(row, e) => <OfficeChats row={row} subject={e} areaId={null} />}
     >
       {(seat) => <SeatChatBody seat={seat} />}
     </OnSeat>
-  )
+    );
+  }
 });
 
 /* -- Er fängt selbst an (0081) ------------------------------------------------------ */
@@ -602,13 +611,11 @@ interface AskConfig {
  * (`AskSetup`, `Chat.Ask.cs`). Die anderen aus dem Formular sehen seine
  * Rozmowa nicht.
  */
-export const seatAskPart = definePart<AskConfig>({
+export const seatAskPart = textPart<AskConfig>(texts({ label: 'moduleDataSeat.ask.label', use: 'moduleDataSeat.ask.use' }), {
   kind: 'seat-ask',
 
-  example: { title: 'Napisz do księdza' },
-  extra: [{ key: 'title', shape: 'line', says: 'nagłówek; kto odpowiada i z których formularzy można pisać, ustawia się w module (nie w JSON)' }],
-  label: 'Napisz do nas',
-  use: 'Osoba z linkiem (z wybranych formularzy) sama zaczyna rozmowę z wybranymi rolami — inni z formularza jej nie widzą.',
+  example: texts({ title: 'moduleDataSeat.ask.exTitle' }),
+  extra: [withTexts({ key: 'title', shape: 'line' } as const, texts({ says: 'moduleDataSeat.ask.says' }))],
   box: { colSpan: 3, rowSpan: 5 },
 
   fields: [],
@@ -617,22 +624,25 @@ export const seatAskPart = definePart<AskConfig>({
 
   read: (raw: RawConfig): AskConfig => ({ title: text(raw, 'title') }),
   hasContent: () => true,
-  strip: { title: 'Napisz do nas', open: 'Otwórz rozmowę' },
+  strip: texts({ title: 'moduleDataSeat.ask.label', open: 'moduleDataSeat.openChat' }),
   /* 0102 — zugeklappt: was die Prowadzący ihm geschrieben haben und er noch nicht las. */
   peek: () => <SeatChatPeek kind="seat" />,
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nagłówek i przycisk — rozmowa rozwija się po kliknięciu.'
-    : 'Przycisk „Napisz do: …", a potem rozmowa tej osoby z wybranymi rolami.',
+    ? t('moduleDataSeat.chatShowsStrip')
+    : t('moduleDataSeat.ask.showsBlock'),
 
-  View: ({ config, ctx }) => (
+  View: function SeatAskView({ config, ctx }) {
+    const t = useT();
+    return (
     <OnSeat
       title={config.title}
-      fallback="Napisz do nas"
-      empty="Tu osoba, która otworzy swój link, napisze do wybranych osób — tylko one i ona widzą tę rozmowę."
+      fallback={t('moduleDataSeat.ask.label')}
+      empty={t('moduleDataSeat.ask.empty')}
       office={(row, e) => <AskOffice moduleId={ctx.moduleId} row={row} subject={e} />}
     >
       {(seat) => <SeatAskBody seat={seat} moduleId={ctx.moduleId} />}
     </OnSeat>
-  )
+    );
+  }
 });

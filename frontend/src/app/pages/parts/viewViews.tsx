@@ -16,6 +16,8 @@
 import { answeredCards } from '../../cogita/learn';
 import { useMemo, useState } from 'react';
 
+import { useT } from '../../core/i18n';
+
 import type { PartContext } from '../part';
 import { scopeOf, useScope } from '../partQuery';
 import type { Card } from '../../cogita/cardBasics';
@@ -70,22 +72,24 @@ export function modeOf(asked: string, saved: string): PageMode {
   if (word === 'macierz' || word === 'matrix') return 'matrix';
   if (word === 'mapa' || word === 'map') return 'map';
   /* 2026-11-01 — die Mapa postępów: Kacheln in der Farbe dessen, wie gut der Besucher jeden Eintrag kann. */
-  if (word === 'postepy' || word === 'postępy' || word === 'mapa postępów' || word === 'mapa postepow' || word === 'kafelki' || word === 'quilt') return 'quilt';
+  if (word === 'postepy' || word === 'postępy' || word === 'mapa postępów' || word === 'mapa postepow' || word === 'kafelki' || word === 'quilt') return 'quilt'; // i18n-ignore
   /* 2026-11-03 — der Krajobraz: Tal, Ring, Berge — die eigene Landschaft des Wissens. */
   if (word === 'krajobraz' || word === 'landscape') return 'landscape';
   return saved === 'tree' || saved === 'matrix' || saved === 'map' || saved === 'quilt' || saved === 'landscape' ? saved : 'table';
 }
 
 const MODE_WORD: Record<PageMode, string> = { table: 'tabela', tree: 'drzewo', matrix: 'macierz', map: 'mapa', quilt: 'postepy', landscape: 'krajobraz' };
-const MODE_LABEL: Record<PageMode, string> = { table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', map: 'Mapa', quilt: 'Postępy', landscape: 'Krajobraz' };
+/** Schlüssel der Bezeichnungen — übersetzt beim Zeichnen. */
+const MODE_LABEL: Record<PageMode, string> = { table: 'moduleDataLearn.viewView.modeTable', tree: 'moduleDataLearn.viewView.modeTree', matrix: 'moduleDataLearn.viewView.modeMatrix', map: 'moduleDataLearn.viewView.modeMap', quilt: 'moduleDataLearn.viewView.modeQuilt', landscape: 'moduleDataLearn.viewView.modeLandscape' };
 
 /** Ein Eintrag, aufgeklappt: eine Aussage mit ihren Bausteinen, ein Kazanie ganz, alles andere als Karte. */
 export function EntryCard({ lib, id, ctx, scope, delivery, onDelivery }: {
   lib: CogitaLibrary; id: string; ctx: PartContext; scope: string; delivery: string | null; onDelivery: (d: string | null) => void;
 }) {
+  const t = useT();
   const entry = lib.entry(id);
   const entity = lib.entity(id);
-  if (entry === undefined || entity === undefined) return <p className="wk-card-muted">Tego wpisu tu nie ma.</p>;
+  if (entry === undefined || entity === undefined) return <p className="wk-card-muted">{t('moduleDataLearn.viewView.noEntryHere')}</p>;
   if (blocksField(entity, lib.look) !== undefined) return <div className="cg-card"><StatementCard entry={entry} look={lib.markupLook} prefix={`v${scope}-`} about /></div>;
   const home = lib.origin(id);
   /* 2026-10-23 — ein Kazanie liegt im Skryptorium (früher in der Bibliothek). */
@@ -97,6 +101,7 @@ export function EntryCard({ lib, id, ctx, scope, delivery, onDelivery }: {
 
 /** „Ucz się tego": die Karten dieser Einträge, nach dem, was dieser Browser schon kann. */
 function LearnThis({ lib, ids, title, onClose }: { lib: CogitaLibrary; ids: readonly string[]; title: string; onClose: () => void }) {
+  const t = useT();
   const learner = useLocalLearner(lib.libraryId);
   const all = useAsync(() => lib.cards('page').then((r) => r.cards), [lib, lib.revision]);
   const source = useMemo(() => {
@@ -106,12 +111,13 @@ function LearnThis({ lib, ids, title, onClose }: { lib: CogitaLibrary; ids: read
     return { plan: readPlan(of, { mode: 'temporal', stackSize: 20 }), cards: of, deps: lib.dependencies(), title };
   }, [all, ids, lib, title]);
   if (source === null) return <Loading />;
-  if (source.cards.length === 0) return <p className="wk-card-muted">Z tych wpisów nie powstają karty do nauki. <button type="button" className="wk-link-btn" onClick={onClose}>Wróć</button></p>;
+  if (source.cards.length === 0) return <p className="wk-card-muted">{t('moduleDataLearn.viewView.noCards')} <button type="button" className="wk-link-btn" onClick={onClose}>{t('moduleDataLearn.viewView.back')}</button></p>;
   return <RevisionRun lib={lib} learner={learner} source={source} onClose={onClose} />;
 }
 
 /** Die Mapa (aus „Mapa wiedzy"): die Einträge des Widoku, verbunden durch Voraussetzungen, im Nebel des Lernens. */
 function MapOf({ lib, list, tall, onOpen, onLearn }: { lib: CogitaLibrary; list: readonly Entity[]; tall: boolean; onOpen: (id: string) => void; onLearn: (ids: readonly string[], title: string) => void }) {
+  const t = useT();
   const learner = useLocalLearner(lib.libraryId);
   const all = useAsync(() => lib.cards('page').then((r) => r.cards), [lib, lib.revision]);
   const deps = useMemo(() => lib.dependencies(), [lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -130,22 +136,23 @@ function MapOf({ lib, list, tall, onOpen, onLearn }: { lib: CogitaLibrary; list:
   const known = graph.ids.filter((id) => fog.get(id) === 'known').length;
   return (
     <>
-      <p className="wk-card-muted">{known} z {graph.ids.length} umiesz · przerywana obwódka — możesz tam wejść; mgła — jeszcze nieodkryte.</p>
-      <Bar value={known / Math.max(1, graph.ids.length)} label="Ile już umiesz" />
+      <p className="wk-card-muted">{t('moduleDataCogita.v.mapLegend', { x: known, y: graph.ids.length })}</p>
+      <Bar value={known / Math.max(1, graph.ids.length)} label={t('moduleDataCogita.v.howMuchKnown')} />
       <FogMap tall={tall} edges={graph.edges} place={graph.place} onOpen={onOpen}
         nodes={graph.ids.map((id) => {
           const state = fog.get(id) ?? 'fog';
           const e = lib.entity(id);
           const label = e === undefined ? '?' : lib.label(e);
           /* 2026-11-01 — die Mapa setzt Wzory (FogMap mit `TexText`); der Hinweis bleibt eine Zeile ohne LaTeX. */
-          return { id, label: e === undefined ? '?' : lib.labelTex(e), state, title: state === 'fog' ? 'Jeszcze w mgle' : `${label} · ${Math.round(shareOf(knowness(id)) * 100)}%` };
+          return { id, label: e === undefined ? '?' : lib.labelTex(e), state, title: state === 'fog' ? t('moduleDataCogita.v.inFog') : `${label} · ${Math.round(shareOf(knowness(id)) * 100)}%` };
         })} />
-      {graph.ids.length > 0 && <button type="button" className="wk-link-btn" onClick={() => onLearn(graph.ids, 'Mapa')}>Ucz się tego</button>}
+      {graph.ids.length > 0 && <button type="button" className="wk-link-btn" onClick={() => onLearn(graph.ids, t('moduleDataCogita.v.map'))}>{t('moduleDataLearn.viewView.learnThis')}</button>}
     </>
   );
 }
 
 export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext }) {
+  const t = useT();
   const { lib, ctx: cg } = usePageBase(config.library);
   const scope = scopeOf(ctx.moduleId);
   const [state, setState] = useScope(scope);
@@ -191,11 +198,11 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   const matrix = useMemo(() => (vlib == null || mode !== 'matrix' ? null : viewMatrix(vlib, saved.matrix === null ? { ...saved, matrix: { rows: saved.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : saved, list)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [vlib, list, mode, saved]);
-  const title = config.title || saved.name || 'Widok';
+  const title = config.title || saved.name || t('moduleDataLearn.view');
 
   if (lib === undefined) return <><h2 className="wk-card-title">{title}</h2><Loading /></>;
-  if (lib === null || cg === null) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">Tej bazy wiedzy nie możesz tu czytać — nie jest publiczna albo nie masz do niej dostępu.</p></>;
-  if (doc === undefined) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">Tego widoku nie ma w bazie wiedzy.</p></>;
+  if (lib === null || cg === null) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">{t('moduleDataCogita.v.closed')}</p></>;
+  if (doc === undefined) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">{t('moduleDataLearn.noView')}</p></>;
 
   const open = (id: string) => {
     if (subject !== null && subject.library === config.library) { subject.choose(id); window.scrollTo({ top: 0, behavior: 'smooth' }); }
@@ -205,8 +212,8 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   if (ctx.size.height === 'strip' && ctx.whole !== true) {
     return (
       <p className="cg-row">
-        <strong>{title}</strong><span className="wk-card-muted">{list.length} wpisów</span>
-        {ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>Zobacz</button>}
+        <strong>{title}</strong><span className="wk-card-muted">{t('moduleDataCogita.v.entriesCount', { count: list.length })}</span>
+        {ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>{t('moduleDataCogita.v.see')}</button>}
       </p>
     );
   }
@@ -224,7 +231,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
         <h2 className="wk-card-title">{title}</h2>
         {knowCards == null ? <Loading /> : (
           <QuiltView view={saved} list={list} cards={knowCards} answers={visitorAnswers} learner={visitor.learner} onOpen={open} compact
-            {...(ctx.openWhole === undefined ? {} : { more: <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cała mapa</button> })} />
+            {...(ctx.openWhole === undefined ? {} : { more: <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>{t('moduleDataLearn.viewView.wholeMap')}</button> })} />
         )}
         <LearnerLine learner={visitor} lib={lib} />
       </CogitaContext.Provider>
@@ -237,7 +244,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
         <h2 className="wk-card-title">{title}</h2>
         {knowCards == null ? <Loading /> : (
           <LandscapeView view={saved} cards={knowCards} learner={visitor.learner} onOpen={open} compact viewKey={config.view} rewards={runRules}
-            {...(ctx.openWhole === undefined ? {} : { more: <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cały krajobraz</button> })} />
+            {...(ctx.openWhole === undefined ? {} : { more: <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>{t('moduleDataLearn.wholeLandscape')}</button> })} />
         )}
         <LearnerLine learner={visitor} lib={lib} />
       </CogitaContext.Provider>
@@ -250,7 +257,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
         {/* 2026-10-23 (Schritt 5) — was der Widok nach Tematy tat: ein Hinweis statt einer stillen Lücke. */}
         {saved.retired.length > 0 && <p className="wk-card-muted">{saved.retired.join(' ')}</p>}
         <ul className="cg-plain-list">{list.slice(0, 8).map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => open(e.id)}><TexText text={lib.labelTex(e)} /></button></li>)}</ul>
-        {list.length > 8 && <p className="wk-card-muted">i {list.length - 8} więcej{ctx.openWhole !== undefined ? ' — ' : ''}{ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cały widok</button>}</p>}
+        {list.length > 8 && <p className="wk-card-muted">{t('moduleDataCogita.v.andMore', { count: list.length - 8 })}{ctx.openWhole !== undefined ? ' — ' : ''}{ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>{t('moduleDataLearn.viewView.wholeView')}</button>}</p>}
         {state.e !== undefined && <EntryCard lib={lib} id={state.e} ctx={ctx} scope={scope} delivery={state.d ?? null} onDelivery={(d) => setState({ d })} />}
       </CogitaContext.Provider>
     );
@@ -258,11 +265,11 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
 
   const words = fold(query).split(/\s+/).filter(Boolean);
   const textOf = (e: Entity) => `${lib.label(e)} ${fieldsOf(e, lib.look).map((f) => cellText(lib, e, f.key)).join(' ')}`;
-  const shown = words.length === 0 ? list : list.filter((e) => { const t = fold(textOf(e)); return words.every((w) => t.includes(w)); });
+  const shown = words.length === 0 ? list : list.filter((e) => { const folded = fold(textOf(e)); return words.every((w) => folded.includes(w)); });
   const sortKey = state.s ?? '';
   const shownLib = vlib ?? lib;
   const columns = viewColumns(shownLib, saved, list);
-  const sorted = sortKey === '' ? shown : [...shown].sort((a, b) => cellText(shownLib, a, sortKey.replace(/^-/, '')).localeCompare(cellText(shownLib, b, sortKey.replace(/^-/, '')), 'pl', { numeric: true }) * (sortKey.startsWith('-') ? -1 : 1));
+  const sorted = sortKey === '' ? shown : [...shown].sort((a, b) => cellText(shownLib, a, sortKey.replace(/^-/, '')).localeCompare(cellText(shownLib, b, sortKey.replace(/^-/, '')), t.locale, { numeric: true }) * (sortKey.startsWith('-') ? -1 : 1));
   const sortBy = (key: string) => setState({ s: sortKey === key ? `-${key}` : sortKey === `-${key}` ? null : key });
   const arrow = (key: string) => (sortKey === key ? ' ▲' : sortKey === `-${key}` ? ' ▼' : '');
 
@@ -279,7 +286,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
       <h2 className="wk-card-title">{title}</h2>
       {saved.retired.length > 0 && <p className="wk-card-muted">{saved.retired.join(' ')}</p>}
       {(cellIds !== null || openEntity !== undefined) && (
-        <nav className="cg-crumbs cg-muted" aria-label="Ścieżka w widoku">
+        <nav className="cg-crumbs cg-muted" aria-label={t('moduleDataLearn.viewView.crumbs')}>
           <button type="button" className="wk-link-btn" onClick={() => setState({ c: null, e: null, d: null })}>{title}</button>
           {cellIds !== null && <span>› <button type="button" className="wk-link-btn" onClick={() => setState({ e: null, d: null })}>{cellWords}</button></span>}
           {openEntity !== undefined && <span>› <TexText text={lib.labelTex(openEntity)} /></span>}
@@ -287,24 +294,24 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
       )}
       {/* 2026-11-05 — ein Krajobraz hat oben nichts davon (Suche, Gestalten, Zahl): die Karte selbst ist die Ansicht. */}
       {mode !== 'landscape' && <div className="cg-row">
-        {config.switching && <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder="Szukaj w widoku…" aria-label={`Szukaj: ${title}`} data-view-search="" />}
+        {config.switching && <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder={t('moduleDataLearn.viewView.searchPh')} aria-label={t('moduleDataLearn.searchIn', { title })} data-view-search="" />}
         {/* 2026-11-05 — hat die Seite die Gestalt gewählt („Jak pokazać"), bleibt sie: keine Knöpfe zum Umschalten (Prompt 17, §5: ohne Erlaubnis nie). */}
         {config.switching && config.mode.trim() === '' && <span className="cg-subtabs" data-view-switch="">
           {(['table', 'tree', 'matrix', 'map', 'quilt', 'landscape'] as const).filter((m) => m !== 'matrix' || saved.matrix !== null || mode === 'matrix').map((m) => (
             <button key={m} type="button" className={mode === m ? 'is-on' : ''} onClick={() => setState({ u: MODE_WORD[m], c: null })}
               /* 2026-11-03 — die gewählte Gestalt bleibt in der (auf dem Telefon scrollenden) Reihe sichtbar — nur die Reihe scrollt, nie die Seite. */
-              ref={mode === m ? (el) => { const row = el?.parentElement; if (el != null && row != null && el.offsetLeft + el.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = el.offsetLeft + el.offsetWidth - row.clientWidth; } : undefined}>{MODE_LABEL[m]}</button>
+              ref={mode === m ? (el) => { const row = el?.parentElement; if (el != null && row != null && el.offsetLeft + el.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = el.offsetLeft + el.offsetWidth - row.clientWidth; } : undefined}>{t(MODE_LABEL[m])}</button>
           ))}
         </span>}
-        <span className="wk-card-muted">{shown.length === list.length ? `${list.length} wpisów` : `${shown.length} z ${list.length}`}</span>
-        {shownIds.length > 0 && <button type="button" className="wk-link-btn" onClick={() => setLearning({ ids: shownIds, title: cellIds !== null ? cellWords : title })}>Ucz się tego</button>}
+        <span className="wk-card-muted">{shown.length === list.length ? t('moduleDataCogita.v.entriesCount', { count: list.length }) : t('moduleDataCogita.v.xOfY', { x: shown.length, y: list.length })}</span>
+        {shownIds.length > 0 && <button type="button" className="wk-link-btn" onClick={() => setLearning({ ids: shownIds, title: cellIds !== null ? cellWords : title })}>{t('moduleDataLearn.viewView.learnThis')}</button>}
       </div>}
       {mode === 'table' && (
         <div className="cg-table-wrap">
           <table className="cg-table">
             <thead>
               <tr>
-                <th><button type="button" onClick={() => sortBy('_label')}>Nazwa{arrow('_label')}</button></th>
+                <th><button type="button" onClick={() => sortBy('_label')}>{t('common.name')}{arrow('_label')}</button></th>
                 {columns.map((c) => <th key={c.key}><button type="button" onClick={() => sortBy(c.key)}>{c.label}{arrow(c.key)}</button></th>)}
               </tr>
             </thead>
@@ -350,7 +357,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
           )}
         </>
       )}
-      {mode === 'map' && <MapOf lib={lib} list={sorted} tall={isTall(ctx)} onOpen={open} onLearn={(ids, t) => setLearning({ ids, title: t })} />}
+      {mode === 'map' && <MapOf lib={lib} list={sorted} tall={isTall(ctx)} onOpen={open} onLearn={(ids, named) => setLearning({ ids, title: named })} />}
       {/* 2026-11-01 — die Mapa postępów: wie gut der Besucher jeden Eintrag kann; eine Kachel zeigt, was zu lesen ist, die Fragen und „Ćwicz to". */}
       {mode === 'quilt' && (knowCards == null ? <Loading /> : (
         <>
@@ -365,7 +372,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
           <LearnerLine learner={visitor} lib={lib} />
         </>
       ))}
-      {shown.length === 0 && mode !== 'landscape' && <p className="wk-card-muted">Nic nie pasuje.</p>}
+      {shown.length === 0 && mode !== 'landscape' && <p className="wk-card-muted">{t('moduleDataCogita.v.noMatch')}</p>}
       {state.e !== undefined && <EntryCard lib={lib} id={state.e} ctx={ctx} scope={scope} delivery={state.d ?? null} onDelivery={(d) => setState({ d })} />}
     </CogitaContext.Provider>
   );

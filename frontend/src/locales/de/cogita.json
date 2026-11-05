@@ -1,0 +1,8 @@
+{
+  "learnerLoading": {
+    "title": "Dein Fortschritt wird geladen…",
+    "count": "{done} von {total}",
+    "countOpen": "{done} geladen",
+    "note": "Die Landschaft lässt sich bedienen, sobald dein Fortschritt da ist."
+  }
+}

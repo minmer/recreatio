@@ -19,9 +19,9 @@
  * (eindeutig — sonst eine Warnung) und über den Schlüssel, den der Export ihm gäbe.
  */
 
+import { t } from '../core/i18n';
 import { describe, keyLines, pretty, textNode, type JsonNode } from '../core/jsonTree';
 import { newId } from '../core/ids';
-import { plural } from '../core/plural';
 import { LEGACY_MAX } from './adv';
 import {
   ACTIONS_MAX, DURATION_DEFAULT, DURATION_MAX, DURATION_MIN, emptyLamp, emptyTimer, FRAMES_MAX, GAP_MAX, lampTitle, minuteOf,
@@ -47,63 +47,70 @@ export interface LampsNow {
 
 type Keys = Readonly<Record<string, string>>;
 
-export const DOC_KEYS: Keys = {
-  format: `zawsze "${LAMPS_FORMAT}"`,
-  version: `${LAMPS_VERSION} (wersja formatu)`,
-  buttons: 'tempo przycisków: { "pauseMs" } (niżej: Tempo); pominięte — bez zmian',
-  lamps: 'urządzenia z ich sygnałami (niżej); pominięte — bez zmian',
-  timers: 'timery (niżej); pominięte — bez zmian'
-};
+/** Eine Tabelle, deren Sätze erst beim Lesen geholt werden (in der Sprache der Anwendung) — die Form bleibt. */
+function lazy(table: Readonly<Record<string, () => string>>): Keys {
+  const out: Record<string, string> = {};
+  for (const [key, text] of Object.entries(table)) Object.defineProperty(out, key, { get: text, enumerable: true });
+  return out;
+}
 
-export const LAMP_KEYS: Keys = {
-  id: 'identyfikator z eksportu — po nim import zmienia to samo urządzenie; bez niego (albo z identyfikatorem, którego tu nie ma, np. z innego konta) powstaje nowe',
-  key: 'krótka nazwa, na którą wskazują akcje timerów w tym dokumencie ("@klucz"): litery, cyfry, - _ . (do 40 znaków), niepowtarzalna — nie jest zapisywana',
-  name: 'nazwa, np. „Lampa w sypialni” — nazwa albo numer są wymagane',
-  number: 'numer urządzenia jako tekst, np. "3" (porządkuje przyciski); null — bez numeru',
-  room: 'pomieszczenie, np. „Sypialnia”, albo null',
-  note: 'notatka o protokole (producent, adres pilota, co znaczą bajty) albo null',
-  protocol: '"ble-adv" — surowa reklama BLE (legacy); jedyny protokół, można pominąć',
-  signals: 'sygnały — przyciski urządzenia (niżej)',
-  remove: 'true — usuwa urządzenie razem z jego sygnałami (tylko z "id"); timery, które ich używają, przestaną je wykonywać — lista zmian ostrzega'
-};
+export const DOC_KEYS: Keys = lazy({
+  format: () => t('lampsJson.keys.doc.format', { format: LAMPS_FORMAT }),
+  version: () => t('lampsJson.keys.doc.version', { version: LAMPS_VERSION }),
+  buttons: () => t('lampsJson.keys.doc.buttons'),
+  lamps: () => t('lampsJson.keys.doc.lamps'),
+  timers: () => t('lampsJson.keys.doc.timers')
+});
 
-export const SIGNAL_KEYS: Keys = {
-  id: 'identyfikator sygnału z eksportu (w obrębie urządzenia) — po nim import zmienia ten sam sygnał; bez niego powstaje nowy',
-  key: 'krótka nazwa sygnału dla akcji timerów ("@klucz"), niepowtarzalna w urządzeniu — nie jest zapisywana',
-  label: 'napis na przycisku, np. „Włącz” (wymagany)',
-  note: 'notatka albo null',
-  frames: `ramki nadawane po kolei, od 1 do ${FRAMES_MAX} (niżej); podane zastępują wszystkie ramki sygnału`,
-  remove: 'true — usuwa sygnał (tylko z "id")'
-};
+export const LAMP_KEYS: Keys = lazy({
+  id: () => t('lampsJson.keys.lamp.id'),
+  key: () => t('lampsJson.keys.lamp.key'),
+  name: () => t('lampsJson.keys.lamp.name'),
+  number: () => t('lampsJson.keys.lamp.number'),
+  room: () => t('lampsJson.keys.lamp.room'),
+  note: () => t('lampsJson.keys.lamp.note'),
+  protocol: () => t('lampsJson.keys.lamp.protocol'),
+  signals: () => t('lampsJson.keys.lamp.signals'),
+  remove: () => t('lampsJson.keys.lamp.remove')
+});
 
-export const FRAME_KEYS: Keys = {
-  hex: 'cały pakiet reklamy BLE szesnastkowo, jak w nRF Connect: "1EFF0000…"; spacje, dwukropki, przecinki i 0x import usuwa',
-  durationMs: `jak długo nadawać, ${DURATION_MIN}–${DURATION_MAX} ms (domyślnie ${DURATION_DEFAULT})`,
-  gapMs: `przerwa przed następną ramką, 0–${GAP_MAX} ms (domyślnie 0; po ostatniej nie ma znaczenia)`
-};
+export const SIGNAL_KEYS: Keys = lazy({
+  id: () => t('lampsJson.keys.signal.id'),
+  key: () => t('lampsJson.keys.signal.key'),
+  label: () => t('lampsJson.keys.signal.label'),
+  note: () => t('lampsJson.keys.signal.note'),
+  frames: () => t('lampsJson.keys.signal.frames', { max: FRAMES_MAX }),
+  remove: () => t('lampsJson.keys.signal.remove')
+});
 
-export const TIMER_KEYS: Keys = {
-  id: 'identyfikator z eksportu — po nim import zmienia ten sam timer; bez niego powstaje nowy',
-  name: 'nazwa, np. „Rano” (opcjonalnie; bez niej — „Timer 07:00”)',
-  time: 'godzina "GG:MM" według zegara telefonu, np. "06:45" — wymagana przy nowym timerze',
-  days: 'dni tygodnia: 1–7 (1 = poniedziałek … 7 = niedziela) albo "pn", "wt", "śr", "cz", "pt", "so", "nd"; [] — codziennie',
-  enabled: 'true — włączony (domyślnie), false — wyłączony',
-  pace: 'tempo tego timera: { "pauseMs", "limitMs" } (niżej); pominięte przy nowym — najszybciej',
-  actions: `akcje wysyłane po kolei, od 1 do ${ACTIONS_MAX} (niżej); podane zastępują wszystkie akcje timera`,
-  remove: 'true — usuwa timer (tylko z "id")'
-};
+export const FRAME_KEYS: Keys = lazy({
+  hex: () => t('lampsJson.keys.frame.hex'),
+  durationMs: () => t('lampsJson.keys.frame.durationMs', { min: DURATION_MIN, max: DURATION_MAX, default: DURATION_DEFAULT }),
+  gapMs: () => t('lampsJson.keys.frame.gapMs', { max: GAP_MAX })
+});
 
-export const ACTION_KEYS: Keys = {
-  lamp: 'urządzenie: "@klucz" z tego dokumentu, "id" z eksportu albo nazwa lub numer urządzenia („Lampa w sypialni”, "nr 3")',
-  signal: 'sygnał TEGO urządzenia: "@klucz", "id" albo napis na przycisku („Włącz”)'
-};
+export const TIMER_KEYS: Keys = lazy({
+  id: () => t('lampsJson.keys.timer.id'),
+  name: () => t('lampsJson.keys.timer.name'),
+  time: () => t('lampsJson.keys.timer.time'),
+  days: () => t('lampsJson.keys.timer.days'),
+  enabled: () => t('lampsJson.keys.timer.enabled'),
+  pace: () => t('lampsJson.keys.timer.pace'),
+  actions: () => t('lampsJson.keys.timer.actions', { max: ACTIONS_MAX }),
+  remove: () => t('lampsJson.keys.timer.remove')
+});
 
-export const PACE_KEYS: Keys = {
-  pauseMs: `przerwa między nadaniami, 0–${GAP_MAX} ms: między pakietami w ramce (pakiet co 100 ms + przerwa), między ramkami i między akcjami; 0 — bez przerwy`,
-  limitMs: `tylko w timerze: najdłużej tyle ms nadawać każdą ramkę (co najmniej ${DURATION_MIN}); null — tak długo, jak zapisano`
-};
+export const ACTION_KEYS: Keys = lazy({
+  lamp: () => t('lampsJson.keys.action.lamp'),
+  signal: () => t('lampsJson.keys.action.signal')
+});
 
-export const BUTTONS_KEYS: Keys = { pauseMs: PACE_KEYS.pauseMs };
+export const PACE_KEYS: Keys = lazy({
+  pauseMs: () => t('lampsJson.keys.pace.pauseMs', { max: GAP_MAX }),
+  limitMs: () => t('lampsJson.keys.pace.limitMs', { min: DURATION_MIN })
+});
+
+export const BUTTONS_KEYS: Keys = lazy({ pauseMs: () => PACE_KEYS.pauseMs });
 
 /** Wo welche Schlüssel gelten — der Weg im Dokument (`lamps[].signals[]`) und seine Schlüssel. */
 export const LAMPS_LEVELS: Readonly<Record<string, Keys>> = {
@@ -126,7 +133,7 @@ const has = (o: Readonly<Record<string, unknown>>, key: string): boolean => Obje
 
 /** Zum Vergleichen von Namen: ohne Gross/klein, Zeichen über den Buchstaben, Satzzeichen — „Lampa w sypialni · nr 3" = „lampa w sypialni nr 3". */
 const fold = (s: string): string =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[łŁ]/g, 'l').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[łŁ]/g, 'l').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); // i18n-ignore
 
 const slug = (s: string, fallback: string): string =>
   fold(s).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32).replace(/-+$/, '') || fallback;
@@ -141,13 +148,13 @@ const unique = (base: string, taken: Set<string>): string => {
 /** Ein Schlüssel des Dokuments — Buchstaben, Ziffern, - _ . (ein „@" davor wird verziehen). */
 const KEY_PATTERN = /^[\p{L}\p{N}_.-]{1,40}$/u;
 
-const quoted = (s: string): string => (s.trim() === '' ? '(bez nazwy)' : `„${s.trim()}”`);
+const quoted = (s: string): string => (s.trim() === '' ? t('lampsJson.noName') : `„${s.trim()}”`);
 
 /** Was ein Dokument nicht kennt, wird genannt — nicht still verschluckt. */
 function unknownKeys(o: Doc, known: Keys, where: string, warnings: string[]): void {
   const extra = Object.keys(o).filter((key) => !has(known, key));
-  if (extra.length === 1) warnings.push(`${where}: nieznany klucz „${extra[0]}” — pominięty.`);
-  else if (extra.length > 1) warnings.push(`${where}: nieznane klucze ${extra.map((k) => `„${k}”`).join(', ')} — pominięte.`);
+  if (extra.length === 1) warnings.push(t('lampsJson.warn.unknownKey', { where, key: extra[0] }));
+  else if (extra.length > 1) warnings.push(t('lampsJson.warn.unknownKeys', { where, keys: extra.map((k) => `„${k}”`).join(', ') }));
 }
 
 /** Ein Text: Zeichenkette (getrimmt) oder Zahl („number": 3); `null` leert; Anderes — `undefined` und eine Warnung (bleibt). */
@@ -155,14 +162,14 @@ function readText(value: unknown, where: string, warnings: string[]): string | n
   if (value === null) return null;
   if (typeof value === 'string') return value.trim();
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-  warnings.push(`${where} musi być tekstem — pominięte.`);
+  warnings.push(t('lampsJson.warn.notText', { where }));
   return undefined;
 }
 
 function readId(value: unknown, where: string, warnings: string[]): string | null {
   if (value === undefined || value === null) return null;
   if (typeof value === 'string' && value.trim() !== '') return value.trim();
-  warnings.push(`${where}: "id" musi być tekstem z eksportu — pominięte.`);
+  warnings.push(t('lampsJson.warn.badId', { where }));
   return null;
 }
 
@@ -170,11 +177,11 @@ function readKey(value: unknown, where: string, taken: ReadonlyMap<string, strin
   if (value === undefined || value === null) return null;
   const key = typeof value === 'string' ? value.trim().replace(/^@/, '') : '';
   if (!KEY_PATTERN.test(key)) {
-    warnings.push(`${where}: "key" to litery, cyfry, - _ . (do 40 znaków) — ${JSON.stringify(value)} pominięty.`);
+    warnings.push(t('lampsJson.warn.badKey', { where, value: JSON.stringify(value) }));
     return null;
   }
   if (taken.has(key)) {
-    warnings.push(`${where}: klucz "@${key}" jest już w dokumencie — ten pominięty.`);
+    warnings.push(t('lampsJson.warn.keyTaken', { where, key }));
     return null;
   }
   return key;
@@ -183,7 +190,7 @@ function readKey(value: unknown, where: string, taken: ReadonlyMap<string, strin
 function listOf(value: unknown, name: string, warnings: string[]): unknown[] {
   if (value === undefined) return [];
   if (Array.isArray(value)) return value;
-  warnings.push(`"${name}" musi być listą — pominięte.`);
+  warnings.push(t('lampsJson.warn.notList', { name }));
   return [];
 }
 
@@ -320,11 +327,11 @@ const signalText = (s: LampSignal): string => JSON.stringify(tidyLamp({ ...empty
 type FramesRead = { readonly frames: LampFrame[] } | { readonly problem: string };
 
 function readFrames(value: unknown, where: string, warnings: string[]): FramesRead {
-  if (!Array.isArray(value)) return { problem: '"frames" musi być listą ramek {"hex", "durationMs", "gapMs"}' };
+  if (!Array.isArray(value)) return { problem: t('lampsJson.warn.framesNotList') };
   const frames: LampFrame[] = [];
   for (const [i, one] of value.entries()) {
-    const at = value.length === 1 ? 'ramka' : `ramka ${i + 1}`;
-    if (!isObject(one) || typeof one.hex !== 'string') return { problem: `${at}: brak pakietu "hex"` };
+    const at = value.length === 1 ? t('lampsJson.at.frame') : t('lampsJson.at.frameN', { n: i + 1 });
+    if (!isObject(one) || typeof one.hex !== 'string') return { problem: t('lampsJson.warn.noHex', { at }) };
     unknownKeys(one, FRAME_KEYS, `${where}, ${at}`, warnings);
     frames.push({ hex: one.hex, durationMs: numberOf(one.durationMs, DURATION_DEFAULT), gapMs: numberOf(one.gapMs, 0) });
   }
@@ -338,7 +345,7 @@ function readFrames(value: unknown, where: string, warnings: string[]): FramesRe
  */
 function planSignals(value: unknown, before: Lamp | null, where: string, warnings: string[]): SignalsPlan | null {
   if (!Array.isArray(value)) {
-    warnings.push(`${where}: "signals" musi być listą — sygnały bez zmian.`);
+    warnings.push(t('lampsJson.warn.signalsNotList', { where }));
     return null;
   }
   const had = before?.signals ?? [];
@@ -354,24 +361,24 @@ function planSignals(value: unknown, before: Lamp | null, where: string, warning
   const order: string[] = [];
 
   value.forEach((one: unknown, i: number) => {
-    const at = `${where}, sygnał ${isObject(one) && typeof one.label === 'string' && one.label.trim() !== '' ? `„${one.label.trim()}”` : i + 1}`;
-    if (!isObject(one)) { warnings.push(`${at}: to nie jest obiekt — pominięty.`); return; }
+    const at = t('lampsJson.at.signal', { where, which: isObject(one) && typeof one.label === 'string' && one.label.trim() !== '' ? `„${one.label.trim()}”` : i + 1 });
+    if (!isObject(one)) { warnings.push(t('lampsJson.warn.notObjectM', { at })); return; }
     unknownKeys(one, SIGNAL_KEYS, at, warnings);
     const givenId = readId(one.id, at, warnings);
     let was: LampSignal | null = null;
     if (givenId !== null) {
-      if (docIds.has(givenId)) { warnings.push(`${at}: to samo "id" drugi raz — pominięty.`); return; }
+      if (docIds.has(givenId)) { warnings.push(t('lampsJson.warn.idTwiceSignal', { at })); return; }
       docIds.add(givenId);
       was = hadById.get(givenId) ?? null;
-      if (was === null && before !== null) warnings.push(`${at}: "id" nie należy do sygnałów tego urządzenia — powstanie nowy sygnał.`);
+      if (was === null && before !== null) warnings.push(t('lampsJson.warn.signalIdForeign', { at }));
     }
     if (one.remove === true) {
-      if (was === null) { warnings.push(`${at}: "remove" bez "id" sygnału tego urządzenia — nie ma czego usunąć.`); return; }
+      if (was === null) { warnings.push(t('lampsJson.warn.removeNoSignal', { at })); return; }
       named.add(was.id);
       gone.add(was.id);
       return;
     }
-    if (one.remove !== undefined && one.remove !== false) warnings.push(`${at}: "remove" może być tylko true — pominięte.`);
+    if (one.remove !== undefined && one.remove !== false) warnings.push(t('lampsJson.warn.removeOnlyTrue', { at }));
     const key = readKey(one.key, at, keys, warnings);
     const keep = (s: LampSignal) => {
       if (givenId !== null) ids.set(givenId, s.id);
@@ -391,7 +398,7 @@ function planSignals(value: unknown, before: Lamp | null, where: string, warning
     /* Geprüft wird nur, was sich ändert — ein alter Sygnał, der einmal so gespeichert wurde, hält keinen Export auf. */
     const problem = read !== null && 'problem' in read ? read.problem : same ? null : signalProblem(draft);
     if (problem !== null) {
-      warnings.push(`${at}: ${problem.replace(/\.$/, '')} — ${was === null ? 'sygnał pominięty' : 'sygnał bez zmian'}.`);
+      warnings.push(t(was === null ? 'lampsJson.warn.signalSkipped' : 'lampsJson.warn.signalKept', { at, problem: problem.replace(/\.$/, '') }));
       if (was !== null) { named.add(was.id); keep(was); }
       return;
     }
@@ -408,7 +415,7 @@ function planSignals(value: unknown, before: Lamp | null, where: string, warning
   if (fresh.length > room) {
     const dropped = fresh.splice(room);
     const out = new Set(dropped.map((s) => s.id));
-    warnings.push(`${where}: najwyżej ${SIGNALS_MAX} sygnałów w urządzeniu — ${dropped.length} ${plural(dropped.length, 'nowy pominięty', 'nowe pominięte', 'nowych pominiętych')}.`);
+    warnings.push(t('lampsJson.warn.tooManySignals', { where, max: SIGNALS_MAX, count: dropped.length }));
     for (const [k, id] of [...keys]) if (out.has(id)) keys.delete(k);
     for (const [k, id] of [...ids]) if (out.has(id)) ids.delete(k);
   }
@@ -433,7 +440,7 @@ const DAY_WORDS: Readonly<Record<string, number>> = { pn: 1, wt: 2, sr: 3, cz: 4
 
 /** Die Tage — ganz oder gar nicht: ein unbekannter Tag liesse sonst aus „pn, xx" still „codziennie" werden. */
 function readDays(value: unknown): { readonly days: number[] } | { readonly problem: string } {
-  if (!Array.isArray(value)) return { problem: `"days" to lista (np. ["pn", "śr"] albo [1, 3]; [] — codziennie), a jest ${JSON.stringify(value)}` };
+  if (!Array.isArray(value)) return { problem: t('lampsJson.warn.daysNotList', { value: JSON.stringify(value) }) };
   const days: number[] = [];
   const bad: string[] = [];
   for (const one of value) {
@@ -442,7 +449,7 @@ function readDays(value: unknown): { readonly days: number[] } | { readonly prob
     if (Number.isInteger(n) && n >= 1 && n <= 7) days.push(n);
     else bad.push(JSON.stringify(one));
   }
-  if (bad.length > 0) return { problem: `nieznane dni ${bad.join(', ')} (1–7 albo pn, wt, śr, cz, pt, so, nd)` };
+  if (bad.length > 0) return { problem: t('lampsJson.warn.badDays', { days: bad.join(', ') }) };
   return { days: [...new Set(days)].sort((a, b) => a - b) };
 }
 
@@ -450,24 +457,24 @@ function readDays(value: unknown): { readonly days: number[] } | { readonly prob
 function readPace(value: unknown, base: Pace, where: string, warnings: string[]): Pace {
   if (value === null) return FASTEST;
   if (!isObject(value)) {
-    warnings.push(`${where}: "pace" to {"pauseMs", "limitMs"} — tempo bez zmian.`);
+    warnings.push(t('lampsJson.warn.paceNotObject', { where }));
     return base;
   }
   unknownKeys(value, PACE_KEYS, `${where}, "pace"`, warnings);
   let pauseMs = base.pauseMs;
   if (value.pauseMs !== undefined) {
-    if (typeof value.pauseMs !== 'number' || !Number.isFinite(value.pauseMs)) warnings.push(`${where}: "pauseMs" musi być liczbą — bez zmian.`);
+    if (typeof value.pauseMs !== 'number' || !Number.isFinite(value.pauseMs)) warnings.push(t('lampsJson.warn.pauseNotNumber', { where }));
     else {
-      if (value.pauseMs < 0 || value.pauseMs > GAP_MAX) warnings.push(`${where}: "pauseMs" od 0 do ${GAP_MAX} ms — przycięte.`);
+      if (value.pauseMs < 0 || value.pauseMs > GAP_MAX) warnings.push(t('lampsJson.warn.pauseClamped', { where, max: GAP_MAX }));
       pauseMs = value.pauseMs;
     }
   }
   let limitMs = base.limitMs;
   if (value.limitMs !== undefined) {
     if (value.limitMs === null) limitMs = null;
-    else if (typeof value.limitMs !== 'number' || !Number.isFinite(value.limitMs)) warnings.push(`${where}: "limitMs" to liczba albo null — bez zmian.`);
+    else if (typeof value.limitMs !== 'number' || !Number.isFinite(value.limitMs)) warnings.push(t('lampsJson.warn.limitNotNumber', { where }));
     else {
-      if (value.limitMs < DURATION_MIN) warnings.push(`${where}: "limitMs" co najmniej ${DURATION_MIN} ms — przycięte.`);
+      if (value.limitMs < DURATION_MIN) warnings.push(t('lampsJson.warn.limitClamped', { where, min: DURATION_MIN }));
       limitMs = value.limitMs;
     }
   }
@@ -482,7 +489,8 @@ function namesOf(lamp: Pick<WorldLamp, 'data' | 'before'>): string[] {
     if (d.name.trim() !== '') out.add(fold(d.name));
     if (d.number !== null && d.number.trim() !== '') {
       out.add(fold(d.number));
-      out.add(fold(`nr ${d.number}`));
+      out.add(fold(`nr ${d.number}`)); // i18n-ignore
+      out.add(fold(t('lamps.app.number', { n: d.number })));
     }
     out.add(fold(lampTitle(d)));
   }
@@ -496,14 +504,14 @@ const timerHead = (d: LampTimerData): string => `${timeText(d.minute)}, ${daysTe
  * für den Import (der danach `applyLampsPlan` schreibt).
  */
 export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { error: string } {
-  if (!isObject(doc)) return { error: `To nie jest dokument lamp — oczekiwano obiektu {"format": "${LAMPS_FORMAT}", …}.` };
-  if (doc.format !== undefined && doc.format !== LAMPS_FORMAT) return { error: `Inny format: „${String(doc.format)}” — tu importuje się "${LAMPS_FORMAT}".` };
+  if (!isObject(doc)) return { error: t('lampsJson.err.notDoc', { format: LAMPS_FORMAT }) };
+  if (doc.format !== undefined && doc.format !== LAMPS_FORMAT) return { error: t('lampsJson.err.otherFormat', { got: String(doc.format), format: LAMPS_FORMAT }) };
   if (doc.lamps === undefined && doc.timers === undefined && doc.buttons === undefined) {
-    return { error: 'Dokument nie ma ani "lamps", ani "timers", ani "buttons" — nie ma czego importować.' };
+    return { error: t('lampsJson.err.nothing') };
   }
   const warnings: string[] = [];
-  unknownKeys(doc, DOC_KEYS, 'Dokument', warnings);
-  if (doc.version !== undefined && doc.version !== LAMPS_VERSION) warnings.push(`Wersja ${JSON.stringify(doc.version)} — import zna wersję ${LAMPS_VERSION}; czego nie zna, pomija.`);
+  unknownKeys(doc, DOC_KEYS, t('lampsJson.at.doc'), warnings);
+  if (doc.version !== undefined && doc.version !== LAMPS_VERSION) warnings.push(t('lampsJson.warn.version', { got: JSON.stringify(doc.version), version: LAMPS_VERSION }));
 
   const lampsById = new Map(now.lamps.map((l) => [l.id, l]));
   const timersById = new Map(now.timers.map((t) => [t.id, t]));
@@ -522,30 +530,28 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
   const seenLamps = new Set<string>();
 
   listOf(doc.lamps, 'lamps', warnings).forEach((one, i) => {
-    const at = `Urządzenie ${isObject(one) && typeof one.name === 'string' && one.name.trim() !== '' ? `„${one.name.trim()}”` : i + 1}`;
-    if (!isObject(one)) { warnings.push(`${at}: to nie jest obiekt — pominięte.`); return; }
+    const at = t('lampsJson.at.lamp', { which: isObject(one) && typeof one.name === 'string' && one.name.trim() !== '' ? `„${one.name.trim()}”` : i + 1 });
+    if (!isObject(one)) { warnings.push(t('lampsJson.warn.notObjectN', { at })); return; }
     unknownKeys(one, LAMP_KEYS, at, warnings);
     const givenId = readId(one.id, at, warnings);
     let was: Lamp | null = null;
     if (givenId !== null) {
-      if (seenLamps.has(givenId)) { warnings.push(`${at}: to samo "id" drugi raz w dokumencie — pominięte.`); return; }
+      if (seenLamps.has(givenId)) { warnings.push(t('lampsJson.warn.idTwiceN', { at })); return; }
       seenLamps.add(givenId);
       was = lampsById.get(givenId) ?? null;
       if (was === null) {
-        warnings.push(timersById.has(givenId)
-          ? `${at}: "id" należy do timera, nie do urządzenia — powstanie nowe urządzenie.`
-          : `${at}: "id" nie należy do żadnego urządzenia tutaj (np. z innego konta) — powstanie nowe, z nowym "id".`);
+        warnings.push(timersById.has(givenId) ? t('lampsJson.warn.lampIdIsTimer', { at }) : t('lampsJson.warn.lampIdForeign', { at }));
       }
     }
     if (one.remove === true) {
-      if (was === null) { warnings.push(`${at}: "remove" bez "id" istniejącego urządzenia — nie ma czego usunąć.`); return; }
+      if (was === null) { warnings.push(t('lampsJson.warn.removeNoLamp', { at })); return; }
       removedLamps.set(was.id, was);
       world.delete(was.id);
       const n = was.signals.length;
-      removals.push({ id: was.id, kind: 'lamp', title: `„${lampTitle(was)}” ${n === 0 ? 'bez sygnałów' : `z ${n} ${plural(n, 'sygnałem', 'sygnałami', 'sygnałami')}`}` });
+      removals.push({ id: was.id, kind: 'lamp', title: n === 0 ? t('lampsJson.line.lampNoSignals', { name: lampTitle(was) }) : t('lampsJson.line.lampWithSignals', { name: lampTitle(was), count: n }) });
       return;
     }
-    if (one.remove !== undefined && one.remove !== false) warnings.push(`${at}: "remove" może być tylko true — pominięte.`);
+    if (one.remove !== undefined && one.remove !== false) warnings.push(t('lampsJson.warn.removeOnlyTrue', { at }));
     const key = readKey(one.key, at, lampKeys, warnings);
 
     /* Ein Gerät, das bleibt, wie es ist: Timer dürfen trotzdem über seinen Schlüssel auf es zeigen. */
@@ -554,7 +560,7 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
       if (key !== null) lampKeys.set(key, lamp.id);
     };
     if (one.protocol !== undefined && one.protocol !== 'ble-adv') {
-      warnings.push(`${at}: nieznany protokół ${JSON.stringify(one.protocol)} (jest tylko "ble-adv") — ${was === null ? 'urządzenie pominięte' : 'urządzenie bez zmian'}.`);
+      warnings.push(t(was === null ? 'lampsJson.warn.protocolSkipped' : 'lampsJson.warn.protocolKept', { at, protocol: JSON.stringify(one.protocol) }));
       if (was !== null) asItWas(was);
       return;
     }
@@ -575,7 +581,7 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
       signals: signals?.signals ?? base.signals
     });
     if (data.name === '' && (data.number ?? '') === '') {
-      warnings.push(`${at}: bez nazwy i numeru — ${was === null ? 'urządzenie pominięte' : 'urządzenie bez zmian'}.`);
+      warnings.push(t(was === null ? 'lampsJson.warn.noNameSkipped' : 'lampsJson.warn.noNameKept', { at }));
       if (was !== null) {
         asItWas(was);
         const alive = new Set(was.signals.map((s) => s.id));
@@ -598,31 +604,32 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
     if (was === null) {
       /* Ohne "id" wird nie über den Namen zugeordnet — aber ein Zwilling wird gesagt (ein zweiter Import desselben Texts, ein Modell ohne Export). */
       const twin = now.lamps.find((l) => !removedLamps.has(l.id) && fold(lampTitle(l)) === fold(lampTitle(data)));
-      if (twin !== undefined) warnings.push(`${at}: bez "id" — powstanie drugie urządzenie „${lampTitle(data)}” obok istniejącego; żeby zmienić istniejące, podaj jego "id" z eksportu.`);
+      if (twin !== undefined) warnings.push(t('lampsJson.warn.lampTwin', { at, name: lampTitle(data) }));
       const n = data.signals.length;
       const labels = data.signals.slice(0, 8).map((s) => s.label).join(', ') + (n > 8 ? ', …' : '');
-      lampLines.push(`Nowe urządzenie: „${lampTitle(data)}”${data.room === null ? '' : ` (${data.room})`} — ${n} ${plural(n, 'sygnał', 'sygnały', 'sygnałów')}${n > 0 ? `: ${labels}` : ''}.`);
+      const head = data.room === null ? `„${lampTitle(data)}”` : `„${lampTitle(data)}” (${data.room})`;
+      lampLines.push(n > 0 ? t('lampsJson.line.newLampSignals', { head, count: n, labels }) : t('lampsJson.line.newLamp', { head, count: n }));
       return;
     }
     const what: string[] = [];
-    if (was.name !== data.name) what.push(`nazwa ${quoted(was.name)} → ${quoted(data.name)}`);
-    if (was.number !== data.number) what.push(`numer ${was.number ?? '—'} → ${data.number ?? '—'}`);
-    if (was.room !== data.room) what.push(`pomieszczenie ${was.room ?? '—'} → ${data.room ?? '—'}`);
-    if (was.note !== data.note) what.push('notatka');
+    if (was.name !== data.name) what.push(t('lampsJson.what.name', { from: quoted(was.name), to: quoted(data.name) }));
+    if (was.number !== data.number) what.push(t('lampsJson.what.number', { from: was.number ?? '—', to: data.number ?? '—' }));
+    if (was.room !== data.room) what.push(t('lampsJson.what.room', { from: was.room ?? '—', to: data.room ?? '—' }));
+    if (was.note !== data.note) what.push(t('lampsJson.what.note'));
     const listed = (labels: readonly string[]) => labels.map(quoted).join(', ');
     if (signals !== null) {
-      if (signals.added.length > 0) what.push(`${plural(signals.added.length, 'nowy sygnał', 'nowe sygnały', 'nowe sygnały')} ${listed(signals.added)}`);
-      if (signals.changed.length > 0) what.push(`${plural(signals.changed.length, 'zmieniony sygnał', 'zmienione sygnały', 'zmienione sygnały')} ${listed(signals.changed)}`);
-      if (signals.removed.length > 0) what.push(`${plural(signals.removed.length, 'usunięty sygnał', 'usunięte sygnały', 'usunięte sygnały')} ${listed(signals.removed)}`);
-      if (signals.moved) what.push('kolejność sygnałów');
+      if (signals.added.length > 0) what.push(t('lampsJson.what.added', { count: signals.added.length, list: listed(signals.added) }));
+      if (signals.changed.length > 0) what.push(t('lampsJson.what.changed', { count: signals.changed.length, list: listed(signals.changed) }));
+      if (signals.removed.length > 0) what.push(t('lampsJson.what.removed', { count: signals.removed.length, list: listed(signals.removed) }));
+      if (signals.moved) what.push(t('lampsJson.what.order'));
     }
-    lampLines.push(`Zmienione urządzenie: „${lampTitle(was)}” — ${what.join('; ') || 'zapis'}.`);
+    lampLines.push(t('lampsJson.line.changedLamp', { name: lampTitle(was), what: what.join('; ') || t('lampsJson.what.save') }));
   });
 
   /* -- Aktionen der Timer: auf welches Gerät, welchen Sygnał -- */
   const resolveLamp = (ref: unknown, where: string): string | null => {
     if (typeof ref !== 'string' || ref.trim() === '') {
-      warnings.push(`${where}: "lamp" to "@klucz", "id" albo nazwa urządzenia — akcja pominięta.`);
+      warnings.push(t('lampsJson.warn.lampRef', { where }));
       return null;
     }
     const text = ref.trim();
@@ -635,7 +642,7 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
         const wanted = fold(text);
         const hits = [...world.values()].filter((l) => namesOf(l).includes(wanted));
         if (hits.length > 1) {
-          warnings.push(`${where}: „${text}” pasuje do ${hits.length} urządzeń — podaj "@klucz" albo "id"; akcja pominięta.`);
+          warnings.push(t('lampsJson.warn.lampAmbiguous', { where, text, count: hits.length }));
           return null;
         }
         id = hits[0]?.id ?? [...removedLamps.values()].find((l) => namesOf({ data: l, before: l }).includes(wanted))?.id;
@@ -643,11 +650,11 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
     }
     const gone = id === undefined ? undefined : removedLamps.get(id);
     if (gone !== undefined) {
-      warnings.push(`${where}: urządzenie „${lampTitle(gone)}” jest w tym dokumencie usuwane — akcja pominięta.`);
+      warnings.push(t('lampsJson.warn.lampRemoved', { where, name: lampTitle(gone) }));
       return null;
     }
     if (id === undefined || !world.has(id)) {
-      warnings.push(`${where}: nie ma urządzenia ${text.startsWith('@') ? `"${text}"` : `„${text}”`} — akcja pominięta.`);
+      warnings.push(t('lampsJson.warn.lampMissing', { where, ref: text.startsWith('@') ? `"${text}"` : `„${text}”` }));
       return null;
     }
     return id;
@@ -656,7 +663,7 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
   const resolveSignal = (lamp: WorldLamp, ref: unknown, where: string): string | null => {
     const title = lampTitle(lamp.data);
     if (typeof ref !== 'string' || ref.trim() === '') {
-      warnings.push(`${where}: "signal" to "@klucz", "id" albo napis na przycisku — akcja pominięta.`);
+      warnings.push(t('lampsJson.warn.signalRef', { where }));
       return null;
     }
     const text = ref.trim();
@@ -670,7 +677,7 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
         const wanted = fold(text);
         const hits = signals.filter((s) => fold(s.label) === wanted);
         if (hits.length > 1) {
-          warnings.push(`${where}: „${text}” pasuje do ${hits.length} sygnałów „${title}” — podaj "@klucz" albo "id"; akcja pominięta.`);
+          warnings.push(t('lampsJson.warn.signalAmbiguous', { where, text, count: hits.length, title }));
           return null;
         }
         id = hits[0]?.id;
@@ -679,15 +686,15 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
     if (id !== undefined && signals.some((s) => s.id === id)) return id;
     const gone = id === undefined ? undefined : lamp.before?.signals.find((s) => s.id === id);
     warnings.push(gone !== undefined
-      ? `${where}: sygnał „${gone.label}” („${title}”) jest w tym dokumencie usuwany — akcja pominięta.`
-      : `${where}: „${title}” nie ma sygnału ${text.startsWith('@') ? `"${text}"` : `„${text}”`} — akcja pominięta.`);
+      ? t('lampsJson.warn.signalRemoved', { where, label: gone.label, title })
+      : t('lampsJson.warn.signalMissing', { where, title, ref: text.startsWith('@') ? `"${text}"` : `„${text}”` }));
     return null;
   };
 
   const actionText = (a: LampTimerAction): string => {
     const lamp = world.get(a.lampId);
     const signal = lamp?.data.signals.find((s) => s.id === a.signalId);
-    return lamp === undefined || signal === undefined ? '(usunięty sygnał)' : `${lampTitle(lamp.data)}: ${signal.label}`;
+    return lamp === undefined || signal === undefined ? t('lamps.timers.signalGone') : `${lampTitle(lamp.data)}: ${signal.label}`;
   };
 
   /* -- Timer -- */
@@ -696,40 +703,38 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
   const seenTimers = new Set<string>();
 
   listOf(doc.timers, 'timers', warnings).forEach((one, i) => {
-    const at = `Timer ${isObject(one) && typeof one.name === 'string' && one.name.trim() !== '' ? `„${one.name.trim()}”`
-      : isObject(one) && typeof one.time === 'string' && one.time.trim() !== '' ? one.time.trim() : i + 1}`;
-    if (!isObject(one)) { warnings.push(`${at}: to nie jest obiekt — pominięty.`); return; }
+    const at = t('lampsJson.at.timer', { which: isObject(one) && typeof one.name === 'string' && one.name.trim() !== '' ? `„${one.name.trim()}”`
+      : isObject(one) && typeof one.time === 'string' && one.time.trim() !== '' ? one.time.trim() : i + 1 });
+    if (!isObject(one)) { warnings.push(t('lampsJson.warn.notObjectM', { at })); return; }
     unknownKeys(one, TIMER_KEYS, at, warnings);
     const givenId = readId(one.id, at, warnings);
     let was: LampTimer | null = null;
     if (givenId !== null) {
-      if (seenTimers.has(givenId)) { warnings.push(`${at}: to samo "id" drugi raz w dokumencie — pominięty.`); return; }
+      if (seenTimers.has(givenId)) { warnings.push(t('lampsJson.warn.idTwiceM', { at })); return; }
       seenTimers.add(givenId);
       was = timersById.get(givenId) ?? null;
       if (was === null) {
-        warnings.push(lampsById.has(givenId)
-          ? `${at}: "id" należy do urządzenia, nie do timera — powstanie nowy timer.`
-          : `${at}: "id" nie należy do żadnego timera tutaj (np. z innego konta) — powstanie nowy, z nowym "id".`);
+        warnings.push(lampsById.has(givenId) ? t('lampsJson.warn.timerIdIsLamp', { at }) : t('lampsJson.warn.timerIdForeign', { at }));
       }
     }
     if (one.remove === true) {
-      if (was === null) { warnings.push(`${at}: "remove" bez "id" istniejącego timera — nie ma czego usunąć.`); return; }
+      if (was === null) { warnings.push(t('lampsJson.warn.removeNoTimer', { at })); return; }
       removals.push({ id: was.id, kind: 'timer', title: timerHead(was) });
       return;
     }
-    if (one.remove !== undefined && one.remove !== false) warnings.push(`${at}: "remove" może być tylko true — pominięte.`);
+    if (one.remove !== undefined && one.remove !== false) warnings.push(t('lampsJson.warn.removeOnlyTrue', { at }));
 
     const base: LampTimerData = was ?? emptyTimer();
     /* Was ein Timer zum Laufen braucht (Uhrzeit, Tage, Aktionen), ist falsch: der ganze Eintrag fällt weg — nicht halb. */
-    const skip = (why: string) => warnings.push(`${at}: ${why} — ${was === null ? 'timer pominięty' : 'timer bez zmian'}.`);
+    const skip = (why: string) => warnings.push(t(was === null ? 'lampsJson.warn.timerSkipped' : 'lampsJson.warn.timerKept', { at, why }));
     const name = has(one, 'name') ? readText(one.name, `${at}, "name"`, warnings) : undefined;
     let minute = base.minute;
     if (has(one, 'time')) {
       const read = typeof one.time === 'string' ? minuteOf(one.time) : null;
-      if (read === null) { skip(`"time" to godzina "GG:MM" (np. "07:00"), a jest ${JSON.stringify(one.time)}`); return; }
+      if (read === null) { skip(t('lampsJson.why.badTime', { value: JSON.stringify(one.time) })); return; }
       minute = read;
     } else if (was === null) {
-      skip('brak godziny "time"');
+      skip(t('lampsJson.why.noTime'));
       return;
     }
     let days = base.days;
@@ -741,21 +746,21 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
     let enabled = base.enabled;
     if (has(one, 'enabled')) {
       if (typeof one.enabled === 'boolean') enabled = one.enabled;
-      else warnings.push(`${at}: "enabled" to true albo false — pominięte.`);
+      else warnings.push(t('lampsJson.warn.badEnabled', { at }));
     }
     const pace = has(one, 'pace') ? readPace(one.pace, base.pace, at, warnings) : base.pace;
 
     let actions: readonly LampTimerAction[] = base.actions;
     let broken = 0;
     if (has(one, 'actions')) {
-      if (!Array.isArray(one.actions)) { skip('"actions" to lista {"lamp", "signal"}'); return; }
+      if (!Array.isArray(one.actions)) { skip(t('lampsJson.why.actionsNotList')); return; }
       const steps: readonly unknown[] = one.actions;
       const out: LampTimerAction[] = [];
       let over = 0;
       steps.forEach((step, k) => {
-        const where = `${at}, akcja ${k + 1}`;
+        const where = t('lampsJson.at.action', { at, n: k + 1 });
         if (out.length >= ACTIONS_MAX) { over += 1; return; }
-        if (!isObject(step)) { warnings.push(`${where}: akcja to {"lamp": …, "signal": …} — pominięta.`); return; }
+        if (!isObject(step)) { warnings.push(t('lampsJson.warn.actionNotObject', { where })); return; }
         unknownKeys(step, ACTION_KEYS, where, warnings);
         /* Eine Aktion, deren Gerät oder Sygnał es schon vorher nicht mehr gab: bleibt, wie sie war (der Export schreibt sie mit ihren Kennungen). */
         const old = was?.actions.find((a) => a.lampId === step.lamp && a.signalId === step.signal);
@@ -770,37 +775,38 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
         const signalId = resolveSignal(lamp, step.signal, where);
         if (signalId !== null) out.push({ lampId: lamp.id, signalId });
       });
-      if (over > 0) warnings.push(`${at}: najwyżej ${ACTIONS_MAX} akcji — ${over} ${plural(over, 'dalsza pominięta', 'dalsze pominięte', 'dalszych pominiętych')}.`);
+      if (over > 0) warnings.push(t('lampsJson.warn.tooManyActions', { at, max: ACTIONS_MAX, count: over }));
       if (out.length === 0) {
-        skip(steps.length === 0 ? 'pusta lista "actions" — timer musi coś wysłać' : 'żadna akcja nie wskazuje sygnału');
+        skip(steps.length === 0 ? t('lampsJson.why.emptyActions') : t('lampsJson.why.noActionHits'));
         return;
       }
       actions = out;
     }
-    if (actions.length === 0) { skip('brak akcji "actions" — timer musi coś wysłać'); return; }
+    if (actions.length === 0) { skip(t('lampsJson.why.noActions')); return; }
 
     const data = tidyTimer({ name: name === undefined ? base.name : name ?? '', minute, days, enabled, actions, pace });
     if (was !== null && sealedTimerJson(was) === sealedTimerJson(data)) return;
     if (broken > 0) {
-      warnings.push(`${at}: ${broken} ${plural(broken, 'akcja wskazuje', 'akcje wskazują', 'akcji wskazuje')} urządzenie albo sygnał, którego już nie ma — ${broken === 1 ? 'zostaje' : 'zostają'}, ale timer ${broken === 1 ? 'jej' : 'ich'} nie wykona.`);
+      warnings.push(t('lampsJson.warn.brokenActions', { at, count: broken }));
     }
     const id = was?.id ?? newId();
     plannedTimers.push({ id, existing: was, data });
     const tempo = paceSummary(data.pace);
     if (was === null) {
-      const twin = now.timers.find((t) => !removals.some((r) => r.id === t.id) && sealedTimerJson({ ...t, enabled: true }) === sealedTimerJson({ ...data, enabled: true }));
-      if (twin !== undefined) warnings.push(`${at}: bez "id" — powstanie drugi taki sam timer obok istniejącego (${timerHead(twin)}); żeby zmienić istniejący, podaj jego "id" z eksportu.`);
-      timerLines.push(`Nowy timer: ${timerHead(data)} — ${data.actions.map(actionText).join(', ')}${tempo === null ? '' : `; tempo: ${tempo}`}${data.enabled ? '' : ' (wyłączony)'}.`);
+      const twin = now.timers.find((x) => !removals.some((r) => r.id === x.id) && sealedTimerJson({ ...x, enabled: true }) === sealedTimerJson({ ...data, enabled: true }));
+      if (twin !== undefined) warnings.push(t('lampsJson.warn.timerTwin', { at, head: timerHead(twin) }));
+      const extra = (tempo === null ? '' : t('lampsJson.line.tempo', { tempo })) + (data.enabled ? '' : t('lampsJson.line.off'));
+      timerLines.push(t('lampsJson.line.newTimer', { head: timerHead(data), actions: data.actions.map(actionText).join(', '), extra }));
       return;
     }
     const what: string[] = [];
-    if (was.name !== data.name) what.push(`nazwa ${quoted(was.name)} → ${quoted(data.name)}`);
-    if (was.minute !== data.minute) what.push(`godzina ${timeText(was.minute)} → ${timeText(data.minute)}`);
-    if (was.days.join() !== data.days.join()) what.push(`dni ${daysText(was.days)} → ${daysText(data.days)}`);
-    if (was.enabled !== data.enabled) what.push(data.enabled ? 'włączony' : 'wyłączony');
-    if (JSON.stringify(tidyPace(was.pace)) !== JSON.stringify(data.pace)) what.push(`tempo: ${tempo ?? 'najszybciej'}`);
-    if (JSON.stringify(was.actions) !== JSON.stringify(data.actions)) what.push(`akcje: ${data.actions.map(actionText).join(', ')}`);
-    timerLines.push(`Zmieniony timer: ${timerHead(was)} — ${what.join('; ') || 'zapis'}.`);
+    if (was.name !== data.name) what.push(t('lampsJson.what.name', { from: quoted(was.name), to: quoted(data.name) }));
+    if (was.minute !== data.minute) what.push(t('lampsJson.what.time', { from: timeText(was.minute), to: timeText(data.minute) }));
+    if (was.days.join() !== data.days.join()) what.push(t('lampsJson.what.days', { from: daysText(was.days), to: daysText(data.days) }));
+    if (was.enabled !== data.enabled) what.push(data.enabled ? t('lampsJson.what.on') : t('lampsJson.what.off'));
+    if (JSON.stringify(tidyPace(was.pace)) !== JSON.stringify(data.pace)) what.push(t('lampsJson.what.tempo', { tempo: tempo ?? t('lampsJson.what.fastest') }));
+    if (JSON.stringify(was.actions) !== JSON.stringify(data.actions)) what.push(t('lampsJson.what.actions', { list: data.actions.map(actionText).join(', ') }));
+    timerLines.push(t('lampsJson.line.changedTimer', { head: timerHead(was), what: what.join('; ') || t('lampsJson.what.save') }));
   });
 
   /*
@@ -809,29 +815,29 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
    */
   const removedTimers = new Set(removals.filter((r) => r.kind === 'timer').map((r) => r.id));
   const plannedById = new Map(plannedTimers.map((p) => [p.id, p.data]));
-  for (const t of now.timers) {
-    if (removedTimers.has(t.id)) continue;
-    const after = plannedById.get(t.id) ?? t;
+  for (const one of now.timers) {
+    if (removedTimers.has(one.id)) continue;
+    const after = plannedById.get(one.id) ?? one;
     for (const a of after.actions) {
       const before = lampsById.get(a.lampId);
       const signal = before?.signals.find((s) => s.id === a.signalId);
       if (before === undefined || signal === undefined) continue;
       const lamp = world.get(a.lampId);
       if (lamp !== undefined && lamp.data.signals.some((s) => s.id === a.signalId)) continue;
-      warnings.push(`Timer ${timerHead(after)}: akcja „${lampTitle(before)}: ${signal.label}” wskazuje ${lamp === undefined ? 'usuwane urządzenie' : 'usuwany sygnał'} — timer tej akcji nie wykona.`);
+      warnings.push(t(lamp === undefined ? 'lampsJson.warn.actionToRemovedLamp' : 'lampsJson.warn.actionToRemovedSignal', { head: timerHead(after), action: `${lampTitle(before)}: ${signal.label}` }));
     }
   }
 
   /* -- Das Tempo der Knöpfe -- */
   let buttons: Pace | null = null;
   if (doc.buttons !== undefined) {
-    if (!isObject(doc.buttons)) warnings.push('"buttons" to {"pauseMs": …} — pominięte.');
+    if (!isObject(doc.buttons)) warnings.push(t('lampsJson.warn.buttonsNotObject'));
     else {
-      unknownKeys(doc.buttons, BUTTONS_KEYS, 'Tempo przycisków ("buttons")', warnings);
+      unknownKeys(doc.buttons, BUTTONS_KEYS, t('lampsJson.at.buttons'), warnings);
       const pause = doc.buttons.pauseMs;
       if (pause !== undefined) {
         if (typeof pause !== 'number' || !Number.isFinite(pause) || pause < 0 || pause > GAP_MAX) {
-          warnings.push(`Tempo przycisków: "pauseMs" od 0 do ${GAP_MAX} ms — pominięte.`);
+          warnings.push(t('lampsJson.warn.buttonsPause', { max: GAP_MAX }));
         } else if (Math.round(pause) !== now.buttons.pauseMs) {
           buttons = { pauseMs: Math.round(pause), limitMs: null };
         }
@@ -841,20 +847,20 @@ export function planLampsImport(doc: unknown, now: LampsNow): LampsPlan | { erro
 
   /* -- Die Liste -- */
   const lines: string[] = [
-    ...removals.map((r) => (r.kind === 'lamp' ? `Usunięte urządzenie: ${r.title}.` : `Usunięty timer: ${r.title}.`)),
+    ...removals.map((r) => (r.kind === 'lamp' ? t('lampsJson.line.removedLamp', { title: r.title }) : t('lampsJson.line.removedTimer', { title: r.title }))),
     ...lampLines,
     ...timerLines,
-    ...(buttons === null ? [] : [`Tempo przycisków — przerwa: ${pauseText(buttons.pauseMs)} (było: ${pauseText(now.buttons.pauseMs)}).`])
+    ...(buttons === null ? [] : [t('lampsJson.line.buttons', { pause: pauseText(buttons.pauseMs), was: pauseText(now.buttons.pauseMs) })])
   ];
-  if (lines.length === 0) lines.push('Nic się nie zmieni — dokument zgadza się z tym, co jest zapisane.');
+  if (lines.length === 0) lines.push(t('lampsJson.line.nothing'));
   const sameLamps = now.lamps.length - removedLamps.size - plannedLamps.filter((p) => p.existing !== null).length;
   const sameTimers = now.timers.length - removals.filter((r) => r.kind === 'timer').length - plannedTimers.filter((p) => p.existing !== null).length;
   if (sameLamps + sameTimers > 0) {
-    lines.push(`Bez zmian: ${sameLamps} ${plural(sameLamps, 'urządzenie', 'urządzenia', 'urządzeń')}, ${sameTimers} ${plural(sameTimers, 'timer', 'timery', 'timerów')}.`);
+    lines.push(t('lampsJson.line.unchanged', { lamps: t('lamps.app.devices', { count: sameLamps }), timers: t('lampsJson.timers', { count: sameTimers }) }));
   }
   const rows = now.lamps.length + now.timers.length - removals.length
     + plannedLamps.filter((p) => p.existing === null).length + plannedTimers.filter((p) => p.existing === null).length;
-  if (rows > ROWS_MAX) warnings.push(`Razem byłoby ${rows} urządzeń i timerów — usługa przyjmie najwyżej ${ROWS_MAX}; nadmiarowe nowe się nie zapiszą.`);
+  if (rows > ROWS_MAX) warnings.push(t('lampsJson.warn.tooManyRows', { rows, max: ROWS_MAX }));
 
   return {
     lamps: plannedLamps,
@@ -901,18 +907,18 @@ export async function applyLampsPlan(plan: LampsPlan, write: LampsWrite, stage: 
   const result = (error: unknown): LampsApplied => ({ lamps, timers, removed, done, total, error });
   try {
     for (const one of plan.removals) {
-      stage(`Usuwanie (${done + 1} z ${total})…`);
+      stage(t('lampsJson.stage.remove', { n: done + 1, total }));
       await write.remove(one.id);
       removed.push(one.id);
       done += 1;
     }
     for (const one of plan.lamps) {
-      stage(`Zapisywanie urządzeń (${done + 1} z ${total})…`);
+      stage(t('lampsJson.stage.lamps', { n: done + 1, total }));
       lamps.push(await write.saveLamp(one.id, one.data, one.existing?.version ?? 0));
       done += 1;
     }
     for (const one of plan.timers) {
-      stage(`Zapisywanie timerów (${done + 1} z ${total})…`);
+      stage(t('lampsJson.stage.timers', { n: done + 1, total }));
       timers.push(await write.saveTimer(one.id, one.data, one.existing?.version ?? 0));
       done += 1;
     }
@@ -943,27 +949,27 @@ export function lampsExample(): Record<string, unknown> {
     lamps: [
       {
         key: 'sypialnia',
-        name: 'Lampa w sypialni',
+        name: t('lampsJson.sample.bedroomLamp'),
         number: '1',
-        room: 'Sypialnia',
-        note: 'Pilot z napisem HFKJ w pakiecie, identyfikator producenta 0x0000',
+        room: t('lampsJson.sample.bedroom'),
+        note: t('lampsJson.sample.bedroomNote'),
         protocol: 'ble-adv',
         signals: [
-          { key: 'wlacz', label: 'Włącz', note: null, frames: [{ hex: ON, durationMs: 1000, gapMs: 0 }] },
-          { key: 'wylacz', label: 'Wyłącz', note: null, frames: [{ hex: OFF, durationMs: 1000, gapMs: 0 }] }
+          { key: 'wlacz', label: t('lampsJson.sample.on'), note: null, frames: [{ hex: ON, durationMs: 1000, gapMs: 0 }] },
+          { key: 'wylacz', label: t('lampsJson.sample.off'), note: null, frames: [{ hex: OFF, durationMs: 1000, gapMs: 0 }] }
         ]
       },
       {
         key: 'salon',
-        name: 'Lampa w salonie',
+        name: t('lampsJson.sample.livingLamp'),
         number: '2',
-        room: 'Salon',
+        room: t('lampsJson.sample.living'),
         note: null,
         protocol: 'ble-adv',
         signals: [
-          { key: 'cieple', label: 'Ciepłe światło', note: null, frames: [{ hex: WARM, durationMs: 1000, gapMs: 0 }] },
+          { key: 'cieple', label: t('lampsJson.sample.warm'), note: null, frames: [{ hex: WARM, durationMs: 1000, gapMs: 0 }] },
           {
-            key: 'noc', label: 'Tryb nocny', note: 'Najpierw przyciemnia, potem ciepłe światło',
+            key: 'noc', label: t('lampsJson.sample.night'), note: t('lampsJson.sample.nightNote'),
             frames: [{ hex: DIM, durationMs: 600, gapMs: 300 }, { hex: WARM, durationMs: 600, gapMs: 0 }]
           }
         ]
@@ -971,11 +977,11 @@ export function lampsExample(): Record<string, unknown> {
     ],
     timers: [
       {
-        name: 'Rano', time: '06:45', days: ['pn', 'wt', 'śr', 'cz', 'pt'], enabled: true, pace: { pauseMs: 0, limitMs: null },
+        name: t('lampsJson.sample.morning'), time: '06:45', days: ['pn', 'wt', 'śr', 'cz', 'pt'], enabled: true, pace: { pauseMs: 0, limitMs: null }, // i18n-ignore
         actions: [{ lamp: '@sypialnia', signal: '@wlacz' }]
       },
       {
-        name: 'Na noc', time: '23:00', days: [], enabled: true, pace: { pauseMs: 300, limitMs: 1000 },
+        name: t('lampsJson.sample.forNight'), time: '23:00', days: [], enabled: true, pace: { pauseMs: 300, limitMs: 1000 },
         actions: [{ lamp: '@sypialnia', signal: '@wylacz' }, { lamp: '@salon', signal: '@noc' }]
       }
     ]
@@ -988,8 +994,8 @@ export function timersExample(): Record<string, unknown> {
     format: LAMPS_FORMAT,
     version: LAMPS_VERSION,
     timers: [
-      { name: 'Weekend rano', time: '08:30', days: ['so', 'nd'], actions: [{ lamp: 'Lampa w sypialni', signal: 'Włącz' }] },
-      { name: 'Zmierzch', time: '17:15', days: [], actions: [{ lamp: 'Lampa w salonie', signal: 'Ciepłe światło' }] }
+      { name: t('lampsJson.sample.weekendMorning'), time: '08:30', days: ['so', 'nd'], actions: [{ lamp: t('lampsJson.sample.bedroomLamp'), signal: t('lampsJson.sample.on') }] },
+      { name: t('lampsJson.sample.dusk'), time: '17:15', days: [], actions: [{ lamp: t('lampsJson.sample.livingLamp'), signal: t('lampsJson.sample.warm') }] }
     ]
   };
 }
@@ -999,24 +1005,16 @@ const changeExample = (): Record<string, unknown> => ({
   format: LAMPS_FORMAT,
   version: LAMPS_VERSION,
   lamps: [{
-    id: '<id urządzenia z eksportu>',
-    room: 'Pokój dzieci',
-    signals: [{ id: '<id sygnału>', label: 'Zgaś' }, { id: '<id innego sygnału>', remove: true }]
+    id: t('lampsJson.sample.lampId'),
+    room: t('lampsJson.sample.kidsRoom'),
+    signals: [{ id: t('lampsJson.sample.signalId'), label: t('lampsJson.sample.dark') }, { id: t('lampsJson.sample.otherSignalId'), remove: true }]
   }],
-  timers: [{ id: '<id timera>', time: '07:15', enabled: false }, { id: '<id innego timera>', remove: true }]
+  timers: [{ id: t('lampsJson.sample.timerId'), time: '07:15', enabled: false }, { id: t('lampsJson.sample.otherTimerId'), remove: true }]
 });
 
 /* -- Der Baum der Beschreibung ------------------------------------------------------------------------------------ */
 
-const INTRO = (): string => `Lampy to urządzenia Bluetooth LE, którymi steruje telefon z aplikacją REcreatio (wydanie SMS na Androida): każde urządzenie ma przyciski — sygnały, czyli pakiety reklamy BLE wpisane ręcznie albo odczytane z pilota. Timery wysyłają sygnały o ustalonej godzinie. Dokument może zawierać wszystko (kopia zapasowa, przeniesienie na inne konto) albo tylko część — np. same timery przygotowane przez AI.
-Co robi import:
-- Najpierw pokazuje listę zmian z ostrzeżeniami; zapisuje dopiero „Importuj”. Zapis idzie tą samą drogą co zmiana ręczna: urządzenia i timery są szyfrowane w przeglądarce kluczem obszaru „Tylko ja”, a telefon, który wykonuje timery, od razu dostaje nowy plan.
-- Wpis z "id" z eksportu zmienia się w miejscu — tylko klucze, które dokument podaje; pozostałe zostają, jak były. Wpis bez "id" (albo z "id", którego tu nie ma — np. z innego konta) powstaje jako nowy, z nowym "id" — przy każdym imporcie od nowa, więc do dalszych zmian weź świeży eksport.
-- Niczego nie usuwa, chyba że wpis z "id" ma "remove": true — urządzenie, sygnał albo timer; lista zmian to pokazuje.
-- Wpis z błędem (zły pakiet, brak godziny, akcja bez urządzenia) import pomija z ostrzeżeniem, resztę zapisuje. Nieznane klucze też dają ostrzeżenie.
-- Czy TEN telefon wykonuje timery, ustawia się na telefonie (lista timerów) — dokument tego nie zawiera.
-Limity: najwyżej ${ROWS_MAX} urządzeń i timerów razem, ${SIGNALS_MAX} sygnałów w urządzeniu, ${FRAMES_MAX} ramek w sygnale, ${ACTIONS_MAX} akcji w timerze.
-Zwróć JEDEN obiekt JSON, bez komentarzy.
+const INTRO = (): string => `${t('lampsJson.node.intro', { rows: ROWS_MAX, signals: SIGNALS_MAX, frames: FRAMES_MAX, actions: ACTIONS_MAX })}
 ${keyLines(DOC_KEYS)}`;
 
 /*
@@ -1025,85 +1023,83 @@ ${keyLines(DOC_KEYS)}`;
  * Bytes; der Plan liegt im Telefon und wird nach einer Änderung dort und beim Start der App neu abgelegt
  * (`LampsApp.tsx` → `sync`, `timerStart.ts`); das Tempo der Knöpfe am Konto (`useRemembered`).
  */
-export const LAMPS_USAGE_JSON: JsonNode = textNode('lamps.usage', 'Jak aplikacja używa tych danych', () =>
-  `- Urządzenia i timery leżą w Twoim obszarze „Tylko ja”, każde zapieczętowane osobno: widzisz je tylko Ty, na każdym urządzeniu, na którym się zalogujesz; usługa widzi tylko, że są.
-- Nadaje tylko telefon z aplikacją w wydaniu SMS (reklama Bluetooth LE). W przeglądarce i w zwykłej aplikacji urządzenia, sygnały i timery można ustawiać, ale nie nadawać.
-- Timer pamięta urządzenie i sygnał, nie bajty: poprawiony sygnał obowiązuje także w timerach, gdy tylko telefon odłoży nowy plan.
-- Telefon trzyma własny plan timerów, a budzik nadaje o czasie — także przy zamkniętej aplikacji; „Ostatnie uruchomienia” widać na liście timerów w telefonie.
-- Plan odkłada się na nowo po każdej zmianie zrobionej na tym telefonie (także po imporcie) i przy starcie aplikacji: import zrobiony w przeglądarce telefon przejmie przy najbliższym otwarciu aplikacji.
-- Tempo przycisków ("buttons") jest zapamiętane na koncie: działa od razu przy każdym naciśnięciu, na każdym telefonie; timerów nie zmienia.`);
+export const LAMPS_USAGE_JSON: JsonNode = {
+  key: 'lamps.usage',
+  get title() { return t('lampsJson.node.usage.title'); },
+  text: () => t('lampsJson.node.usage.text')
+};
 
 /** Ein Paket: was Android senden kann (`adv.ts`). */
 export const LAMP_FRAME_JSON: JsonNode = {
   key: 'lamps.frame',
-  title: 'Ramka ("frames[]")',
+  get title() { return t('lampsJson.node.frame.title'); },
   /* Erst ein Satz: der Abschnitt wird getrimmt (`sectionText`) — mit den Schlüsseln vorn verlöre die erste Zeile ihren Einzug. */
-  text: () => `Ramka to jeden pakiet i to, jak długo go nadawać; ramki sygnału idą po kolei.
+  text: () => `${t('lampsJson.node.frame.lead')}
 ${keyLines(FRAME_KEYS)}
-Pakiet to reklama BLE „legacy”: najwyżej ${LEGACY_MAX} bajtów, z jedną strukturą danych producenta — długość, FF, identyfikator producenta (2 bajty, little endian), dane; np. "1EFF0000…" to ${LEGACY_MAX} ${plural(LEGACY_MAX, 'bajt', 'bajty', 'bajtów')} z identyfikatorem 0x0000. Innych struktur (flagi, nazwy, UUID, dane usług) telefon nie nadaje — sygnał z nimi import pomija. Zera na końcu (wypełnienie z nasłuchu) nie są nadawane.`
+${t('lampsJson.node.frame.text', { max: LEGACY_MAX, bytes: t('lampsJson.bytes', { count: LEGACY_MAX }) })}`
 };
 
 export const LAMP_SIGNAL_JSON: JsonNode = {
   key: 'lamps.signal',
-  title: 'Sygnał ("signals[]")',
-  text: () => `Sygnał to przycisk: napis i to, co telefon nadaje po naciśnięciu — jedna ramka albo kilka po kolei (sekwencja). Krótkie naciśnięcie wysyła cały sygnał; przytrzymanie nadaje, dopóki trzyma się przycisk.
+  get title() { return t('lampsJson.node.signal.title'); },
+  text: () => `${t('lampsJson.node.signal.lead')}
 ${keyLines(SIGNAL_KEYS)}
-Sygnał z błędem (np. zły pakiet) import pomija z ostrzeżeniem — zmiana istniejącego sygnału wtedy nie wchodzi, reszta urządzenia się zapisuje.`,
+${t('lampsJson.node.signal.text')}`,
   inside: () => [LAMP_FRAME_JSON]
 };
 
 export const LAMP_JSON: JsonNode = {
   key: 'lamps.lamp',
-  title: 'Urządzenie ("lamps[]")',
-  text: () => `Urządzenie porządkuje przyciski: nazwa, numer i pomieszczenie nie wybierają odbiornika — reklama BLE trafia do wszystkich lamp w zasięgu, a którą włączy, decydują bajty w pakiecie.
+  get title() { return t('lampsJson.node.lamp.title'); },
+  text: () => `${t('lampsJson.node.lamp.lead')}
 ${keyLines(LAMP_KEYS)}
-Sygnały istniejącego urządzenia: z "id" zmieniają się w miejscu, bez "id" dochodzą, niewymienione zostają. Gdy dokument wymienia WSZYSTKIE sygnały urządzenia, obowiązuje jego kolejność; gdy tylko część — nowe dochodzą na końcu. Urządzenia stoją na stronie według numeru, potem nazwy.`,
+${t('lampsJson.node.lamp.text')}`,
   inside: () => [LAMP_SIGNAL_JSON]
 };
 
 export const LAMP_ACTION_JSON: JsonNode = {
   key: 'lamps.action',
-  title: 'Akcja timera ("actions[]")',
-  text: () => `Akcja: który sygnał którego urządzenia wysłać.
+  get title() { return t('lampsJson.node.action.title'); },
+  text: () => `${t('lampsJson.node.action.lead')}
 ${keyLines(ACTION_KEYS)}
-"@klucz" to "key" urządzenia albo sygnału z tego dokumentu; działa też klucz, który eksport nadaje urządzeniu i sygnałowi (np. "@lampa-w-sypialni-nr-1", "@wlacz"), gdy samego urządzenia w dokumencie nie ma. Nazwy porównuje się bez wielkości liter i polskich znaków; nazwa musi wskazywać dokładnie jedno urządzenie (jeden sygnał) — inaczej akcja jest pomijana z ostrzeżeniem. Eksport zapisuje akcje jako "@klucz".`
+${t('lampsJson.node.action.text')}`
 };
 
 export const LAMP_PACE_JSON: JsonNode = {
   key: 'lamps.pace',
-  title: 'Tempo ("pace", "buttons")',
-  text: () => `Tempo zwalnia nadawanie, nie zmieniając zapisanych sygnałów. W timerze: { "pauseMs", "limitMs" }; w "buttons" (przyciski i próby nadania, zapamiętane na koncie) tylko "pauseMs" — jak długo nadaje przycisk, decyduje przytrzymanie.
+  get title() { return t('lampsJson.node.pace.title'); },
+  text: () => `${t('lampsJson.node.pace.lead')}
 ${keyLines(PACE_KEYS)}`
 };
 
 export const LAMP_TIMER_JSON: JsonNode = {
   key: 'lamps.timer',
-  title: 'Timer ("timers[]")',
-  text: () => `Timer wysyła o danej godzinie, w wybrane dni tygodnia, sygnały po kolei. Wykonuje go telefon z aplikacją REcreatio (wydanie SMS), na którym timery są włączone — także przy zamkniętej aplikacji.
+  get title() { return t('lampsJson.node.timer.title'); },
+  text: () => `${t('lampsJson.node.timer.lead')}
 ${keyLines(TIMER_KEYS)}
-Przy zmianie istniejącego timera wystarczy "id" i to, co się zmienia (np. {"id": "…", "enabled": false}). Timer ze złą godziną, złymi dniami albo bez akcji, która coś wskazuje, import pomija (istniejący zostaje bez zmian).`,
+${t('lampsJson.node.timer.text')}`,
   inside: () => [LAMP_ACTION_JSON, LAMP_PACE_JSON]
 };
 
 /** 2026-10-29 — DIE LAMPEN ALS JSON: der Baum, aus dem die Beschreibung neben dem Import entsteht (und der Katalog des MCP-Dienstes). */
 export const LAMPS_JSON: JsonNode = {
   key: 'lamps',
-  title: `Lampy jako JSON ("${LAMPS_FORMAT}", wersja ${LAMPS_VERSION})`,
-  short: 'Lampy',
+  get title() { return t('lampsJson.node.root.title', { format: LAMPS_FORMAT, version: LAMPS_VERSION }); },
+  get short() { return t('lampsJson.node.root.short'); },
   text: INTRO,
   inside: () => [
     LAMPS_USAGE_JSON,
     LAMP_JSON,
     LAMP_TIMER_JSON,
-    textNode('lamps.example', 'Przykład: dwie lampy i dwa timery', () => pretty(lampsExample())),
-    textNode('lamps.example-timers', 'Przykład: same timery dla lamp, które już są', () =>
-      `Bez identyfikatorów — urządzenia i sygnały po nazwie (tak napisze je AI, które nie widziało eksportu):\n${pretty(timersExample())}`),
-    textNode('lamps.example-change', 'Przykład: zmiana i usunięcie', () =>
-      `Identyfikatory z eksportu; zmienia się tylko to, co podane:\n${pretty(changeExample())}`)
+    textNode('lamps.example', t('lampsJson.node.example.title'), () => pretty(lampsExample())),
+    textNode('lamps.example-timers', t('lampsJson.node.exampleTimers.title'), () =>
+      `${t('lampsJson.node.exampleTimers.lead')}\n${pretty(timersExample())}`),
+    textNode('lamps.example-change', t('lampsJson.node.exampleChange.title'), () =>
+      `${t('lampsJson.node.exampleChange.lead')}\n${pretty(changeExample())}`)
   ],
   samples: () => [
-    { label: 'dwie lampy z sygnałami i dwa timery', doc: lampsExample },
-    { label: 'same timery dla lamp, które już są (np. od AI)', doc: timersExample }
+    { get label() { return t('lampsJson.node.sampleFull'); }, doc: lampsExample },
+    { get label() { return t('lampsJson.node.sampleTimers'); }, doc: timersExample }
   ]
 };
 

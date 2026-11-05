@@ -15,6 +15,8 @@ import { PAGE_JSON } from '../pages/pageJsonText';
 import { NEED_PREFIX } from '../pages/pageImageNeeds';
 import { AREA_FORMAT, LEVEL_WORD, MAX_LISTINGS, MAX_PAGES, MAX_ROLES, MAX_SUBFORMS } from './areaJson';
 import { kindLabel, PROFILE_KINDS, type ProfileKind } from './profile';
+import { areaExample, groupExample } from './areaJsonSamples';
+import { t } from '../core/i18n';
 
 /* -- Der Baum ohne fremde Beispiele -------------------------------------------------- */
 
@@ -30,91 +32,83 @@ function withoutSamples(node: JsonNode): JsonNode {
   return copy;
 }
 
-/* -- Die Sätze ------------------------------------------------------------------------- */
+/* -- Die Sätze (Wörter: `areasJsonFormat.*`) ------------------------------------------ */
 
-const INTRO = (): string => `Jeden dokument opisuje cały obszar: wydarzenie, grupę, parafię albo kurs — jego profil i wizytówkę, role (z linkami), terminy z programem, strony (z formularzami), podformularze, rozmowy i listy, na których ma się pokazać.
-Co robi import:
-- Najpierw sprawdza i pokazuje plan, krok po kroku; zapisuje dopiero po „Importuj”, w kolejności: profil, role, terminy, formularze i strony, podformularze, rozmowy, wizytówka, listy.
-- Wszystko nazywa się krótkimi kluczami ("key" ról, stron, terminów, podformularzy; "id" modułów na stronie). Obszar pamięta, co import utworzył pod jakim kluczem: ten sam dokument zaimportowany jeszcze raz ZMIENIA to samo, zamiast dublować. Dokument z innego obszaru (np. eksport zeszłorocznego wydarzenia) zakłada tu wszystko od nowa — nigdy nie zmienia stron, formularzy ani ról tamtego obszaru.
-- Czego nie ma w dokumencie, zostaje bez zmian (rola, strona, termin, moduł). Wyjątek: program terminu — jego punkty są w dokumencie w całości, więc punkt, którego zabrakło, znika.
-- Role, które już są, zostają, jakie były (import nie zmienia ich uprawnień); nowe role i linki powstają raz.
-- Odpowiedzi formularzy zawsze trafiają do tego obszaru — za dane odpowiada jego administrator danych. Pytania, termin i wizytówka mogą być widoczne w innym obszarze ("publish") — zwykle w jawnym obszarze nad nim, jak „Wydarzenia” parafii.
-- Klucze i adresy stron widzi usługa — nie wpisuj w nie danych osobowych.
-Zwróć JEDEN obiekt JSON, bez komentarzy.`;
+const INTRO = (): string => t('areasJsonFormat.intro');
 
 const AREA_KEYS = (): string => `${keyLines({
   format: `"${AREA_FORMAT}"`,
   version: '1',
-  kind: `rodzaj obszaru: ${PROFILE_KINDS.map((k) => `"${k.kind}" (${k.label})`).join(', ')}; pominięty — zostaje, jaki był (nowy profil go wymaga)`,
-  name: 'nazwa obszaru — tylko informacja (import jej nie zmienia)',
-  category: 'jedno słowo do filtrów na listach, np. "rekolekcje" (do 40 znaków) albo null',
-  address: 'proponowany adres strony głównej, np. "parafia/rekolekcje-2026" — osoba importująca może go zmienić; adresy stron liczą się od niego',
-  publish: '"auto" — publiczne części (wizytówka, termin, pytania formularzy) idą do najbliższego jawnego obszaru nad tym, który prowadzisz; "area" — zostają w tym obszarze (widzą je tylko jego osoby); albo identyfikator obszaru (z eksportu)',
-  archive: '"auto" — godzinę po końcu głównego terminu formularze się zamykają, a strona „po wydarzeniu” się pokazuje; "manual" — ręcznie',
-  card: 'wizytówka na listach i kartach: { "title", "lead", "image", "publish" } — "image": "page-image:@klucz" (plik opisany w "images" strony głównej) albo "page-image:<id>"; null — bez wizytówki',
-  roles: `role obszaru (najwyżej ${MAX_ROLES}) — niżej: Role i linki`,
-  appointments: 'terminy w kalendarzu obszaru, z programem — niżej: Terminy obszaru',
-  pages: `strony obszaru (najwyżej ${MAX_PAGES}), każda z dokumentem strony — niżej: Strony obszaru`,
-  subforms: `podformularze formularzy z tych stron (najwyżej ${MAX_SUBFORMS}) — niżej: Podformularze`,
-  chats: '"area" — rozmowa wszystkich osób obszaru, "channel" — kanał ogłoszeń (piszą prowadzący); albo { "kind": "area", "forms": ["@form:strona/moduł"] } — z osobami zapisanymi przez te formularze (ich własnymi linkami)',
-  listings: `adresy stron z listą „Wydarzenia”, na których obszar prosi o miejsce (najwyżej ${MAX_LISTINGS}); "events" — katalog recreatio.pl/events (decyduje operator, karta bez danych osobowych)`
+  kind: t('areasJsonFormat.keys.kind', { kinds: PROFILE_KINDS.map((k) => `"${k.kind}" (${k.label})`).join(', ') }),
+  name: t('areasJsonFormat.keys.name'),
+  category: t('areasJsonFormat.keys.category'),
+  address: t('areasJsonFormat.keys.address'),
+  publish: t('areasJsonFormat.keys.publish'),
+  archive: t('areasJsonFormat.keys.archive'),
+  card: t('areasJsonFormat.keys.card'),
+  roles: t('areasJsonFormat.keys.roles', { max: MAX_ROLES }),
+  appointments: t('areasJsonFormat.keys.appointments'),
+  pages: t('areasJsonFormat.keys.pages', { max: MAX_PAGES }),
+  subforms: t('areasJsonFormat.keys.subforms', { max: MAX_SUBFORMS }),
+  chats: t('areasJsonFormat.keys.chats'),
+  listings: t('areasJsonFormat.keys.listings', { max: MAX_LISTINGS })
 })}`;
 
-const REFS = (): string => `Dokument nie używa identyfikatorów usługi — wskazuje swoje części przez odwołania. Odwołanie to CAŁA wartość (albo lista po przecinku), nigdy fragment tekstu:
+const REFS = (): string => `${t('areasJsonFormat.refs.lead')}
 ${keyLines({
-  '@area': 'ten obszar — np. "area" modułu "event" (wizytówka), "areas" modułu "events"',
-  '@form:strona/moduł': 'formularz z tego dokumentu: "key" strony i "id" modułu (np. "@form:main/zapisy"); albo "@form:klucz" podformularza — np. "form" modułu "entries", "formId" w mapie logiki',
-  '@page:klucz': 'adres strony z tego dokumentu — np. w menu ("kind": "abs") albo w polu „Strona”',
-  '@role:klucz': 'rola z tego dokumentu; w "memberRoles" i "virtualAreas" formularzy wystarczy "@klucz"',
-  '@termin': `w polach kalendarza modułów ("item", "calendar", "calendars") — termin z "appointments" po "key" (także punkt programu z własnym "key"); "@${DEFAULT_ENTRY}" — kalendarz obszaru`
+  '@area': t('areasJsonFormat.refs.area'),
+  '@form:strona/moduł': t('areasJsonFormat.refs.form'), // i18n-ignore — die Schreibweise des Verweises
+  '@page:klucz': t('areasJsonFormat.refs.page'),
+  '@role:klucz': t('areasJsonFormat.refs.role'),
+  '@termin': t('areasJsonFormat.refs.item', { entry: `@${DEFAULT_ENTRY}` })
 })}
-Moduł "program" z "item": "@termin" i pustym "calendar" sam dostaje kalendarz obszaru. Eksport zapisuje odwołania w tej samej postaci.`;
+${t('areasJsonFormat.refs.tail')}`;
 
-const ROLES = (): string => `Wpis w "roles":
+const ROLES = (): string => `${t('areasJsonFormat.roles.lead')}
 ${keyLines({
-  key: 'krótka nazwa (litery, cyfry, - i _, do 32 znaków), np. "organizatorzy"',
-  name: 'nazwa roli, np. "Organizatorzy" (widzą ją prowadzący)',
-  level: `co rola może w obszarze: ${Object.entries(LEVEL_WORD).map(([k, v]) => `"${k}" (${v})`).join(', ')}`,
-  link: 'true albo { "days": 1–365 (domyślnie 30), "once": true — jednorazowy, "lead": true — kto go otworzy, sam może przyjmować innych do roli, "label" } — link zaproszenia do tej roli; otwiera widok obszaru (w wydarzeniu rola, która tylko czyta — jego stronę główną); powstaje raz i pokazuje się po imporcie'
+  key: t('areasJsonFormat.roles.key'),
+  name: t('areasJsonFormat.roles.name'),
+  level: t('areasJsonFormat.roles.level', { levels: Object.entries(LEVEL_WORD).map(([k, v]) => `"${k}" (${v})`).join(', ') }),
+  link: t('areasJsonFormat.roles.link')
 })}
-Każda nowa rola to kilkanaście sekund liczenia kluczy w przeglądarce. Uczestnicy zapisani przez formularz dostają rolę z "memberRoles" formularza (np. ["@uczestnicy"]) — dla nich link nie jest potrzebny.`;
+${t('areasJsonFormat.roles.tail')}`;
 
-const APPOINTMENTS = (): string => `Wpis w "appointments" ma klucze terminu ze strony (niżej: Terminy do kalendarza) — "key", "title", "start", "end", "allDay", "location", "notes", "link", "linkLabel", "repeat", "every", "weekdays", "until", "points" — oraz:
+const APPOINTMENTS = (): string => `${t('areasJsonFormat.appointments.lead')}
 ${keyLines({
-  key: 'wymagany — po nim ponowny import zmienia ten sam termin (bez niego dostaje „termin-1”, „termin-2”…)',
-  main: 'true — główny termin: jego koniec jest końcem wydarzenia (karty, archiwum); jeden, bez powtórzeń; pojedynczy termin wydarzenia jest główny sam',
-  publish: '"area", "auto" albo identyfikator obszaru — gdzie termin (i jego program) jest widoczny; pominięty — jak "publish" obszaru'
+  key: t('areasJsonFormat.appointments.key'),
+  main: t('areasJsonFormat.appointments.main'),
+  publish: t('areasJsonFormat.appointments.publish')
 })}
-Wszystkie terminy idą do kalendarza obszaru ("calendar" i "calendars" są tu zbędne). Punkty programu ("points") ponowny import zmienia w miejscu po kolei; punkt, którego zabrakło w dokumencie, znika z kalendarza.`;
+${t('areasJsonFormat.appointments.tail')}`;
 
-const PAGES = (): string => `Wpis w "pages":
+const PAGES = (): string => `${t('areasJsonFormat.pages.lead')}
 ${keyLines({
-  key: 'krótka nazwa strony (do 24 znaków), np. "main", "zapisy", "po"',
-  path: '"" — adres strony głównej; "zapisy" — pod nim ("parafia/rekolekcje-2026/zapisy"); "/inny/adres" — dokładnie ten adres; pominięty — "" dla strony głównej, inaczej "key"',
-  main: 'true — strona główna obszaru (karty prowadzą na nią); bez tego — strona z "path": ""',
-  after: 'true — strona „po wydarzeniu”: przygotowana, ale ukryta do końca głównego terminu; potem pokazuje się na kartach',
-  access: '"public" — każdy; "members" — tylko osoby obszaru; pominięty — zostaje, jak było (nowa: publiczna)',
-  page: 'dokument strony — jak niżej (Strona jako JSON), bez "path", "appointments" i "calendars"'
+  key: t('areasJsonFormat.pages.key'),
+  path: t('areasJsonFormat.pages.path'),
+  main: t('areasJsonFormat.pages.main'),
+  after: t('areasJsonFormat.pages.after'),
+  access: t('areasJsonFormat.pages.access'),
+  page: t('areasJsonFormat.pages.page')
 })}
-W modułach strony ("modules") dokument obszaru dodaje:
+${t('areasJsonFormat.pages.modulesLead')}
 ${keyLines({
-  id: 'nazwa modułu na tej stronie (litery, cyfry, - i _, do 32 znaków) — po niej ponowny import zmienia ten sam moduł; formularz musi ją mieć (inaczej po zmianie kolejności trafiłby w inny formularz i jego zgłoszenia)',
-  members: 'true — moduł widzą tylko osoby obszaru (z kontem, linkiem albo własnym linkiem z formularza), np. zdjęcia i materiały na stronie „po wydarzeniu”; false — wszyscy',
-  publish: 'tylko "form": "area", "auto" albo identyfikator obszaru — gdzie leżą pytania (formularz publiczny w prywatnym obszarze: pytania pod kluczem jawnego obszaru, odpowiedzi tutaj); pominięty — jak "publish" obszaru',
-  answer: 'tylko "seat-ask" („Napisz do nas”): kto odpowiada — role z "roles", np. ["@role:organizatorzy"]; pominięty — role z "level": "admin" (bez nich tylko osoba importująca); osoba z linkiem czyta „Napisz do: …” z ich nazwami',
-  forms: 'tylko "seat-ask": czyje osoby mogą zacząć rozmowę — formularze z tego dokumentu, np. ["@form:main/zapisy"]; pominięty — wszystkie formularze stron dokumentu'
+  id: t('areasJsonFormat.pages.id'),
+  members: t('areasJsonFormat.pages.members'),
+  publish: t('areasJsonFormat.pages.publish'),
+  answer: t('areasJsonFormat.pages.answer'),
+  forms: t('areasJsonFormat.pages.forms')
 })}
-"module" jest w dokumencie obszaru pomijane, "answersTo" pytań też (odpowiedzi trafiają do tego obszaru). Strona, która już istnieje, a nie jest stroną tego obszaru, nie zostanie zmieniona, chyba że osoba importująca na to pozwoli.`;
+${t('areasJsonFormat.pages.tail')}`;
 
-const SUBFORMS = (): string => `Wpis w "subforms" — formularz, który rozszerza formularz ze strony (zgody, ankieta po wydarzeniu, karta zdrowia):
+const SUBFORMS = (): string => `${t('areasJsonFormat.subforms.lead')}
 ${keyLines({
-  key: 'krótka nazwa (do 32 znaków)',
-  of: 'formularz, który rozszerza: "@form:strona/moduł"',
-  name: 'nazwa podformularza',
-  audience: '"person" — wypełnia osoba przez swój link; "office" — tylko prowadzący',
-  repeat: '"once", "day", "week", "month", "year" — jak często (zwykle "once")',
-  publish: 'jak przy formularzu na stronie',
-  questions: 'pytania — jak w formularzu (niżej: Formularz); także "design", "needs", "memberRoles", "virtualAreas", "group"'
+  key: t('areasJsonFormat.subforms.key'),
+  of: t('areasJsonFormat.subforms.of'),
+  name: t('areasJsonFormat.subforms.name'),
+  audience: t('areasJsonFormat.subforms.audience'),
+  repeat: t('areasJsonFormat.subforms.repeat'),
+  publish: t('areasJsonFormat.subforms.publish'),
+  questions: t('areasJsonFormat.subforms.questions')
 })}`;
 
 /*
@@ -125,132 +119,33 @@ ${keyLines({
    `Profiles.SweepAsync`), wer für die Daten geradesteht (`Form.Submit.cs`, `Chat.List.cs`,
    `Controllers.PageGateAsync`, `areaImport.ts`) und wohin veröffentlicht wird (`areaJson.ts`).
 */
-const USAGE = (): string => `- Obszar dostaje pierwszą zakładkę nazwaną od rodzaju. Każdy, kto czyta obszar, widzi w niej wizytówkę, termin i miejsce, „Zapisy otwarte” oraz linki do stron i rozmów; tylko prowadzący — „Do zrobienia”, edytor wizytówki, narzędzia rodzaju i ten import.
-- Wizytówka jest szyfrowana kluczem obszaru, w którym ją opublikowano: z jawnego obszaru przeczyta ją każdy, z innego — tylko ci, którzy go czytają.
-- Karty w modułach „Wydarzenia” i „Wizytówka” prowadzą na stronę główną. Na listach obszar stoi tylko z publiczną, niezaszyfrowaną stroną główną (bez jawnej wizytówki karta bierze tytuł i tekst tej strony); datę pokazuje, gdy główny termin jest widoczny publicznie, a „Zapisy otwarte” — gdy formularz naprawdę przyjmuje (otwarty, publiczny, na publicznej stronie, z administratorem danych).
-- "listings" to prośby o miejsce: lista, którą prowadzisz, pokaże obszar od razu; inną zatwierdza jej właściciel, katalog "events" — operator serwisu.
-- Terminy stoją w kalendarzu obszaru: w kalendarzu i w module "program" widzi je, kto czyta obszar, w którym są widoczne ("publish").
-- Strona „po wydarzeniu” jest widoczna po końcu głównego terminu albo po „Zakończ teraz” (wcześniej tylko dla tych, którzy ją prowadzą); publiczną pokazują wtedy też karty. Przy "archive": "auto" wszystkie otwarte formularze obszaru zamykają się same po końcu, a „Przywróć” otwiera je znowu.
-- Bez administratora danych (własnego albo z obszaru nad nim) formularze nie przyjmą zgłoszeń, rozmowy obszaru nie powstaną, a publicznych stron nie da się zapisać. Gdy go ma, import oddaje publiczne strony z dokumentu pod odpowiedzialność tego obszaru.
-- Import nie publikuje w obszarze, którego nie prowadzisz — publiczne części zostają wtedy tutaj, z ostrzeżeniem w planie.`;
+const USAGE = (): string => t('areasJsonFormat.usage');
 
-/* -- Beispiele ------------------------------------------------------------------------- */
+/* -- Beispiele: `areaJsonSamples.ts` (Daten, wie eine Besitzerin sie schreibt) --------------- */
 
-const SIGNUP = [
-  { id: 'imie', kind: 'line', label: 'Imię', required: true, halfWidth: true, identity: 'given_name' },
-  { id: 'nazwisko', kind: 'line', label: 'Nazwisko', required: true, halfWidth: true, identity: 'surname' },
-  { id: 'telefon', kind: 'phone', label: 'Telefon', required: true, halfWidth: true, identity: 'phone' },
-  { id: 'email', kind: 'email', label: 'E-mail', required: false, halfWidth: true, identity: 'email' }
-];
-
-/** Ein Wydarzenie: Rekolekcje mit Zapisy, Programm, Seite danach mit Materialien nur für Teilnehmer. */
-export function areaExample(): Record<string, unknown> {
-  return {
-    format: AREA_FORMAT,
-    version: 1,
-    kind: 'event',
-    name: 'Rekolekcje adwentowe 2026',
-    category: 'rekolekcje',
-    address: 'parafia/rekolekcje-2026',
-    publish: 'auto',
-    archive: 'auto',
-    card: { title: 'Rekolekcje adwentowe 2026', lead: 'Trzy wieczory ze słowem, ciszą i wspólnotą — 4–6 grudnia w kościele parafialnym.', image: `${NEED_PREFIX}plakat` },
-    roles: [
-      { key: 'organizatorzy', name: 'Organizatorzy', level: 'admin' },
-      { key: 'pomocnicy', name: 'Pomocnicy', level: 'write', link: { days: 30 } },
-      { key: 'uczestnicy', name: 'Uczestnicy', level: 'read' }
-    ],
-    appointments: [{
-      key: 'main', main: true, title: 'Rekolekcje adwentowe 2026', start: '2026-12-04T18:00', end: '2026-12-06T21:00', location: 'Kościół parafialny',
-      points: [
-        { key: 'dzien1', title: 'Dzień 1 — Słowo', start: '2026-12-04T18:00', end: '2026-12-04T21:00' },
-        { title: 'Dzień 2 — Cisza', start: '2026-12-05T18:00', end: '2026-12-05T21:00' },
-        { title: 'Dzień 3 — Wspólnota', start: '2026-12-06T18:00', end: '2026-12-06T21:00' }
-      ]
-    }],
-    pages: [
-      {
-        key: 'main', path: '', main: true, access: 'public',
-        page: {
-          title: 'Rekolekcje adwentowe 2026',
-          lead: 'Trzy wieczory ze słowem, ciszą i wspólnotą.',
-          images: [{ key: 'plakat', label: 'Plakat rekolekcji', description: 'Plakat albo zdjęcie kościoła wieczorem; poziomo — na kartę i na górę strony' }],
-          modules: [
-            { id: 'wizytowka', kind: 'event', config: { title: '', area: '@area' } },
-            { id: 'zdjecie', kind: 'image', config: { url: `${NEED_PREFIX}plakat`, alt: 'Kościół parafialny wieczorem', fit: 'cover' } },
-            { id: 'program', kind: 'program', config: { title: 'Program', calendar: '', item: '@main', hide: '' } },
-            { id: 'zapisy', kind: 'form', name: 'Zapisy na rekolekcje', questions: SIGNUP, memberRoles: ['@uczestnicy'] },
-            { id: 'napisz', kind: 'seat-ask', config: { title: 'Napisz do organizatorów' }, answer: ['@role:organizatorzy'], forms: ['@form:main/zapisy'] }
-          ]
-        }
-      },
-      {
-        key: 'po', path: 'po', after: true,
-        page: {
-          title: 'Po rekolekcjach',
-          lead: 'Dziękujemy, że byliście.',
-          modules: [
-            { id: 'podziekowanie', kind: 'text', config: { title: 'Dziękujemy', body: 'Nagrania konferencji i zdjęcia są niżej — tylko dla uczestników.' } },
-            { id: 'materialy', kind: 'files', members: true, config: { files: [{ label: 'Konferencje (nagrania)', url: 'https://…/konferencje.zip', note: null, size: null }], note: null } }
-          ]
-        }
-      }
-    ],
-    subforms: [{
-      key: 'zgody', of: '@form:main/zapisy', name: 'Zgoda na zdjęcia', audience: 'person',
-      questions: [{ id: 'zgoda', kind: 'choice', label: 'Czy zgadzasz się na zdjęcia z rekolekcji na stronie parafii?', options: ['Tak', 'Nie'], required: true }]
-    }],
-    chats: [{ kind: 'area', forms: ['@form:main/zapisy'] }, 'channel']
-  };
-}
-
-/** Eine Grupa: Schola mit wöchentlicher Probe, einer Seite nur für Mitglieder und einem Link für sie. */
-export function groupExample(): Record<string, unknown> {
-  return {
-    format: AREA_FORMAT,
-    version: 1,
-    kind: 'group',
-    name: 'Schola parafialna',
-    address: 'parafia/schola',
-    publish: 'area',
-    card: { title: 'Schola parafialna', lead: 'Śpiewamy na mszy niedzielnej o 11:00. Próby w czwartki o 19:00.' },
-    roles: [{ key: 'czlonkowie', name: 'Członkowie scholi', level: 'write', link: { days: 60 } }],
-    appointments: [{ key: 'proba', title: 'Próba scholi', start: '2026-11-05T19:00', end: '20:30', repeat: 'weekly', weekdays: ['cz'], location: 'Salka przy zakrystii' }],
-    pages: [{
-      key: 'main', path: '', main: true, access: 'members',
-      page: {
-        title: 'Schola — dla członków',
-        modules: [
-          { id: 'kalendarz', kind: 'calendar', config: { title: 'Próby i występy', calendars: `@${DEFAULT_ENTRY}` } },
-          { id: 'nuty', kind: 'files', config: { files: [{ label: 'Śpiewnik na Adwent', url: 'https://…/spiewnik.pdf', note: null, size: 'PDF' }], note: null } }
-        ]
-      }
-    }],
-    chats: ['area']
-  };
-}
+export { areaExample, groupExample } from './areaJsonSamples';
 
 /* -- Der Baum ---------------------------------------------------------------------------- */
 
 /** 0133 — DER BEREICH ALS JSON: der Baum, aus dem seine Beschreibung entsteht (und die Beispiele zum Einsetzen). */
 export const AREA_JSON: JsonNode = {
   key: 'area',
-  title: `Obszar jako JSON ("${AREA_FORMAT}", wersja 1)`,
+  title: t('areasJsonFormat.title', { format: AREA_FORMAT }),
   text: INTRO,
   inside: () => [
-    textNode('area.keys', 'Obszar', AREA_KEYS),
-    textNode('area.usage', 'Jak aplikacja używa tych danych', USAGE),
-    textNode('area.refs', 'Odwołania', REFS),
-    textNode('area.roles', 'Role i linki', ROLES),
-    textNode('area.appointments', 'Terminy obszaru', APPOINTMENTS),
-    textNode('area.pages', 'Strony obszaru', PAGES, () => [withoutSamples(PAGE_JSON)]),
-    textNode('area.subforms', 'Podformularze', SUBFORMS),
-    textNode('area.example', 'Przykład: wydarzenie', () => pretty(areaExample())),
-    textNode('area.group', 'Przykład: grupa', () => pretty(groupExample()))
+    textNode('area.keys', t('areasJsonFormat.section.keys'), AREA_KEYS),
+    textNode('area.usage', t('areasJsonFormat.section.usage'), USAGE),
+    textNode('area.refs', t('areasJsonFormat.section.refs'), REFS),
+    textNode('area.roles', t('areasJsonFormat.section.roles'), ROLES),
+    textNode('area.appointments', t('areasJsonFormat.section.appointments'), APPOINTMENTS),
+    textNode('area.pages', t('areasJsonFormat.section.pages'), PAGES, () => [withoutSamples(PAGE_JSON)]),
+    textNode('area.subforms', t('areasJsonFormat.section.subforms'), SUBFORMS),
+    textNode('area.example', t('areasJsonFormat.section.example'), () => pretty(areaExample())),
+    textNode('area.group', t('areasJsonFormat.section.group'), () => pretty(groupExample()))
   ],
   samples: () => [
-    { label: 'wydarzenie: rekolekcje z zapisami i stroną po nich', doc: areaExample },
-    { label: 'grupa: schola z próbami', doc: groupExample }
+    { get label() { return t('areasJsonFormat.sample.event'); }, doc: areaExample },
+    { get label() { return t('areasJsonFormat.sample.group'); }, doc: groupExample }
   ]
 };
 
@@ -325,34 +220,29 @@ export function areaPrompt(input: {
   readonly full?: boolean;
 }): string {
   const short = input.full === true ? null : areaDescriptionShort([input.template?.doc ?? null, input.current].filter((d) => d !== null));
-  const what = input.kind === null ? '' : ` (rodzaj: ${kindLabel(input.kind).toLowerCase()})`;
+  const what = input.kind === null ? '' : t('areasJsonFormat.prompt.kind', { kind: kindLabel(input.kind).toLowerCase() });
   const task = input.template !== null
-    ? `Na dole jest eksport obszaru „${input.template.name}” — poprzedniego wydarzenia. Zrób na jego wzór nowe: zachowaj układ stron, moduły, pytania formularzy, role, ich "key" i "id" modułów; zmień daty, tytuły, opisy i wszystko, co dotyczy nowego. Usuń to, co dotyczyło tylko poprzedniego (np. jego zdjęcia i materiały na stronie „po wydarzeniu”). "address" ustaw na nowy adres.`
+    ? t('areasJsonFormat.prompt.fromTemplate', { name: input.template.name })
     : input.current !== null
-      ? 'Na dole jest obecny eksport tego obszaru. Zmień go według moich wskazówek — zachowaj wszystkie "key" i "id", żeby import zmienił to, co jest, zamiast dublować.'
-      : 'Ułóż obszar od zera według moich wskazówek.';
+      ? t('areasJsonFormat.prompt.fromCurrent')
+      : t('areasJsonFormat.prompt.fromScratch');
   return [
-    `Przygotuj jeden dokument JSON w formacie „${AREA_FORMAT}” (opis formatu jest niżej) dla obszaru „${input.areaName}”${what}.`,
+    t('areasJsonFormat.prompt.head', { format: AREA_FORMAT, name: input.areaName, kind: what }),
     '',
     task,
     '',
-    'Zasady:',
-    '- Zwróć JEDEN obiekt JSON — bez komentarzy, bez tekstu przed nim i po nim.',
-    '- Nie wpisuj danych osobowych (imion i nazwisk, telefonów, adresów e-mail konkretnych osób), chyba że podam je wprost do publikacji.',
-    '- Nie wymyślaj faktów — dat, miejsc, cen, osób, zgód ani podstaw prawnych, których nie podałem. Czego nie wiesz, zostaw puste.',
-    `- Zdjęcia i pliki, których jeszcze nie ma, opisz w "images" strony i wstaw "${NEED_PREFIX}klucz". "page-image:<id>" ze wzoru możesz zostawić — to ten sam plik.`,
-    '- Formularz musi mieć "id"; odpowiedzi trafiają do tego obszaru, więc "answersTo" pomiń.',
+    t('areasJsonFormat.prompt.rules', { need: NEED_PREFIX }),
     '',
-    'Moje wskazówki: (uzupełnij — daty, miejsce, co ma być inaczej)',
+    t('areasJsonFormat.prompt.hints'),
     '',
     ...(short === null || short.left.length === 0 ? [] : [
-      `Opis formatu jest skrócony — bez rzadkich modułów i rozdziałów (${short.left.join(', ')}). Jeśli któregoś potrzebujesz, napisz o tym — dostaniesz pełny opis.`,
+      t('areasJsonFormat.prompt.short', { left: short.left.join(', ') }),
       ''
     ]),
-    '=== OPIS FORMATU ===',
+    t('areasJsonFormat.prompt.formatHead'),
     short === null ? areaDescription() : short.text,
     ...(input.template !== null
-      ? ['=== WZÓR: POPRZEDNIE WYDARZENIE ===', pretty(input.template.doc)]
-      : input.current !== null ? ['=== OBECNY OBSZAR ===', pretty(input.current)] : [])
+      ? [t('areasJsonFormat.prompt.templateHead'), pretty(input.template.doc)]
+      : input.current !== null ? [t('areasJsonFormat.prompt.currentHead'), pretty(input.current)] : [])
   ].join('\n');
 }

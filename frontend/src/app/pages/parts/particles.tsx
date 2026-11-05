@@ -18,6 +18,7 @@
  * ganzen Fenster); als Block das Labor selbst, mit eigenem Vollbild-Knopf.
  */
 
+import { t, useT } from '../../core/i18n';
 import { definePart, lines, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
 import { LabEditor } from '../../lab/LabEditor';
@@ -58,48 +59,48 @@ const SANDBOX = {
 };
 
 const SCENE_DOCS: Readonly<Record<string, string>> = {
-  '.format': 'Zawsze "recreatio/particles"',
-  '.version': 'Wersja formatu (1)',
-  '.seed': 'Ziarno losowości — ta sama liczba, ten sam przebieg',
-  '.box': 'Wnętrze skrzynki w metrach i grubość warstwy 2D',
-  '.box.w': 'Szerokość wnętrza (m), zwykle 0.3',
-  '.box.h': 'Wysokość wnętrza (m), zwykle 0.2',
-  '.box.depth': 'Grubość warstwy (m), zwykle 0.01 — z niej masy i energie',
-  '.ambient': 'Otoczenie: ciśnienie, temperatura, grawitacja, skład powietrza',
-  '.ambient.p': 'Ciśnienie w kPa (101.325 — poziom morza; niżej w górach)',
-  '.ambient.T': 'Temperatura pokoju w °C',
-  '.ambient.g': 'Przyspieszenie ziemskie w m/s² (0 — nieważkość)',
-  '.ambient.air': 'Skład powietrza — udziały masowe, np. { "N2": 0.7676, "O2": 0.2324 }',
-  '.ambient.air.N2': 'Udział masowy azotu w powietrzu',
-  '.ambient.air.O2': 'Udział masowy tlenu w powietrzu',
-  '.sides': 'Każdy bok skrzynki: "wall" (ścianka) albo "open" (otwarty na pokój)',
-  '.sides.left': 'Lewy bok',
-  '.sides.right': 'Prawy bok',
-  '.sides.bottom': 'Dno skrzynki',
-  '.sides.top': 'Góra (zwykle "open")',
-  '.quality': 'Rozdzielczość: "very-high" (cząstki 2 mm, zwykła), "high" (2,5 mm), "medium" (3 mm, dla słabszego komputera); urządzenie, na którym ktoś wybrał niższą, zostaje przy swojej',
-  '.ops': 'Kroki budowy po kolei — układ startowy, nie przebieg',
-  '.ops[].op': '"fill" (ciecz/gaz), "erase" (usuń — wraca powietrze), "solid" (nieruchome ciało stałe), "beaker" (zlewka), "hotplate" (płyta grzejna)',
-  '.ops[].region': 'Obszar: rect, circle, poly albo line z width',
-  '.ops[].region.rect': '[x0, y0, x1, y1] w metrach',
-  '.ops[].region.circle': '[x, y, promień]',
-  '.ops[].region.poly': 'Wielokąt [[x, y], …]',
-  '.ops[].region.line': 'Odcinek [x0, y0, x1, y1] (ściana)',
-  '.ops[].region.width': 'Grubość odcinka (m)',
-  '.ops[].composition': 'Skład (udziały masowe), np. { "H2O": 1 } albo powietrze { "N2": 0.7676, "O2": 0.2324 }',
-  '.ops[].composition.H2O': 'Udział masowy wody (H₂O) — inne substancje z bazy tak samo: N2, O2',
-  '.ops[].phase': '"liquid" (ciecz) albo "gas" (gaz)',
-  '.ops[].T': 'Temperatura w °C',
-  '.ops[].material': 'Materiał: "glass" (szkło), "steel" (stal), "ceramic" (kamyczki wrzenne)',
-  '.ops[].x': 'Środek aparatury (m)',
-  '.ops[].y': 'Dół aparatury (m) — 0 to dno skrzynki',
-  '.ops[].w': 'Szerokość zewnętrzna (m)',
-  '.ops[].h': 'Wysokość zewnętrzna (m)',
-  '.ops[].wall': 'Grubość ścianki zlewki (m) — co najmniej dwie cząstki',
-  '.ops[].mode': 'Płyta grzejna: "power" (stała moc) albo "thermostat" (temperatura)',
-  '.ops[].power': 'Moc płyty w W na grubość warstwy',
-  '.ops[].target': 'Temperatura termostatu w °C',
-  '.ops[].on': 'false — płyta wyłączona'
+  '.format': 'moduleContent.particles.scene.format',
+  '.version': 'moduleContent.particles.scene.version',
+  '.seed': 'moduleContent.particles.scene.seed',
+  '.box': 'moduleContent.particles.scene.box',
+  '.box.w': 'moduleContent.particles.scene.boxW',
+  '.box.h': 'moduleContent.particles.scene.boxH',
+  '.box.depth': 'moduleContent.particles.scene.boxDepth',
+  '.ambient': 'moduleContent.particles.scene.ambient',
+  '.ambient.p': 'moduleContent.particles.scene.ambientP',
+  '.ambient.T': 'moduleContent.particles.scene.ambientT',
+  '.ambient.g': 'moduleContent.particles.scene.ambientG',
+  '.ambient.air': 'moduleContent.particles.scene.ambientAir',
+  '.ambient.air.N2': 'moduleContent.particles.scene.ambientAirN2',
+  '.ambient.air.O2': 'moduleContent.particles.scene.ambientAirO2',
+  '.sides': 'moduleContent.particles.scene.sides',
+  '.sides.left': 'moduleContent.particles.scene.sidesLeft',
+  '.sides.right': 'moduleContent.particles.scene.sidesRight',
+  '.sides.bottom': 'moduleContent.particles.scene.sidesBottom',
+  '.sides.top': 'moduleContent.particles.scene.sidesTop',
+  '.quality': 'moduleContent.particles.scene.quality',
+  '.ops': 'moduleContent.particles.scene.ops',
+  '.ops[].op': 'moduleContent.particles.scene.opsOp',
+  '.ops[].region': 'moduleContent.particles.scene.opsRegion',
+  '.ops[].region.rect': 'moduleContent.particles.scene.opsRegionRect',
+  '.ops[].region.circle': 'moduleContent.particles.scene.opsRegionCircle',
+  '.ops[].region.poly': 'moduleContent.particles.scene.opsRegionPoly',
+  '.ops[].region.line': 'moduleContent.particles.scene.opsRegionLine',
+  '.ops[].region.width': 'moduleContent.particles.scene.opsRegionWidth',
+  '.ops[].composition': 'moduleContent.particles.scene.opsComposition',
+  '.ops[].composition.H2O': 'moduleContent.particles.scene.opsCompositionH2O',
+  '.ops[].phase': 'moduleContent.particles.scene.opsPhase',
+  '.ops[].T': 'moduleContent.particles.scene.opsT',
+  '.ops[].material': 'moduleContent.particles.scene.opsMaterial',
+  '.ops[].x': 'moduleContent.particles.scene.opsX',
+  '.ops[].y': 'moduleContent.particles.scene.opsY',
+  '.ops[].w': 'moduleContent.particles.scene.opsW',
+  '.ops[].h': 'moduleContent.particles.scene.opsH',
+  '.ops[].wall': 'moduleContent.particles.scene.opsWall',
+  '.ops[].mode': 'moduleContent.particles.scene.opsMode',
+  '.ops[].power': 'moduleContent.particles.scene.opsPower',
+  '.ops[].target': 'moduleContent.particles.scene.opsTarget',
+  '.ops[].on': 'moduleContent.particles.scene.opsOn'
 };
 
 const EXAMPLE_SCENE = {
@@ -118,28 +119,32 @@ const EXAMPLE_SCENE = {
 
 export const particlesPart = definePart<Config>({
   kind: 'particles',
-  label: 'Laboratorium cząstek',
-  use: 'Laboratorium cząstek 2D: skrzynka pełna powietrza, w którą maluje się wodę i stawia aparaturę (zlewka, płyta grzejna) — wszystko liczy silnik z lokalnych reguł i bazy substancji. Etap M1a: mechanika (ciecz i gaz, ścianki, napięcie powierzchniowe, wypór); ciepło i wrzenie w kolejnych etapach. Pełny ekran; przycisk „Wszystkie rdzenie” otwiera je w nowej karcie, liczące na wszystkich rdzeniach.',
+  label: 'moduleContent.particles.label',
+  use: 'moduleContent.particles.use',
   box: { colSpan: 6, rowSpan: 5 },
   fields: [],
   read,
   hasContent: () => true,
   missing: () => null,
   shows: (c, size) => size.height === 'strip'
-    ? `${c.title || 'Laboratorium cząstek'} — karta z przyciskiem: laboratorium otwiera się na całym ekranie.`
-    : `„${c.title || 'Laboratorium cząstek'}” — skrzynka z cząstkami, narzędzia obok albo pod nią, przycisk pełnego ekranu.`,
+    ? t('moduleContent.particles.showsStrip', { title: c.title || t('moduleContent.particles.title') })
+    : t('moduleContent.particles.showsAll', { title: c.title || t('moduleContent.particles.title') }),
   fullscreen: true,
-  Editor: (props) => (
-    <LabEditor {...props} presets={presets} sandbox={SANDBOX} what="laboratorium cząstek" Preview={Preview}
-      prompt={() => import('../../lab/particles/particleText').then((m) => m.particlePrompt())} />
-  ),
-  View: ({ config, ctx }) => {
+  Editor: function ParticlesEditor(props) {
+    const t = useT();
+    return (
+      <LabEditor {...props} presets={presets} sandbox={SANDBOX} what={t('moduleContent.particles.what')} Preview={Preview}
+        prompt={() => import('../../lab/particles/particleText').then((m) => m.particlePrompt())} />
+    );
+  },
+  View: function ParticlesView({ config, ctx }) {
+    const t = useT();
     if (ctx.size.height === 'strip' && ctx.whole !== true) {
       return (
         <div className="lab-card">
-          <strong>{config.title || 'Laboratorium cząstek'}</strong>
+          <strong>{config.title || t('moduleContent.particles.title')}</strong>
           {config.text[0] !== undefined && <p className="wk-card-muted">{config.text[0]}</p>}
-          {ctx.openWhole !== undefined && <button type="button" className="wk-btn" onClick={ctx.openWhole}>Otwórz laboratorium</button>}
+          {ctx.openWhole !== undefined && <button type="button" className="wk-btn" onClick={ctx.openWhole}>{t('moduleContent.particles.open')}</button>}
         </div>
       );
     }
@@ -148,15 +153,15 @@ export const particlesPart = definePart<Config>({
     return <Lab config={{ title: config.title, text: config.text, scene: config.scene }} whole={ctx.whole === true} fullPower={fullPower} />;
   },
   example: {
-    title: 'Zlewka na płycie grzejnej',
-    text: 'W zlewce jest woda, pod nią płyta grzejna.\nZbadaj cząstki wody, szkła i powietrza.',
+    title: 'Zlewka na płycie grzejnej', // i18n-ignore
+    text: 'W zlewce jest woda, pod nią płyta grzejna.\nZbadaj cząstki wody, szkła i powietrza.', // i18n-ignore
     mode: 'sandbox',
     scene: JSON.stringify(EXAMPLE_SCENE)
   },
   extra: [
-    { key: 'title', shape: 'line', says: 'Tytuł laboratorium (nad skrzynką)' },
-    { key: 'text', shape: 'lines', says: 'Tekst dla uczniów — co mają zrobić i zaobserwować (akapity)' },
-    { key: 'mode', shape: 'line', says: '"sandbox" — piaskownica (wszystkie narzędzia), "experiment" — zarezerwowane dla doświadczeń z krokami' },
-    { key: 'scene', shape: 'json', says: 'Układ startowy: skrzynka, otoczenie, boki, ziarno i kroki budowy (wypełnij, usuń, ciało stałe, zlewka, płyta grzejna) — silnik jest wbudowany, scena mówi, co na początku gdzie stoi', inside: SCENE_DOCS }
+    { key: 'title', shape: 'line', says: 'moduleContent.particles.key.title' },
+    { key: 'text', shape: 'lines', says: 'moduleContent.particles.key.text' },
+    { key: 'mode', shape: 'line', says: 'moduleContent.particles.key.mode' },
+    { key: 'scene', shape: 'json', says: 'moduleContent.particles.key.scene', inside: SCENE_DOCS }
   ]
 });

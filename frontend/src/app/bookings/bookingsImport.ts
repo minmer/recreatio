@@ -14,6 +14,7 @@
 import { loadAreas, type AreaRow } from '../areas/area';
 import { draftOf, loadAgenda, openAgenda, saveEvent, type AgendaOccurrence, type OpenedItem } from '../calendar/agenda';
 import { addCalendar, loadCalendars, type CalendarRow } from '../calendar/calendar';
+import { t } from '../core/i18n';
 import { newId } from '../core/ids';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
@@ -93,7 +94,7 @@ export async function loadBookings(me: Pick<BookingKeys, 'ring'>): Promise<Loade
 }
 
 const failure = (e: unknown): string =>
-  (e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : 'nie udało się').replace(/[.\s]+$/, '');
+  (e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : t('bookings.import.failed')).replace(/[.\s]+$/, '');
 
 /** DER IMPORT — noch einmal geplant mit frischem Stand, dann Dinge, Väter, Termine. */
 export async function runBookingsImport(input: {
@@ -103,7 +104,7 @@ export async function runBookingsImport(input: {
   readonly stage: (what: string) => void;
 }): Promise<JsonPreview> {
   const { doc, options, me, stage } = input;
-  stage('Sprawdzanie…');
+  stage(t('bookings.import.checking'));
   const loaded = await loadBookings(me);
   const plan = planBookingsImport(doc, loaded.state, options);
   if ('error' in plan) throw new WorkspaceError(plan.error);
@@ -119,26 +120,26 @@ export async function runBookingsImport(input: {
     try {
       let calendarId = r.calendarId;
       if (r.newCalendar !== null) {
-        stage(`Kalendarz „${r.newCalendar}”…`);
+        stage(t('bookings.import.stageCalendar', { name: r.newCalendar }));
         calendarId = (await addCalendar(r.areaId, r.newCalendar, { itemKind: 'appointment' })).calendarId;
-        lines.push(`Utworzono kalendarz „${r.newCalendar}”.`);
+        lines.push(t('bookings.import.calendarCreated', { name: r.newCalendar }));
       }
       const change = r.newCalendar !== null && calendarId !== null ? { ...r.change, calendarId } : r.change;
-      stage(`Zasób „${r.name}”…`);
+      stage(t('bookings.import.stageResource', { name: r.name }));
       if (r.resourceId === null) {
         const row = await createResource(newId(), r.areaId, change);
         made.set(r.index, row.resourceId);
-        lines.push(`Utworzono zasób „${r.name}”.`);
+        lines.push(t('bookings.import.resourceCreated', { name: r.name }));
       } else {
         if (Object.keys(change).length > 0) {
           await updateResource(r.resourceId, change);
-          lines.push(`Zmieniono zasób „${r.name}”.`);
+          lines.push(t('bookings.import.resourceChanged', { name: r.name }));
         }
         made.set(r.index, r.resourceId);
       }
       calendarOf.set(r.index, calendarId);
     } catch (e) {
-      warnings.push(`Zasób „${r.name}”: ${failure(e)} — pominięty${r.slots.length > 0 ? ' razem z jego terminami' : ''}.`);
+      warnings.push(t(r.slots.length > 0 ? 'bookings.import.resourceSkippedWithSlots' : 'bookings.import.resourceSkipped', { name: r.name, reason: failure(e) }));
     }
   }
 
@@ -148,11 +149,11 @@ export async function runBookingsImport(input: {
     const id = made.get(r.index);
     const parent = made.get(r.parentLater);
     if (id === undefined) continue;
-    if (parent === undefined) { warnings.push(`Zasób „${r.name}”: zasób nadrzędny nie powstał — zostaje osobno.`); continue; }
+    if (parent === undefined) { warnings.push(t('bookings.import.noParent', { name: r.name })); continue; }
     try {
       await updateResource(id, { parentId: parent });
     } catch (e) {
-      warnings.push(`Zasób „${r.name}”: nie udało się umieścić go w nadrzędnym — ${failure(e)}.`);
+      warnings.push(t('bookings.import.parentFailed', { name: r.name, reason: failure(e) }));
     }
   }
 
@@ -172,10 +173,10 @@ export async function runBookingsImport(input: {
     const seenBy = writable.has(preset.toLowerCase()) ? preset : r.areaId;
 
     for (const slot of r.slots) {
-      stage(`Termin „${slot.label}”…`);
+      stage(t('bookings.import.stageSlot', { name: slot.label }));
       try {
         if (slot.itemId === null) {
-          if (calendarId === null) throw new WorkspaceError('zasób nie ma kalendarza');
+          if (calendarId === null) throw new WorkspaceError(t('bookings.import.noCalendar'));
           await saveEvent(me.ring, { ...slot.fields, kind: 'appointment', areaId: seenBy, ownerRoleId: me.person.id, calendarId });
           created += 1;
         } else {
@@ -187,13 +188,13 @@ export async function runBookingsImport(input: {
           changed += 1;
         }
       } catch (e) {
-        warnings.push(`Termin „${slot.label}” (zasób „${r.name}”): ${failure(e)}.`);
+        warnings.push(t('bookings.import.slotFailed', { slot: slot.label, name: r.name, reason: failure(e) }));
       }
     }
   }
 
-  if (created > 0) lines.push(`Nowe terminy: ${created}.`);
-  if (changed > 0) lines.push(`Zmienione terminy: ${changed}.`);
-  if (lines.length === 0) lines.push('Nic nie zostało zapisane — zobacz ostrzeżenia.');
+  if (created > 0) lines.push(t('bookings.import.slotsCreated', { count: created }));
+  if (changed > 0) lines.push(t('bookings.import.slotsChanged', { count: changed }));
+  if (lines.length === 0) lines.push(t('bookings.import.nothingSaved'));
   return { lines, warnings };
 }

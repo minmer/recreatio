@@ -14,6 +14,7 @@
 
 import { useMemo } from 'react';
 
+import { useT } from '../core/i18n';
 import { TreeList, TreePick, type TreeExtra, type TreeNode } from '../ui/TreePick';
 import { parentInSight, type AreaRow } from './area';
 
@@ -22,6 +23,7 @@ const CHATS = '~rozmowy';
 
 /** Die Bereiche als Knoten: alle für den Weg, wählbar nur `only`; „Tylko ja" kommt als feste Zeile. */
 function useAreaNodes(areas: readonly AreaRow[], only: readonly AreaRow[] | undefined, note?: (areaId: string) => string | null) {
+  const t = useT();
   return useMemo(() => {
     const offered = new Set((only ?? areas).map((a) => a.areaId));
     const known = new Set(areas.map((a) => a.areaId));
@@ -36,11 +38,11 @@ function useAreaNodes(areas: readonly AreaRow[], only: readonly AreaRow[] | unde
           parentId: parent === null && a.ownChat != null ? CHATS : parent,
           label: a.name,
           selectable: offered.has(a.areaId),
-          note: note?.(a.areaId) ?? (a.ownChat === 'direct' ? 'rozmowa we dwoje' : a.ownChat === 'group' ? 'grupa' : null)
+          note: note?.(a.areaId) ?? (a.ownChat === 'direct' ? t('areas.pick.direct') : a.ownChat === 'group' ? t('areas.pick.group') : null)
         };
       });
     if (nodes.some((n) => n.parentId === CHATS)) {
-      nodes.push({ id: CHATS, parentId: null, label: 'Rozmowy', selectable: false, closed: true, order: 1, note: 'grupy i rozmowy we dwoje' });
+      nodes.push({ id: CHATS, parentId: null, label: t('areas.pick.chats'), selectable: false, closed: true, order: 1, note: t('areas.pick.chatsNote') });
     }
 
     /* Was zur Wahl steht, aber in `areas` fehlt, steht oben ohne Weg — statt still zu verschwinden. */
@@ -49,10 +51,10 @@ function useAreaNodes(areas: readonly AreaRow[], only: readonly AreaRow[] | unde
     }
 
     return { nodes, personal };
-  }, [areas, only, note]);
+  }, [areas, only, note, t]);
 }
 
-export function AreaPick({ areas, only, value, onChange, extras = [], recent, note, placeholder, label, disabled, personalLabel = 'Tylko ja (prywatny)', id }: {
+export function AreaPick({ areas, only, value, onChange, extras = [], recent, note, placeholder, label, disabled, personalLabel, id }: {
   /** ALLE sichtbaren Bereiche — aus ihnen wird der Baum. */
   areas: readonly AreaRow[];
   /** Welche zur Wahl stehen. Fehlt es, alle. */
@@ -73,10 +75,11 @@ export function AreaPick({ areas, only, value, onChange, extras = [], recent, no
   personalLabel?: string;
   id?: string;
 }) {
+  const t = useT();
   const { nodes, personal } = useAreaNodes(areas, only, note);
   const all = personal === null || extras.some((e) => e.value === personal.areaId)
     ? extras
-    : [{ value: personal.areaId, label: personalLabel }, ...extras];
+    : [{ value: personal.areaId, label: personalLabel ?? t('areas.pick.onlyMe') }, ...extras];
 
   return (
     <TreePick
@@ -89,7 +92,7 @@ export function AreaPick({ areas, only, value, onChange, extras = [], recent, no
       placeholder={placeholder}
       label={label}
       disabled={disabled}
-      emptyText="Nie ma tu obszaru do wyboru."
+      emptyText={t('areas.pick.empty')}
     />
   );
 }
@@ -102,8 +105,9 @@ export function AreaPickMany({ areas, only, value, onChange, label }: {
   onChange: (areaIds: readonly string[]) => void;
   label: string;
 }) {
+  const t = useT();
   const { nodes, personal } = useAreaNodes(areas, only);
-  const extras = personal === null ? [] : [{ value: personal.areaId, label: 'Tylko ja (prywatny)' }];
+  const extras = personal === null ? [] : [{ value: personal.areaId, label: t('areas.pick.onlyMe') }];
 
   return (
     <TreeList
@@ -113,7 +117,7 @@ export function AreaPickMany({ areas, only, value, onChange, label }: {
       multiple
       selected={value}
       label={label}
-      emptyText="Nie ma tu obszaru do wyboru."
+      emptyText={t('areas.pick.empty')}
       onPick={(areaId) => onChange(value.includes(areaId) ? value.filter((one) => one !== areaId) : [...value, areaId])}
     />
   );

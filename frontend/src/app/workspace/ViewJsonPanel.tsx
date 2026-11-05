@@ -11,21 +11,23 @@ import { useRemembered } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
 import { ALERTS_PREF, alertsJson, readAlerts } from './alerts';
 import { exportView, planView, VIEW_JSON } from './viewJson';
+import { useT } from '../core/i18n';
 
 export function ViewJsonPanel() {
   /* Mit `ready`: geplant wird erst gegen den geöffneten Stand des Kontos, nicht gegen die Vorgabe davor. */
   const [text, setText, ready] = useRemembered(ALERTS_PREF, '');
   const settings = readAlerts(text);
+  const t = useT();
 
   return (
     <JsonPanel
-      summary="Powiadomienia jako JSON"
-      lead={<>Kolejność i włączenie listy „Czeka na Ciebie” — do kopii albo do ułożenia przez AI. Import zmienia tylko to ustawienie konta; układ strony Teraz jest stały.</>}
-      fileName="powiadomienia.json"
+      summary={t('workspace.viewJson.summary')}
+      lead={<>{t('workspace.viewJson.lead')}</>}
+      fileName={t('workspace.viewJson.fileName')}
       exportDoc={() => exportView(settings)}
       format={VIEW_JSON}
-      preview={(doc) => (ready ? planView(doc, settings) : { error: 'Ustawienia konta jeszcze się otwierają — za chwilę zobaczysz plan.' })}
-      importLabel="Zapisz kolejność"
+      preview={(doc) => (ready ? planView(doc, settings) : { error: t('workspace.viewJson.notReady') })}
+      importLabel={t('workspace.viewJson.importLabel')}
       onImport={async (doc) => {
         const plan = planView(doc, settings);
         if ('error' in plan) throw new WorkspaceError(plan.error);

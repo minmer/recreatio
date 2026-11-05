@@ -15,7 +15,7 @@ export function StudiumItems({ entries, renderItems }: {
       {renderItems(entries.filter((one) => one.place === 'library'))}
       {cogita.length > 0 && (
         <li className="wk-nav-group">
-          <p className="wk-nav-group-label" id={labelId}>Cogita</p>
+          <p className="wk-nav-group-label" id={labelId}>Cogita</p>{/* i18n-ignore: Name */}
           <ul className="wk-nav wk-nav-children" aria-labelledby={labelId}>
             {renderItems(cogita)}
           </ul>

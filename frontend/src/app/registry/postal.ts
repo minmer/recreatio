@@ -30,6 +30,7 @@ import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../c
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import { call, WorkspaceError } from '../core/session';
+import { t, texts } from '../core/i18n';
 
 export type PartKind = 'postcode' | 'post' | 'locality' | 'district' | 'street';
 
@@ -45,15 +46,15 @@ export interface Address {
 
 export const EMPTY_ADDRESS: Address = { postcode: '', post: '', locality: '', district: '', street: '', house: '', unit: '' };
 
-export const PART_LABEL: Record<keyof Address, string> = {
-  postcode: 'Kod pocztowy',
-  post: 'Poczta',
-  locality: 'Miejscowość',
-  district: 'Dzielnica / osiedle',
-  street: 'Ulica',
-  house: 'Nr domu',
-  unit: 'Nr mieszkania'
-};
+export const PART_LABEL: Record<keyof Address, string> = texts({
+  postcode: 'registry.part.postcode',
+  post: 'registry.part.post',
+  locality: 'registry.part.locality',
+  district: 'registry.part.district',
+  street: 'registry.part.street',
+  house: 'registry.part.house',
+  unit: 'registry.part.unit'
+});
 
 /* -- Normalisieren (wie Postal.Norm im Dienst) ---------------------------------------------- */
 
@@ -399,12 +400,12 @@ export const deletePlace = (placeId: string): Promise<{ deleted: boolean }> =>
 
 export type VisitStatus = 'planned' | 'visited' | 'declined' | 'absent';
 
-export const VISIT_LABEL: Record<VisitStatus, string> = {
-  planned: 'zaplanowana',
-  visited: 'przyjęta',
-  declined: 'odmowa',
-  absent: 'nieobecni'
-};
+export const VISIT_LABEL: Record<VisitStatus, string> = texts({
+  planned: 'registry.visit.planned',
+  visited: 'registry.visit.visited',
+  declined: 'registry.visit.declined',
+  absent: 'registry.visit.absent'
+});
 
 export interface Visit {
   readonly status: VisitStatus;
@@ -487,7 +488,7 @@ export async function saveHousehold(
   ring: Ring, areaId: string, doc: HouseholdDoc, placeId: string | null, existing?: { householdId: string; version: number }
 ): Promise<{ householdId: string; version: number }> {
   const newest = newestKey(await areaKeys(ring, areaId, true));
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru.');
+  if (newest === null) throw new WorkspaceError(t('registry.noAreaKey'));
   const id = existing?.householdId ?? newId();
   const sealed = await sealText(newest.key, householdAad(id), JSON.stringify(readHousehold(doc)));
   const done = await call<{ householdId: string; version: number }>(`/workspace/household/${encodeURIComponent(id)}`, {

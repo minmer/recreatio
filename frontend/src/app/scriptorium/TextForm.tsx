@@ -9,7 +9,7 @@
 
 import { useState, type ReactNode } from 'react';
 
-import { count } from '../pages/event/kit';
+import { useT } from '../core/i18n';
 import { viewPath } from '../routes';
 import { containerPath } from '../library/library';
 import type { OpenLibrary } from '../library/library';
@@ -36,6 +36,7 @@ export function TextForm({ store, entry, data, set, readOnly, typeFields }: {
   /** 2026-10-23 — die Felder seines Rodzaj tekstu (`TypeFields.tsx`), unter den Daten des Textes. */
   typeFields?: ReactNode;
 }) {
+  const t = useT();
   const [view, setView] = useState<'write' | 'preview' | 'both'>(() => (window.matchMedia?.('(min-width: 70rem)').matches === true ? 'both' : 'write'));
   /* 2026-10-21 — ein neuer Text (und einer, der schon einen Plan hat) beginnt beim Plan; ein geschriebener bei der Treść. */
   const [part, setPart] = useState<'plan' | 'body' | 'further'>(() => (planOf(data).length > 0 || str(data, 'body').trim() === '' ? 'plan' : 'body'));
@@ -46,22 +47,22 @@ export function TextForm({ store, entry, data, set, readOnly, typeFields }: {
   return (
     <>
       <label className="wk-field lib-field is-wide">
-        <span>Tytuł</span>
-        <input className="lib-title-input" value={str(data, 'title')} disabled={readOnly} placeholder="Tytuł tekstu" onChange={(e) => set({ title: e.target.value })} />
+        <span>{t('common.title')}</span>
+        <input className="lib-title-input" value={str(data, 'title')} disabled={readOnly} placeholder={t('scriptorium.text.titlePlaceholder')} onChange={(e) => set({ title: e.target.value })} />
       </label>
 
       <div className="lib-write-bar">
-        <div className="wk-seg" role="group" aria-label="Część tekstu">
-          {([['plan', 'Plan'], ['body', 'Treść'], ['further', 'Dalsze informacje']] as const).map(([value, label]) => (
-            <button key={value} type="button" className={part === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={part === value} onClick={() => setPart(value)}>{label}</button>
+        <div className="wk-seg" role="group" aria-label={t('scriptorium.text.part')}>
+          {([['plan', 'scriptorium.text.parts.plan'], ['body', 'scriptorium.text.parts.body'], ['further', 'scriptorium.text.parts.further']] as const).map(([value, label]) => (
+            <button key={value} type="button" className={part === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={part === value} onClick={() => setPart(value)}>{t(label)}</button>
           ))}
         </div>
-        <div className="wk-seg" role="group" aria-label="Widok">
-          {([['write', 'Pisanie'], ['both', 'Obok siebie'], ['preview', 'Podgląd']] as const).map(([value, label]) => (
-            <button key={value} type="button" className={view === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={view === value} onClick={() => setView(value)}>{label}</button>
+        <div className="wk-seg" role="group" aria-label={t('scriptorium.text.view')}>
+          {([['write', 'scriptorium.text.views.write'], ['both', 'scriptorium.text.views.both'], ['preview', 'scriptorium.text.views.preview']] as const).map(([value, label]) => (
+            <button key={value} type="button" className={view === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={view === value} onClick={() => setView(value)}>{t(label)}</button>
           ))}
         </div>
-        <span className="lib-words">{words} słów{target !== null && target > 0 ? ` z ${target} (${Math.round((words / target) * 100)}%)` : ''}</span>
+        <span className="lib-words">{target !== null && target > 0 ? t('scriptorium.text.wordsOf', { count: words, target, percent: Math.round((words / target) * 100) }) : t('scriptorium.text.words', { count: words })}</span>
       </div>
 
       <div className={`lib-write is-${view}`}>
@@ -72,26 +73,26 @@ export function TextForm({ store, entry, data, set, readOnly, typeFields }: {
             store={store}
             value={str(data, part)}
             readOnly={readOnly}
-            placeholder={part === 'body' ? 'Treść… Źródło wstawisz przyciskiem „Źródło” albo pisząc [@klucz, s. 12].' : 'Dalsze informacje — lektura, linki, kontekst.'}
+            placeholder={part === 'body' ? t('scriptorium.text.bodyPlaceholder') : t('scriptorium.text.furtherPlaceholder')}
             onChange={(next) => set({ [part]: next })}
           />
         )}
         {view !== 'write' && (
-          <div className="lib-preview" aria-label="Podgląd">
+          <div className="lib-preview" aria-label={t('scriptorium.text.views.preview')}>
             <TextArticle entry={entry} look={store} prefix="pv-" hrefOf={(e) => (e.kind === 'entity' ? undefined : containerPath((store.homeOf(e.id) ?? store).libraryId, e.id))} />
           </div>
         )}
       </div>
-      {missing.length > 0 && <p className="wk-warn">Nie ma w bibliotece: {missing.map((k) => `[@${k}]`).join(', ')} — te przypisy będą puste.</p>}
+      {missing.length > 0 && <p className="wk-warn">{t('scriptorium.text.missing', { keys: missing.map((k) => `[@${k}]`).join(', ') })}</p>}
 
       <details className="wk-fold lib-meta-fold" open={(str(data, 'date') === '' && str(data, 'body') === '') || typeFields !== undefined}>
-        <summary>Dane tekstu — rodzaj, data, czytania, projekt, nagranie{typeFields !== undefined ? ' i pola rodzaju' : ''}</summary>
+        <summary>{typeFields !== undefined ? t('scriptorium.text.dataWithType') : t('scriptorium.text.data')}</summary>
         <FieldList store={store} kind="text" data={data} set={set} readOnly={readOnly} skip={['title']} />
         {typeFields}
       </details>
 
       <details className="wk-fold">
-        <summary>Jak pisać — zapis treści</summary>
+        <summary>{t('scriptorium.text.howToWrite')}</summary>
         <pre className="wk-json-pre">{MARKUP_DOC}</pre>
       </details>
     </>
@@ -108,11 +109,12 @@ export function OutlineEditor({ store, library, project, value, readOnly, onChan
   readOnly: boolean;
   onChange: (next: OutlineItem[]) => void;
 }) {
-  const texts = store.ofKind('text').filter((t) => ids(t.data, 'project').includes(project.id));
+  const t = useT();
+  const texts = store.ofKind('text').filter((one) => ids(one.data, 'project').includes(project.id));
   const listed = new Set(value.filter((i): i is { text: string } => 'text' in i).map((i) => i.text));
-  const outside = texts.filter((t) => !listed.has(t.id));
+  const outside = texts.filter((one) => !listed.has(one.id));
   const items = value.filter((i) => !('text' in i) || store.get(i.text) !== undefined);
-  const words = texts.reduce((n, t) => n + wordCount(str(t.data, 'body')), 0);
+  const words = texts.reduce((n, one) => n + wordCount(str(one.data, 'body')), 0);
   const target = num(project.data, 'targetWords');
   const [heading, setHeading] = useState('');
 
@@ -124,33 +126,33 @@ export function OutlineEditor({ store, library, project, value, readOnly, onChan
     onChange(next);
   };
 
-  const works = texts.flatMap((t) => citedKeys(str(t.data, 'body'), str(t.data, 'further')).map((k) => workBehind(refTarget(store, k), store)))
+  const works = texts.flatMap((one) => citedKeys(str(one.data, 'body'), str(one.data, 'further')).map((k) => workBehind(refTarget(store, k), store)))
     .filter((w): w is Entry => w !== undefined);
   const bib = bibliography(works, store);
 
   return (
     <section className="lib-outline">
-      <h2 className="wk-h2">Plan</h2>
+      <h2 className="wk-h2">{t('scriptorium.outline.title')}</h2>
       <p className="lib-progress">
-        {count(texts.length, 'tekst', 'teksty', 'tekstów')} · {count(words, 'słowo', 'słowa', 'słów')}{target !== null && target > 0 ? ` z ${target} (${Math.round((words / target) * 100)}%)` : ''}
+        {t('scriptorium.count.texts', { count: texts.length })} · {target !== null && target > 0 ? t('scriptorium.text.wordsOf', { count: words, target, percent: Math.round((words / target) * 100) }) : t('scriptorium.count.words', { count: words })}
         {target !== null && target > 0 && <span className="lib-bar"><span style={{ width: `${Math.min(100, Math.round((words / target) * 100))}%` }} /></span>}
       </p>
       <ol className="lib-outline-list">
         {items.map((item, i) => (
           <li key={'text' in item ? item.text : `h${i}`} className={'heading' in item ? 'is-heading' : ''}>
             {'heading' in item ? (
-              <input value={item.heading} disabled={readOnly} aria-label="Nagłówek części" onChange={(e) => onChange(items.map((x, j) => (j === i ? { heading: e.target.value } : x)))} />
+              <input value={item.heading} disabled={readOnly} aria-label={t('scriptorium.outline.heading')} onChange={(e) => onChange(items.map((x, j) => (j === i ? { heading: e.target.value } : x)))} />
             ) : (
               <a href={viewPath('scriptorium', library.libraryId, item.text)}>
                 {store.title(store.get(item.text)!)}
-                <span className="lib-row-meta"> · {TEXT_STATUS.find((s) => s.value === str(store.get(item.text)!.data, 'status'))?.label ?? 'Szkic'} · {count(wordCount(str(store.get(item.text)!.data, 'body')), 'słowo', 'słowa', 'słów')}</span>
+                <span className="lib-row-meta"> · {TEXT_STATUS.find((s) => s.value === str(store.get(item.text)!.data, 'status'))?.label ?? t('scriptorium.outline.draft')} · {t('scriptorium.count.words', { count: wordCount(str(store.get(item.text)!.data, 'body')) })}</span>
               </a>
             )}
             {!readOnly && (
               <span className="lib-outline-tools">
-                <button type="button" aria-label="Wyżej" disabled={i === 0} onClick={() => move(i, i - 1)}>↑</button>
-                <button type="button" aria-label="Niżej" disabled={i === items.length - 1} onClick={() => move(i, i + 1)}>↓</button>
-                <button type="button" aria-label="Usuń z planu" onClick={() => onChange(items.filter((_, j) => j !== i))}>×</button>
+                <button type="button" aria-label={t('scriptorium.outline.up')} disabled={i === 0} onClick={() => move(i, i - 1)}>↑</button>
+                <button type="button" aria-label={t('scriptorium.outline.down')} disabled={i === items.length - 1} onClick={() => move(i, i + 1)}>↓</button>
+                <button type="button" aria-label={t('scriptorium.outline.remove')} onClick={() => onChange(items.filter((_, j) => j !== i))}>×</button>
               </span>
             )}
           </li>
@@ -158,12 +160,12 @@ export function OutlineEditor({ store, library, project, value, readOnly, onChan
       </ol>
       {outside.length > 0 && (
         <div className="lib-outside">
-          <p className="wk-hint">Teksty tego projektu spoza planu:</p>
+          <p className="wk-hint">{t('scriptorium.outline.outside')}</p>
           <ul>
-            {outside.map((t) => (
-              <li key={t.id}>
-                <a href={viewPath('scriptorium', library.libraryId, t.id)}>{store.title(t)}</a>{' '}
-                {!readOnly && <button type="button" className="wk-link-btn" onClick={() => onChange([...items, { text: t.id }])}>dodaj do planu</button>}
+            {outside.map((one) => (
+              <li key={one.id}>
+                <a href={viewPath('scriptorium', library.libraryId, one.id)}>{store.title(one)}</a>{' '}
+                {!readOnly && <button type="button" className="wk-link-btn" onClick={() => onChange([...items, { text: one.id }])}>{t('scriptorium.outline.addToPlan')}</button>}
               </li>
             ))}
           </ul>
@@ -171,16 +173,16 @@ export function OutlineEditor({ store, library, project, value, readOnly, onChan
       )}
       {!readOnly && (
         <div className="wk-actions">
-          <input value={heading} placeholder="Nagłówek części, np. Część I" onChange={(e) => setHeading(e.target.value)} aria-label="Nowy nagłówek" />
-          <button type="button" className="wk-link-btn" disabled={heading.trim() === ''} onClick={() => { onChange([...items, { heading: heading.trim() }]); setHeading(''); }}>+ Nagłówek</button>
-          <a className="wk-btn" href={viewPath('scriptorium', library.libraryId, 'nowy', 'text', `project=${project.id}`)}>+ Nowy tekst w projekcie</a>
+          <input value={heading} placeholder={t('scriptorium.outline.headingPlaceholder')} onChange={(e) => setHeading(e.target.value)} aria-label={t('scriptorium.outline.newHeading')} />
+          <button type="button" className="wk-link-btn" disabled={heading.trim() === ''} onClick={() => { onChange([...items, { heading: heading.trim() }]); setHeading(''); }}>{t('scriptorium.outline.addHeading')}</button>
+          <a className="wk-btn" href={viewPath('scriptorium', library.libraryId, 'nowy', 'text', `project=${project.id}`)}>{t('scriptorium.outline.newText')}</a>
         </div>
       )}
       {bib.length > 0 && (
         <details className="wk-fold">
-          <summary>Bibliografia projektu ({bib.length})</summary>
+          <summary>{t('scriptorium.outline.bibliography', { count: bib.length })}</summary>
           <ul className="lib-bib">{bib.map(({ work, segs }) => <li key={work.id}><Segs segs={segs} /></li>)}</ul>
-          <button type="button" className="wk-link-btn" onClick={() => void navigator.clipboard.writeText(bib.map(({ segs }) => `${segText(segs)}.`).join('\n'))}>Kopiuj bibliografię</button>
+          <button type="button" className="wk-link-btn" onClick={() => void navigator.clipboard.writeText(bib.map(({ segs }) => `${segText(segs)}.`).join('\n'))}>{t('scriptorium.outline.copyBibliography')}</button>
         </details>
       )}
     </section>

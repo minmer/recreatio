@@ -14,6 +14,7 @@
 
 import { useContext, useEffect, useMemo, useState } from 'react';
 
+import { useT } from '../../core/i18n';
 import { CardFace } from '../../cogita/CardFace';
 import { questionCard } from '../../cogita/cards';
 import { SlidePhase } from '../motion/MotionBox';
@@ -24,6 +25,7 @@ import { Loading } from '../../ui/Loading';
 import { questionData, type QuestionConfig } from './question';
 
 export default function QuestionView({ config, ctx }: { config: QuestionConfig; ctx: PartContext }) {
+  const t = useT();
   const story = useContext(StoryContext);
   const clock = useContext(ShowClock);
   const pieceKey = useContext(ShowPieceKey);
@@ -39,7 +41,7 @@ export default function QuestionView({ config, ctx }: { config: QuestionConfig; 
   useEffect(() => { setResult(null); }, [arrival]);
 
   if (waiting) return <Loading />;
-  if (card === null) return <p className="wk-card-muted">To pytanie nie jest jeszcze gotowe.</p>;
+  if (card === null) return <p className="wk-card-muted">{t('moduleDataLearn.qNotReady')}</p>;
 
   /* In einer Präsentation: weiter, wohin das Ergebnis auf dieser Szene führt (`story.ts`). */
   const next = clock === null || pieceKey === null || result === null
@@ -58,7 +60,7 @@ export default function QuestionView({ config, ctx }: { config: QuestionConfig; 
           story?.record(card, outcome.correctness, given === undefined ? undefined : typeof given === 'string' ? given : JSON.stringify(given));
         }}
         onNext={next}
-        nextLabel="Dalej"
+        nextLabel={t('common.next')}
       />
       {result !== null && config.explain !== '' && <p className="pz-question-explain">{config.explain}</p>}
     </div>

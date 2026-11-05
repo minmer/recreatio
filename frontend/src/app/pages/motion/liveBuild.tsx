@@ -20,6 +20,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 
+import { appLang, tIn } from '../../core/i18n';
 import { fmt, toNum, truth, type Env, type Expr } from './expr';
 import { DRAWING_LIMITS, radialOf, type Bindable, type Drawing, type Shape } from './drawing';
 import { colorValue, dashArray, dashOf, paint, touchesPaint, type MotionUse } from './motion';
@@ -703,7 +704,7 @@ export class Builder {
 
     /* Ein Griff oder ein Knopf im Bild: fokussierbar, mit dem Finger zu treffen (in einem Ding zieht das Ding selbst). */
     if (!this.still && this.env === null && (s.drag !== null || s.tap !== null)) {
-      const label = s.label || s.drag?.label || s.tap?.label || (s.drag !== null ? 'Uchwyt — przeciągnij' : 'Przycisk');
+      const label = s.label || s.drag?.label || s.tap?.label || (s.drag !== null ? tIn(appLang(), 'pageMotion.build.handle') : tIn(appLang(), 'pageMotion.build.button'));
       const ring = this.add([...reads, ...v.reads], scope, (el, env) => {
         const pen = penOf(el);
         const [X, Y] = anchor(env);

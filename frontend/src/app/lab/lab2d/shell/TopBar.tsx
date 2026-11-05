@@ -5,8 +5,9 @@
  * Einstellungen und Schliessen.
  */
 
+import { useT } from '../../../core/i18n';
 import { Icon } from '../../../ui/icons';
-import { t, type TextKey } from '../i18n';
+import type { TextKey } from '../i18n';
 
 /** Vorbereiten (Zeit 0, alles lässt sich ändern), Rechnen, Backen, Wiedergabe eines Nachweises. */
 export type Phase = 'prepare' | 'simulate' | 'baking' | 'clip';
@@ -26,21 +27,22 @@ export function TopBar({ title, task, scenarios, scenarioAt, onScenario, phase, 
   /** Nur in der eigenen Ebene über der Seite (im ganzen Fenster der Seite schliesst deren Leiste). */
   onClose?: () => void;
 }) {
+  const t = useT();
   return (
     <header className="l2d-top">
       <div className="l2d-top-head">
         {scenarios.length > 1 ? (
-          <select className="l2d-scenario" value={scenarioAt} disabled={phase === 'baking'} aria-label={t('scenario')} onChange={(e) => onScenario(Number(e.currentTarget.value))}>
-            {scenarios.map((s, k) => <option key={k} value={k}>{s || `${t('scenario')} ${k + 1}`}</option>)}
+          <select className="l2d-scenario" value={scenarioAt} disabled={phase === 'baking'} aria-label={t('lab2d.scenario')} onChange={(e) => onScenario(Number(e.currentTarget.value))}>
+            {scenarios.map((s, k) => <option key={k} value={k}>{s || t('lab2d.scenarioN', { n: k + 1 })}</option>)}
           </select>
         ) : <h2 className="l2d-title">{title}</h2>}
-        {task !== '' && <button type="button" className="l2d-task" onClick={onInfo} title={t('infoOpen')}>{task}</button>}
+        {task !== '' && <button type="button" className="l2d-task" onClick={onInfo} title={t('lab2d.infoOpen')}>{task}</button>}
       </div>
-      <span className={`l2d-phase is-${phase}`}>{t(PHASE[phase])}</span>
+      <span className={`l2d-phase is-${phase}`}>{t(`lab2d.${PHASE[phase]}`)}</span>
       <div className="l2d-top-tools">
-        <button type="button" className="l2d-icon" onClick={onInfo} aria-label={t('infoOpen')} title={t('infoOpen')}><Icon name="info" /></button>
-        <button type="button" className="l2d-icon" onClick={onSettings} aria-label={t('settings')} title={t('settings')}><Icon name="settings" /></button>
-        {onClose !== undefined && <button type="button" className="l2d-icon" onClick={onClose} aria-label={t('closeLab')} title={t('closeLab')}><Icon name="x" /></button>}
+        <button type="button" className="l2d-icon" onClick={onInfo} aria-label={t('lab2d.infoOpen')} title={t('lab2d.infoOpen')}><Icon name="info" /></button>
+        <button type="button" className="l2d-icon" onClick={onSettings} aria-label={t('lab2d.settings')} title={t('lab2d.settings')}><Icon name="settings" /></button>
+        {onClose !== undefined && <button type="button" className="l2d-icon" onClick={onClose} aria-label={t('lab2d.closeLab')} title={t('lab2d.closeLab')}><Icon name="x" /></button>}
       </div>
     </header>
   );

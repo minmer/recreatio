@@ -37,6 +37,7 @@
  * gleich, wenn ein Knopf oder eine Antwort hindurchführt).
  */
 
+import { texts } from '../../core/i18n';
 import { apply, holds, readAction, readCondition, type Action, type Condition, type Facts, type ValueLimit } from '../../cogita/logic';
 import { END, GATE, LINK } from './showPaths';
 import type { Piece, Show } from './presentation';
@@ -55,7 +56,7 @@ export type Gate =
   | { readonly key: string; readonly label: string; readonly type: 'condition'; readonly when: Condition | null; readonly yes: string | null; readonly no: string | null }
   | { readonly key: string; readonly label: string; readonly type: 'set'; readonly actions: readonly Action[]; readonly next: string | null };
 
-export const GATE_LABEL: Record<Gate['type'], string> = { condition: 'Warunek', set: 'Zmień wartość' };
+export const GATE_LABEL: Record<Gate['type'], string> = texts({ condition: 'pagePresentation.gate.condition', set: 'pagePresentation.gate.set' });
 
 export interface Story {
   /** Die Baza wiedzy, in deren Postępy die Antworten zählen — leer: nur als Beispiel (im Browser). */

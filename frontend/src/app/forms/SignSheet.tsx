@@ -30,6 +30,7 @@ import {
   consentGiven, consentText, isYes, loadForm, openFields, type AfterSend, type OpenField, type PublicForm
 } from './form';
 import { EMPTY_DESIGN, evaluate, layoutWith, openDesign, type FieldItem, type FormDesign, type LayoutItem } from './formDesign';
+import { t, useT } from '../core/i18n';
 import { moduleNameAad, openWith } from '../core/names';
 import { ageOn, birthOf } from './pesel';
 
@@ -122,7 +123,7 @@ export function signsShown(layout: readonly LayoutItem[], hidden: ReadonlySet<st
 }
 
 /** Dasselbe für ein Ausgefülltes — die Logik ausgewertet an seinem Tag (`on`). */
-export function signsIn(open: Pick<OpenForm, 'fields' | 'design'>, values: ReadonlyMap<string, string>, on: string | null): boolean {
+export function signsIn(open: Pick<OpenForm, 'fields' | 'design'>, values: ReadonlyMap<string, string>, on: string | null): boolean { // i18n-ignore
   if (open.design === null) return false;
   const layout = layoutWith(open.design.layout, [...open.fields].sort((a, b) => a.position - b.position).map((f) => f.fieldId));
   return signsShown(layout, evaluate({ ...open.design, layout }, Object.fromEntries(values), { on }).hidden);
@@ -194,10 +195,10 @@ const plDate = (iso: string): string => {
   return m === null ? iso : `${m[3]}.${m[2]}.${m[1]}`;
 };
 
-const plMoment = (iso: string | null): string => {
+const momentIn = (iso: string | null, locale: string): string => {
   if (iso === null) return '';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
 };
 
 /* -- Was auf das Blatt kommt (0087) ------------------------------------------------------ */
@@ -273,7 +274,7 @@ export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>, on:
       const f = byId.get(item.id);
       if (f === undefined || !printedOn(f, item)) continue;
       const value = values.get(f.fieldId) ?? '';
-      const label = outcome.labels.get(f.fieldId) ?? f.label ?? 'pytanie';
+      const label = outcome.labels.get(f.fieldId) ?? f.label ?? t('forms.sheet.question');
 
       if (f.identityRole === 'given_name' || f.identityRole === 'surname') {
         if (value.trim() !== '') name.push(value.trim());
@@ -301,8 +302,8 @@ export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>, on:
   walk(layout);
 
   const blocks: Block[] = [
-    { title: 'Uczestnik', rows: [...(name.length > 0 ? [{ label: 'Imię i nazwisko', value: name.join(' ') }] : []), ...person] },
-    { title: 'Rodzic / opiekun prawny', rows: parent }
+    { title: t('forms.sheet.participant'), rows: [...(name.length > 0 ? [{ label: t('forms.sheet.fullName'), value: name.join(' ') }] : []), ...person] },
+    { title: t('forms.sheet.parent'), rows: parent }
   ];
 
   return { blocks: blocks.filter((b) => b.rows.length > 0), statements, notes, signed };
@@ -311,11 +312,12 @@ export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>, on:
 function Sheet({ open, values, submittedAt }: { open: OpenForm; values: ReadonlyMap<string, string>; submittedAt: string | null }) {
   const { blocks, statements, notes, signed } = useMemo(() => sheetOf(open, values, dayOf(submittedAt)), [open, values, submittedAt]);
   const c = open.form.controller;
+  const t = useT();
 
   return (
     <div className="wk-print-sheet">
       <header>
-        <h1>{open.form.title ?? open.name ?? 'Formularz'}</h1>
+        <h1>{open.form.title ?? open.name ?? t('forms.sheet.form')}</h1>
         {c !== null && (
           <p className="wk-print-org">{clauseText(c, 'collect')}</p>
         )}
@@ -335,10 +337,10 @@ function Sheet({ open, values, submittedAt }: { open: OpenForm; values: Readonly
 
         {statements.length > 0 && (
           <section>
-            <h2>Oświadczenia i zgody</h2>
+            <h2>{t('forms.sheet.statements')}</h2>
             <ul>
               {statements.map((s, i) => (
-                <li key={i}><b>{s.given ? 'TAK' : 'NIE'}</b> {s.text === '' ? s.label : <><strong>{s.label}:</strong> {s.text}</>}</li>
+                <li key={i}><b>{s.given ? t('forms.sheet.yes') : t('forms.sheet.no')}</b> {s.text === '' ? s.label : <><strong>{s.label}:</strong> {s.text}</>}</li>
               ))}
             </ul>
           </section>
@@ -360,12 +362,11 @@ function Sheet({ open, values, submittedAt }: { open: OpenForm; values: Readonly
 
       <footer>
         <p className="wk-print-trace">
-          Wypełniono elektronicznie{submittedAt !== null ? ` ${plMoment(submittedAt)}` : ''}. Podpis odręczny poniżej jest
-          wymagany — podpisany wydruk oddaje się organizatorowi.
+          {submittedAt !== null ? t('forms.sheet.traceAt', { at: momentIn(submittedAt, t.locale) }) : t('forms.sheet.trace')}
         </p>
         <div className="wk-print-sign">
-          <span>miejscowość i data</span>
-          <span>{open.form.after?.signer ?? 'czytelny podpis'}</span>
+          <span>{t('forms.sheet.placeDate')}</span>
+          <span>{open.form.after?.signer ?? t('forms.sheet.signature')}</span>
         </div>
       </footer>
     </div>
@@ -379,7 +380,7 @@ function Sheet({ open, values, submittedAt }: { open: OpenForm; values: Readonly
  *   verlangt (der Mensch); `ruled`: wenn das Formular überhaupt eine Regel für
  *   Papier hat (die Kanzlei druckt auch für den, der sein Blatt vergessen hat).
  */
-export function SignSheetButton({ formId, values, submittedAt, when = 'needed', className = 'wk-btn', label = 'Drukuj do podpisu', disabled = false }: {
+export function SignSheetButton({ formId, values, submittedAt, when = 'needed', className = 'wk-btn', label, disabled = false }: {
   formId: string;
   values: ReadonlyMap<string, string>;
   /** `null` — noch nicht abgeschickt (0087: am Ende des Formulars). */
@@ -392,6 +393,7 @@ export function SignSheetButton({ formId, values, submittedAt, when = 'needed', 
 }) {
   const [open, setOpen] = useState<OpenForm | null>(null);
   const [printing, setPrinting] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -420,10 +422,10 @@ export function SignSheetButton({ formId, values, submittedAt, when = 'needed', 
     <>
       <button
         type="button" className={className} disabled={disabled}
-        title={disabled ? 'Najpierw wypełnij formularz — brakujące pola są wymienione przy „Wyślij”.' : undefined}
+        title={disabled ? t('forms.sheet.fillFirst') : undefined}
         onClick={() => { if (!disabled) setPrinting(true); }}
       >
-        {label}
+        {label ?? t('forms.sheet.print')}
       </button>
       {printing && !disabled && createPortal(<Sheet open={open} values={values} submittedAt={submittedAt} />, document.body)}
     </>

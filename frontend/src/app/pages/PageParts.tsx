@@ -19,8 +19,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 
 import {
-  byReadingOrder, COLUMNS, frameFor, snapColSpan, snapRowSpan, useBreakpoint
+  byReadingOrder, COLUMNS, frameFor, langOfLayout, snapColSpan, snapRowSpan, useBreakpoint
 } from './layout';
+import { useT } from '../core/i18n';
+import { InLang } from './pageLang';
 import { pack } from '../core/masonry';
 import { Fullscreen } from '../ui/Modal';
 import type { DraftPart } from './page';
@@ -53,6 +55,7 @@ function jumpWithin(event: React.MouseEvent<HTMLElement>) {
  * Einstellung steht. Ein Baustein ist dasselbe, gleich wo er hängt.
  */
 export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
+  const t = useT();
   const breakpoint = useBreakpoint();
   const columns = COLUMNS[breakpoint];
 
@@ -188,7 +191,9 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
         const folded = def !== undefined && def.strip !== null && size.height === 'strip';
         const canFull = def !== undefined && def.fullFor(part.config) && !hidden.has(part.id);
 
+        /* 2026-11-05 — ein Baustein mit eigener Sprache (`layout.lang`) spricht sie; sonst die der Seite. */
         return (
+          <InLang key={part.id} lang={langOfLayout(part.layout)}>
           <article
             key={part.id}
             id={`part-${part.id}`}
@@ -198,6 +203,8 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
             data-w={size.width}
             data-h={size.height}
             style={{
+              /* Auch, wenn ein Sprachrahmen `.wk-page-grid > .wk-card` unterbricht. */
+              boxSizing: 'border-box',
               position: 'absolute',
               top: `${placed?.top ?? 0}px`,
               left: `calc(${across((placed?.col ?? frame.position.col) - 1)} + ${(placed?.col ?? frame.position.col) - 1} * var(--page-gap))`,
@@ -214,9 +221,7 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
               /* 0130 — nach einer Meldung gesperrt: an seiner Stelle nur dieser Satz. */
               <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>
             ) : def === undefined ? (
-              <p className="wk-card-unknown">
-                Moduł „{part.kind}" nie jest znany tej wersji strony.
-              </p>
+              <p className="wk-card-unknown">{t('pages.parts.unknownKind', { kind: part.kind })}</p>
             ) : folded ? (
               <Folded
                 def={def}
@@ -234,12 +239,13 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
             )}
 
             {canFull && (
-              <button type="button" className="wk-card-full" aria-label="Pokaż na całym ekranie" title="Pełny ekran"
+              <button type="button" className="wk-card-full" aria-label={t('pages.parts.fullAria')} title={t('pages.parts.full')}
                 onClick={() => setWhole(part.id)}>
                 <FullIcon />
               </button>
             )}
           </article>
+          </InLang>
         );
       })}
 
@@ -255,13 +261,15 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
         const full = partSize({ colSpan: 6, rowSpan: 5 });
 
         return (
+          <InLang lang={langOfLayout(part.layout)}>
           <Fullscreen title={text(part.config, 'title') || def.label} onClose={closeWhole}>
             <article className={`wk-card wk-card-${part.kind} is-whole`} data-w={full.width} data-h={full.height}>
               <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size: full, whole: true }} />
             </article>
             {/* 0130 — im ganzen Fenster, leise: diesen Teil melden. */}
-            <p className="wk-full-report"><a className="wk-link" href={reportPath('part', part.id)} data-report="part">Zgłoś ten fragment</a></p>
+            <p className="wk-full-report"><a className="wk-link" href={reportPath('part', part.id)} data-report="part">{t('pages.parts.report')}</a></p>
           </Fullscreen>
+          </InLang>
         );
       })()}
     </div>
@@ -294,6 +302,7 @@ export function Folded({ def, raw, moduleId, size, onOpen }: {
   size: PartSize;
   onOpen: () => void;
 }) {
+  const t = useT();
   const title = text(raw, 'title') || def.strip?.title || def.label;
   const Peek = def.Peek ?? null;
 
@@ -303,7 +312,7 @@ export function Folded({ def, raw, moduleId, size, onOpen }: {
       {/* 0102 — was zugeklappt dasteht, z. B. „3 nowe wiadomości" an einer Rozmowa. */}
       {Peek !== null && <Peek raw={raw} moduleId={moduleId} />}
       <button type="button" className="wk-btn wk-card-open" onClick={onOpen} title={def.shows(raw, size)}>
-        {def.strip?.open ?? 'Pokaż'}
+        {def.strip?.open ?? t('pages.parts.show')}
       </button>
     </>
   );

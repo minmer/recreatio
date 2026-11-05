@@ -5,6 +5,7 @@
  */
 
 import { aad, Field, fromBase64Url, open, seal, toBase64Url } from '../core/crypto';
+import { t } from '../core/i18n';
 import type { Ring } from '../core/keys';
 import { call } from '../core/session';
 import { myEpochKeys } from '../areas/area';
@@ -52,7 +53,7 @@ export async function loadSetup(ring: Ring | null, areaId: string): Promise<Setu
 /** Versiegeln und speichern — `version`: die gelesene (sonst 409). */
 export async function saveSetup(ring: Ring, areaId: string, stored: Stored, version: number, roleId: string | null): Promise<number> {
   const keys = await myEpochKeys(ring, areaId);
-  if (keys.size === 0) throw new Error('Brak klucza obszaru — nie można zapisać ustawień wspólnoty.');
+  if (keys.size === 0) throw new Error(t('communities.noAreaKey'));
   const epoch = Math.max(...keys.keys());
   const sealed = await seal(keys.get(epoch)!, setupAad(areaId), new TextEncoder().encode(JSON.stringify(stored)));
   const answer = await call<{ version: number }>(`/workspace/area/${encodeURIComponent(areaId)}/setup`, {

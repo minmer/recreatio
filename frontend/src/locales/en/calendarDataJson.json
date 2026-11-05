@@ -1,0 +1,392 @@
+{
+  "kind": {
+    "appointment": "Appointment",
+    "task": "Task",
+    "mass": "Mass",
+    "confession": "Confession",
+    "visit": "Visit",
+    "devotion": "Devotion"
+  },
+  "export": {
+    "unreadable": "“{label}” ({day}): some fields are encrypted with a key you don’t have — exported without them.",
+    "noScheme": "“{label}” ({day}): the scheme of this appointment can’t be read — values without a description.",
+    "tooManyDays": {
+      "one": "“{label}”: {count} special day — the export holds the first {max} (choose a shorter range to see the rest).",
+      "other": "“{label}”: {count} special days — the export holds the first {max} (choose a shorter range to see the rest)."
+    }
+  },
+  "doc": {
+    "notObject": "These are not calendar appointments (a JSON object was expected).",
+    "otherFormat": "These are not calendar appointments (“format”: {format}) — expected \"{expected}\".",
+    "noAppointments": "The list \"appointments\" is missing.",
+    "notCalendar": "These are not calendar appointments.",
+    "unknownKey": "Unknown key \"{key}\" — skipped.",
+    "version": "\"version\": {given} — this app reads version {version}.",
+    "calendarObject": "\"calendar\" is an object {\"id\",\"title\",\"kind\"} — skipped.",
+    "foreign": "A document from another calendar — its appointments will be added here as new ones; \"remove\" and \"parent\" with an id are skipped.",
+    "foreignNamed": "A document from another calendar (“{title}”) — its appointments will be added here as new ones; \"remove\" and \"parent\" with an id are skipped."
+  },
+  "value": {
+    "notText": "the value of field “{field}” is text — skipped.",
+    "notInList": "“{text}” is not on the list of field “{field}” ({options}) — skipped.",
+    "number": "field “{field}” is a number — “{text}” skipped.",
+    "bool": "field “{field}” is \"tak\" (yes) or \"nie\" (no) — “{text}” skipped.",
+    "date": "field “{field}” is a day \"YYYY-MM-DD\" — “{text}” skipped.",
+    "time": "field “{field}” is a time \"HH:MM\" — “{text}” skipped.",
+    "link": "field “{field}” is a link https://… or #/… — “{text}” skipped.",
+    "tooLong": "the value of field “{field}” is longer than {limit} characters — shortened."
+  },
+  "weekdays": {
+    "notList": "\"weekdays\" is a list of days ({days}) — unchanged.",
+    "unknown": "day “{day}” — the days are {days} (or 1–7).",
+    "none": "\"weekdays\" without any day — unchanged."
+  },
+  "when": {
+    "allDay": "{day} (all day)",
+    "allDays": "{from} – {to} (all day)",
+    "every": ", every {every}",
+    "times": {
+      "one": ", {count} time",
+      "other": ", {count} times"
+    },
+    "until": " until {day}",
+    "endless": ", no end"
+  },
+  "plan": {
+    "notObject": "{at}: not an object — skipped.",
+    "pointsList": "{at}: \"points\" is a list — skipped.",
+    "tooDeepPoints": "{at}: program deeper than {max} levels — further points skipped.",
+    "overflow": "At most {max} appointments (with points) in one document — {count} skipped.",
+    "unknownKey": "{at}: unknown key \"{key}\" — skipped.",
+    "idBad": "{at}: \"id\" is an id from an export — skipped.",
+    "idTwice": "{at}: the same \"id\" a second time — skipped.",
+    "idMissing": "{at}: there is no appointment with this \"id\" in this calendar — skipped (without \"id\" it would be added as new).",
+    "keyBad": "{at}: \"key\" is a short name (letters, digits, - and _) — skipped.",
+    "keyTwice": "{at}: \"key\" “{key}” already exists — skipped.",
+    "removeBad": "{at}: \"remove\" is true — skipped.",
+    "removeNoId": "{at}: \"remove\" works only with an \"id\" from an export — skipped.",
+    "parentInside": "{at}: a point belongs to the appointment it stands under — \"parent\" skipped.",
+    "parentNoKey": "{at}: \"parent\" {parent} — there is no appointment with such a \"key\"; unchanged.",
+    "parentSelf": "{at}: an appointment can’t be a point of itself — \"parent\" skipped.",
+    "parentBad": "{at}: \"parent\" is the \"@key\" of an appointment in the document, the \"id\" of an appointment, or null — unchanged.",
+    "parentCircle": "{at}: \"parent\" makes a circle — skipped."
+  },
+  "item": {
+    "underRemoved": "stands under an appointment being removed — it will go with it; skipped.",
+    "parentSkipped": "the parent appointment is skipped — this point is skipped too.",
+    "tooDeep": "program deeper than {max} levels — skipped.",
+    "kindBadNew": "\"kind\" is {kinds} — the calendar’s kind.",
+    "kindBad": "\"kind\" is {kinds} — unchanged.",
+    "schemeMissingNew": "scheme “{scheme}” is not in this calendar — the default scheme.",
+    "schemeMissing": "scheme “{scheme}” is not in this calendar — unchanged.",
+    "schemeBad": "\"scheme\" is the name or \"id\" of a scheme (null — universal) — unchanged.",
+    "kindNotInScheme": "kind “{kind}” doesn’t fit scheme “{scheme}” — “{next}”.",
+    "personalLiturgy": "a private calendar has no masses or devotions — kind “appointment”.",
+    "textBadNew": "\"{field}\" is text — skipped.",
+    "textBad": "\"{field}\" is text — unchanged.",
+    "textLong": "\"{field}\" is longer than {limit} characters — shortened.",
+    "noTitle": "appointment without \"title\" — skipped.",
+    "titleEmpty": "\"title\" can’t be empty — unchanged.",
+    "linkBad": "\"link\" starts with https:// (or #/ for a page on recreatio.pl) — unchanged.",
+    "startBad": "\"start\" is \"YYYY-MM-DDTHH:MM\" or \"YYYY-MM-DD\" — unchanged.",
+    "startBadPoint": "\"start\" is \"YYYY-MM-DDTHH:MM\" or \"YYYY-MM-DD\" (in a point also \"HH:MM\") — unchanged.",
+    "startBadNew": "\"start\" is \"YYYY-MM-DDTHH:MM\" or \"YYYY-MM-DD\" — skipped.",
+    "startBadPointNew": "\"start\" is \"YYYY-MM-DDTHH:MM\" or \"YYYY-MM-DD\" (in a point also \"HH:MM\") — skipped.",
+    "noStart": "appointment without \"start\" — skipped.",
+    "allDayBad": "\"allDay\" is true or false — skipped.",
+    "allDayNoClock": "\"allDay\": false needs a time in \"start\" — all day.",
+    "endAllDayBad": "\"end\" of an all-day appointment is the last day \"YYYY-MM-DD\" — length unchanged.",
+    "endBeforeStart": "\"end\" before \"start\" — one day.",
+    "allDayTooLong": "an all-day appointment lasts at most {max} days — shortened.",
+    "endUnreadable": "unreadable \"end\" — length unchanged.",
+    "endNotAfter": "\"end\" is not after \"start\" — length unchanged.",
+    "tooLong": "an appointment lasts at most 14 days — shortened.",
+    "repeatBad": "\"repeat\" is {kinds} — unchanged.",
+    "everyBad": "\"every\" is a number 1–{max} — unchanged.",
+    "weekdaysNotWeekly": "\"weekdays\" only with \"repeat\": \"weekly\" — skipped.",
+    "untilBad": "\"until\" is the last day \"YYYY-MM-DD\" (null — no end) — unchanged.",
+    "untilBeforeStart": "\"until\" before \"start\" — unchanged.",
+    "countBad": "\"count\" is a number 1–{max} — unchanged.",
+    "untilOrCount": "\"until\" or \"count\" — \"until\" counts.",
+    "noBooking": "this calendar has no bookings — \"{key}\" skipped.",
+    "bookableBad": "\"bookable\" is true, false or null — unchanged.",
+    "capacityBad": "\"capacity\" is a number 1–{max} (null — as the calendar) — unchanged.",
+    "valuesBad": "\"values\" is an object {\"field key\": \"text\"} — unchanged.",
+    "valuesNoScheme": "the scheme of this appointment can’t be read — \"values\" unchanged.",
+    "noField": "scheme “{scheme}” has no field “{key}” — skipped.",
+    "dayField": "“{key}” is a field of a single day — put it in \"occurrences\"; skipped.",
+    "fieldOnlyKinds": "field “{key}” exists only for the kinds {kinds} — skipped.",
+    "valuesIncomplete": "not all values of this appointment can be read — \"values\" unchanged.",
+    "requiredNew": "the required field {fields} has no value (\"values\") — skipped.",
+    "required": "the required field {fields} has no value — changes skipped.",
+    "unreadable": "some fields of this appointment are encrypted with a key you don’t have — changes skipped (saving would erase them).",
+    "retimed": "changing the time of a series changes all its days; cancelled and moved days not listed in \"occurrences\" return to the series.",
+    "retimedPast": "changing the time of a series changes all its days, including past ones; cancelled and moved days not listed in \"occurrences\" return to the series."
+  },
+  "change": {
+    "kind": "kind",
+    "title": "title",
+    "location": "place",
+    "notes": "note",
+    "link": "link",
+    "linkLabel": "link label",
+    "time": "time",
+    "repeat": "repetition",
+    "booking": "bookings",
+    "scheme": "scheme",
+    "values": "values",
+    "program": "program"
+  },
+  "day": {
+    "notList": "\"occurrences\" is a list — skipped.",
+    "tooMany": "at most {max} days in \"occurrences\" — the rest skipped.",
+    "dateBad": "{at}: \"date\" is a day of the series \"YYYY-MM-DD\" — skipped.",
+    "twice": "{at}: day {day} a second time — skipped.",
+    "notRepeating": "{at}: {day} — the appointment doesn’t repeat, its day is {first}; skipped.",
+    "outside": "{at}: {day} — outside the series; skipped.",
+    "notInSeries": "{at}: {day} is not a day of this series — skipped.",
+    "cancelledBad": "{at}: \"cancelled\" is true or false — skipped.",
+    "startBad": "{at}: \"start\" is \"YYYY-MM-DDTHH:MM\" or \"HH:MM\" — skipped.",
+    "cancelledStart": "{at}: a cancelled day has no new \"start\" — skipped.",
+    "wholeField": "{at}: “{key}” is a field of the whole appointment — put it in the appointment’s \"values\"; skipped.",
+    "noDayField": "{at}: scheme “{scheme}” has no day field “{key}” — skipped.",
+    "cancelledValues": "{at}: the values of a cancelled day stay as they are (restore it first) — \"values\" unchanged.",
+    "valuesIncomplete": "{at}: not all values of this day can be read — \"values\" unchanged."
+  },
+  "preview": {
+    "new": "New: “{label}” — {when}",
+    "newPoint": "New: “{label}” — {when} · program point of “{under}”",
+    "changed": "Change: “{label}” — {changes}",
+    "cancelled": {
+      "one": "cancelled {count}",
+      "other": "cancelled {count}"
+    },
+    "restored": {
+      "one": "restored {count}",
+      "other": "restored {count}"
+    },
+    "moved": {
+      "one": "moved {count}",
+      "other": "moved {count}"
+    },
+    "dayValues": {
+      "one": "day values {count}",
+      "other": "day values {count}"
+    },
+    "days": "Days of series “{label}”: {parts}",
+    "remove": "Removal: “{label}” — the whole appointment",
+    "removeWithPoints": "Removal: “{label}” — the whole appointment together with its program points ({count})",
+    "moreNew": {
+      "one": "… and {count} more new one.",
+      "other": "… and {count} more new ones."
+    },
+    "moreChanged": {
+      "one": "… and {count} more change.",
+      "other": "… and {count} more changes."
+    },
+    "moreDays": {
+      "one": "… and {count} more appointment with changed days.",
+      "other": "… and {count} more appointments with changed days."
+    },
+    "none": "No changes — the appointments in the calendar are the same as in the document.",
+    "total": "Total: new {created}, changed {changed}, removed {removed}, unchanged {unchanged}.",
+    "totalDays": "Total: new {created}, changed {changed}, removed {removed}, unchanged {unchanged}, series days {days}."
+  },
+  "keys": {
+    "doc": {
+      "format": "always \"{format}\"",
+      "version": "format version: {version}",
+      "calendar": "the calendar the export comes from (below) — information only; by its \"id\" the import recognises a document from another calendar",
+      "range": "the days the export covered (below) — information only; the import looks for appointments with \"id\" in them",
+      "schemes": "the appointment schemes of this calendar for reference (below) — which \"values\" the appointments may have; the import doesn’t change them (schemes are changed in “Appointment schemes”)",
+      "appointments": "appointments (below) — required"
+    },
+    "calendar": {
+      "id": "calendar id",
+      "title": "calendar name",
+      "kind": "the kind of its appointments: {kinds}"
+    },
+    "range": {
+      "from": "first day of the export \"YYYY-MM-DD\"",
+      "to": "last day of the export \"YYYY-MM-DD\""
+    },
+    "schemes": {
+      "id": "scheme id — for an appointment’s \"scheme\"",
+      "name": "scheme name — for an appointment’s \"scheme\" (when unambiguous)",
+      "kind": "the kind of appointments of this scheme",
+      "kinds": "the kinds to choose from for an appointment of this scheme",
+      "fields": "the scheme’s fields — the keys of an appointment’s \"values\" (\"level\": \"day\" — keys of a day’s \"values\" in \"occurrences\"); the field is described below"
+    },
+    "appointment": {
+      "id": "appointment id from an export — the appointment will be changed; without \"id\" — a new appointment",
+      "key": "a short name (letters, digits, - and _) for \"@key\" references in this document (\"parent\")",
+      "remove": "true — remove this appointment (the whole series, together with its program points); only with \"id\"; an appointment with accepted intentions, entries or bookings stays (the import says so)",
+      "kind": "kind: {kinds}; missing for a new one: the kind of the scheme or the calendar",
+      "title": "title (up to {max} characters); required for a new appointment — except a mass, confession and devotion: their name is public (mass plan, notice board), and without it only the kind is shown (“Mass”)",
+      "start": "start: \"YYYY-MM-DDTHH:MM\", or \"YYYY-MM-DD\" — all day; in a program point also \"HH:MM\" (on the day of the parent appointment); a new point without \"start\" begins with the parent appointment",
+      "end": "end: \"HH:MM\" (the same day) or \"YYYY-MM-DDTHH:MM\"; for all day the last day \"YYYY-MM-DD\"; missing: a new one lasts as long as the calendar says (all day — one day), a changed one keeps its length; at most 14 days (all day: 60 days)",
+      "allDay": "true — all day (a \"start\" without a time does the same)",
+      "location": "place (up to {max} characters)",
+      "notes": "note (up to {max} characters)",
+      "link": "“More information”: \"https://…\" or \"#/address\" of a page on recreatio.pl",
+      "linkLabel": "text on the link button (up to {max} characters)",
+      "repeat": "repetition: {kinds}",
+      "every": "how often (1–{max}): every 2 weeks = \"repeat\": \"weekly\" and \"every\": 2",
+      "weekdays": "with \"weekly\": days {days} (or numbers 1–7, 1 = Monday); missing: the day of \"start\"",
+      "until": "last day of the series \"YYYY-MM-DD\"; null — no end; missing for a new series: no end",
+      "count": "instead of \"until\": how many times (1–{max})",
+      "bookable": "true / false — whether this appointment can be booked (only in a calendar with bookings); null — as the calendar",
+      "capacity": "places for this appointment (1–{max}); null — as the calendar",
+      "scheme": "the appointment’s scheme: \"name\" or \"id\" from \"schemes\"; null — universal (an export of a calendar with schemes writes null for appointments without a scheme); missing for a new appointment: the scheme of its kind if the calendar has exactly one, otherwise universal; a new program point — universal",
+      "values": "values of the scheme fields of the whole appointment: {\"field key\": \"text\"}; \"\" or null clears the field; missing — unchanged",
+      "occurrences": "chosen days of the series (below): cancelled, moved, with values of day fields",
+      "points": "program points: appointments under this appointment, in this order — with the same keys",
+      "parent": "the parent appointment of an appointment in \"appointments\": the \"@key\" of an appointment in this document or the \"id\" of an appointment outside it; null — detach from the program; missing — unchanged"
+    },
+    "occurrence": {
+      "date": "day of the series \"YYYY-MM-DD\" — the one it falls on according to the series (also when it is moved); required",
+      "cancelled": "true — cancel this day (a mass with accepted intentions or an appointment with entries stays — the import says so); false — return it to the series (neither cancelled nor moved)",
+      "start": "move this day: \"YYYY-MM-DDTHH:MM\" or \"HH:MM\" (that day); the length stays",
+      "values": "values of the scheme fields of this day (\"level\": \"day\"): {\"field key\": \"text\"}; \"\" or null clears the field; missing — unchanged"
+    }
+  },
+  "sample": {
+    "lessons": {
+      "calendar": "Class 4b",
+      "maths": "Maths",
+      "room12": "room 12",
+      "religion": "Religion",
+      "room5": "room 5",
+      "teachersDay": "Teachers’ Day",
+      "teachersDayNotes": "No lessons — assembly at 10:00 in the hall."
+    },
+    "program": {
+      "title": "Advent retreat — day 1",
+      "church": "Parish church",
+      "linkLabel": "Program and sign-up",
+      "youth": "Talk for young people",
+      "mass": "Holy Mass with a homily",
+      "confession": "Confession",
+      "chapel": "chapel",
+      "agape": "Agape"
+    },
+    "parishHall": "parish hall",
+    "masses": {
+      "calendar": "Parish masses",
+      "scheme": "Mass",
+      "celebrant": "Celebrant",
+      "colour": "Vestment colour",
+      "evening": "Evening mass",
+      "pastor": "Fr. parish priest",
+      "rosary": "Rosary",
+      "meeting": "Meeting with confirmation candidates"
+    },
+    "update": {
+      "calendarId": "…calendar id from the export…",
+      "idA": "…id of appointment A…",
+      "idB": "…id of appointment B…",
+      "idC": "…id of series C…",
+      "bigHall": "Large hall",
+      "christmas": "Christmas wafer meeting"
+    }
+  },
+  "page": {
+    "calendarsAlone": "\"calendars\" without \"appointments\" — there is nothing to add to a calendar.",
+    "appointmentsNotList": "\"appointments\" is not a list — skipped.",
+    "entryKeyBad": "\"calendars\"[{at}]: \"key\" is a short name (letters, digits, - and _) — skipped.",
+    "entryTwice": "Calendar “{key}” repeats — the first one counts.",
+    "calendarsNotList": "\"calendars\" is not a list — skipped.",
+    "noTitle": "{where}: appointment without \"title\" — skipped.",
+    "overflow": "At most {max} appointments (with points) in one document — the rest skipped.",
+    "startBad": "{where} “{title}”: \"start\" is \"YYYY-MM-DDTHH:MM\" or \"YYYY-MM-DD\" — skipped.",
+    "startBadPoint": "{where} “{title}”: \"start\" is \"YYYY-MM-DDTHH:MM\" or \"YYYY-MM-DD\" (in a point also \"HH:MM\") — skipped.",
+    "endBefore": "{where} “{title}”: \"end\" before \"start\" — one day.",
+    "endUnreadable": "{where} “{title}”: unreadable \"end\" — one hour.",
+    "endNotAfter": "{where} “{title}”: \"end\" is not after \"start\" — one hour.",
+    "keyBad": "{where} “{title}”: \"key\" is a short name (letters, digits, - and _) — no name.",
+    "keyTwice": "{where} “{title}”: \"key\" “{key}” already exists — no name.",
+    "calendarBad": "{where} “{title}”: \"calendar\" is the name of an entry in \"calendars\" — into “{entry}”.",
+    "pointCalendar": "{where} “{title}”: a point goes to the calendar of its appointment — \"calendar\" skipped.",
+    "pointRepeat": "{where} “{title}”: a program point doesn’t repeat — \"repeat\" skipped.",
+    "repeatBad": "{where} “{title}”: \"repeat\" is \"none\", \"daily\", \"weekly\", \"monthly\" or \"yearly\" — no repetition.",
+    "weekdayBad": "{where} “{title}”: day “{day}” — the days are {days}.",
+    "untilBad": "{where} “{title}”: \"until\" is \"YYYY-MM-DD\" — no end.",
+    "pointsNotList": "{where} “{title}”: \"points\" is a list — skipped.",
+    "tooDeep": "{where} “{title}”: program deeper than {max} levels — further sub-points skipped.",
+    "defaultEntry": "Calendar",
+    "entryUnused": "Calendar “{key}” from \"calendars\" has no appointment.",
+    "keyClash": "“{key}” is the name of both an appointment and a calendar — “@{key}” will point to the appointment.",
+    "summary": "Appointments for the calendar: {top} — {where}. Every import adds them anew.",
+    "summaryPoints": "Appointments for the calendar: {top} (with program points: {points}) — {where}. Every import adds them anew.",
+    "noCalendar": "Appointments “{label}” skipped — no calendar chosen.",
+    "stage": "Calendar: “{title}”…",
+    "notSaved": "“{title}” didn’t reach the calendar: {reason}.",
+    "notSavedProgram": "“{title}” didn’t reach the calendar: {reason} (together with its program)."
+  },
+  "run": {
+    "failed": "it did not work",
+    "rangeBad": "Give the export range: a “from” day and a “to” day (not earlier than “from”).",
+    "rangeLong": "The export range is at most {max} years — choose a shorter one or “everything”.",
+    "stageItems": "Appointments: {n} of {total} — “{label}”…",
+    "noParent": "“{label}” — its parent appointment was not created; skipped.",
+    "notAdded": "“{label}” — not added: {reason}.",
+    "notChanged": "“{label}” — not changed: {reason}.",
+    "stageSearch": "Series days — searching the calendar…",
+    "daysFrom": "Series days from {day}: {reason}.",
+    "noDay": "“{label}”: day {day} is not in the series — skipped.",
+    "stageDays": "Series days: {n} of {total}…",
+    "noKey": "You don’t have the key of this area — you can’t save here.",
+    "dayFailed": "“{label}”, {day}: {reason}.",
+    "stageRemove": "Removing: {n} of {total} — “{label}”…",
+    "notRemoved": "“{label}” — not removed: {reason}.",
+    "created": {
+      "one": "New appointments: {count}.",
+      "other": "New appointments: {count}."
+    },
+    "changed": {
+      "one": "Changed appointments: {count}.",
+      "other": "Changed appointments: {count}."
+    },
+    "days": {
+      "one": "Series days: {count}.",
+      "other": "Series days: {count}."
+    },
+    "removed": {
+      "one": "Removed appointments: {count} of {total}.",
+      "other": "Removed appointments: {count} of {total}."
+    }
+  },
+  "node": {
+    "samples": {
+      "lessons": "lesson plan (weekly series)",
+      "program": "retreat with a program",
+      "masses": "masses with a scheme and series days"
+    },
+    "occurrence": {
+      "title": "Series day (\"occurrences[]\")",
+      "short": "Series day",
+      "lead": "A chosen day of an appointment — usually of a series. A day is named by its date: the day it falls on according to the series, also when it is moved. Days without an entry stay as they are.",
+      "tail": "The export lists the days of the range that are cancelled, moved or have values. An appointment that doesn’t repeat has one day — the day of its \"start\"."
+    },
+    "appointment": {
+      "title": "Appointment (\"appointments[]\", \"points[]\")",
+      "short": "Appointment",
+      "lead": "An appointment has the same keys as the appointments of a page and an area (\"title\", \"start\", \"end\", \"location\", \"points\", \"repeat\" …) — plus \"id\", \"kind\", \"scheme\", \"values\" and \"occurrences\". For a changed appointment, a key that is missing stays unchanged.",
+      "retime": "Changing the time of a series (\"start\", \"end\", \"repeat\", \"every\", \"weekdays\", \"until\", \"count\") changes all its days — including past ones. Cancelled and moved days not in \"occurrences\" then return to the series; those in \"occurrences\" the import writes again. Intentions and entries follow the day; when the day no longer exists, the appointment stays unchanged (the import says so). “Different from this day on” (“this and following”) is done in the appointment editor.",
+      "values": "Values (\"values\"): \"choice\" and \"colour\" — a value or a name from the field’s list; \"number\" — a number; \"bool\" — \"tak\" (yes) or \"nie\" (no) (also true / false); \"date\" — \"YYYY-MM-DD\"; \"time\" — \"HH:MM\"; \"link\" — https://… or #/…; \"person\" — a role id. Public fields up to {max} characters. A required field (\"required\") must have a value — otherwise a new appointment is skipped and changes to an existing one are not saved."
+    },
+    "usage": {
+      "title": "How the app uses this data",
+      "text": "- The appointments are seen by everyone who has the key of the area that sees the calendar (“Who sees” in the calendar settings) — also through an access link; when that area is public (“everyone reads”), by everyone, also without an account.\n- Calendar (Day, Week, Month, List): program points stand in the grid next to their appointment; the appointment details show the place, note, link, scheme values and the day’s entry lists (intentions, sign-ups). “Now”: “Upcoming appointments” (today and tomorrow), and in “Waiting for you” — “Appointments today”.\n- Page modules: “Calendar” (chosen calendars), “Event program” (an appointment with points — \"points\"), “Booking” (appointments to choose from); an appointment set as the area’s main appointment — in the modules “Events” and “Business card”, when everyone sees it. On a page everyone sees what they can open; a module of a public page can also be embedded as a widget on another website.\n- Masses, confessions and devotions (\"kind\") are also in “Masses and services” (parish office). When the area that sees the calendar is public, their names and times (for a mass also the public scheme fields) go to the public plan — the page module “Masses and services” — and masses also to the notice-board printout; the place and notes are not there.\n- \"bookable\" and \"capacity\" (a calendar with bookings): the appointment can be chosen in the module “Booking”; in the Calendar it shows the number of taken places, and requests wait in “To confirm”.\n- Appointments have no reminders (tasks do), and the import notifies no one."
+    },
+    "calendar": {
+      "title": "Calendar appointments (\"{format}\")",
+      "short": "Calendar appointments",
+      "lead": "The appointments of ONE calendar: single and repeating (series — e.g. a weekly lesson plan or weekday masses), all-day, with a place, note and link, with a program (points under an appointment), with the calendar’s scheme and its values, and with chosen days of a series (cancelled, moved, with their own values). Masses, confessions and devotions are appointments here like any other (\"kind\").\nExport (calendar settings → “Appointments as JSON”; whoever only sees the calendar: “Calendars” → “Export JSON”): the appointments of the chosen range (by default from today for a year) and the series that reach into it — each with \"id\".\nThe import changes IN PLACE: an appointment with \"id\" (from an export of this calendar) is changed, an appointment without \"id\" is added. A key that is missing stays unchanged — \"id\" and what changes are enough; \"\" or null clears a text. Nothing disappears unless the appointment has \"remove\": true. Before the import you see the list of changes and the warnings; the same document imported a second time changes nothing.\nTitles, places, notes, links and non-public values are encrypted in the browser with the key of the area that sees the calendar — just as in the appointment editor. The export file holds them in plain text: it is your copy.\nThe import does not change: mass intentions (a separate format for masses and intentions), list entries (sign-ups), bookings, people at an appointment, or who sees an appointment (the calendar says that).\nA document from another calendar (\"calendar\" with another \"id\") is a copy: its appointments will be added as new ones.",
+      "time": "Time is local (the calendar’s time zone), without a zone: a moment \"YYYY-MM-DDTHH:MM\", a day \"YYYY-MM-DD\", a time \"HH:MM\".",
+      "limits": "Limits: {entries} appointments including points in one document, a program up to {depth} levels, {days} days per appointment in \"occurrences\".",
+      "update": "Changes after an export — a new place, a removal, a cancelled series day and a new appointment:",
+      "example": "Example (a class lesson plan):"
+    }
+  }
+}

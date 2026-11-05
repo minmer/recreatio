@@ -1,0 +1,56 @@
+{
+  "photos": {
+    "one": "{count} photo",
+    "other": "{count} photos"
+  },
+  "gpx": {
+    "invalid": "Could not read the file — it is not a valid GPX.",
+    "empty": "The file contains neither a track nor points."
+  },
+  "list": {
+    "up": "Up",
+    "down": "Down"
+  },
+  "media": {
+    "imageHint": "Image address. You can upload an image in the editor of the page this module stands on.",
+    "fileLabel": "File address",
+    "fileHint": "You can upload a file in the editor of the page this module stands on."
+  },
+  "part": {
+    "title": "Heading",
+    "intro": "Introduction",
+    "titleKey": "Heading above the content",
+    "titleKeyOwn": "Heading above the content (here: only the name in the slide menu — the module shows its own title)",
+    "introKey": "A short introduction under the heading (may be empty)"
+  },
+  "gallery": {
+    "prevPhoto": "Previous photo",
+    "nextPhoto": "Next photo",
+    "open": "Open: {name}",
+    "photo": "photo",
+    "front": "Show this photo",
+    "hint": "Click a photo to open the whole gallery — {count}",
+    "title": "Photo gallery",
+    "prev": "Previous",
+    "next": "Next",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "removeMine": "Remove my photo",
+    "remove": "Remove photo",
+    "credit": "Photo: {name}",
+    "nth": "Photo {n}"
+  },
+  "map": {
+    "fullscreen": "Map in full screen",
+    "zoomedIn": "Zoomed in: {place}",
+    "zoomedOut": "Zoomed out: {place}",
+    "label": "Map of the route points",
+    "google": "Open in Google Maps ↗",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fit": "Show the whole route",
+    "close": "Close map",
+    "open": "Open map",
+    "attribution": "© OpenStreetMap contributors"
+  }
+}

@@ -21,6 +21,7 @@
  */
 
 import type { IdentityRole } from './form';
+import { appLang, localeOf } from '../core/i18n';
 import type { Ring } from '../core/keys';
 import { loadPerson, openMine, PERSON_FIELDS, type PersonField } from '../account/person';
 import { personsOf, type RoleGraphData } from '../roles/roles';
@@ -88,7 +89,7 @@ export async function subjectsFor(
   return out.sort((a, b) =>
     a.isMine !== b.isMine
       ? (a.isMine ? -1 : 1)
-      : (a.name ?? '￿').localeCompare(b.name ?? '￿', 'pl'));
+      : (a.name ?? '￿').localeCompare(b.name ?? '￿', localeOf(appLang())));
 }
 
 /**

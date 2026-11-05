@@ -73,7 +73,7 @@ function parts(value: string): string[] {
 }
 
 const LABELS: Record<string, string> = {
-  cell: 'komórka', mobile: 'komórka', home: 'dom', work: 'praca', main: 'główny', pref: '', voice: '', other: '', internet: '', x400: ''
+  cell: 'komórka', mobile: 'komórka', home: 'dom', work: 'praca', main: 'główny', pref: '', voice: '', other: '', internet: '', x400: ''  // i18n-ignore
 };
 
 /** Die Art (TYPE=CELL,VOICE / TYPE=work / X-…) als Wort, oder `null`. */
@@ -192,7 +192,7 @@ function birthdayOf(value: string): string | null {
 const escape = (value: string): string =>
   value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
 
-const TYPE_OF: Record<string, string> = { 'komórka': 'CELL', dom: 'HOME', praca: 'WORK', 'główny': 'MAIN' };
+const TYPE_OF: Record<string, string> = { 'komórka': 'CELL', dom: 'HOME', praca: 'WORK', 'główny': 'MAIN' }; // i18n-ignore
 
 /** Lange Zeilen umbrechen (75 Bytes, wie es das Format will) — an Zeichengrenzen. */
 function fold(line: string): string {

@@ -1,0 +1,494 @@
+{
+  "boxes": {
+    "latexProject": "The whole project as a book: parts, chapters, footnotes, sources at the end.",
+    "latexText": "Text for print: footnotes with sources, quotes, sources at the end.",
+    "author": "Author (on the title page)",
+    "authorPlaceholder": "e.g. Fr. John Smith",
+    "missing": "Missing in the library: {keys} — the footnote will say “[missing source]”.",
+    "download": "Download .tex",
+    "hidePreview": "Hide preview",
+    "pulpit": "Pulpit plan (.tex)",
+    "learnFailed": "Could not create the review.",
+    "learn": "Learning",
+    "learnLead": "A review of what the text points to: quotes, comments, dictionary words, places in the plan — in a knowledge base that uses this scriptorium.",
+    "creating": "Creating…",
+    "learnButton": "Review from this text"
+  },
+  "editor": {
+    "elsewhere": "This entry is somewhere else.",
+    "openThere": "Open it there",
+    "missing": "This entry does not exist (or was deleted).",
+    "back": "Back to the scriptorium",
+    "foreignKind": "This entry is of a kind the scriptorium does not keep. You can look at it and delete it in the tab “Old entries”.",
+    "loadTheirs": "Load the newer version",
+    "keepMine": "Keep mine (overwrite)"
+  },
+  "noDate": "no date",
+  "delivery": {
+    "coverage": {
+      "label": "What of the plan",
+      "title": "What of the plan was said",
+      "pickFirst": "First pick the sermon (text) above — its plan will appear here, point by point.",
+      "noPlan": "This text has no plan yet — <a>add it in the text</a> (tab “Plan”), and here you will mark what of it was said.",
+      "emptyPoint": "(empty point)",
+      "how": "How",
+      "notePlaceholder": "Note: what was different",
+      "note": "Note",
+      "restSaid": "Mark the rest: said",
+      "restSkipped": "Mark the rest: skipped",
+      "clear": "Clear marks",
+      "orphans": {
+        "one": "{count} mark refers to a point that is no longer in the plan.",
+        "other": "{count} marks refer to points that are no longer in the plan."
+      },
+      "removeThem": "Remove them"
+    },
+    "timePlaceholder": "m:ss",
+    "timeInRecording": "Time in the recording",
+    "timeFromPlayerTitle": "Take the time from the player",
+    "timeFromPlayer": "Time from the player",
+    "added": {
+      "title": "What was added",
+      "lead": "What was said but was not in the plan — an example, an announcement, a new thought.",
+      "placeholder": "What was said (one or two sentences)",
+      "after": "After which point",
+      "atEnd": "— at the end —",
+      "afterPoint": "after {no} {text}",
+      "add": "+ What was added"
+    },
+    "lesson": {
+      "classFallback": "class",
+      "signIn": "Sign in to write to the class.",
+      "passwordFirst": "Enter your password first — the keys are not open in this tab.",
+      "sent": "Sent to the class.",
+      "sendFailed": "Could not send to the class.",
+      "title": "Lesson in a class",
+      "lead": "The lesson topic is a text from the programme — you choose it below (field “Sermon (text)”). Below, point by point, you mark what of its plan was covered in this class.",
+      "class": "Class",
+      "noClass": "— no class (an ordinary delivery) —",
+      "otherClass": "another class",
+      "state": "Lesson state",
+      "homework": "Homework for the class",
+      "homeworkPlaceholder": "e.g. Read Gen 1:1-31",
+      "sending": "Sending…",
+      "send": "Send to the class",
+      "sendLead": "The topic, “Briefly about this delivery” and the homework — to the class channel (or its chat)."
+    },
+    "recording": "Recording",
+    "listenHint": "While listening, press ⏱ at a point — the time from the player is filled in.",
+    "transcript": "Transcript of the delivery",
+    "transcriptPlaceholder": "What was said, word for word — paragraphs separated by an empty line.",
+    "ai": {
+      "summary": "From a recording or transcript — via AI in your own chat",
+      "lead": "Copy the prompt — it contains the plan with the point ids. Paste it in your chat together with the recording or transcript, and paste the answer (JSON) here: it goes into this form.",
+      "unknownPoints": {
+        "one": "{count} mark points to a point that is not in the plan.",
+        "other": "{count} marks point to points that are not in the plan."
+      },
+      "import": "Fill in the form",
+      "imported": "Filled in the form — it saves itself."
+    },
+    "exportName": "delivery",
+    "box": {
+      "title": "Deliveries",
+      "none": "Not delivered yet. After the sermon, add when and where — and what of the plan was said.",
+      "add": "+ Delivery"
+    }
+  },
+  "heldTimes": {
+    "one": "given {count}×",
+    "other": "given {count}×"
+  },
+  "article": {
+    "readings": "Readings:",
+    "text": "Text",
+    "further": "Further information",
+    "sources": "Sources"
+  },
+  "opened": {
+    "statement": "Statement",
+    "text": "Text",
+    "quote": "Quote",
+    "entry": "Entry",
+    "openInKnowledge": "Open in Knowledge"
+  },
+  "archive": {
+    "layout": {
+      "list": "List",
+      "table": "Table",
+      "tree": "Tree"
+    },
+    "order": {
+      "label": "Order",
+      "newest": "newest",
+      "oldest": "oldest",
+      "titleAz": "title A–Z",
+      "titleZa": "title Z–A"
+    },
+    "allTexts": "← All texts",
+    "notPublic": "You cannot see this scriptorium — its area is not public.",
+    "project": "Project",
+    "recorded": "with recording",
+    "noTexts": "No texts yet.",
+    "more": {
+      "one": "More ({count})",
+      "other": "More ({count})"
+    },
+    "count": {
+      "one": "{count} text",
+      "other": "{count} texts"
+    },
+    "countFor": {
+      "one": "{count} text — “{query}”",
+      "other": "{count} texts — “{query}”"
+    },
+    "noMatch": "Nothing matches — change the filters or the search.",
+    "searchPlaceholder": "Search the texts…",
+    "search": "Search the texts",
+    "allValues": "all",
+    "removeFilter": "Remove filter: {name}",
+    "clearFilters": "Clear filters",
+    "col": {
+      "title": "Title",
+      "when": "When"
+    },
+    "byWhat": "Browse by",
+    "noFacets": "The texts have no fields to browse by yet (a text type with a reference field).",
+    "cycle": "Series"
+  },
+  "json": {
+    "sources": {
+      "work": "sources",
+      "quote": "quotes",
+      "person": "persons"
+    },
+    "elsewhere": {
+      "sources": "{what} are in the Library — import them there (format \"{format}\")",
+      "comment": "comments are a kind of their own in Knowledge — a ready scheme: file templates/cogita/komentarz.json",
+      "topic": "topics no longer exist — order comes from your own kinds in Knowledge, linked by reference fields (e.g. fields of a text type)"
+    },
+    "warn": {
+      "notObject": "{where}: field {n} is not an object — skipped.",
+      "badKey": "{where}: key “{key}” — letters, digits and _, starting with a letter; field skipped.",
+      "coreKey": "{where}: key “{key}” belongs to the fixed text fields — field skipped.",
+      "duplicate": "{where}: second field “{key}” — skipped.",
+      "badType": "{where}: field “{key}” — type “{type}” is not available in a text type ({types}); field skipped.",
+      "noKind": "{where}: field “{key}” — Knowledge has no kind “{token}”; this restriction is skipped (the field will point to any entry).",
+      "notNumber": "{where}: “{value}” is not a number — skipped.",
+      "notBool": "{where}: “{value}” — yes or no; skipped.",
+      "notDate": "{where}: “{value}” is not a date (YYYY, YYYY-MM or YYYY-MM-DD) — skipped.",
+      "unknownValue": "{where}: unknown value “{value}”."
+    },
+    "example": {
+      "name": "Marian sermons",
+      "typeName": "Marian sermon",
+      "mystery": "Mystery",
+      "area": "Area",
+      "fragment": "Passage of Scripture",
+      "title": "Let it be done to me",
+      "occasion": "Solemnity of the Annunciation of the Lord",
+      "annunciation": "Annunciation",
+      "prayer": "Prayer",
+      "locator": "Łk 1,26-38",
+      "p1": "Mary listens before she answers [@bt, Łk 1,29]",
+      "p2": "Where do I listen today?",
+      "body": "Mary “was greatly troubled at the saying and considered” [@bt, Łk 1,29]."
+    },
+    "description": "# The Scriptorium as JSON (\"{format}\", version {version})\n\nWhat the import does:\nThe Scriptorium is the place for writing: your own texts (\"text\" — sermons, talks, reflections, chapters), their deliveries (\"delivery\"), projects (\"project\" — a book, a series) and your own text types (\"texttype\"). A text cites sources from the Library (works, quotes, persons — format \"{library}\") and points to entries in Learning (e.g. a mystery, a dictionary word, a view); nothing points the other way to the Scriptorium.\n- Each entry is { \"id\", \"kind\", \"key\", \"data\" }. An entry with an id from an export (or with the key of an existing entry of the same kind) is CHANGED — only the fields given in \"data\"; fields that are absent stay. To clear a field, give null.\n- An entry without an id (or with an unknown one) is created. The import deletes nothing.\n- References can be ids or keys: \"@kazanie-chleb\", \"@ratzinger2007\". Keys from the same document work too.\n- A file with works, quotes, persons, comments or topics is rejected — with a note where to import it.\n- Who sees an entry is decided only by the area of the scriptorium: the members of the area, and when the area is public — everyone. A text becomes public when it is moved to the scriptorium of a public area (it keeps its id).\nReturn ONE JSON object, without comments.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"name\": \"My scriptorium\",\n  \"entries\": [ { \"kind\": \"texttype\", \"key\": \"kazanie-maryjne\", \"data\": { … } }, { \"kind\": \"text\", \"data\": { … } }, … ]\n}\n\n## Kinds of entries\n{kinds}\n\n## A text type and its fields\nA text type (\"texttype\") is a name and the extra fields every text of this type has — besides the fixed text fields (title, date, plan, content …). Fields are described like the fields of a kind in Learning: {\"key\", \"label\", \"type\", \"multi\", \"options\", \"to\", \"locator\", \"says\"}; \"type\": {types}.\n- \"ref\" — a reference: \"to\" are the names of kinds in Learning (e.g. [\"Mystery\"]) or \"work\", \"quote\", \"person\" (Library) and \"text\" (another text); \"locator\": true — with a place.\n- A text of this type: \"textType\": \"@type-key\", and the field values as ordinary fields in \"data\" — under the key of the field. A reference to an entry in Learning can be given by its id or its NAME (\"Annunciation\"); a reference with a place: {\"value\": \"@bt\", \"locator\": \"Łk 1,26-38\"}; several values (\"multi\": true) — a list.\n- The keys of the fixed text fields are taken: {coreKeys}.\n- A text without a type is an ordinary text.\n\nExample — the type “Marian sermon” and one sermon of this type (with Holy Scripture \"@bt\" from the Library):\n{example}\n\n{markup}\n\n## Place in a source\n{bible}\n\n## How the app uses this data\n- In the Scriptorium the entries stand in the tabs “Texts”, “Deliveries”, “Projects” and “Text types”; a text has an editor (Plan · Content · Further information) with a preview, and its deliveries beside it.\n- A text is read with its plan, content, footnotes to Library sources and the list “Sources” at the end; the values of its type's fields stand in the header (“Mystery: Annunciation”).\n- A delivery points to the plan's points by their \"id\": chosen at the text, it shows on the plan what was said, what was only mentioned, what was skipped (with the time in the recording) and what was added. Deliveries stand newest first; in the archive the date of a text is its last delivery.\n- On pages: the module “Text from the scriptorium” (one text — plan, deliveries with recording, content, sources) and “Text archive” (the texts of the scriptorium or of one project; search and filters by the reference fields of text types and by projects). A page shows the entry itself, not a copy: a correction in the Scriptorium is at once on every page.\n- Printing via LaTeX: a text as an article, a project as a book (texts in the order of \"outline\"), the plan alone as the “Pulpit plan”.\n- A knowledge base that has this scriptorium among its sources takes its entries as material: a text type is a kind of entry there, and card templates and reviews can reach for texts; nothing is copied there. “Review from this text” makes a review there of what the text points to (e.g. quotes, comments, dictionary words).\n- In a school a project with \"projectType\": \"program\" and \"classes\" is a curriculum: the texts of its \"outline\" are lessons, and a delivery with \"classArea\" — a lesson in a class (Class register, “Delivery in classes”).\n- Entries are sealed in the browser with the area's key. “AI access” (the area's link, MCP server), if it covers this scriptorium, gives the assistant a copy to read: texts, deliveries, projects and text types; the assistant changes nothing.\n"
+  },
+  "latex": {
+    "missingRef": "reference not available"
+  },
+  "plan": {
+    "point": "Plan point",
+    "mainPlaceholder": "Main thought…",
+    "subPlaceholder": "What goes under it: a quote, an example, a question…",
+    "toolbar": "Insert into the plan",
+    "source": "Source…",
+    "quote": "Quote from the library…",
+    "fromBase": "From a knowledge base…",
+    "upTitle": "Up a level (Shift+Tab)",
+    "up": "Level up",
+    "downTitle": "Deeper (Tab)",
+    "down": "Level down",
+    "moveUpTitle": "Move up (Alt+↑)",
+    "moveUp": "Move up",
+    "moveDownTitle": "Move down (Alt+↓)",
+    "moveDown": "Move down",
+    "remove": "Remove point",
+    "emptyLead": "A plan is the main thoughts in order, and under each — quotes, examples, questions, applications. You speak from it; on the page the listener sees the path of the sermon, and each delivery shows what of it was said.",
+    "first": "+ First thought",
+    "kind": "Kind of point",
+    "missingQuote": "The library has no quote “{key}”.",
+    "add": "+ Thought",
+    "keys": "Enter — new point · Tab / Shift+Tab — deeper / up · Alt+↑↓ — move · Esc — leave the point",
+    "paste": "Paste a ready plan",
+    "pastePlaceholder": "1. First thought\n   a) example\n   > quote\n2. Second thought\n   - question?",
+    "addPasted": {
+      "one": "Add {count} point",
+      "other": "Add {count} points"
+    },
+    "ai": {
+      "summary": "Plan from the content — via AI in your own chat",
+      "lead": "Copy the prompt (with the content of the text), paste it in your chat, and paste the answer — JSON — here. The plan goes into this form.",
+      "leadReplace": "Copy the prompt (with the content of the text), paste it in your chat, and paste the answer — JSON — here. The plan goes into this form and replaces the current one.",
+      "noPlan": "The answer has no plan (\"plan\").",
+      "found": {
+        "one": "Plan: {count} point, {main} main thoughts.",
+        "other": "Plan: {count} points, {main} main thoughts."
+      },
+      "import": "Put the plan into the form",
+      "imported": "The plan is in the form — it saves itself."
+    }
+  },
+  "prompt": {
+    "titleQuoted": "“{title}”",
+    "titleJoin": " and ",
+    "untitledParen": "(untitled)",
+    "planOne": "Plan:",
+    "planOf": "Plan of the text “{title}”:",
+    "noPlan": "(this text has no plan)",
+    "example": {
+      "summary": "Two or three sentences about this delivery.",
+      "added": "What was added, in one or two sentences.",
+      "transcript": "The full transcript — paragraphs separated by an empty line."
+    },
+    "deliveryIntro": "Below is the plan of the sermon {titles}. With this message I attach a recording or transcript of this delivery.",
+    "deliveryIntroWhen": "Below is the plan of the sermon {titles}, delivered: {when}. With this message I attach a recording or transcript of this delivery.",
+    "deliveryBody": "Compare what was said with the plan:\n- For EVERY point of the plan give \"state\": \"said\" — said (fully or almost), \"short\" — only mentioned, briefly, \"skipped\" — skipped.\n- \"at\": when the point starts in the recording (m:ss or h:mm:ss) — only if it was said and you have the recording.\n- \"note\": one short sentence, in the language of the sermon, on what was different from the plan (e.g. another example, another order) — only if something was different.\n- \"added\": what was said but is not in the plan — each thing separately: \"text\" (one or two sentences), \"at\", \"after\" (the id of the point after which it was said).\n- \"summary\": two or three sentences — what mattered most this time.\n- \"duration\": the length of the recording (m:ss).\n- \"transcript\": a full word-for-word transcript, paragraphs separated by an empty line — only if you can transcribe it from the recording; otherwise leave it out.\n- Use EXACTLY the point ids in square brackets. Do not change the plan.\n\n{plans}\n\nReturn ONE JSON object, without comments, in this shape (leave \"id\" and \"kind\" as they are):\n{example}\n\nFields:\n{fields}\n",
+    "planExample": {
+      "p1": "First main thought.",
+      "p2": "A quote or reference, as in the text [@key, p. 12].",
+      "p3": "An example from life.",
+      "p4": "What follows from this for the listener?"
+    },
+    "plan": "Below is the text of the sermon “{title}”. Make a plan from it: the main thoughts in order, and under each — quotes, examples, questions, applications.\n\nRules:\n- One point — one thought, one or two sentences, in the language of the text, in the order of the text.\n- \"depth\": 0 — main thought, 1 — under it, 2 — deeper still.\n- \"kind\": \"thought\", \"quote\", \"example\", \"question\", \"application\".\n- Copy references to sources exactly as they stand in the text: [@key, place] or ![@quote-key]. Do not invent new keys.\n- Do not add anything that is not in the text.\n\nHow the app uses this data:\n- The plan goes into the form of this text and replaces the current one; each point gets a lasting id.\n- Deliveries mark points by their ids: said, only mentioned, skipped — with the time in the recording. Marks made for the previous plan stay with the delivery, and its form warns that those points are no longer in the plan (they can be removed).\n- The plan stands before the content of the text — in the Scriptorium, on pages and in print (also alone, as the “Pulpit plan”); [@key, place] in a point becomes a footnote.\n\nText:\n---\n{body}\n---\n\nReturn ONE JSON object, without comments (leave \"id\" and \"kind\" as they are; the current plan will be replaced):\n{example}\n"
+  },
+  "sermon": {
+    "pointKindDefault": "Thought",
+    "unmarked": "Not marked",
+    "seeAlso": " (see {list})",
+    "quoteRef": "[quote {key}]",
+    "counts": {
+      "said": "said {said} of {points}",
+      "short": "briefly {count}",
+      "skipped": "skipped {count}",
+      "open": "unmarked {count}",
+      "added": "added {count}"
+    },
+    "audio": "Recording",
+    "video": "Video",
+    "playFrom": "Play from {time}",
+    "added": "Added in this delivery",
+    "plan": "Plan",
+    "legend": "On the plan: ✓ said · ◐ briefly · ✕ skipped",
+    "transcript": "Transcript of the delivery",
+    "deliveries": "Deliveries",
+    "delivery": "Delivery",
+    "deliveriesCount": {
+      "one": "Deliveries ({count})",
+      "other": "Deliveries ({count})"
+    },
+    "noDate": "No date",
+    "collapse": "Collapse",
+    "listenOnPlan": "Listen and see on the plan",
+    "seeOnPlan": "See on the plan"
+  },
+  "card": {
+    "loading": "Loading the text…",
+    "missing": "This text does not exist or you cannot see it.",
+    "latex": "Download for print (LaTeX)",
+    "latexPlan": "Plan only (LaTeX)",
+    "openAll": "Plan, recordings and the whole text",
+    "readAll": "Read the whole text"
+  },
+  "text": {
+    "titlePlaceholder": "Title of the text",
+    "part": "Part of the text",
+    "parts": {
+      "plan": "Plan",
+      "body": "Content",
+      "further": "Further information"
+    },
+    "view": "View",
+    "views": {
+      "write": "Writing",
+      "both": "Side by side",
+      "preview": "Preview"
+    },
+    "words": {
+      "one": "{count} word",
+      "other": "{count} words"
+    },
+    "wordsOf": {
+      "one": "{count} word of {target} ({percent}%)",
+      "other": "{count} words of {target} ({percent}%)"
+    },
+    "bodyPlaceholder": "Content… Insert a source with the “Source” button or by typing [@key, p. 12].",
+    "furtherPlaceholder": "Further information — reading, links, context.",
+    "missing": "Not in the library: {keys} — these footnotes will be empty.",
+    "data": "Text data — type, date, readings, project, recording",
+    "dataWithType": "Text data — type, date, readings, project, recording and type fields",
+    "howToWrite": "How to write — content markup"
+  },
+  "outline": {
+    "title": "Plan",
+    "heading": "Part heading",
+    "draft": "Draft",
+    "up": "Up",
+    "down": "Down",
+    "remove": "Remove from the plan",
+    "outside": "Texts of this project outside the plan:",
+    "addToPlan": "add to the plan",
+    "headingPlaceholder": "Part heading, e.g. Part I",
+    "newHeading": "New heading",
+    "addHeading": "+ Heading",
+    "newText": "+ New text in the project",
+    "bibliography": {
+      "one": "Project bibliography ({count})",
+      "other": "Project bibliography ({count})"
+    },
+    "copyBibliography": "Copy bibliography"
+  },
+  "type": {
+    "name": "Text type",
+    "newName": "New text type",
+    "textTarget": "Text (Scriptorium)",
+    "saved": "Saved.",
+    "saveFailed": "Could not save.",
+    "back": "← Text types",
+    "readOnly": "You can only read this scriptorium.",
+    "lede": "A text type is a name and the fields every text of this type has — besides the fixed fields (title, date, plan, content …). A reference field can point to entries in Learning (e.g. a mystery, an area) or to sources in the Library. A text without a type is an ordinary text.",
+    "descriptionPlaceholder": "What this type is for",
+    "loadingKinds": "Loading kinds from Learning…",
+    "nameLabel": "Name of the text type",
+    "save": "Save text type",
+    "texts": "Texts of this type",
+    "textsCount": {
+      "one": "Texts of this type ({count})",
+      "other": "Texts of this type ({count})"
+    },
+    "noTexts": "No texts of this type yet.",
+    "addText": "+ Text of this type",
+    "noFields": "The type “{name}” has no fields of its own yet.",
+    "coreField": "fixed text field “{label}”",
+    "yes": "yes",
+    "no": "no"
+  },
+  "tools": {
+    "sample": "text",
+    "toolbar": "Insert",
+    "bold": "Bold",
+    "italic": "Italic",
+    "heading": "Subheading",
+    "blockquote": "Indented quote",
+    "list": "List",
+    "listButton": "• List",
+    "footnoteTitle": "Own footnote",
+    "footnote": "Footnote",
+    "quoteFailed": "Could not save the quote.",
+    "insertSource": "Insert source",
+    "insertQuote": "Insert quote",
+    "insertSourceTitle": "Insert a reference to a source",
+    "insertQuoteTitle": "Insert a quote from the library",
+    "saveSelection": "Save the selected passage as a new quote…",
+    "source": "Source",
+    "place": "Place",
+    "placePlaceholder": "s. 23 · J 3,16",
+    "saveQuote": "Save quote and insert",
+    "searchSource": "Search a source, quote, text…",
+    "searchQuote": "Search a quote…",
+    "quoteLine": "“{text}” — {origin}",
+    "nothingFound": "Nothing found — add a source in the tab “Sources”.",
+    "locator": "Place (page, verse, number) — optional",
+    "locatorBible": "J 3,16",
+    "locatorPage": "s. 23",
+    "insert": "Insert {mark}",
+    "otherSource": "Another source"
+  },
+  "lens": {
+    "noCreate": "Knowledge base entries are added in Knowledge — here you can only point to them."
+  },
+  "count": {
+    "entries": {
+      "one": "{count} entry",
+      "other": "{count} entries"
+    },
+    "words": {
+      "one": "{count} word",
+      "other": "{count} words"
+    },
+    "wordsOf": {
+      "one": "{count} word of {target}",
+      "other": "{count} words of {target}"
+    },
+    "texts": {
+      "one": "{count} text",
+      "other": "{count} texts"
+    },
+    "fields": {
+      "one": "{count} field",
+      "other": "{count} fields"
+    }
+  },
+  "view": {
+    "noKey": "Without a key in this tab the scriptorium is closed — sign in again or unlock the key.",
+    "loadFailed": "Could not load the scriptoria.",
+    "isKnowledge": "This is a knowledge base — it is in Knowledge.",
+    "isLibrary": "This is a library (sources).",
+    "openIt": "Open it",
+    "missing": "This scriptorium does not exist or you have no key to it.",
+    "all": "All scriptoria",
+    "defaultName": "Scriptorium",
+    "createFailed": "Could not create the scriptorium.",
+    "onlyYou": "only you",
+    "area": "area",
+    "title": "Scriptorium",
+    "lede": "A place for writing: sermons, talks, reflections and chapters — with a plan, content and footnotes — their deliveries (what was said, what was skipped) and projects (a book, a series). Texts cite sources from the Library and can point to entries in Learning — e.g. the mystery of the rosary the sermon is about. Your own text types (e.g. “Marian sermon”) add fields to texts. Each area has at most one scriptorium: everyone with the area's key reads and adds to it, and when the area is public — everyone reads it. A text becomes public when you move it to the scriptorium of a public area.",
+    "rowMeta": "{entries} · {area} · seen by: {audience}",
+    "readOnlySuffix": " · read only",
+    "createFirst": "Create a scriptorium",
+    "createAnother": "New scriptorium",
+    "namePlaceholder": "e.g. Sermons and talks",
+    "whoSees": "Who sees it",
+    "onlyMeNew": "Only me (a private area will be created)",
+    "onlyMe": "Only me",
+    "publicWarn": "The area “{name}” is public: everyone, even without an account, will read everything in this scriptorium.",
+    "creating": "Creating…",
+    "create": "Create",
+    "opening": "Opening the scriptorium…",
+    "unreadable": "Sealed with a key you do not have: {entries}.",
+    "tabs": "Scriptorium sections",
+    "tabJson": "Import / export",
+    "tabOld": "Old entries",
+    "oldWhere": "Sources (works, quotes, persons) are in the Library; comments are a kind in Learning.",
+    "searchKind": "Search: {kind}",
+    "textType": "Text type",
+    "allTypes": "all types",
+    "noType": "no type",
+    "noneOfKind": "No entry of this kind yet.",
+    "noMatch": "Nothing matches.",
+    "json": {
+      "what": "What to export",
+      "summary": "Scriptorium JSON — export and import",
+      "lead": "Texts, deliveries, projects and text types as one document — a backup, a move, work with AI. Import changes existing entries in place and adds new ones; it deletes nothing.",
+      "import": "Import and save",
+      "readOnly": "In this scriptorium you can only read.",
+      "saving": "Saving {n} of {total}…",
+      "saveWarning": "{kind} “{name}”: {reason}.",
+      "saveFailed": "could not save",
+      "saved": "Saved {n} of {total}."
+    },
+    "settings": {
+      "saveName": "Save name",
+      "whoSees": "Who sees it",
+      "unknownArea": "unknown",
+      "audience": "Area: {area}. Seen by: {audience}. To make a text public (or stop it being public), move it to the scriptorium of another area — at the text, in the box “Who sees it”.",
+      "audienceReadOnly": "Area: {area}. Seen by: {audience} (you can only read). To make a text public (or stop it being public), move it to the scriptorium of another area — at the text, in the box “Who sees it”.",
+      "delete": "Delete scriptorium",
+      "deleteLead": "Deletes all entries ({all}, including {texts}); pages that showed them will say the text is gone. This cannot be undone. Export first (Import / export).",
+      "deleteConfirm": "Type the name of the scriptorium to confirm",
+      "deleteForever": "Delete forever"
+    }
+  }
+}

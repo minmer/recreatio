@@ -12,9 +12,9 @@
  * Geändert und gelöscht wird nichts: eine Antwort ist geschehen, sie wird nicht nachträglich anders.
  */
 
-import { describe, keyLines, pretty, textNode, type JsonNode } from '../core/jsonTree';
+import { describe, keyLines, pretty, type JsonNode } from '../core/jsonTree';
 import { newId } from '../core/ids';
-import { plural } from '../core/plural';
+import { t } from '../core/i18n';
 import { readParams, readSeed } from './cardBasics';
 import type { AnswerRecord } from './learn';
 
@@ -34,96 +34,95 @@ const EARLIEST = Date.UTC(2020, 0, 1);
 
 /* -- Die Sätze ----------------------------------------------------------------------------------------- */
 
-const TOP_KEYS: Readonly<Record<string, string>> = {
-  format: `"${PROGRESS_FORMAT}"`,
-  version: `${PROGRESS_VERSION} — wersja formatu`,
-  library: 'baza wiedzy, z której są odpowiedzi: {"id", "name"} — import do innej bazy odmawia; pominięte — import do bazy otwartej tutaj',
-  answers: `odpowiedzi (niżej), najwyżej ${MAX_ANSWERS} w jednym imporcie`
+/* 2026-11-05 — die Sätze werden erst beim Lesen geholt (in der Sprache der Anwendung): Getter statt Werte. */
+const lazy = (said: Readonly<Record<string, () => string>>): Readonly<Record<string, string>> => {
+  const out: Record<string, string> = {};
+  for (const [k, get] of Object.entries(said)) Object.defineProperty(out, k, { get, enumerable: true });
+  return out;
 };
+const P = 'cogitaDataFormat.progress';
 
-const LIBRARY_KEYS: Readonly<Record<string, string>> = {
-  id: 'identyfikator bazy wiedzy',
-  name: 'nazwa bazy wiedzy (tylko informacja)'
-};
+const TOP_KEYS: Readonly<Record<string, string>> = lazy({
+  format: () => `"${PROGRESS_FORMAT}"`,
+  version: () => t(`${P}.top.version`, { version: PROGRESS_VERSION }),
+  library: () => t(`${P}.top.library`),
+  answers: () => t(`${P}.top.answers`, { max: MAX_ANSWERS })
+});
 
-const ANSWER_KEYS: Readonly<Record<string, string>> = {
-  id: 'identyfikator odpowiedzi z eksportu — odpowiedź, która już jest w Twoich postępach, jest pomijana; bez "id" odpowiedź jest nowa (chyba że jest już odpowiedź na tę samą kartę "key" w tej samej chwili "at")',
-  key: `karta: pytanie i kierunek ("pytanie|kierunek" albo samo pytanie) — wymagane, do ${MAX_KEY} znaków; tylko taka karta tej bazy liczy odpowiedź`,
-  question: 'pytanie karty (część "key" przed "|"); pominięte — z "key"',
-  direction: 'kierunek karty (część "key" po "|", np. "a-b"); pominięty — z "key"',
-  fingerprint: 'odcisk tego, co było wtedy poprawną odpowiedzią — gdy treść karty się zmieni, stare odpowiedzi przestają się liczyć; pominięty — odpowiedź liczy się zawsze',
-  at: 'kiedy: data i czas ISO ("2026-10-28T18:03:11Z") albo milisekundy od 1970 — od 2020 roku do dziś',
-  correctness: 'jak dobrze: liczba od 0 (źle) do 1 (dobrze), części dla odpowiedzi częściowo dobrych; true/false też',
-  ms: 'ile trwała odpowiedź, w milisekundach (najwyżej doba)',
-  given: `co zostało podane, krótko (do ${MAX_GIVEN} znaków — dłuższe jest ucinane)`,
-  via: 'skąd: powtórka, sesja albo przebieg (np. "revision:<id>") — tylko informacja przy analizie',
-  hints: 'ile podpowiedzi uczący się odsłonił przed odpowiedzią (każda obniża najwyższy wynik o 0,25) — tylko informacja',
-  params: 'zadanie z generatora: wylosowane wartości, np. {"a": 37, "n": 5}, wylosowane wpisy jako "@identyfikator", krótkie listy ["…", "…"] — która wersja padła; tylko informacja',
-  seed: 'numer losowania zadania z generatora — z nim powstaje dokładnie to samo zadanie (te same wartości i wpisy); tylko informacja',
-  text: 'tylko informacja z eksportu: o co pytała karta, słowami — import tego nie czyta'
-};
+const LIBRARY_KEYS: Readonly<Record<string, string>> = lazy({
+  id: () => t(`${P}.library.id`),
+  name: () => t(`${P}.library.name`)
+});
+
+const ANSWER_KEYS: Readonly<Record<string, string>> = lazy({
+  id: () => t(`${P}.answer.id`),
+  key: () => t(`${P}.answer.key`, { max: MAX_KEY }),
+  question: () => t(`${P}.answer.question`),
+  direction: () => t(`${P}.answer.direction`),
+  fingerprint: () => t(`${P}.answer.fingerprint`),
+  at: () => t(`${P}.answer.at`),
+  correctness: () => t(`${P}.answer.correctness`),
+  ms: () => t(`${P}.answer.ms`),
+  given: () => t(`${P}.answer.given`, { max: MAX_GIVEN }),
+  via: () => t(`${P}.answer.via`),
+  hints: () => t(`${P}.answer.hints`),
+  params: () => t(`${P}.answer.params`),
+  seed: () => t(`${P}.answer.seed`),
+  text: () => t(`${P}.answer.text`)
+});
 
 /** Jeder Schlüssel als Pfad (`answers[].key`) mit seinem Satz — für die Prüfung. */
-export const PROGRESS_KEYS: Readonly<Record<string, string>> = {
-  ...TOP_KEYS,
-  ...Object.fromEntries(Object.entries(LIBRARY_KEYS).map(([k, v]) => [`library.${k}`, v])),
-  ...Object.fromEntries(Object.entries(ANSWER_KEYS).map(([k, v]) => [`answers[].${k}`, v]))
-};
+export const PROGRESS_KEYS: Readonly<Record<string, string>> = lazy({
+  ...Object.fromEntries(Object.keys(TOP_KEYS).map((k) => [k, () => TOP_KEYS[k]!])),
+  ...Object.fromEntries(Object.keys(LIBRARY_KEYS).map((k) => [`library.${k}`, () => LIBRARY_KEYS[k]!])),
+  ...Object.fromEntries(Object.keys(ANSWER_KEYS).map((k) => [`answers[].${k}`, () => ANSWER_KEYS[k]!]))
+});
 
 const SAMPLE_LIBRARY = '0190a0a0-0000-7000-8000-0000000000c1';
 const SAMPLE_ENTRY = '0190a0a0-0000-7000-8000-0000000000c2';
 
-const SAMPLE = {
+const sample = () => ({
   format: PROGRESS_FORMAT,
   version: PROGRESS_VERSION,
-  library: { id: SAMPLE_LIBRARY, name: 'Historia Polski' },
+  library: { id: SAMPLE_LIBRARY, name: t(`${P}.sample.library`) },
   answers: [
     {
       id: '0190a0a0-0000-7000-8000-0000000000d1', key: `daty:${SAMPLE_ENTRY}|a-b`, question: `daty:${SAMPLE_ENTRY}`, direction: 'a-b', fingerprint: 'f3a91c',
-      at: '2026-10-27T18:03:11.000Z', correctness: 1, ms: 5300, given: '1410', via: 'revision:0190a0a0-0000-7000-8000-0000000000e1', text: 'Bitwa pod Grunwaldem — rok?'
+      at: '2026-10-27T18:03:11.000Z', correctness: 1, ms: 5300, given: '1410', via: 'revision:0190a0a0-0000-7000-8000-0000000000e1', text: t(`${P}.sample.text`)
     },
-    { key: `daty:${SAMPLE_ENTRY}|b-a`, at: '2026-10-28T07:45:00.000Z', correctness: 0.5, ms: 9100, given: 'bitwa pod Grunwaldem (?)' }
+    { key: `daty:${SAMPLE_ENTRY}|b-a`, at: '2026-10-28T07:45:00.000Z', correctness: 0.5, ms: 9100, given: t(`${P}.sample.given`) }
   ]
-};
+});
 
 /**
  * 2026-10-30 — WOZU DIE ANTWORTEN DIENEN, im ganzen System (neben jedem Import: wie die Daten gebraucht werden).
  * Nachgeprüft: `knowness.ts` (der Zustand je Karte), `knowing.ts` (Eintrag aus Karten), `revision.ts`, `learn.ts` (`reportDue`).
  */
-const PROGRESS_USAGE_JSON: JsonNode = textNode('learn-progress.usage', 'Jak aplikacja używa tych danych', () => `Z odpowiedzi aplikacja liczy, jak dobrze umiesz — w przeglądarce, tak samo wszędzie:
-- każda karta: kiedy ostatnio, ile czasu naprawdę minęło przed odpowiedzią, odstęp do następnego razu (dobrze: ten czas × 3; częściowo: jedna trzecia, co najmniej dzień, jeśli minęły dni; źle: 5 minut; dobrze zaraz po błędzie: 0,4 × najlepszy odstęp sprzed błędu) i jej znajomość, która z czasem spada;
-- każdy wpis: średnia znajomości jego kart z odpowiedzią, ważona tym, jak mocno każda go sprawdza (szablon w schemacie), plus to, co na nim buduje;
-- z tego: które karty powtórka da teraz i dlaczego (przy każdej karcie widać powód), co pokazują widoki i powtórki z „Filtrem znajomości” (np. szczegóły okresu dopiero, gdy okres jest znany), „Ścieżka”, „Postępy” i przypomnienie o następnej powtórce — serwis widzi tylko, kiedy ona i ile kart czeka;
-- odpowiedzi zostają wszystkie: gdy zmieni się sposób liczenia, wszystko da się policzyć od nowa; karta, której poprawna odpowiedź się zmieniła, liczy tylko odpowiedzi od tej zmiany.
-Import dopisuje odpowiedzi tylko do Twoich postępów; prowadzący kursu widzi je tak jak odpowiedzi z nauki.`);
+const PROGRESS_USAGE_JSON: JsonNode = {
+  key: 'learn-progress.usage',
+  get title() { return t(`${P}.usage.title`); },
+  text: () => t(`${P}.usage.text`)
+};
 
 export const PROGRESS_JSON: JsonNode = {
   key: 'learn-progress',
-  title: `Moje postępy jako JSON ("${PROGRESS_FORMAT}", wersja ${PROGRESS_VERSION})`,
-  short: 'Moje postępy',
-  text: () => `Twoje odpowiedzi w jednej bazie wiedzy: na którą kartę, jak dobrze, kiedy, jak długo i co podano — do zachowania albo do analizy (np. przez AI: co sprawia trudność, jak zmienia się czas odpowiedzi). W aplikacji: Nauka → baza wiedzy → „Postępy” → „Moje postępy jako JSON”, #/workspace/learn/<baza>/postepy.
-Co robi import:
-- Najpierw pokazuje plan; zapisuje dopiero po „Importuj”.
-- Dopisuje odpowiedzi tylko do TWOICH postępów w bazie otwartej tutaj — nigdy do cudzych (dokument nie wskazuje, czyje są: zawsze są to postępy osoby, która importuje). Dokument z innej bazy ("library.id") odrzuca.
-- Odpowiedź, której "id" już jest w Twoich postępach, pomija — ten sam eksport zaimportowany drugi raz niczego nie zmienia. Odpowiedź bez "id" jest nowa (chyba że na tę samą kartę jest już odpowiedź z tą samą chwilą "at").
-- Niczego nie zmienia ani nie usuwa: odpowiedź się zdarzyła.
-- Nowe odpowiedzi zapisuje jako nowe pakiety po ${PER_BATCH}, zapieczętowane w przeglądarce dla Ciebie (i dla przyjęć obszaru kursu, jeśli baza ją wskazuje — prowadzący widzą je w „Postępach uczących się”), jak każdą odpowiedź z nauki. Bez internetu czekają na tym urządzeniu.
-- Odpowiedź na kartę, której w tej bazie nie ma, zapisuje z ostrzeżeniem — liczy się dopiero, gdy taka karta jest. Odpowiedź w złym kształcie — ostrzeżenie, pominięta.
-Zwróć JEDEN obiekt JSON, bez komentarzy.
+  get title() { return t(`${P}.title`, { format: PROGRESS_FORMAT, version: PROGRESS_VERSION }); },
+  get short() { return t(`${P}.short`); },
+  text: () => `${t(`${P}.text`, { perBatch: PER_BATCH })}
 
-Dokument:
+${t(`${P}.documentHead`)}
 ${keyLines(TOP_KEYS)}
 
-Baza wiedzy ("library"):
+${t(`${P}.libraryHead`)}
 ${keyLines(LIBRARY_KEYS)}
 
-Odpowiedź (wpis w "answers"):
+${t(`${P}.answerHead`)}
 ${keyLines(ANSWER_KEYS)}
 
-Przykład:
-${pretty(SAMPLE)}`,
+${t(`${P}.exampleHead`)}
+${pretty(sample())}`,
   inside: () => [PROGRESS_USAGE_JSON],
-  samples: () => [{ label: 'Dwie odpowiedzi', doc: () => SAMPLE }]
+  samples: () => [{ get label() { return t(`${P}.sampleLabel`); }, doc: () => sample() }]
 };
 
 /** Die Beschreibung als Text — ohne Zusammenhang aufrufbar (MCP, `import-formats.mjs`). */
@@ -196,7 +195,7 @@ class Tally {
   add(text: string, at: number): void { this.said.set(text, [...(this.said.get(text) ?? []), at]); }
   lines(): string[] {
     return [...this.said.entries()].map(([text, at]) =>
-      at.length === 1 ? `Odpowiedź ${at[0]}: ${text}` : `${at.length} odpowiedzi (np. ${at.slice(0, 3).join(', ')}): ${text}`);
+      at.length === 1 ? t('cogitaData.progress.tallyOne', { n: at[0]!, text }) : t('cogitaData.progress.tallyMany', { count: at.length, list: at.slice(0, 3).join(', '), text }));
   }
 }
 
@@ -207,21 +206,20 @@ function momentOf(raw: unknown, now: number): number | null {
 }
 
 export function planProgress(doc: unknown, ctx: ProgressContext): ProgressPlan | { error: string } {
-  if (!isObject(doc)) return { error: 'To nie jest dokument postępów (oczekiwano obiektu JSON).' };
-  if (doc.format !== undefined && doc.format !== PROGRESS_FORMAT) return { error: `Inny format: "${String(doc.format)}" — oczekiwano "${PROGRESS_FORMAT}".` };
+  if (!isObject(doc)) return { error: t('cogitaData.progress.notProgress') };
+  if (doc.format !== undefined && doc.format !== PROGRESS_FORMAT) return { error: t('cogitaData.progress.otherFormat', { format: String(doc.format), expected: PROGRESS_FORMAT }) };
   if (isObject(doc.library) && typeof doc.library.id === 'string' && doc.library.id !== ctx.libraryId) {
-    const name = typeof doc.library.name === 'string' && doc.library.name !== '' ? ` („${doc.library.name}”)` : '';
-    return { error: `To postępy z innej bazy wiedzy${name} — zaimportuj je tam, w jej „Postępach”.` };
+    return { error: typeof doc.library.name === 'string' && doc.library.name !== '' ? t('cogitaData.progress.otherBaseNamed', { name: doc.library.name }) : t('cogitaData.progress.otherBase') };
   }
-  if (!Array.isArray(doc.answers)) return { error: 'Brakuje listy "answers".' };
+  if (!Array.isArray(doc.answers)) return { error: t('cogitaData.progress.noAnswers') };
 
   const now = ctx.now ?? Date.now();
   const makeId = ctx.makeId ?? (() => newId());
   const warnings: string[] = [];
-  if (doc.version !== undefined && doc.version !== PROGRESS_VERSION) warnings.push(`Wersja ${String(doc.version)} — znam wersję ${PROGRESS_VERSION}; czytam to, co rozpoznaję.`);
-  for (const key of Object.keys(doc)) if (!described(TOP_KEYS, key)) warnings.push(`Nieznany klucz "${key}" — pominięty.`);
-  if (doc.library !== undefined && !isObject(doc.library)) warnings.push('"library" to nie obiekt — pominięte.');
-  if (doc.answers.length > MAX_ANSWERS) warnings.push(`${doc.answers.length} odpowiedzi — w jednym imporcie biorę pierwsze ${MAX_ANSWERS}; resztę zaimportuj osobno.`);
+  if (doc.version !== undefined && doc.version !== PROGRESS_VERSION) warnings.push(t('cogitaData.progress.version', { version: String(doc.version), known: PROGRESS_VERSION }));
+  for (const key of Object.keys(doc)) if (!described(TOP_KEYS, key)) warnings.push(t('cogitaData.progress.unknownTopKey', { key }));
+  if (doc.library !== undefined && !isObject(doc.library)) warnings.push(t('cogitaData.progress.libraryNotObject'));
+  if (doc.answers.length > MAX_ANSWERS) warnings.push(t('cogitaData.progress.tooMany', { count: doc.answers.length, max: MAX_ANSWERS }));
 
   /* Was schon da ist: nach Kennung, und ohne Kennung nach Karte und Augenblick — im Fortschritt und im Dokument. */
   const hadMoments = new Set([...ctx.existing.values()].map((a) => `${a.key}@${a.at}`));
@@ -234,22 +232,22 @@ export function planProgress(doc: unknown, ctx: ProgressContext): ProgressPlan |
 
   doc.answers.slice(0, MAX_ANSWERS).forEach((raw, i) => {
     const n = i + 1;
-    if (!isObject(raw)) { tally.add('to nie obiekt — pominięta.', n); return; }
-    for (const key of Object.keys(raw)) if (!described(ANSWER_KEYS, key)) tally.add(`nieznany klucz "${key}" — pominięty.`, n);
+    if (!isObject(raw)) { tally.add(t('cogitaData.progress.answer.notObject'), n); return; }
+    for (const key of Object.keys(raw)) if (!described(ANSWER_KEYS, key)) tally.add(t('cogitaData.progress.answer.unknownKey', { key }), n);
     const key = typeof raw.key === 'string' ? raw.key.trim() : '';
-    if (key === '' || key.length > MAX_KEY) { tally.add(key === '' ? 'bez "key" — pominięta.' : `"key" dłuższy niż ${MAX_KEY} znaków — pominięta.`, n); return; }
+    if (key === '' || key.length > MAX_KEY) { tally.add(key === '' ? t('cogitaData.progress.answer.noKey') : t('cogitaData.progress.answer.keyTooLong', { max: MAX_KEY }), n); return; }
     const at = momentOf(raw.at, now);
-    if (at === null) { tally.add('"at" to nie chwila od 2020 roku do dziś — pominięta.', n); return; }
+    if (at === null) { tally.add(t('cogitaData.progress.answer.badAt'), n); return; }
     const right = typeof raw.correctness === 'boolean' ? (raw.correctness ? 1 : 0) : typeof raw.correctness === 'number' && Number.isFinite(raw.correctness) ? raw.correctness : null;
-    if (right === null) { tally.add('"correctness" to nie liczba od 0 do 1 — pominięta.', n); return; }
-    if (right < 0 || right > 1) tally.add('"correctness" poza 0–1 — przycięte.', n);
+    if (right === null) { tally.add(t('cogitaData.progress.answer.badCorrectness'), n); return; }
+    if (right < 0 || right > 1) tally.add(t('cogitaData.progress.answer.clipped'), n);
 
     const given = typeof raw.id === 'string' && raw.id.trim() !== '' ? raw.id.trim().slice(0, 100) : null;
     const moment = `${key}@${at}`;
     if (given !== null && ctx.existing.has(given)) { known += 1; return; }
     if (given === null && hadMoments.has(moment)) { known += 1; return; }
-    if (given !== null && seen.has(given)) { tally.add('to samo "id" drugi raz w dokumencie — pominięta.', n); return; }
-    if (given === null && docMoments.has(moment)) { tally.add('bez "id", ta sama karta i chwila "at" drugi raz w dokumencie — pominięta.', n); return; }
+    if (given !== null && seen.has(given)) { tally.add(t('cogitaData.progress.answer.idTwice'), n); return; }
+    if (given === null && docMoments.has(moment)) { tally.add(t('cogitaData.progress.answer.momentTwice'), n); return; }
     if (given !== null) seen.add(given);
     docMoments.add(moment);
 
@@ -259,10 +257,10 @@ export function planProgress(doc: unknown, ctx: ProgressContext): ProgressPlan |
     let ms: number | undefined;
     if (raw.ms !== undefined && raw.ms !== null) {
       if (typeof raw.ms === 'number' && Number.isFinite(raw.ms) && raw.ms >= 0 && raw.ms <= MAX_MS) ms = Math.round(raw.ms);
-      else tally.add('"ms" to nie czas od 0 do doby — pominięty.', n);
+      else tally.add(t('cogitaData.progress.answer.badMs'), n);
     }
-    if (raw.given !== undefined && raw.given !== null && typeof raw.given !== 'string') tally.add('"given" to nie tekst — pominięte.', n);
-    if (raw.via !== undefined && raw.via !== null && typeof raw.via !== 'string') tally.add('"via" to nie tekst — pominięte.', n);
+    if (raw.given !== undefined && raw.given !== null && typeof raw.given !== 'string') tally.add(t('cogitaData.progress.answer.badGiven'), n);
+    if (raw.via !== undefined && raw.via !== null && typeof raw.via !== 'string') tally.add(t('cogitaData.progress.answer.badVia'), n);
 
     const answer: AnswerRecord = {
       id: given ?? makeId(), key, question, direction,
@@ -281,17 +279,17 @@ export function planProgress(doc: unknown, ctx: ProgressContext): ProgressPlan |
 
   warnings.push(...tally.lines());
   if (strange > 0) {
-    warnings.push(`${strange} ${plural(strange, 'odpowiedź nie pasuje', 'odpowiedzi nie pasują', 'odpowiedzi nie pasuje')} do żadnej karty tej bazy (karta usunięta, zmieniona albo z innej bazy) — ${plural(strange, 'zapisze', 'zapiszą', 'zapisze')} się, ale nie ${plural(strange, 'liczy', 'liczą', 'liczy')} się, dopóki takiej karty nie ma.`);
+    warnings.push(t('cogitaData.progress.strange', { count: strange }));
   }
 
   const lines: string[] = [];
   if (out.length > 0) {
     const batches = Math.ceil(out.length / PER_BATCH);
     const cards = new Set(out.map((a) => a.key)).size;
-    lines.push(`Nowe odpowiedzi: ${out.length} (na ${cards} ${plural(cards, 'kartę', 'karty', 'kart')}) — ${batches} ${plural(batches, 'nowy pakiet', 'nowe pakiety', 'nowych pakietów')}, zapieczętowane dla Ciebie`);
+    lines.push(t('cogitaData.progress.newAnswers', { count: out.length, cards: t('cogitaData.progress.cards', { count: cards }), batches: t('cogitaData.progress.batches', { count: batches }) }));
   }
-  if (known > 0) lines.push(`Już są w Twoich postępach: ${known} — pominięte`);
-  if (out.length === 0) lines.push('Nic nowego — wszystkie odpowiedzi już są.');
+  if (known > 0) lines.push(t('cogitaData.progress.known', { count: known }));
+  if (out.length === 0) lines.push(t('cogitaData.progress.nothingNew'));
   return { answers: out, lines, warnings };
 }
 
@@ -306,10 +304,10 @@ export interface Adopter {
 export async function applyProgress(plan: ProgressPlan, learner: Adopter, stage: (what: string) => void): Promise<{ lines: string[]; warnings: string[] }> {
   const batches = Math.ceil(plan.answers.length / PER_BATCH);
   for (let at = 0, n = 1; at < plan.answers.length; at += PER_BATCH, n += 1) {
-    stage(`Pieczętowanie pakietu ${n} z ${batches}…`);
+    stage(t('cogitaData.progress.sealing', { n, total: batches }));
     await learner.adopt(plan.answers.slice(at, at + PER_BATCH));
   }
-  const lines = [`Dopisane odpowiedzi: ${plan.answers.length}`];
-  const warnings = learner.waiting > 0 ? [`${learner.waiting} ${plural(learner.waiting, 'pakiet czeka', 'pakiety czekają', 'pakietów czeka')} na internet — wyjdą same, gdy wróci połączenie.`] : [];
+  const lines = [t('cogitaData.progress.added', { count: plan.answers.length })];
+  const warnings = learner.waiting > 0 ? [t('cogitaData.progress.waiting', { count: learner.waiting })] : [];
   return { lines, warnings };
 }

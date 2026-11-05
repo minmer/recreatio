@@ -24,7 +24,7 @@
 
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import { WorkspaceError, type Who } from '../core/session';
 import { useCrumbs } from '../shell/crumbTrail';
@@ -64,6 +64,7 @@ interface Home {
 const upsert = <T extends { readonly id: string }>(list: readonly T[], one: T): T[] => [...list.filter((x) => x.id !== one.id), one];
 
 export function LampsApp({ who, trail }: { who: Who; trail: readonly string[] }) {
+  const t = useT();
   const native = lampHere();
   const [ctx, setCtx] = useState<PhoneCtx | null>(null);
   const [home, setHome] = useState<Home | null>(null);
@@ -112,38 +113,38 @@ export function LampsApp({ who, trail }: { who: Who; trail: readonly string[] })
         setHome(loaded);
         void sync(loaded);
       } catch (e) {
-        if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać urządzeń.');
+        if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('lamps.app.loadFailed'));
       }
     })();
     return () => { alive = false; };
-  }, [who, sync]);
+  }, [who, sync, t]);
 
   const lampSaved = useCallback((lamp: Lamp) => change((h) => ({ ...h, lamps: upsert(h.lamps, lamp).sort(lampOrder) })), [change]);
   const lampRemoved = useCallback((id: string) => change((h) => ({ ...h, lamps: h.lamps.filter((l) => l.id !== id) })), [change]);
   const timerSaved = useCallback((timer: LampTimer) =>
     change((h) => ({ ...h, timers: upsert(h.timers, timer).sort(timerOrder) }), { firstTimer: true }), [change]);
-  const timerRemoved = useCallback((id: string) => change((h) => ({ ...h, timers: h.timers.filter((t) => t.id !== id) })), [change]);
+  const timerRemoved = useCallback((id: string) => change((h) => ({ ...h, timers: h.timers.filter((x) => x.id !== id) })), [change]);
   /* Ein Import auf einmal: ein neuer Stand, ein Plan für das Telefon — wie nach einem gespeicherten Timer (`firstTimer`). */
   const imported = useCallback((done: LampsApplied) => {
     if (done.lamps.length + done.timers.length + done.removed.length === 0) return;
     const gone = new Set(done.removed);
     change((h) => ({
       lamps: done.lamps.reduce<Lamp[]>((list, one) => upsert(list, one), h.lamps.filter((l) => !gone.has(l.id))).sort(lampOrder),
-      timers: done.timers.reduce<LampTimer[]>((list, one) => upsert(list, one), h.timers.filter((t) => !gone.has(t.id))).sort(timerOrder)
+      timers: done.timers.reduce<LampTimer[]>((list, one) => upsert(list, one), h.timers.filter((x) => !gone.has(x.id))).sort(timerOrder)
     }), { firstTimer: done.timers.length > 0 });
   }, [change]);
 
   const step = trail[0];
   if (failed !== null) return <p className="wk-error">{failed}</p>;
-  if (ctx === null || home === null) return <Loading label="Wczytywanie urządzeń…" />;
+  if (ctx === null || home === null) return <Loading label={t('lamps.app.loading')} />;
 
   if (step === PILOT) {
     return <LampLearn ctx={ctx} lamps={home.lamps} native={native} support={support} refresh={refresh} onSaved={lampSaved} />;
   }
   if (step === TIMER) {
     const id = trail[1] ?? NEW_TIMER;
-    const had = id === NEW_TIMER ? null : home.timers.find((t) => t.id === id) ?? null;
-    if (id !== NEW_TIMER && had === null) return <p className="wk-empty">Takiego timera nie ma.</p>;
+    const had = id === NEW_TIMER ? null : home.timers.find((x) => x.id === id) ?? null;
+    if (id !== NEW_TIMER && had === null) return <p className="wk-empty">{t('lamps.app.noTimer')}</p>;
     return (
       <TimerEdit key={id} ctx={ctx} timer={had} lamps={home.lamps} native={native}
         onSaved={(timer) => { timerSaved(timer); window.location.hash = viewPath('lamps'); }}
@@ -152,7 +153,7 @@ export function LampsApp({ who, trail }: { who: Who; trail: readonly string[] })
   }
   if (step !== undefined) {
     const had = step === NEW_LAMP ? null : home.lamps.find((l) => l.id === step) ?? null;
-    if (step !== NEW_LAMP && had === null) return <p className="wk-empty">Takiego urządzenia nie ma.</p>;
+    if (step !== NEW_LAMP && had === null) return <p className="wk-empty">{t('lamps.app.noDevice')}</p>;
     return (
       <LampEdit key={step} ctx={ctx} lamp={had} native={native}
         onSaved={(lamp, then) => {
@@ -195,6 +196,7 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
   onImported: (done: LampsApplied) => void;
   onPhone: (on: boolean) => void;
 }) {
+  const t = useT();
   useCrumbs([]);
   const [busy, setBusy] = useState(false);
   const [json, setJson] = useState(false);
@@ -220,8 +222,8 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
 
   return (
     <>
-      <PageHeader title="Lampy" meta={`${lamps.length} ${plural(lamps.length, 'urządzenie', 'urządzenia', 'urządzeń')}`}
-        actions={<MenuButton label="Więcej: lampy" items={[{ label: 'Import i eksport (JSON)', icon: 'braces', onSelect: () => setJson(true) }]} />} />
+      <PageHeader title={t('lamps.app.title')} meta={t('lamps.app.devices', { count: lamps.length })}
+        actions={<MenuButton label={t('lamps.app.more')} items={[{ label: t('lamps.app.json'), icon: 'braces', onSelect: () => setJson(true) }]} />} />
       {json && (
         <Suspense fallback={null}>
           <LampsJsonDialog ctx={ctx} now={{ lamps, timers, buttons: pace }} onPace={onPace} onImported={onImported} onClose={() => setJson(false)} />
@@ -232,15 +234,15 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
       <LampQueueBar native={native} />
 
       {lamps.length === 0
-        ? <p className="wk-empty">Nie ma jeszcze urządzeń — dodaj lampę na dole strony i wklej jej sygnały albo odczytaj je z pilota.</p>
+        ? <p className="wk-empty">{t('lamps.app.empty')}</p>
         : (
           <div className="lp-grid">
             {lamps.map((lamp) => (
               <section key={lamp.id} className="wk-box lp-card" aria-label={lampTitle(lamp)}>
                 <div className="wk-box-head">
-                  <h2 className="wk-box-title">{lamp.name.trim() || 'Bez nazwy'}</h2>
-                  {lamp.number !== null && <span className="wk-tag">nr {lamp.number}</span>}
-                  <a className="wk-icon-btn lp-card-edit" href={viewPath('lamps', lamp.id)} aria-label={`Edytuj: ${lampTitle(lamp)}`}><Icon name="edit" /></a>
+                  <h2 className="wk-box-title">{lamp.name.trim() || t('lamps.app.noName')}</h2>
+                  {lamp.number !== null && <span className="wk-tag">{t('lamps.app.number', { n: lamp.number })}</span>}
+                  <a className="wk-icon-btn lp-card-edit" href={viewPath('lamps', lamp.id)} aria-label={t('lamps.app.edit', { name: lampTitle(lamp) })}><Icon name="edit" /></a>
                 </div>
                 <div className="wk-box-body">
                   {lamp.room !== null && <p className="lp-card-meta">{lamp.room}</p>}
@@ -250,7 +252,7 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
                         {s.label}
                       </SendKey>
                     ))}
-                    {lamp.signals.length === 0 && <a className="wk-btn wk-btn-quiet lp-key" href={viewPath('lamps', lamp.id)}><Icon name="plus" />Sygnał</a>}
+                    {lamp.signals.length === 0 && <a className="wk-btn wk-btn-quiet lp-key" href={viewPath('lamps', lamp.id)}><Icon name="plus" />{t('lamps.signal')}</a>}
                   </div>
                 </div>
               </section>
@@ -258,22 +260,22 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
           </div>
         )}
 
-      <PaceControl pace={pace} onChange={onPace} title="Tempo przycisków" between="między ramkami i naciśnięciami" limit={false}
-        note="Krótkie naciśnięcie wysyła cały sygnał, tak jak zapisano. Przytrzymanie nadaje tak długo, jak trzymasz (najwyżej 30 s). Dotyczy tylko przycisków (i prób nadania); każdy timer ma własne suwaki." />
+      <PaceControl pace={pace} onChange={onPace} title={t('lamps.app.paceTitle')} between={t('lamps.app.paceBetween')} limit={false}
+        note={t('lamps.app.paceNote')} />
 
       <TimerList lamps={lamps} timers={timers} native={native} status={timerStatus} busy={busy}
-        onEnabled={(t, enabled) => void setEnabled(t, enabled)} onPhone={onPhone} />
+        onEnabled={(one, enabled) => void setEnabled(one, enabled)} onPhone={onPhone} />
       {planProblems.length > 0 && (
         <ul className="lp-problems">
-          {planProblems.map((p) => <li key={p} className="wk-error">Nie trafi do timera: {p}</li>)}
+          {planProblems.map((p) => <li key={p} className="wk-error">{t('lamps.app.planProblem', { problem: p })}</li>)}
         </ul>
       )}
 
       <LampConsole native={native} />
 
       <div className="wk-actions lp-bottom">
-        <a className="wk-btn wk-btn-quiet" href={viewPath('lamps', NEW_LAMP)}><Icon name="plus" />Urządzenie</a>
-        <a className="wk-btn wk-btn-quiet" href={pilotPath()}><Icon name="radio" />Odczyt z pilota</a>
+        <a className="wk-btn wk-btn-quiet" href={viewPath('lamps', NEW_LAMP)}><Icon name="plus" />{t('lamps.device')}</a>
+        <a className="wk-btn wk-btn-quiet" href={pilotPath()}><Icon name="radio" />{t('lamps.learn.title')}</a>
       </div>
 
       <LampLimits />

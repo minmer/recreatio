@@ -1,0 +1,92 @@
+{
+  "beakerOnPlate": {
+    "title": "Beaker of water on a hot plate",
+    "summary": "boiling scene: water (20 °C) in a glass beaker with boiling chips on a steel hot plate",
+    "text": "The beaker holds water at room temperature, with a 40 W hot plate under it. Watch how first the plate heats up, then the glass, then the water.\nBubbles appear at the bottom. While the water is cool, they vanish before they reach the surface. The “Water temperature” chart will show a plateau at the boiling point."
+  },
+  "boilingChips": {
+    "title": "Boiling with chips",
+    "summary": "water just below boiling (98 °C) on a hot plate — nucleate boiling shows at once",
+    "text": "The water is at 98 °C, the plate is hot. Boiling chips have many pits in which bubbles are born — the water boils calmly, without superheating.\nInspect a bubble with the “Inspect” tool: its buoyancy is hundreds of times its weight."
+  },
+  "pressureCooker": {
+    "title": "Pressure cooker — a closed box",
+    "summary": "the same beaker, but the box is closed: the pressure rises and the water boils at a higher temperature",
+    "text": "The box is sealed. As the water evaporates, the vapour has no way out — the pressure rises, and so does the boiling point.\nCompare the boiling point in the inspector with an open box."
+  },
+  "waterUnderOil": {
+    "title": "Water under oil",
+    "summary": "hot water (97 °C) under a layer of oil on a hot plate — vapour bubbles break through the oil",
+    "text": "Oil is lighter than water and does not mix with it, so it floats on top. Below it the water starts to boil.\nVapour bubbles are born only in the water and pass through the oil — the oil itself does not evaporate (up to its smoke point, about 200 °C)."
+  },
+  "oilWaterSeparate": {
+    "title": "Oil and water separate",
+    "summary": "water and oil mixed half and half — gravity separates them: the oil rises to the top",
+    "text": "The beaker holds a fine mixture of water and oil. Oil is lighter (920 kg/m³), so its droplets rise while the water sinks.\nOil also flows much more “thickly”: at 20 °C its viscosity is almost a hundred times that of water — that is why separating takes time."
+  },
+  "brineBoilsLater": {
+    "title": "Brine boils later",
+    "summary": "two beakers on two plates: water on the left, brine (15 % salt) on the right — the brine boils at a higher temperature",
+    "text": "Pure water on the left, brine with 15 % salt on the right; both are at 97 °C and stand on identical plates.\nWater starts to boil at 100 °C, brine only at about 103 °C. Inspect both with the “Inspect” tool: the inspector shows the temperature at which the liquid boils at that spot.\nSalt does not evaporate: as water escapes as vapour, the brine gets saltier and saltier (the “Salt content” overlay)."
+  },
+  "brineEvaporation": {
+    "title": "Evaporating brine",
+    "summary": "a thin layer of nearly saturated brine (25 %) on a plate at 250 °C — the water boils off, a white salt crust remains on the bottom",
+    "text": "The beaker holds a thin layer of brine with 25 % salt — almost as much as water can dissolve. A thermostat keeps the plate at 250 °C.\nThe water boils and evaporates, the salt stays. Once the solution is saturated, the excess salt crystallises and settles on the bottom as a white crust — until all the water is gone.\nIn the developer panel the “NaCl” balance shows that no salt is lost: all of it ends up in the crust."
+  },
+  "fog": {
+    "title": "Fog over hot water",
+    "summary": "hot water (90 °C) in a cool, humid room — fog forms above the beaker",
+    "text": "The water in the beaker is hot, the room is cool. Water vapour is invisible — white fog forms only where the humid air cools down.\nTurn on the “Water vapour” overlay to see the invisible vapour next to the visible fog."
+  },
+  "mountain": {
+    "title": "Boiling in the mountains",
+    "summary": "the same beaker at a pressure of 70 kPa (about 3000 m above sea level) — water boils at only about 90 °C",
+    "text": "High in the mountains the air pressure is lower: here 70 kPa instead of 101 kPa. Water then boils at a lower temperature — about 90 °C.\nInspect the water with the “Inspect” tool: the inspector shows the boiling point at that spot. Compare with “Boiling with chips”."
+  },
+  "convection": {
+    "title": "Convection above a heater",
+    "summary": "a small heater in cold water — warm water rises, cool water sinks and a vortex forms",
+    "text": "A small heater (6 W) lies in cold water, at the bottom on the left. Heated water is lighter and rises above it, cooler water sinks on the other side — a vortex forms.\nTurn on the “Temperature” overlay, then “Velocity” (white arrows show how the water flows)."
+  },
+  "brineUnderWater": {
+    "title": "Brine under fresh water",
+    "summary": "a layer of brine (20 %) under fresh water, the plate heats from below — the layers do not mix",
+    "text": "Brine with 20 % salt lies at the bottom of the beaker, fresh water above it. The plate heats from below: the brine circulates and warms up, but stays at the bottom — even warm it is heavier than the water above it.\nThe “Salt content” overlay shows that the boundary stays sharp (salt crosses it only by diffusion, millimetres per hour). The “Temperature” overlay shows that heat crosses the boundary much faster."
+  },
+  "whatFloats": {
+    "title": "What floats?",
+    "summary": "a wooden block, an ice cube and a stone fall into cold water — wood floats, ice almost fully submerged, the stone sinks",
+    "text": "Three bodies hang above the water: a pine block, an ice cube and a stone (granite). Let time run — they fall into the water.\nWood (510 kg/m³) sinks halfway, ice (917 kg/m³) almost completely, and the stone (2630 kg/m³) goes to the bottom. A floating body displaces as much water as it weighs itself — inspect them with the “Inspect” tool.\nThe water is at 2 °C, so the ice melts slowly: it stays a rectangle that gets smaller over time. Click an object with the “Select” tool: tick “Pinned” in the “Object” panel and it stays where it hangs."
+  },
+  "iceInWarmWater": {
+    "title": "Ice in warm water",
+    "summary": "an ice cube (−10 °C) floats in water at 40 °C and melts — it stays a rectangle, and water appears in its place",
+    "text": "An ice cube (3 cm, −10 °C) floats in water at 40 °C — almost entirely under water. It melts from all sides at once: it stays a rectangle that gets smaller and smaller, and water appears in its place.\nThe “Temperature” overlay shows the cold water from the melting ice: it flows downwards, because cold water is heavier than warm water. The energy balance stays closed — the heat of the water goes into melting the ice: 334 J for every gram."
+  },
+  "iceWithSalt": {
+    "title": "Ice with salt — a freezing mixture",
+    "summary": "three ice cubes float in strong brine (23 %) — the ice melts below 0 °C and cools the brine far below zero",
+    "text": "Three ice cubes float in brine with 23 % salt. Salt lowers the melting point of ice: in such brine ice still melts at −20 °C and takes heat from it, so the brine cools far below 0 °C. This is a freezing mixture — ice cream used to be made in one.\nWater from the melting ice dilutes the brine, and weaker brine freezes at a higher temperature: the mixture stops at the freezing point of its brine and never goes below the eutectic (−21.2 °C). The “Inspect” tool shows the freezing point of the brine at that spot."
+  },
+  "saltIntoWater": {
+    "title": "Salt poured into water",
+    "summary": "a handful of salt (0.5 mm crystals) falls into cold water — it sinks, dissolves slowly, and salty water collects at the bottom",
+    "text": "A handful of salt hangs above a beaker of water at 20 °C. Let time run: the crystals fall, slow down in the water and settle on the bottom at a few centimetres per second (water drag), forming a heap.\nSalt dissolves only where the water is not yet saturated. Dense brine forms at the bottom and stays down — without stirring, dissolving takes a long time. The “Salt content” overlay shows the salty layer, and “Temperature” that dissolving cools it slightly."
+  },
+  "saltSuperheated": {
+    "title": "Salt into superheated water",
+    "summary": "water superheated to 104 °C (without chips) and a pinch of salt — the cracks of the crystals hold air, so the water suddenly boils on every grain",
+    "text": "The water in the beaker is at 104 °C — above the boiling point, but smooth glass has no pits in which a bubble could form, so the water does not boil (it is superheated). A pinch of salt hangs above it.\nThe crystals have cracks with air in them. When they fall into the superheated water, vapour bubbles are born on each one — the water boils violently until the superheat is used up. The lab will pause and ask how to go on: exactly (water may fly out of the vessel) or more gently. This happens in kitchens with water from a microwave. Salt does not cool the water here: at 100 °C dissolving it gives off a little heat."
+  },
+  "tippedBeaker": {
+    "title": "A tipping beaker",
+    "summary": "a beaker of water stands on the edge of a stone step, too far out — it tips over and the water spills",
+    "text": "A beaker of water (free, not pinned) stands on the edge of a step so that its centre of gravity is already beyond the edge. Let time run — the beaker turns around the edge and falls, and the water spills.\nClick the beaker with the “Select” tool: tick “Pinned” in the “Object” panel and the beaker stays put. Drag it closer to the wall of the step and untick “Pinned” — if its centre of gravity is above the step, it stays."
+  },
+  "emptyBox": {
+    "title": "Empty box",
+    "summary": "a box full of air — paint water, draw walls, add objects: ice cubes, blocks, beakers, hot plates",
+    "text": "The box is full of air. Paint water, draw walls and add objects (an ice cube, a wooden block, a stone, a beaker, a hot plate) — free ones fall, float or sink, ice melts. Click an object with the “Select” tool to change its settings, e.g. “Pinned” — then it does not fall."
+  }
+}

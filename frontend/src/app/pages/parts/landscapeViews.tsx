@@ -13,6 +13,8 @@
 
 import { useMemo } from 'react';
 
+import { useT } from '../../core/i18n';
+
 import type { PartContext } from '../part';
 import { scopeOf, useScope } from '../partQuery';
 import { answersArea } from '../../cogita/answersTo';
@@ -34,6 +36,7 @@ const LandscapeView = later(() => import('../../cogita/LandscapeView').then((m) 
 const isTall = (ctx: PartContext): boolean => ctx.whole === true || ctx.size.height === 'tall';
 
 export function LandscapeModuleView({ config, ctx }: { config: LandscapeConfig; ctx: PartContext }) {
+  const t = useT();
   const { lib, ctx: cg } = usePageBase(config.library);
   const scope = scopeOf(ctx.moduleId);
   const [state, setState] = useScope(scope);
@@ -51,11 +54,11 @@ export function LandscapeModuleView({ config, ctx }: { config: LandscapeConfig; 
   const rules = namedRules ?? pageRules;
   /* Die Karten bleiben stehen, solange neue gerechnet werden (sonst verliert der Krajobraz Zoom, Wahl und Bildlauf). */
   const [cards, busy] = useAsyncKeep(lib != null ? () => lib.cards('page').then((r) => r.cards) : null, [lib, lib?.revision], () => lib?.cardsReady('page'));
-  const title = config.title || (doc !== undefined && config.views.length <= 1 ? saved.name : '') || 'Krajobraz wiedzy';
+  const title = config.title || (doc !== undefined && config.views.length <= 1 ? saved.name : '') || t('moduleDataCogita.landscape.label');
 
   if (lib === undefined) return <><h2 className="wk-card-title">{title}</h2><Loading /></>;
-  if (lib === null || cg === null) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">Tej bazy wiedzy nie możesz tu czytać — nie jest publiczna albo nie masz do niej dostępu.</p></>;
-  if (viewId !== '' && doc === undefined) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">Tego widoku nie ma w bazie wiedzy.</p></>;
+  if (lib === null || cg === null) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">{t('moduleDataCogita.v.closed')}</p></>;
+  if (viewId !== '' && doc === undefined) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">{t('moduleDataLearn.noView')}</p></>;
 
   const viewKey = viewId === '' ? 'wpisy' : viewId;
   const choices = config.views.map((id) => ({ id, name: (() => { const d = lib.docs('view').find((e) => e.id === id); return d === undefined ? null : readView(d.data).name; })() })).filter((x): x is { id: string; name: string } => x.name !== null);
@@ -72,7 +75,7 @@ export function LandscapeModuleView({ config, ctx }: { config: LandscapeConfig; 
       {!config.hidden.has('spacing') && <><SpacingChoice lib={lib} learner={visitor.learner} /><StackChoice lib={lib} learner={visitor.learner} /></>}
       {choices.length > 1 && (
         <div className="cg-row">
-          <span className="cg-subtabs" role="tablist" aria-label="Widok" data-landscape-views={choices.length}>
+          <span className="cg-subtabs" role="tablist" aria-label={t('moduleDataLearn.view')} data-landscape-views={choices.length}>
             {choices.map((x) => (
               <button key={x.id} type="button" role="tab" aria-selected={x.id === viewId} className={x.id === viewId ? 'is-on' : ''} onClick={() => setState({ w: x.id, e: null, d: null })} data-landscape-view-tab={x.id}>{x.name}</button>
             ))}
@@ -81,14 +84,14 @@ export function LandscapeModuleView({ config, ctx }: { config: LandscapeConfig; 
       )}
       {showSearch && (
         <div className="cg-row">
-          <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder="Szukaj w krajobrazie…" aria-label={`Szukaj: ${title}`} />
+          <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder={t('moduleDataLearn.searchLandscape')} aria-label={t('moduleDataLearn.searchIn', { title })} />
         </div>
       )}
       {cards == null ? <Loading /> : tall ? (
         <LandscapeView key={viewKey} view={saved} cards={cards} learner={visitor.learner} onOpen={open} query={showSearch ? state.q ?? '' : ''} viewKey={viewKey} rewards={rules} urlScope={`${scope}.`} busy={busy} />
       ) : (
         <LandscapeView key={viewKey} view={saved} cards={cards} learner={visitor.learner} onOpen={open} compact viewKey={viewKey} rewards={rules}
-          {...(ctx.openWhole === undefined ? {} : { more: <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cały krajobraz</button> })} />
+          {...(ctx.openWhole === undefined ? {} : { more: <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>{t('moduleDataLearn.wholeLandscape')}</button> })} />
       )}
       {!config.hidden.has('learner') && <LearnerLine learner={visitor} lib={lib} />}
       {state.e !== undefined && <EntryCard lib={lib} id={state.e} ctx={ctx} scope={scope} delivery={state.d ?? null} onDelivery={(d) => setState({ d })} />}
@@ -102,11 +105,12 @@ export function LandscapeModuleView({ config, ctx }: { config: LandscapeConfig; 
  * eine Wahl hier sofort im Krajobraz, in der Powtórka und überall, wo diese Baza gelernt wird. Im Streifen nur die Zeile.
  */
 export function LearnSettingsView({ config, ctx }: { config: LearnSettingsConfig; ctx: PartContext }) {
+  const t = useT();
   const { lib, ctx: cg } = usePageBase(config.library);
   const visitor = usePageLearner(lib, answersArea(config.answers));
-  const title = config.title || 'Ustawienia nauki';
+  const title = config.title || t('moduleDataCogita.settings.label');
   if (lib === undefined) return <><h2 className="wk-card-title">{title}</h2><Loading /></>;
-  if (lib === null || cg === null) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">Tej bazy wiedzy nie możesz tu czytać — nie jest publiczna albo nie masz do niej dostępu.</p></>;
+  if (lib === null || cg === null) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">{t('moduleDataCogita.v.closed')}</p></>;
   return (
     <CogitaContext.Provider value={cg}>
       {ctx.size.height === 'strip' && ctx.whole !== true ? <SpacingLine lib={lib} learner={visitor.learner} /> : (

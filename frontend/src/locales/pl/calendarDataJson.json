@@ -1,0 +1,418 @@
+{
+  "kind": {
+    "appointment": "Termin",
+    "task": "Zadanie",
+    "mass": "Msza",
+    "confession": "Spowiedź",
+    "visit": "Odwiedziny",
+    "devotion": "Nabożeństwo"
+  },
+  "export": {
+    "unreadable": "„{label}” ({day}): część pól jest zaszyfrowana kluczem, którego nie masz — w eksporcie bez nich.",
+    "noScheme": "„{label}” ({day}): schematu tego terminu nie da się odczytać — wartości bez opisu.",
+    "tooManyDays": {
+      "one": "„{label}”: {count} wyjątkowych dni — w eksporcie pierwsze {max} (wybierz krótszy zakres, aby zobaczyć resztę).",
+      "few": "„{label}”: {count} wyjątkowych dni — w eksporcie pierwsze {max} (wybierz krótszy zakres, aby zobaczyć resztę).",
+      "many": "„{label}”: {count} wyjątkowych dni — w eksporcie pierwsze {max} (wybierz krótszy zakres, aby zobaczyć resztę).",
+      "other": "„{label}”: {count} wyjątkowych dni — w eksporcie pierwsze {max} (wybierz krótszy zakres, aby zobaczyć resztę)."
+    }
+  },
+  "doc": {
+    "notObject": "To nie są terminy kalendarza (oczekiwano obiektu JSON).",
+    "otherFormat": "To nie są terminy kalendarza („format”: {format}) — oczekiwano \"{expected}\".",
+    "noAppointments": "Brakuje listy \"appointments\".",
+    "notCalendar": "To nie są terminy kalendarza.",
+    "unknownKey": "Nieznany klucz \"{key}\" — pominięty.",
+    "version": "\"version\": {given} — ta aplikacja czyta wersję {version}.",
+    "calendarObject": "\"calendar\" to obiekt {\"id\",\"title\",\"kind\"} — pominięty.",
+    "foreign": "Dokument z innego kalendarza — jego terminy zostaną dodane tutaj jako nowe; \"remove\" i \"parent\" z identyfikatorem pominięte.",
+    "foreignNamed": "Dokument z innego kalendarza („{title}”) — jego terminy zostaną dodane tutaj jako nowe; \"remove\" i \"parent\" z identyfikatorem pominięte."
+  },
+  "value": {
+    "notText": "wartość pola „{field}” to tekst — pominięta.",
+    "notInList": "„{text}” nie ma na liście pola „{field}” ({options}) — pominięte.",
+    "number": "pole „{field}” to liczba — „{text}” pominięte.",
+    "bool": "pole „{field}” to \"tak\" albo \"nie\" — „{text}” pominięte.",
+    "date": "pole „{field}” to dzień \"RRRR-MM-DD\" — „{text}” pominięte.",
+    "time": "pole „{field}” to godzina \"GG:MM\" — „{text}” pominięte.",
+    "link": "pole „{field}” to link https://… albo #/… — „{text}” pominięte.",
+    "tooLong": "wartość pola „{field}” ma ponad {limit} znaków — przycięta."
+  },
+  "weekdays": {
+    "notList": "\"weekdays\" to lista dni ({days}) — bez zmian.",
+    "unknown": "dzień „{day}” — dni to {days} (albo 1–7).",
+    "none": "\"weekdays\" bez żadnego dnia — bez zmian."
+  },
+  "when": {
+    "allDay": "{day} (cały dzień)",
+    "allDays": "{from} – {to} (cały dzień)",
+    "every": ", co {every}",
+    "times": {
+      "one": ", {count} razy",
+      "few": ", {count} razy",
+      "many": ", {count} razy",
+      "other": ", {count} razy"
+    },
+    "until": " do {day}",
+    "endless": ", bez końca"
+  },
+  "plan": {
+    "notObject": "{at}: to nie obiekt — pominięty.",
+    "pointsList": "{at}: \"points\" to lista — pominięte.",
+    "tooDeepPoints": "{at}: program głębszy niż {max} poziomów — dalsze punkty pominięte.",
+    "overflow": "Najwyżej {max} terminów (z punktami) w jednym dokumencie — pominięto {count}.",
+    "unknownKey": "{at}: nieznany klucz \"{key}\" — pominięty.",
+    "idBad": "{at}: \"id\" to identyfikator z eksportu — pominięty.",
+    "idTwice": "{at}: to samo \"id\" drugi raz — pominięty.",
+    "idMissing": "{at}: nie ma terminu o tym \"id\" w tym kalendarzu — pominięty (bez \"id\" zostanie dodany jako nowy).",
+    "keyBad": "{at}: \"key\" to krótka nazwa (litery, cyfry, - i _) — pominięty.",
+    "keyTwice": "{at}: \"key\" „{key}” już jest — pominięty.",
+    "removeBad": "{at}: \"remove\" to true — pominięte.",
+    "removeNoId": "{at}: \"remove\" działa tylko z \"id\" z eksportu — pominięty.",
+    "parentInside": "{at}: punkt należy do terminu, pod którym stoi — \"parent\" pominięte.",
+    "parentNoKey": "{at}: \"parent\" {parent} — nie ma terminu z takim \"key\"; bez zmian.",
+    "parentSelf": "{at}: termin nie może być punktem samego siebie — \"parent\" pominięte.",
+    "parentBad": "{at}: \"parent\" to \"@key\" terminu z dokumentu, \"id\" terminu albo null — bez zmian.",
+    "parentCircle": "{at}: \"parent\" tworzy krąg — pominięte."
+  },
+  "item": {
+    "underRemoved": "stoi pod usuwanym terminem — zniknie razem z nim; pominięty.",
+    "parentSkipped": "termin nadrzędny jest pominięty — pominięty także ten punkt.",
+    "tooDeep": "program głębszy niż {max} poziomów — pominięty.",
+    "kindBadNew": "\"kind\" to {kinds} — rodzaj kalendarza.",
+    "kindBad": "\"kind\" to {kinds} — bez zmian.",
+    "schemeMissingNew": "schematu „{scheme}” nie ma w tym kalendarzu — schemat domyślny.",
+    "schemeMissing": "schematu „{scheme}” nie ma w tym kalendarzu — bez zmian.",
+    "schemeBad": "\"scheme\" to nazwa albo \"id\" schematu (null — uniwersalny) — bez zmian.",
+    "kindNotInScheme": "rodzaj „{kind}” nie pasuje do schematu „{scheme}” — „{next}”.",
+    "personalLiturgy": "w kalendarzu prywatnym nie ma mszy ani nabożeństw — rodzaj „appointment”.",
+    "textBadNew": "\"{field}\" to tekst — pominięte.",
+    "textBad": "\"{field}\" to tekst — bez zmian.",
+    "textLong": "\"{field}\" ma ponad {limit} znaków — przycięte.",
+    "noTitle": "termin bez \"title\" — pominięty.",
+    "titleEmpty": "\"title\" nie może być pusty — bez zmian.",
+    "linkBad": "\"link\" zaczyna się od https:// (albo #/ dla strony na recreatio.pl) — bez zmian.",
+    "startBad": "\"start\" to \"RRRR-MM-DDTGG:MM\" albo \"RRRR-MM-DD\" — bez zmian.",
+    "startBadPoint": "\"start\" to \"RRRR-MM-DDTGG:MM\" albo \"RRRR-MM-DD\" (w punkcie także \"GG:MM\") — bez zmian.",
+    "startBadNew": "\"start\" to \"RRRR-MM-DDTGG:MM\" albo \"RRRR-MM-DD\" — pominięty.",
+    "startBadPointNew": "\"start\" to \"RRRR-MM-DDTGG:MM\" albo \"RRRR-MM-DD\" (w punkcie także \"GG:MM\") — pominięty.",
+    "noStart": "termin bez \"start\" — pominięty.",
+    "allDayBad": "\"allDay\" to true albo false — pominięte.",
+    "allDayNoClock": "\"allDay\": false potrzebuje godziny w \"start\" — cały dzień.",
+    "endAllDayBad": "\"end\" przy całym dniu to ostatni dzień \"RRRR-MM-DD\" — długość bez zmian.",
+    "endBeforeStart": "\"end\" przed \"start\" — jeden dzień.",
+    "allDayTooLong": "cały dzień trwa najwyżej {max} dni — skrócony.",
+    "endUnreadable": "nieczytelne \"end\" — długość bez zmian.",
+    "endNotAfter": "\"end\" nie jest po \"start\" — długość bez zmian.",
+    "tooLong": "termin trwa najwyżej 14 dni — skrócony.",
+    "repeatBad": "\"repeat\" to {kinds} — bez zmian.",
+    "everyBad": "\"every\" to liczba 1–{max} — bez zmian.",
+    "weekdaysNotWeekly": "\"weekdays\" tylko przy \"repeat\": \"weekly\" — pominięte.",
+    "untilBad": "\"until\" to ostatni dzień \"RRRR-MM-DD\" (null — bez końca) — bez zmian.",
+    "untilBeforeStart": "\"until\" przed \"start\" — bez zmian.",
+    "countBad": "\"count\" to liczba 1–{max} — bez zmian.",
+    "untilOrCount": "\"until\" albo \"count\" — liczy się \"until\".",
+    "noBooking": "ten kalendarz nie ma rezerwacji — \"{key}\" pominięte.",
+    "bookableBad": "\"bookable\" to true, false albo null — bez zmian.",
+    "capacityBad": "\"capacity\" to liczba 1–{max} (null — jak kalendarz) — bez zmian.",
+    "valuesBad": "\"values\" to obiekt {\"klucz pola\": \"tekst\"} — bez zmian.",
+    "valuesNoScheme": "schematu tego terminu nie da się odczytać — \"values\" bez zmian.",
+    "noField": "schemat „{scheme}” nie ma pola „{key}” — pominięte.",
+    "dayField": "„{key}” to pole jednego dnia — wpisz je w \"occurrences\"; pominięte.",
+    "fieldOnlyKinds": "pole „{key}” jest tylko przy rodzajach {kinds} — pominięte.",
+    "valuesIncomplete": "nie wszystkie wartości tego terminu da się odczytać — \"values\" bez zmian.",
+    "requiredNew": "wymagane pole {fields} nie ma wartości (\"values\") — pominięty.",
+    "required": "wymagane pole {fields} nie ma wartości — zmiany pominięte.",
+    "unreadable": "część pól tego terminu jest zaszyfrowana kluczem, którego nie masz — zmiany pominięte (zapis by je skasował).",
+    "retimed": "zmiana czasu serii zmienia wszystkie jej dni; odwołane i przeniesione dni, których nie ma w \"occurrences\", wrócą do serii.",
+    "retimedPast": "zmiana czasu serii zmienia wszystkie jej dni, także te, które już były; odwołane i przeniesione dni, których nie ma w \"occurrences\", wrócą do serii."
+  },
+  "change": {
+    "kind": "rodzaj",
+    "title": "tytuł",
+    "location": "miejsce",
+    "notes": "notatka",
+    "link": "link",
+    "linkLabel": "napis linku",
+    "time": "czas",
+    "repeat": "powtarzanie",
+    "booking": "rezerwacje",
+    "scheme": "schemat",
+    "values": "wartości",
+    "program": "program"
+  },
+  "day": {
+    "notList": "\"occurrences\" to lista — pominięte.",
+    "tooMany": "najwyżej {max} dni w \"occurrences\" — reszta pominięta.",
+    "dateBad": "{at}: \"date\" to dzień serii \"RRRR-MM-DD\" — pominięty.",
+    "twice": "{at}: dzień {day} drugi raz — pominięty.",
+    "notRepeating": "{at}: {day} — termin nie powtarza się, jego dzień to {first}; pominięty.",
+    "outside": "{at}: {day} — poza serią; pominięty.",
+    "notInSeries": "{at}: {day} nie jest dniem tej serii — pominięty.",
+    "cancelledBad": "{at}: \"cancelled\" to true albo false — pominięte.",
+    "startBad": "{at}: \"start\" to \"RRRR-MM-DDTGG:MM\" albo \"GG:MM\" — pominięte.",
+    "cancelledStart": "{at}: odwołany dzień nie ma nowego \"start\" — pominięte.",
+    "wholeField": "{at}: „{key}” to pole całego terminu — wpisz je w \"values\" terminu; pominięte.",
+    "noDayField": "{at}: schemat „{scheme}” nie ma pola dnia „{key}” — pominięte.",
+    "cancelledValues": "{at}: wartości odwołanego dnia zostają, jak są (przywróć go najpierw) — \"values\" bez zmian.",
+    "valuesIncomplete": "{at}: nie wszystkie wartości tego dnia da się odczytać — \"values\" bez zmian."
+  },
+  "preview": {
+    "new": "Nowy: „{label}” — {when}",
+    "newPoint": "Nowy: „{label}” — {when} · punkt programu „{under}”",
+    "changed": "Zmiana: „{label}” — {changes}",
+    "cancelled": {
+      "one": "odwołane {count}",
+      "few": "odwołane {count}",
+      "many": "odwołane {count}",
+      "other": "odwołane {count}"
+    },
+    "restored": {
+      "one": "przywrócone {count}",
+      "few": "przywrócone {count}",
+      "many": "przywrócone {count}",
+      "other": "przywrócone {count}"
+    },
+    "moved": {
+      "one": "przeniesione {count}",
+      "few": "przeniesione {count}",
+      "many": "przeniesione {count}",
+      "other": "przeniesione {count}"
+    },
+    "dayValues": {
+      "one": "wartości dnia {count}",
+      "few": "wartości dnia {count}",
+      "many": "wartości dnia {count}",
+      "other": "wartości dnia {count}"
+    },
+    "days": "Dni serii „{label}”: {parts}",
+    "remove": "Usunięcie: „{label}” — cały termin",
+    "removeWithPoints": "Usunięcie: „{label}” — cały termin razem z punktami programu ({count})",
+    "moreNew": {
+      "one": "… i jeszcze {count} nowych.",
+      "few": "… i jeszcze {count} nowych.",
+      "many": "… i jeszcze {count} nowych.",
+      "other": "… i jeszcze {count} nowych."
+    },
+    "moreChanged": {
+      "one": "… i jeszcze {count} zmian.",
+      "few": "… i jeszcze {count} zmian.",
+      "many": "… i jeszcze {count} zmian.",
+      "other": "… i jeszcze {count} zmian."
+    },
+    "moreDays": {
+      "one": "… i jeszcze {count} terminów ze zmianami dni.",
+      "few": "… i jeszcze {count} terminów ze zmianami dni.",
+      "many": "… i jeszcze {count} terminów ze zmianami dni.",
+      "other": "… i jeszcze {count} terminów ze zmianami dni."
+    },
+    "none": "Bez zmian — terminy w kalendarzu są takie jak w dokumencie.",
+    "total": "Razem: nowe {created}, zmienione {changed}, usunięte {removed}, bez zmian {unchanged}.",
+    "totalDays": "Razem: nowe {created}, zmienione {changed}, usunięte {removed}, bez zmian {unchanged}, dni serii {days}."
+  },
+  "keys": {
+    "doc": {
+      "format": "zawsze \"{format}\"",
+      "version": "wersja formatu: {version}",
+      "calendar": "kalendarz, z którego jest eksport (niżej) — tylko informacja; po \"id\" import poznaje dokument z innego kalendarza",
+      "range": "dni, które objął eksport (niżej) — tylko informacja; w nich import szuka terminów z \"id\"",
+      "schemes": "schematy terminów tego kalendarza do wglądu (niżej) — jakie \"values\" mogą mieć terminy; import ich nie zmienia (schematy zmienia się w „Schematy terminów”)",
+      "appointments": "terminy (niżej) — wymagane"
+    },
+    "calendar": {
+      "id": "identyfikator kalendarza",
+      "title": "nazwa kalendarza",
+      "kind": "rodzaj jego terminów: {kinds}"
+    },
+    "range": {
+      "from": "pierwszy dzień eksportu \"RRRR-MM-DD\"",
+      "to": "ostatni dzień eksportu \"RRRR-MM-DD\""
+    },
+    "schemes": {
+      "id": "identyfikator schematu — do \"scheme\" terminu",
+      "name": "nazwa schematu — do \"scheme\" terminu (gdy jednoznaczna)",
+      "kind": "rodzaj terminów tego schematu",
+      "kinds": "rodzaje do wyboru przy terminie tego schematu",
+      "fields": "pola schematu — klucze \"values\" terminu (\"level\": \"day\" — klucze \"values\" dnia w \"occurrences\"); opis pola niżej"
+    },
+    "appointment": {
+      "id": "identyfikator terminu z eksportu — termin zostanie zmieniony; bez \"id\" — nowy termin",
+      "key": "krótka nazwa (litery, cyfry, - i _) do odwołań \"@key\" w tym dokumencie (\"parent\")",
+      "remove": "true — usuń ten termin (całą serię, razem z jego punktami programu); tylko z \"id\"; termin z przyjętymi intencjami, wpisami albo rezerwacjami zostaje (import to powie)",
+      "kind": "rodzaj: {kinds}; brak przy nowym: rodzaj schematu albo kalendarza",
+      "title": "tytuł (do {max} znaków); wymagany przy nowym terminie — poza mszą, spowiedzią i nabożeństwem: ich nazwa jest jawna (plan mszy, gablota), a bez niej stoi sam rodzaj („Msza”)",
+      "start": "początek: \"RRRR-MM-DDTGG:MM\", albo \"RRRR-MM-DD\" — cały dzień; w punkcie programu także \"GG:MM\" (w dniu terminu nadrzędnego); nowy punkt bez \"start\" zaczyna się z terminem nadrzędnym",
+      "end": "koniec: \"GG:MM\" (tego samego dnia) albo \"RRRR-MM-DDTGG:MM\"; przy całym dniu ostatni dzień \"RRRR-MM-DD\"; brak: nowy trwa tyle, ile mówi kalendarz (cały dzień — jeden dzień), zmieniany zachowuje swoją długość; najwyżej 14 dni (cały dzień: 60 dni)",
+      "allDay": "true — cały dzień (to samo daje \"start\" bez godziny)",
+      "location": "miejsce (do {max} znaków)",
+      "notes": "notatka (do {max} znaków)",
+      "link": "„Więcej informacji”: \"https://…\" albo \"#/adres\" strony na recreatio.pl",
+      "linkLabel": "napis na przycisku linku (do {max} znaków)",
+      "repeat": "powtarzanie: {kinds}",
+      "every": "co ile (1–{max}): co 2 tygodnie = \"repeat\": \"weekly\" i \"every\": 2",
+      "weekdays": "przy \"weekly\": dni {days} (albo liczby 1–7, 1 = poniedziałek); brak: dzień \"start\"",
+      "until": "ostatni dzień serii \"RRRR-MM-DD\"; null — bez końca; brak przy nowej serii: bez końca",
+      "count": "zamiast \"until\": ile razy (1–{max})",
+      "bookable": "true / false — czy ten termin można rezerwować (tylko w kalendarzu z rezerwacjami); null — jak kalendarz",
+      "capacity": "miejsc na ten termin (1–{max}); null — jak kalendarz",
+      "scheme": "schemat terminu: \"name\" albo \"id\" ze \"schemes\"; null — uniwersalny (eksport kalendarza ze schematami pisze null przy terminach bez schematu); brak przy nowym terminie: schemat jego rodzaju, jeśli kalendarz ma dokładnie jeden, inaczej uniwersalny; nowy punkt programu — uniwersalny",
+      "values": "wartości pól schematu całego terminu: {\"klucz pola\": \"tekst\"}; \"\" albo null czyści pole; brak — bez zmian",
+      "occurrences": "wybrane dni serii (niżej): odwołany, przeniesiony, z wartościami pól dnia",
+      "points": "punkty programu: terminy pod tym terminem, w tej kolejności — z tymi samymi kluczami",
+      "parent": "termin nadrzędny terminu z \"appointments\": \"@key\" terminu z tego dokumentu albo \"id\" terminu spoza dokumentu; null — odłącz od programu; brak — bez zmian"
+    },
+    "occurrence": {
+      "date": "dzień serii \"RRRR-MM-DD\" — ten, na który przypada według serii (także gdy jest przeniesiony); wymagany",
+      "cancelled": "true — odwołaj ten dzień (msza z przyjętymi intencjami albo termin z wpisami zostaje — import to powie); false — przywróć go do serii (bez odwołania i bez przeniesienia)",
+      "start": "przenieś ten dzień: \"RRRR-MM-DDTGG:MM\" albo \"GG:MM\" (tego dnia); długość zostaje",
+      "values": "wartości pól schematu tego dnia (\"level\": \"day\"): {\"klucz pola\": \"tekst\"}; \"\" albo null czyści pole; brak — bez zmian"
+    }
+  },
+  "sample": {
+    "lessons": {
+      "calendar": "Klasa 4b",
+      "maths": "Matematyka",
+      "room12": "sala 12",
+      "religion": "Religia",
+      "room5": "sala 5",
+      "teachersDay": "Dzień Edukacji Narodowej",
+      "teachersDayNotes": "Bez lekcji — akademia o 10:00 w auli."
+    },
+    "program": {
+      "title": "Rekolekcje adwentowe — dzień 1",
+      "church": "Kościół parafialny",
+      "linkLabel": "Program i zapisy",
+      "youth": "Nauka dla młodzieży",
+      "mass": "Msza święta z nauką",
+      "confession": "Spowiedź",
+      "chapel": "kaplica",
+      "agape": "Agapa"
+    },
+    "parishHall": "salka parafialna",
+    "masses": {
+      "calendar": "Msze parafialne",
+      "scheme": "Msza",
+      "celebrant": "Celebrans",
+      "colour": "Kolor szat",
+      "evening": "Msza wieczorna",
+      "pastor": "ks. proboszcz",
+      "rosary": "Różaniec",
+      "meeting": "Spotkanie z kandydatami do bierzmowania"
+    },
+    "update": {
+      "calendarId": "…identyfikator kalendarza z eksportu…",
+      "idA": "…identyfikator terminu A…",
+      "idB": "…identyfikator terminu B…",
+      "idC": "…identyfikator serii C…",
+      "bigHall": "Duża sala",
+      "christmas": "Spotkanie opłatkowe"
+    }
+  },
+  "page": {
+    "calendarsAlone": "\"calendars\" bez \"appointments\" — nie ma czego dodać do kalendarza.",
+    "appointmentsNotList": "\"appointments\" to nie lista — pominięte.",
+    "entryKeyBad": "\"calendars\"[{at}]: \"key\" to krótka nazwa (litery, cyfry, - i _) — pominięty.",
+    "entryTwice": "Kalendarz „{key}” powtarza się — liczy się pierwszy.",
+    "calendarsNotList": "\"calendars\" to nie lista — pominięte.",
+    "noTitle": "{where}: termin bez \"title\" — pominięty.",
+    "overflow": "Najwyżej {max} terminów (z punktami) w jednym dokumencie — reszta pominięta.",
+    "startBad": "{where} „{title}”: \"start\" to \"RRRR-MM-DDTGG:MM\" albo \"RRRR-MM-DD\" — pominięty.",
+    "startBadPoint": "{where} „{title}”: \"start\" to \"RRRR-MM-DDTGG:MM\" albo \"RRRR-MM-DD\" (w punkcie także \"GG:MM\") — pominięty.",
+    "endBefore": "{where} „{title}”: \"end\" przed \"start\" — jeden dzień.",
+    "endUnreadable": "{where} „{title}”: nieczytelne \"end\" — godzina.",
+    "endNotAfter": "{where} „{title}”: \"end\" nie jest po \"start\" — godzina.",
+    "keyBad": "{where} „{title}”: \"key\" to krótka nazwa (litery, cyfry, - i _) — bez nazwy.",
+    "keyTwice": "{where} „{title}”: \"key\" „{key}” już jest — bez nazwy.",
+    "calendarBad": "{where} „{title}”: \"calendar\" to nazwa wejścia z \"calendars\" — do „{entry}”.",
+    "pointCalendar": "{where} „{title}”: punkt idzie do kalendarza swojego terminu — \"calendar\" pominięte.",
+    "pointRepeat": "{where} „{title}”: punkt programu się nie powtarza — \"repeat\" pominięte.",
+    "repeatBad": "{where} „{title}”: \"repeat\" to \"none\", \"daily\", \"weekly\", \"monthly\" albo \"yearly\" — bez powtarzania.",
+    "weekdayBad": "{where} „{title}”: dzień „{day}” — dni to {days}.",
+    "untilBad": "{where} „{title}”: \"until\" to \"RRRR-MM-DD\" — bez końca.",
+    "pointsNotList": "{where} „{title}”: \"points\" to lista — pominięte.",
+    "tooDeep": "{where} „{title}”: program głębszy niż {max} poziomy — dalsze podpunkty pominięte.",
+    "defaultEntry": "Kalendarz",
+    "entryUnused": "Kalendarz „{key}” z \"calendars\" nie ma żadnego terminu.",
+    "keyClash": "„{key}” to nazwa i terminu, i kalendarza — „@{key}” wskaże termin.",
+    "summary": "Terminy do kalendarza: {top} — {where}. Każdy import dodaje je od nowa.",
+    "summaryPoints": "Terminy do kalendarza: {top} (z punktami programu: {points}) — {where}. Każdy import dodaje je od nowa.",
+    "noCalendar": "Terminy „{label}” pominięte — nie wybrano kalendarza.",
+    "stage": "Kalendarz: „{title}”…",
+    "notSaved": "„{title}” nie trafił do kalendarza: {reason}.",
+    "notSavedProgram": "„{title}” nie trafił do kalendarza: {reason} (razem z programem)."
+  },
+  "run": {
+    "failed": "nie udało się",
+    "rangeBad": "Podaj zakres eksportu: dzień „od” i dzień „do” (nie wcześniej niż „od”).",
+    "rangeLong": "Zakres eksportu najwyżej {max} lat — wybierz krótszy albo „wszystko”.",
+    "stageItems": "Terminy: {n} z {total} — „{label}”…",
+    "noParent": "„{label}” — jego termin nadrzędny nie powstał; pominięty.",
+    "notAdded": "„{label}” — nie dodano: {reason}.",
+    "notChanged": "„{label}” — nie zmieniono: {reason}.",
+    "stageSearch": "Dni serii — szukanie w kalendarzu…",
+    "daysFrom": "Dni serii od {day}: {reason}.",
+    "noDay": "„{label}”: dnia {day} nie ma w serii — pominięty.",
+    "stageDays": "Dni serii: {n} z {total}…",
+    "noKey": "Nie masz klucza tego obszaru — nie da się tu zapisać.",
+    "dayFailed": "„{label}”, {day}: {reason}.",
+    "stageRemove": "Usuwanie: {n} z {total} — „{label}”…",
+    "notRemoved": "„{label}” — nie usunięto: {reason}.",
+    "created": {
+      "one": "Nowe terminy: {count}.",
+      "few": "Nowe terminy: {count}.",
+      "many": "Nowe terminy: {count}.",
+      "other": "Nowe terminy: {count}."
+    },
+    "changed": {
+      "one": "Zmienione terminy: {count}.",
+      "few": "Zmienione terminy: {count}.",
+      "many": "Zmienione terminy: {count}.",
+      "other": "Zmienione terminy: {count}."
+    },
+    "days": {
+      "one": "Dni serii: {count}.",
+      "few": "Dni serii: {count}.",
+      "many": "Dni serii: {count}.",
+      "other": "Dni serii: {count}."
+    },
+    "removed": {
+      "one": "Usunięte terminy: {count} z {total}.",
+      "few": "Usunięte terminy: {count} z {total}.",
+      "many": "Usunięte terminy: {count} z {total}.",
+      "other": "Usunięte terminy: {count} z {total}."
+    }
+  },
+  "node": {
+    "samples": {
+      "lessons": "plan lekcji (serie co tydzień)",
+      "program": "rekolekcje z programem",
+      "masses": "msze ze schematem i dniami serii"
+    },
+    "occurrence": {
+      "title": "Dzień serii (\"occurrences[]\")",
+      "short": "Dzień serii",
+      "lead": "Wybrany dzień terminu — zwykle serii. Dzień nazywa się swoją datą: dniem, na który przypada według serii, także gdy jest przeniesiony. Dni bez wpisu zostają, jak są.",
+      "tail": "Eksport wypisuje dni z zakresu, które są odwołane, przeniesione albo mają wartości. Termin, który się nie powtarza, ma jeden dzień — dzień swojego \"start\"."
+    },
+    "appointment": {
+      "title": "Termin (\"appointments[]\", \"points[]\")",
+      "short": "Termin",
+      "lead": "Termin ma te same klucze co terminy strony i obszaru (\"title\", \"start\", \"end\", \"location\", \"points\", \"repeat\" …) — oraz \"id\", \"kind\", \"scheme\", \"values\" i \"occurrences\". Przy zmienianym terminie klucz, którego nie ma, zostaje bez zmian.",
+      "retime": "Zmiana czasu serii (\"start\", \"end\", \"repeat\", \"every\", \"weekdays\", \"until\", \"count\") zmienia wszystkie jej dni — także te, które już były. Odwołane i przeniesione dni, których nie ma w \"occurrences\", wracają wtedy do serii; te z \"occurrences\" import zapisze ponownie. Intencje i wpisy idą za dniem; gdy dnia już nie ma, termin zostaje bez zmian (import to powie). „Od tego dnia inaczej” („ten i następne”) robi się w edytorze terminu.",
+      "values": "Wartości (\"values\"): \"choice\" i \"colour\" — wartość albo nazwa z listy pola; \"number\" — liczba; \"bool\" — \"tak\" albo \"nie\" (także true / false); \"date\" — \"RRRR-MM-DD\"; \"time\" — \"GG:MM\"; \"link\" — https://… albo #/…; \"person\" — identyfikator roli. Jawne pola do {max} znaków. Pole wymagane (\"required\") musi mieć wartość — inaczej nowy termin zostaje pominięty, a zmiany istniejącego nie są zapisane."
+    },
+    "usage": {
+      "title": "Jak aplikacja używa tych danych",
+      "text": "- Terminy widzi każdy, kto ma klucz obszaru, który widzi kalendarz („Kto widzi” w ustawieniach kalendarza) — także przez link z dostępem; gdy ten obszar jest jawny („każdy czyta”), każdy, również bez konta.\n- Kalendarz (Dzień, Tydzień, Miesiąc, Lista): punkty programu stoją w siatce przy swoim terminie; szczegóły terminu pokazują miejsce, notatkę, link, wartości schematu i listy wpisów dnia (intencje, zapisy). „Teraz”: „Najbliższe terminy” (dziś i jutro), a w „Czeka na Ciebie” — „Terminy dziś”.\n- Moduły stron: „Kalendarz” (wybrane kalendarze), „Program wydarzenia” (termin z punktami — \"points\"), „Rezerwacja” (terminy do wyboru); termin ustawiony jako główny termin obszaru — w modułach „Wydarzenia” i „Wizytówka”, gdy widzi go każdy. Na stronie każdy widzi to, co może otworzyć; moduł strony jawnej można też osadzić jako widżet na innej witrynie.\n- Msze, spowiedzi i nabożeństwa (\"kind\") są też w „Msze i nabożeństwa” (kancelaria). Gdy obszar, który widzi kalendarz, jest jawny, ich nazwy i godziny (przy mszy także jawne pola schematu) idą do jawnego planu — modułu strony „Msze i nabożeństwa” — a msze także na wydruk do gabloty; miejsca i notatki tam nie ma.\n- \"bookable\" i \"capacity\" (kalendarz z rezerwacjami): termin można wybrać w module „Rezerwacja”; w Kalendarzu stoi przy nim liczba zajętych miejsc, a prośby czekają w „Do potwierdzenia”.\n- Terminy nie mają przypomnień (mają je zadania), a import nikogo nie powiadamia."
+    },
+    "calendar": {
+      "title": "Terminy kalendarza (\"{format}\")",
+      "short": "Terminy kalendarza",
+      "lead": "Terminy JEDNEGO kalendarza: pojedyncze i powtarzające się (serie — np. tygodniowy plan lekcji albo msze w dni powszednie), całodniowe, z miejscem, notatką i linkiem, z programem (punkty pod terminem), ze schematem kalendarza i jego wartościami oraz z wybranymi dniami serii (odwołany, przeniesiony, z własnymi wartościami). Msze, spowiedzi i nabożeństwa są tu terminami jak inne (\"kind\").\nEksport (ustawienia kalendarza → „Terminy jako JSON”; kto kalendarz tylko widzi: „Kalendarze” → „Eksport JSON”): terminy z wybranego zakresu (domyślnie od dziś na rok) i serie, które w niego sięgają — każdy z \"id\".\nImport zmienia NA MIEJSCU: termin z \"id\" (z eksportu tego kalendarza) zostaje zmieniony, termin bez \"id\" zostaje dodany. Klucz, którego nie ma, zostaje bez zmian — wystarczy \"id\" i to, co się zmienia; \"\" albo null czyści tekst. Nic nie znika, chyba że termin ma \"remove\": true. Przed importem widać listę zmian i ostrzeżenia; ten sam dokument zaimportowany drugi raz niczego już nie zmienia.\nTytuły, miejsca, notatki, linki i niejawne wartości są szyfrowane w przeglądarce kluczem obszaru, który widzi kalendarz — tak jak w edytorze terminu. Plik eksportu zawiera je jawnie: to Twoja kopia.\nImport nie zmienia: intencji mszy (osobny format mszy i intencji), wpisów list (zapisy), rezerwacji, osób przy terminie ani tego, kto widzi termin (to mówi kalendarz).\nDokument z innego kalendarza (\"calendar\" z innym \"id\") jest kopią: jego terminy zostaną dodane jako nowe.",
+      "time": "Czas jest lokalny (strefa kalendarza), bez strefy: chwila \"RRRR-MM-DDTGG:MM\", dzień \"RRRR-MM-DD\", godzina \"GG:MM\".",
+      "limits": "Limity: {entries} terminów razem z punktami w jednym dokumencie, program do {depth} poziomów, {days} dni na termin w \"occurrences\".",
+      "update": "Zmiany po eksporcie — nowe miejsce, usunięcie, odwołany dzień serii i nowy termin:",
+      "example": "Przykład (plan lekcji klasy):"
+    }
+  }
+}

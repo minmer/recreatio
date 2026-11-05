@@ -1,0 +1,250 @@
+{
+  "kind": {
+    "area": "area chat",
+    "channel": "announcement channel — the leaders write",
+    "group": "group",
+    "direct": "one-to-one chat",
+    "self": "Notes — only you",
+    "seat": "chat with one person from a form"
+  },
+  "keys": {
+    "doc": {
+      "format": "always \"{format}\"",
+      "version": "format version: {version}",
+      "chat": "the chat the export comes from (below) — information only: the import always goes into the chat open in the app",
+      "me": "who exported and what they can do in this chat (below) — information only",
+      "exportedAt": "the moment of the export (ISO 8601, UTC) — information only",
+      "range": "what the export covers (below) — information only",
+      "topics": "the chat's topics — all of them, closed ones too (below: Topic)",
+      "messages": "messages, oldest first (below: Message from the export, New message)",
+      "linked": "tasks and appointments created from this chat's messages (below) — read only, the import skips them"
+    },
+    "chat": {
+      "id": "the chat's identifier; different from the open chat's — a document from another chat: the import skips its messages and creates its topics here as new",
+      "kind": "kind: {kinds}",
+      "title": "the chat's name, as in its header"
+    },
+    "me": {
+      "name": "how this person's message is signed: “First Last”, and when writing through a role — “First Last (Role)”; their messages have \"mine\": true",
+      "writes": "true — writes in this chat: the import can add their new messages and topics",
+      "moderates": "true — leads the chat: pins, sorts other people's messages too, changes any topic"
+    },
+    "range": {
+      "from": "since when (ISO 8601; null — from the start of the chat)",
+      "to": "until when (the moment of the export)",
+      "topic": "only messages of this topic (\"@key\" from \"topics\") or null — all",
+      "limited": "true — the export reached the limit of {maxExport} messages; older ones from this period are not in it"
+    },
+    "topic": {
+      "id": "the topic's identifier from the export — with it the import changes THIS topic; without it, it creates a new one (and when a topic with this name already exists, uses the existing one)",
+      "key": "a short name for references in this document (letters, digits, - and _): a message points to the topic with \"topic\": \"@key\"; the export makes it from the name",
+      "title": "the topic's name (required for a new one, up to {maxTitle} characters); different from the chat's for a topic with \"id\" — a rename",
+      "closed": "true — the topic is closed (tucked under “Closed”), false — open; a change closes it or opens it again",
+      "createdAt": "when it was created — information only",
+      "createdBy": "who created it — information only",
+      "messages": "how many messages it has — information only",
+      "tasks": "how many tasks came from it — information only",
+      "appointments": "how many appointments came from it — information only"
+    },
+    "message": {
+      "id": "the message's identifier — with it the import only sorts (\"topic\", \"pinned\", \"starred\"); content, sender and time always stay as they are",
+      "at": "when sent (ISO 8601, UTC)",
+      "author": "who wrote it — as in the chat: “First Last”, and through a role “First Last (Role)”",
+      "mine": "true — written by the person from \"me\"",
+      "link": "true — written by a person from a link (without an account)",
+      "topic": "topic: \"@key\" from \"topics\" (or the topic's \"id\"); missing in the export — no topic. In the import, different from the chat — a move (null — out of the topics), missing — no change; moved by the message's author or a leader (one to one and in Notes anyone who writes)",
+      "text": "content",
+      "replyTo": "\"id\" of the message it replies to",
+      "quote": "the quote the replier saw",
+      "attachments": "attachments — description only; the files are not in the JSON",
+      "attachments_name": "file name",
+      "attachments_type": "type (MIME), e.g. \"application/pdf\", \"image/jpeg\"",
+      "attachments_size": "size in bytes",
+      "forwarded": "true — forwarded from another chat",
+      "imported": "true — came from a JSON import (marked “From an import” in the chat)",
+      "edited": "when it was last corrected (the edit history is in the chat)",
+      "deleted": "when it was deleted — the content is gone",
+      "deletedBy": "\"author\" — deleted by its author, \"moderator\" — by a leader",
+      "blocked": "true — blocked after a report; there is no content",
+      "unreadable": "true — cannot be read in this browser (the key of this epoch of the chat is missing)",
+      "reactions": "reactions — information only (the import doesn't change them)",
+      "reactions_emoji": "the reaction's sign, e.g. \"👍\"",
+      "reactions_count": "how many people reacted this way",
+      "reactions_mine": "true — the person from \"me\" too",
+      "pinned": "true — pinned for everyone; in the import a change pins or unpins (false) — leaders only",
+      "starred": "true — in the “Saved messages” of the person from \"me\" (only they see them); in the import a change saves or removes from saved (false)"
+    },
+    "new": {
+      "text": "content (required; at most {maxText} bytes of UTF-8, counting line breaks and quotation marks twice — a few thousand characters)",
+      "topic": "topic: \"@key\" from \"topics\" (also of a new topic from this document) or the \"id\" of an existing one; missing or null — no topic",
+      "replyTo": "\"id\" of the message in this chat this replies to — the import takes the quote from that message, never from the document",
+      "sendAt": "schedule sending (ISO 8601 with a time zone, e.g. \"2026-12-01T09:00:00+01:00\"; from {minMinutes} minutes up to a year ahead) — waits in “Scheduled”, where it can be sent at once or cancelled; without \"sendAt\" it goes out at once",
+      "silent": "true — without sound: the notification wakes no one"
+    },
+    "linked": {
+      "kind": "\"task\" — a task, \"appointment\" — an appointment in the calendar",
+      "title": "title",
+      "topic": "topic (\"@key\") or null",
+      "message": "\"id\" of the message the task came from",
+      "at": "task: the nearest (or last) due time; appointment: the start (ISO 8601)",
+      "end": "end of the appointment",
+      "state": "task: “planned”, “now”, “missed”, “done”, “overdue”, “every so often”; appointment: “planned” or “cancelled”"
+    }
+  },
+  "state": {
+    "planned": "planned",
+    "cancelled": "cancelled"
+  },
+  "readOnly": "You can only read this chat — the import (topics, sorting, new messages) is for those who write in it. The export works as always.",
+  "plan": {
+    "notDoc": "This is not a chat document — one JSON object was expected.",
+    "otherFormat": "Different format: \"{found}\" — \"{format}\" was expected.",
+    "version": "Version {found} — read as version {version}.",
+    "unknownTop": "Unknown key \"{key}\" — skipped.",
+    "foreignSource": " (“{title}”)",
+    "topicsNotList": "\"topics\" is not a list — skipped.",
+    "topicN": "Topic {n}",
+    "topic": {
+      "notObject": "{where}: not an object — skipped.",
+      "unknownKey": "{where}: unknown key \"{key}\" — skipped.",
+      "badKey": "{where}: \"key\" may only contain letters, digits, - and _ (up to 40 characters) — references to it won't work.",
+      "titleNotText": "{where}: \"title\" is not text — skipped.",
+      "titleLong": "{where}: name longer than {max} characters — shortened.",
+      "closedBool": "{where}: \"closed\" is true or false — skipped.",
+      "twice": "{where}: the same topic (“{title}”) a second time — skipped.",
+      "emptyTitle": "{where}: empty name — “{title}” stays.",
+      "mayNotChange": "{where} (“{title}”): the name is changed and the topic closed by whoever created it or a leader of the chat — skipped.",
+      "noIdSkipped": "{where}: there is no topic with this \"id\" in this chat — skipped.",
+      "noIdNew": "{where}: there is no topic with this \"id\" in this chat — treated as new.",
+      "noTitle": "{where}: without a name (\"title\") — skipped.",
+      "inNotes": "{where} (“{title}”): there are no topics in Notes — skipped.",
+      "notWriter": "{where} (“{title}”): a topic is created by someone who writes in this chat — skipped.",
+      "tooMany": "{where} (“{title}”): at most {max} new topics in one import — skipped.",
+      "keyTwice": "{where}: key \"{key}\" a second time — \"@{key}\" points to the first topic with this key."
+    },
+    "topicWord": "topic",
+    "ref": {
+      "notText": "{where}: \"topic\" is not text — {instead}.",
+      "noKey": "{where}: there is no topic with the key \"{key}\" in \"topics\" — {instead}.",
+      "skipped": "{where}: the topic \"{ref}\" is skipped (above) — {instead}.",
+      "noTopic": "{where}: there is no topic “{title}” in this chat — {instead}."
+    },
+    "instead": {
+      "stays": "it stays where it was",
+      "noTopic": "it goes without a topic"
+    },
+    "importer": "the person importing",
+    "messagesNotList": "\"messages\" is not a list — skipped.",
+    "messageN": "Message {n}",
+    "msg": {
+      "notObject": "{where}: not an object — skipped.",
+      "badId": "{where}: unreadable \"id\" — skipped.",
+      "twice": "{where}: the same message a second time — skipped.",
+      "older": "{where}: older than the loaded messages of this chat (at most {max}) — skipped.",
+      "noId": "{where}: there is no message with this \"id\" in this chat — skipped (the import doesn't insert other people's messages).",
+      "differs": "{label}: {keys} — different from the chat. The import doesn't change a message's content, sender or time (you correct your own in the chat: “Edit”); skipped.",
+      "reactions": "{label}: the import doesn't change reactions — add yours in the chat.",
+      "mayNotFile": "{label}: it is moved to a topic by its author or a leader of the chat — it stays where it was.",
+      "flagBool": "{label}: \"{key}\" is true or false — skipped.",
+      "pinModerator": "{label}: pinning and unpinning is done by a leader of the chat — skipped.",
+      "goneNoPin": "{label}: deleted or unreadable — it cannot be pinned.",
+      "goneNoStar": "{label}: deleted or unreadable — it cannot be saved."
+    },
+    "msgLabel": "{where} ({author}, {when})",
+    "unknownKey": "{label}: unknown key \"{key}\" — skipped.",
+    "newN": "New message (position {n})",
+    "new": {
+      "gone": "{label}: this describes a deleted or unreadable message, without \"id\" — skipped.",
+      "at": "{label}: has \"at\" — the import doesn't write backwards, a message from an import never pretends to be old. Remove \"at\" (it goes out at once) or give \"sendAt\" (it schedules it); skipped.",
+      "author": "{label}: \"author\" is “{author}” — the import writes only as you ({me}), never in someone else's name; skipped.",
+      "files": "{label}: files are not in the JSON — attach them in the chat; the message goes without them.",
+      "quote": "{label}: \"quote\" skipped — the import takes the quote from the message in \"replyTo\".",
+      "ignored": "{label}: \"{key}\" is skipped in a new message.",
+      "noText": "{label}: without content (\"text\") — skipped.",
+      "tooLong": "{label}: too long ({size} bytes, at most {max}) — split it into several; skipped.",
+      "sendAtBad": "{label}: \"sendAt\" is not an ISO 8601 date (e.g. \"2026-12-01T09:00:00+01:00\") — skipped.",
+      "sendAtSoon": "{label}: \"sendAt\" ({when}) is in the past or too close — you can schedule from {min} minutes ahead; without \"sendAt\" it goes out at once. Skipped.",
+      "sendAtFar": "{label}: \"sendAt\" more than a year ahead — skipped.",
+      "silentBool": "{label}: \"silent\" is true or false — skipped.",
+      "replyMissing": "{label}: \"replyTo\" doesn't point to a loaded message of this chat — it goes without a quote.",
+      "replyGone": "{label}: the message from \"replyTo\" is deleted or unreadable — it goes without a quote.",
+      "dupSent": "{label}: your message with this content is already in the chat — skipped, so that it isn't there twice.",
+      "dupWaiting": "{label}: the same message is already waiting in “Scheduled” — skipped, so that it isn't there twice."
+    },
+    "foreign": "The document comes from another chat{source} — its messages won't be moved or copied here{skipped}; its topics will be created here as new.",
+    "foreignSkipped": " (skipped {count})",
+    "notWriting": "New messages ({count}) skipped — you don't write in this chat.",
+    "over": "At most {max} new messages in one import — skipped {count}.",
+    "line": {
+      "newTopic": "New topic: “{title}”",
+      "newTopicClosed": "New topic: “{title}” (closed at once)",
+      "rename": "Rename topic: “{was}” → “{title}”",
+      "close": "Close the topic “{title}”",
+      "reopen": "Reopen the topic “{title}”",
+      "movedOut": {
+        "one": "Out of the topics: {count} message",
+        "other": "Out of the topics: {count} messages"
+      },
+      "movedTo": {
+        "one": "To the topic “{name}”: {count} message",
+        "other": "To the topic “{name}”: {count} messages"
+      },
+      "pin": {
+        "one": "Pin: {count} message",
+        "other": "Pin: {count} messages"
+      },
+      "unpin": {
+        "one": "Unpin: {count} message",
+        "other": "Unpin: {count} messages"
+      },
+      "star": {
+        "one": "Save (for you): {count} message",
+        "other": "Save (for you): {count} messages"
+      },
+      "unstar": {
+        "one": "Remove from saved: {count} message",
+        "other": "Remove from saved: {count} messages"
+      },
+      "post": "New message as {me}{how}, marked “From an import”: “{text}”",
+      "nothing": "Nothing to change — the document matches the chat."
+    },
+    "how": {
+      "planned": "scheduled for {when}",
+      "topic": "in the topic “{topic}”",
+      "reply": "reply to: {author}",
+      "silent": "without sound"
+    }
+  },
+  "desc": {
+    "intro": "One chat (Chats → chat → ⋮ “More options” → “Chat as JSON”): the messages of a chosen period or of one topic — who wrote when, replies, corrections, attachments (name and size), reactions, pins — plus the topics and the tasks and appointments that came out of the chat. For the archive and for an assistant to read, summarise or sort.\n\nWhat the import does (always in the chat open in the app; first a list of changes with warnings, saved only after “Import”):\n- Topics without \"id\" — creates new ones (a topic with the same name that already exists is used). Topics with \"id\" — renames (\"title\") or closes and opens (\"closed\"); allowed for whoever created the topic or a leader.\n- Messages with \"id\" (from the export) — only sorting: moving to another topic (\"topic\"; the message's author or a leader), pinning (\"pinned\"; leaders) and saving for yourself (\"starred\").\n- Messages without \"id\" — NEW messages of the person importing: with their first and last name (as when writing by hand), with the moment of sending and the mark “From an import”, which everyone sees; or scheduled for later (\"sendAt\"). At most {maxPosts} in one import; their message with the same content that is already in the chat (or already waiting, scheduled) doesn't go a second time.\n- Message content and topic names are encrypted in the browser with the chat key — just like those written by hand. The export file contains them in plain text: it is your copy.\n\nWhat the import never does — and why. A message is someone's statement, signed with the key of its author's role. The import can only add your new words (visibly marked) and tidy the chat:\n- it doesn't write in someone else's name — a new message with another person's \"author\" is skipped;\n- it doesn't write backwards — \"at\" says when a message was written; a new message with \"at\" is skipped (instead \"sendAt\": sending in the future);\n- it doesn't change the content, sender or time of existing messages — yours included (you correct them in the chat: “Edit”, with edit history);\n- it doesn't delete messages or topics — what is not in the document stays as it is;\n- it doesn't move messages from another chat and doesn't paste them here as new;\n- it doesn't add files (the JSON only has their names), reactions, tasks or appointments;\n- it doesn't take a quote from the document — a reply's quote comes from the real message (\"replyTo\").\nWhoever only reads in the chat has the export alone. The export covers at most {maxExport} messages.\nReturn ONE JSON object, without comments.",
+    "topic": "An entry in \"topics\". The name is changed and the topic closed by whoever created it or a leader of the chat; there are no topics in Notes. At most {max} new ones in one import.",
+    "message": "The export describes every message as it is seen in the chat. From messages with \"id\" the import reads only \"topic\", \"pinned\" and \"starred\" — the rest is for reading: different content, sender or time give a warning and change nothing. Messages not in the document stay.",
+    "new": "The import sends a message without \"id\" in this chat as the person importing (their first and last name; when writing through a role — with the role in brackets), marked “From an import”. The order in the document is the order of sending.",
+    "newNever": "Don't give \"author\" or \"at\": a message with another person's \"author\" or with \"at\" is skipped. The import skips files (\"attachments\"), reactions, \"pinned\", \"starred\" and \"quote\" of a new message.",
+    "newExample": "Example (two new topics and one message in each):",
+    "newLater": "A message for later, without sound: {\"text\": \"Reminder: …\", \"sendAt\": \"2026-12-01T09:00:00+01:00\", \"silent\": true}",
+    "linked": "An entry in \"linked\" — a task or appointment someone created from a message of this chat (message menu: “Create task”, “Add to calendar”). Read only: the import skips it.",
+    "usage": "- A chat belongs to an area, and access to the chat is access to the area: whoever can read it reads the chat; whoever can write in it writes. So topics and messages from an import are seen by everyone who sees the chat — just like those written by hand.\n- The service doesn't read messages: they lie sealed with the area key, and each is signed by the role you write through; the service only checks the signature. The first and last name under a message come from “My data”.\n- A new message is unread for others (the bell, “Waiting for you”; the step “Read the messages” loses its tick until they read it) and wakes their phones — Firebase carries only a “check” signal, the content is opened by the phone itself. With \"silent\": true there is no such signal; it is unread all the same.\n- A message with \"sendAt\" waits sealed in the service; at that time it goes out only if you can still write in this chat — and only then wakes the others.\n- A topic is a filter and a place: whoever chooses it sees its messages, and what they write goes into it.\n- Tasks and appointments are created from messages in the app (“Create task”, “Add to calendar”) and remember the chat, topic and message; the window “Tasks and appointments from this chat” collects them by topic.\n- The import doesn't change who has access to the chat — that is set in the area.",
+    "document": "Document:",
+    "inChat": "In \"chat\":",
+    "inMe": "In \"me\":",
+    "inRange": "In \"range\":"
+  },
+  "node": {
+    "usage": "How the app uses this data",
+    "topic": "Topic (\"topics[]\")",
+    "message": "Message from the export (\"messages[]\" with \"id\")",
+    "messageShort": "Message from the export",
+    "new": "New message (\"messages[]\" without \"id\")",
+    "newShort": "New message",
+    "linked": "Tasks and appointments from the chat (\"linked[]\")",
+    "linkedShort": "Tasks and appointments",
+    "example": "Export example",
+    "chat": "Chat as JSON (\"{format}\", version {version})",
+    "chatShort": "Chat"
+  },
+  "sample": {
+    "topics": "two new topics and a message in each",
+    "reminder": "a reminder for tomorrow morning, without sound"
+  }
+}

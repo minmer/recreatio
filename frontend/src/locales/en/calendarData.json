@@ -1,0 +1,25 @@
+{
+  "jsonSection": {
+    "choice": {
+      "year": "from today for a year",
+      "around": "a year back and a year ahead",
+      "days": "chosen days…",
+      "all": "everything (this may take a while)"
+    },
+    "readerOnly": "Import is for those who run this calendar — here you can download the export.",
+    "loadFailed": "Could not read the calendar’s appointments.",
+    "checking": "Checking the calendar’s appointments…",
+    "writersOnly": "Import is for those who run this calendar.",
+    "checkingCalendar": "Checking the calendar…",
+    "title": "Appointments as JSON",
+    "range": "Export — range",
+    "fromDay": "From day",
+    "toDay": "To day",
+    "summary": "Appointments JSON — export and import",
+    "lead": "The appointments of this calendar (“{format}”): single ones and series, with program, scheme and series days — from the range chosen above and the series that reach into it.",
+    "leadWriter": "The import changes appointments with \"id\" in place, adds those without \"id\", and removes only those marked \"remove\". Intentions, sign-ups and bookings stay as they are.",
+    "fileName": "appointments-{name}.json",
+    "fileFallback": "calendar",
+    "importLabel": "Import appointments"
+  }
+}

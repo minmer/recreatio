@@ -16,6 +16,7 @@ import { aad, Field, fromBase64Url, openText } from '../core/crypto';
 import { keysFor } from '../core/ringOf';
 import { whoIsThere } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { fmtDate, useT } from '../core/i18n';
 
 export function PickCalendar({ value, busy, onPick, allowAll = true }: {
   value: string;
@@ -24,6 +25,7 @@ export function PickCalendar({ value, busy, onPick, allowAll = true }: {
   /** 0099 — ohne „Wszystkie jawne razem": wo ein einzelner Kalender gemeint ist. */
   allowAll?: boolean;
 }) {
+  const t = useT();
   const [rows, setRows] = useState<readonly CalendarRow[] | null>(null);
 
   useEffect(() => {
@@ -34,14 +36,14 @@ export function PickCalendar({ value, busy, onPick, allowAll = true }: {
     return () => { alive = false; };
   }, []);
 
-  if (rows === null) return <Loading label="Wczytywanie terminarzy…" />;
+  if (rows === null) return <Loading label={t('calendarApp.pick.loadingCalendars')} />;
 
   const known = value === '' || rows.some((r) => r.calendarId === value);
 
   return (
     <>
       <select value={known ? value : ''} disabled={busy} onChange={(e) => onPick(e.target.value)}>
-        <option value="">{allowAll ? 'Wszystkie jawne razem (plan zbiorczy)' : '— wybierz kalendarz —'}</option>
+        <option value="">{allowAll ? t('calendarApp.pick.allOpen') : t('calendarApp.appointmentOptions.choose')}</option>
         {rows.map((r) => (
           <option key={r.calendarId} value={r.calendarId}>
             {r.areaName}{r.title !== r.areaName ? ` (${r.title})` : ''}
@@ -51,7 +53,7 @@ export function PickCalendar({ value, busy, onPick, allowAll = true }: {
 
       {!known && (
         <span className="wk-blocker">
-          Teraz stoi tu „{value}" — to nie jest terminarz żadnej z Twoich grup. Wybierz właściwy.
+          {t('calendarApp.pick.unknown', { value })}
         </span>
       )}
     </>
@@ -69,6 +71,7 @@ export function PickCalendars({ value, busy, onPick }: {
   busy: boolean;
   onPick: (calendarIds: string) => void;
 }) {
+  const t = useT();
   const [rows, setRows] = useState<readonly CalendarRow[] | null>(null);
 
   useEffect(() => {
@@ -79,12 +82,12 @@ export function PickCalendars({ value, busy, onPick }: {
     return () => { alive = false; };
   }, []);
 
-  if (rows === null) return <Loading label="Wczytywanie kalendarzy…" />;
+  if (rows === null) return <Loading label={t('calendarApp.appointmentOptions.loading')} />;
 
   const chosen = value.split(',').map((one) => one.trim()).filter((one) => one !== '');
   const toggle = (id: string) => onPick((chosen.includes(id) ? chosen.filter((one) => one !== id) : [...chosen, id]).join(','));
 
-  if (rows.length === 0) return <p className="wk-hint">Nie masz jeszcze żadnego kalendarza grupy.</p>;
+  if (rows.length === 0) return <p className="wk-hint">{t('calendarApp.pick.noCalendars')}</p>;
 
   return (
     <div className="wk-pick-cals">
@@ -95,10 +98,10 @@ export function PickCalendars({ value, busy, onPick }: {
         </label>
       ))}
       {chosen.some((id) => !rows.some((r) => r.calendarId === id)) && (
-        <span className="wk-blocker">Jeden z wybranych kalendarzy nie jest już dostępny — zaznacz właściwe.</span>
+        <span className="wk-blocker">{t('calendarApp.pick.goneOne')}</span>
       )}
       <span className="wk-hint">
-        Na stronie każdy zobaczy terminy, które może widzieć. W pełnym ekranie osoby prowadzące kalendarz mogą też dodawać i zmieniać terminy.
+        {t('calendarApp.pick.pageNote')}
       </span>
     </div>
   );
@@ -118,6 +121,7 @@ export function PickCalendarItem({ calendarId, value, busy, onPick, withParts = 
   /** Der Hinweis auf Programmpunkte (für den Baustein „Program"). */
   withParts?: boolean;
 }) {
+  const t = useT();
   const [rows, setRows] = useState<readonly { itemId: string; title: string; start: Date; last: Date; count: number; parts: number }[] | null>(null);
 
   useEffect(() => {
@@ -144,7 +148,7 @@ export function PickCalendarItem({ calendarId, value, busy, onPick, withParts = 
         }
         const out: { itemId: string; title: string; start: Date; last: Date; count: number; parts: number }[] = [];
         for (const o of firsts.values()) {
-          let title = o.titlePublic ?? 'Termin';
+          let title = o.titlePublic ?? t('calendarApp.kindWord.appointment');
           const sealedTitle = o.fields.find((f) => f.field === 'title');
           if (ring !== null && sealedTitle !== undefined) {
             try {
@@ -168,9 +172,9 @@ export function PickCalendarItem({ calendarId, value, busy, onPick, withParts = 
     return () => { alive = false; };
   }, [calendarId]);
 
-  if (calendarId === '') return <p className="wk-hint">Najpierw wybierz kalendarz.</p>;
-  if (rows === null) return <Loading label="Wczytywanie terminów…" />;
-  if (rows.length === 0) return <p className="wk-hint">W tym kalendarzu nie ma terminów w najbliższym roku.</p>;
+  if (calendarId === '') return <p className="wk-hint">{t('calendarApp.pick.calendarFirst')}</p>;
+  if (rows === null) return <Loading label={t('calendarApp.pick.loadingItems')} />;
+  if (rows.length === 0) return <p className="wk-hint">{t('calendarApp.pick.noItems')}</p>;
 
   const known = value === '' || rows.some((r) => r.itemId === value);
 
@@ -178,17 +182,17 @@ export function PickCalendarItem({ calendarId, value, busy, onPick, withParts = 
     <>
       <select value={known ? value : ''} disabled={busy} data-pick-item=""
         onChange={(e) => onPick(e.target.value, rows.find((r) => r.itemId === e.target.value))}>
-        <option value="">— wybierz termin —</option>
+        <option value="">{t('calendarApp.pick.chooseItem')}</option>
         {rows.map((r) => (
           <option key={r.itemId} value={r.itemId}>
-            {r.start.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })} · {r.title}
-            {r.count > 1 ? ` (seria: ${termsText(r.count)})` : ''}
-            {r.parts > 0 ? ` (${r.parts} pkt. programu)` : ''}
+            {fmtDate(r.start, { day: 'numeric', month: 'short', year: 'numeric' }, t.lang)} · {r.title}
+            {r.count > 1 ? ` ${t('calendarApp.pick.series', { terms: termsText(r.count) })}` : ''}
+            {r.parts > 0 ? ` ${t('calendarApp.pick.parts', { count: r.parts })}` : ''}
           </option>
         ))}
       </select>
-      {!known && <span className="wk-blocker">Wybrany termin nie należy do tego kalendarza (albo jest dawno) — wybierz inny.</span>}
-      {withParts && <span className="wk-hint">Punkty programu dodasz w kalendarzu: otwórz termin i „Dodaj punkt programu".</span>}
+      {!known && <span className="wk-blocker">{t('calendarApp.pick.itemGone')}</span>}
+      {withParts && <span className="wk-hint">{t('calendarApp.pick.partsHint')}</span>}
     </>
   );
 }

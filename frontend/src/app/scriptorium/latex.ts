@@ -13,6 +13,7 @@
  * die Angaben stehen fertig formatiert darin.
  */
 
+import { appLang, t } from '../core/i18n';
 import { blocksKeyOf, blocksOf, type Cell } from '../library/blocks';
 import { bibliography, citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from '../library/libraryCite';
 import { typeLines } from './textTypes';
@@ -73,7 +74,7 @@ function inlines(list: readonly Inline[], ctx: Ctx, inNote = false): string {
           if (work !== undefined) ctx.works.push(work);
           return segsLatex(citeSegs(target, item.locator, ctx.look, ctx.state));
         });
-        return `${own.length === 0 ? '' : ` (zob. ${own.join('; ')})`}${parts.length === 0 ? '' : `\\footnote{${parts.join('; ')}.}`}`;
+        return `${own.length === 0 ? '' : t('scriptorium.sermon.seeAlso', { list: own.join('; ') })}${parts.length === 0 ? '' : `\\footnote{${parts.join('; ')}.}`}`;
       }
       case 'ref': return inlines(one.c, ctx, inNote);
       case 'note': {
@@ -116,7 +117,7 @@ function blocks(list: readonly Block[], ctx: Ctx, depth: 0 | 1): string {
           out.push(statementLatex(quote, key, { ...ctx, path: new Set([...(ctx.path ?? []), quote.id]) }, depth));
           break;
         }
-        if (quote === undefined || quote.kind !== 'quote') { out.push('% odwołanie niedostępne'); break; }
+        if (quote === undefined || quote.kind !== 'quote') { out.push(`% ${t('scriptorium.latex.missingRef')}`); break; }
         const work = workBehind(quote, ctx.look);
         if (work !== undefined) ctx.works.push(work);
         const text = str(quote.data, 'text').split(/\n\s*\n/).map((p) => latexEscape(p).replace(/\n/g, '\\\\\n')).join('\n\n');
@@ -163,11 +164,14 @@ function statementLatex(entry: LibEntry, key: string, ctx: Ctx, depth: 0 | 1): s
   return `\\begin{quote}\n${out.join('\n\n')}\n\\end{quote}`;
 }
 
+/** Die Sprache des Satzes — die der Anwendung (Silbentrennung, „Spis treści“). */
+const BABEL = { en: 'english', de: 'ngerman', pl: 'polish' } as const;
+
 const PREAMBLE = (kind: 'article' | 'book') => [
   `\\documentclass[11pt,a4paper${kind === 'book' ? ',openany' : ''}]{${kind}}`,
   '\\usepackage[utf8]{inputenc}',
   '\\usepackage[T1]{fontenc}',
-  '\\usepackage[polish]{babel}',
+  `\\usepackage[${BABEL[appLang()]}]{babel}`,
   '\\usepackage{lmodern}',
   '\\usepackage{amsmath,amssymb}',
   '\\usepackage{microtype}',
@@ -186,7 +190,7 @@ function metaLine(d: LibEntry['data'], look: Lookup): string {
   const fields = typeLines(d, look).map((one) => `\\par\\noindent ${latexEscape(one.label)}: ${latexEscape(one.value)}`);
   return [
     meta.length > 0 ? `\\noindent\\textsc{${latexEscape(meta.join(' · '))}}` : '',
-    readings !== '' ? `\\par\\noindent Czytania: ${latexEscape(readings)}` : '',
+    readings !== '' ? `\\par\\noindent ${latexEscape(t('scriptorium.article.readings'))} ${latexEscape(readings)}` : '',
     ...fields
   ].filter(Boolean).join('\n');
 }
@@ -215,10 +219,10 @@ function planLatex(points: readonly PlanPoint[], ctx: Ctx): string {
 function textBody(entry: LibEntry, ctx: Ctx, depth: 0 | 1): string {
   const d = entry.data;
   const points = planOf(d);
-  const plan = points.length === 0 ? '' : `${depth === 0 ? '\\section*' : '\\subsection*'}{Plan}\n${planLatex(points, ctx)}\n\n`;
+  const plan = points.length === 0 ? '' : `${depth === 0 ? '\\section*' : '\\subsection*'}{${latexEscape(t('scriptorium.sermon.plan'))}}\n${planLatex(points, ctx)}\n\n`;
   const body = plan + blocks(parseMarkup(str(d, 'body')), ctx, depth);
   const further = str(d, 'further').trim() === '' ? ''
-    : `\n\n${depth === 0 ? '\\section*' : '\\subsection*'}{Dalsze informacje}\n${blocks(parseMarkup(str(d, 'further')), ctx, depth)}`;
+    : `\n\n${depth === 0 ? '\\section*' : '\\subsection*'}{${latexEscape(t('scriptorium.article.further'))}}\n${blocks(parseMarkup(str(d, 'further')), ctx, depth)}`;
   return `${body}${further}`;
 }
 
@@ -243,7 +247,7 @@ export function textToLatex(entry: LibEntry, look: Lookup, options: { author?: s
   return [
     PREAMBLE('article'),
     '',
-    `\\title{${latexEscape(str(d, 'title') || 'Bez tytułu')}${str(d, 'subtitle') === '' ? '' : `\\\\\\large ${latexEscape(str(d, 'subtitle'))}`}}`,
+    `\\title{${latexEscape(str(d, 'title') || t('common.untitled'))}${str(d, 'subtitle') === '' ? '' : `\\\\\\large ${latexEscape(str(d, 'subtitle'))}`}}`,
     `\\author{${latexEscape(options.author ?? '')}}`,
     `\\date{${latexEscape(str(d, 'date'))}}`,
     '',
@@ -254,7 +258,7 @@ export function textToLatex(entry: LibEntry, look: Lookup, options: { author?: s
     '',
     body,
     '',
-    sources(ctx, '\\section*{Źródła}'),
+    sources(ctx, `\\section*{${latexEscape(t('scriptorium.article.sources'))}}`),
     '\\end{document}',
     ''
   ].filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n');
@@ -278,7 +282,7 @@ export function projectToLatex(project: LibEntry, look: Lookup, options: { autho
     }
     const text = look.get(item.text) ?? look.byKey(item.text.replace(/^@/, ''));
     if (text === undefined || text.kind !== 'text' || (options.only !== undefined && !options.only(text))) continue;
-    const title = str(text.data, 'title') || 'Bez tytułu';
+    const title = str(text.data, 'title') || t('common.untitled');
     parts.push([
       `\\chapter*{${latexEscape(title)}}`,
       `\\addcontentsline{toc}{chapter}{${latexEscape(title)}}`,
@@ -292,7 +296,7 @@ export function projectToLatex(project: LibEntry, look: Lookup, options: { autho
   return [
     PREAMBLE('book'),
     '',
-    `\\title{${latexEscape(str(d, 'title') || 'Projekt')}${str(d, 'subtitle') === '' ? '' : `\\\\\\large ${latexEscape(str(d, 'subtitle'))}`}}`,
+    `\\title{${latexEscape(str(d, 'title') || t('scriptorium.archive.project'))}${str(d, 'subtitle') === '' ? '' : `\\\\\\large ${latexEscape(str(d, 'subtitle'))}`}}`,
     `\\author{${latexEscape(options.author ?? '')}}`,
     '\\date{}',
     '',
@@ -303,7 +307,7 @@ export function projectToLatex(project: LibEntry, look: Lookup, options: { autho
     '',
     parts.join('\n\n'),
     '',
-    sources(ctx, '\\chapter*{Źródła}\n\\addcontentsline{toc}{chapter}{Źródła}'),
+    sources(ctx, `\\chapter*{${latexEscape(t('scriptorium.article.sources'))}}\n\\addcontentsline{toc}{chapter}{${latexEscape(t('scriptorium.article.sources'))}}`),
     '\\end{document}',
     ''
   ].filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n');
@@ -325,12 +329,12 @@ export function planToLatex(entry: LibEntry, look: Lookup): string {
     '\\pagestyle{empty}',
     '',
     '\\begin{document}',
-    `\\noindent{\\LARGE\\bfseries ${latexEscape(str(d, 'title') || 'Bez tytułu')}}\\par\\medskip`,
+    `\\noindent{\\LARGE\\bfseries ${latexEscape(str(d, 'title') || t('common.untitled'))}}\\par\\medskip`,
     metaLine(d, look),
     '',
     planLatex(points, ctx),
     '',
-    sources(ctx, '\\vfill\\small\\section*{Źródła}'),
+    sources(ctx, `\\vfill\\small\\section*{${latexEscape(t('scriptorium.article.sources'))}}`),
     '\\end{document}',
     ''
   ].filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n');
@@ -340,7 +344,7 @@ export function planToLatex(entry: LibEntry, look: Lookup): string {
 export function latexFileName(entry: LibEntry, suffix = ''): string {
   const base = (str(entry.data, 'title') || entry.kind).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
-  return `${base || 'tekst'}${suffix}.tex`;
+  return `${base || 'tekst'}${suffix}.tex`; // i18n-ignore — Dateiname
 }
 
 /** Die Schlüssel, die ein Text nennt, aber die Bibliothek nicht hat — vor dem Export zu sagen. */

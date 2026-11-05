@@ -8,6 +8,7 @@
  * Forschung, Karteikarten) sind hier Anfänge [F05, F45].
  */
 
+import { t } from '../core/i18n';
 import { graphJson, type Graph, type GraphEdge, type GraphNode } from './graph';
 import { patternKeys, type FieldDef, type KindDef } from './schema';
 
@@ -101,18 +102,18 @@ export function presetChoice(kinds: readonly KindDef[], kindId: string, preset: 
       ?? (asks.second?.text === true ? seconds.find((f) => inLabel.has(f.key)) ?? seconds[0] : seconds[1] ?? seconds[0]);
   }
   const backs: BackRef[] = preset.needs.includes('back')
-    ? kinds.flatMap((k) => k.fields.filter((f) => f.type === 'ref' && f.to?.includes(kindId) === true).map((f) => ({ kind: k.id, key: f.key, label: `${k.name}: ${f.label}`, multi: f.multi })))
+    ? kinds.flatMap((k) => k.fields.filter((f) => f.type === 'ref' && f.to?.includes(kindId) === true).map((f) => ({ kind: k.id, key: f.key, label: t('cogitaViewsPresets.choice.backRef', { kind: k.name, field: f.label }), multi: f.multi })))
       .sort((a, b) => Number(a.kind === kindId) - Number(b.kind === kindId) || Number(b.multi) - Number(a.multi))
     : [];
   const back = backs.find((b) => `${b.kind}|${b.key}` === picked.back) ?? backs[0];
   const missing = field === undefined
-    ? (prefer === undefined ? 'Ten rodzaj nie ma pól.' : 'Ten rodzaj nie ma pola, które odwołuje się do innych wpisów.')
+    ? (prefer === undefined ? t('cogitaViewsPresets.choice.noFields') : t('cogitaViewsPresets.choice.noRefField'))
     : preset.needs.includes('through') && second === undefined
-      ? `Pole „${field.label}” nie wskazuje jednego rodzaju z polami — wybierz w schemacie, do czego się odwołuje.`
+      ? t('cogitaViewsPresets.choice.noTarget', { field: field.label })
       : preset.needs.includes('second') && second === undefined
-        ? 'Ten rodzaj nie ma pola tekstowego.'
+        ? t('cogitaViewsPresets.choice.noText')
         : preset.needs.includes('back') && back === undefined
-          ? 'Żaden rodzaj nie odwołuje się do tego (np. tłumaczenie do słowa) — dodaj takie pole w schemacie.'
+          ? t('cogitaViewsPresets.choice.noBack')
           : null;
   return { fields, ...(field === undefined ? {} : { field }), seconds, ...(second === undefined ? {} : { second }), ...(target === undefined ? {} : { target }), backs, ...(back === undefined ? {} : { back }), missing };
 }
@@ -121,28 +122,29 @@ export function presetChoice(kinds: readonly KindDef[], kindId: string, preset: 
 export const presetField = (f: FieldDef): PresetField => ({ key: f.key, label: f.label, ...(f.to === undefined ? {} : { to: f.to }) });
 
 /* Die Słówka-Anfänge fragen dasselbe: die Wörter einer Übersetzung und ihre Sprache — oder, vom Wort aus, seine Sprache, seinen Text und wo seine Übersetzungen stehen. */
-const WORDS_ASKS: PresetAsks = { field: { label: 'Pole ze słowami (odwołanie)', refs: 'multi' }, through: { label: 'Pole języka w' } };
+/* Die Namen werden beim Lesen übersetzt (Getter). */
+const WORDS_ASKS: PresetAsks = { field: { get label() { return t('cogitaViewsPresets.asks.wordsField'); }, refs: 'multi' }, through: { get label() { return t('cogitaViewsPresets.asks.langIn'); } } };
 const WORD_ASKS: PresetAsks = {
-  field: { label: 'Pole języka (odwołanie)', refs: 'single' },
-  second: { label: 'Pole z tekstem słowa', text: true },
-  back: { label: 'Gdzie są tłumaczenia (rodzaj: pole ze słowami)' }
+  field: { get label() { return t('cogitaViewsPresets.asks.langField'); }, refs: 'single' },
+  second: { get label() { return t('cogitaViewsPresets.asks.wordText'); }, text: true },
+  back: { get label() { return t('cogitaViewsPresets.asks.backField'); } }
 };
 
 export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
   /* 2026-10-22 — Aussagen: die Teza zu ihrem Gegenstand, die Paare einer Tabelle. 2026-10-23: jeder Rodzaj mit Feld blocks (z. B. Komentarz). */
   {
-    id: 'thesis', label: 'Teza: o czym → teza', says: 'Na przodzie: o czym jest wypowiedź (jej pola-odwołania, np. „Łk 1,35; Dz 1,8"), z tyłu jej teza — pierwsze zdanie. Oceniasz się sam.', needs: [], statements: true,
+    id: 'thesis', get label() { return t('cogitaViewsPresets.tpl.thesis.label'); }, get says() { return t('cogitaViewsPresets.tpl.thesis.says'); }, needs: [], statements: true,
     make: (kind) => {
       const subjects = node('statement.subjects', 0, 0);
       const when = node('when', 230, 0, { test: 'filled' });
-      const pattern = node('pattern', 460, 0, { text: 'Co mówi ta wypowiedź o: {0}?', inputs: 1, joiner: '; ' });
+      const pattern = node('pattern', 460, 0, { text: t('cogitaViewsPresets.tpl.thesis.pattern'), inputs: 1, joiner: '; ' });
       const prompt = node('prompt', 690, 0);
       const thesis = node('statement.thesis', 0, 160);
       const answer = node('answer.flash', 690, 160);
       const self = node('entity', 460, 280);
       const card = node('card', 920, 80);
       return {
-        name: 'Teza', kinds: [kind], direction: 'o czym→teza',
+        name: t('cogitaViewsPresets.tpl.thesis.name'), kinds: [kind], direction: 'o czym→teza', // i18n-ignore
         graph: graphOf([subjects, when, pattern, prompt, thesis, answer, self, card], [
           edge(subjects, 'entities', when, 'items'), edge(when, 'items', pattern, 'p0'), edge(pattern, 'text', prompt, 'parts'),
           edge(thesis, 'text', answer, 'back'), edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer'),
@@ -152,7 +154,7 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
     }
   },
   {
-    id: 'statement-table', label: 'Tabela z treści: dopasuj pary', says: 'Wiersze pierwszej tabeli w treści (kolumna 1 ↔ kolumna 2) do połączenia w pary; nad nimi teza.', needs: [], statements: true,
+    id: 'statement-table', get label() { return t('cogitaViewsPresets.tpl.table.label'); }, get says() { return t('cogitaViewsPresets.tpl.table.says'); }, needs: [], statements: true,
     make: (kind) => {
       const thesis = node('statement.thesis', 0, 0);
       const prompt = node('prompt', 230, 0);
@@ -161,7 +163,7 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       const self = node('entity', 230, 300);
       const card = node('card', 460, 80);
       return {
-        name: 'Tabela z treści', kinds: [kind], direction: 'pary',
+        name: t('cogitaViewsPresets.tpl.table.name'), kinds: [kind], direction: 'pary',
         graph: graphOf([thesis, prompt, table, answer, self, card], [
           edge(thesis, 'text', prompt, 'parts'), edge(table, 'left', answer, 'left'), edge(table, 'right', answer, 'right'),
           edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer'), edge(self, 'entities', card, 'explain')
@@ -170,16 +172,16 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
     }
   },
   {
-    id: 'ask', label: 'Pytanie o pole', says: '„Rok urodzenia: Mickiewicz?" — wpisz wartość pola.', needs: ['field'],
+    id: 'ask', get label() { return t('cogitaViewsPresets.tpl.ask.label'); }, get says() { return t('cogitaViewsPresets.tpl.ask.says'); }, needs: ['field'],
     make: (kind, field) => {
       const self = node('entity', 0, 0);
       const value = node('field', 0, 140, { key: field.key });
-      const pattern = node('pattern', 230, 0, { text: `${field.label}: {0}?`, inputs: 1 });
+      const pattern = node('pattern', 230, 0, { text: t('cogitaViewsPresets.tpl.ask.pattern', { field: field.label }), inputs: 1 });
       const prompt = node('prompt', 460, 0);
       const answer = node('answer.text', 460, 140);
       const card = node('card', 690, 60);
       return {
-        name: `${field.label} (wpisz)`, kinds: [kind], direction: `${field.key}`,
+        name: t('cogitaViewsPresets.tpl.ask.name', { field: field.label }), kinds: [kind], direction: `${field.key}`,
         graph: graphOf([self, value, pattern, prompt, answer, card], [
           edge(self, 'entities', pattern, 'p0'), edge(pattern, 'text', prompt, 'parts'), edge(value, 'values', answer, 'expected'),
           edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer')
@@ -188,16 +190,16 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
     }
   },
   {
-    id: 'reverse', label: 'Odwrotnie: kto to?', says: 'Pokazuje wartość pola, pyta o wpis („Kto urodził się w 1798?").', needs: ['field'],
+    id: 'reverse', get label() { return t('cogitaViewsPresets.tpl.reverse.label'); }, get says() { return t('cogitaViewsPresets.tpl.reverse.says'); }, needs: ['field'],
     make: (kind, field) => {
       const self = node('entity', 0, 140);
       const value = node('field', 0, 0, { key: field.key });
-      const pattern = node('pattern', 230, 0, { text: `Kto lub co — ${field.label.toLowerCase()}: {0}?`, inputs: 1 });
+      const pattern = node('pattern', 230, 0, { text: t('cogitaViewsPresets.tpl.reverse.pattern', { field: field.label.toLowerCase() }), inputs: 1 });
       const prompt = node('prompt', 460, 0);
       const answer = node('answer.text', 460, 140);
       const card = node('card', 690, 60);
       return {
-        name: `Kto: ${field.label}`, kinds: [kind], direction: `${field.key}→`,
+        name: t('cogitaViewsPresets.tpl.reverse.name', { field: field.label }), kinds: [kind], direction: `${field.key}→`,
         graph: graphOf([self, value, pattern, prompt, answer, card], [
           edge(value, 'values', pattern, 'p0'), edge(pattern, 'text', prompt, 'parts'), edge(self, 'entities', answer, 'expected'),
           edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer')
@@ -206,17 +208,17 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
     }
   },
   {
-    id: 'choose', label: 'Wybór z czterech', says: 'Poprawna wartość pola i trzy wartości tego pola z innych wpisów.', needs: ['field'],
+    id: 'choose', get label() { return t('cogitaViewsPresets.tpl.choose.label'); }, get says() { return t('cogitaViewsPresets.tpl.choose.says'); }, needs: ['field'],
     make: (kind, field) => {
       const self = node('entity', 0, 0);
       const value = node('field', 0, 140, { key: field.key });
       const wrong = node('distractors', 230, 200, { key: field.key, count: 3, from: ['field'] });
-      const pattern = node('pattern', 230, 0, { text: `${field.label}: {0}?`, inputs: 1 });
+      const pattern = node('pattern', 230, 0, { text: t('cogitaViewsPresets.tpl.ask.pattern', { field: field.label }), inputs: 1 });
       const prompt = node('prompt', 460, 0);
       const answer = node('answer.one', 460, 160);
       const card = node('card', 690, 60);
       return {
-        name: `${field.label} (wybór)`, kinds: [kind], direction: `${field.key}:wybor`,
+        name: t('cogitaViewsPresets.tpl.choose.name', { field: field.label }), kinds: [kind], direction: `${field.key}:wybor`,
         graph: graphOf([self, value, wrong, pattern, prompt, answer, card], [
           edge(self, 'entities', pattern, 'p0'), edge(pattern, 'text', prompt, 'parts'),
           edge(value, 'values', answer, 'expected'), edge(value, 'values', wrong, 'expected'), edge(wrong, 'distractors', answer, 'distractors'),
@@ -226,16 +228,16 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
     }
   },
   {
-    id: 'date', label: 'Data', says: 'Kiedy? — z dokładnością do roku, miesiąca albo dnia.', needs: ['date'],
+    id: 'date', get label() { return t('cogitaViewsPresets.tpl.date.label'); }, get says() { return t('cogitaViewsPresets.tpl.date.says'); }, needs: ['date'],
     make: (kind, field) => {
       const self = node('entity', 0, 0);
       const value = node('field', 0, 140, { key: field.key });
-      const pattern = node('pattern', 230, 0, { text: `${field.label}: {0} — kiedy?`, inputs: 1 });
+      const pattern = node('pattern', 230, 0, { text: t('cogitaViewsPresets.tpl.date.pattern', { field: field.label }), inputs: 1 });
       const prompt = node('prompt', 460, 0);
       const answer = node('answer.date', 460, 140, { precision: 'year', tolerance: 0 });
       const card = node('card', 690, 60);
       return {
-        name: `${field.label} (data)`, kinds: [kind], direction: `${field.key}:data`,
+        name: t('cogitaViewsPresets.tpl.date.name', { field: field.label }), kinds: [kind], direction: `${field.key}:data`,
         graph: graphOf([self, value, pattern, prompt, answer, card], [
           edge(self, 'entities', pattern, 'p0'), edge(pattern, 'text', prompt, 'parts'), edge(value, 'values', answer, 'expected'),
           edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer')
@@ -244,7 +246,7 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
     }
   },
   {
-    id: 'flash', label: 'Fiszka', says: 'Na przodzie pole pierwsze, z tyłu drugie — oceniasz się sam.', needs: ['field', 'second'],
+    id: 'flash', get label() { return t('cogitaViewsPresets.tpl.flash.label'); }, get says() { return t('cogitaViewsPresets.tpl.flash.says'); }, needs: ['field', 'second'],
     make: (kind, field, second) => {
       const front = node('field', 0, 0, { key: field.key });
       const back = node('field', 0, 140, { key: second?.key ?? field.key });
@@ -252,7 +254,7 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       const answer = node('answer.flash', 230, 140);
       const card = node('card', 460, 60);
       return {
-        name: `Fiszka: ${field.label} → ${second?.label ?? field.label}`, kinds: [kind], direction: `${field.key}→${second?.key ?? field.key}`,
+        name: t('cogitaViewsPresets.tpl.flash.name', { front: field.label, back: second?.label ?? field.label }), kinds: [kind], direction: `${field.key}→${second?.key ?? field.key}`,
         graph: graphOf([front, back, prompt, answer, card], [
           edge(front, 'values', prompt, 'parts'), edge(back, 'values', answer, 'back'),
           edge(prompt, 'prompt', card, 'prompt'), edge(answer, 'answer', card, 'answer')
@@ -261,17 +263,17 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
     }
   },
   {
-    id: 'vocabulary', label: 'Słówko (każde tłumaczenie osobno)', says: 'Jedna karta dla każdej wartości drugiego pola — każde tłumaczenie.', needs: ['field', 'second'],
+    id: 'vocabulary', get label() { return t('cogitaViewsPresets.tpl.vocabulary.label'); }, get says() { return t('cogitaViewsPresets.tpl.vocabulary.says'); }, needs: ['field', 'second'],
     make: (kind, field, second) => {
       const word = node('field', 0, 0, { key: field.key });
       const translations = node('field', 0, 140, { key: second?.key ?? field.key });
       const each = node('each', 230, 140);
-      const pattern = node('pattern', 230, 0, { text: 'Przetłumacz: {0}', inputs: 1 });
+      const pattern = node('pattern', 230, 0, { text: t('cogitaViewsPresets.tpl.vocabulary.pattern'), inputs: 1 });
       const prompt = node('prompt', 460, 0);
       const answer = node('answer.text', 460, 140);
       const card = node('card', 690, 60);
       return {
-        name: `Słówko: ${field.label} → ${second?.label ?? ''}`, kinds: [kind], direction: `${field.key}→${second?.key ?? ''}`,
+        name: t('cogitaViewsPresets.tpl.vocabulary.name', { front: field.label, back: second?.label ?? '' }), kinds: [kind], direction: `${field.key}→${second?.key ?? ''}`,
         graph: graphOf([word, translations, each, pattern, prompt, answer, card], [
           edge(word, 'values', pattern, 'p0'), edge(pattern, 'text', prompt, 'parts'),
           edge(translations, 'values', each, 'items'), edge(each, 'item', answer, 'expected'),
@@ -288,8 +290,8 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       („angielski → polski: house"), als Antwort die Wörter der anderen.
       Zwei Sprachen geben so beide Richtungen.
     */
-    id: 'languages', label: 'Słówka: z języka na język (oba kierunki)',
-    says: 'Wpis łączy słowa w kilku językach (np. tłumaczenie z polem „Słowa"): dla każdego języka osobna karta — słowa w tym języku z kierunkiem („angielski → polski: house"), odpowiedzią są słowa w pozostałych językach.',
+    id: 'languages', get label() { return t('cogitaViewsPresets.tpl.languages.label'); },
+    get says() { return t('cogitaViewsPresets.tpl.languages.says'); },
     needs: ['field', 'through'], asks: WORDS_ASKS,
     make: (kind, field, lang) => {
       const key = lang?.key ?? 'language';
@@ -305,7 +307,7 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       const answer = node('answer.text', 1380, 160);
       const card = node('card', 1610, 60);
       return {
-        name: `${field.label}: z języka na język`, kinds: [kind], direction: `${field.key}:jezyki`,
+        name: t('cogitaViewsPresets.tpl.languages.name', { field: field.label }), kinds: [kind], direction: `${field.key}:jezyki`,
         graph: graphOf([words, langs, once, each, split, others, othersOnce, pattern, prompt, answer, card], [
           edge(words, 'values', langs, 'of'), edge(langs, 'values', once, 'items'), edge(once, 'items', each, 'items'),
           edge(words, 'values', split, 'items'), edge(each, 'item', split, 'like'),
@@ -324,20 +326,20 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       niemiecki). Wörter gleicher Schreibung geben EINE Karte — die am ersten
       von ihnen; die anderen hält ein Warunek zurück.
     */
-    id: 'which-language', label: 'Słówka: jaki to język?',
-    says: 'Pokazuje słowo i pyta, w jakim jest języku — zaznacza się wszystkie języki, w których istnieje słowo o tej pisowni (np. „hotel"). Słowa o tej samej pisowni dają jedną kartę.',
+    id: 'which-language', get label() { return t('cogitaViewsPresets.tpl.whichLanguage.label'); },
+    get says() { return t('cogitaViewsPresets.tpl.whichLanguage.says'); },
     needs: ['field', 'second'], asks: WORD_ASKS,
     make: (kind, lang, text) => {
-      const t = text?.key ?? 'text';
+      const tk = text?.key ?? 'text';
       const self = node('entity', 0, 0);
-      const word = node('field', 0, 150, { key: t });
-      const same = node('entries', 230, 150, { kind, key: t });
+      const word = node('field', 0, 150, { key: tk });
+      const same = node('entries', 230, 150, { kind, key: tk });
       const first = node('pick', 460, 300, { position: 'first' });
       const only = node('filter', 690, 300);
       const gate = node('when', 920, 300, { test: 'filled' });
       const langs = node('field', 460, 150, { key: lang.key });
       const once = node('unique', 690, 150);
-      const pattern = node('pattern', 230, 0, { text: 'Jaki to język: „{0}”? Zaznacz wszystkie, w których istnieje.', inputs: 1 });
+      const pattern = node('pattern', 230, 0, { text: t('cogitaViewsPresets.tpl.whichLanguage.pattern'), inputs: 1 });
       const prompt = node('prompt', 920, 0);
       const answer = node('answer.many', 920, 150);
       const card = node('card', 1150, 75);
@@ -348,7 +350,7 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
         : [node('entries', 690, 0, { kind: target })];
       const choices = options[options.length - 1];
       return {
-        name: 'Jaki to język?', kinds: [kind], direction: `${lang.key}:jaki-jezyk`,
+        name: t('cogitaViewsPresets.tpl.whichLanguage.name'), kinds: [kind], direction: `${lang.key}:jaki-jezyk`,
         graph: graphOf([self, word, same, first, only, gate, langs, once, ...options, pattern, prompt, answer, card], [
           edge(self, 'entities', only, 'items'), edge(word, 'values', same, 'like'), edge(same, 'entities', first, 'items'),
           edge(first, 'chosen', only, 'like'), edge(only, 'kept', gate, 'items'),
@@ -368,8 +370,8 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       der ersten Sprache links, die übrigen rechts). Eine Übersetzung in nur
       einer Sprache macht keine Karte.
     */
-    id: 'pairs', label: 'Słówka: połącz w pary',
-    says: 'Kilka tłumaczeń naraz: z lewej słowa w jednym języku, z prawej w drugim — łączy się je w pary. Bierze to tłumaczenie i losowo inne; języki są te z tego tłumaczenia.',
+    id: 'pairs', get label() { return t('cogitaViewsPresets.tpl.pairs.label'); },
+    get says() { return t('cogitaViewsPresets.tpl.pairs.says'); },
     needs: ['field', 'through'], asks: WORDS_ASKS,
     make: (kind, field, lang) => {
       const key = lang?.key ?? 'language';
@@ -381,12 +383,12 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       const gate = node('when', 1150, 150, { test: 'filled' });
       const others = node('entries', 0, 300, { kind, self: true, count: 12 });
       const pairs = node('pairs', 1150, 300, { key: field.key, by: key, count: 5 });
-      const pattern = node('pattern', 1150, 0, { text: 'Połącz w pary: {0} — {1}', inputs: 2 });
+      const pattern = node('pattern', 1150, 0, { text: t('cogitaViewsPresets.tpl.pairs.pattern'), inputs: 2 });
       const prompt = node('prompt', 1380, 0);
       const answer = node('answer.match', 1380, 300);
       const card = node('card', 1610, 150);
       return {
-        name: 'Połącz w pary', kinds: [kind], direction: `${field.key}:pary`,
+        name: t('cogitaViewsPresets.tpl.pairs.name'), kinds: [kind], direction: `${field.key}:pary`,
         graph: graphOf([self, words, langs, once, first, gate, others, pairs, pattern, prompt, answer, card], [
           edge(self, 'entities', words, 'of'), edge(words, 'values', langs, 'of'), edge(langs, 'values', once, 'items'), edge(once, 'items', first, 'items'),
           edge(first, 'rest', gate, 'items'),
@@ -406,14 +408,14 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       Zielsprachen als Ablenkung. Man kreuzt alle richtigen an — in einer
       oder mehreren Sprachen.
     */
-    id: 'choose-translations', label: 'Słówka: zaznacz tłumaczenia',
-    says: 'Pokazuje słowo; trzeba zaznaczyć wszystkie jego tłumaczenia — w jednym albo kilku językach — spośród nich i kilku innych słów tych języków.',
+    id: 'choose-translations', get label() { return t('cogitaViewsPresets.tpl.chooseTranslations.label'); },
+    get says() { return t('cogitaViewsPresets.tpl.chooseTranslations.says'); },
     needs: ['field', 'second', 'back'], asks: WORD_ASKS,
     make: (kind, lang, text, more) => {
-      const t = text?.key ?? 'text';
+      const tk = text?.key ?? 'text';
       const back = more?.back ?? { kind: '', key: '' };
       const self = node('entity', 0, 0);
-      const word = node('field', 0, 150, { key: t });
+      const word = node('field', 0, 150, { key: tk });
       const source = node('field', 0, 300, { key: lang.key });
       const trans = node('entries', 230, 0, { kind: back.kind, key: back.key });
       const words = node('field', 460, 0, { key: back.key });
@@ -423,12 +425,12 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       const targetsOnce = node('unique', 1150, 150);
       const pool = node('entries', 1150, 300, { kind, key: lang.key, count: 12 });
       const wrong = node('distractors', 1380, 300, { from: ['list'], count: 4 });
-      const pattern = node('pattern', 230, 300, { text: 'Zaznacz tłumaczenia: „{0}” ({1})', inputs: 2 });
+      const pattern = node('pattern', 230, 300, { text: t('cogitaViewsPresets.tpl.chooseTranslations.pattern'), inputs: 2 });
       const prompt = node('prompt', 1610, 0);
       const answer = node('answer.many', 1610, 150);
       const card = node('card', 1840, 75);
       return {
-        name: 'Zaznacz tłumaczenia', kinds: [kind], direction: `${back.key}:wybor`,
+        name: t('cogitaViewsPresets.tpl.chooseTranslations.name'), kinds: [kind], direction: `${back.key}:wybor`,
         graph: graphOf([self, word, source, trans, words, other, right, targets, targetsOnce, pool, wrong, pattern, prompt, answer, card], [
           edge(self, 'entities', trans, 'like'), edge(trans, 'entities', words, 'of'), edge(words, 'values', other, 'items'), edge(source, 'values', other, 'like'),
           edge(other, 'rest', right, 'items'), edge(other, 'rest', targets, 'of'), edge(targets, 'values', targetsOnce, 'items'), edge(targetsOnce, 'items', pool, 'like'),
@@ -446,14 +448,14 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       (angielski) → polski"), richtig ist jede Übersetzung in diese Sprache —
       aus allen Übersetzungen, in denen das Wort steht.
     */
-    id: 'translate-word', label: 'Słówka: przetłumacz słowo (każdy język osobno)',
-    says: 'Pokazuje słowo i pyta o jego tłumaczenie — osobna karta dla każdego języka, w którym ma tłumaczenia; poprawne są wszystkie tłumaczenia w tym języku.',
+    id: 'translate-word', get label() { return t('cogitaViewsPresets.tpl.translateWord.label'); },
+    get says() { return t('cogitaViewsPresets.tpl.translateWord.says'); },
     needs: ['field', 'second', 'back'], asks: WORD_ASKS,
     make: (kind, lang, text, more) => {
-      const t = text?.key ?? 'text';
+      const tk = text?.key ?? 'text';
       const back = more?.back ?? { kind: '', key: '' };
       const self = node('entity', 0, 0);
-      const word = node('field', 0, 150, { key: t });
+      const word = node('field', 0, 150, { key: tk });
       const source = node('field', 0, 300, { key: lang.key });
       const trans = node('entries', 230, 0, { kind: back.kind, key: back.key });
       const words = node('field', 460, 0, { key: back.key });
@@ -467,7 +469,7 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       const answer = node('answer.text', 1840, 150);
       const card = node('card', 2070, 75);
       return {
-        name: 'Przetłumacz słowo', kinds: [kind], direction: `${back.key}:wpisz`,
+        name: t('cogitaViewsPresets.tpl.translateWord.name'), kinds: [kind], direction: `${back.key}:wpisz`,
         graph: graphOf([self, word, source, trans, words, other, targets, targetsOnce, each, inTarget, pattern, prompt, answer, card], [
           edge(self, 'entities', trans, 'like'), edge(trans, 'entities', words, 'of'), edge(words, 'values', other, 'items'), edge(source, 'values', other, 'like'),
           edge(other, 'rest', targets, 'of'), edge(targets, 'values', targetsOnce, 'items'), edge(targetsOnce, 'items', each, 'items'),
@@ -479,7 +481,7 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
     }
   },
   {
-    id: 'gaps', label: 'Luki w cytacie', says: 'Dzieli tekst na kawałki i pyta o każdy — najpierw kawałki, potem całość.', needs: ['field'],
+    id: 'gaps', get label() { return t('cogitaViewsPresets.tpl.gaps.label'); }, get says() { return t('cogitaViewsPresets.tpl.gaps.says'); }, needs: ['field'],
     make: (kind, field) => {
       const text = node('field', 0, 0, { key: field.key });
       const fragments = node('fragments', 230, 0, { min: 7, max: 13 });
@@ -487,7 +489,7 @@ export const TEMPLATE_PRESETS: readonly TemplatePreset[] = [
       const answer = node('answer.gap', 690, 0);
       const card = node('card', 920, 0);
       return {
-        name: `Luki: ${field.label}`, kinds: [kind], direction: `${field.key}:luki`,
+        name: t('cogitaViewsPresets.tpl.gaps.name', { field: field.label }), kinds: [kind], direction: `${field.key}:luki`,
         graph: graphOf([text, fragments, each, answer, card], [
           edge(text, 'values', fragments, 'text'), edge(fragments, 'fragments', each, 'items'), edge(each, 'item', answer, 'fragment'),
           edge(answer, 'answer', card, 'answer')
@@ -555,27 +557,27 @@ const generalToDetail = (source: GraphNode) => chain([
 ]);
 
 export const REVISION_PRESETS: readonly RevisionPreset[] = [
-  { id: 'temporal', label: 'Według tego, co umiem', says: 'Najpierw to, na co przyszła pora (najsłabsze najpierw), potem nowe i zapomniane — od podstaw do szczegółów; gdy nic nie zostało, na zapas to, co umiesz najsłabiej; stos po 20.', make: (from) => ({ name: 'Powtórka codzienna', graph: basicsFirst(sourceOf(from), { mode: 'temporal', stackSize: 20, minCorrectness: 1 }) }) },
-  { id: 'random', label: '20 losowych', says: 'Dwadzieścia kart, każda raz.', make: (from) => ({ name: '20 losowych', graph: revisionGraph(sourceOf(from), { mode: 'random', count: 20, order: 'random' }) }) },
-  { id: 'once', label: 'Wszystko raz', says: 'Cały zbiór, każda karta raz — sprawdzian.', make: (from) => ({ name: 'Wszystko raz', graph: revisionGraph(sourceOf(from), { mode: 'once', order: 'random' }) }) },
-  { id: 'levels', label: 'Poziomy', says: 'Dobra odpowiedź podnosi kartę o poziom, zła wraca na pierwszy; koniec, gdy wszystko na górze.', make: (from) => ({ name: 'Poziomy', graph: revisionGraph(sourceOf(from), { mode: 'levels', levels: 5, stackSize: 10, minCorrectness: 1 }) }) },
+  { id: 'temporal', get label() { return t('cogitaViewsPresets.rev.temporal.label'); }, get says() { return t('cogitaViewsPresets.rev.temporal.says'); }, make: (from) => ({ name: t('cogitaViewsPresets.rev.temporal.name'), graph: basicsFirst(sourceOf(from), { mode: 'temporal', stackSize: 20, minCorrectness: 1 }) }) },
+  { id: 'random', get label() { return t('cogitaViewsPresets.rev.random.label'); }, get says() { return t('cogitaViewsPresets.rev.random.says'); }, make: (from) => ({ name: t('cogitaViewsPresets.rev.random.name'), graph: revisionGraph(sourceOf(from), { mode: 'random', count: 20, order: 'random' }) }) },
+  { id: 'once', get label() { return t('cogitaViewsPresets.rev.once.label'); }, get says() { return t('cogitaViewsPresets.rev.once.says'); }, make: (from) => ({ name: t('cogitaViewsPresets.rev.once.name'), graph: revisionGraph(sourceOf(from), { mode: 'once', order: 'random' }) }) },
+  { id: 'levels', get label() { return t('cogitaViewsPresets.rev.levels.label'); }, get says() { return t('cogitaViewsPresets.rev.levels.says'); }, make: (from) => ({ name: t('cogitaViewsPresets.rev.levels.name'), graph: revisionGraph(sourceOf(from), { mode: 'levels', levels: 5, stackSize: 10, minCorrectness: 1 }) }) },
   {
-    id: 'due', label: 'Tylko zaległe', says: 'Tylko karty, na które przyszła pora, według znajomości.',
+    id: 'due', get label() { return t('cogitaViewsPresets.rev.due.label'); }, get says() { return t('cogitaViewsPresets.rev.due.says'); },
     make: (from) => {
       const source = sourceOf(from);
       const filter = node('filter', 230, 0, { dueOnly: true });
       /* Nur das Fällige — danach ist Schluss, nicht „na zapas". */
       const s = node('strategy', 460, 0, { mode: 'temporal', stackSize: 30, endWhenDone: true });
-      return { name: 'Zaległe', graph: graphOf([source, filter, s], [edge(source, 'cards', filter, 'cards'), edge(filter, 'cards', s, 'cards')]) };
+      return { name: t('cogitaViewsPresets.rev.due.name'), graph: graphOf([source, filter, s], [edge(source, 'cards', filter, 'cards'), edge(filter, 'cards', s, 'cards')]) };
     }
   },
   {
-    id: 'gated', label: 'Najpierw podstawy', says: 'Karta wchodzi dopiero, gdy to, czego wymaga („Najpierw trzeba znać”), jest opanowane; brakujące podstawy dochodzą same. Złożone ze zwykłych kroków: „Idź po kolejności nauki”, „Filtr znajomości”, kolejność „najpierw ogólne”.',
-    make: (from) => ({ name: 'Od podstaw', graph: basicsFirst(sourceOf(from), { mode: 'temporal', stackSize: 20 }) })
+    id: 'gated', get label() { return t('cogitaViewsPresets.rev.gated.label'); }, get says() { return t('cogitaViewsPresets.rev.gated.says'); },
+    make: (from) => ({ name: t('cogitaViewsPresets.rev.gated.name'), graph: basicsFirst(sourceOf(from), { mode: 'temporal', stackSize: 20 }) })
   },
   {
-    id: 'general', label: 'Od ogólnego do szczegółu', says: 'Najpierw to, co najogólniejsze; wpis, który leży pod innym w strukturze (rok pod etapem, etap pod całym życiem), wchodzi, gdy tamten jest już znany. Złożone z „Filtra znajomości” i kolejności „najpierw ogólne”.',
-    make: (from) => ({ name: 'Od ogólnego do szczegółu', graph: generalToDetail(sourceOf(from)) })
+    id: 'general', get label() { return t('cogitaViewsPresets.rev.general.label'); }, get says() { return t('cogitaViewsPresets.rev.general.says'); },
+    make: (from) => ({ name: t('cogitaViewsPresets.rev.general.name'), graph: generalToDetail(sourceOf(from)) })
   }
 ];
 
@@ -588,29 +590,29 @@ export interface FlowPreset {
 
 export const FLOW_PRESETS: readonly FlowPreset[] = [
   {
-    id: 'story', label: 'Opowieść o osobie (szablon)', says: 'Przypomnienie, wpis osoby z miejsca {osoba}, pytanie, koniec — do użycia z różnymi osobami.',
+    id: 'story', get label() { return t('cogitaViewsPresets.flow.story.label'); }, get says() { return t('cogitaViewsPresets.flow.story.says'); },
     make: () => {
-      const open = node('opening', 0, 0, { title: 'Na początek', mode: 'recall' });
-      const show = node('show', 230, 0, { title: 'Kim był?', of: { slot: 'osoba' } });
-      const ask = node('question', 460, 0, { title: 'Sprawdź się' });
+      const open = node('opening', 0, 0, { title: t('cogitaViewsPresets.flow.story.opening'), mode: 'recall' });
+      const show = node('show', 230, 0, { title: t('cogitaViewsPresets.flow.story.show'), of: { slot: 'osoba' } });
+      const ask = node('question', 460, 0, { title: t('cogitaViewsPresets.flow.story.ask') });
       const end = node('end', 690, 0);
       return {
-        name: 'Opowieść o osobie', look: 'reading', start: open.id, slots: [{ id: 'osoba', label: 'Osoba', kind: 'person' }],
+        name: t('cogitaViewsPresets.flow.story.name'), look: 'reading', start: open.id, slots: [{ id: 'osoba', label: t('cogitaViewsPresets.flow.story.slot'), kind: 'person' }],
         graph: graphOf([open, show, ask, end], [edge(open, 'next', show, 'in'), edge(show, 'next', ask, 'in'), edge(ask, 'right', end, 'in'), edge(ask, 'wrong', show, 'in')])
       };
     }
   },
   {
-    id: 'chapters', label: 'Kurs z rozdziałami', says: 'Wybór rozdziału, w każdym treść i pytanie; kończy się, gdy wszystkie przerobione.',
+    id: 'chapters', get label() { return t('cogitaViewsPresets.flow.chapters.label'); }, get says() { return t('cogitaViewsPresets.flow.chapters.says'); },
     make: () => {
-      const hub = node('chapters', 0, 120, { title: 'Wybierz rozdział', chapters: [{ title: 'Rozdział 1' }, { title: 'Rozdział 2' }] });
-      const a = node('show', 260, 0, { title: 'Rozdział 1' });
+      const hub = node('chapters', 0, 120, { title: t('cogitaViewsPresets.flow.chapters.pick'), chapters: [{ title: t('cogitaViewsPresets.flow.chapters.chapter', { n: 1 }) }, { title: t('cogitaViewsPresets.flow.chapters.chapter', { n: 2 }) }] });
+      const a = node('show', 260, 0, { title: t('cogitaViewsPresets.flow.chapters.chapter', { n: 1 }) });
       const aEnd = node('chapterEnd', 490, 0);
-      const b = node('show', 260, 240, { title: 'Rozdział 2' });
+      const b = node('show', 260, 240, { title: t('cogitaViewsPresets.flow.chapters.chapter', { n: 2 }) });
       const bEnd = node('chapterEnd', 490, 240);
       const end = node('end', 260, 400);
       return {
-        name: 'Kurs', look: 'slides', start: hub.id,
+        name: t('cogitaViewsPresets.flow.chapters.name'), look: 'slides', start: hub.id,
         graph: graphOf([hub, a, aEnd, b, bEnd, end], [
           edge(hub, 'c0', a, 'in'), edge(a, 'next', aEnd, 'in'), edge(hub, 'c1', b, 'in'), edge(b, 'next', bEnd, 'in'), edge(hub, 'done', end, 'in')
         ])
@@ -618,15 +620,15 @@ export const FLOW_PRESETS: readonly FlowPreset[] = [
     }
   },
   {
-    id: 'dialogue', label: 'Rozmowa z postacią', says: 'Postać mówi, uczący się wybiera odpowiedź; wybór zmienia bliskość.',
+    id: 'dialogue', get label() { return t('cogitaViewsPresets.flow.dialogue.label'); }, get says() { return t('cogitaViewsPresets.flow.dialogue.says'); },
     make: () => {
       const line = node('line', 0, 0, {});
-      const choice = node('choice', 230, 0, { title: 'Co odpowiesz?', options: [{ label: 'Zgadzam się', actions: [{ type: 'add', value: 'bliskość', by: 1 }] }, { label: 'Nie wiem', actions: [] }] });
+      const choice = node('choice', 230, 0, { title: t('cogitaViewsPresets.flow.dialogue.question'), options: [{ label: t('cogitaViewsPresets.flow.dialogue.agree'), actions: [{ type: 'add', value: t('cogitaViewsPresets.flow.dialogue.closeness'), by: 1 }] }, { label: t('cogitaViewsPresets.flow.dialogue.dontKnow'), actions: [] }] });
       const yes = node('line', 460, -60, {});
       const no = node('line', 460, 80, {});
       const end = node('end', 690, 0);
       return {
-        name: 'Rozmowa', look: 'dialogue', start: line.id,
+        name: t('cogitaViewsPresets.flow.dialogue.name'), look: 'dialogue', start: line.id,
         graph: graphOf([line, choice, yes, no, end], [edge(line, 'next', choice, 'in'), edge(choice, 'o0', yes, 'in'), edge(choice, 'o1', no, 'in'), edge(yes, 'next', end, 'in'), edge(no, 'next', end, 'in')])
       };
     }

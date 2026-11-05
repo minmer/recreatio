@@ -4,6 +4,7 @@
  * ob DIESES Telefon die Timer ausführt, der nächste Wecker, die letzten Läufe.
  */
 
+import { useT } from '../core/i18n';
 import { Icon } from '../ui/icons';
 import { timerPath, timerTitle, timeText, type Lamp, type LampTimer } from './lampStore';
 import type { TimerStatus } from './native';
@@ -19,50 +20,51 @@ export function TimerList({ lamps, timers, native, status, busy, onEnabled, onPh
   onEnabled: (timer: LampTimer, enabled: boolean) => void;
   onPhone: (on: boolean) => void;
 }) {
+  const t = useT();
   const now = Date.now();
 
   return (
-    <section className="wk-box lp-timers" aria-label="Timery">
+    <section className="wk-box lp-timers" aria-label={t('lamps.timers.title')}>
       <div className="wk-box-head">
-        <h2 className="wk-box-title">Timery</h2>
-        <a className="wk-btn wk-btn-small wk-btn-quiet lp-head-end" href={timerPath()}><Icon name="plus" />Timer</a>
+        <h2 className="wk-box-title">{t('lamps.timers.title')}</h2>
+        <a className="wk-btn wk-btn-small wk-btn-quiet lp-head-end" href={timerPath()}><Icon name="plus" />{t('lamps.timers.timer')}</a>
       </div>
       <div className="wk-box-body">
         {native && status !== null && (
           <div className="lp-phone-timers">
             <label className="lp-inline">
               <input type="checkbox" checked={status.on} disabled={busy} onChange={(e) => onPhone(e.target.checked)} />
-              <span>Ten telefon wykonuje timery</span>
+              <span>{t('lamps.timers.thisPhone')}</span>
             </label>
             <span className="lp-facts">
               {!status.on
-                ? 'Wyłączone — timery wykona telefon, na którym są włączone.'
+                ? t('lamps.timers.phoneOff')
                 : status.next !== null
-                  ? `Najbliżej: ${whenText(status.next.at, now)} · ${status.next.names.join(', ')}`
-                  : 'Nic nie jest zaplanowane.'}
+                  ? t('lamps.timers.nextAt', { when: whenText(status.next.at, now), names: status.next.names.join(', ') })
+                  : t('lamps.timers.nothingPlanned')}
             </span>
-            {status.on && !status.exact && <p className="wk-note">Android nie pozwala tu na dokładne budziki — timer może się spóźnić o kilka minut.</p>}
+            {status.on && !status.exact && <p className="wk-note">{t('lamps.timers.inexact')}</p>}
           </div>
         )}
-        {!native && <p className="wk-working">Timery wykonuje telefon z aplikacją REcreatio (wydanie sms), na którym są włączone — także przy zamkniętej aplikacji.</p>}
+        {!native && <p className="wk-working">{t('lamps.timers.webNote')}</p>}
 
         {timers.length === 0
-          ? <p className="wk-empty">Brak timerów — np. o 7:00 włącz lampę w sypialni, o 23:00 wyłącz wszystkie.</p>
+          ? <p className="wk-empty">{t('lamps.timers.empty')}</p>
           : (
             <ul className="lp-timer-list">
-              {timers.map((t) => {
-                const next = nextRun(t, now);
+              {timers.map((one) => {
+                const next = nextRun(one, now);
                 return (
-                  <li key={t.id} className="lp-timer">
-                    <input type="checkbox" aria-label={`Włączony: ${timerTitle(t)}`} checked={t.enabled} disabled={busy}
-                      onChange={(e) => onEnabled(t, e.target.checked)} />
-                    <a className="lp-timer-link" href={timerPath(t.id)}>
-                      <span className="lp-timer-time">{timeText(t.minute)}</span>
+                  <li key={one.id} className="lp-timer">
+                    <input type="checkbox" aria-label={t('lamps.timers.enabledFor', { name: timerTitle(one) })} checked={one.enabled} disabled={busy}
+                      onChange={(e) => onEnabled(one, e.target.checked)} />
+                    <a className="lp-timer-link" href={timerPath(one.id)}>
+                      <span className="lp-timer-time">{timeText(one.minute)}</span>
                       <span className="lp-timer-text">
-                        <span className="lp-timer-name">{t.name.trim() || 'Timer'} · {daysText(t.days)}</span>
-                        <span className="lp-facts">{actionsText(t, lamps) || 'bez akcji'}</span>
-                        {paceSummary(t.pace) !== null && <span className="lp-facts">tempo: {paceSummary(t.pace)}</span>}
-                        <span className="lp-facts">{t.enabled ? (next !== null ? `następnie ${whenText(next, now)}` : '') : 'wyłączony'}</span>
+                        <span className="lp-timer-name">{one.name.trim() || t('lamps.timers.timer')} · {daysText(one.days)}</span>
+                        <span className="lp-facts">{actionsText(one, lamps) || t('lamps.timers.noActions')}</span>
+                        {paceSummary(one.pace) !== null && <span className="lp-facts">{t('lamps.timers.pace', { pace: paceSummary(one.pace) ?? '' })}</span>}
+                        <span className="lp-facts">{one.enabled ? (next !== null ? t('lamps.timers.then', { when: whenText(next, now) }) : '') : t('lamps.timers.off')}</span>
                       </span>
                       <Icon name="next" />
                     </a>
@@ -74,12 +76,12 @@ export function TimerList({ lamps, timers, native, status, busy, onEnabled, onPh
 
         {native && status !== null && status.log.length > 0 && (
           <details className="lp-older">
-            <summary>Ostatnie uruchomienia ({status.log.length})</summary>
+            <summary>{t('lamps.timers.log', { count: status.log.length })}</summary>
             <ul className="lp-run-log">
               {status.log.map((r) => (
                 <li key={`${r.at}-${r.timerId}`}>
-                  <span className="lp-time">{stampText(r.at)}</span> {r.name} · {r.ok === r.total ? `nadano ${r.total}` : `nadano ${r.ok} z ${r.total}`}
-                  {r.ranAt - r.at > 120_000 && <span className="lp-facts">uruchomiony o {stampText(r.ranAt)}</span>}
+                  <span className="lp-time">{stampText(r.at)}</span> {r.name} · {r.ok === r.total ? t('lamps.timers.sentAll', { total: r.total }) : t('lamps.timers.sentSome', { ok: r.ok, total: r.total })}
+                  {r.ranAt - r.at > 120_000 && <span className="lp-facts">{t('lamps.timers.ranAt', { time: stampText(r.ranAt) })}</span>}
                   {r.failed.map((f) => <span key={f.label} className="lp-facts wk-error">{f.label}: {f.code}{f.detail !== null ? ` (${f.detail})` : ''}</span>)}
                 </li>
               ))}

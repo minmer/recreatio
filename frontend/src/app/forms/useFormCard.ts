@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AccountWay } from '../areas/areaRead';
 import type { Ring } from '../core/keys';
 import { keysFor } from '../core/ringOf';
+import { t } from '../core/i18n';
 import { WorkspaceError, whoIsThere } from '../core/session';
 import { usePerson } from '../pages/pagePerson';
 import type { Link } from '../seats/seat';
@@ -148,7 +149,7 @@ export function useFormCard(props: FormCardProps) {
       }
     } catch (e) {
       setForm(null);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać formularza.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('forms.errors.loadFailed'));
     }
   }, [partId]);
 

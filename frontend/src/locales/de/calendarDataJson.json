@@ -1,0 +1,392 @@
+{
+  "kind": {
+    "appointment": "Termin",
+    "task": "Aufgabe",
+    "mass": "Messe",
+    "confession": "Beichte",
+    "visit": "Besuch",
+    "devotion": "Andacht"
+  },
+  "export": {
+    "unreadable": "„{label}“ ({day}): einige Felder sind mit einem Schlüssel verschlüsselt, den du nicht hast — im Export ohne sie.",
+    "noScheme": "„{label}“ ({day}): das Schema dieses Termins lässt sich nicht lesen — Werte ohne Beschreibung.",
+    "tooManyDays": {
+      "one": "„{label}“: {count} besonderer Tag — im Export die ersten {max} (wähle einen kürzeren Zeitraum, um den Rest zu sehen).",
+      "other": "„{label}“: {count} besondere Tage — im Export die ersten {max} (wähle einen kürzeren Zeitraum, um den Rest zu sehen)."
+    }
+  },
+  "doc": {
+    "notObject": "Das sind keine Termine eines Kalenders (erwartet war ein JSON-Objekt).",
+    "otherFormat": "Das sind keine Termine eines Kalenders („format“: {format}) — erwartet war \"{expected}\".",
+    "noAppointments": "Die Liste \"appointments\" fehlt.",
+    "notCalendar": "Das sind keine Termine eines Kalenders.",
+    "unknownKey": "Unbekannter Schlüssel \"{key}\" — übersprungen.",
+    "version": "\"version\": {given} — diese App liest Version {version}.",
+    "calendarObject": "\"calendar\" ist ein Objekt {\"id\",\"title\",\"kind\"} — übersprungen.",
+    "foreign": "Ein Dokument aus einem anderen Kalender — seine Termine werden hier neu angelegt; \"remove\" und \"parent\" mit einer Kennung werden übersprungen.",
+    "foreignNamed": "Ein Dokument aus einem anderen Kalender („{title}“) — seine Termine werden hier neu angelegt; \"remove\" und \"parent\" mit einer Kennung werden übersprungen."
+  },
+  "value": {
+    "notText": "der Wert des Feldes „{field}“ ist ein Text — übersprungen.",
+    "notInList": "„{text}“ steht nicht in der Liste des Feldes „{field}“ ({options}) — übersprungen.",
+    "number": "das Feld „{field}“ ist eine Zahl — „{text}“ übersprungen.",
+    "bool": "das Feld „{field}“ ist \"tak\" (ja) oder \"nie\" (nein) — „{text}“ übersprungen.",
+    "date": "das Feld „{field}“ ist ein Tag \"JJJJ-MM-TT\" — „{text}“ übersprungen.",
+    "time": "das Feld „{field}“ ist eine Uhrzeit \"HH:MM\" — „{text}“ übersprungen.",
+    "link": "das Feld „{field}“ ist ein Link https://… oder #/… — „{text}“ übersprungen.",
+    "tooLong": "der Wert des Feldes „{field}“ hat mehr als {limit} Zeichen — gekürzt."
+  },
+  "weekdays": {
+    "notList": "\"weekdays\" ist eine Liste von Tagen ({days}) — unverändert.",
+    "unknown": "Tag „{day}“ — die Tage sind {days} (oder 1–7).",
+    "none": "\"weekdays\" ohne einen Tag — unverändert."
+  },
+  "when": {
+    "allDay": "{day} (ganztägig)",
+    "allDays": "{from} – {to} (ganztägig)",
+    "every": ", alle {every}",
+    "times": {
+      "one": ", {count}-mal",
+      "other": ", {count}-mal"
+    },
+    "until": " bis {day}",
+    "endless": ", ohne Ende"
+  },
+  "plan": {
+    "notObject": "{at}: kein Objekt — übersprungen.",
+    "pointsList": "{at}: \"points\" ist eine Liste — übersprungen.",
+    "tooDeepPoints": "{at}: Programm tiefer als {max} Ebenen — weitere Punkte übersprungen.",
+    "overflow": "Höchstens {max} Termine (mit Punkten) in einem Dokument — {count} übersprungen.",
+    "unknownKey": "{at}: unbekannter Schlüssel \"{key}\" — übersprungen.",
+    "idBad": "{at}: \"id\" ist eine Kennung aus einem Export — übersprungen.",
+    "idTwice": "{at}: dieselbe \"id\" ein zweites Mal — übersprungen.",
+    "idMissing": "{at}: in diesem Kalender gibt es keinen Termin mit dieser \"id\" — übersprungen (ohne \"id\" wird er neu angelegt).",
+    "keyBad": "{at}: \"key\" ist ein kurzer Name (Buchstaben, Ziffern, - und _) — übersprungen.",
+    "keyTwice": "{at}: \"key\" „{key}“ gibt es schon — übersprungen.",
+    "removeBad": "{at}: \"remove\" ist true — übersprungen.",
+    "removeNoId": "{at}: \"remove\" wirkt nur mit einer \"id\" aus einem Export — übersprungen.",
+    "parentInside": "{at}: ein Punkt gehört zu dem Termin, unter dem er steht — \"parent\" übersprungen.",
+    "parentNoKey": "{at}: \"parent\" {parent} — es gibt keinen Termin mit diesem \"key\"; unverändert.",
+    "parentSelf": "{at}: ein Termin kann kein Punkt seiner selbst sein — \"parent\" übersprungen.",
+    "parentBad": "{at}: \"parent\" ist der \"@key\" eines Termins aus dem Dokument, die \"id\" eines Termins oder null — unverändert.",
+    "parentCircle": "{at}: \"parent\" bildet einen Kreis — übersprungen."
+  },
+  "item": {
+    "underRemoved": "steht unter einem Termin, der gelöscht wird — verschwindet mit ihm; übersprungen.",
+    "parentSkipped": "der übergeordnete Termin ist übersprungen — dieser Punkt auch.",
+    "tooDeep": "Programm tiefer als {max} Ebenen — übersprungen.",
+    "kindBadNew": "\"kind\" ist {kinds} — die Art des Kalenders.",
+    "kindBad": "\"kind\" ist {kinds} — unverändert.",
+    "schemeMissingNew": "das Schema „{scheme}“ gibt es in diesem Kalender nicht — das vorgegebene Schema.",
+    "schemeMissing": "das Schema „{scheme}“ gibt es in diesem Kalender nicht — unverändert.",
+    "schemeBad": "\"scheme\" ist der Name oder die \"id\" eines Schemas (null — universell) — unverändert.",
+    "kindNotInScheme": "die Art „{kind}“ passt nicht zum Schema „{scheme}“ — „{next}“.",
+    "personalLiturgy": "im privaten Kalender gibt es keine Messen und Andachten — Art „appointment“.",
+    "textBadNew": "\"{field}\" ist ein Text — übersprungen.",
+    "textBad": "\"{field}\" ist ein Text — unverändert.",
+    "textLong": "\"{field}\" hat mehr als {limit} Zeichen — gekürzt.",
+    "noTitle": "Termin ohne \"title\" — übersprungen.",
+    "titleEmpty": "\"title\" darf nicht leer sein — unverändert.",
+    "linkBad": "\"link\" beginnt mit https:// (oder #/ für eine Seite auf recreatio.pl) — unverändert.",
+    "startBad": "\"start\" ist \"JJJJ-MM-TTTHH:MM\" oder \"JJJJ-MM-TT\" — unverändert.",
+    "startBadPoint": "\"start\" ist \"JJJJ-MM-TTTHH:MM\" oder \"JJJJ-MM-TT\" (in einem Punkt auch \"HH:MM\") — unverändert.",
+    "startBadNew": "\"start\" ist \"JJJJ-MM-TTTHH:MM\" oder \"JJJJ-MM-TT\" — übersprungen.",
+    "startBadPointNew": "\"start\" ist \"JJJJ-MM-TTTHH:MM\" oder \"JJJJ-MM-TT\" (in einem Punkt auch \"HH:MM\") — übersprungen.",
+    "noStart": "Termin ohne \"start\" — übersprungen.",
+    "allDayBad": "\"allDay\" ist true oder false — übersprungen.",
+    "allDayNoClock": "\"allDay\": false braucht eine Uhrzeit in \"start\" — ganztägig.",
+    "endAllDayBad": "\"end\" ist bei einem ganztägigen Termin der letzte Tag \"JJJJ-MM-TT\" — Dauer unverändert.",
+    "endBeforeStart": "\"end\" vor \"start\" — ein Tag.",
+    "allDayTooLong": "ein ganztägiger Termin dauert höchstens {max} Tage — gekürzt.",
+    "endUnreadable": "unlesbares \"end\" — Dauer unverändert.",
+    "endNotAfter": "\"end\" liegt nicht nach \"start\" — Dauer unverändert.",
+    "tooLong": "ein Termin dauert höchstens 14 Tage — gekürzt.",
+    "repeatBad": "\"repeat\" ist {kinds} — unverändert.",
+    "everyBad": "\"every\" ist eine Zahl 1–{max} — unverändert.",
+    "weekdaysNotWeekly": "\"weekdays\" nur bei \"repeat\": \"weekly\" — übersprungen.",
+    "untilBad": "\"until\" ist der letzte Tag \"JJJJ-MM-TT\" (null — ohne Ende) — unverändert.",
+    "untilBeforeStart": "\"until\" vor \"start\" — unverändert.",
+    "countBad": "\"count\" ist eine Zahl 1–{max} — unverändert.",
+    "untilOrCount": "\"until\" oder \"count\" — es gilt \"until\".",
+    "noBooking": "dieser Kalender hat keine Reservierungen — \"{key}\" übersprungen.",
+    "bookableBad": "\"bookable\" ist true, false oder null — unverändert.",
+    "capacityBad": "\"capacity\" ist eine Zahl 1–{max} (null — wie der Kalender) — unverändert.",
+    "valuesBad": "\"values\" ist ein Objekt {\"Feldschlüssel\": \"Text\"} — unverändert.",
+    "valuesNoScheme": "das Schema dieses Termins lässt sich nicht lesen — \"values\" unverändert.",
+    "noField": "das Schema „{scheme}“ hat kein Feld „{key}“ — übersprungen.",
+    "dayField": "„{key}“ ist ein Feld eines einzelnen Tages — trage es in \"occurrences\" ein; übersprungen.",
+    "fieldOnlyKinds": "das Feld „{key}“ gibt es nur bei den Arten {kinds} — übersprungen.",
+    "valuesIncomplete": "nicht alle Werte dieses Termins lassen sich lesen — \"values\" unverändert.",
+    "requiredNew": "das Pflichtfeld {fields} hat keinen Wert (\"values\") — übersprungen.",
+    "required": "das Pflichtfeld {fields} hat keinen Wert — Änderungen übersprungen.",
+    "unreadable": "einige Felder dieses Termins sind mit einem Schlüssel verschlüsselt, den du nicht hast — Änderungen übersprungen (Speichern würde sie löschen).",
+    "retimed": "eine neue Zeit der Reihe ändert alle ihre Tage; abgesagte und verlegte Tage, die nicht in \"occurrences\" stehen, kehren in die Reihe zurück.",
+    "retimedPast": "eine neue Zeit der Reihe ändert alle ihre Tage, auch die vergangenen; abgesagte und verlegte Tage, die nicht in \"occurrences\" stehen, kehren in die Reihe zurück."
+  },
+  "change": {
+    "kind": "Art",
+    "title": "Titel",
+    "location": "Ort",
+    "notes": "Notiz",
+    "link": "Link",
+    "linkLabel": "Linktext",
+    "time": "Zeit",
+    "repeat": "Wiederholung",
+    "booking": "Reservierungen",
+    "scheme": "Schema",
+    "values": "Werte",
+    "program": "Programm"
+  },
+  "day": {
+    "notList": "\"occurrences\" ist eine Liste — übersprungen.",
+    "tooMany": "höchstens {max} Tage in \"occurrences\" — der Rest übersprungen.",
+    "dateBad": "{at}: \"date\" ist ein Tag der Reihe \"JJJJ-MM-TT\" — übersprungen.",
+    "twice": "{at}: Tag {day} ein zweites Mal — übersprungen.",
+    "notRepeating": "{at}: {day} — der Termin wiederholt sich nicht, sein Tag ist {first}; übersprungen.",
+    "outside": "{at}: {day} — außerhalb der Reihe; übersprungen.",
+    "notInSeries": "{at}: {day} ist kein Tag dieser Reihe — übersprungen.",
+    "cancelledBad": "{at}: \"cancelled\" ist true oder false — übersprungen.",
+    "startBad": "{at}: \"start\" ist \"JJJJ-MM-TTTHH:MM\" oder \"HH:MM\" — übersprungen.",
+    "cancelledStart": "{at}: ein abgesagter Tag hat keinen neuen \"start\" — übersprungen.",
+    "wholeField": "{at}: „{key}“ ist ein Feld des ganzen Termins — trage es in \"values\" des Termins ein; übersprungen.",
+    "noDayField": "{at}: das Schema „{scheme}“ hat kein Tagesfeld „{key}“ — übersprungen.",
+    "cancelledValues": "{at}: die Werte eines abgesagten Tages bleiben, wie sie sind (hol ihn zuerst zurück) — \"values\" unverändert.",
+    "valuesIncomplete": "{at}: nicht alle Werte dieses Tages lassen sich lesen — \"values\" unverändert."
+  },
+  "preview": {
+    "new": "Neu: „{label}“ — {when}",
+    "newPoint": "Neu: „{label}“ — {when} · Programmpunkt von „{under}“",
+    "changed": "Änderung: „{label}“ — {changes}",
+    "cancelled": {
+      "one": "abgesagt {count}",
+      "other": "abgesagt {count}"
+    },
+    "restored": {
+      "one": "zurückgeholt {count}",
+      "other": "zurückgeholt {count}"
+    },
+    "moved": {
+      "one": "verlegt {count}",
+      "other": "verlegt {count}"
+    },
+    "dayValues": {
+      "one": "Tageswerte {count}",
+      "other": "Tageswerte {count}"
+    },
+    "days": "Tage der Reihe „{label}“: {parts}",
+    "remove": "Löschen: „{label}“ — der ganze Termin",
+    "removeWithPoints": "Löschen: „{label}“ — der ganze Termin samt Programmpunkten ({count})",
+    "moreNew": {
+      "one": "… und noch {count} neuer.",
+      "other": "… und noch {count} neue."
+    },
+    "moreChanged": {
+      "one": "… und noch {count} Änderung.",
+      "other": "… und noch {count} Änderungen."
+    },
+    "moreDays": {
+      "one": "… und noch {count} Termin mit geänderten Tagen.",
+      "other": "… und noch {count} Termine mit geänderten Tagen."
+    },
+    "none": "Keine Änderungen — die Termine im Kalender sind wie im Dokument.",
+    "total": "Insgesamt: neu {created}, geändert {changed}, gelöscht {removed}, unverändert {unchanged}.",
+    "totalDays": "Insgesamt: neu {created}, geändert {changed}, gelöscht {removed}, unverändert {unchanged}, Tage der Reihe {days}."
+  },
+  "keys": {
+    "doc": {
+      "format": "immer \"{format}\"",
+      "version": "Version des Formats: {version}",
+      "calendar": "der Kalender, aus dem der Export stammt (unten) — nur zur Information; an der \"id\" erkennt der Import ein Dokument aus einem anderen Kalender",
+      "range": "die Tage, die der Export umfasste (unten) — nur zur Information; in ihnen sucht der Import die Termine mit \"id\"",
+      "schemes": "die Terminschemata dieses Kalenders zum Nachsehen (unten) — welche \"values\" die Termine haben können; der Import ändert sie nicht (Schemata ändert man unter „Terminschemata“)",
+      "appointments": "Termine (unten) — erforderlich"
+    },
+    "calendar": {
+      "id": "Kennung des Kalenders",
+      "title": "Name des Kalenders",
+      "kind": "die Art seiner Termine: {kinds}"
+    },
+    "range": {
+      "from": "erster Tag des Exports \"JJJJ-MM-TT\"",
+      "to": "letzter Tag des Exports \"JJJJ-MM-TT\""
+    },
+    "schemes": {
+      "id": "Kennung des Schemas — für \"scheme\" eines Termins",
+      "name": "Name des Schemas — für \"scheme\" eines Termins (wenn eindeutig)",
+      "kind": "die Art der Termine dieses Schemas",
+      "kinds": "die Arten zur Wahl bei einem Termin dieses Schemas",
+      "fields": "die Felder des Schemas — die Schlüssel von \"values\" eines Termins (\"level\": \"day\" — Schlüssel von \"values\" eines Tages in \"occurrences\"); das Feld ist unten beschrieben"
+    },
+    "appointment": {
+      "id": "Kennung des Termins aus einem Export — der Termin wird geändert; ohne \"id\" — ein neuer Termin",
+      "key": "ein kurzer Name (Buchstaben, Ziffern, - und _) für Verweise \"@key\" in diesem Dokument (\"parent\")",
+      "remove": "true — diesen Termin löschen (die ganze Reihe, samt ihren Programmpunkten); nur mit \"id\"; ein Termin mit angenommenen Intentionen, Einträgen oder Reservierungen bleibt (der Import sagt es)",
+      "kind": "Art: {kinds}; fehlt sie bei einem neuen: die Art des Schemas oder des Kalenders",
+      "title": "Titel (bis {max} Zeichen); bei einem neuen Termin erforderlich — außer bei Messe, Beichte und Andacht: ihr Name ist öffentlich (Messplan, Aushang), und ohne ihn steht nur die Art da („Messe“)",
+      "start": "Beginn: \"JJJJ-MM-TTTHH:MM\", oder \"JJJJ-MM-TT\" — ganztägig; in einem Programmpunkt auch \"HH:MM\" (am Tag des übergeordneten Termins); ein neuer Punkt ohne \"start\" beginnt mit dem übergeordneten Termin",
+      "end": "Ende: \"HH:MM\" (am selben Tag) oder \"JJJJ-MM-TTTHH:MM\"; ganztägig der letzte Tag \"JJJJ-MM-TT\"; fehlt es: ein neuer dauert so lange, wie der Kalender sagt (ganztägig — einen Tag), ein geänderter behält seine Dauer; höchstens 14 Tage (ganztägig: 60 Tage)",
+      "allDay": "true — ganztägig (dasselbe bewirkt \"start\" ohne Uhrzeit)",
+      "location": "Ort (bis {max} Zeichen)",
+      "notes": "Notiz (bis {max} Zeichen)",
+      "link": "„Mehr Informationen“: \"https://…\" oder \"#/adresse\" einer Seite auf recreatio.pl",
+      "linkLabel": "Text auf dem Linkknopf (bis {max} Zeichen)",
+      "repeat": "Wiederholung: {kinds}",
+      "every": "wie oft (1–{max}): alle 2 Wochen = \"repeat\": \"weekly\" und \"every\": 2",
+      "weekdays": "bei \"weekly\": Tage {days} (oder Zahlen 1–7, 1 = Montag); fehlt es: der Tag von \"start\"",
+      "until": "letzter Tag der Reihe \"JJJJ-MM-TT\"; null — ohne Ende; fehlt es bei einer neuen Reihe: ohne Ende",
+      "count": "statt \"until\": wie oft (1–{max})",
+      "bookable": "true / false — ob dieser Termin reserviert werden kann (nur in einem Kalender mit Reservierungen); null — wie der Kalender",
+      "capacity": "Plätze für diesen Termin (1–{max}); null — wie der Kalender",
+      "scheme": "das Schema des Termins: \"name\" oder \"id\" aus \"schemes\"; null — universell (der Export eines Kalenders mit Schemata schreibt null bei Terminen ohne Schema); fehlt es bei einem neuen Termin: das Schema seiner Art, wenn der Kalender genau eines hat, sonst universell; ein neuer Programmpunkt — universell",
+      "values": "Werte der Schemafelder des ganzen Termins: {\"Feldschlüssel\": \"Text\"}; \"\" oder null leert das Feld; fehlt es — unverändert",
+      "occurrences": "ausgewählte Tage der Reihe (unten): abgesagt, verlegt, mit Werten der Tagesfelder",
+      "points": "Programmpunkte: Termine unter diesem Termin, in dieser Reihenfolge — mit denselben Schlüsseln",
+      "parent": "der übergeordnete Termin eines Termins in \"appointments\": \"@key\" eines Termins aus diesem Dokument oder \"id\" eines Termins außerhalb; null — vom Programm lösen; fehlt es — unverändert"
+    },
+    "occurrence": {
+      "date": "Tag der Reihe \"JJJJ-MM-TT\" — der, auf den er nach der Reihe fällt (auch wenn er verlegt ist); erforderlich",
+      "cancelled": "true — diesen Tag absagen (eine Messe mit angenommenen Intentionen oder ein Termin mit Einträgen bleibt — der Import sagt es); false — ihn in die Reihe zurückholen (weder abgesagt noch verlegt)",
+      "start": "diesen Tag verlegen: \"JJJJ-MM-TTTHH:MM\" oder \"HH:MM\" (an diesem Tag); die Dauer bleibt",
+      "values": "Werte der Schemafelder dieses Tages (\"level\": \"day\"): {\"Feldschlüssel\": \"Text\"}; \"\" oder null leert das Feld; fehlt es — unverändert"
+    }
+  },
+  "sample": {
+    "lessons": {
+      "calendar": "Klasse 4b",
+      "maths": "Mathematik",
+      "room12": "Raum 12",
+      "religion": "Religion",
+      "room5": "Raum 5",
+      "teachersDay": "Tag der Lehrer",
+      "teachersDayNotes": "Kein Unterricht — Feier um 10:00 in der Aula."
+    },
+    "program": {
+      "title": "Adventsexerzitien — Tag 1",
+      "church": "Pfarrkirche",
+      "linkLabel": "Programm und Anmeldung",
+      "youth": "Vortrag für Jugendliche",
+      "mass": "Heilige Messe mit Predigt",
+      "confession": "Beichte",
+      "chapel": "Kapelle",
+      "agape": "Agape"
+    },
+    "parishHall": "Pfarrsaal",
+    "masses": {
+      "calendar": "Messen der Pfarrei",
+      "scheme": "Messe",
+      "celebrant": "Zelebrant",
+      "colour": "Farbe der Gewänder",
+      "evening": "Abendmesse",
+      "pastor": "Pfarrer",
+      "rosary": "Rosenkranz",
+      "meeting": "Treffen mit den Firmbewerbern"
+    },
+    "update": {
+      "calendarId": "…Kennung des Kalenders aus dem Export…",
+      "idA": "…Kennung von Termin A…",
+      "idB": "…Kennung von Termin B…",
+      "idC": "…Kennung der Reihe C…",
+      "bigHall": "Großer Saal",
+      "christmas": "Weihnachtstreffen"
+    }
+  },
+  "page": {
+    "calendarsAlone": "\"calendars\" ohne \"appointments\" — es gibt nichts, was in einen Kalender käme.",
+    "appointmentsNotList": "\"appointments\" ist keine Liste — übersprungen.",
+    "entryKeyBad": "\"calendars\"[{at}]: \"key\" ist ein kurzer Name (Buchstaben, Ziffern, - und _) — übersprungen.",
+    "entryTwice": "Kalender „{key}“ kommt doppelt vor — es gilt der erste.",
+    "calendarsNotList": "\"calendars\" ist keine Liste — übersprungen.",
+    "noTitle": "{where}: Termin ohne \"title\" — übersprungen.",
+    "overflow": "Höchstens {max} Termine (mit Punkten) in einem Dokument — der Rest übersprungen.",
+    "startBad": "{where} „{title}“: \"start\" ist \"JJJJ-MM-TTTHH:MM\" oder \"JJJJ-MM-TT\" — übersprungen.",
+    "startBadPoint": "{where} „{title}“: \"start\" ist \"JJJJ-MM-TTTHH:MM\" oder \"JJJJ-MM-TT\" (in einem Punkt auch \"HH:MM\") — übersprungen.",
+    "endBefore": "{where} „{title}“: \"end\" vor \"start\" — ein Tag.",
+    "endUnreadable": "{where} „{title}“: unlesbares \"end\" — eine Stunde.",
+    "endNotAfter": "{where} „{title}“: \"end\" liegt nicht nach \"start\" — eine Stunde.",
+    "keyBad": "{where} „{title}“: \"key\" ist ein kurzer Name (Buchstaben, Ziffern, - und _) — ohne Namen.",
+    "keyTwice": "{where} „{title}“: \"key\" „{key}“ gibt es schon — ohne Namen.",
+    "calendarBad": "{where} „{title}“: \"calendar\" ist der Name eines Eingangs aus \"calendars\" — nach „{entry}“.",
+    "pointCalendar": "{where} „{title}“: ein Punkt geht in den Kalender seines Termins — \"calendar\" übersprungen.",
+    "pointRepeat": "{where} „{title}“: ein Programmpunkt wiederholt sich nicht — \"repeat\" übersprungen.",
+    "repeatBad": "{where} „{title}“: \"repeat\" ist \"none\", \"daily\", \"weekly\", \"monthly\" oder \"yearly\" — ohne Wiederholung.",
+    "weekdayBad": "{where} „{title}“: Tag „{day}“ — die Tage sind {days}.",
+    "untilBad": "{where} „{title}“: \"until\" ist \"JJJJ-MM-TT\" — ohne Ende.",
+    "pointsNotList": "{where} „{title}“: \"points\" ist eine Liste — übersprungen.",
+    "tooDeep": "{where} „{title}“: Programm tiefer als {max} Ebenen — weitere Unterpunkte übersprungen.",
+    "defaultEntry": "Kalender",
+    "entryUnused": "Kalender „{key}“ aus \"calendars\" hat keinen Termin.",
+    "keyClash": "„{key}“ ist der Name eines Termins und eines Kalenders — „@{key}“ zeigt auf den Termin.",
+    "summary": "Termine für den Kalender: {top} — {where}. Jeder Import legt sie neu an.",
+    "summaryPoints": "Termine für den Kalender: {top} (mit Programmpunkten: {points}) — {where}. Jeder Import legt sie neu an.",
+    "noCalendar": "Termine „{label}“ übersprungen — kein Kalender gewählt.",
+    "stage": "Kalender: „{title}“…",
+    "notSaved": "„{title}“ kam nicht in den Kalender: {reason}.",
+    "notSavedProgram": "„{title}“ kam nicht in den Kalender: {reason} (samt Programm)."
+  },
+  "run": {
+    "failed": "es hat nicht geklappt",
+    "rangeBad": "Gib den Zeitraum des Exports an: einen Tag „von“ und einen Tag „bis“ (nicht vor „von“).",
+    "rangeLong": "Der Zeitraum des Exports ist höchstens {max} Jahre — wähle einen kürzeren oder „alles“.",
+    "stageItems": "Termine: {n} von {total} — „{label}“…",
+    "noParent": "„{label}“ — sein übergeordneter Termin ist nicht entstanden; übersprungen.",
+    "notAdded": "„{label}“ — nicht angelegt: {reason}.",
+    "notChanged": "„{label}“ — nicht geändert: {reason}.",
+    "stageSearch": "Tage der Reihen — Suche im Kalender…",
+    "daysFrom": "Tage der Reihen ab {day}: {reason}.",
+    "noDay": "„{label}“: den Tag {day} gibt es in der Reihe nicht — übersprungen.",
+    "stageDays": "Tage der Reihen: {n} von {total}…",
+    "noKey": "Du hast den Schlüssel dieses Bereichs nicht — hier lässt sich nicht speichern.",
+    "dayFailed": "„{label}“, {day}: {reason}.",
+    "stageRemove": "Löschen: {n} von {total} — „{label}“…",
+    "notRemoved": "„{label}“ — nicht gelöscht: {reason}.",
+    "created": {
+      "one": "Neue Termine: {count}.",
+      "other": "Neue Termine: {count}."
+    },
+    "changed": {
+      "one": "Geänderte Termine: {count}.",
+      "other": "Geänderte Termine: {count}."
+    },
+    "days": {
+      "one": "Tage der Reihen: {count}.",
+      "other": "Tage der Reihen: {count}."
+    },
+    "removed": {
+      "one": "Gelöschte Termine: {count} von {total}.",
+      "other": "Gelöschte Termine: {count} von {total}."
+    }
+  },
+  "node": {
+    "samples": {
+      "lessons": "Stundenplan (wöchentliche Reihen)",
+      "program": "Exerzitien mit Programm",
+      "masses": "Messen mit Schema und Tagen der Reihe"
+    },
+    "occurrence": {
+      "title": "Tag einer Reihe (\"occurrences[]\")",
+      "short": "Tag einer Reihe",
+      "lead": "Ein gewählter Tag eines Termins — meist einer Reihe. Ein Tag heißt nach seinem Datum: dem Tag, auf den er nach der Reihe fällt, auch wenn er verlegt ist. Tage ohne Eintrag bleiben, wie sie sind.",
+      "tail": "Der Export nennt die Tage des Zeitraums, die abgesagt, verlegt sind oder Werte haben. Ein Termin, der sich nicht wiederholt, hat einen Tag — den Tag seines \"start\"."
+    },
+    "appointment": {
+      "title": "Termin (\"appointments[]\", \"points[]\")",
+      "short": "Termin",
+      "lead": "Ein Termin hat dieselben Schlüssel wie die Termine einer Seite und eines Bereichs (\"title\", \"start\", \"end\", \"location\", \"points\", \"repeat\" …) — dazu \"id\", \"kind\", \"scheme\", \"values\" und \"occurrences\". Bei einem geänderten Termin bleibt ein fehlender Schlüssel unverändert.",
+      "retime": "Eine neue Zeit der Reihe (\"start\", \"end\", \"repeat\", \"every\", \"weekdays\", \"until\", \"count\") ändert alle ihre Tage — auch die vergangenen. Abgesagte und verlegte Tage, die nicht in \"occurrences\" stehen, kehren dann in die Reihe zurück; die aus \"occurrences\" schreibt der Import neu. Intentionen und Einträge folgen dem Tag; gibt es den Tag nicht mehr, bleibt der Termin unverändert (der Import sagt es). „Ab diesem Tag anders“ („dieser und folgende“) geht im Termineditor.",
+      "values": "Werte (\"values\"): \"choice\" und \"colour\" — ein Wert oder ein Name aus der Liste des Feldes; \"number\" — eine Zahl; \"bool\" — \"tak\" (ja) oder \"nie\" (nein) (auch true / false); \"date\" — \"JJJJ-MM-TT\"; \"time\" — \"HH:MM\"; \"link\" — https://… oder #/…; \"person\" — Kennung einer Rolle. Öffentliche Felder bis {max} Zeichen. Ein Pflichtfeld (\"required\") braucht einen Wert — sonst wird ein neuer Termin übersprungen und Änderungen eines bestehenden werden nicht gespeichert."
+    },
+    "usage": {
+      "title": "Wie die App diese Daten nutzt",
+      "text": "- Die Termine sieht jeder, der den Schlüssel des Bereichs hat, der den Kalender sieht („Wer sieht“ in den Einstellungen des Kalenders) — auch über einen Link mit Zugang; ist dieser Bereich öffentlich („jeder liest“), jeder, auch ohne Konto.\n- Kalender (Tag, Woche, Monat, Liste): Programmpunkte stehen im Raster bei ihrem Termin; die Details des Termins zeigen Ort, Notiz, Link, Werte des Schemas und die Eintragslisten des Tages (Intentionen, Anmeldungen). „Jetzt“: „Nächste Termine“ (heute und morgen), und in „Wartet auf dich“ — „Termine heute“.\n- Bausteine von Seiten: „Kalender“ (gewählte Kalender), „Programm einer Veranstaltung“ (ein Termin mit Punkten — \"points\"), „Reservierung“ (Termine zur Wahl); ein Termin, der als Haupttermin des Bereichs gesetzt ist — in den Bausteinen „Veranstaltungen“ und „Visitenkarte“, wenn ihn jeder sieht. Auf einer Seite sieht jeder, was er öffnen kann; ein Baustein einer öffentlichen Seite lässt sich auch als Widget auf einer anderen Website einbetten.\n- Messen, Beichten und Andachten (\"kind\") stehen auch unter „Messen und Gottesdienste“ (Pfarrbüro). Ist der Bereich, der den Kalender sieht, öffentlich, gehen ihre Namen und Zeiten (bei einer Messe auch die öffentlichen Felder des Schemas) in den öffentlichen Plan — den Baustein „Messen und Gottesdienste“ — und Messen auch auf den Ausdruck für den Aushang; Ort und Notizen stehen dort nicht.\n- \"bookable\" und \"capacity\" (Kalender mit Reservierungen): der Termin lässt sich im Baustein „Reservierung“ wählen; im Kalender steht bei ihm die Zahl der belegten Plätze, und Anfragen warten unter „Zu bestätigen“.\n- Termine haben keine Erinnerungen (Aufgaben haben sie), und der Import benachrichtigt niemanden."
+    },
+    "calendar": {
+      "title": "Termine eines Kalenders (\"{format}\")",
+      "short": "Termine eines Kalenders",
+      "lead": "Die Termine EINES Kalenders: einzelne und wiederkehrende (Reihen — z. B. ein wöchentlicher Stundenplan oder Messen an Werktagen), ganztägige, mit Ort, Notiz und Link, mit Programm (Punkte unter einem Termin), mit dem Schema des Kalenders und seinen Werten sowie mit gewählten Tagen einer Reihe (abgesagt, verlegt, mit eigenen Werten). Messen, Beichten und Andachten sind hier Termine wie andere (\"kind\").\nExport (Einstellungen des Kalenders → „Termine als JSON“; wer den Kalender nur sieht: „Kalender“ → „Export JSON“): die Termine des gewählten Zeitraums (vorgegeben ab heute für ein Jahr) und die Reihen, die in ihn reichen — jeder mit \"id\".\nDer Import ändert AN ORT UND STELLE: ein Termin mit \"id\" (aus einem Export dieses Kalenders) wird geändert, ein Termin ohne \"id\" wird angelegt. Ein fehlender Schlüssel bleibt unverändert — \"id\" und das, was sich ändert, genügen; \"\" oder null leert einen Text. Nichts verschwindet, außer ein Termin hat \"remove\": true. Vor dem Import siehst du die Liste der Änderungen und die Warnungen; dasselbe Dokument ein zweites Mal importiert ändert nichts mehr.\nTitel, Orte, Notizen, Links und nicht öffentliche Werte werden im Browser mit dem Schlüssel des Bereichs verschlüsselt, der den Kalender sieht — wie im Termineditor. Die Exportdatei enthält sie im Klartext: das ist deine Kopie.\nDer Import ändert nicht: Messintentionen (ein eigenes Format für Messen und Intentionen), Einträge in Listen (Anmeldungen), Reservierungen, Personen beim Termin und wer den Termin sieht (das sagt der Kalender).\nEin Dokument aus einem anderen Kalender (\"calendar\" mit einer anderen \"id\") ist eine Kopie: seine Termine werden neu angelegt.",
+      "time": "Die Zeit ist lokal (Zeitzone des Kalenders), ohne Zone: ein Zeitpunkt \"JJJJ-MM-TTTHH:MM\", ein Tag \"JJJJ-MM-TT\", eine Uhrzeit \"HH:MM\".",
+      "limits": "Grenzen: {entries} Termine samt Punkten in einem Dokument, ein Programm bis {depth} Ebenen, {days} Tage je Termin in \"occurrences\".",
+      "update": "Änderungen nach einem Export — ein neuer Ort, ein Löschen, ein abgesagter Tag einer Reihe und ein neuer Termin:",
+      "example": "Beispiel (Stundenplan einer Klasse):"
+    }
+  }
+}

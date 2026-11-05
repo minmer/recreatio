@@ -36,7 +36,7 @@ import {
   P_A0, P_DEPTH, P_DT, P_EPS, P_FIN, P_FIRST, P_GNX, P_GNY, P_GX, P_GY, P_H, P_H2, P_KD, P_KS, P_N, P_NEXT, P_OMEGA, P_PALPHA,
   P_PAMB, P_PSCALE, P_S, P_SMOOTH, P_SNX, P_SRC, P_TOP, P_VMAX, P_W0, P_X0, P_XSPH_G, P_XSPH_L, P_XSPH_W, P_Y0, PARAMS, setSurfaceModel, viewsOf
 } from './solver';
-import { SPECIES, enthalpy, gasDensity, liquidDensity, mappedGasDensity, MOLAR, phaseName, solidDensity, spIndex } from './species';
+import { SPECIES, enthalpy, gasDensity, liquidDensity, mappedGasDensity, MOLAR, solidDensity, spIndex } from './species';
 import { STAGES } from './stages';
 import { ORIGIN_AIR, ORIGIN_OP, ORIGIN_WALL, SLOTS, Store } from './store';
 import { GAS, LIQUID, SOLID, type PhaseId } from './units';
@@ -70,7 +70,7 @@ export interface ParticleInfo {
   readonly rho: number;
   readonly p: number;
   readonly neighbours: number;
-  readonly composition: readonly { readonly id: string; readonly name: string; readonly kg: number; readonly fraction: number }[];
+  readonly composition: readonly { readonly id: string; readonly phase: PhaseId; readonly kg: number; readonly fraction: number }[];
 }
 
 export interface EngineStats {
@@ -727,12 +727,12 @@ export class Engine implements BandHost {
     }
     if (best < 0) return this.ambientAt(x, y);
     const i = best;
-    const comp: { id: string; name: string; kg: number; fraction: number }[] = [];
+    const comp: { id: string; phase: PhaseId; kg: number; fraction: number }[] = [];
     for (let k = 0; k < SLOTS; k += 1) {
       const sp = st.spc[i * SLOTS + k] - 1;
       if (sp < 0) continue;
       const kg = st.smass[i * SLOTS + k];
-      comp.push({ id: SPECIES[sp].id, name: phaseName(sp, st.phase[i] as PhaseId), kg, fraction: st.mass[i] > 0 ? kg / st.mass[i] : 0 });
+      comp.push({ id: SPECIES[sp].id, phase: st.phase[i] as PhaseId, kg, fraction: st.mass[i] > 0 ? kg / st.mass[i] : 0 });
     }
     return {
       index: i, uid: st.uid[i], implicit: false, x: st.x[i], y: st.y[i], vx: st.vx[i], vy: st.vy[i], phase: st.phase[i] as PhaseId, fixed: st.fixed[i] === 1,
@@ -750,11 +750,11 @@ export class Engine implements BandHost {
     for (let k = 0; k < this.airSp.length; k += 1) inv += MOLAR[this.airSp[k]] > 0 ? this.airW[k] / MOLAR[this.airSp[k]] : 0;
     const rho = gasDensity(inv > 0 ? 1 / inv : 0.029, this.airT, this.scene.ambient.p);
     let H = 0;
-    const comp: { id: string; name: string; kg: number; fraction: number }[] = [];
+    const comp: { id: string; phase: PhaseId; kg: number; fraction: number }[] = [];
     for (let k = 0; k < this.airSp.length; k += 1) {
       const sp = this.airSp[k];
       H += this.airW[k] * enthalpy(sp, GAS, this.airT);
-      comp.push({ id: SPECIES[sp].id, name: phaseName(sp, GAS), kg: 0, fraction: this.airW[k] });
+      comp.push({ id: SPECIES[sp].id, phase: GAS, kg: 0, fraction: this.airW[k] });
     }
     return {
       index: -1, uid: 0, implicit: true, x, y, vx: 0, vy: 0, phase: GAS, fixed: false, role: 0, T: this.airT, mass: 0, H, rho,

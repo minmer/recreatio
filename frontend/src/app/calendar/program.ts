@@ -13,6 +13,7 @@ import { fromBase64Url, openText } from '../core/crypto';
 import { heldAreaKey, heldProofs } from '../links/linkAccess';
 import type { Ring } from '../core/keys';
 import { call } from '../core/session';
+import { t } from '../core/i18n';
 
 export interface ProgramRow {
   readonly itemId: string;
@@ -94,7 +95,7 @@ export async function openProgram(rows: readonly ProgramRow[], ring: Ring | null
     const o = opened.get(row.itemId)!;
     return {
       itemId: row.itemId,
-      title: o.title ?? row.titlePublic ?? (row.depth === 0 ? 'Wydarzenie' : 'Punkt programu'),
+      title: o.title ?? row.titlePublic ?? (row.depth === 0 ? t('calendarApp.program.event') : t('calendarApp.program.part')),
       location: o.location,
       notes: o.notes,
       link: o.link,

@@ -1,0 +1,52 @@
+{
+  "frame": {
+    "controls": "Controls",
+    "fullscreen": "Full screen",
+    "exitFullscreen": "Exit full screen",
+    "exitFullscreenEsc": "Exit full screen (Esc)"
+  },
+  "graph": {
+    "empty": "The chart appears once something starts to happen."
+  },
+  "liquid": {
+    "water": "water",
+    "saltwater": "salt water",
+    "sea": "sea water",
+    "oil": "oil",
+    "alcohol": "alcohol",
+    "glycerin": "glycerine",
+    "honey": "honey",
+    "mercury": "mercury",
+    "milk": "milk"
+  },
+  "editor": {
+    "sceneOneObject": "A scene is one object { … }.",
+    "notJson": "This is not valid JSON: {error}",
+    "accepted": "Accepted.",
+    "title": "Title",
+    "kind": "Kind",
+    "kindExperiment": "Experiment (the scene as in the JSON)",
+    "kindSandbox": "Sandbox (anything goes, ready experiments to load)",
+    "studentText": "Text for students (each paragraph on a new line)",
+    "insertLabel": "Insert an experiment",
+    "inserted": "Inserted “{title}” — check the preview and accept.",
+    "insertPlaceholder": "Insert an experiment…",
+    "presetOption": "{title} — {summary}",
+    "copied": "AI prompt copied — paste it into your chat, and the finished scene here.",
+    "copyFailed": "Could not copy the prompt.",
+    "copyPrompt": "Copy the AI prompt",
+    "sceneJson": "Scene ({what}) JSON",
+    "scenarios": "Scenarios to choose from in the lab (the first is the scene above)",
+    "noScenarios": "None — the lab shows only the scene above.",
+    "scenarioRow": "{n}. {title}",
+    "untitled": "untitled",
+    "moveUp": "Up: {title}",
+    "moveDown": "Down: {title}",
+    "remove": "Remove",
+    "addPresetLabel": "Add a ready experiment as a scenario",
+    "addPresetPlaceholder": "Add a ready experiment…",
+    "addCurrent": "Add the current scene",
+    "preview": "Preview",
+    "accept": "Accept"
+  }
+}

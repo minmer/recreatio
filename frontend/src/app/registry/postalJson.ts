@@ -9,6 +9,7 @@
  * Ort, der schon einen hat, wird ergänzt — Felder, die fehlen, bleiben.
  */
 
+import { t } from '../core/i18n';
 import {
   complete, EMPTY_ADDRESS, formatAddress, isEmpty, keyOf, parseAddress, readHousehold, VISIT_LABEL,
   type Address, type Household, type HouseholdDoc, type Place
@@ -81,41 +82,18 @@ export function exportRegistry(areaName: string, places: readonly Place[], house
  * Administrator danych); der Import schreibt nur Orte und Haushalte (`savePlaces`, `saveHousehold`).
  */
 export function registryDescription(): string {
-  return [
-    `Kartoteka adresów jako JSON — format "${REGISTRY_FORMAT}", wersja 1.`,
-    '',
-    'Pola dokumentu:',
-    '- format: zawsze "recreatio/registry"',
-    '- areaName: nazwa obszaru (tylko informacja — import idzie do obszaru otwartego tutaj)',
-    '- addresses[]: lista adresów',
-    '- addresses[].id: identyfikator miejsca (z eksportu) — pomijany przy imporcie; adres rozpoznaje się po jego częściach',
-    '- addresses[].address: adres jako jeden tekst ("ul. Długa 5/3, 31-147 Kraków") ALBO obiekt z częściami:',
-    '  street (ulica, bez "ul."), house (nr domu), unit (nr mieszkania), locality (miejscowość), district (dzielnica/osiedle),',
-    '  postcode (kod "00-000"), post (poczta). Każda część może być pusta; bez miejscowości liczy się miejscowość poczty.',
-    '- addresses[].household: rodzina pod tym adresem (opcjonalnie; pola, których nie podasz, zostają bez zmian):',
-    '  family (nazwisko rodziny, np. "Kowalscy"), people[] ({name, born "RRRR-MM-DD", note}), phone, email, notes, tags[] (etykiety),',
-    `  kolenda: { "RRRR": { status: ${Object.keys(VISIT_LABEL).map((s) => `"${s}"`).join(' | ')}, date "RRRR-MM-DD", priest, note } }`,
-    '',
-    'Import: ten sam adres (po normalizacji: wielkość liter, polskie znaki, "ul.") to to samo miejsce — nie powstaje drugi raz.',
-    'Rodzina pod adresem, który już ma rodzinę, zostaje uzupełniona. Dane rodzin są szyfrowane kluczem obszaru w przeglądarce.',
-    '',
-    'Jak aplikacja używa tych danych:',
-    '- Kartoteka obszaru („Kartoteka i kolęda”) ma zakładki Adresy, Kolęda, Import i JSON. Czyta ją, kto czyta obszar; zmienia — kto w nim pisze.',
-    '- Adresy: miejsca z rodzinami; szukanie po adresie, nazwisku i etykiecie ("tags").',
-    '- Kolęda: odwiedziny roku z "kolenda" — filtry Rok, Stan, Ulica, Dzień, Kapłan; „Zaplanuj” dla zaznaczonych (dzień, kapłan); lista w kolejności dnia i adresu, „Drukuj listę”.',
-    '- Rodziny i kolęda otwierają się tylko w przeglądarce, która ma klucz obszaru — tam też działa szukanie i filtry.',
-    '- Adresy nie są szyfrowane. Ich części (ulice, miejscowości, dzielnice, kody, poczty) są wspólne dla całej aplikacji: podpowiadają adres także w pytaniu o adres w formularzach, w karcie osoby i przy administratorze danych.',
-    '- Import nie tworzy terminów w Kalendarzu (kolęda zostaje w kartotece), osób ani kont i niczego nie usuwa.',
-    '',
-    'Przykład:',
-    JSON.stringify({
+  return t('registry.json.description', {
+    format: REGISTRY_FORMAT,
+    statuses: Object.keys(VISIT_LABEL).map((s) => `"${s}"`).join(' | '),
+    /* Das Beispiel: polnische Adressen, wie die Zerlegung sie kennt (Daten). */
+    sample: JSON.stringify({
       format: REGISTRY_FORMAT, version: 1, areaName: 'Parafia św. Józefa',
       addresses: [
         { address: 'ul. Długa 5/3, 31-147 Kraków', household: { family: 'Kowalscy', people: [{ name: 'Jan Kowalski' }, { name: 'Anna Kowalska' }], phone: '+48 600 000 000', tags: ['chorzy'], kolenda: { 2026: { status: 'visited', date: '2026-01-03', priest: 'ks. Adam' } } } },
         { address: { street: 'Długa', house: '7', locality: 'Kraków', postcode: '31-147' } }
       ]
     }, null, 2)
-  ].join('\n');
+  });
 }
 
 /** Was ein Dokument ändern würde. */

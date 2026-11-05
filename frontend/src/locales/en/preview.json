@@ -1,0 +1,140 @@
+{
+  "matrix": {
+    "title": {
+      "one": "M{n} · {label} — {breakpoint} ({count} column)",
+      "other": "M{n} · {label} — {breakpoint} ({count} columns)"
+    },
+    "folded": "folded",
+    "unknown": "Module „{kind}\" is not known to this version of the page."
+  },
+  "app": {
+    "error": "error",
+    "baseFailed": "The page „{path}” cannot be fetched ({why}) — public pages only, and only with live data.",
+    "baseLocked": "The page „{path}” is encrypted — the preview will not open it.",
+    "noModule": "No such module: {which} — give M1…M{count}, \"modules[i]\", an id or a kind.",
+    "viewLabel": "V1 view",
+    "pasteTitle": "Page preview from JSON",
+    "pasteLede": "Paste a page document (<code>recreatio/page</code>, a module or an old event document) — you will see the page as it will look after import. Nothing is saved.",
+    "doc": "JSON document",
+    "live": "Live data (calendars, masses — read only)",
+    "show": "Show page",
+    "bar": "Preview · nothing is saved",
+    "change": "Change JSON",
+    "gone": "This preview no longer exists (the preview server was closed).",
+    "gonePaste": "This preview no longer exists (the preview server was closed) — paste JSON."
+  },
+  "doc": {
+    "none": "No JSON document.",
+    "invalid": "Invalid JSON: {why}",
+    "unreadable": "cannot be read",
+    "noTitle": "The page has no title — the import will save neither the title nor the page text (\"title\" is needed to save \"lead\").",
+    "images": "Files from \"images\" ({count}): the preview shows files given by the assistant or placeholder images with a description — the person importing attaches the real ones.",
+    "appointments": "Appointments from \"appointments\" ({count}) are created only on import, in the calendar the importing person chooses — modules that point to them (\"@key\") show them only after import.",
+    "form": "{form}: the questions from the document ({count}) are created on import — the preview draws them from the document (layout and logic work; without the data controller clause, which comes from the area of the answers; sending disabled).",
+    "formWord": "Form",
+    "formAt": "Form (modules[{at}])",
+    "menu": "Menu as on the page „{page}” — the preview takes it from that page if it is public."
+  },
+  "fetch": {
+    "noWrite": "The preview saves nothing.",
+    "noSession": "Nobody is signed in (preview).",
+    "offline": "Preview without live data."
+  },
+  "files": {
+    "image": "PHOTO",
+    "video": "VIDEO",
+    "sound": "SOUND",
+    "file": "FILE"
+  },
+  "form": {
+    "note": "Preview: this form is created on import. Above the questions will stand the data controller clause of the area the answers go to; sending is disabled here.",
+    "missing": "Missing: {list}"
+  },
+  "knowledge": {
+    "noView": "There is no view „{view}” — views of this base: {list}.",
+    "none": "none",
+    "unknownAsked": "This version of the app does not know the shape „{mode}” yet — the saved one is shown.",
+    "allEntries": "All entries",
+    "noSavedView": "The base has no saved view — all entries are shown.",
+    "unknownSaved": "The view has the shape „{mode}”, which this version of the app does not know yet — it is shown as a table.",
+    "question": "Question",
+    "clicked": "Clicked entry: {label}",
+    "view": "View „{name}”",
+    "cards": "cards: {list}",
+    "mood": {
+      "known": "known",
+      "due": "due for review",
+      "forgotten": "forgotten",
+      "wrong": "recently wrong",
+      "new": "new"
+    }
+  },
+  "lint": {
+    "droppedKey": "skipped on import (unknown, invalid or equal to the default): {value}",
+    "readsAs": "the import reads {input} as {output}",
+    "dropped": "skipped on import: {value}",
+    "listShort": "of {count} entries the import takes {kept} — the others are invalid or unknown",
+    "unknownPartKey": "unknown key of the module „{label}” ({kind}) — nothing reads it",
+    "unknownScreen": "unknown screen size — allowed: {list}",
+    "unknownFrameKey": "unknown key — a place is \"position\" { row, col } and \"size\" { colSpan, rowSpan }",
+    "noSize": "without the numbers \"size.colSpan\" and \"size.rowSpan\" — the import skips this place (the module goes to the first free one)",
+    "colSpanScreen": "{from} → {to} (widths 2, 3, 4, 6; on this screen at most {max})",
+    "rowSpanWords": "{from} → {to} (heights 1 strip, 3 block, 5 tall)",
+    "colMoved": {
+      "one": "{from} → {to} (the module does not fit in {count} column)",
+      "other": "{from} → {to} (the module does not fit in {count} columns)"
+    },
+    "unknownAllowed": "unknown key — allowed: {list}",
+    "notColour": "{value} is not a #rrggbb colour — the import takes the default colour",
+    "notNightColour": "{value} is not a #rrggbb colour — no night colours (all four are needed)",
+    "unknownMenuKey": "unknown key of a menu item — allowed: {list}",
+    "menuNoLabel": "item without \"label\" — the import skips it",
+    "menuNoImage": "not an image (page-image:<id>, https://… or /file.svg) — only the name stays",
+    "menuDepth": "the menu has at most 5 levels — deeper items are skipped",
+    "unknownPageKey": "unknown page key — allowed: {list}",
+    "unknownEntryKey": "unknown module key — allowed: {list}",
+    "configNotObject": "\"config\" is not an object — the module stays empty",
+    "owned": "„{key}” is kept by the module itself — the import does not set it",
+    "ownedNeeds": "„{key}” is kept by the module itself — the import does not set it (form requirements: \"needs\" next to \"questions\")",
+    "colSpan": "{from} → {to} (widths 2, 3, 4, 6)",
+    "rowSpan": "{from} → {to} (heights 1, 3, 5)"
+  },
+  "probe": {
+    "requests": {
+      "one": "{count} request to the service",
+      "other": "{count} requests to the service"
+    },
+    "fresh": "fresh response",
+    "modules": {
+      "one": "{count} module still loading",
+      "other": "{count} modules still loading"
+    },
+    "images": {
+      "one": "{count} image on its way",
+      "other": "{count} images on their way"
+    },
+    "fonts": "fonts",
+    "sheets": {
+      "one": "{count} style sheet",
+      "other": "{count} style sheets"
+    },
+    "broken": {
+      "one": "{count} of {total} images does not load",
+      "other": "{count} of {total} images do not load"
+    },
+    "cutRight": "„{text}” cut off on the right by {px} px",
+    "cutBottom": "„{text}” cut off at the bottom by {px} px",
+    "cutBottomClamp": "„{text}” cut off at the bottom by {px} px (line clamp)",
+    "scrolls": "„{text}” scrolls inside ({px} px hidden)",
+    "spills": "content sticks out of the card: {list}",
+    "tiny": {
+      "one": "{count} text smaller than 12 px (smallest {min} px)",
+      "other": "{count} texts smaller than 12 px (smallest {min} px)"
+    },
+    "sparse": "the content fills {share}% of the card height ({px} px of empty space) — a smaller height (rowSpan) or more content",
+    "stillLoading": "was still loading when the picture was taken",
+    "empty": "the card shows nothing",
+    "offScreen": "off screen",
+    "edgeCut": "cut by the screen edge — {share}% visible"
+  }
+}

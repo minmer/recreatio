@@ -11,6 +11,7 @@
 
 import { describe, keyLines, pretty, textNode, type JsonNode } from '../core/jsonTree';
 import { PROFILE_KINDS, type ProfileKind } from '../areas/profile';
+import { t } from '../core/i18n';
 import {
   ASSIGN_WORD, COMMUNITY_FORMAT, FIELD_KINDS, flatten, isRights, KEY, RIGHTS, SETTINGS, settingDef, slug, STEP_TITLES,
   type Assign, type Blueprint, type CommunityDoc, type Council, type FieldDef, type FieldKind, type Person, type PersonPlace,
@@ -87,14 +88,14 @@ export type Stored = StoredCommunity | StoredUnit;
 
 function readSettings(raw: unknown, where: string, warnings: string[]): Settings | undefined {
   if (raw === undefined) return undefined;
-  if (!isRecord(raw)) { warnings.push(`${where}: "settings" to obiekt — pominięte.`); return undefined; }
+  if (!isRecord(raw)) { warnings.push(t('communitiesJson.read.settingsObject', { where })); return undefined; }
   const out: Record<string, Record<string, unknown>> = {};
   for (const [group, values] of Object.entries(raw)) {
-    if (!isRecord(values)) { warnings.push(`${where}: "settings.${group}" to obiekt — pominięte.`); continue; }
+    if (!isRecord(values)) { warnings.push(t('communitiesJson.read.groupObject', { where, group })); continue; }
     for (const [key, value] of Object.entries(values)) {
       const path = `${group}.${key}`;
       const def = settingDef(path);
-      if (def === undefined) { warnings.push(`${where}: nieznane ustawienie "${path}" — pominięte.`); continue; }
+      if (def === undefined) { warnings.push(t('communitiesJson.read.unknownSetting', { where, path })); continue; }
       let ok: unknown = undefined;
       if (value === null) ok = null;
       else if (def.kind === 'bool') ok = typeof value === 'boolean' ? value : undefined;
@@ -104,7 +105,9 @@ function readSettings(raw: unknown, where: string, warnings: string[]): Settings
       else if (def.kind === 'time') ok = typeof value === 'string' && /^\d{1,2}:\d{2}$/.test(value) ? value : undefined;
       else ok = typeof value === 'string' ? value.slice(0, 2000) : undefined;
       if (ok === undefined) {
-        warnings.push(`${where}: "${path}" — ${def.choices ? `dozwolone ${def.choices.map((c) => `"${c.value}"`).join(', ')}` : `oczekiwane: ${def.kind}`}; pominięte.`);
+        warnings.push(def.choices
+          ? t('communitiesJson.read.settingAllowed', { where, path, allowed: def.choices.map((c) => `"${c.value}"`).join(', ') })
+          : t('communitiesJson.read.settingExpected', { where, path, kind: def.kind }));
         continue;
       }
       (out[group] ??= {})[key] = ok;
@@ -118,17 +121,17 @@ function readCouncil(raw: unknown, where: string, warnings: string[]): Council |
   const r = rec(raw);
   const key = str(r.key);
   const name = str(r.name);
-  if (!KEY.test(key) || name === '') { warnings.push(`${where}: "council" potrzebuje "key" i "name" — pominięte.`); return undefined; }
+  if (!KEY.test(key) || name === '') { warnings.push(t('communitiesJson.read.council', { where })); return undefined; }
   return { key, name: name.slice(0, 120), own: list(r.own).map(str).filter((k) => k !== ''), below: list(r.below).map(str).filter((k) => k !== '') };
 }
 
 function readExtra(raw: unknown, where: string, warnings: string[]): Readonly<Record<string, unknown>> | undefined {
   if (raw === undefined) return undefined;
-  if (!isRecord(raw)) { warnings.push(`${where}: "extra" to obiekt — pominięte.`); return undefined; }
+  if (!isRecord(raw)) { warnings.push(t('communitiesJson.read.extraObject', { where })); return undefined; }
   const allowed = new Set(['appointments', 'pages', 'subforms', 'card', 'category', 'listings', 'chats', 'publish']);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (allowed.has(k)) out[k] = v; else warnings.push(`${where}: "extra.${k}" — w "extra" dozwolone: ${[...allowed].join(', ')}; pominięte.`);
+    if (allowed.has(k)) out[k] = v; else warnings.push(t('communitiesJson.read.extraKey', { where, key: k, allowed: [...allowed].join(', ') }));
   }
   return out;
 }
@@ -139,19 +142,19 @@ function readUnit(raw: unknown, where: string, warnings: string[], seen: Set<str
   const r = rec(raw);
   const name = str(r.name);
   const key = str(r.key) || (name === '' ? '' : slug(name));
-  if (!KEY.test(key)) { warnings.push(`${where}: "key" to krótka nazwa (małe litery, cyfry, - i _, do 40 znaków) — jednostka pominięta.`); return null; }
-  if (seen.has(key)) { warnings.push(`Jednostka „${key}” powtarza się — liczy się pierwsza.`); return null; }
-  if (name === '') { warnings.push(`Jednostka „${key}” bez "name" — pominięta.`); return null; }
-  if (seen.size >= MAX_UNITS) { warnings.push(`Najwyżej ${MAX_UNITS} jednostek — reszta pominięta.`); return null; }
-  if (depth > 12) { warnings.push(`Jednostka „${key}”: najwyżej 12 poziomów — pominięta.`); return null; }
+  if (!KEY.test(key)) { warnings.push(t('communitiesJson.read.unitKey', { where })); return null; }
+  if (seen.has(key)) { warnings.push(t('communitiesJson.read.unitRepeats', { key })); return null; }
+  if (name === '') { warnings.push(t('communitiesJson.read.unitNoName', { key })); return null; }
+  if (seen.size >= MAX_UNITS) { warnings.push(t('communitiesJson.read.maxUnits', { max: MAX_UNITS })); return null; }
+  if (depth > 12) { warnings.push(t('communitiesJson.read.maxDepth', { key })); return null; }
   seen.add(key);
-  const at = `Jednostka „${key}”`;
+  const at = t('communitiesJson.read.unitAt', { key });
   const kindSaid = str(r.kind);
-  if (kindSaid !== '' && !KINDS.has(kindSaid)) warnings.push(`${at}: "kind" — dozwolone ${[...KINDS].map((k) => `"${k}"`).join(', ')}; pominięte.`);
+  if (kindSaid !== '' && !KINDS.has(kindSaid)) warnings.push(t('communitiesJson.read.kind', { at, allowed: [...KINDS].map((k) => `"${k}"`).join(', ') }));
   const area = str(r.area);
-  if (area !== '' && !/^[0-9a-f-]{36}$/i.test(area)) warnings.push(`${at}: "area" to identyfikator istniejącego obszaru — pominięte.`);
+  if (area !== '' && !/^[0-9a-f-]{36}$/i.test(area)) warnings.push(t('communitiesJson.read.area', { at }));
   const address = has(r, 'address') ? str(r.address).replace(/^\/+|\/+$/g, '').toLowerCase() : '';
-  if (address !== '' && !address.split('/').every((s) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s))) warnings.push(`${at}: "address" — małe litery, cyfry i „-”, części oddzielone „/”; pominięte.`);
+  if (address !== '' && !address.split('/').every((s) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s))) warnings.push(t('communitiesJson.read.address', { at }));
   for (const [position, names] of Object.entries(rec(r.people))) {
     const got = list(names).map(str).filter((n) => n !== '');
     if (got.length > 0) people.push({ unit: key, position, names: got });
@@ -181,12 +184,12 @@ function readUnit(raw: unknown, where: string, warnings: string[], seen: Set<str
 
 /** DULDSAM LESEN — was nicht passt, fällt weg, mit einem Wort dazu. Ein Fehler nur, wenn es gar keine Wspólnota ist. */
 export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: string[] } | { error: string } {
-  if (!isRecord(value)) return { error: 'Dokument wspólnoty to jeden obiekt JSON ({ … }).' };
-  if (str(value.format) === 'recreatio/area') return { error: 'To dokument jednego obszaru ("recreatio/area") — zaimportuj go w zakładce rodzaju obszaru albo włóż jego części w "extra" jednostki.' };
-  if (str(value.format) !== COMMUNITY_FORMAT) return { error: `To nie jest dokument wspólnoty — "format" ma być "${COMMUNITY_FORMAT}".` };
+  if (!isRecord(value)) return { error: t('communitiesJson.read.notObject') };
+  if (str(value.format) === 'recreatio/area') return { error: t('communitiesJson.read.isArea') };
+  if (str(value.format) !== COMMUNITY_FORMAT) return { error: t('communitiesJson.read.wrongFormat', { format: COMMUNITY_FORMAT }) };
   const warnings: string[] = [];
   const known = new Set(['format', 'version', 'name', 'positions', 'fields', 'blueprints', 'unit', 'persons']);
-  for (const k of Object.keys(value)) if (!known.has(k)) warnings.push(`Nieznany klucz "${k}" — pominięty.`);
+  for (const k of Object.keys(value)) if (!known.has(k)) warnings.push(t('communitiesJson.read.unknownKey', { key: k }));
 
   /* Positionen. */
   const positions: Position[] = [];
@@ -194,11 +197,11 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
     const r = rec(raw);
     const name = str(r.name);
     const key = str(r.key) || (name === '' ? '' : slug(name, 32));
-    if (!POSITION_KEY.test(key)) { warnings.push(`"positions"[${i}]: "key" do 32 znaków (małe litery, cyfry, - i _) — pominięta.`); continue; }
-    if (positions.some((p) => p.key === key)) { warnings.push(`Pozycja „${key}” powtarza się — liczy się pierwsza.`); continue; }
-    if (name === '') { warnings.push(`Pozycja „${key}” bez "name" — pominięta.`); continue; }
+    if (!POSITION_KEY.test(key)) { warnings.push(t('communitiesJson.read.positionKey', { i })); continue; }
+    if (positions.some((p) => p.key === key)) { warnings.push(t('communitiesJson.read.positionRepeats', { key })); continue; }
+    if (name === '') { warnings.push(t('communitiesJson.read.positionNoName', { key })); continue; }
     const rights = isRights(r.rights) ? r.rights : 'member';
-    if (!isRights(r.rights)) warnings.push(`Pozycja „${key}”: "rights" — ${RIGHTS.map((x) => `"${x.value}"`).join(', ')}; będzie "member".`);
+    if (!isRights(r.rights)) warnings.push(t('communitiesJson.read.positionRights', { key, allowed: RIGHTS.map((x) => `"${x.value}"`).join(', ') }));
     const assign = str(r.assign);
     const per = rec(r.per);
     positions.push({
@@ -218,7 +221,7 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
     const r = rec(raw);
     const label = str(r.label);
     const key = str(r.key) || (label === '' ? '' : slug(label, 32));
-    if (!POSITION_KEY.test(key) || label === '') { warnings.push(`"fields"[${i}]: potrzebne "key" i "label" — pominięte.`); continue; }
+    if (!POSITION_KEY.test(key) || label === '') { warnings.push(t('communitiesJson.read.field', { i })); continue; }
     if (fields.some((f) => f.key === key)) continue;
     const kind = (FIELD_KINDS as readonly string[]).includes(str(r.kind)) ? str(r.kind) as FieldKind : 'line';
     fields.push({
@@ -234,9 +237,9 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
     const r = rec(raw);
     const key = str(r.key);
     const name = str(r.name);
-    if (!KEY.test(key) || name === '') { warnings.push(`"blueprints"[${i}]: potrzebne "key" i "name" — pominięty.`); continue; }
+    if (!KEY.test(key) || name === '') { warnings.push(t('communitiesJson.read.blueprint', { i })); continue; }
     if (blueprints.some((b) => b.key === key)) continue;
-    const at = `Plan „${key}”`;
+    const at = t('communitiesJson.read.blueprintAt', { key });
     const settings = readSettings(r.settings, at, warnings);
     const council = readCouncil(r.council, at, warnings);
     const extra = readExtra(r.extra, at, warnings);
@@ -254,15 +257,15 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
   const shorthand: Shorthand[] = [];
   const seen = new Set<string>();
   const unit = isRecord(value.unit) ? readUnit(value.unit, '"unit"', warnings, seen, shorthand, 0) : null;
-  if (unit === null) return { error: 'Brakuje "unit" — jednostki na górze wspólnoty (z "key" i "name").' };
+  if (unit === null) return { error: t('communitiesJson.read.noUnit') };
 
   /* Prüfung der Verweise. */
   const unitKeys = new Set(flatten(unit).map((u) => u.unit.key));
   for (const { unit: u } of flatten(unit)) {
-    if (u.from !== undefined && !blueprints.some((b) => b.key === u.from)) warnings.push(`Jednostka „${u.key}”: planu „${u.from}” nie ma w "blueprints".`);
-    for (const p of u.positions ?? []) if (!positions.some((x) => x.key === p)) warnings.push(`Jednostka „${u.key}”: pozycji „${p}” nie ma w "positions" — pominięta.`);
+    if (u.from !== undefined && !blueprints.some((b) => b.key === u.from)) warnings.push(t('communitiesJson.read.unitNoBlueprint', { key: u.key, from: u.from }));
+    for (const p of u.positions ?? []) if (!positions.some((x) => x.key === p)) warnings.push(t('communitiesJson.read.unitNoPosition', { key: u.key, position: p }));
   }
-  for (const b of blueprints) for (const p of b.positions ?? []) if (!positions.some((x) => x.key === p)) warnings.push(`Plan „${b.key}”: pozycji „${p}” nie ma w "positions".`);
+  for (const b of blueprints) for (const p of b.positions ?? []) if (!positions.some((x) => x.key === p)) warnings.push(t('communitiesJson.read.blueprintNoPosition', { key: b.key, position: p }));
 
   /* Personen — zuerst als Gruppe ("people" in der Einheit), dann einzeln. */
   const persons: Person[] = [];
@@ -278,21 +281,21 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
     const r = rec(raw);
     const name = str(r.name);
     const key = str(r.key) || (name === '' ? '' : slug(name));
-    if (!KEY.test(key)) { warnings.push(`"persons"[${i}]: "key" albo "name" — pominięta.`); continue; }
-    if (name === '' && r.remove !== true) { warnings.push(`Osoba „${key}” bez "name" — pominięta.`); continue; }
-    if (persons.length >= MAX_PERSONS) { warnings.push(`Najwyżej ${MAX_PERSONS} osób — reszta pominięta.`); break; }
+    if (!KEY.test(key)) { warnings.push(t('communitiesJson.read.person', { i })); continue; }
+    if (name === '' && r.remove !== true) { warnings.push(t('communitiesJson.read.personNoName', { key })); continue; }
+    if (persons.length >= MAX_PERSONS) { warnings.push(t('communitiesJson.read.maxPersons', { max: MAX_PERSONS })); break; }
     const places: PersonPlace[] = [];
     for (const pl of list(r.places)) {
       const p = rec(pl);
       const u = str(p.unit);
       const pos = str(p.position);
-      if (!unitKeys.has(u)) { warnings.push(`Osoba „${key}”: jednostki „${u}” nie ma — miejsce pominięte.`); continue; }
-      if (!positions.some((x) => x.key === pos)) { warnings.push(`Osoba „${key}”: pozycji „${pos}” nie ma — miejsce pominięte.`); continue; }
+      if (!unitKeys.has(u)) { warnings.push(t('communitiesJson.read.personNoUnit', { key, unit: u })); continue; }
+      if (!positions.some((x) => x.key === pos)) { warnings.push(t('communitiesJson.read.personNoPosition', { key, position: pos })); continue; }
       places.push({ unit: u, position: pos });
     }
     const f: Record<string, string> = {};
     for (const [k, v] of Object.entries(rec(r.fields))) {
-      if (!fields.some((x) => x.key === k)) { warnings.push(`Osoba „${key}”: pola „${k}” nie ma w "fields" — pominięte.`); continue; }
+      if (!fields.some((x) => x.key === k)) { warnings.push(t('communitiesJson.read.personNoField', { key, field: k })); continue; }
       f[k] = typeof v === 'boolean' ? (v ? 'tak' : '') : String(v ?? '').slice(0, 400);
     }
     add({
@@ -303,15 +306,15 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
     });
   }
   for (const s of shorthand) {
-    if (!positions.some((x) => x.key === s.position)) { warnings.push(`Jednostka „${s.unit}”: "people" — pozycji „${s.position}” nie ma; pominięte.`); continue; }
+    if (!positions.some((x) => x.key === s.position)) { warnings.push(t('communitiesJson.read.peopleNoPosition', { unit: s.unit, position: s.position })); continue; }
     for (const said of s.names) {
       const ref = said.startsWith('@') ? said.slice(1) : null;
       const key = ref ?? slug(said);
-      if (ref !== null && !persons.some((p) => p.key === ref)) { warnings.push(`Jednostka „${s.unit}”: osoby „${said}” nie ma w "persons" — pominięta.`); continue; }
+      if (ref !== null && !persons.some((p) => p.key === ref)) { warnings.push(t('communitiesJson.read.peopleNoPerson', { unit: s.unit, name: said })); continue; }
       add({ key, name: ref === null ? said.slice(0, 120) : persons.find((p) => p.key === ref)!.name, places: [{ unit: s.unit, position: s.position }] });
     }
   }
-  for (const p of persons) if (p.pair !== undefined && !persons.some((o) => o.key === p.pair)) warnings.push(`Osoba „${p.key}”: pary „${p.pair}” nie ma w "persons".`);
+  for (const p of persons) if (p.pair !== undefined && !persons.some((o) => o.key === p.pair)) warnings.push(t('communitiesJson.read.personNoPair', { key: p.key, pair: p.pair }));
 
   return {
     doc: { name: str(value.name).slice(0, 120) || unit.name, positions, fields, blueprints, unit, persons },
@@ -358,117 +361,71 @@ export function exportCommunity(doc: CommunityDoc, names: ReadonlyMap<string, st
 
 /* -- Beschreibung (für die App und den MCP) -------------------------------------------------- */
 
-const INTRO = (): string => `Jeden dokument opisuje całą wspólnotę: drzewo jednostek (np. diecezja → rejony → kręgi, szkoła → klasy, turnus → grupy), pozycje z ich prawami, plany budowy podobnych jednostek, osoby z ich pozycjami i ustawienia pięciu kroków prowadzonej konfiguracji. To ten sam dokument, który powstaje w „Wspólnoty” → „Nowa wspólnota” i który pokazuje zakładka JSON wspólnoty.
-Co robi import:
-- Najpierw pokazuje plan (listę zmian): nowe i przeniesione jednostki, role, dostępy, linki osób, części obszarów. Zapisuje dopiero po „Importuj”.
-- Jednostka = obszar w Recreatio (pod obszarem jednostki wyżej). Pozycja w jednostce = rola tego obszaru („Para animatorska · Krąg 3”). Osoba = jeden osobisty link, który trzyma wszystkie jej role (w kręgu jest członkiem, w rejonie prowadzi). Narzędzia jednostki (rozmowy, kalendarz, strony, zapisy) powstają jako dokument obszaru („recreatio/area”) i idą tym samym importem.
-- Wszystko nazywa się kluczami. Wspólnota pamięta, co pod którym kluczem powstało: ten sam dokument zaimportowany jeszcze raz ZMIENIA to samo (nazwy, położenie w drzewie, obsadę, ustawienia), zamiast dublować. Dokument z innej wspólnoty zakłada tu wszystko od nowa.
-- Niczego nie kasuje bez słowa: jednostka z "remove": true przestaje być zarządzana (obszar i treści zostają), osoba z "remove": true traci link. Jednostka albo osoba, której brak w dokumencie, zostaje bez zmian.
-- Zmiana ról osoby (nowa pozycja, oddana pozycja) daje jej NOWY link, a stary przestaje działać. Treści zostają przy pozycji — przejmuje je następca.
-Zwróć JEDEN obiekt JSON, bez komentarzy.`;
+const keysOf = (group: string, keys: readonly string[], params: Readonly<Record<string, Readonly<Record<string, string>>>> = {}): Record<string, string> =>
+  Object.fromEntries(keys.map((k) => [k, t(`communitiesJson.desc.${group}.${k}`, params[k])]));
+
+const INTRO = (): string => t('communitiesJson.desc.intro');
 
 const TOP = (): string => keyLines({
   format: `"${COMMUNITY_FORMAT}"`,
   version: '1',
-  name: 'nazwa wspólnoty (pominięta — nazwa jednostki na górze)',
-  positions: 'pozycje — każda opisana raz, używana w wielu jednostkach (niżej: Pozycje)',
-  fields: 'pola osób z kroku 4 (niżej: Pola osób)',
-  blueprints: 'plany budowy podobnych jednostek (niżej: Plany budowy)',
-  unit: 'jednostka na górze, z jednostkami w "units" (niżej: Jednostki)',
-  persons: 'osoby z ich miejscami (niżej: Osoby); osoby można też wpisać grupą w "people" jednostki'
+  ...keysOf('top', ['name', 'positions', 'fields', 'blueprints', 'unit', 'persons'])
 });
 
-const POSITIONS = (): string => `Wpis w "positions":
-${keyLines({
-  key: 'krótka nazwa (małe litery, cyfry, - i _, do 32 znaków), np. "para-animatorska"',
-  name: 'nazwa, np. "Para animatorska"',
+const POSITIONS = (): string => t(`communitiesJson.desc.positions.text`, { keys: keyLines({
+  ...keysOf('positions', ['key', 'name']),
   rights: RIGHTS.map((r) => `"${r.value}" — ${r.label.toLowerCase()}: ${r.says}`).join('; '),
-  pair: 'true — obsadza ją para; każde z dwojga to osobna osoba z własnym linkiem, oboje na tej samej pozycji (piszą jako ta sama rola, widać, kto pisał)',
-  assign: `jak się ją obsadza: ${Object.entries(ASSIGN_WORD).map(([k, v]) => `"${k}" (${v})`).join(', ')} — informacja dla prowadzących`,
-  term: 'kadencja słowami, np. "3 lata, +2 możliwe"',
-  need: 'ilu potrzeba w każdej jednostce z tą pozycją (obsada: „brakuje 2”)',
-  per: '{ "count": 4, "of": "uczestnik" } — jedna osoba na tylu z innej pozycji (albo na tyle miejsc z "intake.limit")',
-  note: 'uwaga, np. "wybierana w czerwcu; na początku mianuje para pilotująca na rok"'
-})}
-Prawa przekładają się na dostęp: prowadzenie — "admin" w swojej jednostce i we wszystkich pod nią (i trzyma pozostałe pozycje swojej jednostki, więc może dawać ich linki); towarzyszenie — czyta swoją jednostkę i wszystkie pod nią; współpraca i członkostwo — piszą w swojej jednostce; uczestnictwo — czyta.`;
+  ...keysOf('positions', ['pair', 'assign', 'term', 'need', 'per', 'note'], {
+    assign: { words: Object.entries(ASSIGN_WORD).map(([k, v]) => `"${k}" (${v})`).join(', ') }
+  })
+}) });
 
-const FIELDS = (): string => `Wpis w "fields" — pole osoby (np. głos, stopień formacji, dieta):
-${keyLines({
-  key: 'krótka nazwa, np. "glos"',
-  label: 'napis, np. "Głos"',
+const FIELDS = (): string => t(`communitiesJson.desc.fields.text`, { keys: keyLines({
+  ...keysOf('fields', ['key', 'label']),
   kind: FIELD_KINDS.map((k) => `"${k}"`).join(', '),
-  options: 'dla "choice": lista wartości, np. ["sopran", "alt", "tenor", "bas"]',
-  leadersOnly: 'true — widzą tylko prowadzący (zdrowie, dieta, kontakt do rodziców)'
-})}
-Pole z "options" może dzielić jednostkę na podgrupy samo ("structure.subgroups": "byField", "structure.byField": "glos").`;
+  ...keysOf('fields', ['options', 'leadersOnly'])
+}) });
 
-const UNITS = (): string => `Jednostka ("unit" i każdy wpis w "units"):
-${keyLines({
-  key: 'krótka nazwa (do 40 znaków), np. "krag-3"; pominięta — z nazwy',
-  name: 'nazwa, np. "Krąg 3"',
-  kind: `rodzaj obszaru: ${PROFILE_KINDS.map((k) => `"${k.kind}" (${k.label})`).join(', ')}; pominięty — z planu albo "group"`,
-  from: 'klucz planu budowy z "blueprints" — jednostka bierze z niego pozycje, ustawienia i części; zmiana planu zmienia wszystkie jednostki z niego, poza tym, co jednostka ustawiła sama',
-  positions: 'klucze pozycji tej jednostki (dodatkowo do tych z planu)',
-  settings: 'ustawienia pięciu kroków (niżej: Ustawienia); czego nie ma, jest odziedziczone',
-  council: '{ "key", "name", "own": [pozycje tej jednostki], "below": [pozycje jednostek bezpośrednio pod nią] } — grono (np. krąg rejonowy); obszar pod jednostką, jego skład liczy się sam z obsady',
-  people: '{ "<pozycja>": ["Imię Nazwisko", "@klucz-osoby", …] } — osoby grupą, np. wszyscy uczniowie 2b; dokładniej — w "persons"',
-  units: 'jednostki pod nią',
-  address: 'adres stron jednostki, np. "dk/rejon-13"; pominięty — adres jednostki wyżej + "/" + klucz (na górze: z nazwy wspólnoty)',
-  area: 'identyfikator ISTNIEJĄCEGO obszaru, który staje się tą jednostką i zostaje przeniesiony w to miejsce (np. dwa rejony pod nową diecezję) — tylko świadomie',
-  remove: 'true — rozwiązana: wspólnota przestaje nią zarządzać (zdejmuje dostępy, które dała); obszar i treści zostają',
-  extra: 'dodatkowe części dokumentu obszaru — "appointments", "pages", "subforms", "card", "category", "listings", "chats", "publish" — dokładnie jak w formacie „area”'
-})}
-Przeniesienie jednostki = ten sam "key" w innym miejscu drzewa: import przenosi obszar (osoba importująca prowadzi oba miejsca); zmienia też dostępy liczone z drzewa (prowadzący wyżej, towarzyszący, „jednostki niżej widzą tę”).`;
+const UNITS = (): string => t(`communitiesJson.desc.units.text`, { keys: keyLines(keysOf('units',
+  ['key', 'name', 'kind', 'from', 'positions', 'settings', 'council', 'people', 'units', 'address', 'area', 'remove', 'extra'],
+  {
+    kind: { kinds: PROFILE_KINDS.map((k) => `"${k.kind}" (${k.label})`).join(', ') },
+    people: { slot: `<${t('communitiesJson.desc.slotPosition')}>` }
+  })) });
 
 const SETTINGS_TEXT = (): string => {
   const lines: string[] = [];
   for (const step of [1, 2, 4, 5] as const) {
-    lines.push(`Krok ${step} — ${STEP_TITLES[step]}`);
+    lines.push(t(`communitiesJson.desc.settings.step`, { step, title: STEP_TITLES[step] }));
     for (const s of SETTINGS.filter((x) => x.step === step)) {
-      const kind = s.choices ? s.choices.map((c) => `"${c.value}"${c.example ? ` (np. ${c.example})` : ` (${c.label})`}`).join(', ')
-        : s.kind === 'bool' ? 'true / false' : s.kind === 'number' ? 'liczba' : s.kind === 'date' ? '"RRRR-MM-DD"' : s.kind === 'time' ? '"GG:MM"' : 'tekst';
-      lines.push(`  "${s.path}" — ${s.label}: ${kind}; bez wartości: ${JSON.stringify(s.fallback)}${s.inherit ? '' : ' (nie dziedziczy się)'}${s.hint ? ` — ${s.hint}` : ''}`);
+      const kind = s.choices ? s.choices.map((c) => (c.example ? t(`communitiesJson.desc.settings.choiceExample`, { value: c.value, example: c.example }) : `"${c.value}" (${c.label})`)).join(', ')
+        : s.kind === 'bool' ? 'true / false' : s.kind === 'number' ? t(`communitiesJson.desc.settings.number`) : s.kind === 'date' ? t(`communitiesJson.desc.settings.date`) : s.kind === 'time' ? t(`communitiesJson.desc.settings.time`) : t(`communitiesJson.desc.settings.text`);
+      const line = t(s.inherit ? `communitiesJson.desc.settings.line` : `communitiesJson.desc.settings.lineNotInherited`, { path: s.path, label: s.label, kind, fallback: JSON.stringify(s.fallback) });
+      lines.push(`  ${line}${s.hint ? ` — ${s.hint}` : ''}`);
     }
   }
-  return `"settings": { "life": { … }, "structure": { … }, "intake": { … }, "tools": { … }, "talk": { … }, "visibility": { … }, "public": { … } }. Krok 3 (kto co robi) to "positions" jednostki i "persons".
-${lines.join('\n')}
-Wartość ustawiona w jednostce wygrywa; bez niej — z jej planu budowy; bez niego — z jednostki wyżej (jej wartość, plan …); na końcu propozycja.`;
+  return t(`communitiesJson.desc.settings.body`, { lines: lines.join('\n') });
 };
 
-const PERSONS = (): string => `Wpis w "persons":
-${keyLines({
-  key: 'krótka nazwa (pominięta — z imienia i nazwiska), np. "anna-kowalska"',
-  name: 'imię i nazwisko — zapieczętowane w obszarach jednostek; usługa ich nie widzi',
-  places: '[{ "unit": "krag-3", "position": "czlonek" }, { "unit": "rejon-13", "position": "para-rejonowa" }] — wszystkie miejsca osoby; członkostwo i pozycja są osobno',
-  fields: '{ "glos": "tenor" } — wartości pól z "fields"',
-  pair: 'klucz drugiej osoby pary',
-  remove: 'true — osoba odchodzi: jej link przestaje działać'
-})}
-Każda osoba dostaje JEDEN osobisty link (bez konta), który trzyma role wszystkich jej miejsc; otwiera się na „Moje wspólnoty” (#/moje): powitanie, jednostki z rolą, co nowego. Linki pokazuje import i zakładka „Osoby” wspólnoty; podpis linku nie zawiera imienia.`;
+const PERSONS = (): string => t(`communitiesJson.desc.persons.text`, { keys: keyLines(keysOf('persons', ['key', 'name', 'places', 'fields', 'pair', 'remove'])) });
 
-const USAGE = (): string => `- „Wspólnoty” (#/workspace/wspolnoty) pokazuje drzewo (mapa do przeciągania albo lista na telefonie), ustawienia każdej jednostki w pięciu krokach z „odziedziczone z …” / „ustawione tutaj” i „Przywróć odziedziczone”, osoby z linkami, obsadę (gdzie kogoś brakuje), JSON i historię zmian z „Przywróć tę wersję”.
-- Każdy obszar jednostki pokazuje „Zarządzane przez wspólnotę …” z odnośnikiem; zmiany robione tam ręcznie następny import może nadpisać.
-- Osoba z linkiem widzi tylko swoje jednostki: rozmowy (gdy "tools.chat"), kalendarz z terminami wyżej (gdy "visibility.subunitsSee" wyżej), stronę jednostki („dla nas”), „Napisz do prowadzących” ("tools.askLeaders").
-- Grono (council) ma własną rozmowę; należą do niego role pozycji z "own" i "below" — gdy zmienia się obsada, zmienia się grono.
-- Zapisy publiczne ("intake.mode": "signup") stoją na stronie jednostki; zgłoszeni dostają rolę pozycji uczestnika (pierwszej z prawem "participant" albo "member").
-- Pole "leadersOnly" i "intake.health" — dane tylko dla prowadzących (pytania w podformularzu prowadzących albo w wymaganiach formularza).
-- Czego import nie robi sam (ustawienie zostaje zapisane i pokazane w jednostce z drogą do narzędzia): lekcje i materiały (Skryptorium / Biblioteka, w klasie — zakładka Klasa), nauka z Cogitą (moduły powtórki na stronie jednostki), ankiety w dół, obecność i własne tabele (formularz z rozszerzeniami prowadzących), limit miejsc i lista rezerwowa (informacja w formularzu; liczenie miejsc nie jest zbudowane).`;
+const USAGE = (): string => t('communitiesJson.desc.usage');
 
 /** Der Knoten im Baum der Formate — die Beschreibung neben dem Import und im MCP. */
 export const COMMUNITY_JSON: JsonNode = {
   key: 'community',
-  title: `Wspólnota jako JSON ("${COMMUNITY_FORMAT}", wersja 1)`,
+  get title() { return t('communitiesJson.desc.title', { format: COMMUNITY_FORMAT }); },
   text: INTRO,
   inside: () => [
-    textNode('community.top', 'Wspólnota', TOP),
-    textNode('community.usage', 'Jak aplikacja używa tych danych', USAGE),
-    textNode('community.positions', 'Pozycje', POSITIONS),
-    textNode('community.fields', 'Pola osób', FIELDS),
-    textNode('community.units', 'Jednostki', UNITS),
-    textNode('community.settings', 'Ustawienia (pięć kroków)', SETTINGS_TEXT),
-    textNode('community.blueprints', 'Plany budowy', () => `Wpis w "blueprints": { "key", "name", "kind", "positions", "settings", "council", "extra" } — jak jednostka, bez "units". Jednostka z "from": "<klucz>" bierze z niego wszystko, czego nie ustawi sama. Plan powstaje też w aplikacji z istniejącej jednostki („Zapisz jako plan budowy”).`),
-    textNode('community.persons', 'Osoby', PERSONS),
-    ...EXAMPLES.map((e) => textNode(`community.example.${e.key}`, `Przykład: ${e.label}`, () => pretty(e.doc())))
+    textNode('community.top', t('communitiesJson.desc.section.top'), TOP),
+    textNode('community.usage', t('communitiesJson.desc.section.usage'), USAGE),
+    textNode('community.positions', t('communitiesJson.desc.section.positions'), POSITIONS),
+    textNode('community.fields', t('communitiesJson.desc.section.fields'), FIELDS),
+    textNode('community.units', t('communitiesJson.desc.section.units'), UNITS),
+    textNode('community.settings', t('communitiesJson.desc.section.settings'), SETTINGS_TEXT),
+    textNode('community.blueprints', t('communitiesJson.desc.section.blueprints'), () => t('communitiesJson.desc.blueprints', { slot: `<${t('communitiesJson.desc.slotKey')}>` })),
+    textNode('community.persons', t('communitiesJson.desc.section.persons'), PERSONS),
+    ...EXAMPLES.map((e) => textNode(`community.example.${e.key}`, t('communitiesJson.desc.section.example', { label: e.label }), () => pretty(e.doc())))
   ],
   samples: () => EXAMPLES.map((e) => ({ label: e.label, doc: e.doc }))
 };

@@ -71,6 +71,12 @@ public static class Crypto
     public static string InfoAiOAuthCode(Guid grantId) => $"recreatio:v1:ai-oauth-code:{Ids.ToText(grantId)}";
 
     /// <summary>
+    /// 0138 — Der Schlüssel, unter dem der private Schlüssel einer MCP-Verbindung liegt — abgeleitet
+    /// aus ihrem Zugangstoken (IKM: dessen UTF-8), das selbst nur als Hash gespeichert ist.
+    /// </summary>
+    public static string InfoAiMcpConnection(Guid connectionId) => $"recreatio:v1:ai-mcp-connection:{Ids.ToText(connectionId)}";
+
+    /// <summary>
     /// 3.4 — Das Salz einer Konto-Verpflichtung im Ketteneintrag.
     ///
     /// Es wird aus dem Servergeheimnis und der Eintragskennung ABGELEITET und

@@ -39,7 +39,7 @@ import { EntityGlance } from './CardFace';
 import { TextJump } from '../library/SourceJump';
 import { workLook } from '../library/sourceFind';
 import { statementOf, statementRole } from '../library/statement';
-import { plural } from '../core/plural';
+import { rich, useT, type T } from '../core/i18n';
 import { fieldsOf, fieldText, labelOf, placeText, valuesOf, type Entity } from './schema';
 import { authorNumber, childrenOf, isStructured, parentsOf, pathFromRoot, pieceOf, PIECE_HEADING, placeLabel, placeOf, relativePlace, schemeFor, textOrder, type StructNode } from './structure';
 import { readView, viewOutline, type OutlineDisplay, type OutlineGroup, type OutlineNode } from './views';
@@ -98,7 +98,7 @@ const toStruct = (n: OutlineNode): StructNode => ({
 const countSteps = (n: OutlineNode): number =>
   n.groups.filter((g) => g.structure === true).reduce((sum, g) => sum + g.nodes.reduce((s, c) => s + 1 + (c.again === true ? 0 : countSteps(c)), 0), 0);
 
-const stepsWord = (n: number): string => `${n} ${plural(n, 'krok', 'kroki', 'kroków')}`;
+const stepsWord = (n: number, t: T): string => t('cogitaViews.struct.steps', { count: n });
 
 export function StructureView({ roots, display, onOpen, more = false, capped = false }: {
   roots: readonly OutlineNode[];
@@ -107,7 +107,8 @@ export function StructureView({ roots, display, onOpen, more = false, capped = f
   more?: boolean;
   capped?: boolean;
 }) {
-  if (roots.length === 0) return <p className="wk-empty">Nic tu nie ma.</p>;
+  const t = useT();
+  if (roots.length === 0) return <p className="wk-empty">{t('cogitaViews.struct.empty')}</p>;
   return (
     <div className="cg-wy-list">
       {/*
@@ -116,8 +117,8 @@ export function StructureView({ roots, display, onOpen, more = false, capped = f
         eine neue davor), bleiben ihre offenen Schritte und ihre Reihenfolge.
       */}
       {roots.map((root) => <StructureRoot key={`${root.id}:${display?.order ?? ''}`} root={root} display={display} onOpen={onOpen} />)}
-      {more && <p className="cg-muted">Pokazano pierwsze 50 — zawęź wybór albo szukaj.</p>}
-      {capped && <p className="cg-muted">Struktura jest bardzo duża — pokazano jej część.</p>}
+      {more && <p className="cg-muted">{t('cogitaViews.struct.first50')}</p>}
+      {capped && <p className="cg-muted">{t('cogitaViews.struct.capped')}</p>}
     </div>
   );
 }
@@ -128,6 +129,7 @@ function StructureRoot({ root, display, onOpen }: { root: OutlineNode; display: 
 }
 
 function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: OutlineDisplay | null; onOpen: (id: string) => void }) {
+  const t = useT();
   const { lib, sources } = useCtx();
   /* Solange die Quellen der Baza laden, ist ein Werk nicht „niedostępne", nur noch nicht da. */
   const loading = sources?.loading === true;
@@ -186,8 +188,8 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
     <article className="cg-wy" data-structure-root={root.id}>
       <header className="cg-wy-head">
         <p className="cg-wy-kicker">
-          <span>{statement?.question === true ? 'Pytanie wiodące' : <TexText text={chipOf(entity) || 'Na górze'} />}</span>
-          {place !== null && scheme !== null && <span className="cg-wy-place">{place.locator === '' ? 'całe dzieło' : placeLabel(place.locator, scheme.scheme, scheme.options)}</span>}
+          <span>{statement?.question === true ? t('cogitaViews.struct.leadingQuestion') : <TexText text={chipOf(entity) || t('cogitaViews.struct.top')} />}</span>
+          {place !== null && scheme !== null && <span className="cg-wy-place">{place.locator === '' ? t('cogitaViews.struct.wholeWork') : placeLabel(place.locator, scheme.scheme, scheme.options)}</span>}
         </p>
         <h3 className="cg-wy-title"><button type="button" className="cg-ref" onClick={() => onOpen(root.id)}><TexText text={nameOf(entity)} /></button></h3>
         {/*
@@ -197,48 +199,48 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
           Abschnitt steht unter ihr, nicht mehr zwischen dem Werk und der Zahl der Schritte.
         */}
         <div className="cg-wy-meta">
-          {work !== undefined ? <TexText text={lib.labelTex(work)} /> : place === null ? '' : loading ? 'Otwieranie źródeł…' : 'dzieło niedostępne'}
-          {(steps > 0 || root.cut === undefined) && <>{' · '}{steps === 0 ? 'jeszcze bez kroków' : stepsWord(steps)}</>}
+          {work !== undefined ? <TexText text={lib.labelTex(work)} /> : place === null ? '' : loading ? t('cogitaViews.struct.openingSources') : t('cogitaViews.struct.workUnavailable')}
+          {(steps > 0 || root.cut === undefined) && <>{' · '}{steps === 0 ? t('cogitaViews.struct.noSteps') : stepsWord(steps, t)}</>}
           {root.cut !== undefined && (
             <span className="cg-muted">
-              {' · ▸ '}{stepsWord(root.cut)} niżej nie pokazano
-              {steps === 0 && <> — <button type="button" className="cg-ref" onClick={() => onOpen(root.id)}>{statement?.question === true ? 'otwórz pytanie' : 'otwórz wpis'}</button>, żeby je zobaczyć</>}
+              {' · ▸ '}{t('cogitaViews.struct.stepsCut', { count: root.cut })}
+              {steps === 0 && rich(statement?.question === true ? t('cogitaViews.struct.cutOpenQuestion') : t('cogitaViews.struct.cutOpenEntry'), { b: (s) => <button type="button" className="cg-ref" onClick={() => onOpen(root.id)}>{s}</button> })}
             </span>
           )}
-          {scheme?.recognised === true && !loading && <span className="cg-muted"> · układ rozpoznany z miejsc</span>}
+          {scheme?.recognised === true && !loading && <span className="cg-muted">{t('cogitaViews.struct.recognised')}</span>}
           {place !== null && place.locator !== '' && <TextJump look={workLook(place.work)} workId={place.work} locator={place.locator} />}
         </div>
         {steps > 0 && (
           <div className="cg-row cg-wy-tools">
-            <span className="cg-subtabs" role="group" aria-label="Kolejność">
-              <button type="button" className={order === 'tree' ? 'is-on' : ''} aria-pressed={order === 'tree'} onClick={() => setOrderKept('tree')}>Wywód</button>
-              <button type="button" className={order === 'text' ? 'is-on' : ''} aria-pressed={order === 'text'} onClick={() => setOrderKept('text')}>Kolejność tekstu</button>
+            <span className="cg-subtabs" role="group" aria-label={t('cogitaViews.struct.order')}>
+              <button type="button" className={order === 'tree' ? 'is-on' : ''} aria-pressed={order === 'tree'} onClick={() => setOrderKept('tree')}>{t('cogitaViews.struct.argument')}</button>
+              <button type="button" className={order === 'text' ? 'is-on' : ''} aria-pressed={order === 'text'} onClick={() => setOrderKept('text')}>{t('cogitaViews.struct.textOrder')}</button>
             </span>
-            <span className="cg-subtabs" role="group" aria-label="Długość tez">
-              <button type="button" className={whole ? '' : 'is-on'} aria-pressed={!whole} onClick={() => THESES.keep('short')}>Tezy skrócone</button>
-              <button type="button" className={whole ? 'is-on' : ''} aria-pressed={whole} onClick={() => THESES.keep('whole')}>Całe tezy</button>
+            <span className="cg-subtabs" role="group" aria-label={t('cogitaViews.struct.thesisLength')}>
+              <button type="button" className={whole ? '' : 'is-on'} aria-pressed={!whole} onClick={() => THESES.keep('short')}>{t('cogitaViews.struct.shortTheses')}</button>
+              <button type="button" className={whole ? 'is-on' : ''} aria-pressed={whole} onClick={() => THESES.keep('whole')}>{t('cogitaViews.struct.wholeTheses')}</button>
             </span>
             {/* Ein Klick auf das, was schon gilt, beginnt neu: „Wszystkie poziomy" öffnet zugeklappte Äste, „Poziom po poziomie" geht nach aussen zurück. */}
             {order === 'tree' && depth > 1 && (
-              <span className="cg-subtabs" role="group" aria-label="Poziomy">
-                <button type="button" className={levelMode ? '' : 'is-on'} aria-pressed={!levelMode} onClick={() => { LEVELS.keep('all'); setFolded(new Set()); }}>Wszystkie poziomy</button>
-                <button type="button" className={levelMode ? 'is-on' : ''} aria-pressed={levelMode} onClick={() => { LEVELS.keep('step'); setInner(new Set()); }}>Poziom po poziomie</button>
+              <span className="cg-subtabs" role="group" aria-label={t('cogitaViews.struct.levels')}>
+                <button type="button" className={levelMode ? '' : 'is-on'} aria-pressed={!levelMode} onClick={() => { LEVELS.keep('all'); setFolded(new Set()); }}>{t('cogitaViews.struct.allLevels')}</button>
+                <button type="button" className={levelMode ? 'is-on' : ''} aria-pressed={levelMode} onClick={() => { LEVELS.keep('step'); setInner(new Set()); }}>{t('cogitaViews.struct.levelByLevel')}</button>
               </span>
             )}
             {levelMode ? (
               <span className="cg-row cg-wy-levels">
-                <button type="button" className="wk-link-btn" disabled={!canDeeper} onClick={() => setInner((was) => oneDeeper(root, was))}>Rozwiń poziom</button>
-                <button type="button" className="wk-link-btn" disabled={deepest <= 1} onClick={() => setInner((was) => oneShallower(root, was))}>Zwiń poziom</button>
-                <span className="cg-muted" aria-live="polite">poziom {deepest} z {depth}</span>
+                <button type="button" className="wk-link-btn" disabled={!canDeeper} onClick={() => setInner((was) => oneDeeper(root, was))}>{t('cogitaViews.struct.deeper')}</button>
+                <button type="button" className="wk-link-btn" disabled={deepest <= 1} onClick={() => setInner((was) => oneShallower(root, was))}>{t('cogitaViews.struct.shallower')}</button>
+                <span className="cg-muted" aria-live="polite">{t('cogitaViews.struct.levelOf', { at: deepest, all: depth })}</span>
               </span>
             ) : (
-              <button type="button" className="wk-link-btn" aria-pressed={all} onClick={() => { setAll(!all); setOpen(new Set()); setClosed(new Set()); }}>{all ? 'Tylko tezy' : 'Rozwiń wszystko'}</button>
+              <button type="button" className="wk-link-btn" aria-pressed={all} onClick={() => { setAll(!all); setOpen(new Set()); setClosed(new Set()); }}>{all ? t('cogitaViews.struct.onlyTheses') : t('cogitaViews.struct.expandAll')}</button>
             )}
           </div>
         )}
         <p className="cg-wy-legend cg-muted">
-          Kroki mówią, co jest w źródle — każdy przy swoim miejscu; to, co od tego odbiega, ma znacznik.
-          {order === 'tree' && depth > 1 && ' Teza otwiera cały krok; ▸ z liczbą pokazuje kroki w środku.'}
+          {t('cogitaViews.struct.legend')}
+          {order === 'tree' && depth > 1 && t('cogitaViews.struct.legendTree')}
         </p>
       </header>
       {side.length > 0 && <SideGroups groups={side} onOpen={onOpen} />}
@@ -295,6 +297,7 @@ function StepList({ label, flat = false, children }: { label: string; flat?: boo
  * das Ganze — das tut der Name.
  */
 function StepLine({ id, ctx, path, bodyId, before, lead, extra }: { id: string; ctx: NodeCtx; path: string; bodyId: string; before?: ReactNode; lead?: ReactNode; extra?: ReactNode }) {
+  const t = useT();
   const { lib } = useCtx();
   const entity = lib.entity(id);
   if (entity === undefined) return null;
@@ -315,9 +318,9 @@ function StepLine({ id, ctx, path, bodyId, before, lead, extra }: { id: string; 
       {chip !== '' && <span className="cg-wy-chip"><TexText text={chip} />{number !== null ? ` ${number}` : ''}</span>}
       <button type="button" className="cg-wy-label" data-wy-label="" aria-expanded={open} aria-controls={bodyId} onClick={() => ctx.toggle(path)}><TexText text={ctx.nameOf(entity)} /></button>
       {rel !== '' && <span className="cg-wy-place">{rel}</span>}
-      {loose && <span className="cg-tag" title="Krok bez miejsca w dziele — dopowiedziany przy rekonstrukcji">dopowiedziane</span>}
-      {interp && <span className="cg-tag is-interp" title="Opiera się na innej wypowiedzi albo nie wskazuje źródła">Interpretacja</span>}
-      {!interp && !loose && <span className="cg-sr">Informacja</span>}
+      {loose && <span className="cg-tag" title={t('cogitaViews.struct.looseTitle')}>{t('cogitaViews.struct.loose')}</span>}
+      {interp && <span className="cg-tag is-interp" title={t('cogitaViews.struct.interpTitle')}>{t('cogitaViews.struct.interp')}</span>}
+      {!interp && !loose && <span className="cg-sr">{t('cogitaViews.struct.info')}</span>}
       {extra}
     </div>
   );
@@ -325,6 +328,7 @@ function StepLine({ id, ctx, path, bodyId, before, lead, extra }: { id: string; 
 
 /** Aufgeklappt: die ganze Aussage, „pokaż w tekście", und was der Widok dazu holt. */
 function StepBody({ node, ctx, id }: { node: OutlineNode; ctx: NodeCtx; id: string }) {
+  const t = useT();
   const { lib } = useCtx();
   const entity = lib.entity(node.id);
   if (entity === undefined) return null;
@@ -334,7 +338,7 @@ function StepBody({ node, ctx, id }: { node: OutlineNode; ctx: NodeCtx; id: stri
     <div className="cg-wy-body" id={id}>
       <EntityGlance lib={lib} entity={entity} onEntity={ctx.onOpen} />
       {place !== null && place.locator !== '' && <div className="cg-outline-place">{place.locator}<TextJump look={workLook(place.work)} workId={place.work} locator={place.locator} /></div>}
-      <p className="cg-row"><button type="button" className="wk-link-btn" onClick={() => ctx.onOpen(node.id)}>Otwórz wpis</button></p>
+      <p className="cg-row"><button type="button" className="wk-link-btn" onClick={() => ctx.onOpen(node.id)}>{t('cogitaViews.struct.openEntry')}</button></p>
       {side.length > 0 && <SideGroups groups={side} onOpen={ctx.onOpen} />}
     </div>
   );
@@ -343,11 +347,12 @@ function StepBody({ node, ctx, id }: { node: OutlineNode; ctx: NodeCtx; id: stri
 const sideCount = (node: OutlineNode): number => node.groups.filter((g) => g.structure !== true).reduce((s, g) => s + g.nodes.length, 0);
 
 function TreeNode({ node, path, ctx }: { node: OutlineNode; path: string; ctx: NodeCtx }) {
+  const t = useT();
   const { lib } = useCtx();
   const bodyId = `wy-${useId().replace(/:/g, '')}`;
   if (node.again === true) {
     const e = lib.entity(node.id);
-    return <li className="cg-wy-node is-again"><span className="cg-muted">↺ {e === undefined ? '' : <TexText text={ctx.nameOf(e)} />} (już wyżej)</span></li>;
+    return <li className="cg-wy-node is-again"><span className="cg-muted">{rich(t('cogitaViews.struct.again', { name: e === undefined ? '' : lib.label(e) }), { b: () => (e === undefined ? '' : <TexText text={ctx.nameOf(e)} />) })}</span></li>;
   }
   const kids = structKids(node);
   const comments = sideCount(node);
@@ -357,8 +362,8 @@ function TreeNode({ node, path, ctx }: { node: OutlineNode; path: string; ctx: N
   const listId = `${bodyId}-in`;
   const lead = kids.length > 0
     ? (
-      <button type="button" className="cg-wy-twist" data-wy-fold="" aria-expanded={inside} aria-controls={listId} aria-label={`Kroki w środku: ${kids.length}`}
-        title={inside ? 'Ukryj kroki w środku' : `Pokaż kroki w środku (${kids.length})`} onClick={() => ctx.fold(path)}>
+      <button type="button" className="cg-wy-twist" data-wy-fold="" aria-expanded={inside} aria-controls={listId} aria-label={t('cogitaViews.struct.kidsLabel', { count: kids.length })}
+        title={inside ? t('cogitaViews.struct.hideKids') : t('cogitaViews.struct.showKids', { count: kids.length })} onClick={() => ctx.fold(path)}>
         {inside ? '▾' : '▸'} {kids.length}
       </button>
     )
@@ -366,8 +371,8 @@ function TreeNode({ node, path, ctx }: { node: OutlineNode; path: string; ctx: N
   return (
     <li className="cg-wy-node" data-structure-node={node.id} data-open={open ? '' : undefined}>
       <StepLine id={node.id} ctx={ctx} path={path} bodyId={bodyId} lead={lead} extra={<>
-        {comments > 0 && <span className="cg-wy-count" title={`${comments} — rozwiń, żeby zobaczyć`}>● {comments}</span>}
-        {node.cut !== undefined && <span className="cg-muted"> · {stepsWord(node.cut)} niżej nie pokazano</span>}
+        {comments > 0 && <span className="cg-wy-count" title={t('cogitaViews.struct.comments', { count: comments })}>● {comments}</span>}
+        {node.cut !== undefined && <span className="cg-muted"> · {t('cogitaViews.struct.stepsCut', { count: node.cut })}</span>}
       </>} />
       {open && <StepBody node={node} ctx={ctx} id={bodyId} />}
       {inside && <ol className="cg-wy-tree" id={listId}>{kids.map((k, i) => <TreeNode key={`${k.id}-${i}`} node={k} path={`${path}/${k.id}/${i}`} ctx={ctx} />)}</ol>}
@@ -377,6 +382,7 @@ function TreeNode({ node, path, ctx }: { node: OutlineNode; path: string; ctx: N
 
 /** Die Reihenfolge des Textes: flach, mit den Stücken eines Artikels als Überschriften und „↳ do:" für tiefer liegende Schritte. */
 function TextList({ root, struct, ctx }: { root: OutlineNode; struct: StructNode; ctx: NodeCtx }) {
+  const t = useT();
   const { lib } = useCtx();
   const rows = useMemo(() => textOrder(struct, lib), [struct, lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   /* Die Knoten des Widoku je Eintrag — mit dem, was er an ihnen dazu holt (die Kommentare). */
@@ -389,7 +395,7 @@ function TextList({ root, struct, ctx }: { root: OutlineNode; struct: StructNode
   const base = useId().replace(/:/g, '');
   let lastPiece: number | null = null;
   return (
-    <StepList label="Kolejność tekstu" flat>
+    <StepList label={t('cogitaViews.struct.textOrder')} flat>
       {rows.map((row, i) => {
         const e = lib.entity(row.node.id);
         const place = e === undefined ? null : placeOf(e, lib);
@@ -407,8 +413,8 @@ function TextList({ root, struct, ctx }: { root: OutlineNode; struct: StructNode
             <li className="cg-wy-node" data-structure-node={row.node.id}>
               {/* 2026-10-25 — die Überschrift für Bildschirmleser am Anfang der Zeile, vor dem Schritt, den sie einleitet (vorher an ihrem Ende). */}
               <StepLine id={row.node.id} ctx={ctx} path={path} bodyId={bodyId} before={heading !== null ? <span className="cg-sr">{heading}</span> : undefined} extra={<>
-                {comments > 0 && <span className="cg-wy-count" title={`${comments} — rozwiń, żeby zobaczyć`}>● {comments}</span>}
-                {parent !== undefined && <span className="cg-muted cg-wy-up">↳ do: <TexText text={ctx.chipOf(parent) || clipTex(lib.labelTex(parent), 60)} /></span>}
+                {comments > 0 && <span className="cg-wy-count" title={t('cogitaViews.struct.comments', { count: comments })}>● {comments}</span>}
+                {parent !== undefined && <span className="cg-muted cg-wy-up">{t('cogitaViews.struct.upTo')} <TexText text={ctx.chipOf(parent) || clipTex(lib.labelTex(parent), 60)} /></span>}
               </>} />
               {ctx.isOpen(path) && <StepBody node={outline} ctx={ctx} id={bodyId} />}
             </li>
@@ -439,10 +445,11 @@ function SideGroups({ groups, onOpen }: { groups: readonly OutlineGroup[]; onOpe
  * — Ebene um Ebene. Für Widoki ohne „Idź po strukturze" und für das, was ein Widok an einem Schritt holt.
  */
 function ClassicNode({ node, onOpen, top = false }: { node: OutlineNode; onOpen: (id: string) => void; top?: boolean }) {
+  const t = useT();
   const { lib } = useCtx();
   const entity = lib.entity(node.id);
   if (entity === undefined) return null;
-  if (node.again === true) return <p className="cg-muted">↺ <button type="button" className="cg-ref" onClick={() => onOpen(node.id)}><TexText text={lib.labelTex(entity)} /></button> (już wyżej)</p>;
+  if (node.again === true) return <p className="cg-muted">{rich(t('cogitaViews.struct.again', { name: lib.label(entity) }), { b: () => <button type="button" className="cg-ref" onClick={() => onOpen(node.id)}><TexText text={lib.labelTex(entity)} /></button> })}</p>;
   const places = fieldsOf(entity, lib.look).filter((f) => f.type === 'ref' && f.locator === true)
     .flatMap((f) => valuesOf(entity, f).filter((v) => typeof v.value === 'string' && v.locator !== undefined).map((v) => ({ f, id: v.value as string, locator: v.locator! })));
   return (
@@ -459,7 +466,7 @@ function ClassicNode({ node, onOpen, top = false }: { node: OutlineNode; onOpen:
         </section>
       ))}
       {/* 2026-10-25 — wie im Baum; hier sind es Einträge, wohin die Schritte des Widoku führen (auch eine Wurzel, für die kein Platz mehr blieb). */}
-      {node.cut !== undefined && <p className="cg-muted">▸ {node.cut} {plural(node.cut, 'wpis', 'wpisy', 'wpisów')} niżej nie pokazano</p>}
+      {node.cut !== undefined && <p className="cg-muted">{t('cogitaViews.struct.entriesCut', { count: node.cut })}</p>}
     </div>
   );
 }
@@ -483,6 +490,7 @@ function displayFor(lib: ReturnType<typeof useCtx>['lib'], entity: Entity): Outl
 
 /** Über dem Editor: der Weg von der Wurzel bis hierher, und was unter diesem Eintrag liegt. */
 export function EntityStructure({ id, onOpen }: { id: string; onOpen: (id: string) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const entity = lib.entity(id);
   /* Auch ein Eintrag ohne eigenes Strukturfeld, der in einem `down`-Feld eines anderen steht (oder unter dem einer steht). */
@@ -500,8 +508,8 @@ export function EntityStructure({ id, onOpen }: { id: string; onOpen: (id: strin
   return (
     <section className="cg" data-entity-structure={id}>
       {path.length > 1 && (
-        <nav className="cg-row cg-muted" aria-label="W strukturze">
-          <span>W strukturze:</span>
+        <nav className="cg-row cg-muted" aria-label={t('cogitaViews.struct.inStructure')}>
+          <span>{t('cogitaViews.struct.inStructureColon')}</span>
           {path.map((x, i) => {
             const e = lib.entity(x);
             const name = e === undefined ? '' : <TexText text={clipTex(lib.labelTex(e), 80)} />;

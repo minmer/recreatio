@@ -5,6 +5,7 @@
 import { KEY_SIZE, fromBase64Url, open, openText, seal, sealText, toBase64Url, unwrapKey, wrapKey } from '../core/crypto';
 import { newId } from '../core/ids';
 import { nameKey, nameText, sealName, seatNameAad, seatOwnNameAad } from '../core/names';
+import { t } from '../core/i18n';
 import { call } from '../core/session';
 import { type Link, type SubmittedValue, newLink, seatAad } from '../seats/seat';
 import { sealLink } from '../seats/seatCheck';
@@ -167,7 +168,7 @@ export async function submitForm(
 
   if (mine !== null && to.selfSeat !== undefined) {
     const publicKey = publicKeys.get(to.selfSeat.areaId);
-    if (publicKey === undefined) throw new Error('Ten obszar nie przyjmuje zgłoszeń.');
+    if (publicKey === undefined) throw new Error(t('forms.errors.noIntake'));
 
     const label = seatAad(mine.seatId);
 
@@ -476,7 +477,7 @@ export async function openAndRewrap(
 /** Ohne Amtsschlüssel lässt sich eine symmetrische Hülle nicht öffnen. */
 function officeKeyOf(key: Uint8Array | undefined): Uint8Array {
   if (key === undefined) {
-    throw new Error('Bez klucza roli kancelarii tej koperty się nie otworzy.');
+    throw new Error(t('forms.errors.noOfficeKey'));
   }
   return key;
 }

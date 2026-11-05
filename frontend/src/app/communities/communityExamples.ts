@@ -1,3 +1,6 @@
+/* i18n-ignore-file */
+/* Die Beispieldokumente sind Inhalt (polnische Gemeinschaften mit polnischen Namen, auch Vorlagen im MCP) —
+   sie werden nicht übersetzt; nur ihre Bezeichnungen kommen aus `communities.examples`. */
 /**
  * 0137 — BEISPIELE EINER WSPÓLNOTA, je ein Anwendungsfall: Schule mit Klassen, zwei Rejony des Domowy
  * Kościół (später unter eine Diözese gehängt), Oaza in der Pfarrei, Rekolekcje-Turnus, Chor, Lerngruppe.
@@ -5,6 +8,7 @@
  * (`scripts/app-json-community-check.mjs`) und steht im MCP (`import-formats.mjs`, `templates/communities/`).
  */
 
+import { t } from '../core/i18n';
 import { COMMUNITY_FORMAT } from './community';
 
 const doc = (body: Record<string, unknown>): Record<string, unknown> => ({ format: COMMUNITY_FORMAT, version: 1, ...body });
@@ -243,12 +247,16 @@ const learning = () => doc({
 
 export interface Example { readonly key: string; readonly label: string; readonly doc: () => Record<string, unknown> }
 
+/** Die Bezeichnung kommt beim Lesen aus `communities.examples.<name>`. */
+const example = (key: string, name: string, doc: () => Record<string, unknown>): Example =>
+  ({ key, doc, get label() { return t(`communities.examples.${name}`); } });
+
 export const EXAMPLES: readonly Example[] = [
-  { key: 'szkola', label: 'szkoła z klasami (plan budowy „klasa”, lekcje, Cogita)', doc: school },
-  { key: 'dk-rejon-13', label: 'Domowy Kościół: rejon z trzema kręgami i kręgiem rejonowym', doc: dkRejon13 },
-  { key: 'dk-rejon-1', label: 'Domowy Kościół: drugi rejon (potem oba pod diecezję)', doc: dkRejon1 },
-  { key: 'oaza', label: 'oaza w parafii (grupy według stopnia same, schola, teatr)', doc: oaza },
-  { key: 'turnus', label: 'turnus rekolekcji (zapisy z limitem, grupy, obsada)', doc: turnus },
-  { key: 'chor', label: 'chór (głosy jako podgrupy, próby, występy)', doc: choir },
-  { key: 'grupa-nauki', label: 'grupa ucząca się z Cogitą (online, zaproszenia)', doc: learning }
+  example('szkola', 'school', school),
+  example('dk-rejon-13', 'dkRejon13', dkRejon13),
+  example('dk-rejon-1', 'dkRejon1', dkRejon1),
+  example('oaza', 'oaza', oaza),
+  example('turnus', 'turnus', turnus),
+  example('chor', 'choir', choir),
+  example('grupa-nauki', 'learning', learning)
 ];

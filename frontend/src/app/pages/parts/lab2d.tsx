@@ -20,6 +20,7 @@
  * denen die Schüler im Labor wählen.
  */
 
+import { t, useT, type T } from '../../core/i18n';
 import { definePart, lines, maybeNumber, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
 import { LabEditor, type LabChoice } from '../../lab/LabEditor';
@@ -71,9 +72,9 @@ const read = (raw: RawConfig): Config => ({
 });
 
 /** Die Auswahlfelder im Editor: wie das Labor beim Öffnen startet, wie lange ein Nachweis wird. */
-const CHOICES: readonly LabChoice[] = [
-  { key: 'start', label: 'Po otwarciu', choices: [{ value: 'button', label: 'Czeka na przycisk (uruchom na żywo albo upiecz)' }, { value: 'bake', label: 'Od razu piecze nagranie (gotowe odtwarza się od razu)' }] },
-  { key: 'seconds', label: 'Długość nagrania', choices: BAKE_SECONDS.map((s) => ({ value: String(s), label: `${s} s czasu symulacji` })).sort((a, b) => (a.value === '30' ? -1 : b.value === '30' ? 1 : 0)) }
+const choicesOf = (t: T): readonly LabChoice[] => [
+  { key: 'start', label: t('moduleContent.lab2d.choice.start'), choices: [{ value: 'button', label: t('moduleContent.lab2d.choice.startButton') }, { value: 'bake', label: t('moduleContent.lab2d.choice.startBake') }] },
+  { key: 'seconds', label: t('moduleContent.lab2d.choice.seconds'), choices: BAKE_SECONDS.map((s) => ({ value: String(s), label: t('moduleContent.lab2d.choice.secondsN', { s }) })).sort((a, b) => (a.value === '30' ? -1 : b.value === '30' ? 1 : 0)) }
 ];
 
 /** Das Labor — erst geladen, wenn es gezeigt wird (eine öffentliche Seite lädt die Engine nicht mit). */
@@ -91,57 +92,57 @@ const SANDBOX = {
 };
 
 const SCENE_DOCS: Readonly<Record<string, string>> = {
-  '.format': 'Zawsze "recreatio/lab2d"',
-  '.version': 'Wersja formatu (1)',
-  '.seed': 'Ziarno losowości — ta sama liczba, ten sam przebieg (np. wgłębienia ścianek, w których rodzą się pęcherze)',
-  '.box': 'Wnętrze skrzynki w metrach i grubość warstwy 2D',
-  '.box.w': 'Szerokość wnętrza (m), zwykle 0.2',
-  '.box.h': 'Wysokość wnętrza (m), zwykle 0.15',
-  '.box.depth': 'Grubość warstwy (m), zwykle 0.01 — z niej masy i energie',
-  '.ambient': 'Otoczenie: ciśnienie, temperatura, wilgotność, grawitacja, skład powietrza',
-  '.ambient.p': 'Ciśnienie w kPa (101.325 — poziom morza; 70 — wysoka góra; 200 — szybkowar)',
-  '.ambient.T': 'Temperatura pokoju w °C',
-  '.ambient.rh': 'Wilgotność względna powietrza, od 0 do 1',
-  '.ambient.g': 'Przyspieszenie ziemskie w m/s², od 2.45 (1/4 g) do 19.6 (2 g)',
-  '.ambient.air': 'Skład suchego powietrza — udziały masowe, np. { "N2": 0.7676, "O2": 0.2324 }',
-  '.ambient.air.N2': 'Udział masowy azotu w powietrzu',
-  '.ambient.air.O2': 'Udział masowy tlenu w powietrzu',
-  '.sides': 'Każdy bok skrzynki: "wall" (ścianka) albo "open" (otwarty na pokój)',
-  '.sides.left': 'Lewy bok',
-  '.sides.right': 'Prawy bok',
-  '.sides.bottom': 'Dno skrzynki',
-  '.sides.top': 'Góra (zwykle "open")',
-  '.quality': 'Wielkość komórki: "high" (2 mm, zwykła), "very-high" (1 mm, mocny komputer), "medium" (3 mm, słabszy komputer); urządzenie, na którym ktoś wybrał inną, zostaje przy swojej',
-  '.extremes': 'Gwałtowne zjawiska (wrzenie wybuchowe przegrzanej wody, bardzo szybki ruch wody): "ask" (domyślnie — laboratorium zatrzymuje się i pyta, jak liczyć dalej), "compute" (licz dokładnie, jak w rzeczywistości — woda może wylecieć z naczynia), "normalize" (łagodź: pęcherze najwyżej 4 mm, bez przegrzania, woda zostaje w naczyniu)',
-  '.ops': 'Kroki budowy po kolei — układ startowy, nie przebieg',
-  '.ops[].op': '"fill" (woda albo powietrze), "erase" (usuń — wraca powietrze), "solid" (nieruchoma budowla z komórek), przedmioty z nazwą i ustawieniami: "body" (klocek, kostka lodu, kamień — dokładny prostokąt: spada, pływa, tonie, przewraca się; lód topi się i przymarza całymi ścianami), "beaker" (zlewka), "hotplate" (płyta grzejna); "grains" (garść kryształków soli: spada, tonie, usypuje kopczyk, rozpuszcza się); "move" (przesuń przedmiot "id" razem z tym, co w nim, albo wszystko stałe w obszarze), "remove" (zabierz przedmiot "id"); "pin" (starsze sceny: przypnij albo odepnij ciało w punkcie x, y — dziś "pinned" w przedmiocie)',
-  '.ops[].id': 'Nazwa przedmiotu ("body", "beaker", "hotplate"), np. "kostka" — pod nią laboratorium wybiera przedmiot i zmienia jego ustawienia w nim samym; w krokach "move" i "remove" nazwa przedmiotu, którego dotyczą; bez nazwy przedmiot dostaje "body-1", "beaker-1" …',
-  '.ops[].dx': 'Przesunięcie w poziomie (m) — w kroku "move"; przedmioty przesuwają się dokładnie, malowane budowle o całe komórki',
-  '.ops[].dy': 'Przesunięcie w pionie (m) — w kroku "move"',
-  '.ops[].region': 'Obszar: rect, circle, poly albo line z width; ciało ("body") jest zawsze prostokątem — koło staje się kwadratem o tym samym polu, wielokąt prostokątem, który go obejmuje, odcinek z width obróconym prostokątem',
-  '.ops[].region.rect': '[x0, y0, x1, y1] w metrach',
-  '.ops[].region.circle': '[x, y, promień]',
-  '.ops[].region.poly': 'Wielokąt [[x, y], …]',
-  '.ops[].region.line': 'Odcinek [x0, y0, x1, y1] (ścianka)',
-  '.ops[].region.width': 'Grubość odcinka (m)',
-  '.ops[].composition': 'Skład (udziały masowe): { "H2O": 1 } dla wody, { "oil-rapeseed": 1 } dla oleju rzepakowego, { "H2O": 0.9, "NaCl": 0.1 } dla solanki 10 % (nasycona ma ok. 26 %), { "N2": 0.7676, "O2": 0.2324 } dla powietrza',
-  '.ops[].composition.H2O': 'Udział masowy wody (H₂O)',
-  '.ops[].phase': '"liquid" (ciecz) albo "gas" (gaz)',
-  '.ops[].T': 'Temperatura w °C',
-  '.ops[].material': 'Materiał: "glass" (szkło borokrzemowe), "steel" (stal nierdzewna), "ceramic" (kamyczki wrzenne), "wood" (drewno sosnowe), "ice" (lód — jako ciało topi się i przymarza, jako budowla nie), "stone" (kamień, granit); w kroku "grains": "NaCl" (sól kuchenna)',
-  '.ops[].d': 'Średnica kryształków w kroku "grains" (m): 0.0005 (domyślnie, sól kuchenna), od 0.00005 do 0.005 — drobniejsze toną wolniej i szybciej się rozpuszczają',
-  '.ops[].pinned': 'Przedmiot przypięty (stoi w miejscu, nie spada) albo swobodny (false: spada pod wpływem grawitacji); klocek jest swobodny, chyba że true; zlewka i płyta są przypięte, chyba że false — w laboratorium: pole „Przypięty” przedmiotu',
-  '.ops[].angle': 'Obrót ciała w stopniach przeciwnie do ruchu wskazówek zegara (zlewka i płyta wokół środka dna, ciało wokół środka obszaru)',
-  '.ops[].x': 'Środek aparatury (m); w kroku "pin" punkt ciała',
-  '.ops[].y': 'Dół aparatury (m) — 0 to dno skrzynki; w kroku "pin" punkt ciała',
-  '.ops[].w': 'Szerokość zewnętrzna (m)',
-  '.ops[].h': 'Wysokość zewnętrzna (m)',
-  '.ops[].wall': 'Grubość ścianki zlewki (m) — dokładnie, zlewka jest ciałem z prostokątów',
-  '.ops[].lid': 'true — zlewka ze szczelną pokrywką (zamknięty obszar gazu)',
-  '.ops[].mode': 'Płyta grzejna: "power" (stała moc) albo "thermostat" (temperatura płyty)',
-  '.ops[].power': 'Moc płyty w W na grubość warstwy (w termostacie: moc największa)',
-  '.ops[].target': 'Temperatura termostatu w °C',
-  '.ops[].on': 'false — płyta wyłączona'
+  '.format': 'moduleContent.lab2d.scene.format',
+  '.version': 'moduleContent.lab2d.scene.version',
+  '.seed': 'moduleContent.lab2d.scene.seed',
+  '.box': 'moduleContent.lab2d.scene.box',
+  '.box.w': 'moduleContent.lab2d.scene.boxW',
+  '.box.h': 'moduleContent.lab2d.scene.boxH',
+  '.box.depth': 'moduleContent.lab2d.scene.boxDepth',
+  '.ambient': 'moduleContent.lab2d.scene.ambient',
+  '.ambient.p': 'moduleContent.lab2d.scene.ambientP',
+  '.ambient.T': 'moduleContent.lab2d.scene.ambientT',
+  '.ambient.rh': 'moduleContent.lab2d.scene.ambientRh',
+  '.ambient.g': 'moduleContent.lab2d.scene.ambientG',
+  '.ambient.air': 'moduleContent.lab2d.scene.ambientAir',
+  '.ambient.air.N2': 'moduleContent.lab2d.scene.ambientAirN2',
+  '.ambient.air.O2': 'moduleContent.lab2d.scene.ambientAirO2',
+  '.sides': 'moduleContent.lab2d.scene.sides',
+  '.sides.left': 'moduleContent.lab2d.scene.sidesLeft',
+  '.sides.right': 'moduleContent.lab2d.scene.sidesRight',
+  '.sides.bottom': 'moduleContent.lab2d.scene.sidesBottom',
+  '.sides.top': 'moduleContent.lab2d.scene.sidesTop',
+  '.quality': 'moduleContent.lab2d.scene.quality',
+  '.extremes': 'moduleContent.lab2d.scene.extremes',
+  '.ops': 'moduleContent.lab2d.scene.ops',
+  '.ops[].op': 'moduleContent.lab2d.scene.opsOp',
+  '.ops[].id': 'moduleContent.lab2d.scene.opsId',
+  '.ops[].dx': 'moduleContent.lab2d.scene.opsDx',
+  '.ops[].dy': 'moduleContent.lab2d.scene.opsDy',
+  '.ops[].region': 'moduleContent.lab2d.scene.opsRegion',
+  '.ops[].region.rect': 'moduleContent.lab2d.scene.opsRegionRect',
+  '.ops[].region.circle': 'moduleContent.lab2d.scene.opsRegionCircle',
+  '.ops[].region.poly': 'moduleContent.lab2d.scene.opsRegionPoly',
+  '.ops[].region.line': 'moduleContent.lab2d.scene.opsRegionLine',
+  '.ops[].region.width': 'moduleContent.lab2d.scene.opsRegionWidth',
+  '.ops[].composition': 'moduleContent.lab2d.scene.opsComposition',
+  '.ops[].composition.H2O': 'moduleContent.lab2d.scene.opsCompositionH2O',
+  '.ops[].phase': 'moduleContent.lab2d.scene.opsPhase',
+  '.ops[].T': 'moduleContent.lab2d.scene.opsT',
+  '.ops[].material': 'moduleContent.lab2d.scene.opsMaterial',
+  '.ops[].d': 'moduleContent.lab2d.scene.opsD',
+  '.ops[].pinned': 'moduleContent.lab2d.scene.opsPinned',
+  '.ops[].angle': 'moduleContent.lab2d.scene.opsAngle',
+  '.ops[].x': 'moduleContent.lab2d.scene.opsX',
+  '.ops[].y': 'moduleContent.lab2d.scene.opsY',
+  '.ops[].w': 'moduleContent.lab2d.scene.opsW',
+  '.ops[].h': 'moduleContent.lab2d.scene.opsH',
+  '.ops[].wall': 'moduleContent.lab2d.scene.opsWall',
+  '.ops[].lid': 'moduleContent.lab2d.scene.opsLid',
+  '.ops[].mode': 'moduleContent.lab2d.scene.opsMode',
+  '.ops[].power': 'moduleContent.lab2d.scene.opsPower',
+  '.ops[].target': 'moduleContent.lab2d.scene.opsTarget',
+  '.ops[].on': 'moduleContent.lab2d.scene.opsOn'
 };
 
 /** Ein zweites Szenariusz im Beispiel: Mgła nad gorącą wodą. */
@@ -171,55 +172,59 @@ const EXAMPLE_SCENE = {
 
 export const lab2dPart = definePart<Config>({
   kind: 'lab2d',
-  label: 'Laboratorium 2D',
-  use: 'Laboratorium 2D (silnik v2): skrzynka pełna powietrza, w której stawia się zlewki i płyty grzejne i maluje wodę — ciepło, konwekcja, parowanie, wrzenie z pęcherzami, skraplanie i mgła wynikają z praw fizyki i bazy materiałów. Narzędzia: badanie punktu, widok pęcherza z siłami, nakładki (temperatura, ciśnienie, prędkość ze strzałkami, wilgotność, para, mapa stanów), widok cząstek, wykresy, dwa poziomy. Pełny ekran.',
+  label: 'moduleContent.lab2d.label',
+  use: 'moduleContent.lab2d.use',
   box: { colSpan: 6, rowSpan: 5 },
   fields: [],
   read,
   hasContent: () => true,
   missing: () => null,
   shows: (c, size) => size.height === 'strip'
-    ? `${c.title || 'Laboratorium 2D'} — karta z przyciskiem: laboratorium otwiera się na całym ekranie.`
-    : `„${c.title || 'Laboratorium 2D'}” — skrzynka z wodą i aparaturą, narzędzia obok albo pod nią, przycisk pełnego ekranu.`,
+    ? t('moduleContent.lab2d.showsStrip', { title: c.title || t('moduleContent.lab2d.title') })
+    : t('moduleContent.lab2d.showsAll', { title: c.title || t('moduleContent.lab2d.title') }),
   fullscreen: true,
-  Editor: (props) => (
-    <LabEditor {...props} presets={presets} sandbox={SANDBOX} what="laboratorium 2D" Preview={Preview} choices={CHOICES} scenarios
-      prompt={() => import('../../lab/lab2d/text').then((m) => m.lab2dPrompt())} />
-  ),
-  View: ({ config, ctx }) => {
+  Editor: function Lab2dEditor(props) {
+    const t = useT();
+    return (
+      <LabEditor {...props} presets={presets} sandbox={SANDBOX} what={t('moduleContent.lab2d.what')} Preview={Preview} choices={choicesOf(t)} scenarios
+        prompt={() => import('../../lab/lab2d/text').then((m) => m.lab2dPrompt())} />
+    );
+  },
+  View: function Lab2dView({ config, ctx }) {
+    const t = useT();
     if (ctx.size.height === 'strip' && ctx.whole !== true) {
       return (
         <div className="lab-card">
-          <strong>{config.title || 'Laboratorium 2D'}</strong>
+          <strong>{config.title || t('moduleContent.lab2d.title')}</strong>
           {config.text[0] !== undefined && <p className="wk-card-muted">{config.text[0]}</p>}
-          {ctx.openWhole !== undefined && <button type="button" className="wk-btn" onClick={ctx.openWhole}>Otwórz laboratorium</button>}
+          {ctx.openWhole !== undefined && <button type="button" className="wk-btn" onClick={ctx.openWhole}>{t('moduleContent.lab2d.open')}</button>}
         </div>
       );
     }
     return <Lab config={{ title: config.title, text: config.text, scene: config.scene, start: config.start, seconds: config.seconds, scenarios: config.scenarios }} whole={ctx.whole === true} />;
   },
   example: {
-    title: 'Zlewka na płycie grzejnej',
-    text: 'W zlewce jest woda, pod nią płyta grzejna.\nObserwuj pęcherze przy dnie i wykres temperatury.',
+    title: 'Zlewka na płycie grzejnej', // i18n-ignore
+    text: 'W zlewce jest woda, pod nią płyta grzejna.\nObserwuj pęcherze przy dnie i wykres temperatury.', // i18n-ignore
     mode: 'sandbox',
     scene: JSON.stringify(EXAMPLE_SCENE),
     start: 'button',
     seconds: '30',
-    scenarios: JSON.stringify([{ title: 'Mgła nad gorącą wodą', text: ['Gorąca woda w chłodnym pokoju — nad zlewką powstaje mgła.'], scene: EXAMPLE_FOG }])
+    scenarios: JSON.stringify([{ title: 'Mgła nad gorącą wodą', text: ['Gorąca woda w chłodnym pokoju — nad zlewką powstaje mgła.'], scene: EXAMPLE_FOG }]) // i18n-ignore
   },
   extra: [
-    { key: 'title', shape: 'line', says: 'Tytuł laboratorium (nad skrzynką)' },
-    { key: 'text', shape: 'lines', says: 'Tekst dla uczniów — co mają zrobić i zaobserwować (akapity)' },
-    { key: 'mode', shape: 'line', says: '"sandbox" — piaskownica (wszystkie narzędzia), "experiment" — zarezerwowane dla doświadczeń z krokami' },
-    { key: 'scene', shape: 'json', says: 'Układ startowy: skrzynka, otoczenie, boki, ziarno i kroki budowy (woda, powietrze, ciało stałe, zlewka, płyta grzejna, usuń) — silnik jest wbudowany, scena mówi, co na początku gdzie stoi', inside: SCENE_DOCS },
-    { key: 'start', shape: 'line', says: 'Co robi laboratorium po otwarciu: "button" (domyślnie) — nic się nie liczy, czeka na przycisk „Uruchom na żywo” albo „Upiecz”; "bake" — od razu piecze nagranie (scena liczy się raz, jak najszybciej, i zapisuje w tej przeglądarce; gotowe nagranie od razu się odtwarza)' },
-    { key: 'seconds', shape: 'line', says: 'Długość nagrania w sekundach czasu symulacji: 10, 30 (domyślnie), 60, 120 albo 300' },
+    { key: 'title', shape: 'line', says: 'moduleContent.lab2d.key.title' },
+    { key: 'text', shape: 'lines', says: 'moduleContent.lab2d.key.text' },
+    { key: 'mode', shape: 'line', says: 'moduleContent.lab2d.key.mode' },
+    { key: 'scene', shape: 'json', says: 'moduleContent.lab2d.key.scene', inside: SCENE_DOCS },
+    { key: 'start', shape: 'line', says: 'moduleContent.lab2d.key.start' },
+    { key: 'seconds', shape: 'line', says: 'moduleContent.lab2d.key.seconds' },
     {
-      key: 'scenarios', shape: 'json', says: 'Dodatkowe scenariusze do wyboru w laboratorium (pierwszym jest scena z klucza scene): lista { title, text, scene }',
+      key: 'scenarios', shape: 'json', says: 'moduleContent.lab2d.key.scenarios',
       inside: {
-        '[].title': 'Tytuł scenariusza (na liście wyboru i nad skrzynką)',
-        '[].text': 'Tekst dla uczniów do tego scenariusza — lista akapitów',
-        ...Object.fromEntries(Object.entries({ '': 'Scena scenariusza — taka jak w kluczu scene', ...SCENE_DOCS }).map(([k, v]) => [`[].scene${k}`, v]))
+        '[].title': 'moduleContent.lab2d.key.scenarioTitle',
+        '[].text': 'moduleContent.lab2d.key.scenarioText',
+        ...Object.fromEntries(Object.entries({ '': 'moduleContent.lab2d.key.scenarioScene', ...SCENE_DOCS }).map(([k, v]) => [`[].scene${k}`, v]))
       }
     }
   ]

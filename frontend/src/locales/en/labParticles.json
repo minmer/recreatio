@@ -1,0 +1,125 @@
+{
+  "title": "Particle lab",
+  "loading": "Starting the engine…",
+  "play": "Play",
+  "pause": "Pause",
+  "step": "One step",
+  "speed": "Time speed",
+  "tools": "Tools",
+  "materials": "Materials",
+  "apparatus": "Apparatus",
+  "settings": "Settings",
+  "inspect": "Inspect",
+  "toolPaint": "Paint",
+  "toolErase": "Erase",
+  "toolPlace": "Place",
+  "toolWall": "Wall",
+  "toolInspect": "Inspect",
+  "matWater": "Water",
+  "matAir": "Air",
+  "matGlass": "Glass",
+  "matSteel": "Steel",
+  "matChips": "Boiling chips",
+  "appBeaker": "Beaker",
+  "appHotplate": "Hot plate",
+  "quality": "Quality (resolution)",
+  "qualityVeryHigh": "Very high (recommended)",
+  "qualityHigh": "High",
+  "qualityMedium": "Medium (slower computer)",
+  "slow": "This computer cannot keep up: the simulation runs at {x}× real time.",
+  "slowLower": "Lower the quality",
+  "slowLowest": "This is already the lowest level. Time runs slower, but the results stay the same.",
+  "m1Note": "Stage M1a: mechanics — liquid and gas, walls, surface tension, buoyancy. Heat and boiling come next.",
+  "airNote": "Air far from everything is computed without particles: still, at room temperature (the background of the box). Air particles exist only near liquids and apparatus.",
+  "fullPower": "All cores",
+  "fullPowerTitle": "Open the lab in a new tab — it computes on every processor core",
+  "fullPowerSlow": "In a new tab the lab computes on every core:",
+  "threads": "threads",
+  "airParticles": "air",
+  "ambientAir": "Ambient air (no particles)",
+  "pressure": "Pressure",
+  "hud": "Developer panel",
+  "hudButton": "HUD",
+  "brush": "Brush",
+  "temperature": "Painting temperature",
+  "showAir": "Show air particles",
+  "restart": "Restart",
+  "emptyBox": "Empty box",
+  "hintPaint": "Drag across the box to paint with the chosen material.",
+  "hintErase": "Drag to erase — air comes back into the empty space.",
+  "hintPlace": "Click where the chosen apparatus should stand (its bottom at the click).",
+  "hintWall": "Drag from the start to the end of the wall.",
+  "hintInspect": "Click a particle to see its data.",
+  "nothingHere": "There is no particle here.",
+  "phase": "Phase",
+  "phaseSolid": "solid",
+  "phaseLiquid": "liquid",
+  "phaseGas": "gas",
+  "fixed": "fixed (wall, apparatus)",
+  "heater": "heating element",
+  "temp": "Temperature",
+  "mass": "Mass",
+  "velocity": "Velocity",
+  "density": "Density",
+  "enthalpy": "Specific enthalpy",
+  "neighbours": "Neighbours",
+  "composition": "Composition",
+  "particles": "particles",
+  "liquid": "liquid",
+  "gas": "gas",
+  "solidFixed": "fixed",
+  "stepsPerSecond": "steps/s",
+  "simRate": "simulation rate",
+  "fps": "frames/s",
+  "renderWorker": "drawn by the worker",
+  "renderMain": "drawn by the page",
+  "engineStopped": "The engine stopped working.",
+  "noWebgl2": "This browser does not support WebGL2 — the lab computes but does not draw.",
+  "pageTitle": "{title} — REcreatio",
+  "ai": {
+    "format": "Particle lab scene (module “Particle lab”) — JSON. The engine computes everything from local rules and the substance database; the scene only says what stands where at the start (it is the starting setup, not the course of events).\nUnits: metres (origin in the lower left corner of the inside of the box, y upwards), temperatures in °C, pressure in kPa, power in W (per layer thickness).\n\n{ \"format\": \"recreatio/particles\", \"version\": 1, \"seed\": number (repeatable randomness),\n  \"box\": { \"w\": width, \"h\": height, \"depth\": thickness of the 2D layer (usually 0.01) },\n  \"ambient\": { \"p\": kPa (101.325), \"T\": °C, \"g\": m/s² (0 — weightlessness), \"air\": { \"N2\": 0.7676, \"O2\": 0.2324 } },\n  \"sides\": { \"left\" | \"right\" | \"bottom\" | \"top\": \"wall\" or \"open\" (an open side is the room) },\n  \"quality\": \"very-high\" | \"high\" | \"medium\" (particle size 2 / 2.5 / 3 mm; usually \"very-high\"),\n  \"ops\": [ build steps in order ] }\n\nSteps (\"op\"):\n  { \"op\": \"fill\", \"region\": region, \"composition\": { substance: mass fraction }, \"phase\": \"liquid\" | \"gas\", \"T\": °C } — fills the region with liquid or gas (whatever was there gives way)\n  { \"op\": \"erase\", \"region\": region } — removes everything in the region; air comes back\n  { \"op\": \"solid\", \"region\": region, \"material\": material, \"T\": °C } — a fixed solid (a wall, boiling chips)\n  { \"op\": \"beaker\", \"x\": centre, \"y\": bottom, \"w\": width, \"h\": height, \"wall\": wall thickness, \"material\": \"glass\" } — a beaker (cross-section)\n  { \"op\": \"hotplate\", \"x\": centre, \"y\": bottom, \"w\", \"h\", \"material\": \"steel\", \"mode\": \"power\" | \"thermostat\", \"power\": W, \"target\": °C, \"on\": true } — a hot plate\nRegion: { \"rect\": [x0, y0, x1, y1] } | { \"circle\": [x, y, r] } | { \"poly\": [[x, y], …] } | { \"line\": [x0, y0, x1, y1], \"width\": thickness }",
+    "lists": "Substances (liquids and gases): {fluids}. Solid materials: {solids}.",
+    "prompt": "Prepare a JSON starting setup for the “Particle lab” module in REcreatio (a 2D school sandbox made of particles).\nTopic: [describe what should stand in the box, e.g. “a beaker of water on a hot plate and boiling chips on the bottom”].\nRules: real sizes (beaker 7 cm wide, plate 16 cm), things do not overlap, apparatus stands on the bottom (y = 0) or on another thing. Return ONE JSON object, without comments.",
+    "example": "Example:"
+  },
+  "species": {
+    "H2O": {
+      "name": "water",
+      "solid": "ice",
+      "liquid": "water",
+      "gas": "steam"
+    },
+    "N2": {
+      "name": "nitrogen",
+      "gas": "nitrogen"
+    },
+    "O2": {
+      "name": "oxygen",
+      "gas": "oxygen"
+    },
+    "glass": {
+      "name": "borosilicate glass",
+      "solid": "glass"
+    },
+    "steel": {
+      "name": "stainless steel",
+      "solid": "steel"
+    },
+    "ceramic": {
+      "name": "porous ceramic (boiling chips)",
+      "solid": "ceramic"
+    }
+  },
+  "preset": {
+    "beakerOnPlate": {
+      "title": "Beaker of water on a hot plate",
+      "summary": "boiling scene: a beaker of water (20 °C) on a steel hot plate in a box full of air",
+      "text": "The beaker holds water at room temperature, with a hot plate under it.\nInspect the particles with the “Inspect” tool — each has its own composition, temperature and mass."
+    },
+    "emptyBox": {
+      "title": "Empty box",
+      "summary": "a box full of air — paint water, put up walls and apparatus",
+      "text": "The box is full of air. Paint water, draw walls, put up beakers and hot plates."
+    }
+  }
+}

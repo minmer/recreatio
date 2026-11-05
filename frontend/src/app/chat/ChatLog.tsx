@@ -13,17 +13,19 @@ import type { Features, Mark } from './chatFeatures';
 import { type Anchor, Avatar, COPY_WHO_PREF, Icon, type MenuItem, PopMenu, type Shown, authorOf, clock, cls, dayKey, dayLabel, failure, full, hueOf, useButtonMenu, whenLong } from './ChatKit';
 import { DayChip, flashRow, SEEK_PAGES } from './DayJump';
 import { later } from '../ui/later';
+import { t as tApp, useT } from '../core/i18n';
 
 /* 0130 — das Fenster „Zgłoś" erst, wenn jemand meldet. */
 const ReportDialog = later(() => import('../reports/ReportDialog').then((m) => m.ReportDialog), null);
 
 /** Was der Meldende an einer Nachricht sieht — der Betreiber hat dazu keinen Schlüssel. */
 const quoteOf = (item: Shown, author: string): string => {
+  const t = tApp;
   const files = item.opened?.attachments ?? [];
   return [
     `${author}, ${full(item.message.createdAt)}:`,
     item.opened?.text ?? '',
-    files.length === 0 ? '' : `Załączniki: ${files.map((a) => a.name).join(', ')}`
+    files.length === 0 ? '' : t('chat.forward.attachmentsNamed', { names: files.map((a) => a.name).join(', ') })
   ].filter((line) => line.trim() !== '').join('\n');
 };
 
@@ -35,9 +37,9 @@ const URL_RE = /\bhttps?:\/\/[^\s<>"']*[^\s<>"'.,;:!?)\]]/g;
 function Linked({ text, mark }: { text: string; mark: string }) {
   const out: ReactNode[] = [];
   const marked = (part: string, key: string) => {
-    const needle = mark.trim().toLocaleLowerCase('pl-PL');
+    const needle = mark.trim().toLocaleLowerCase();
     if (needle === '') { out.push(part); return; }
-    const hay = part.toLocaleLowerCase('pl-PL');
+    const hay = part.toLocaleLowerCase();
     let at = 0;
     for (let i = hay.indexOf(needle); i >= 0; i = hay.indexOf(needle, at)) {
       if (i > at) out.push(part.slice(at, i));
@@ -63,8 +65,8 @@ const EMOJI_ONLY = /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional
 function bigEmoji(text: string): boolean {
   const bare = text.replace(/\s/g, '');
   if (bare === '' || bare.length > 24 || !EMOJI_ONLY.test(bare)) return false;
-  const Segmenter = (Intl as { Segmenter?: new (l: string, o: { granularity: 'grapheme' }) => { segment: (s: string) => Iterable<unknown> } }).Segmenter;
-  const count = Segmenter === undefined ? Array.from(bare).length / 2 : Array.from(new Segmenter('pl', { granularity: 'grapheme' }).segment(bare)).length;
+  const Segmenter = (Intl as { Segmenter?: new (l: string | undefined, o: { granularity: 'grapheme' }) => { segment: (s: string) => Iterable<unknown> } }).Segmenter;
+  const count = Segmenter === undefined ? Array.from(bare).length / 2 : Array.from(new Segmenter(undefined, { granularity: 'grapheme' }).segment(bare)).length;
   return count <= 3;
 }
 
@@ -138,6 +140,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
   search?: string;
   filter?: string;
 }) {
+  const t = useT();
   const box = useRef<HTMLDivElement | null>(null);
   const inner = useRef<HTMLDivElement | null>(null);
   const stick = useRef(true);
@@ -185,11 +188,11 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
     void call(`${endpoint}/marks`, { method: 'POST', body: JSON.stringify({ messageId: id, kind, value: had ? null : value }) })
       .then(() => {
         window.dispatchEvent(new Event('chat-feature-changed'));
-        if (kind === 'star') say(had ? 'Usunięto z zapisanych.' : 'Zapisano — znajdziesz ją w menu ⋮ „Zapisane wiadomości".');
-        if (kind === 'pin') say(had ? 'Odpięto.' : 'Przypięto dla wszystkich.');
+        if (kind === 'star') say(had ? t('chat.log.unstarred') : t('chat.log.starred'));
+        if (kind === 'pin') say(had ? t('chat.log.unpinned') : t('chat.log.pinned'));
       })
-      .catch((e: unknown) => say(failure(e, 'Nie udało się.')));
-  }, [endpoint, marks, say]);
+      .catch((e: unknown) => say(failure(e, t('common.failed'))));
+  }, [endpoint, marks, say, t]);
 
   const all = items ?? [];
   const visible = all.filter(({ message, opened }) => matches(message.messageId, opened));
@@ -323,7 +326,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
   const jumpTo = (id: string) => {
     const el = box.current;
     const row = el?.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`);
-    if (el == null || row == null) { say('Ta wiadomość jest wcześniej — wczytaj wcześniejsze.'); return; }
+    if (el == null || row == null) { say(t('chat.log.earlierMessage')); return; }
     el.scrollTo({ top: row.offsetTop - el.clientHeight / 2 + row.offsetHeight / 2, behavior: 'smooth' });
     row.classList.remove('is-flash');
     void row.offsetWidth;
@@ -332,7 +335,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
   };
 
   const copy = async (text: string) => {
-    try { await navigator.clipboard.writeText(text); say('Skopiowano.'); } catch { say('Nie udało się skopiować.'); }
+    try { await navigator.clipboard.writeText(text); say(t('chat.log.copied')); } catch { say(t('chat.log.copyFailed')); }
   };
 
   /*
@@ -397,9 +400,9 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
    * „Wann" ist die Uhrzeit; reichen die markierten über mehr als einen Tag, mit dem Tag davor.
    */
   const copyPicked = (who: boolean) => {
-    const when = new Set(chosen.map((v) => dayKey(v.message.createdAt))).size > 1 ? whenLong : clock;
+    const when = (at: string) => (new Set(chosen.map((v) => dayKey(v.message.createdAt))).size > 1 ? whenLong(at, t.lang) : clock(at, t.lang));
     const texts = chosen.filter((v) => v.opened !== null && v.message.deletedAt === null)
-      .map((v) => (who ? `${rules.author(v.message, v.opened)}, ${when(v.message.createdAt)}: ${v.opened!.text || 'Załącznik'}` : v.opened!.text || 'Załącznik'));
+      .map((v) => (who ? `${rules.author(v.message, v.opened)}, ${when(v.message.createdAt)}: ${v.opened!.text || t('chat.log.attachment')}` : v.opened!.text || t('chat.log.attachment')));
     void copy(texts.join(who ? '\n' : '\n\n'));
     endPicking();
   };
@@ -426,7 +429,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
       blocks.push({ key: `d-${message.messageId}`, nodes: rows });
       rows.push(
         <div key={`d-${message.messageId}`} className="ch-day" role="separator">
-          <DayChip at={new Date(message.createdAt).getTime()} onPick={jumpToDay}>{dayLabel(message.createdAt)}</DayChip>
+          <DayChip at={new Date(message.createdAt).getTime()} onPick={jumpToDay}>{dayLabel(message.createdAt, undefined, t.lang)}</DayChip>
         </div>
       );
     }
@@ -434,7 +437,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
     if (!unreadPlaced && unreadAt !== null && !mine && at(message) > unreadAt && search === '' && filter === 'all') {
       unreadPlaced = true;
       divider = true;
-      rows.push(<div key="unread" className="ch-unread" role="separator"><span>Nieprzeczytane</span></div>);
+      rows.push(<div key="unread" className="ch-unread" role="separator"><span>{t('chat.log.unread')}</span></div>);
     }
     const start = newDay || divider || prev === undefined || authorOf(prev) !== authorOf(message) || at(message) - at(prev) > GROUP_GAP;
     const end = next === undefined || authorOf(next) !== authorOf(message) || at(next) - at(message) > GROUP_GAP
@@ -487,31 +490,31 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
     >
       {/* 0101 — was markiert ist, und was sich damit tun lässt. */}
       {picked !== null && (
-        <div className="ch-pickbar" role="toolbar" aria-label="Zaznaczone wiadomości" data-pickbar="">
-          <button type="button" className="ch-icon-btn" aria-label="Anuluj zaznaczenie" title="Anuluj (Esc)" onClick={endPicking}>
+        <div className="ch-pickbar" role="toolbar" aria-label={t('chat.log.pickedLabel')} data-pickbar="">
+          <button type="button" className="ch-icon-btn" aria-label={t('chat.log.cancelPick')} title={t('chat.log.cancelEsc')} onClick={endPicking}>
             <Icon name="x" />
           </button>
-          <strong className="ch-pickbar-count">Zaznaczone: {chosen.length}</strong>
+          <strong className="ch-pickbar-count">{t('chat.log.picked', { count: chosen.length })}</strong>
           <span className="ch-pickbar-actions">
             {on.collect !== undefined && rules.readOnly !== true && (
               <button type="button" className="wk-btn wk-btn-small" disabled={chosen.length === 0} data-pick-collect=""
                 onClick={() => on.collect!(chosen.map((v) => v.message), endPicking)}>
-                <Icon name="hash" /> Do tematu
+                <Icon name="hash" /> {t('chat.log.toTopic')}
               </button>
             )}
             <span className="ch-copy">
-              <button type="button" className="wk-link-btn" disabled={chosen.length === 0} title={withWho ? 'Kopiuj z nadawcą i godziną' : 'Kopiuj samą treść'}
-                onClick={() => copyPicked(withWho)}>Kopiuj</button>
-              <button type="button" className="wk-link-btn ch-copy-how" aria-label="Jak kopiować" aria-haspopup="menu" aria-expanded={copyMenu.open !== null}
+              <button type="button" className="wk-link-btn" disabled={chosen.length === 0} title={withWho ? t('chat.log.copyWithWho') : t('chat.log.copyTextOnly')}
+                onClick={() => copyPicked(withWho)}>{t('common.copy')}</button>
+              <button type="button" className="wk-link-btn ch-copy-how" aria-label={t('chat.log.howCopy')} aria-haspopup="menu" aria-expanded={copyMenu.open !== null}
                 disabled={chosen.length === 0} onClick={(e) => copyMenu.toggle(e.currentTarget)}><Icon name="down" /></button>
             </span>
           </span>
           {copyMenu.open !== null && (
-            <PopMenu anchor={{ rect: copyMenu.open.rect }} from={copyMenu.open.from} label="Jak kopiować" onClose={copyMenu.close} items={[
-              { label: 'Tylko treść', icon: 'copy', checked: !withWho, onSelect: () => { setCopyWho('no'); copyPicked(false); } },
-              { label: 'Z nadawcą i godziną', icon: 'copy', checked: withWho, onSelect: () => { setCopyWho('yes'); copyPicked(true); } }
+            <PopMenu anchor={{ rect: copyMenu.open.rect }} from={copyMenu.open.from} label={t('chat.log.howCopy')} onClose={copyMenu.close} items={[
+              { label: t('chat.log.onlyText'), icon: 'copy', checked: !withWho, onSelect: () => { setCopyWho('no'); copyPicked(false); } },
+              { label: t('chat.log.withWho'), icon: 'copy', checked: withWho, onSelect: () => { setCopyWho('yes'); copyPicked(true); } }
             ]}>
-              <p className="ch-pop-head">Kopiuj — wybór zostaje zapamiętany</p>
+              <p className="ch-pop-head">{t('chat.log.copyRemembered')}</p>
             </PopMenu>
           )}
         </div>
@@ -521,8 +524,8 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
         <button type="button" className="ch-pinbar" onClick={() => { jumpTo(pin.message.messageId); setPinAt((n) => n + 1); }}>
           <Icon name="pin" />
           <span className="ch-pinbar-text">
-            <strong>{pinned.length > 1 ? `Przypięta wiadomość ${(pinAt % pinned.length) + 1} z ${pinned.length}` : 'Przypięta wiadomość'}</strong>
-            <span>{pin.opened?.text || (pin.opened?.attachments?.length ? 'Załącznik' : 'Wiadomość')}</span>
+            <strong>{pinned.length > 1 ? t('chat.log.pinnedN', { n: (pinAt % pinned.length) + 1, count: pinned.length }) : t('chat.log.pinnedOne')}</strong>
+            <span>{pin.opened?.text || (pin.opened?.attachments?.length ? t('chat.log.attachment') : t('chat.chrome.message'))}</span>
           </span>
         </button>
       )}
@@ -564,25 +567,25 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
       >
         <div className="ch-log-in" ref={inner}>
           {more && all.length > 0 && (
-            <button type="button" className="ch-earlier" onClick={earlier}>Wczytaj wcześniejsze</button>
+            <button type="button" className="ch-earlier" onClick={earlier}>{t('chat.log.loadEarlier')}</button>
           )}
-          {items === undefined && <p className="ch-empty">Wczytywanie…</p>}
+          {items === undefined && <p className="ch-empty">{t('common.loading')}</p>}
           {items !== undefined && all.length === 0 && <p className="ch-empty">{empty}</p>}
           {items !== undefined && all.length > 0 && visible.length === 0 && (
-            <p className="ch-empty">{search !== '' ? `Nic nie pasuje do „${search}" we wczytanych wiadomościach.` : 'Nie ma tu takich wiadomości.'}</p>
+            <p className="ch-empty">{search !== '' ? t('chat.log.noMatch', { search }) : t('chat.log.noSuch')}</p>
           )}
           {blocks.map((b) => <section key={b.key} className="ch-dayblock">{b.nodes}</section>)}
         </div>
       </div>
 
       {(away || fresh > 0) && (
-        <button type="button" className="ch-jump" aria-label={fresh > 0 ? `Nowe wiadomości: ${fresh} — przewiń na dół` : 'Przewiń na dół'} onClick={toBottom}>
+        <button type="button" className="ch-jump" aria-label={fresh > 0 ? t('chat.log.freshDown', { count: fresh }) : t('chat.log.down')} onClick={toBottom}>
           <Icon name="chevron" />
           {fresh > 0 && <span className="ch-jump-count">{fresh}</span>}
         </button>
       )}
 
-      {dragging && <div className="ch-drop" aria-hidden="true"><Icon name="clip" /> Upuść, aby dołączyć</div>}
+      {dragging && <div className="ch-drop" aria-hidden="true"><Icon name="clip" /> {t('chat.log.drop')}</div>}
       {toast !== null && <p className="ch-toast" role="status">{toast}</p>}
 
       {menu !== null && (
@@ -596,7 +599,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
           onCopy={(text) => void copy(text)}
           onDelete={setConfirm}
           onPick={(id) => startPicking(new Set([id]), id)}
-          onRestore={(message) => { void on.restore(message).then(() => say('Przywrócono.')).catch((e: unknown) => say(failure(e, 'Nie udało się przywrócić.'))); }}
+          onRestore={(message) => { void on.restore(message).then(() => say(t('chat.log.restored'))).catch((e: unknown) => say(failure(e, t('chat.log.restoreFailed')))); }}
           onReport={(item, author) => setReport({ item, author })}
         />
       )}
@@ -609,19 +612,19 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
       )}
 
       {confirm !== null && (
-        <Modal title="Usunąć wiadomość?" onClose={() => setConfirm(null)}>
+        <Modal title={t('chat.log.deleteAsk')} onClose={() => setConfirm(null)}>
           <p className="ch-confirm">
             {rules.mine(confirm)
-              ? 'Inni zobaczą, że była, ale nie jej treść. Możesz ją później przywrócić.'
-              : 'Usuwasz ją jako prowadzący. Uczestnicy zobaczą, że wiadomość usunięto; przywrócić ją może prowadzący.'}
+              ? t('chat.log.deleteOwn')
+              : t('chat.log.deleteModerator')}
           </p>
           <div className="wk-actions">
             <button type="button" className="wk-btn wk-btn-danger" onClick={() => {
               const target = confirm;
               setConfirm(null);
-              void on.remove(target).then(() => say('Usunięto.')).catch((e: unknown) => say(failure(e, 'Nie udało się usunąć.')));
-            }}>Usuń</button>
-            <button type="button" className="wk-link-btn" onClick={() => setConfirm(null)}>Anuluj</button>
+              void on.remove(target).then(() => say(t('chat.log.deleted'))).catch((e: unknown) => say(failure(e, t('chat.log.deleteFailed'))));
+            }}>{t('common.delete')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => setConfirm(null)}>{t('common.cancel')}</button>
           </div>
         </Modal>
       )}
@@ -644,6 +647,7 @@ function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete
   /** 0130 — eine Nachricht eines anderen dem Betreiber melden. */
   onReport: (item: Shown, author: string) => void;
 }) {
+  const t = useT();
   const { message, opened } = menu.item;
   const id = message.messageId;
   const gone = message.deletedAt !== null;
@@ -653,50 +657,50 @@ function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete
   const reportable = !gone && opened !== null && message.blocked !== true && !rules.mine(message);
 
   if (!gone && opened !== null && rules.readOnly === true) {
-    if (opened.text !== '') items.push({ label: 'Kopiuj tekst', icon: 'copy', onSelect: () => onCopy(opened.text) });
-    if (reportable) items.push({ label: 'Zgłoś', icon: 'alert', onSelect: () => onReport(menu.item, menu.author) });
+    if (opened.text !== '') items.push({ label: t('chat.menu.copyText'), icon: 'copy', onSelect: () => onCopy(opened.text) });
+    if (reportable) items.push({ label: t('chat.menu.report'), icon: 'alert', onSelect: () => onReport(menu.item, menu.author) });
   } else if (!gone && opened !== null) {
-    items.push({ label: 'Odpowiedz', icon: 'reply', onSelect: () => on.reply(message, opened, menu.author) });
-    items.push({ label: 'Zaznacz', icon: 'check', onSelect: () => onPick(id) });
-    if (opened.text !== '') items.push({ label: 'Kopiuj tekst', icon: 'copy', onSelect: () => onCopy(opened.text) });
+    items.push({ label: t('chat.menu.reply'), icon: 'reply', onSelect: () => on.reply(message, opened, menu.author) });
+    items.push({ label: t('chat.menu.pick'), icon: 'check', onSelect: () => onPick(id) });
+    if (opened.text !== '') items.push({ label: t('chat.menu.copyText'), icon: 'copy', onSelect: () => onCopy(opened.text) });
     if (on.forward !== undefined) {
       const forward = on.forward;
-      items.push({ label: 'Przekaż dalej', icon: 'forward', onSelect: () => forward(opened) });
+      items.push({ label: t('chat.menu.forward'), icon: 'forward', onSelect: () => forward(opened) });
     }
     const starred = marks.some((m) => m.mine && m.kind === 'star');
-    items.push({ label: starred ? 'Usuń z zapisanych' : 'Zapisz', icon: 'star', onSelect: () => onMark(id, 'star', '1') });
+    items.push({ label: starred ? t('chat.menu.unstar') : t('chat.menu.star'), icon: 'star', onSelect: () => onMark(id, 'star', '1') });
     if (rules.canPin) {
       const pinned = marks.some((m) => m.kind === 'pin');
-      items.push({ label: pinned ? 'Odepnij' : 'Przypnij', icon: 'pin', onSelect: () => onMark(id, 'pin', '1') });
+      items.push({ label: pinned ? t('chat.menu.unpin') : t('chat.menu.pin'), icon: 'pin', onSelect: () => onMark(id, 'pin', '1') });
     }
-    if (rules.canEdit(message, opened)) items.push({ label: 'Edytuj', icon: 'edit', onSelect: () => on.edit(message, opened) });
-    if (message.editedAt != null) items.push({ label: 'Historia zmian', icon: 'history', onSelect: () => on.history(message) });
+    if (rules.canEdit(message, opened)) items.push({ label: t('common.edit'), icon: 'edit', onSelect: () => on.edit(message, opened) });
+    if (message.editedAt != null) items.push({ label: t('chat.menu.history'), icon: 'history', onSelect: () => on.history(message) });
     if (on.task !== undefined) {
       const task = on.task;
-      items.push({ label: 'Utwórz zadanie', icon: 'check', onSelect: () => task(message, opened) });
+      items.push({ label: t('chat.menu.task'), icon: 'check', onSelect: () => task(message, opened) });
     }
     if (on.appointment !== undefined) {
       const appointment = on.appointment;
-      items.push({ label: 'Dodaj do kalendarza', icon: 'clock', onSelect: () => appointment(message, opened) });
+      items.push({ label: t('chat.menu.appointment'), icon: 'clock', onSelect: () => appointment(message, opened) });
     }
     if (on.moveTopic !== undefined) {
       const move = on.moveTopic;
-      items.push({ label: 'Przenieś do tematu', icon: 'hash', onSelect: () => move(message) });
+      items.push({ label: t('chat.topic.moveTitle'), icon: 'hash', onSelect: () => move(message) });
     }
-    if (reportable) items.push({ label: 'Zgłoś', icon: 'alert', onSelect: () => onReport(menu.item, menu.author) });
+    if (reportable) items.push({ label: t('chat.menu.report'), icon: 'alert', onSelect: () => onReport(menu.item, menu.author) });
   }
-  if (gone && rules.canRestore(message)) items.push({ label: 'Przywróć', icon: 'history', onSelect: () => onRestore(message) });
-  if (!gone && rules.canDelete(message)) items.push({ label: 'Usuń', icon: 'trash', danger: true, onSelect: () => onDelete(message) });
-  if (items.length === 0) items.push({ label: 'Nic do zrobienia z tą wiadomością', disabled: true, onSelect: () => undefined });
+  if (gone && rules.canRestore(message)) items.push({ label: t('chat.menu.restore'), icon: 'history', onSelect: () => onRestore(message) });
+  if (!gone && rules.canDelete(message)) items.push({ label: t('common.delete'), icon: 'trash', danger: true, onSelect: () => onDelete(message) });
+  if (items.length === 0) items.push({ label: t('chat.menu.nothing'), disabled: true, onSelect: () => undefined });
 
   return (
-    <PopMenu anchor={menu.anchor} from={menu.from} label="Opcje wiadomości" items={items} onClose={onClose}>
+    <PopMenu anchor={menu.anchor} from={menu.from} label={t('chat.menu.label')} items={items} onClose={onClose}>
       {!gone && opened !== null && rules.readOnly !== true && (
-        <div className="ch-pop-reacts" role="group" aria-label="Reakcje">
+        <div className="ch-pop-reacts" role="group" aria-label={t('chat.menu.reactions')}>
           {REACTIONS.map((emoji) => {
             const pressed = marks.some((m) => m.mine && m.kind === 'reaction' && m.value === emoji);
             return (
-              <button key={emoji} type="button" role="menuitemcheckbox" aria-checked={pressed} aria-label={`Reakcja ${emoji}`}
+              <button key={emoji} type="button" role="menuitemcheckbox" aria-checked={pressed} aria-label={t('chat.menu.reaction', { emoji })}
                 className={pressed ? 'is-on' : undefined} onClick={() => { onClose(); onMark(id, 'reaction', emoji); }}>
                 {emoji}
               </button>
@@ -730,6 +734,7 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
   onHistory: () => void;
   onSwipe: () => void;
 }) {
+  const t = useT();
   const { message, opened } = item;
   const gone = message.deletedAt !== null;
   const text = opened?.text ?? '';
@@ -758,12 +763,12 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
       {pinned && <Icon name="pin" />}
       {starred && <Icon name="star" />}
       {message.editedAt != null && !gone && (live
-        ? <button type="button" className="ch-edited" title={`Edytowano ${whenLong(message.editedAt)} — pokaż wersje`} onClick={onHistory}>edytowano</button>
-        : <span className="ch-edited">edytowano</span>)}
+        ? <button type="button" className="ch-edited" title={t('chat.row.editedAt', { when: whenLong(message.editedAt, t.lang) })} onClick={onHistory}>{t('chat.row.edited')}</button>
+        : <span className="ch-edited">{t('chat.row.edited')}</span>)}
       <time dateTime={message.createdAt} title={live ? full(message.createdAt) : undefined}>{clock(message.createdAt)}</time>
       {mine && receipts && !gone && (
-        <span className={cls('ch-ticks', readBy > 0 && 'is-read')} title={readBy > 0 ? `Przeczytana (${readBy})` : 'Wysłana'}
-          aria-label={live ? (readBy > 0 ? `przeczytana przez ${readBy}` : 'wysłana') : undefined}>
+        <span className={cls('ch-ticks', readBy > 0 && 'is-read')} title={readBy > 0 ? t('chat.row.readN', { count: readBy }) : t('chat.row.sent')}
+          aria-label={live ? (readBy > 0 ? t('chat.row.readBy', { count: readBy }) : t('chat.row.sentLower')) : undefined}>
           {readBy > 0 ? '✓✓' : '✓'}
         </span>
       )}
@@ -831,7 +836,7 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
       {shift > 0 && <span className="ch-swipe" style={{ opacity: Math.min(1, shift / 56) }}><Icon name="reply" /></span>}
       <div className={cls('ch-bubble', gone && 'is-gone', big && 'is-emoji', visual && text === '' && 'is-media')} onContextMenu={openHere}>
         {/* 0095 — die eigene trägt eine Zeile, wenn sie mehr sagt als „Ty" (durch eine Rolle, eine andere eigene Person). */}
-        {group && (!mine || author !== 'Ty') && start && (
+        {group && (!mine || author !== t('chat.you')) && start && (
           <div className="ch-author" style={{ '--ch-h': hueOf(authorOf(message)) } as CSSProperties}>
             {author}{note !== null && <span className="ch-author-note"> · {note}</span>}
           </div>
@@ -839,23 +844,23 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
 
         {gone ? (
           <div className="ch-text ch-gone">
-            <Icon name="ban" /> {message.deletedBy === 'moderator' ? 'Wiadomość usunięta przez prowadzącego' : 'Wiadomość usunięta'}{pad}
+            <Icon name="ban" /> {message.deletedBy === 'moderator' ? t('chat.row.deletedByModerator') : t('chat.row.deleted')}{pad}
           </div>
         ) : message.blocked === true ? (
           /* 0130 — nach einer Meldung gesperrt: der Dienst schickt keinen Inhalt. */
-          <div className="ch-text ch-gone" data-message-blocked=""><Icon name="ban" /> Wiadomość zablokowana po zgłoszeniu.{pad}</div>
+          <div className="ch-text ch-gone" data-message-blocked=""><Icon name="ban" /> {t('chat.row.blocked')}{pad}</div>
         ) : opened === null ? (
-          <div className="ch-text ch-gone"><Icon name="lock" /> Nie do odczytania — brak klucza tej epoki.{pad}</div>
+          <div className="ch-text ch-gone"><Icon name="lock" /> {t('chat.history.noKey')}{pad}</div>
         ) : (
           <>
-            {opened.forwarded === true && <div className="ch-fwd"><Icon name="forward" /> Przekazana</div>}
+            {opened.forwarded === true && <div className="ch-fwd"><Icon name="forward" /> {t('chat.row.forwarded')}</div>}
             {/* 2026-10-29 — aus einem JSON-Import (`chatJson.ts`): für jeden Leser sichtbar, wie „Przekazana". */}
-            {opened.imported === true && <div className="ch-fwd" data-message-imported=""><Icon name="braces" /> Z importu</div>}
+            {opened.imported === true && <div className="ch-fwd" data-message-imported=""><Icon name="braces" /> {t('chat.row.imported')}</div>}
             {opened.replyTo !== undefined && (
               <button type="button" className="ch-quote" onClick={() => onJump(opened.replyTo!)}
                 style={{ '--ch-h': hueOf(replyAuthor ?? 'x') } as CSSProperties}>
-                <strong>{replyAuthor ?? 'Odpowiedź'}</strong>
-                <span>{opened.replyText || 'Załącznik'}</span>
+                <strong>{replyAuthor ?? t('chat.row.reply')}</strong>
+                <span>{opened.replyText || t('chat.log.attachment')}</span>
               </button>
             )}
             {files.length > 0 && <Attachments endpoint={endpoint} list={files} />}
@@ -867,7 +872,7 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
           <div className="ch-reacts">
             {reactions.map((r) => (
               <button key={r.value} type="button" className={cls('ch-react', r.mine && 'is-mine')} aria-pressed={r.mine}
-                aria-label={`Reakcja ${r.value}: ${r.count}${r.mine ? ', w tym Twoja' : ''}`} onClick={() => onReact(r.value)}>
+                aria-label={t(r.mine ? 'chat.row.reactionMine' : 'chat.row.reactionCount', { emoji: r.value, count: r.count })} onClick={() => onReact(r.value)}>
                 <span>{r.value}</span>{r.count > 1 && <span className="ch-react-n">{r.count}</span>}
               </button>
             ))}
@@ -877,7 +882,7 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
 
         <span className={cls('ch-meta', metaOn === 'block' && 'is-block', metaOn === 'media' && 'on-media')}>{meta(true)}</span>
 
-        <button type="button" className="ch-more" aria-label="Opcje wiadomości" aria-haspopup="menu"
+        <button type="button" className="ch-more" aria-label={t('chat.menu.label')} aria-haspopup="menu"
           onClick={(e) => onMenu({ rect: e.currentTarget.getBoundingClientRect() }, e.currentTarget)}>
           <Icon name="chevron" />
         </button>

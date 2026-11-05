@@ -12,6 +12,7 @@
  * braucht. Niemand muss eine Reihenfolge angeben; ein Kreis wird gemeldet.
  */
 
+import { appLang, tIn } from '../../core/i18n';
 import type { Env, Expr } from './expr';
 import { RELATIONS, SETS, type KindSpec, type Mood, type PropSpec } from './liveModel';
 
@@ -124,7 +125,7 @@ function assigns(c: Compiler, set: Readonly<Record<string, string>>, kind: KindS
   const own = new Set([...kind.props.map((p) => p.name), ...kind.state.map((s) => s.name)]);
   const out: Assign[] = [];
   for (const [name, source] of Object.entries(set)) {
-    if (!own.has(name)) { c.report({ where, error: `„${name}" nie jest własnością ani stanem rodzaju „${kind.name}"`, source: name, at: 0 }); continue; }
+    if (!own.has(name)) { c.report({ where, error: tIn(appLang(), 'pageMotion.things.notOwn', { name, kind: kind.name }), source: name, at: 0 }); continue; }
     const expr = c.compile(source, `${where} „${name}"`);
     if (expr !== null) out.push({ name, expr });
   }
@@ -142,9 +143,9 @@ export function compileKind(k: KindSpec, c: Compiler): KindRun {
     when: p.when === null ? null : c.compile(p.when, `${where}.props „${p.name}".when`)
   }]));
   for (const name of [...k.edit, ...Object.keys(k.drag ?? {})]) {
-    if (!props.has(name) && !k.state.some((s) => s.name === name)) c.report({ where, error: `„${name}" nie jest własnością tego rodzaju`, source: name, at: 0 });
+    if (!props.has(name) && !k.state.some((s) => s.name === name)) c.report({ where, error: tIn(appLang(), 'pageMotion.things.notProp', { name }), source: name, at: 0 });
   }
-  for (const name of k.add) if (!c.kindNames.has(name)) c.report({ where: `${where}.can.add`, error: `nie ma rodzaju „${name}"`, source: name, at: 0 });
+  for (const name of k.add) if (!c.kindNames.has(name)) c.report({ where: `${where}.can.add`, error: tIn(appLang(), 'pageMotion.things.noKind', { name }), source: name, at: 0 });
   return {
     spec: k,
     props,
@@ -271,7 +272,7 @@ export function sortLets(tree: Tree, report: (problem: WorldProblem) => void): {
   if (order.length < steps.length) {
     const done = new Set(order);
     const stuck = steps.find((_, i) => !done.has(i))!;
-    report({ where: `world.kinds „${stuck.t.kind.spec.name}".let „${stuck.l.name}"`, error: 'wartości liczone zależą od siebie w kółko — liczę je w kolejności z listy', source: stuck.l.name, at: 0 });
+    report({ where: `world.kinds „${stuck.t.kind.spec.name}".let „${stuck.l.name}"`, error: tIn(appLang(), 'pageMotion.things.cycle'), source: stuck.l.name, at: 0 });
     steps.forEach((_, i) => { if (!done.has(i)) order.push(i); });
   }
   const sorted = order.map((i) => steps[i]);

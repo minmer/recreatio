@@ -4,7 +4,7 @@
 
 import { type CSSProperties, type ReactNode, forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 import { call } from '../core/session';
 import { Modal } from '../ui/Modal';
 import type { Attachment, SendOptions } from './chat';
@@ -56,6 +56,7 @@ const EMOJI = [
 
 /** Das Mikrofon — Aufnahme, Zeit, verwerfen oder senden. Höchstens fünf Minuten. */
 function useRecorder(onOverflow: (file: File) => void) {
+  const t = useT();
   const supported = typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia !== undefined && typeof MediaRecorder !== 'undefined';
   const [state, setState] = useState<'idle' | 'asking' | 'recording'>('idle');
   const [seconds, setSeconds] = useState(0);
@@ -74,7 +75,7 @@ function useRecorder(onOverflow: (file: File) => void) {
   const release = () => {
     window.clearInterval(tick.current);
     window.clearTimeout(limit.current);
-    stream.current?.getTracks().forEach((t) => t.stop());
+    stream.current?.getTracks().forEach((tr) => tr.stop());
     stream.current = null;
   };
 
@@ -94,7 +95,7 @@ function useRecorder(onOverflow: (file: File) => void) {
     setFailed(null);
     try {
       const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!alive.current) { mic.getTracks().forEach((t) => t.stop()); return; }
+      if (!alive.current) { mic.getTracks().forEach((tr) => tr.stop()); return; }
       stream.current = mic;
       const rec = new MediaRecorder(mic);
       recorder.current = rec;
@@ -123,7 +124,7 @@ function useRecorder(onOverflow: (file: File) => void) {
       release();
       if (alive.current) {
         setState('idle');
-        setFailed(e instanceof DOMException && e.name === 'NotAllowedError' ? 'Brak zgody na mikrofon.' : 'Mikrofon jest niedostępny.');
+        setFailed(e instanceof DOMException && e.name === 'NotAllowedError' ? t('chat.compose.micDenied') : t('chat.compose.micUnavailable'));
       }
     }
   };
@@ -142,6 +143,7 @@ function useRecorder(onOverflow: (file: File) => void) {
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 function FileChip({ file, busy, onRemove }: { file: File; busy: boolean; onRemove: () => void }) {
+  const t = useT();
   const [thumb, setThumb] = useState<string | null>(null);
   useEffect(() => {
     if (!file.type.startsWith('image/')) return undefined;
@@ -149,18 +151,19 @@ function FileChip({ file, busy, onRemove }: { file: File; busy: boolean; onRemov
     setThumb(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
-  const name = file.name.startsWith('voice-') ? 'Nagranie głosowe' : file.name;
+  const name = file.name.startsWith('voice-') ? t('chat.compose.voiceRecording') : file.name;
   return (
     <span className="ch-file-chip">
       {thumb !== null ? <img src={thumb} alt="" /> : <span className="ch-file-ic"><Icon name={file.type.startsWith('audio/') ? 'music' : 'file'} /></span>}
       <span className="ch-file-text"><span className="ch-file-name">{name}</span><small>{sizeOf(file.size)}</small></span>
-      <button type="button" className="ch-icon-btn is-small" aria-label={`Usuń plik ${name}`} disabled={busy} onClick={onRemove}><Icon name="x" /></button>
+      <button type="button" className="ch-icon-btn is-small" aria-label={t('chat.compose.removeFile', { name })} disabled={busy} onClick={onRemove}><Icon name="x" /></button>
     </span>
   );
 }
 
 /** Wann eine geplante Nachricht hinausgeht — schnell gewählt oder genau. Wie in Telegram: gewählt heisst gesendet. */
 function PlanDialog({ onPlan, onClose }: { onPlan: (iso: string, silent: boolean) => void; onClose: () => void }) {
+  const t = useT();
   const [value, setValue] = useState(() => localInput(new Date(Date.now() + 3_600_000)));
   const [failed, setFailed] = useState<string | null>(null);
   /* 0111 — auch eine geplante kann leise hinausgehen (nachts, früh am Morgen). */
@@ -169,38 +172,38 @@ function PlanDialog({ onPlan, onClose }: { onPlan: (iso: string, silent: boolean
   const atHour = (days: number, hour: number) => { const d = new Date(now); d.setDate(d.getDate() + days); d.setHours(hour, 0, 0, 0); return d; };
   const monday = atHour(((8 - now.getDay()) % 7) || 7, 9);
   const quick = [
-    { label: 'Za godzinę', at: new Date(now.getTime() + 3_600_000) },
-    ...(now.getHours() < 17 ? [{ label: 'Dziś o 18:00', at: atHour(0, 18) }] : []),
-    { label: 'Jutro o 9:00', at: atHour(1, 9) },
-    { label: 'W poniedziałek o 9:00', at: monday }
+    { label: t('chat.plan.inHour'), at: new Date(now.getTime() + 3_600_000) },
+    ...(now.getHours() < 17 ? [{ label: t('chat.plan.today18'), at: atHour(0, 18) }] : []),
+    { label: t('chat.plan.tomorrow9'), at: atHour(1, 9) },
+    { label: t('chat.plan.monday9'), at: monday }
   ];
 
   const plan = (d: Date) => {
-    if (Number.isNaN(d.getTime()) || d.getTime() <= Date.now() + 30_000) { setFailed('Wybierz przyszły termin.'); return; }
-    if (d.getTime() > Date.now() + 365 * 86_400_000) { setFailed('Najdalej za rok.'); return; }
+    if (Number.isNaN(d.getTime()) || d.getTime() <= Date.now() + 30_000) { setFailed(t('chat.chrome.pickFuture')); return; }
+    if (d.getTime() > Date.now() + 365 * 86_400_000) { setFailed(t('chat.plan.maxYear')); return; }
     onClose();
     onPlan(d.toISOString(), silent);
   };
 
   return (
-    <Modal title="Zaplanuj wysłanie" onClose={onClose}>
+    <Modal title={t('chat.plan.title')} onClose={onClose}>
       <div className="ch-plan-quick">
         {quick.map((q) => <button key={q.label} type="button" className="ch-chip" onClick={() => plan(q.at)}>{q.label}</button>)}
       </div>
       <label className="wk-field">
-        <span>Dokładny termin</span>
+        <span>{t('chat.plan.exact')}</span>
         <input type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} />
       </label>
       <label className="ch-plan-silent">
         <input type="checkbox" checked={silent} onChange={(e) => setSilent(e.target.checked)} />
-        <span>Bez dźwięku — nikogo nie obudzi powiadomieniem</span>
+        <span>{t('chat.plan.silent')}</span>
       </label>
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
-        <button type="button" className="wk-btn" onClick={() => plan(new Date(value))}>Zaplanuj</button>
-        <button type="button" className="wk-link-btn" onClick={onClose}>Anuluj</button>
+        <button type="button" className="wk-btn" onClick={() => plan(new Date(value))}>{t('chat.plan.go')}</button>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.cancel')}</button>
       </div>
-      <p className="wk-hint">Wiadomość wyjdzie o tej porze, nawet gdy nie będzie Cię w aplikacji. Zaplanowane są w menu ⋮ rozmowy.</p>
+      <p className="wk-hint">{t('chat.plan.hint')}</p>
     </Modal>
   );
 }
@@ -227,7 +230,8 @@ export const Composer = forwardRef<ComposerHandle, {
   blocked?: string | null;
   /** 0111 — „Wyślij, gdy będzie online" im Menü des Senden-Knopfs (`useChatChrome().onlineSend`); `null`: nicht angeboten. */
   onlineSend?: string | null;
-}>(function Composer({ endpoint, readOnly = null, placeholder = 'Wiadomość', reply, onClearReply, editing, onCancelEdit, onSaveEdit, onSend, onEditLast, onScheduled, before, sendAs, blocked = null, onlineSend = null }, ref) {
+}>(function Composer({ endpoint, readOnly = null, placeholder, reply, onClearReply, editing, onCancelEdit, onSaveEdit, onSend, onEditLast, onScheduled, before, sendAs, blocked = null, onlineSend = null }, ref) {
+  const t = useT();
   const [text, setText] = useState('');
   const [files, setFiles] = useState<readonly File[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -273,7 +277,7 @@ export const Composer = forwardRef<ComposerHandle, {
       .then((ready) => setFiles((was) => [...was, ...ready].slice(0, 8)))
       .finally(() => setPreparing((n) => n - 1));
   }, []);
-  useEffect(() => { if (files.length >= 8) setNotice('Najwyżej 8 plików w jednej wiadomości.'); }, [files.length]);
+  useEffect(() => { if (files.length >= 8) setNotice(t('chat.compose.maxFiles')); }, [files.length, t]);
 
   const recorder = useRecorder((file) => addFiles([file]));
   useImperativeHandle(ref, () => ({ addFiles, focus: () => area.current?.focus() }), [addFiles]);
@@ -327,25 +331,26 @@ export const Composer = forwardRef<ComposerHandle, {
     for (const [i, file] of item.files.entries()) {
       const done = uploaded.current.get(file);
       if (done !== undefined) { attachments.push(done); continue; }
-      const which = item.files.length > 1 ? `pliku ${i + 1} z ${item.files.length}` : 'pliku';
-      note(`Szyfrowanie ${which}…`);
-      const one = await uploadAttachment(endpoint, file, (part) => note(`Wysyłanie ${which} · ${Math.min(99, Math.round(part * 100))}%`));
+      const many = item.files.length > 1;
+      const which = { n: i + 1, count: item.files.length };
+      note(t(many ? 'chat.compose.encryptN' : 'chat.compose.encryptOne', which));
+      const one = await uploadAttachment(endpoint, file, (part) => note(t(many ? 'chat.compose.uploadN' : 'chat.compose.uploadOne', { ...which, pct: Math.min(99, Math.round(part * 100)) })));
       uploaded.current.set(file, one);
       attachments.push(one);
     }
-    note('Wysyłanie…');
+    note(t('chat.compose.sending'));
     const { sendAt, whenOnline, silent } = item.how;
     await onSend(item.body, {
       attachments,
-      ...(item.reply !== null ? { replyTo: item.reply.id, replyText: (item.reply.text || 'Załącznik').slice(0, 500) } : {}),
+      ...(item.reply !== null ? { replyTo: item.reply.id, replyText: (item.reply.text || t('chat.log.attachment')).slice(0, 500) } : {}),
       ...(sendAt !== undefined ? { sendAt } : {}),
       ...(whenOnline === true ? { whenOnline: true } : {}),
       ...(silent === true ? { silent: true } : {})
     });
-    const quiet = silent === true ? ' Bez dźwięku.' : '';
-    if (sendAt !== undefined) { setNotice(`Zaplanowano na ${whenLong(sendAt)}.${quiet}`); onScheduled?.(); }
-    else if (whenOnline === true) { setNotice(`Wyjdzie, gdy ktoś z rozmowy będzie online — czeka w „Zaplanowanych".${quiet}`); onScheduled?.(); }
-    else if (silent === true) setNotice('Wysłano bez dźwięku — nikogo nie obudzi.');
+    const quiet = silent === true ? ` ${t('chat.compose.quiet')}` : '';
+    if (sendAt !== undefined) { setNotice(`${t('chat.compose.scheduledAt', { when: whenLong(sendAt, t.lang) })}${quiet}`); onScheduled?.(); }
+    else if (whenOnline === true) { setNotice(`${t('chat.compose.whenOnline')}${quiet}`); onScheduled?.(); }
+    else if (silent === true) setNotice(t('chat.compose.sentSilent'));
   };
 
   /*
@@ -361,7 +366,7 @@ export const Composer = forwardRef<ComposerHandle, {
     void deliver(first)
       .then(() => setOutbox((was) => was.filter((o) => o.id !== first.id)))
       .catch((e: unknown) => setOutbox((was) => was.map((o) => (o.id === first.id
-        ? { ...o, state: 'failed', note: null, error: failure(e, 'Nie udało się wysłać.') } : o))))
+        ? { ...o, state: 'failed', note: null, error: failure(e, t('chat.chrome.sendFailed')) } : o))))
       .finally(() => { running.current = false; setOutbox((was) => [...was]); });
   }, [outbox]);
 
@@ -384,9 +389,9 @@ export const Composer = forwardRef<ComposerHandle, {
     if (editing !== null) {
       if (body === '') return;
       if (body === editing.text.trim()) { onCancelEdit(); return; }
-      setBusy('Zapisywanie…');
+      setBusy(t('common.saving'));
       setFailed(null);
-      try { await onSaveEdit(body); } catch (e) { setFailed(failure(e, 'Nie udało się zapisać.')); } finally { setBusy(null); }
+      try { await onSaveEdit(body); } catch (e) { setFailed(failure(e, t('chat.prefs.saveFailed'))); } finally { setBusy(null); }
       return;
     }
     if (blocked !== null) { setFailed(blocked); return; }
@@ -444,8 +449,8 @@ export const Composer = forwardRef<ComposerHandle, {
   const content = text.trim() !== '' || files.length > 0 || preparing > 0;
   const sending = outbox.find((o) => o.state === 'sending') ?? null;
   const queued = outbox.filter((o) => o.state === 'waiting').length;
-  const progress = sending === null ? null : `${sending.note ?? 'Wysyłanie…'}${queued > 0 ? ` · w kolejce: ${queued}` : ''}`;
-  const line = failed ?? recorder.failed ?? busy ?? progress ?? (preparing > 0 ? 'Przygotowywanie zdjęć…' : null) ?? notice;
+  const progress = sending === null ? null : `${sending.note ?? t('chat.compose.sending')}${queued > 0 ? ` · ${t('chat.compose.queued', { count: queued })}` : ''}`;
+  const line = failed ?? recorder.failed ?? busy ?? progress ?? (preparing > 0 ? t('chat.compose.preparing') : null) ?? notice;
   const stuck = outbox.filter((o) => o.state === 'failed');
 
   return (
@@ -456,10 +461,10 @@ export const Composer = forwardRef<ComposerHandle, {
         <div className="ch-context">
           <Icon name={editing !== null ? 'edit' : 'reply'} />
           <span className="ch-context-text" style={reply !== null && editing === null ? { '--ch-h': hueOf(reply.author) } as CSSProperties : undefined}>
-            <strong>{editing !== null ? 'Edycja wiadomości' : `Odpowiedź: ${reply!.author}`}</strong>
-            <span>{(editing !== null ? editing.text : reply!.text) || 'Załącznik'}</span>
+            <strong>{editing !== null ? t('chat.compose.editing') : t('chat.compose.replyTo', { name: reply!.author })}</strong>
+            <span>{(editing !== null ? editing.text : reply!.text) || t('chat.log.attachment')}</span>
           </span>
-          <button type="button" className="ch-icon-btn is-small" aria-label={editing !== null ? 'Anuluj edycję' : 'Anuluj odpowiedź'}
+          <button type="button" className="ch-icon-btn is-small" aria-label={editing !== null ? t('chat.compose.cancelEdit') : t('chat.compose.cancelReply')}
             onClick={editing !== null ? onCancelEdit : onClearReply}>
             <Icon name="x" />
           </button>
@@ -470,20 +475,20 @@ export const Composer = forwardRef<ComposerHandle, {
       {stuck.length > 1 && (
         <div className="ch-outbox-fail">
           <Icon name="ban" />
-          <span className="ch-outbox-text"><strong>Nie wysłano: {stuck.length}</strong></span>
-          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.map((x) => (x.state === 'failed' ? { ...x, state: 'waiting', error: null } : x)))}>Ponów wszystkie</button>
-          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.filter((x) => x.state !== 'failed'))}>Usuń wszystkie</button>
+          <span className="ch-outbox-text"><strong>{t('chat.compose.notSentN', { count: stuck.length })}</strong></span>
+          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.map((x) => (x.state === 'failed' ? { ...x, state: 'waiting', error: null } : x)))}>{t('chat.compose.retryAll')}</button>
+          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.filter((x) => x.state !== 'failed'))}>{t('chat.compose.removeAll')}</button>
         </div>
       )}
       {stuck.map((o) => (
         <div key={o.id} className="ch-outbox-fail" role="alert">
           <Icon name="ban" />
           <span className="ch-outbox-text">
-            <strong>Nie wysłano:</strong> {o.body !== '' ? `„${o.body.slice(0, 80)}${o.body.length > 80 ? '…' : ''}"` : `${o.files.length} ${plural(o.files.length, 'plik', 'pliki', 'plików')}`}
+            <strong>{t('chat.compose.notSent')}</strong> {o.body !== '' ? t('chat.compose.quote', { text: `${o.body.slice(0, 80)}${o.body.length > 80 ? '…' : ''}` }) : t('chat.compose.files', { count: o.files.length })}
             {o.error !== null && <span className="ch-outbox-why"> — {o.error}</span>}
           </span>
-          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.map((x) => (x.id === o.id ? { ...x, state: 'waiting', error: null } : x)))}>Ponów</button>
-          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.filter((x) => x.id !== o.id))}>Usuń</button>
+          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.map((x) => (x.id === o.id ? { ...x, state: 'waiting', error: null } : x)))}>{t('chat.compose.retry')}</button>
+          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.filter((x) => x.id !== o.id))}>{t('common.remove')}</button>
         </div>
       ))}
 
@@ -497,11 +502,11 @@ export const Composer = forwardRef<ComposerHandle, {
 
       {recorder.state !== 'idle' ? (
         <div className="ch-rec">
-          <button type="button" className="ch-icon-btn" aria-label="Odrzuć nagranie" title="Odrzuć" onClick={recorder.cancel}><Icon name="trash" /></button>
+          <button type="button" className="ch-icon-btn" aria-label={t('chat.compose.discardRec')} title={t('chat.compose.discard')} onClick={recorder.cancel}><Icon name="trash" /></button>
           <span className="ch-rec-dot" aria-hidden="true" />
           <span className="ch-rec-time" role="timer" aria-live="off">{mmss(recorder.seconds)}</span>
-          <span className="ch-rec-hint">{recorder.state === 'asking' ? 'Otwieranie mikrofonu…' : 'Nagrywanie · najwyżej 5 minut'}</span>
-          <button type="button" className="ch-send" aria-label="Wyślij nagranie" title="Wyślij" disabled={recorder.state !== 'recording' || busy !== null}
+          <span className="ch-rec-hint">{recorder.state === 'asking' ? t('chat.compose.micOpening') : t('chat.compose.recording')}</span>
+          <button type="button" className="ch-send" aria-label={t('chat.compose.sendRec')} title={t('common.send')} disabled={recorder.state !== 'recording' || busy !== null}
             onMouseDown={(e) => e.preventDefault()} onClick={() => void sendVoice()}>
             <Icon name="send" />
           </button>
@@ -510,7 +515,7 @@ export const Composer = forwardRef<ComposerHandle, {
         <div className="ch-compose-row">
           {sendAs}
           <div className="ch-field">
-            <button type="button" className="ch-icon-btn" aria-label="Wstaw emoji" title="Emoji" aria-haspopup="menu"
+            <button type="button" className="ch-icon-btn" aria-label={t('chat.compose.emoji')} title={t('chat.compose.emojiShort')} aria-haspopup="menu"
               onClick={(e) => toggle('emoji', e.currentTarget)}>
               <Icon name="smile" />
             </button>
@@ -518,8 +523,8 @@ export const Composer = forwardRef<ComposerHandle, {
               ref={area}
               value={text}
               rows={1}
-              placeholder={placeholder}
-              aria-label="Wiadomość"
+              placeholder={placeholder ?? t('chat.chrome.message')}
+              aria-label={t('chat.chrome.message')}
               onChange={(e) => { setText(e.target.value); if (editing === null) typing(); }}
               onPaste={(e) => {
                 const pasted = Array.from(e.clipboardData.files);
@@ -546,7 +551,7 @@ export const Composer = forwardRef<ComposerHandle, {
               }}
             />
             {editing === null && (
-              <button type="button" className="ch-icon-btn" aria-label="Dołącz plik" title="Dołącz" aria-haspopup="menu" disabled={busy !== null}
+              <button type="button" className="ch-icon-btn" aria-label={t('chat.compose.attachFile')} title={t('chat.compose.attach')} aria-haspopup="menu" disabled={busy !== null}
                 onClick={(e) => toggle('attach', e.currentTarget)}>
                 <Icon name="clip" />
               </button>
@@ -554,7 +559,7 @@ export const Composer = forwardRef<ComposerHandle, {
           </div>
           {/* 0111 — wie in jedem Messenger, nur sichtbar: später, ohne Klang, wenn jemand online ist (auch per Rechtsklick / Halten des Knopfs). */}
           {content && editing === null && (
-            <button type="button" className="ch-send-more" aria-label="Więcej opcji wysyłania" title="Wyślij później, bez dźwięku…" aria-haspopup="menu"
+            <button type="button" className="ch-send-more" aria-label={t('chat.compose.sendOptions')} title={t('chat.compose.sendLater')} aria-haspopup="menu"
               aria-expanded={pop?.kind === 'send'} disabled={busy !== null || preparing > 0}
               onMouseDown={(e) => e.preventDefault()} onClick={(e) => toggle('send', e.currentTarget)}>
               <Icon name="chevron" />
@@ -564,8 +569,8 @@ export const Composer = forwardRef<ComposerHandle, {
             <button
               type="submit"
               className="ch-send"
-              aria-label={editing !== null ? 'Zapisz zmianę' : 'Wyślij'}
-              title={editing !== null ? 'Zapisz' : 'Wyślij · prawy przycisk albo przytrzymanie: później, bez dźwięku…'}
+              aria-label={editing !== null ? t('chat.compose.saveEdit') : t('common.send')}
+              title={editing !== null ? t('common.save') : t('chat.compose.sendTitle')}
               disabled={busy !== null || preparing > 0 || (!content && editing === null)}
               onContextMenu={(e) => { if (editing !== null) return; e.preventDefault(); toggle('send', e.currentTarget); }}
               /* 0100 — der Knopf nimmt dem Feld den Fokus nicht: die Tastatur bleibt, die nächste Nachricht geht gleich. */
@@ -585,7 +590,7 @@ export const Composer = forwardRef<ComposerHandle, {
               <Icon name={editing !== null ? 'check' : 'send'} />
             </button>
           ) : (
-            <button type="button" className="ch-send" aria-label="Nagraj wiadomość głosową" title="Nagraj wiadomość głosową"
+            <button type="button" className="ch-send" aria-label={t('chat.compose.record')} title={t('chat.compose.record')}
               disabled={busy !== null || files.length >= 8} onClick={() => void recorder.start()}>
               <Icon name="mic" />
             </button>
@@ -593,7 +598,7 @@ export const Composer = forwardRef<ComposerHandle, {
         </div>
       )}
 
-      <input ref={picker} type="file" multiple className="ch-picker" tabIndex={-1} aria-label="Wybierz pliki"
+      <input ref={picker} type="file" multiple className="ch-picker" tabIndex={-1} aria-label={t('chat.compose.pickFiles')}
         onChange={(e) => { addFiles(Array.from(e.target.files ?? []), shrinkNext.current); e.target.value = ''; }} />
 
       {line !== null && (
@@ -601,22 +606,22 @@ export const Composer = forwardRef<ComposerHandle, {
       )}
 
       {pop?.kind === 'attach' && (
-        <PopMenu anchor={{ rect: pop.rect, above: true }} from={pop.from} label="Dołącz" onClose={() => setPop(null)} items={[
-          ...(coarsePointer() ? [{ label: 'Zrób zdjęcie', icon: 'camera' as const, onSelect: () => choose('image/*', { shrink: true, camera: true }) }] : []),
-          { label: 'Zdjęcia i filmy', icon: 'image', onSelect: () => choose('image/*,video/*', { shrink: true }) },
-          { label: 'Plik — bez zmniejszania', icon: 'file', onSelect: () => choose('', { shrink: false }) },
-          { label: 'Muzyka i nagrania', icon: 'music', onSelect: () => choose('audio/*', { shrink: false }) }
+        <PopMenu anchor={{ rect: pop.rect, above: true }} from={pop.from} label={t('chat.compose.attach')} onClose={() => setPop(null)} items={[
+          ...(coarsePointer() ? [{ label: t('chat.compose.takePhoto'), icon: 'camera' as const, onSelect: () => choose('image/*', { shrink: true, camera: true }) }] : []),
+          { label: t('chat.compose.photos'), icon: 'image', onSelect: () => choose('image/*,video/*', { shrink: true }) },
+          { label: t('chat.compose.fileRaw'), icon: 'file', onSelect: () => choose('', { shrink: false }) },
+          { label: t('chat.compose.audio'), icon: 'music', onSelect: () => choose('audio/*', { shrink: false }) }
         ]} />
       )}
       {pop?.kind === 'send' && (
-        <PopMenu anchor={{ rect: pop.rect, above: true }} from={pop.from} label="Wysyłanie" onClose={() => setPop(null)} items={[
-          { label: 'Wyślij bez dźwięku', icon: 'bell-off', onSelect: () => void send({ silent: true }) },
+        <PopMenu anchor={{ rect: pop.rect, above: true }} from={pop.from} label={t('chat.compose.sendingMenu')} onClose={() => setPop(null)} items={[
+          { label: t('chat.compose.sendSilent'), icon: 'bell-off', onSelect: () => void send({ silent: true }) },
           ...(onlineSend !== null ? [{ label: onlineSend, icon: 'users' as const, onSelect: () => void send({ whenOnline: true }) }] : []),
-          { label: 'Zaplanuj wysłanie…', icon: 'clock', onSelect: () => setPlanning(true) }
+          { label: t('chat.compose.schedule'), icon: 'clock', onSelect: () => setPlanning(true) }
         ]} />
       )}
       {pop?.kind === 'emoji' && (
-        <PopMenu anchor={{ rect: pop.rect, above: true }} from={pop.from} label="Emoji" kind="emoji" onClose={() => setPop(null)}>
+        <PopMenu anchor={{ rect: pop.rect, above: true }} from={pop.from} label={t('chat.compose.emojiShort')} kind="emoji" onClose={() => setPop(null)}>
           <div className="ch-emoji-grid">
             {EMOJI.map((emoji) => (
               <button key={emoji} type="button" role="menuitem" aria-label={emoji} onClick={() => insert(emoji)}>{emoji}</button>

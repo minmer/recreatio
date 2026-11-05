@@ -17,6 +17,8 @@
 
 import { useState } from 'react';
 
+import { useT } from '../core/i18n';
+
 import { consentGiven, consentValue, isYes, YES, type OpenField } from './form';
 import { missingIn, type GroupItem, type LayoutItem, type Outcome } from './formDesign';
 import { peselDigits, peselValid } from './pesel';
@@ -42,6 +44,7 @@ export function FormFlow(props: FlowProps) {
 /** Eine Liste — und darin die Läufe von Seiten und Reitern zusammengefasst. */
 function Items(props: FlowProps) {
   const { items, outcome } = props;
+  const t = useT();
   const visible = items.filter((item) => !outcome.hidden.has(item.id));
 
   const runs: (LayoutItem | { run: 'page' | 'tab'; groups: GroupItem[] })[] = [];
@@ -72,7 +75,7 @@ function Items(props: FlowProps) {
           return one.sign === true ? (
             <div className="wk-form-sign" key={one.id}>
               <p>{one.text}</p>
-              <span className="wk-hint">Podpisuje się odręcznie na wydruku — przycisk „Drukuj zgodę do podpisu” jest na końcu formularza.</span>
+              <span className="wk-hint">{t('forms.flow.signHint')}</span>
             </div>
           ) : (
             <p className="wk-form-text" key={one.id}>{one.text}</p>
@@ -100,6 +103,7 @@ function Items(props: FlowProps) {
 function Pager(props: FlowProps & { pages: readonly GroupItem[] }) {
   const { pages, fields, answers, outcome } = props;
   const [at, setAt] = useState(0);
+  const t = useT();
 
   const need = isRequired(fields, outcome);
   const open = pages.map((page) => missingIn(page.items, need, answers, outcome));
@@ -121,7 +125,7 @@ function Pager(props: FlowProps & { pages: readonly GroupItem[] }) {
               disabled={i !== now && !reachable(i)}
               onClick={() => setAt(i)}
             >
-              {one.title.trim() === '' ? `Strona ${i + 1}` : one.title}
+              {one.title.trim() === '' ? t('forms.flow.page', { n: i + 1 }) : one.title}
             </button>
           </li>
         ))}
@@ -131,7 +135,7 @@ function Pager(props: FlowProps & { pages: readonly GroupItem[] }) {
 
       <div className="wk-actions">
         {now > 0 && (
-          <button type="button" className="wk-link-btn" onClick={() => setAt(now - 1)}>Wstecz</button>
+          <button type="button" className="wk-link-btn" onClick={() => setAt(now - 1)}>{t('common.back')}</button>
         )}
         {now < pages.length - 1 && (
           <button
@@ -139,12 +143,12 @@ function Pager(props: FlowProps & { pages: readonly GroupItem[] }) {
             disabled={open[now].length > 0}
             onClick={() => setAt(now + 1)}
           >
-            Dalej
+            {t('common.next')}
           </button>
         )}
         {open[now].length > 0 && now < pages.length - 1 && (
           <span className="wk-blocker">
-            Najpierw: {open[now].map((id) => outcome.labels.get(id) ?? fields.get(id)?.label ?? 'pole').join(', ')}
+            {t('forms.flow.first', { list: open[now].map((id) => outcome.labels.get(id) ?? fields.get(id)?.label ?? t('forms.flow.field')).join(', ') })}
           </span>
         )}
       </div>
@@ -158,6 +162,7 @@ function Tabs(props: FlowProps & { tabs: readonly GroupItem[] }) {
   const [at, setAt] = useState(0);
   const now = Math.min(at, tabs.length - 1);
   const need = isRequired(fields, outcome);
+  const t = useT();
 
   return (
     <section className="wk-form-tabs">
@@ -171,8 +176,8 @@ function Tabs(props: FlowProps & { tabs: readonly GroupItem[] }) {
             className={i === now ? 'wk-tab wk-tab-on' : 'wk-tab'}
             onClick={() => setAt(i)}
           >
-            {tab.title.trim() === '' ? `Zakładka ${i + 1}` : tab.title}
-            {missingIn(tab.items, need, answers, outcome).length > 0 && <span className="wk-form-dot" aria-label="brakuje odpowiedzi"> •</span>}
+            {tab.title.trim() === '' ? t('forms.flow.tab', { n: i + 1 }) : tab.title}
+            {missingIn(tab.items, need, answers, outcome).length > 0 && <span className="wk-form-dot" aria-label={t('forms.flow.tabMissing')}> •</span>}
           </button>
         ))}
       </div>
@@ -185,10 +190,11 @@ function Tabs(props: FlowProps & { tabs: readonly GroupItem[] }) {
 /** Eine Frage — mit dem Namen, den die Logik ihr gibt, und den Hinweisen darunter. */
 function FieldRow({ fieldId, fields, answers, outcome, onAnswer }: FlowProps & { fieldId: string }) {
   const f = fields.get(fieldId);
+  const t = useT();
   if (f === undefined) return null;
 
   const value = answers[fieldId] ?? '';
-  const label = outcome.labels.get(fieldId) ?? f.label ?? 'zapieczętowane';
+  const label = outcome.labels.get(fieldId) ?? f.label ?? t('forms.card.sealed');
   const required = f.isRequired || outcome.required.has(fieldId);
   const set = (next: string) => onAnswer(fieldId, next);
 
@@ -254,7 +260,7 @@ function FieldRow({ fieldId, fields, answers, outcome, onAnswer }: FlowProps & {
       <span>{label}{required && ' *'}</span>
 
       {f.label === null ? (
-        <p className="wk-card-muted">Tego pytania nie da się odczytać.</p>
+        <p className="wk-card-muted">{t('forms.flow.unreadable')}</p>
       ) : f.kind === 'text' ? (
         <textarea rows={4} value={value} onChange={(e) => set(e.target.value)} />
       ) : f.kind === 'choice' ? (
@@ -273,7 +279,7 @@ function FieldRow({ fieldId, fields, answers, outcome, onAnswer }: FlowProps & {
             onChange={(e) => set(peselDigits(e.target.value))}
           />
           {value.length >= 11 && !peselValid(value) && (
-            <span className="wk-form-msg">To nie jest poprawny PESEL — sprawdź cyfry.</span>
+            <span className="wk-form-msg">{t('forms.flow.peselWrong')}</span>
           )}
         </>
       ) : f.kind === 'phone' ? (

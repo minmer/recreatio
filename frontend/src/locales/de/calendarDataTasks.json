@@ -1,0 +1,260 @@
+{
+  "kind": {
+    "window": "zu einer bestimmten Zeit",
+    "period": "eine Zeit lang, regelmäßig",
+    "after": "in Abständen nach dem Erledigen"
+  },
+  "repeat": {
+    "none": "einmal",
+    "daily": "täglich",
+    "weekly": "an gewählten Wochentagen",
+    "monthly": "monatlich",
+    "yearly": "jährlich"
+  },
+  "remind": {
+    "start": "zu Beginn",
+    "middle": "in der Mitte",
+    "end": "gegen Ende"
+  },
+  "otherGroup": "andere Gruppe",
+  "onlyMe": "Nur ich",
+  "unknownKeys": {
+    "one": "unbekannter Schlüssel {list} — übersprungen",
+    "other": "unbekannte Schlüssel {list} — übersprungen"
+  },
+  "end": {
+    "noSuchTime": "diese Uhrzeit gibt es nicht",
+    "format": "es ist \"HH:MM\", \"JJJJ-MM-TTTHH:MM\" oder \"JJJJ-MM-TT\"",
+    "beforeStart": "Ende vor dem Beginn",
+    "tooLong": "Fenster länger als ein Jahr"
+  },
+  "span": {
+    "bare": "eine bloße Zahl ({value}) — gib eine Einheit an, z. B. {\"days\": {value}}",
+    "notObject": "es ist ein Objekt mit Einheit, z. B. {\"days\": 3}",
+    "unknownUnit": "unbekannte Einheit \"{unit}\" ({units})",
+    "negative": "\"{unit}\" ist eine Zahl nicht kleiner als 0",
+    "empty": "leer — gib z. B. {\"days\": 3} an",
+    "range": "von einer Minute bis zu einem Jahr"
+  },
+  "spanWords": {
+    "weeks": {
+      "one": "{count} Woche",
+      "other": "{count} Wochen"
+    },
+    "days": {
+      "one": "{count} Tag",
+      "other": "{count} Tage"
+    },
+    "hours": {
+      "one": "{count} Std.",
+      "other": "{count} Std."
+    },
+    "minutes": {
+      "one": "{count} Min.",
+      "other": "{count} Min."
+    }
+  },
+  "everyWords": {
+    "weeks": {
+      "one": "wöchentlich",
+      "other": "alle {count} Wochen"
+    },
+    "days": {
+      "one": "täglich",
+      "other": "alle {count} Tage"
+    },
+    "hours": {
+      "one": "stündlich",
+      "other": "alle {count} Std."
+    },
+    "minutes": {
+      "one": "alle {count} Min.",
+      "other": "alle {count} Min."
+    }
+  },
+  "noReminders": "ohne Erinnerungen",
+  "weeklyOn": "wöchentlich ({days})",
+  "when": {
+    "period": "ab {from}, {span} zum Erledigen, {every}",
+    "after": "{every} nach dem Erledigen, zum ersten Mal {from}"
+  },
+  "diff": {
+    "title": "Titel ({was} → {next})",
+    "kind": "Art ({was} → {next}): {when}",
+    "start": "Beginn ({was} → {next})",
+    "end": "Ende ({was} → {next})",
+    "window": "Länge des Fensters ({was} → {next})",
+    "repeat": "Wiederholung ({was} → {next})",
+    "lasts": "Zeit zum Erledigen ({was} → {next})",
+    "every": "Abstand ({was} → {next})",
+    "remind": "Erinnerungen ({was} → {next})",
+    "who": "wer es sieht ({was} → {next})",
+    "notesNew": "Notiz (neu)",
+    "notesGone": "Notiz (entfernt)",
+    "notes": "Notiz"
+  },
+  "group": {
+    "noId": "eine Gruppe mit der Kennung {id} gibt es unter deinen nicht",
+    "ambiguous": "{text} passt zu mehreren Gruppen ({groups}) — schreib den Namen mit Weg oder die Kennung",
+    "none": "die Gruppe {text} gibt es unter deinen nicht",
+    "notList": "\"groups\" ist eine Liste — übersprungen.",
+    "notObject": "Gruppe {n}: kein Objekt — übersprungen.",
+    "keyBad": "Gruppe {n}: \"key\" ist ein kurzer Name (Buchstaben, Ziffern, - und _) — übersprungen.",
+    "twice": "Gruppe „{key}“ ein zweites Mal — es gilt die erste.",
+    "odd": "Gruppe „{key}“: {odd}.",
+    "byName": "Gruppe „{key}“: Kennung {id} unbekannt — Gruppe am Namen erkannt als {name}.",
+    "noIdName": "ohne \"id\" und \"name\"",
+    "unknown": "Gruppe „{key}“: {why} — Aufgaben mit \"@{key}\" werden übersprungen."
+  },
+  "who": {
+    "bad": "\"who\" ist \"me\", der \"@key\" einer Gruppe oder ihr Name",
+    "noKey": "\"who\": {text} — diesen Schlüssel gibt es in \"groups\" nicht",
+    "unknown": "\"who\": die Gruppe {text} ist nicht erkannt",
+    "error": "\"who\": {error}"
+  },
+  "plan": {
+    "notDoc": "Das ist kein Dokument mit Aufgaben — erwartet war ein Objekt mit \"tasks\" (Format \"{format}\").",
+    "otherFormat": "Anderes Format: {given} — hier gilt \"{format}\".",
+    "noTasks": "Die Liste \"tasks\" fehlt.",
+    "version": "\"version\": {given} — gelesen als Version {version}.",
+    "docOdd": "Dokument: {odd}.",
+    "tooMany": "Höchstens {max} Aufgaben in einem Dokument — die übrigen {rest} übersprungen.",
+    "notObject": "Aufgabe {n}: kein Objekt — übersprungen.",
+    "idUnknown": "sie ist nicht unter deinen Aufgaben",
+    "idBad": "\"id\" {id} ist keine Kennung aus einem Export",
+    "named": "Aufgabe {title}",
+    "numbered": "Aufgabe {n}",
+    "idTwice": "dieselbe \"id\" ein zweites Mal im Dokument — übersprungen.",
+    "removeBad": "\"remove\" ist true oder false — Aufgabe übersprungen.",
+    "removeNone": "\"remove\" wirkt nur mit der \"id\" einer Aufgabe, die es gibt — nichts zu löschen.",
+    "removeNoneWhy": "\"remove\" wirkt nur mit der \"id\" einer Aufgabe, die es gibt ({why}) — nichts zu löschen.",
+    "readOnlyRemove": "in der Gruppe {group} kannst du nur lesen — nicht gelöscht.",
+    "lockedTitle": "Aufgabe ohne lesbaren Titel",
+    "asNew": "{why} — sie wird neu angelegt.",
+    "keptNew": "übersprungen",
+    "keptOld": "bleibt, wie es war",
+    "kindBadNew": "\"kind\" {given} — die Arten sind {kinds}; es wird \"{kind}\".",
+    "kindBadOld": "\"kind\" {given} — die Arten sind {kinds}; sie bleibt, wie sie war.",
+    "titleEmptyNew": "\"title\" ist ein nicht leerer Text — ohne Titel.",
+    "titleEmptyOld": "\"title\" ist ein nicht leerer Text — der bisherige bleibt.",
+    "titleLong": "Titel länger als {max} Zeichen — gekürzt.",
+    "notesBadNew": "\"notes\" ist ein Text — ohne Notiz.",
+    "notesBadOld": "\"notes\" ist ein Text — die bisherige bleibt.",
+    "notesLong": "Notiz länger als {max} Zeichen — gekürzt.",
+    "whoSkipped": "{error} — übersprungen.",
+    "startBadNew": "\"start\" {given} — es ist \"JJJJ-MM-TTTHH:MM\" oder \"JJJJ-MM-TT\"; ohne Beginn entsteht die Aufgabe nicht — übersprungen.",
+    "startBadOld": "\"start\" {given} — es ist \"JJJJ-MM-TTTHH:MM\" oder \"JJJJ-MM-TT\"; er bleibt, wie er war.",
+    "needsBoth": "eine neue Aufgabe braucht \"title\" und \"start\" — übersprungen.",
+    "needsTitle": "eine neue Aufgabe braucht \"title\" — übersprungen.",
+    "needsStart": "eine neue Aufgabe braucht \"start\" — übersprungen.",
+    "onlyKinds": "\"{key}\" gilt nur für {kinds} — übersprungen.",
+    "and": " und ",
+    "endBadNew": "\"end\" {given} — {why}; Fenster {minutes} Min.",
+    "endBadOld": "\"end\" {given} — {why}; es bleibt, wie es war.",
+    "repeatBadNew": "\"repeat\" {given} — es ist {repeats}; einmal.",
+    "repeatBadOld": "\"repeat\" {given} — es ist {repeats}; bleibt, wie es war.",
+    "weekdaysNotWeekly": "\"weekdays\" gilt nur mit \"repeat\": \"weekly\" — übersprungen.",
+    "weekdaysBad": "\"weekdays\": {bad} — die Tage sind {days}; übersprungen.",
+    "lastsBadNew": "\"lasts\": {why}; {span}.",
+    "lastsBadOld": "\"lasts\": {why}; bleibt, wie es war.",
+    "everyBadNew": "\"every\": {why}; der vorgegebene Abstand.",
+    "everyBadOld": "\"every\": {why}; bleibt, wie es war.",
+    "remindBad": "\"remind\" ist eine Liste, z. B. [\"start\"] — {kept}.",
+    "remindUnknown": "\"remind\": {bad} — die Erinnerungen sind {kinds}; übersprungen.",
+    "remindAfter": "bei \"after\" erinnert nur \"start\" (wenn es so weit ist) — \"middle\" und \"end\" übersprungen.",
+    "everyShort": "kehrt {every} wieder, dauert aber {span} — sie kann nicht öfter wiederkehren, als sie dauert (\"every\" ≥ \"lasts\"); übersprungen.",
+    "locked": "Titel und Notiz dieser Aufgabe lassen sich hier nicht öffnen — der Import ändert sie nicht (er kann sie nur löschen).",
+    "readOnlyChange": "in der Gruppe {group} kannst du nur lesen — Änderungen übersprungen.",
+    "readOnly": "in der Gruppe {group} kannst du nur lesen — übersprungen.",
+    "past": "liegt in der Vergangenheit ({at}) — sie erscheint sofort als verpasst.",
+    "pastSeries": "beginnt in der Vergangenheit ({at}) — frühere Vorkommen erscheinen als verpasst.",
+    "twin": "eine solche Aufgabe gibt es schon (derselbe Titel und Beginn) — ohne \"id\" entsteht eine zweite.",
+    "total": "Neu: {created} · geändert: {updated} · gelöscht: {removed} · unverändert: {unchanged}",
+    "lineNew": "Neu — {title}: {when} · {who}",
+    "lineNewRemind": "Neu — {title}: {when} · {who} · Erinnerung: {remind}",
+    "lineChange": "Änderung — {title}: {what}",
+    "lineRemove": "Löschen — {title} (ins Archiv; der Verlauf der Erledigungen bleibt)",
+    "nothing": "Nichts zu speichern."
+  },
+  "keys": {
+    "doc": {
+      "format": "immer \"{format}\"",
+      "version": "Version des Formats: {version}",
+      "groups": "Gruppen, auf die Aufgaben in \"who\" mit \"@key\" zeigen (unten); der Export nennt die Gruppen, in denen du Aufgaben anlegen kannst, und die Gruppen der exportierten Aufgaben",
+      "tasks": "die Liste der Aufgaben (höchstens {max} in einem Dokument)"
+    },
+    "task": {
+      "id": "Kennung der Aufgabe aus einem Export — mit ihr ändert der Import diese Aufgabe an Ort und Stelle; ohne sie entsteht eine neue. Erfinde sie nicht: eine unbekannte Kennung ergibt eine neue Aufgabe (mit Warnung)",
+      "title": "was zu tun ist, z. B. „Abendgebet“ (bei einer neuen erforderlich; bis {max} Zeichen)",
+      "kind": "Art (unten): {kinds}; fehlt sie bei einer neuen — \"period\", wenn \"lasts\" da ist, \"after\", wenn \"every\" da ist (ohne \"end\", \"repeat\" und \"weekdays\"), sonst \"window\"",
+      "who": "wer sie sieht: \"me\" — nur du (vorgegeben bei einer neuen); \"@key\" — eine Gruppe aus \"groups\"; oder Kennung oder Name einer Gruppe. Eine Änderung verschiebt die Aufgabe in eine andere Gruppe",
+      "start": "Ortszeit \"JJJJ-MM-TTTHH:MM\" (oder \"JJJJ-MM-TT\" — um 00:00; eine Zeit mit Zone, z. B. \"…Z\" oder \"…+01:00\", wird in Ortszeit umgerechnet): bei \"window\" der Beginn des ersten Fensters, bei \"period\" der Beginn des ersten Zeitraums, bei \"after\" wann die Aufgabe zum ersten Mal fällig ist (bei einer neuen erforderlich)",
+      "end": "nur \"window\": das Ende des ersten Fensters — \"HH:MM\" am selben Tag (eine Uhrzeit vor dem Beginn — am nächsten Tag), \"JJJJ-MM-TTTHH:MM\" oder \"JJJJ-MM-TT\" (bis zum Ende dieses Tages); ein Fenster dauert höchstens ein Jahr. Fehlt es bei einer neuen — {minutes} Minuten; fehlt es bei einer Änderung — das Fenster behält seine Länge (verschiebt sich mit \"start\"). Wer im Export \"start\" ändert, ändere auch \"end\" oder lösche es",
+      "repeat": "nur \"window\": {repeats}; fehlt es bei einer neuen — \"none\"",
+      "weekdays": "nur \"window\" mit \"repeat\": \"weekly\": eine Liste von Tagen — {days}; fehlt sie — der Wochentag von \"start\"",
+      "lasts": "nur \"period\": wie viel Zeit zum Erledigen — eine Dauer (unten), z. B. {\"days\": 3}; von einer Minute bis zu einem Jahr; fehlt es bei einer neuen — 3 Tage",
+      "every": "\"period\": wie oft sie wiederkehrt, von Beginn zu Beginn — nicht kürzer als \"lasts\", höchstens ein Jahr (fehlt es bei einer neuen — 2 Wochen); \"after\": wie lange nach dem Erledigen sie wieder fällig ist — von einer Minute bis zu einem Jahr (fehlt es bei einer neuen — 3 Tage). Eine Dauer wie \"lasts\", z. B. {\"weeks\": 2}",
+      "remind": "wann erinnert wird — eine Liste: {kinds}; \"end\" — eine Viertelstunde vor dem Ende, bei einem kürzeren Fenster am Ende; bei \"after\" nur \"start\" (wenn es so weit ist); [] — ohne Erinnerungen. Sie kommen auf Geräte mit eingeschalteten Benachrichtigungen",
+      "notes": "Notiz (bis {max} Zeichen); \"\" — ohne Notiz",
+      "remove": "true — diese Aufgabe löschen (nur mit \"id\"; wie „Löschen“ im Fenster der Aufgabe: sie verschwindet aus den Listen, der Verlauf der Erledigungen bleibt im Archiv); die übrigen Schlüssel zählen dann nicht",
+      "locked": "nur im Export: Titel und Notiz lassen sich hier nicht öffnen (die Aufgabe wurde mit einem Schlüssel gespeichert, den du nicht hast) — der Import ändert eine solche Aufgabe nicht, er kann sie nur löschen"
+    },
+    "group": {
+      "key": "ein kurzer Name (Buchstaben, Ziffern, - und _), auf den \"who\": \"@key\" zeigt, z. B. \"schola\"",
+      "id": "Kennung der Gruppe aus einem Export — geht vor dem Namen",
+      "name": "der Name der Gruppe wie unter „Wer sieht“: allein („Schola“) oder mit Weg („Pfarrei St. Josef › Schola“); er muss auf eine Gruppe zeigen",
+      "readOnly": "nur im Export: true — in dieser Gruppe kannst du nur lesen, also ändert der Import ihre Aufgaben nicht"
+    },
+    "span": {
+      "minutes": "Minuten",
+      "hours": "Stunden",
+      "days": "Tage",
+      "weeks": "Wochen"
+    }
+  },
+  "sample": {
+    "parishSchola": "Pfarrei St. Josef › Schola",
+    "schola": "Schola",
+    "apel": "Abendgebet",
+    "cleanHall": "Den Pfarrsaal aufräumen",
+    "keys": "Schlüssel in der Sakristei.",
+    "music": "Noten für Sonntag vorbereiten",
+    "flowers": "Blumen gießen",
+    "prayer": "Abendgebet",
+    "examen": "Gewissenserforschung",
+    "silence": "Eine Viertelstunde Stille vor dem Schlafen."
+  },
+  "node": {
+    "intro": "Aufgaben (Kalender → Reiter „Aufgaben“) als ein Dokument: was zu tun ist und wann, wer es sieht und wann erinnert wird. Der Export gibt die Aufgaben, die du siehst — alle oder die einer Gruppe.\nWas der Import tut:\n- Zuerst zeigt er die Liste der Änderungen — neu, geändert (was und wie), gelöscht, unverändert — und die Warnungen; gespeichert wird erst nach „Aufgaben importieren“.\n- Eine Aufgabe mit \"id\" aus einem Export ändert er an Ort und Stelle, und nur das, was im Dokument steht — ein fehlender Schlüssel bleibt, wie er war. Eine Aufgabe ohne \"id\" legt er neu an; dasselbe Dokument ein zweites Mal importiert legt sie noch einmal an.\n- Von sich aus löscht er nichts: eine Aufgabe verschwindet nur mit \"remove\": true.\n- Erledigungen (Häkchen und Auslassungen) gehören nicht zum Dokument: der Export enthält sie nicht, der Import ändert sie nicht. Eine Aufgabe aus einem Gespräch bleibt bei ihrer Nachricht.\n- Titel und Notiz verschlüsselt der Browser mit dem Schlüssel derer, die die Aufgabe sehen („Nur ich“ oder eine Gruppe). Anlegen und ändern kannst du dort, wo du schreiben darfst; Aufgaben von Gruppen, die du nur liest, überspringt der Import mit einer Warnung.\n- Die Zeit ist die Ortszeit des Geräts, wie im Fenster der Aufgabe: \"JJJJ-MM-TTTHH:MM\".\nGib EIN JSON-Objekt zurück, ohne Kommentare.\nSchlüssel des Dokuments:",
+    "kinds": "\"window\" — {window}: ein Zeitfenster, das wiederkehren kann (\"repeat\") — z. B. ein Gebet 21:00–21:15 täglich. Abgehakt wird jedes Vorkommen; eines, das unabgehakt vorbeiging, bleibt als verpasst stehen, bis jemand es abhakt oder auslässt.\n\"period\" — {period}: Zeit zum Erledigen (\"lasts\"), die in festem Abstand wiederkehrt (\"every\") — z. B. Kirche putzen: 3 Tage Zeit, alle 2 Wochen. Sie ist ab dem Beginn des Zeitraums zu sehen, und je näher das Ende, desto dringender.\n\"after\" — {after} (\"every\"): ein Zähler ab der letzten Erledigung — z. B. Blumen gießen alle 3 Tage; ein Häkchen beginnt die Zählung von vorn.\nEine Dauer (\"lasts\", \"every\") ist ein Objekt mit einer Zahl bei einer Einheit: {units} — z. B. {\"days\": 3}, {\"hours\": 36}, {\"weeks\": 2}; mehrere Einheiten werden zusammengezählt ({\"days\": 1, \"hours\": 12}). Eine bloße Zahl ohne Einheit genügt nicht.\nEinen Schlüssel einer anderen Art (z. B. \"lasts\" bei \"window\") überspringt der Import mit einer Warnung. Ändert sich \"kind\", wird, was fehlt, wie im Fenster der Aufgabe genommen: ein Fenster von {minutes} Minuten, 3 Tage Zeit, alle 2 Wochen, alle 3 Tage.\nEine Aufgabe, die in der Vergangenheit beginnt, zeigt frühere Vorkommen als verpasst — der Import warnt davor.",
+    "groupsLead": "\"who\" sagt, wer die Aufgabe sieht: \"me\" — nur du (eine private Aufgabe, mit deinem Schlüssel verschlüsselt); eine Gruppe — alle aus dieser Gruppe (mit ihrem Schlüssel verschlüsselt). Eine Gruppe nennt \"@key\" aus \"groups\", ihre Kennung oder ihr Name.\nEin Eintrag in \"groups\":",
+    "groupsTail": "Der Import legt keine Gruppen an und ändert nicht, wer zu ihnen gehört. Eine Aufgabe mit einer Gruppe, die nicht unter deinen ist, die zu mehreren passt oder in der du nur liest, wird mit einer Warnung übersprungen.",
+    "task": {
+      "title": "Aufgabe (\"tasks[]\")",
+      "short": "Aufgabe",
+      "lead": "Ein Eintrag in \"tasks\":"
+    },
+    "kindsNode": {
+      "title": "Arten von Aufgaben und Dauer",
+      "short": "Arten und Zeit"
+    },
+    "groupsNode": {
+      "title": "Wer sie sieht (\"who\") und Gruppen (\"groups[]\")",
+      "short": "Wer sieht und Gruppen"
+    },
+    "usage": {
+      "title": "Wie die App diese Daten nutzt",
+      "text": "- Aufgaben stehen im Kalender: der Reiter „Aufgaben“ (Jetzt, Verpasst, Heute später, In den nächsten Tagen, In Abständen, Heute erledigt, Heute ausgelassen) und das Raster des Kalenders (die Leiste und die Zeile „Aufgaben“ bei jedem Tag). Der Baustein „Kalender“ auf Seiten zeigt sie nicht.\n- „Jetzt“: der Teil „Aufgaben“ — was jetzt offen ist und was aussteht, mit „Erledigt“; in „Wartet auf dich“ — wie viele Aufgaben jetzt zu tun sind.\n- Sie sieht, wer den Schlüssel des Bereichs aus \"who\" hat: „Nur ich“ — nur du, eine Gruppe — ihre Personen. Abhaken oder auslassen kann jeder, der in der Gruppe schreibt; ein Häkchen gilt für die ganze Gruppe.\n- Erinnerungen (\"remind\") plant jedes Gerät, das die Aufgabe sieht — der Server schickt sie nicht. Ein Telefon mit der App — mit dem Wecker des Systems, auch wenn die App geschlossen ist (manchmal ein paar Minuten später; in der Benachrichtigung steht „Erledigt“); ein Browser — nur bei geöffneter Seite. Ausgeschaltet werden sie am Gerät: Glocke → „Einstellungen“ → „Erinnerungen an Aufgaben“.\n- Eine Aufgabe aus einer Nachricht ist auch im Gespräch zu sehen („Aufgaben und Termine aus diesem Gespräch“).\n- Aufgaben aus Schritten von Formularen (der Baustein „Aufgaben einer Person“) sind etwas anderes — dieses Format umfasst sie nicht."
+    },
+    "example": {
+      "title": "Beispiel",
+      "lead": "Eine Aufgabe aus einem Export (mit \"id\"), drei neue — in einer Gruppe und privat — und ein Löschen:"
+    },
+    "root": {
+      "title": "Aufgaben als JSON (\"{format}\", Version {version})",
+      "short": "Aufgaben",
+      "sampleOwn": "eigene: ein Gebet täglich, Blumen alle 3 Tage, freitags Gewissenserforschung",
+      "sampleGroup": "Gruppe: Aufräumen alle 2 Wochen, Noten von Donnerstag bis Samstag"
+    }
+  }
+}

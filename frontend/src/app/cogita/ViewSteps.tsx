@@ -18,6 +18,8 @@ import { isSource, RETIRED_STEP, RETIRED_TOPIC, SOURCE_TYPES, STEP_WORDS, type G
 import type { CogitaLibrary } from './store';
 import { useState } from 'react';
 
+import { t, useT } from '../core/i18n';
+
 import { EntityPicker, useCtx } from './ui';
 import { AXIS_COLUMN, axesOf, type ViewDoc } from './views';
 import type { Axis } from './selection';
@@ -44,7 +46,7 @@ export function shortFieldKeys(lib: CogitaLibrary): FieldKey[] {
     for (const f of kind.fields) {
       if (f.type === 'markup' || f.type === 'text' || f.type === 'blocks' || f.type === 'media' || seen.has(f.key)) continue;
       seen.add(f.key);
-      out.push({ key: f.key, label: `${f.label} (${kind.name})` });
+      out.push({ key: f.key, label: t('cogitaViews.steps.fieldOfKind', { field: f.label, kind: kind.name }) });
     }
   }
   return out;
@@ -63,6 +65,7 @@ const groupOfWord = (word: string, was: Grouping | null): Grouping => {
 
 /** Eine Gruppierung wählen: nach Rodzaj, nach einer Achse (einem Rodzaj: seine Einträge sind die Werte), nach einem Feld. */
 function GroupingSelect({ label, value, kindLabel, onChange }: { label: string; value: Grouping | null; kindLabel: string; onChange: (g: Grouping) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const axes = axesOf(lib);
   return (
@@ -72,13 +75,13 @@ function GroupingSelect({ label, value, kindLabel, onChange }: { label: string; 
         <select value={groupWord(value)} onChange={(e) => onChange(groupOfWord(e.target.value, value))}>
           <option value="kind">{kindLabel}</option>
           {/* 2026-10-27 — die Ebenen von den Grundlagen her (Felder „Najpierw trzeba znać”, `prerequisites.ts`). */}
-          <option value="level">według kolejności nauki (poziomy od podstaw)</option>
+          <option value="level">{t('cogitaViews.steps.byLevel')}</option>
           {axes.length > 0 && (
-            <optgroup label="według osi — rodzaju (jego wpisy to wartości)">
+            <optgroup label={t('cogitaViews.steps.byAxis')}>
               {axes.map((k) => <option key={k.id} value={`axis:${k.id}`}>{k.name}</option>)}
             </optgroup>
           )}
-          <optgroup label="według pola">
+          <optgroup label={t('cogitaViews.steps.byField')}>
             {shortFieldKeys(lib).map((f) => <option key={f.key} value={`field:${f.key}`}>{f.label}</option>)}
           </optgroup>
         </select>
@@ -95,6 +98,7 @@ function GroupingSelect({ label, value, kindLabel, onChange }: { label: string; 
  * und unter welchen Überschriften (ein Verweisfeld der Werte).
  */
 function AxisSettings({ axis, onChange }: { axis: Axis; onChange: (axis: Axis) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const kind = lib.kind(axis.kind);
   const refs = refFieldKeys(lib);
@@ -114,22 +118,22 @@ function AxisSettings({ axis, onChange }: { axis: Axis; onChange: (axis: Axis) =
   };
   return (
     <div className="cg-card cg-axis" data-axis={axis.kind}>
-      <span className="cg-muted">Wartości: wpisy rodzaju „{kind?.name ?? axis.kind}” ({lib.material(axis.kind).length}).</span>
-      <label className="wk-field"><span>Wpis należy do wartości przez pole</span>
+      <span className="cg-muted">{t('cogitaViews.steps.values', { name: kind?.name ?? axis.kind, count: lib.material(axis.kind).length })}</span>
+      <label className="wk-field"><span>{t('cogitaViews.steps.viaField')}</span>
         <select value={viaWord} onChange={(e) => set({ via: e.target.value === '' ? [] : e.target.value === '#many' ? axis.via : [e.target.value] })}>
-          <option value="">dowolne pole-odwołanie</option>
-          {axis.via.length > 1 && <option value="#many">kilka pól: {axis.via.join(', ')}</option>}
+          <option value="">{t('cogitaViews.steps.anyRef')}</option>
+          {axis.via.length > 1 && <option value="#many">{t('cogitaViews.steps.severalFields', { list: axis.via.join(', ') })}</option>}
           {refs.map((f) => <option key={`${f.group}:${f.key}`} value={f.key}>{f.label} ({f.group})</option>)}
         </select>
       </label>
-      <label className="wk-field"><span>…albo o jeden krok dalej — najpierw przez pole</span>
+      <label className="wk-field"><span>{t('cogitaViews.steps.through')}</span>
         <select value={axis.through ?? ''} onChange={(e) => set({ through: e.target.value === '' ? undefined : e.target.value })}>
-          <option value="">nie — tylko bezpośrednio</option>
-          <option value="*">dowolne pole-odwołanie</option>
+          <option value="">{t('cogitaViews.steps.directOnly')}</option>
+          <option value="*">{t('cogitaViews.steps.anyRef')}</option>
           {refs.map((f) => <option key={`${f.group}:${f.key}`} value={f.key}>{f.label} ({f.group})</option>)}
         </select>
       </label>
-      <label className="wk-field"><span>Kolejność wartości</span>
+      <label className="wk-field"><span>{t('cogitaViews.steps.valueOrder')}</span>
         <select value={sortWord} onChange={(e) => {
           const word = e.target.value;
           if (word === '') { setListKind(null); set({ sort: undefined }); return; }
@@ -137,22 +141,22 @@ function AxisSettings({ axis, onChange }: { axis: Axis; onChange: (axis: Axis) =
           setListKind(word);
           set({ sort: undefined });
         }}>
-          <option value="">według nazwy</option>
-          {own.filter((f) => f.type === 'number').map((f) => <option key={f.key} value={`field:${f.key}`}>według pola: {f.label}</option>)}
-          {lists.map((l) => <option key={`${l.kind.id}:${l.field.key}`} value={`list:${l.kind.id}:${l.field.key}`}>według listy w polu „{l.field.label}” ({l.kind.name})</option>)}
+          <option value="">{t('cogitaViews.steps.byName')}</option>
+          {own.filter((f) => f.type === 'number').map((f) => <option key={f.key} value={`field:${f.key}`}>{t('cogitaViews.steps.byNumberField', { name: f.label })}</option>)}
+          {lists.map((l) => <option key={`${l.kind.id}:${l.field.key}`} value={`list:${l.kind.id}:${l.field.key}`}>{t('cogitaViews.steps.byList', { field: l.field.label, kind: l.kind.name })}</option>)}
         </select>
       </label>
       {sortWord.startsWith('list:') && (() => {
         const [, holderKind, fieldKey] = sortWord.split(':');
         return (
-          <label className="wk-field"><span>Który wpis podaje kolejność</span>
+          <label className="wk-field"><span>{t('cogitaViews.steps.orderHolder')}</span>
             <EntityPicker lib={lib} kinds={[holderKind]} refs value={axis.sort?.list ?? null} onPick={(id) => { if (id !== null) { setListKind(null); set({ sort: { field: fieldKey, list: id } }); } }} />
           </label>
         );
       })()}
-      <label className="wk-field"><span>Nagłówki według pola wartości</span>
+      <label className="wk-field"><span>{t('cogitaViews.steps.headings')}</span>
         <select value={axis.group ?? ''} onChange={(e) => set({ group: e.target.value === '' ? undefined : e.target.value })}>
-          <option value="">bez nagłówków</option>
+          <option value="">{t('cogitaViews.steps.noHeadings')}</option>
           {own.filter((f) => f.type === 'ref').map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
         </select>
       </label>
@@ -162,7 +166,7 @@ function AxisSettings({ axis, onChange }: { axis: Axis; onChange: (axis: Axis) =
 
 /** Die Spalten einer Tabela: auch eine Achse (ein Rodzaj — die Werte, auf die der Eintrag zeigt). */
 export function axisColumns(lib: CogitaLibrary): { key: string; label: string }[] {
-  return axesOf(lib).map((k) => ({ key: `${AXIS_COLUMN}${k.id}`, label: `${k.name} (oś)` }));
+  return axesOf(lib).map((k) => ({ key: `${AXIS_COLUMN}${k.id}`, label: t('cogitaViews.steps.axisColumn', { name: k.name }) }));
 }
 
 /** Womit ein neuer Schritt beginnt — „Filtr znajomości": was vorher zu können ist, sitzt (2026-10-30). */
@@ -174,6 +178,7 @@ const STEP_START: Partial<Record<StepType, Readonly<Record<string, unknown>>>> =
 };
 
 export function ViewSteps({ view, onChange }: { view: ViewDoc; onChange: (next: ViewDoc) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const refs = refFieldKeys(lib);
   let leading = 0;
@@ -195,12 +200,12 @@ export function ViewSteps({ view, onChange }: { view: ViewDoc; onChange: (next: 
         <div key={`s${i}`} className={sources > 1 ? 'cg-card' : undefined}>
           <div className="cg-row-between">
             <label className="wk-field">
-              <span>{i === 0 ? 'Skąd' : 'Razem z'}</span>
+              <span>{i === 0 ? t('cogitaViews.steps.from') : t('cogitaViews.steps.together')}</span>
               <select value={source.type} onChange={(e) => setStep(i, { type: e.target.value as StepType, config: {} })}>
-                {SOURCE_TYPES.map((t) => <option key={t} value={t}>{STEP_WORDS[t].label}</option>)}
+                {SOURCE_TYPES.map((st) => <option key={st} value={st}>{STEP_WORDS[st].label}</option>)}
               </select>
             </label>
-            {sources > 1 && <button type="button" className="wk-link-btn" aria-label="Usuń źródło" onClick={() => remove(i)}>×</button>}
+            {sources > 1 && <button type="button" className="wk-link-btn" aria-label={t('cogitaViews.steps.removeSource')} onClick={() => remove(i)}>×</button>}
           </div>
           <p className="cg-muted">{STEP_WORDS[isSource(source.type) ? source.type : 'source.all'].says}</p>
           {source.config[RETIRED_STEP] === 'source.topic' && <p className="wk-warn">{RETIRED_TOPIC}</p>}
@@ -211,26 +216,26 @@ export function ViewSteps({ view, onChange }: { view: ViewDoc; onChange: (next: 
         <div key={`k${k}`} className="cg-card">
           <div className="cg-row-between">
             <strong>{STEP_WORDS[step.type].label}</strong>
-            <button type="button" className="wk-link-btn" aria-label={`Usuń krok: ${STEP_WORDS[step.type].label}`} onClick={() => remove(sources + k)}>×</button>
+            <button type="button" className="wk-link-btn" aria-label={t('cogitaViews.steps.removeStep', { name: STEP_WORDS[step.type].label })} onClick={() => remove(sources + k)}>×</button>
           </div>
           <p className="cg-muted">{STEP_WORDS[step.type].says}</p>
           {fields(step, sources + k)}
         </div>
       ))}
       <span className="cg-row">
-        <button type="button" className="wk-link-btn" onClick={addSource}>+ Źródło (razem)</button>
-        <button type="button" className="wk-link-btn" onClick={() => add('follow')}>+ Idź po odwołaniu</button>
-        <button type="button" className="wk-link-btn" onClick={() => add('structure')}>+ Idź po strukturze</button>
-        <button type="button" className="wk-link-btn" onClick={() => add('learning')}>+ Idź po kolejności nauki</button>
-        <button type="button" className="wk-link-btn" onClick={() => add('filter.rule')}>+ Filtr</button>
-        <button type="button" className="wk-link-btn" onClick={() => add('filter.when')}>+ Filtr znajomości</button>
+        <button type="button" className="wk-link-btn" onClick={addSource}>{t('cogitaViews.steps.addSource')}</button>
+        <button type="button" className="wk-link-btn" onClick={() => add('follow')}>{t('cogitaViews.steps.addFollow')}</button>
+        <button type="button" className="wk-link-btn" onClick={() => add('structure')}>{t('cogitaViews.steps.addStructure')}</button>
+        <button type="button" className="wk-link-btn" onClick={() => add('learning')}>{t('cogitaViews.steps.addLearning')}</button>
+        <button type="button" className="wk-link-btn" onClick={() => add('filter.rule')}>{t('cogitaViews.steps.addFilter')}</button>
+        <button type="button" className="wk-link-btn" onClick={() => add('filter.when')}>{t('cogitaViews.steps.addKnowFilter')}</button>
       </span>
       {view.retired.map((line) => <p key={line} className="wk-warn">{line}</p>)}
-      <GroupingSelect label="Drzewo grupuje" value={view.group} kindLabel="według rodzaju" onChange={(g) => onChange({ ...view, group: g.by === 'kind' ? null : g })} />
+      <GroupingSelect label={t('cogitaViews.steps.treeGroups')} value={view.group} kindLabel={t('cogitaViews.steps.byKind')} onChange={(g) => onChange({ ...view, group: g.by === 'kind' ? null : g })} />
       {view.mode === 'matrix' && (
         <>
-          <GroupingSelect label="Macierz — wiersze" value={view.matrix?.rows ?? null} kindLabel="według rodzaju" onChange={(rows) => onChange({ ...view, matrix: { rows, cols: view.matrix?.cols ?? { by: 'kind' } } })} />
-          <GroupingSelect label="Macierz — kolumny" value={view.matrix?.cols ?? null} kindLabel="według rodzaju" onChange={(cols) => onChange({ ...view, matrix: { rows: view.matrix?.rows ?? { by: 'kind' }, cols } })} />
+          <GroupingSelect label={t('cogitaViews.steps.matrixRows')} value={view.matrix?.rows ?? null} kindLabel={t('cogitaViews.steps.byKind')} onChange={(rows) => onChange({ ...view, matrix: { rows, cols: view.matrix?.cols ?? { by: 'kind' } } })} />
+          <GroupingSelect label={t('cogitaViews.steps.matrixCols')} value={view.matrix?.cols ?? null} kindLabel={t('cogitaViews.steps.byKind')} onChange={(cols) => onChange({ ...view, matrix: { rows: view.matrix?.rows ?? { by: 'kind' }, cols } })} />
         </>
       )}
     </div>

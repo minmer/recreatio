@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { type ChatRow, areaKeys, loadAreaNames, loadChats, openNames, startAreaChat } from '../chat/chat';
 import type { Ring, SealedRole } from '../core/keys';
+import { fmtDate, useT } from '../core/i18n';
 import { type Who, WorkspaceError } from '../core/session';
 import { AccessLinks } from '../links/AccessLinks';
 import { ShareButton } from '../links/Share';
@@ -52,12 +53,13 @@ const AreaJsonPanel = later(() => import('./AreaJsonPanel').then((m) => m.AreaJs
  */
 /** 2026-10-22 — bis wann eine Mitgliedschaft gilt; erneuert wird von selbst, ein Jahr vorher. */
 function Until({ iso }: { iso: string | null }) {
+  const t = useT();
   if (iso === null) return null;
   const left = daysLeft(iso);
-  const date = new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' });
+  const date = fmtDate(new Date(iso), { day: 'numeric', month: 'short', year: 'numeric' }, t.lang);
   return (
-    <span className={left < WARN_BEFORE_DAYS ? 'wk-person-until is-soon' : 'wk-person-until'} title="Dostęp przedłuża się sam rok przed tym terminem">
-      do {date}
+    <span className={left < WARN_BEFORE_DAYS ? 'wk-person-until is-soon' : 'wk-person-until'} title={t('areas.page.untilTitle')}>
+      {t('areas.page.until', { date })}
     </span>
   );
 }
@@ -74,6 +76,7 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const [members, setMembers] = useState<readonly Member[] | null>(null);
   const [names, setNames] = useState<ReadonlyMap<string, Called>>(new Map());
   const [note, setNote] = useState<string | null>(null);
@@ -154,7 +157,7 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
             if (!dropped) setMembers(found);
           }
         } catch (e) {
-          const message = e instanceof WorkspaceError ? e.message : 'Nie udało się przedłużyć dostępu.';
+          const message = e instanceof WorkspaceError ? e.message : t('areas.page.renewFailed');
           noteRenewal(area.areaId, message);
           if (!dropped) setRenewError(message);
         }
@@ -207,13 +210,13 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
       return;
     }
 
-    if (ring === null) throw new WorkspaceError('Bez hasła nie otworzysz obszaru.');
+    if (ring === null) throw new WorkspaceError(t('areas.page.openNeedsPassword'));
 
     const keys = await myEpochKeys(ring, area.areaId);
     const key = keys.get(area.currentEpoch);
 
     if (key === undefined) {
-      throw new WorkspaceError('Nie masz klucza tej epoki — nie możesz jej otworzyć.');
+      throw new WorkspaceError(t('areas.page.noEpochKey'));
     }
 
     await setPublicLevel(area.areaId, level, key);
@@ -231,15 +234,15 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
       */}
       <PageHeader
         title={area.name}
-        badge={area.personal === true ? <span className="wk-tag">prywatny</span>
-          : area.publicLevel !== 'none' ? <span className="wk-tag wk-tag-open">{area.publicLevel === 'read' ? 'każdy czyta' : 'każdy pisze'}</span>
+        badge={area.personal === true ? <span className="wk-tag">{t('areas.page.private')}</span>
+          : area.publicLevel !== 'none' ? <span className="wk-tag wk-tag-open">{area.publicLevel === 'read' ? t('areas.page.anyoneReads') : t('areas.page.anyoneWrites')}</span>
           : undefined}
         meta={<>
-          {area.myLevel === null ? '' : `Ty: ${LEVEL_NAME[area.myLevel]}`}
-          {parent !== null && <> · wewnątrz: <a href={viewPath('areas', parent.areaId)}>{parent.name}</a></>}
+          {area.myLevel === null ? '' : t('areas.page.you', { level: LEVEL_NAME[area.myLevel] })}
+          {parent !== null && <> · {t('areas.page.inside')} <a href={viewPath('areas', parent.areaId)}>{parent.name}</a></>}
         </>}
         actions={area.mayCertify && area.personal !== true ? (
-          <ShareButton who={who} label="Udostępnij" className="wk-btn"
+          <ShareButton who={who} label={t('areas.page.share')} className="wk-btn"
             target={{ title: area.name, aim: null, areaIds: [area.areaId] }} />
         ) : undefined}
       />
@@ -253,8 +256,7 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
       */}
       {area.personal === true ? (
         <p className="wk-note">
-          To Twoja prywatna przestrzeń: terminy i zadania zapisane jako „Tylko ja" widzisz tylko Ty.
-          Nikogo tu nie dodasz i nie otworzysz jej dla innych — żeby coś pokazać innym, wybierz ich grupę.
+          {t('areas.page.privateNote')}
         </p>
       ) : null}
 
@@ -275,19 +277,19 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
       {/* -- 0133: die Art — Wizytówka, was fehlt, Werkzeuge -- */}
       {area.personal !== true && tab === 'profil' && (
         <div className="wk-narrow ui-page">
-          {kindFailed ? <p className="wk-error">Nie udało się wczytać rodzaju obszaru.</p>
+          {kindFailed ? <p className="wk-error">{t('areas.page.kindFailed')}</p>
             : kindState === null ? <Loading lines={3} />
             : profile === null ? (
               <p className="wk-note">
-                Ten obszar nie ma rodzaju. <a className="wk-link" href={viewPath('areas', area.areaId, 'ustawienia')}>Ustaw go w Ustawieniach</a>
-                {kindState.admin ? ' — albo zaimportuj niżej cały obszar z JSON (na przykład przygotowanego przez AI).' : '.'}
+                {t('areas.page.noKind')} <a className="wk-link" href={viewPath('areas', area.areaId, 'ustawienia')}>{t('areas.page.setKind')}</a>
+                {kindState.admin ? t('areas.page.orImport') : '.'}
               </p>
             ) : (
               <AreaKindPanel who={who} area={area} areas={areas} ring={ring} state={kindState} profile={profile} onChanged={kindChanged} withJson={!jsonHere} />
             )}
           {jsonHere && kindState?.admin === true && (
             <section className="wk-kind-sec" aria-labelledby="area-json-h">
-              <h2 className="wk-h2" id="area-json-h">Import i eksport (JSON dla AI)</h2>
+              <h2 className="wk-h2" id="area-json-h">{t('areas.page.jsonTitle')}</h2>
               <AreaJsonPanel area={area} ring={ring} who={who} onImported={() => kindChanged()} />
             </section>
           )}
@@ -301,36 +303,36 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
       {tab === 'ustawienia' && (
         <div className="wk-narrow ui-page">
           <section aria-labelledby="area-controller-h">
-            <h2 className="wk-h2" id="area-controller-h">Administrator danych</h2>
+            <h2 className="wk-h2" id="area-controller-h">{t('areas.page.controller')}</h2>
             <AreaControllerSettings areaId={area.areaId} areaName={area.name} editable={area.myLevel === 'admin'} ring={ring} />
           </section>
 
           {/* 0133 — die Art des Bereichs: Zwykły obszar, Wydarzenie, Grupa, Parafia, Kurs (ersetzt die Marke „Wydarzenie" von 0131). */}
           {area.personal !== true && (
             <section aria-labelledby="area-kind-h">
-              <h2 className="wk-h2" id="area-kind-h">Rodzaj obszaru</h2>
+              <h2 className="wk-h2" id="area-kind-h">{t('areas.page.kind')}</h2>
               {kindFailed
-                ? <p className="wk-error">Nie udało się wczytać rodzaju obszaru.</p>
+                ? <p className="wk-error">{t('areas.page.kindFailed')}</p>
                 : <AreaKindSetting area={area} areas={areas} state={kindState} onChanged={kindChanged} />}
             </section>
           )}
 
           <section aria-labelledby="area-chat-h">
-            <h2 className="wk-h2" id="area-chat-h">Rozmowa obszaru</h2>
+            <h2 className="wk-h2" id="area-chat-h">{t('areas.page.chat')}</h2>
             <p className="wk-lede"><AreaChat area={area} ring={ring} busy={busy} onAct={onAct} /></p>
           </section>
 
           <details className="wk-fold">
-            <summary>Klucze tego obszaru</summary>
+            <summary>{t('areas.page.keys')}</summary>
             <dl className="wk-facts">
-              <Fact label="Epoka">{area.currentEpoch}</Fact>
-              <Fact label="Twoje klucze">{area.heldEpochs}</Fact>
-              <Fact label="Ty">
+              <Fact label={t('areas.page.epoch')}>{area.currentEpoch}</Fact>
+              <Fact label={t('areas.page.yourKeys')}>{area.heldEpochs}</Fact>
+              <Fact label={t('areas.page.youFact')}>
                 {area.myLevel === null ? '—' : LEVEL_NAME[area.myLevel]}
-                {area.mayCertify && area.myLevel !== 'admin' && <span className="wk-tag">wpuszczasz</span>}
+                {area.mayCertify && area.myLevel !== 'admin' && <span className="wk-tag">{t('areas.page.youLetIn')}</span>}
               </Fact>
             </dl>
-            <p className="wk-hint">Nowa epoka zaczyna się, gdy ktoś traci dostęp — od niej nie przeczyta już nowych treści.</p>
+            <p className="wk-hint">{t('areas.page.epochHint')}</p>
           </details>
         </div>
       )}
@@ -339,7 +341,7 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
 
       {area.personal !== true && tab === 'dostep' && area.mayCertify && (
         <div className="wk-panel">
-          <h2 className="wk-h2 wk-area-h">Linki z dostępem</h2>
+          <h2 className="wk-h2 wk-area-h">{t('areas.page.links')}</h2>
           <AccessLinks ring={ring} self={self} areas={areas} focusAreaId={area.areaId} busy={busy} onAct={onAct} />
         </div>
       )}
@@ -353,9 +355,9 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
       {area.personal !== true && tab === 'osoby' && (
         <div className="wk-panel">
           {members === null ? (
-            <Loading label="Wczytywanie…" />
+            <Loading label={t('common.loading')} />
           ) : members.length === 0 ? (
-            <p className="wk-empty">Nikogo tu jeszcze nie ma.</p>
+            <p className="wk-empty">{t('areas.page.nobody')}</p>
           ) : (
             <ul className="wk-people">
               {members.map((m) => (
@@ -388,13 +390,13 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
                   {area.mayCertify && (
                     <button
                       type="button" className="wk-link-btn" disabled={busy}
-                      onClick={() => void onAct('Usuwanie…', async () => {
+                      onClick={() => void onAct(t('areas.page.removing'), async () => {
                         const out = await dropFromArea(area.areaId, m.roleId);
                         setNote(out.note);
                         setMembers((was) => (was ?? []).filter((x) => x.roleId !== m.roleId));
                       })}
                     >
-                      Usuń
+                      {t('common.remove')}
                     </button>
                   )}
                 </li>
@@ -412,13 +414,13 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
           {/* 2026-10-22 — Dostęp się przedłuża sam; gdy to nie wychodzi albo termin jest blisko, mówimy to wprost. */}
           {renewError !== null && (
             <p className="wk-warn">
-              Nie udało się przedłużyć dostępu w tym obszarze: {renewError}
-              {area.mayCertify ? ' Spróbuj jeszcze raz, otwierając tę kartę ponownie.' : ''}
+              {t('areas.page.renewError', { error: renewError })}
+              {area.mayCertify ? ` ${t('areas.page.renewRetry')}` : ''}
             </p>
           )}
           {members !== null && ring !== null && members.some((m) => ring.has(m.roleId) && (() => { const u = memberUntil(m.expires); return u !== null && daysLeft(u) < WARN_BEFORE_DAYS; })()) && (
             <p className="wk-warn">
-              Twój dostęp do tego obszaru niedługo wygasa i nikt go jeszcze nie przedłużył. Przedłuża go automatycznie każdy, kto może tu wpuszczać, gdy otworzy aplikację — poproś prowadzącego, żeby ją otworzył.
+              {t('areas.page.expiresSoon')}
             </p>
           )}
 
@@ -441,24 +443,24 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
 
       {area.personal !== true && tab === 'dostep' && (
         <div className="wk-panel">
-          <h2 className="wk-h2 wk-area-h">Osoby z formularzy</h2>
+          <h2 className="wk-h2 wk-area-h">{t('areas.page.seats')}</h2>
           {mine ? (
             <Segment
               now={area.seatLevel}
               options={SEAT_LEVELS.map((level) => ({
                 value: level,
-                label: level === 'own' ? 'Tylko swoje'
-                  : level === 'read' ? 'Czyta wspólne'
-                  : 'Czyta i pisze wspólne'
+                label: level === 'own' ? t('areas.page.seatOwn')
+                  : level === 'read' ? t('areas.page.seatRead')
+                  : t('areas.page.seatWrite')
               }))}
               busy={busy}
-              onPick={(level) => void onAct('Zmiana dostępu…', () => setSeatLevel(area.areaId, level))}
+              onPick={(level) => void onAct(t('areas.page.changingAccess'), () => setSeatLevel(area.areaId, level))}
             />
           ) : (
-            <p className="wk-empty">Tym steruje ten, kto prowadzi obszar.</p>
+            <p className="wk-empty">{t('areas.page.leaderControls')}</p>
           )}
 
-          <p className="wk-hint">Swoje zgłoszenie taka osoba widzi zawsze.</p>
+          <p className="wk-hint">{t('areas.page.seatHint')}</p>
 
           {/*
             HIER STANDEN DIE PLÄTZE — und das Ausstellen von Hand.
@@ -480,21 +482,21 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
 
       {area.personal !== true && tab === 'dostep' && (
         <div className="wk-panel">
-          <h2 className="wk-h2 wk-area-h">Dla wszystkich</h2>
+          <h2 className="wk-h2 wk-area-h">{t('areas.page.public')}</h2>
           {mine ? (
             <Segment
               now={area.publicLevel}
               options={PUBLIC_LEVELS.map((level) => ({
                 value: level,
-                label: level === 'none' ? 'Zamknięty'
-                  : level === 'read' ? 'Każdy czyta'
-                  : 'Każdy czyta i pisze'
+                label: level === 'none' ? t('areas.page.publicNone')
+                  : level === 'read' ? t('areas.page.publicRead')
+                  : t('areas.page.publicWrite')
               }))}
               busy={busy || ring === null}
-              onPick={(level) => void onAct('Zmiana jawności…', () => openTo(level))}
+              onPick={(level) => void onAct(t('areas.page.changingPublic'), () => openTo(level))}
             />
           ) : (
-            <p className="wk-empty">Tym steruje ten, kto prowadzi obszar.</p>
+            <p className="wk-empty">{t('areas.page.leaderControls')}</p>
           )}
 
           {/*
@@ -504,13 +506,12 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
           */}
           {area.publicLevel !== 'none' && (
             <p className="wk-warn">
-              Zamknięcie nie odbiera klucza tym, którzy już go sobie zapisali.
+              {t('areas.page.closeWarn')}
             </p>
           )}
           {/* 2026-10-22 (Schritt 8) — was „jawny" für die Bibliotheken und Bazy wiedzy des Bereichs heisst. */}
           <p className="wk-note">
-            {area.publicLevel === 'none' ? 'Gdy obszar stanie się jawny, każdy przeczyta' : 'Każdy czyta'} jego biblioteki i bazy wiedzy (te już otwarte) —
-            bazy wiedzy w całości: wpisy, pytania razem z odpowiedziami, szkice, powtórki i przebiegi.
+            {area.publicLevel === 'none' ? t('areas.page.publicNoteWhen') : t('areas.page.publicNoteNow')}
           </p>
         </div>
       )}
@@ -532,6 +533,7 @@ function AreaChat({ area, ring, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const [chats, setChats] = useState<readonly ChatRow[] | undefined>(undefined);
 
   useEffect(() => {
@@ -546,7 +548,7 @@ function AreaChat({ area, ring, busy, onAct }: {
 
   /* Ein eigener Bereich einer Gruppe, eines Gesprächs zu zweit, der Notatki: er IST die Rozmowa. */
   const own = chats.find((c) => c.kind === 'group' || c.kind === 'direct' || c.kind === 'self');
-  if (own !== undefined) return <a className="wk-crumb-link" href={viewPath('chat', own.chatId)}>Otwórz</a>;
+  if (own !== undefined) return <a className="wk-crumb-link" href={viewPath('chat', own.chatId)}>{t('common.open')}</a>;
 
   const mayStart = ring !== null && (area.myLevel === 'write' || area.myLevel === 'admin');
   const one = (kind: 'area' | 'channel', label: string) => {
@@ -555,20 +557,20 @@ function AreaChat({ area, ring, busy, onAct }: {
     if (!mayStart || ring === null) return null;
     return (
       <button key={kind} type="button" className="wk-link-btn" disabled={busy}
-        onClick={() => void onAct(kind === 'channel' ? 'Zakładanie kanału…' : 'Zakładanie rozmowy…', async () => {
+        onClick={() => void onAct(kind === 'channel' ? t('areas.page.creatingChannel') : t('areas.page.creatingChat'), async () => {
           const { members } = await loadMembers(area.areaId);
           /* Welche MEINER Rollen hier schreibt — sie legt die Rozmowa an. */
           const writer = members.find((m) => ring.has(m.roleId) && (m.capabilities.includes('write') || m.capabilities.includes('admin')));
-          if (writer === undefined) throw new WorkspaceError('Żadna z Twoich ról nie pisze w tym obszarze.');
+          if (writer === undefined) throw new WorkspaceError(t('areas.page.noWriter'));
           const made = await startAreaChat(area.areaId, writer.roleId, kind === 'channel');
           window.location.hash = viewPath('chat', made);
         })}>
-        Załóż: {label.toLowerCase()}
+        {kind === 'channel' ? t('areas.page.startChannel') : t('areas.page.startChat')}
       </button>
     );
   };
 
-  const shown = [one('area', 'Rozmowa'), one('channel', 'Kanał')].filter((x) => x !== null);
+  const shown = [one('area', t('areas.page.chatLink')), one('channel', t('areas.page.channelLink'))].filter((x) => x !== null);
   if (shown.length === 0) return <>—</>;
   return <>{shown.map((x, i) => <span key={i}>{i > 0 ? ' · ' : ''}{x}</span>)}</>;
 }

@@ -20,12 +20,14 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../core/i18n';
 
 import { stepUp, trailOf, useDeepCrumbs, type Crumb } from './crumbTrail';
 import type { Spot } from '../routes';
 import { Icon } from '../ui/icons';
 
 export function Crumbs({ spot }: { spot: Spot }) {
+  const t = useT();
   const trail = trailOf(spot, useDeepCrumbs());
   if (trail.length < 2) return null;
 
@@ -33,11 +35,11 @@ export function Crumbs({ spot }: { spot: Spot }) {
   const parent = [...trail.slice(0, -1)].reverse().find((one) => one.href === up);
 
   return (
-    <nav className="wk-crumbs" aria-label="Gdzie jesteś">
+    <nav className="wk-crumbs" aria-label={t('shell.crumbs.label')}>
       {up !== null && (
         <a className="wk-crumb-back" href={up}>
           <Icon name="prev" />
-          {parent?.label ?? 'Wróć'}
+          {parent?.label ?? t('shell.crumbs.back')}
         </a>
       )}
 
@@ -83,6 +85,7 @@ function Beside({ label, beside }: {
   label: string;
   beside: readonly { readonly label: string; readonly href: string }[];
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLSpanElement>(null);
 
@@ -111,7 +114,7 @@ function Beside({ label, beside }: {
         type="button"
         className="wk-crumb-more"
         aria-expanded={open}
-        aria-label={`Obok „${label}"`}
+        aria-label={t('shell.crumbs.beside', { label })}
         onClick={() => setOpen(!open)}
       >
         <Icon name="chevron" />

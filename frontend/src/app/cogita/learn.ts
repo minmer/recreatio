@@ -415,6 +415,8 @@ export interface BatchPage {
   readonly batches: readonly StoredBatch[];
   readonly more?: boolean;
   readonly next?: string | null;
+  /** 2026-11-05 — auf der ersten Seite: wie viele es insgesamt sind (ein älterer Dienst schickt es nicht). */
+  readonly total?: number | null;
 }
 
 /** Höchstens so viele Seiten nacheinander — ein Dienst, der nicht weiterkommt, hält den Browser nicht fest. */
@@ -742,6 +744,8 @@ const IDLE_FLUSH = 20_000;
  */
 export class Learner {
   progress: Progress = EMPTY_PROGRESS;
+  /** 2026-11-05 — während `load`: wie viele Stapel schon geöffnet sind und wie viele es sind (`null`: noch unbekannt). */
+  onLoad?: (done: number, total: number | null) => void;
   private since: string | null = null;
   private fresh: AnswerRecord[] = [];
   private freshSnapshots = new Map<string, Snapshot>();
@@ -860,8 +864,14 @@ export class Learner {
   private async pull(): Promise<boolean> {
     if (this.holder.kind === 'local') return true;
     const holder = this.holder;
-    const { now, complete } = await allPages((after) => loadOwnBatches(holder, this.libraryId, this.since, after), async (batches) => {
+    /* 2026-11-05 — wie weit das Laden ist (der Kreis über dem Krajobraz): geöffnet / insgesamt (sonst unbekannt). */
+    let total: number | null = null;
+    let opened = 0;
+    this.onLoad?.(0, null);
+    const { now, complete } = await allPages(async (after) => { const page = await loadOwnBatches(holder, this.libraryId, this.since, after); if (after === null && typeof page.total === 'number') total = page.total; return page; }, async (batches) => {
       for (const batch of batches) {
+        opened += 1;
+        if (opened % 25 === 0) this.onLoad?.(opened, total);
         const body = await openOwn(holder, batch);
         if (body === null) continue;
         this.progress = absorb(this.progress, body);
@@ -872,6 +882,7 @@ export class Learner {
       }
     });
     this.since = now;
+    this.onLoad?.(opened, total ?? opened);
     return complete;
   }
 

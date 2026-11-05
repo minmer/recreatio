@@ -1,0 +1,105 @@
+{
+  "q": {
+    "given": "Vorname",
+    "surname": "Nachname",
+    "born": "Geburtsdatum",
+    "peselHelp": "Nötig für die Versicherung des Teilnehmers. Hat der Teilnehmer keine PESEL-Nummer, lass das Feld leer — das Geburtsdatum genügt.",
+    "address": "Wohnadresse",
+    "guardian": "Vor- und Nachname des Elternteils / Erziehungsberechtigten",
+    "guardianPhone": "Telefon des Elternteils / Erziehungsberechtigten",
+    "guardianPhoneHelp": "Eine Nummer, die während der ganzen Veranstaltung erreichbar ist.",
+    "minorAsk": "Der Teilnehmer ist minderjährig (noch nicht 18)",
+    "adultName": "Vor- und Nachname der volljährigen Aufsichtsperson",
+    "adultNameHelp": "Eine erwachsene Person, der die Eltern die Aufsicht über den Teilnehmer vor Ort anvertrauen.",
+    "health": "Es gibt etwas zur Gesundheit, das wir wissen sollten (Allergien, chronische Krankheiten, Medikamente)",
+    "healthDetail": "Schreib kurz, was wir über die Gesundheit wissen sollten",
+    "diet": "Der Teilnehmer hält eine Diät ein, die wir nicht übergehen dürfen",
+    "dietDetail": "Welche Diät",
+    "way": "Wie nimmt der minderjährige Teilnehmer teil?"
+  },
+  "approval": "Zustimmung des Elternteils / Erziehungsberechtigten zur Teilnahme.\nAls Elternteil oder Erziehungsberechtigter stimme ich der Teilnahme meines Kindes an dieser Veranstaltung zu den Bedingungen des Veranstalters zu. Ich erkläre, dass ich seinen Gesundheitszustand kenne und keine Einwände gegen die Teilnahme sehe.",
+  "withParent": "Der minderjährige Teilnehmer nimmt zusammen mit einem Elternteil oder Erziehungsberechtigten teil.",
+  "c": {
+    "medical": "Hilfe im Notfall",
+    "medicalHelp": "Bei Gefahr für Gesundheit oder Leben stimme ich zu, dass medizinische Hilfe gerufen und die nötige Hilfe geleistet wird, und bitte den Veranstalter, mich (oder den Elternteil / Erziehungsberechtigten) unverzüglich zu benachrichtigen.",
+    "health": "Zustimmung zu Gesundheitsdaten",
+    "healthHelp": "Wenn ich Angaben zu Gesundheit oder Ernährung mache, willige ich ausdrücklich in ihre Verarbeitung ein (Art. 9 Abs. 2 lit. a DSGVO), ausschließlich um den Teilnehmer sicher zu betreuen. Ich kann die Einwilligung jederzeit widerrufen; der Widerruf berührt die Rechtmäßigkeit der früheren Verarbeitung nicht.",
+    "rules": "Teilnahmeregeln",
+    "rulesHelp": "Ich kenne die Teilnahmeregeln des Veranstalters (Ordnung) und verpflichte mich, sie einzuhalten.",
+    "image": "Bildrechte (freiwillig)",
+    "imageHelp": "Ich stimme der unentgeltlichen Aufnahme und Veröffentlichung meines Bildes in Berichten über die Veranstaltung zu, gemäß Art. 81 des polnischen Urheberrechtsgesetzes. Die Zustimmung ist freiwillig, keine Bedingung für die Teilnahme, und ich kann sie widerrufen.",
+    "insurance": "Versicherung (Unfall)",
+    "insuranceHelp": "Ich nehme zur Kenntnis, dass der Veranstalter zur Unfallversicherung des Teilnehmers dessen Vor- und Nachnamen, Geburtsdatum, PESEL-Nummer und Adresse an den Versicherer weitergibt — nur zu diesem Zweck und nur für die Dauer der Versicherung."
+  },
+  "info": "Informationen zu den Daten (Art. 13 DSGVO): Die Daten aus diesem Formular sieht nur der Veranstalter — der oben genannte Verantwortliche. Sie dienen der Teilnahme an der Veranstaltung, dem Kontakt in organisatorischen Fragen und der Sicherheit der Teilnehmer, die Daten zu Gesundheit und Ernährung — nur der Betreuung des Teilnehmers, auf Grundlage einer ausdrücklichen Einwilligung. Du hast das Recht auf Auskunft, Berichtigung, Löschung und Einschränkung der Verarbeitung; Einwilligungen kannst du jederzeit über deinen Link oder beim Veranstalter widerrufen. Wo du dich beschweren kannst, steht in der Information zum Verantwortlichen am Anfang des Formulars.",
+  "signer": "leserliche Unterschrift des Elternteils / Erziehungsberechtigten",
+  "approvalStep": "Zustimmung der Eltern unterschrieben — abgegeben",
+  "way": {
+    "parent": "Zusammen mit einem Elternteil oder Erziehungsberechtigten",
+    "adult": "In der Obhut einer von den Eltern beauftragten volljährigen Person",
+    "consent": "Allein — mit schriftlicher Zustimmung der Eltern"
+  },
+  "age": {
+    "label": "Woran man erkennt, dass der Teilnehmer minderjährig ist",
+    "birth": "Fragt nach dem Geburtsdatum",
+    "birthSays": "Frage „Geburtsdatum“; minderjährig ist, wer am Tag des Ausfüllens noch nicht 18 ist — das ergibt sich von selbst",
+    "ask": "Fragt nur, ob minderjährig",
+    "askSays": "ein Ankreuzfeld „Der Teilnehmer ist minderjährig“, ohne Geburtsdatum"
+  },
+  "ways": {
+    "label": "Wie ein Minderjähriger teilnehmen darf",
+    "parent": "Zusammen mit einem Elternteil oder Erziehungsberechtigten",
+    "parentSays": "mehr braucht es nicht",
+    "adult": "In der Obhut einer von den Eltern beauftragten volljährigen Person",
+    "adultSays": "Vor- und Nachname dieser Person genügen",
+    "consent": "Allein, mit schriftlicher Zustimmung der Eltern",
+    "consentSays": "Vor- und Nachname des Elternteils, sein Telefon und die Zustimmung zum Unterschreiben auf dem Ausdruck; der Koordinator hakt die abgegebene Zustimmung ab"
+  },
+  "use": {
+    "ask": "Das Formular fragt nur, ob der Teilnehmer minderjährig ist.",
+    "birth": "Das Formular fragt nach dem Geburtsdatum — wer am Tag des Ausfüllens noch nicht 18 ist, ist minderjährig.",
+    "ways": "Ein Minderjähriger wählt, wie er teilnimmt: {ways}.",
+    "way": "Ein Minderjähriger nimmt teil: {way}."
+  },
+  "g": {
+    "participant": "Teilnehmer",
+    "guardian": "Elternteil / Erziehungsberechtigte",
+    "health": "Gesundheit und Ernährung",
+    "insurance": "Daten für die Versicherung",
+    "rules": "Erklärungen und Zustimmungen"
+  },
+  "need": {
+    "minor": "Teilnahme Minderjähriger",
+    "health": "Gesundheit und Ernährung, Hilfe im Notfall",
+    "healthUse": "„Ja / nein“-Fragen zu Gesundheit und Ernährung (bei „ja“ — eine kurze Erklärung), Zustimmung zur Hilfe im Notfall und zu Gesundheitsdaten (Art. 9 DSGVO).",
+    "insurance": "Unfallversicherung",
+    "insuranceUse": "Vorname, Nachname, Geburtsdatum, PESEL (geprüft) und Adresse — was der Versicherer braucht — sowie der Hinweis, dass die Daten an ihn gehen. Liste: Reiter „Anmeldungen“ → CSV.",
+    "rules": "Teilnahmeregeln, Bildrechte und Datenhinweis",
+    "rulesUse": "Annahme der Regeln (erforderlich), freiwillige Zustimmung zu Bildrechten und die Information nach Art. 13 DSGVO unter den Fragen."
+  },
+  "warn": {
+    "unknown": "„{need}“: \"{key}\" kennt „{value}“ nicht — möglich: {known}.",
+    "empty": "„{need}“: \"{key}\" ohne Wert — Vorgabe übernommen.",
+    "one": "„{need}“: \"{key}\" nimmt einen Wert — „{value}“ übernommen."
+  },
+  "json": {
+    "notList": "\"needs\" ist keine Liste — die Anforderungen bleiben unverändert.",
+    "notNeed": "\"needs\" {n}: das ist keine Anforderung — übersprungen.",
+    "unknown": "\"needs\" {n}: es gibt keine Anforderung „{id}“ — möglich: {known}.",
+    "twice": "\"needs\": „{need}“ zum zweiten Mal — übersprungen.",
+    "unknownKey": "„{need}“: unbekannter Schlüssel \"{key}\" — übersprungen.",
+    "holdsNotObject": "„{need}“: \"holds\" ist kein Objekt — übersprungen.",
+    "lineOn": "Anforderung „{need}“: wird eingeschaltet{how}.",
+    "lineOnHolds": "Anforderung „{need}“: wird eingeschaltet{how} (mit den Fragen aus dem Dokument).",
+    "lineChanged": "Anforderung „{need}“: neue Einstellungen{how}.",
+    "lineOff": "Anforderung „{need}“ wird ausgeschaltet (sie steht nicht im Dokument).",
+    "lineStays": "Anforderung „{need}“ bleibt eingeschaltet — sie steht nicht im Dokument, aber ausgeschaltet wird sie erst mit „Fragen und Anforderungen entfernen, die nicht im Dokument stehen“.",
+    "keyNeeds": "Anforderungen des Formulars — eine Liste. Jede eingeschaltete Anforderung fügt ihre Fragen, Gruppen und Logik hinzu; solange sie eingeschaltet ist, lassen sich ihre Fragen nicht löschen (verschieben und umformulieren — ja). Weggelassen: die Anforderungen bleiben, wie sie sind; [] — keine (ausgeschaltet werden sie erst mit „Fragen und Anforderungen entfernen, die nicht im Dokument stehen“)",
+    "keyId": "Welche: {list}. Eine Anforderung ohne Einstellungen lässt sich allein mit ihrer Kennung angeben, z. B. \"health\"",
+    "keySetting": "Nur \"{id}\" — {label}: {choices}",
+    "keyMany": ". Eine Liste, mindestens ein Wert; gibt es nur einen, wählt der Teilnehmer nicht — er gilt",
+    "keyOne": ". Ein Wert",
+    "keyDefault": ". Weggelassen: {value}",
+    "keyHolds": "Aus einem Export: was in diesem Formular zur Anforderung gehört (Schlüssel → Kennung einer Frage, Gruppe, eines Textes, Knotens oder einer Logikverbindung). Lass es unverändert; dann übernimmt ein Import in ein anderes Formular die Fragen aus dem Dokument, statt sie ein zweites Mal hinzuzufügen. Schreibst du neu — lass es weg: der Import fügt Fragen, Gruppen und Logik selbst hinzu"
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "place": {
+    "unreadable": "Diese Stelle lässt sich im Schema dieses Werks nicht lesen.",
+    "spansParts": {
+      "one": "Diese Stelle umfasst {count} Teil des Textes.",
+      "other": "Diese Stelle umfasst {count} Teile des Textes."
+    },
+    "notInParts": "Diese Stelle steht in keinem gespeicherten Teil des Textes.",
+    "noPages": "Der Text hat keine gespeicherten Seiten — diese Seite lässt sich darin nicht finden.",
+    "pageAmbiguous": "Diese Seite kommt in mehreren Teilen des Textes vor — unklar, welche gemeint ist.",
+    "pageNotInParts": "Diese Seite steht in keinem gespeicherten Teil des Textes.",
+    "noParts": "Der Text hat noch keine Teile."
+  },
+  "import": {
+    "oneObject": "Erwartet wurde ein JSON-Objekt (Dokument „recreatio/source-text“).",
+    "notSourceText": "Das ist kein Quelltext: \"format\" muss \"{format}\" sein.",
+    "unknownVersion": "Unbekannte Version {version} — diese App liest Version {known}.",
+    "otherWork": "Dieser Text gehört zu einem anderen Werk („{work}“) — öffne das richtige Werk oder korrigiere \"work\".",
+    "unknownScheme": "Unbekanntes Stellenschema \"{scheme}\" — erlaubt: {list}.",
+    "schemeDiffers": "Das Werk hat das Stellenschema „{label}“ (\"{scheme}\"), der Text aber \"{asked}\".",
+    "psalmsOnlyBible": "\"edition.psalms\" gilt nur für die Heilige Schrift — übergangen.",
+    "portionKey": "\"portion.key\" — ein kurzer Schlüssel des Teils (Buchstaben, Ziffern, Leerzeichen, . : - _), höchstens 60 Zeichen, z. B. \"J\" oder \"rozdz-3\".",
+    "blocks": "\"blocks\" — eine Liste von Textblöcken, in der Reihenfolge des Originals.",
+    "unreadablePage": "{where}: unlesbare Seite „{page}“ {place}.",
+    "in": {
+      "block": "im Block",
+      "list": "in einer Liste",
+      "table": "in einer Tabelle",
+      "tableCaption": "in einer Tabellenunterschrift",
+      "note": "in einer Fußnote",
+      "caption": "in einer Bildunterschrift",
+      "figureAlt": "in einer Bildbeschreibung",
+      "code": "im Code",
+      "text": "im Text"
+    },
+    "pageOrder": "{where}: Seite {page} nach einer höheren Seite — prüfe die Reihenfolge.",
+    "pdfOrder": "{where}: PDF-Seite {pdf} nach einer höheren.",
+    "notObject": "{where}: kein Objekt — übergangen.",
+    "unknownType": "{where}: unbekannter Typ \"{type}\" — übergangen.",
+    "locUnreadable": "{where}: die Stelle „{loc}“ lässt sich im Schema „{scheme}“ nicht lesen — sie bleibt, aber Zitate finden sie nicht.",
+    "locRest": "{where}: an der Stelle „{loc}“ ein ungelesener Teil „{rest}“.",
+    "locTwice": "{where}: die Stelle „{loc}“ stand schon in: {seen}.",
+    "pageWithout": "{where}: \"page\" ohne lesbare Seite — übergangen.",
+    "listWithout": "{where}: Liste ohne \"items\" — übergangen.",
+    "tableWithout": "{where}: Tabelle ohne \"rows\" — übergangen.",
+    "noteWithoutId": "{where}: Fußnote ohne \"id\" — übergangen.",
+    "noteTwice": "{where}: Fußnote \"{id}\" wiederholt.",
+    "noteEmpty": "{where}: leere Fußnote \"{id}\".",
+    "kindUnknownOther": "{where}: unbekannte Art \"{kind}\" — nur mit der Bezeichnung gespeichert.",
+    "kindUnknownTaken": "{where}: unbekannte Art \"{kind}\" — als „{label}“ übernommen (aus der Bezeichnung).",
+    "statementBare": "{where}: \"statement\" ohne \"kind\" und \"label\" — übergangen (Inhalt als gewöhnliche Blöcke eintragen).",
+    "tooDeep": "{where}: Aussage tiefer als {count} Ebenen verschachtelt — übergangen.",
+    "statementEmpty": "{where}: „{head}“ ohne Inhalt (\"text\" oder \"blocks\").",
+    "figureBare": "{where}: Abbildung ohne \"label\", \"text\" und \"alt\" — übergangen.",
+    "codeEmpty": "{where}: leerer Code — übergangen.",
+    "textEmpty": "{where}: leerer Text — übergangen.",
+    "block": "Block {n}",
+    "refWithoutNote": "Der Verweis {{note {ref}}} hat keine Fußnote mit \"id\": \"{ref}\".",
+    "noteWithoutRef": "Die Fußnote \"{id}\" hat keinen Verweis {{note {id}}} im Text.",
+    "nothing": "Kein Block lässt sich speichern.",
+    "tooBig": "Dieser Teil ist zu groß (über 3,5 MB Text) — teile ihn in kleinere (z. B. Kapitel) und importiere sie nacheinander.",
+    "texFixed": "In Formeln korrigiert ({n}×): {what}.",
+    "macrosHoisted": "Makros aus Definitionen in Formeln ({list}) zu den Makros des Textes hinzugefügt — sie gelten im ganzen Text.",
+    "strayDollar": "Ein einzelnes $-Zeichen ({list}) — schreibe ein Dollarzeichen als \\$, eine Formel als $…$ ohne Leerzeichen direkt an den $-Zeichen.",
+    "andOthers": {
+      "one": " und {count} weitere",
+      "other": " und {count} weitere"
+    },
+    "andOtherGaps": {
+      "one": " und {count} weitere Lücke",
+      "other": " und {count} weitere Lücken"
+    },
+    "texError": "{where}: Formel {tex} — {error}",
+    "texMore": {
+      "one": "…und noch {count} Formel, die sich nicht setzen lässt — der Leser zeigt sie als LaTeX-Code.",
+      "other": "…und noch {count} Formeln, die sich nicht setzen lassen — der Leser zeigt sie als LaTeX-Code."
+    },
+    "labelTwice": "Dieselbe Bezeichnung mehrmals: {list} — Verweise treffen die erste.",
+    "refNoNumber": "„{label}“ ({where}, ohne Nummer)",
+    "refAt": "„{label}“ ({where})",
+    "refsMissing": "Verweise {{ref …}} ohne Ziel im gespeicherten Text: {list} — das Ziel kann in einem Teil stehen, den es noch nicht gibt.",
+    "gapAt": "{pages} (vor: {where})",
+    "pagesMissing": "Fehlende Seiten: {list} — markiere auch leere Seiten und ganzseitige Abbildungen ({{page …}} oder ein \"page\"-Block), damit man sieht, dass nichts verloren ging."
+  },
+  "describe": {
+    "examplesHead": "## Beispiele",
+    "exampleHead": "### {label} (\"{id}\")",
+    "mathExample": "### Ein Lehrbuch mit Formeln (Sätze, Beweis, Matrizen, Abbildung, Tabelle, Code)",
+    "useHead": "## Wie die App diese Daten verwendet",
+    "mathAsk": "Schreibe Formeln, Matrizen und mathematische Symbole in LaTeX ($…$ im Satz, $$…$$ abgesetzt, mit der Nummer \\tag{…} wie gedruckt), gelesen aus dem Bild der Seite; Definitionen, Sätze, Lemmata, Beweise und Beispiele — als Blöcke \"statement\" mit Bezeichnung; Verweise darauf und auf Formeln — {{ref …}}; Abbildungen — ein Block \"figure\" mit Unterschrift und Beschreibung. In JSON jeden LaTeX-Backslash verdoppeln (\"\\\\frac\").",
+    "schemeLine": "- \"{id}\" — {label}: {says} Beispiele: {examples}",
+    "use": "- Auf der Seite des Werks zeigt der Kasten „Quelltext“, welche Texte es gibt (Teile, Wörter, in welcher Bibliothek), und öffnet den Leser („Lesen“).\n- Der Leser (#/workspace/library/<biblioteka>/<dzieło>/tekst/<miejsce>): Verzeichnis der Teile, Stellen am Rand, Seitenwechsel, Fußnoten; „Gehe zu“ einer Stelle, Suche im ganzen Text, „Daneben“ — eine andere Ausgabe oder Übersetzung dieses Werks, ausgerichtet nach den Stellen der Gliederung.\n- Ein markierter Abschnitt kann als Zitat (mit Werk und Stelle) hinzugefügt oder mit der Stelle kopiert werden.\n- Jede Stelle, die schon irgendwo zitiert wurde (Fußnote, Zitat, Verweis in einem Eintrag einer Wissensbasis, Feld mit Stelle), bekommt „im Text zeigen“, wenn sie in diesem Text steht: der Abschnitt öffnet sich an der Stelle, auch auf einer Seite. Dabei wird nichts gespeichert — die Verbindung entsteht beim Lesen.\n- Eine Stelle der Gliederung (Vers, Nummer, Artikel) führt auch zum Text einer anderen Ausgabe dieses Werks (\"editionOf\"); eine Seite — nur zum Text dieser Ausgabe.\n- „Im Wissen“ beim Werk und im Leser: Einträge aus Wissensbasen, die der Lesende öffnen darf und die auf dieses Werk oder seine Stellen zeigen.\n- Der Text ist mit dem Bereichsschlüssel der Bibliothek versiegelt, in der er gespeichert wurde — das kann eine andere (z. B. private) Bibliothek sein als die mit dem Werk. Wer sie nicht liest, sieht den Text nicht: weder im Leser noch in der Suche noch auf einer Seite.\n- „KI-Zugang“ (Bereichslink, MCP-Server) gibt ihn, wenn er die Bibliothek mit dem Text umfasst, dem Assistenten zum Lesen: list_texts, read_text (nach Stelle), search_text.\n- Der Text steht nicht im JSON der Bibliothek (\"recreatio/library\"); ihn gibt der Export im Kasten „Quelltext“ aus — in diesem Format.\n- Formeln ($…$, $$…$$) setzt der Leser wie im Druck (KaTeX), auch Matrizen, Systeme und Formelnummern; eine Formel, die sich nicht setzen lässt, bleibt als LaTeX-Code sichtbar. Der Import prüft jede Formel und sagt, welche nicht durchgehen.\n- Sätze, Definitionen, Beweise, Beispiele stehen in Kästen mit Bezeichnung; ein Beweis endet mit ∎. „Gehe zu“ nimmt auch Bezeichnungen an („Twierdzenie 2.3“, „(2.4)“, „Rys. 1.2“), und ein Verweis {{ref …}} im Text führt zum Ziel — auch in einem anderen Teil.\n- Die Suche im Text findet auch Formeln: nach Wörtern und Zeichen („α“, „∫“, „sin“) und nach LaTeX („\\frac“, „x^2“). Ein markierter Abschnitt mit Formel kommt als LaTeX ($…$) ins Zitat und in die Zwischenablage.\n- „KI-Zugang“ gibt Formeln als LaTeX in $…$ und $$…$$ aus; read_text nimmt auch eine Bezeichnung an („Twierdzenie 2.3“, „(2.4)“).",
+    "rules": "## Regeln\n- Erfinde weder Text noch Nummern: was in der Quelle nicht zu sehen ist, steht nicht im JSON. Unsicheres markiere mit {{? …}} oder \"uncertain\": true.\n- Seitenzahlen: gedruckt, wie im Buch (auch römisch: \"xii\"); die Seitenzahl der PDF-Datei in \"pdf\", wenn sie abweicht.\n- Fuß- und Endnoten: ein Block \"note\" (nach dem Absatz oder am Ende des Teils) und {{note …}} an der Stelle des Verweiszeichens.\n- Ein Teil — höchstens etwa 2 Mio. Zeichen.\n- Jede Seite hat ihren Wechsel — auch eine leere oder eine ganz von einer Abbildung eingenommene ({{page …}} oder ein Block \"page\"); der Import prüft, dass keine fehlt.\n\n## Der ganze Text\n- Teile den Text nach seiner eigenen Gliederung: Bücher der Bibel (Schlüssel: Abkürzung des Buchs, z. B. \"J\"), Kapitel eines Buchs (\"rozdz-1\", \"rozdz-2\"), Quaestionen der Summa (\"I-q2\"), Kapitel eines Dokuments; ein kurzer Artikel oder ein Dokument kann ein Teil sein.\n- Schlüssel kurz und fest; \"order\" — die Reihenfolge im Werk (1, 2, 3…). Einleitung, Vorwort, Inhaltsverzeichnis, Bibliografie, Register — eigene Teile nur, wenn sie in der Quelle stehen.\n- Jedes Kapitel ist ein eigener Teil, mit Nummer und Titel als Überschriften (\"heading\") — prüfe am Ende, ob die Zahl der Teile zum Inhaltsverzeichnis passt und ob kein Kapitel mitten im vorigen stecken geblieben ist.\n- Jeder Teil beginnt mit einem Block \"page\" mit der Seite, auf der er beginnt — auch wenn der vorige Teil auf derselben Seite endet (ein Kapitel ab der Seitenmitte). Diese gemeinsame Seite verdoppelt keinen Text.\n- Endnoten (am Ende des Buchs oder Kapitels) trage in den Teil ein, auf den sie verweisen.\n- Wenn der Text nicht in eine Antwort passt: schreibe die folgenden Teile in folgenden Dokumenten ab (mit demselben \"work\", \"scheme\" und \"edition\"), genau dort beginnend, wo du aufgehört hast. Brich einen Teil nie in der Mitte ab — beende ihn oder beginne das nächste Dokument mit ihm (derselbe Teil ein zweites Mal ersetzt den vorigen).\nGib EIN JSON-Objekt zurück, ohne Kommentare.",
+    "head": "# Quelltext als JSON (\"{format}\", Version {version})\n\nDer Text eines Werks besteht aus TEILEN (z. B. ein Buch der Bibel, ein Kapitel eines Buchs, ein ganzes kurzes Dokument oder ein Artikel). Ein JSON-Dokument enthält einen Teil (\"portion\" + \"blocks\") oder mehrere auf einmal (\"portions\": [ … ] — auch den ganzen Text). Ein Teil mit demselben \"portion.key\" ersetzt den vorigen, andere bleiben — ein langes Werk kann also in mehreren Dokumenten nacheinander kommen, und ein wiederholtes Dokument verdoppelt nichts.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"work\": \"@werk-schluessel\",       — Schlüssel (oder Kennung) des Werk-Eintrags in der Bibliothek; der Text gehört zu DIESER Ausgabe/Übersetzung\n  \"scheme\": \"{scheme}\",                — Stellenschema des Werks (unten); muss zum Werk passen\n  \"edition\": {                       — optional\n    \"pdfPageOffset\": 12,            — gedruckte Seite = PDF-Seite − 12 (wenn gleichbleibend)\n    \"language\": \"pl\",\n    \"psalms\": \"hebrew\" | \"greek\",   — nur Heilige Schrift: Psalmenzählung (Einheitsübersetzung: hebrew; Vulgata: greek)\n    \"macros\": { \"\\\\R\": \"\\\\mathbb{R}\" }  — eigene Makros des Autors in Formeln (unten: Formeln)\n  },\n  \"portion\": { \"key\": \"rozdz-1\", \"label\": \"Kapitel 1\", \"order\": 1 },\n  \"blocks\": [ … ]                    — Blöcke in der Reihenfolge des Originals\n}\n\nOder mehrere Teile (z. B. der ganze Text) in einem Dokument — statt \"portion\" und \"blocks\":\n  \"portions\": [\n    { \"portion\": { \"key\": \"wstep\", \"label\": \"Einleitung\", \"order\": 1 }, \"blocks\": [ … ] },\n    { \"portion\": { \"key\": \"rozdz-1\", \"label\": \"Kapitel 1\", \"order\": 2 }, \"blocks\": [ … ] }\n  ]\n\n## Blöcke\n  {\"type\": \"heading\", \"level\": 1-4, \"text\": \"…\", \"loc\": \"…\"}    Überschrift\n  {\"type\": \"paragraph\", \"text\": \"…\", \"loc\": \"…\"}               Absatz (auch ein Vers, ein Punkt eines Dokuments, ein Satz)\n  {\"type\": \"quote\", \"text\": \"…\", \"loc\": \"…\"}                   Blockzitat in der Quelle\n  {\"type\": \"list\", \"items\": [\"…\", \"…\"], \"ordered\": true, \"loc\": \"…\"}\n  {\"type\": \"table\", \"columns\": [\"…\"], \"rows\": [[\"…\", \"…\"]], \"loc\": \"…\"}\n  {\"type\": \"note\", \"id\": \"1\", \"text\": \"…\"}                     Fußnote (Text der Fußnote); im Text der Verweis {{note 1}}\n  {\"type\": \"page\", \"page\": \"46\", \"pdf\": 52}                   hier beginnt Seite 46 (gedruckt) = Seite 52 der PDF-Datei;\n                                                              die Seite wie gedruckt — auch mit Serienzeichen: \"12*\", \"3'\", \"(7)\", \"A12\", \"xii\"\n  {\"type\": \"statement\", \"kind\": \"theorem\", \"label\": \"Satz 2.3\", \"title\": \"…\", \"text\": \"…\"}\n                                                              Definition, Satz, Lemma, Beweis, Beispiel… (unten); längerer Inhalt: \"blocks\": [ … ] statt \"text\"\n  {\"type\": \"figure\", \"label\": \"Abb. 2.1\", \"text\": \"Unterschrift\", \"alt\": \"was die Abbildung zeigt\"}\n                                                              Abbildung, Diagramm, Schema — die Unterschrift aus dem Buch, und in \"alt\" eine kurze Beschreibung dessen, was zu sehen ist\n  {\"type\": \"code\", \"lang\": \"python\", \"text\": \"…\"}             Code oder Pseudocode — Zeichen für Zeichen, mit Einrückung und Zeilenumbrüchen\n  {\"type\": \"table\", \"label\": \"Tabelle 2.1\", \"text\": \"Unterschrift\", \"columns\": […], \"rows\": […]}   Tabelle mit Bezeichnung und Unterschrift (beides optional)\n  \"uncertain\": true                                           bei jedem Block: unsichere Lesung\n\n## Zeichen im Text\n  {{page 46}}  oder  {{page 46 pdf 52}}    Seitenwechsel mitten im Absatz (genau dort, wo er liegt)\n  {{note 3}}                               Verweis auf die Fußnote \"3\"\n  {{? Wort}}                               unsichere Lesung dieses Worts;  {{?}} — unleserlich\n  {{gap}}                                  ausgelassener / fehlender Abschnitt\n  {{ref Satz 2.3}}  {{ref (2.4)}}          Verweis auf einen Satz, eine Formel, Abbildung, Tabelle desselben Werks — geschrieben wie im Text\n  $x^2$   $$\\\\int_0^1 f(x)\\\\,dx$$         Formel im Satz und abgesetzte Formel (für sich) — LaTeX (unten)\nAlles andere ist gewöhnlicher Text. Bewahre den genauen Wortlaut, die Reihenfolge, die Absätze und die Zeichensetzung des Originals. Nicht korrigieren, nicht zusammenfassen, nicht übersetzen.\n\n## Formeln (LaTeX)\n- Schreibe jede Formel, jedes Symbol und jede mathematische Bezeichnung (auch einen einzelnen Variablenbuchstaben, einen Index, eine Einheit in einem Ausdruck) in LaTeX: im Satz zwischen $ … $, eine abgesetzte Formel (in eigener Zeile) zwischen $$ … $$ — im Absatz genau dort, wo sie in der Quelle steht; ein Absatz kann mehrere abgesetzte Formeln haben und danach weitergehen.\n- Nach dem öffnenden $ und vor dem schließenden $ steht kein Leerzeichen. Ein wörtliches Dollarzeichen im Text: \\\\$.\n- In JSON ist jeder LaTeX-Backslash doppelt: \"$\\\\frac{a}{b}$\", \"$$\\\\sum_{k=1}^{n} k = \\\\frac{n(n+1)}{2}$$\". Ein einfacher Backslash verdirbt die Formel (in JSON sind \"\\f\", \"\\t\", \"\\n\" Steuerzeichen).\n- Die Formelnummer wie gedruckt: $$ … \\\\tag{2.4}$$ (in mehrzeiligen Umgebungen \\\\tag an der Zeile). Eine Formel ohne Nummer — ohne \\\\tag. Nicht selbst nummerieren.\n- Herleitungen Schritt für Schritt und Systeme: \\\\begin{aligned} … \\\\end{aligned} (oder align*, gather*), Fallunterscheidungen: cases; Matrizen: pmatrix, bmatrix, vmatrix, array (mit Linien: {cc|c}, \\\\hline); kommutative Diagramme: \\\\begin{CD}; Chemie: \\\\ce{H2O}, Einheiten: \\\\pu{9,81 m/s^2}.\n- Formeln nicht in gewöhnlichen Text oder Unicode-Zeichen verwandeln (x², α, √) — immer LaTeX ($x^2$, $\\\\alpha$, $\\\\sqrt{x}$). Nicht vereinfachen, nicht umformen, nicht korrigieren — abschreiben, was gedruckt ist, in derselben Gestalt.\n- Eigene Makros des Autors (z. B. \\\\R, \\\\norm{x}) einmal in \"edition.macros\" angeben ({\"\\\\norm\": \"\\\\left\\\\lVert #1 \\\\right\\\\rVert\"}) und in den Formeln benutzen; ein gewöhnliches \\\\newcommand in der Formel funktioniert auch.\n- Formeln liest KaTeX. Es kennt nicht: \\\\label und \\\\ref (für Verweise gibt es {{ref …}}), tabular und \\\\multicolumn (eine Tabelle ist ein Block \"table\"), tikz, \\\\includegraphics (eine Abbildung ist ein Block \"figure\"), \\\\sideset.\n- Ein Seitenwechsel nie mitten in einer Formel — {{page …}} vor der Formel oder danach.\n- Formeln aus dem Bild der Seite lesen, nicht aus der Textschicht der PDF: die Textschicht verliert meist Indizes, Brüche und Zeichen.\n\n## Sätze, Definitionen, Beweise (\"statement\")\n  {\"type\": \"statement\", \"kind\": \"definition\", \"label\": \"Definition 2.1\", \"text\": \"Eine Folge $(a_n)$ konvergiert, wenn …\"}\n  {\"type\": \"statement\", \"kind\": \"theorem\", \"label\": \"Satz 2.2\", \"title\": \"Einschnürungssatz\", \"text\": \"…\"}\n  {\"type\": \"statement\", \"kind\": \"proof\", \"label\": \"Beweis\", \"blocks\": [ {\"type\": \"paragraph\", \"text\": \"…\"}, … ]}\n- \"kind\": {kinds}, other (andere — dann zählt \"label\").\n- \"label\" — genau wie gedruckt, mit Nummer (\"Lemma 4.1\", \"Übung 7*\"); \"title\" — der Name in Klammern nach der Bezeichnung, falls vorhanden (ohne Klammern).\n- Inhalt als ein Absatz: \"text\". Länger (mehrere Absätze, abgesetzte Formeln, Listen, Fälle, Seitenwechsel): \"blocks\" — gewöhnliche Blöcke, auch verschachtelte Aussagen (z. B. ein Lemma in einem Beweis).\n- Beweis, Lösung, Antwort — ein eigenes \"statement\" direkt nach dem, worauf es sich bezieht. Das Zeichen für das Beweisende (□, ∎, q. e. d.) nicht abschreiben: die App setzt es selbst.\n\n## Verweise und Bezeichnungen\n- Schreibe im Text einen Verweis auf einen Satz, eine Formel, Abbildung oder Tabelle desselben Werks als {{ref …}} — mit den Worten der Quelle: \"aus {{ref Satz 2.3}}\", \"nach {{ref (2.4)}}\", \"vgl. {{ref Abb. 1.2}}\". Der Leser macht daraus Links.\n- Bezeichnungen (label, \\\\tag) müssen im ganzen Werk eindeutig sein — wie im Buch.\n\n## \"loc\" — die Stelle in der Gliederung des Werks\nGib \"loc\" bei jedem Block an, der eine eigene Nummer in der Gliederung des Werks hat (Vers, Punkt, Artikel, Satz, Paragraf, Kapitel). Blöcke ohne eigene Nummer (z. B. ein Absatz mitten im Kapitel) haben kein \"loc\" — sie gehören zur zuvor angegebenen Stelle. Seiten kommen NICHT in \"loc\": Seiten sind Blöcke \"page\" und Zeichen {{page …}}, weil sie zu dieser einen Ausgabe gehören."
+  },
+  "prompt": {
+    "work": "Werk: {title}{key}.",
+    "workKey": " — trage im Feld \"work\" \"@{key}\" ein",
+    "scheme": "Stellenschema dieses Werks: \"{scheme}\" ({label}).",
+    "portion": "Abzuschreibender Teil: {portion}.",
+    "intro": "Wandle den beigefügten Quelltext (PDF, Scan oder Datei) in ein JSON-Dokument für den Import in die Recreatio-Bibliothek um.",
+    "faithful": "Schreibe den Text getreu ab — Wort für Wort, in der Reihenfolge des Originals, mit Absätzen, Überschriften, Listen, Tabellen und Fußnoten, mit Seitenwechseln genau dort, wo sie liegen (auch mitten im Absatz). Nicht korrigieren, nicht zusammenfassen, nichts hinzufügen, was nicht in der Quelle steht. Was unleserlich oder unsicher ist — markieren."
+  },
+  "preview": {
+    "partPrefix": "Teil {n}: ",
+    "blocks": {
+      "one": "{count} Block",
+      "other": "{count} Blöcke"
+    },
+    "words": {
+      "one": "{count} Wort",
+      "other": "{count} Wörter"
+    },
+    "notes": {
+      "one": "{count} Fußnote",
+      "other": "{count} Fußnoten"
+    },
+    "formulas": {
+      "one": "{count} Formel",
+      "other": "{count} Formeln"
+    },
+    "frames": {
+      "one": "{count} Kasten (Sätze, Definitionen, Beweise…)",
+      "other": "{count} Kästen (Sätze, Definitionen, Beweise…)"
+    },
+    "places": "Stellen {first}",
+    "placesRange": "Stellen {first} – {last}",
+    "formulasOk": "{formulas} (alle lassen sich setzen)",
+    "formulasBad": "{formulas} ({errors} mit Fehler)",
+    "adds": "Fügt den Teil „{label}“ ({key}) hinzu: {items}.",
+    "replaces": "Ersetzt den Teil „{label}“ ({key}): {items}.",
+    "setScheme": "Stellenschema des Werks: {label} („{scheme}“).",
+    "overlap": "der Teil „{other}“ umfasst dieselben Stellen — ist das nicht derselbe Abschnitt unter einem anderen Schlüssel?",
+    "nothing": "Nichts zu importieren.",
+    "typesetting": "Das Setzen der Formeln ({n}) läuft noch — gleich sagt die Vorschau, ob alle durchgehen."
+  },
+  "write": {
+    "unchanged": "„{label}“: keine Änderungen.",
+    "saving": "Teil {n} von {total} wird gespeichert…",
+    "added": "„{label}“: hinzugefügt.",
+    "replaced": "„{label}“: ersetzt.",
+    "schemeFailed": "Das Stellenschema konnte nicht am Werk gespeichert werden — der Text hat es trotzdem.",
+    "nothing": "Nichts gespeichert."
+  },
+  "withWork": {
+    "expected": "Erwartet wurde ein Dokument \"{format}\" mit einem Werk (\"work\") und seinem Text (\"portions\" oder \"portion\" und \"blocks\").",
+    "workInvalid": "Das Werk aus \"work\" lässt sich nicht speichern — prüfe seine Felder.",
+    "workUnknown": "In der Bibliothek gibt es kein Werk „{work}“ — beschreibe es in \"work\" als Objekt (Felder des Werks), dann entsteht es zusammen mit dem Text.",
+    "workMissing": "\"work\" — das Werk: ein Objekt mit den Feldern eines neuen Werks (z. B. {\"key\": \"kowalski2020\", \"data\": {\"workType\": \"article\", \"title\": \"…\"}}) oder der Schlüssel eines vorhandenen (\"@kowalski2020\").",
+    "noText": "Das Dokument hat keinen Text (\"portions\" oder \"portion\" und \"blocks\") — nur das Werk wird gespeichert.",
+    "newWork": "Neues Werk: „{title}“{key}.",
+    "fillWork": "Ergänzt das Werk: „{title}“{key}.",
+    "work": "Werk: „{title}“{key}.",
+    "besides": "Außerdem in der Bibliothek: {list}.",
+    "other": "{kind} „{title}“",
+    "otherChanged": "{kind} „{title}“ (Änderung)",
+    "textHead": "## Text",
+    "exampleHead": "## Vollständiges Beispiel (ein Zeitschriftenartikel, der Text in zwei Teilen)",
+    "use": "## Wie die App diese Daten verwendet\n- Das Werk und die Einträge aus \"entries\" kommen in die Bibliothek, in der das Dokument importiert wird; der Text — in die beim Import gewählte Bibliothek. Nach dem Speichern öffnet sich die Seite des Werks.\n- Werk, Autoren und Zeitschrift sind gewöhnliche Einträge der Bibliothek (wer ihren Bereich sieht, sieht sie): sie haben ihre Seiten und werden mit dem Schlüssel zitiert — [@kowalski2020, s. 47] in einem Text des Scriptoriums, in einem Eintrag einer Wissensbasis oder im Seitenmodul „Text“ wird zur Fußnote.",
+    "prompt": "Wandle die beigefügte Quelle (PDF, Scan oder Datei mit einem Buch oder Artikel) in EIN JSON-Dokument für den Import in die Recreatio-Bibliothek um: die Beschreibung des Werks (bibliografische Angaben von der Titelseite oder aus dem Kopf des Artikels), seine Autoren und — wenn es ein Artikel oder Kapitel ist — die Zeitschrift oder das Buch, in dem er steht, sowie den ganzen Text, in Teile gegliedert.\n\nSchreibe den Text getreu ab — Wort für Wort, in der Reihenfolge des Originals, mit Absätzen, Überschriften, Listen, Tabellen und Fußnoten, mit Seitenwechseln genau dort, wo sie liegen (auch mitten im Absatz). Nicht korrigieren, nicht zusammenfassen, nichts hinzufügen, was nicht in der Quelle steht. Was unleserlich oder unsicher ist — markieren. Passt das Ganze nicht in eine Antwort, gib in der ersten \"work\", \"entries\" und die ersten Teile, in den folgenden — \"work\": \"@werk-schluessel\" und die nächsten Teile.",
+    "head": "# Ein Werk mit vollem Text als JSON (\"{format}\", Version {version})\n\nEin Dokument legt in der Bibliothek den Eintrag eines Werks an (Buch, Artikel, Kapitel, Dokument…), die Einträge, auf die es zeigt (Autoren, Zeitschrift, Sammelband), und seinen vollen Text. Ein Werk mit einem Schlüssel, der schon in der Bibliothek ist, wird ergänzt (die angegebenen Felder), nicht verdoppelt; ebenso ein Autor oder eine Zeitschrift mit vorhandenem Schlüssel.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"work\": { \"key\": \"nachname2020\", \"data\": { … Felder des Werks … } },   — oder der \"@schlüssel\" eines vorhandenen Werks\n  \"entries\": [ { \"kind\": \"person\", \"key\": \"…\", \"data\": { … } }, { \"kind\": \"work\", \"key\": \"…\", \"data\": { \"workType\": \"periodical\", … } } ],\n  \"scheme\": \"pages\",          — wie man Stellen in diesem Werk angibt (unten)\n  \"edition\": { … },           — optional: Verschiebung der PDF-Seiten, Sprache\n  \"portions\": [ { \"portion\": { \"key\", \"label\", \"order\" }, \"blocks\": [ … ] }, … ]\n}\n\n- Verweise in den Feldern des Werks (\"authors\", \"editors\", \"translators\", \"container\") sind Schlüssel mit \"@\": auf Einträge aus \"entries\" oder auf solche, die schon in der Bibliothek sind.\n- Die Beschreibung des Werks von der Titelseite, dem Impressum oder dem Kopf des Artikels nehmen; was dort nicht steht, nicht eintragen.\n\n## Felder des Werks und der Person"
+  }
+}

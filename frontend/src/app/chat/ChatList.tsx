@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { type AreaRow, loadAreas, loadMembers } from '../areas/area';
 import { ensurePrivateArea } from '../calendar/agenda';
-import { plural } from '../core/plural';
+import { useT, type T } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
 import { KIND, shortId } from '../roles/RolePicker';
@@ -39,17 +39,18 @@ const seedOf = (me: Me, chat: Pick<ChatRow, 'chatId' | 'kind' | 'members'>) =>
 
 const titleOfSeatArea = (chat: ChatRow) => chat.areaName;
 
-const kindText = (chat: ChatRow) => {
+const kindText = (chat: ChatRow, t: T) => {
   const n = chat.members.length;
-  const people = `${n} ${plural(n, 'osoba', 'osoby', 'osób')}`;
-  if (chat.kind === 'direct') return 'rozmowa we dwoje';
-  if (chat.kind === 'seat') return `osoba z formularza · ${titleOfSeatArea(chat)}`;
-  if (chat.kind === 'group') return `grupa · ${people}`;
-  const linked = chat.seats > 0 ? ` · ${chat.seats} z linkiem` : '';
-  return `${chat.kind === 'channel' ? 'kanał' : 'obszar'} · ${people}${linked}`;
+  const people = t('chat.list.people', { count: n });
+  if (chat.kind === 'direct') return t('chat.list.kindDirect');
+  if (chat.kind === 'seat') return t('chat.list.kindSeat', { area: titleOfSeatArea(chat) });
+  if (chat.kind === 'group') return t('chat.list.kindGroup', { people });
+  const linked = chat.seats > 0 ? ` · ${t('chat.list.withLink', { count: chat.seats })}` : '';
+  return `${t(chat.kind === 'channel' ? 'chat.list.kindChannel' : 'chat.list.kindArea', { people })}${linked}`;
 };
 
 export function ChatList({ me, current }: { me: Me; current: string | undefined }) {
+  const t = useT();
   const [archived, setArchived] = useState(false);
   const [query, setQuery] = useState('');
   const [panel, setPanel] = useState<'prefs' | 'codes' | null>(null);
@@ -73,9 +74,9 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
       /* Wer mit Link auf seinen Schlüssel wartet, bekommt ihn jetzt — leise, im Hintergrund. */
       void deliverPending(me.ring, found);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać rozmów.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.list.loadFailed'));
     }
-  }, [me.ring]);
+  }, [me.ring, t]);
 
   useEffect(() => {
     void look();
@@ -97,8 +98,8 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
   const self = chats?.find((c) => c.kind === 'self');
   const others = (chats ?? []).filter((c) => c.kind !== 'self');
   const inArchive = others.filter((c) => c.preferences?.archived === true);
-  const needle = query.trim().toLocaleLowerCase('pl-PL');
-  const fits = (title: string) => needle === '' || title.toLocaleLowerCase('pl-PL').includes(needle);
+  const needle = query.trim().toLocaleLowerCase(t.locale);
+  const fits = (title: string) => needle === '' || title.toLocaleLowerCase(t.locale).includes(needle);
   const rows = (archived ? inArchive : others.filter((c) => c.preferences?.archived !== true))
     .filter((c) => fits(titles.get(c.chatId) ?? c.areaName));
 
@@ -133,7 +134,7 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
   /* NOTATKI — beim ersten Mal entstehen der eigene Bereich (falls nötig) und die Rozmowa darin. */
   const openSelf = async () => {
     const person = me.roles.find((r) => r.kind === 'person' && me.ring.maySign(r.id));
-    if (person === undefined) { setFailed('Notatki prowadzi osoba — to konto nie ma jeszcze osoby.'); return; }
+    if (person === undefined) { setFailed(t('chat.list.notesNeedPerson')); return; }
     setOpening(true);
     setFailed(null);
     try {
@@ -144,7 +145,7 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
       window.location.hash = viewPath('chat', chatId);
       void look();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć notatek.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.list.notesFailed'));
     } finally {
       setOpening(false);
     }
@@ -153,7 +154,7 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
   /* Eine Rozmowa in der Liste — in einer Gruppe ohne „Rozmowa z:" und ohne den Bereich (der steht an der Gruppe). */
   const chatItem = (chat: ChatRow, nested: boolean) => {
     const full = titles.get(chat.chatId) ?? chat.areaName;
-    const title = nested && chat.kind === 'seat' ? chat.seatName ?? 'osoba z formularza' : full;
+    const title = nested && chat.kind === 'seat' ? chat.seatName ?? t('chat.list.formPerson') : full;
     const here = current === chat.chatId;
     return (
       <a className={`ch-item${nested ? ' is-nested' : ''}${here ? ' is-current' : ''}${chat.unread > 0 ? ' is-unread' : ''}`} href={viewPath('chat', chat.chatId)}
@@ -162,14 +163,14 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
         <span className="ch-item-main">
           <span className="ch-item-top">
             <strong className="ch-item-title">{title}</strong>
-            {chat.lastMessageAt !== null && <time className="ch-item-time" dateTime={chat.lastMessageAt}>{listTime(chat.lastMessageAt)}</time>}
+            {chat.lastMessageAt !== null && <time className="ch-item-time" dateTime={chat.lastMessageAt}>{listTime(chat.lastMessageAt, undefined, t.lang)}</time>}
           </span>
           {(!nested || chat.unread > 0 || chat.preferences?.muted === true) && (
             <span className="ch-item-bottom">
-              {!nested && <span className="ch-item-sub">{kindText(chat)}</span>}
+              {!nested && <span className="ch-item-sub">{kindText(chat, t)}</span>}
               {nested && <span className="ch-item-sub" />}
-              {chat.preferences?.muted === true && <span className="ch-item-muted"><Icon name="bell-off" label="wyciszona" /></span>}
-              {chat.unread > 0 && <span className="ch-badge" aria-label={`${chat.unread} nowych`}>{chat.unread}</span>}
+              {chat.preferences?.muted === true && <span className="ch-item-muted"><Icon name="bell-off" label={t('chat.head.quiet')} /></span>}
+              {chat.unread > 0 && <span className="ch-badge" aria-label={t('chat.list.unread', { count: chat.unread })}>{chat.unread}</span>}
             </span>
           )}
         </span>
@@ -178,23 +179,23 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
   };
 
   const menu: MenuItem[] = [
-    { label: 'Nowa rozmowa', icon: 'compose', onSelect: () => { window.location.hash = viewPath('chat', 'nowa'); } },
-    { label: 'Notatki', icon: 'bookmark', onSelect: () => { if (self !== undefined) window.location.hash = viewPath('chat', self.chatId); else void openSelf(); } },
-    { label: inArchive.length > 0 ? `Archiwum (${inArchive.length})` : 'Archiwum', icon: 'archive', checked: archived, onSelect: () => setArchived(!archived) },
-    { label: 'Moja dostępność i powiadomienia', icon: 'bell', onSelect: () => setPanel('prefs') },
-    { label: 'Twój kod do rozmów', icon: 'hash', onSelect: () => setPanel('codes') }
+    { label: t('chat.list.newChat'), icon: 'compose', onSelect: () => { window.location.hash = viewPath('chat', 'nowa'); } },
+    { label: t('chat.title.notes'), icon: 'bookmark', onSelect: () => { if (self !== undefined) window.location.hash = viewPath('chat', self.chatId); else void openSelf(); } },
+    { label: inArchive.length > 0 ? t('chat.list.archiveCount', { count: inArchive.length }) : t('chat.list.archive'), icon: 'archive', checked: archived, onSelect: () => setArchived(!archived) },
+    { label: t('chat.prefs.commonTitle'), icon: 'bell', onSelect: () => setPanel('prefs') },
+    { label: t('chat.list.myCode'), icon: 'hash', onSelect: () => setPanel('codes') }
   ];
 
   const selfRow = (
     <>
-      <Avatar seed="self" name="Notatki" icon="bookmark" />
+      <Avatar seed="self" name={t('chat.title.notes')} icon="bookmark" />
       <span className="ch-item-main">
         <span className="ch-item-top">
-          <strong className="ch-item-title">Notatki</strong>
-          {self?.lastMessageAt != null && <time className="ch-item-time">{listTime(self.lastMessageAt)}</time>}
+          <strong className="ch-item-title">{t('chat.title.notes')}</strong>
+          {self?.lastMessageAt != null && <time className="ch-item-time">{listTime(self.lastMessageAt, undefined, t.lang)}</time>}
         </span>
         <span className="ch-item-bottom">
-          <span className="ch-item-sub">{opening ? 'Zakładanie…' : 'Wiadomości do siebie — tylko Ty je widzisz'}</span>
+          <span className="ch-item-sub">{opening ? t('chat.list.creating') : t('chat.list.notesSub')}</span>
           {self !== undefined && self.unread > 0 && <span className="ch-badge">{self.unread}</span>}
         </span>
       </span>
@@ -202,29 +203,29 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
   );
 
   return (
-    <aside className="ch-side" aria-label="Lista rozmów">
+    <aside className="ch-side" aria-label={t('chat.list.label')}>
       <div className="ch-side-head">
         {archived && (
-          <button type="button" className="ch-icon-btn" aria-label="Wróć do rozmów" onClick={() => setArchived(false)}><Icon name="back" /></button>
+          <button type="button" className="ch-icon-btn" aria-label={t('chat.list.backToChats')} onClick={() => setArchived(false)}><Icon name="back" /></button>
         )}
-        <h1 className="ch-side-title">{archived ? 'Archiwum' : 'Rozmowy'}</h1>
-        <a className="ch-icon-btn" href={viewPath('chat', 'nowa')} aria-label="Nowa rozmowa" title="Nowa rozmowa"><Icon name="compose" /></a>
-        <button type="button" className="ch-icon-btn" aria-label="Więcej" title="Więcej" aria-haspopup="menu" aria-expanded={more.open !== null}
+        <h1 className="ch-side-title">{archived ? t('chat.list.archive') : t('chat.head.chats')}</h1>
+        <a className="ch-icon-btn" href={viewPath('chat', 'nowa')} aria-label={t('chat.list.newChat')} title={t('chat.list.newChat')}><Icon name="compose" /></a>
+        <button type="button" className="ch-icon-btn" aria-label={t('common.more')} title={t('common.more')} aria-haspopup="menu" aria-expanded={more.open !== null}
           onClick={(e) => more.toggle(e.currentTarget)}>
           <Icon name="more" />
         </button>
-        {more.open !== null && <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label="Rozmowy" items={menu} onClose={more.close} />}
+        {more.open !== null && <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label={t('chat.head.chats')} items={menu} onClose={more.close} />}
       </div>
 
       <label className="ch-side-search">
         <Icon name="search" />
-        <input type="search" value={query} placeholder="Szukaj rozmowy" aria-label="Szukaj rozmowy" onChange={(e) => setQuery(e.target.value)} />
+        <input type="search" value={query} placeholder={t('chat.list.search')} aria-label={t('chat.list.search')} onChange={(e) => setQuery(e.target.value)} />
       </label>
 
       {failed !== null && <p className="ch-bar is-error" role="alert">{failed}</p>}
 
       <ul className="ch-list">
-        {!archived && fits('Notatki') && (
+        {!archived && fits(t('chat.title.notes')) && (
           <li>
             {self !== undefined ? (
               <a className={`ch-item is-self${current === self.chatId ? ' is-current' : ''}`} href={viewPath('chat', self.chatId)}
@@ -242,16 +243,16 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
             <button type="button" className="ch-item is-archive" onClick={() => setArchived(true)}>
               <span className="ch-ava is-md is-icon is-plain" aria-hidden="true"><Icon name="archive" /></span>
               <span className="ch-item-main">
-                <span className="ch-item-top"><strong className="ch-item-title">Zarchiwizowane</strong><span className="ch-item-time">{inArchive.length}</span></span>
+                <span className="ch-item-top"><strong className="ch-item-title">{t('chat.list.archived')}</strong><span className="ch-item-time">{inArchive.length}</span></span>
               </span>
             </button>
           </li>
         )}
 
-        {chats === null && <li className="ch-list-note">Wczytywanie…</li>}
+        {chats === null && <li className="ch-list-note">{t('common.loading')}</li>}
         {chats !== null && rows.length === 0 && (
           <li className="ch-list-note">
-            {needle !== '' ? 'Żadna rozmowa nie pasuje.' : archived ? 'Archiwum jest puste.' : 'Nie masz jeszcze żadnej rozmowy — zacznij nową.'}
+            {needle !== '' ? t('chat.list.noMatch') : archived ? t('chat.list.archiveEmpty') : t('chat.list.none')}
           </li>
         )}
 
@@ -269,11 +270,11 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
                 <span className="ch-item-main">
                   <span className="ch-item-top">
                     <strong className="ch-item-title">{entry.title}</strong>
-                    {last !== null && <time className="ch-item-time" dateTime={last}>{listTime(last)}</time>}
+                    {last !== null && <time className="ch-item-time" dateTime={last}>{listTime(last, undefined, t.lang)}</time>}
                   </span>
                   <span className="ch-item-bottom">
-                    <span className="ch-item-sub">osoby z formularza · {entry.chats.length} {plural(entry.chats.length, 'rozmowa', 'rozmowy', 'rozmów')}</span>
-                    {unread > 0 && <span className="ch-badge" aria-label={`${unread} nowych`}>{unread}</span>}
+                    <span className="ch-item-sub">{t('chat.list.groupSub', { count: entry.chats.length })}</span>
+                    {unread > 0 && <span className="ch-badge" aria-label={t('chat.list.unread', { count: unread })}>{unread}</span>}
                     <span className={`ch-group-arrow${open ? ' is-open' : ''}`} aria-hidden="true"><Icon name="chevron" /></span>
                   </span>
                 </span>
@@ -288,11 +289,11 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
         })}
       </ul>
 
-      <p className="ch-side-foot"><Icon name="lock" /> Treść szyfruje Twoja przeglądarka — serwer jej nie czyta.</p>
+      <p className="ch-side-foot"><Icon name="lock" /> {t('chat.list.encrypted')}</p>
 
       {panel === 'prefs' && <CommonPreferencesDialog onClose={() => setPanel(null)} />}
       {panel === 'codes' && (
-        <Modal title="Twój kod do rozmów" onClose={() => setPanel(null)}>
+        <Modal title={t('chat.list.myCode')} onClose={() => setPanel(null)}>
           <MyCodes me={me} bare />
         </Modal>
       )}
@@ -302,15 +303,15 @@ export function ChatList({ me, current }: { me: Me; current: string | undefined 
 
 /** Rechts, solange keine Rozmowa offen ist — nur auf breitem Schirm zu sehen. */
 export function ChatWelcome({ me }: { me: Me }) {
+  const t = useT();
   return (
     <div className="ch-welcome">
       <span className="ch-welcome-ic"><Icon name="lock" /></span>
-      <h2 className="ch-welcome-title">Wybierz rozmowę</h2>
+      <h2 className="ch-welcome-title">{t('chat.list.welcomeTitle')}</h2>
       <p className="ch-welcome-text">
-        Każda rozmowa należy do obszaru: kto ma dostęp do obszaru, jest w rozmowie. Treść szyfruje Twoja
-        przeglądarka — serwer jej nie czyta.
+        {t('chat.list.welcomeText')}
       </p>
-      <a className="wk-btn" href={viewPath('chat', 'nowa')}>Nowa rozmowa</a>
+      <a className="wk-btn" href={viewPath('chat', 'nowa')}>{t('chat.list.newChat')}</a>
       <MyCodes me={me} />
     </div>
   );
@@ -322,6 +323,7 @@ export function ChatWelcome({ me }: { me: Me }) {
  * öffentlichen Schlüssel heraus.
  */
 function MyCodes({ me, bare = false }: { me: Me; bare?: boolean }) {
+  const t = useT();
   const [copied, setCopied] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const shown = me.roles.filter((r) => all || r.kind === 'person');
@@ -332,9 +334,9 @@ function MyCodes({ me, bare = false }: { me: Me; bare?: boolean }) {
 
   return (
     <section className="wk-chat-codes">
-      {!bare && <h2 className="wk-h2">Twój kod do rozmów</h2>}
+      {!bare && <h2 className="wk-h2">{t('chat.list.myCode')}</h2>}
       <p className="wk-hint">
-        Podaj go komuś, kto chce Cię dodać do rozmowy. Kod nie otwiera niczego — pozwala tylko zaprosić.
+        {t('chat.list.codeHint')}
       </p>
       <ul className="wk-list">
         {shown.map((r) => (
@@ -344,14 +346,14 @@ function MyCodes({ me, bare = false }: { me: Me; bare?: boolean }) {
               {' '}<code className="wk-chat-code">{r.id}</code>
             </span>
             <button type="button" className="wk-link-btn" onClick={() => void copy(r.id)}>
-              {copied === r.id ? 'Skopiowano' : 'Kopiuj'}
+              {copied === r.id ? t('common.copied') : t('common.copy')}
             </button>
           </li>
         ))}
       </ul>
       {me.roles.some((r) => r.kind !== 'person') && (
         <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>
-          {all ? 'Tylko osoby' : 'Pokaż też kody moich ról (np. kancelarii)'}
+          {all ? t('chat.list.onlyPersons') : t('chat.list.showRoleCodes')}
         </button>
       )}
     </section>

@@ -33,6 +33,9 @@ import { loadModules, updateModule } from '../modules/module';
 import { keysFor } from '../core/ringOf';
 import { selfOf } from '../roles/roles';
 import { WorkspaceError, type Who } from '../core/session';
+import { t } from '../core/i18n';
+
+const K = 'formsFormat.keys.';
 
 /* -- Die Gestalt ------------------------------------------------------------------ */
 
@@ -62,41 +65,40 @@ export interface FormContent {
 }
 
 /** Was jeder Schlüssel bedeutet — für die Beschreibung neben dem Import. */
-export const QUESTION_KEYS: Readonly<Record<string, string>> = {
-  questions: 'Pytania formularza — lista, w kolejności',
-  'questions[].id': 'Identyfikator pytania. Ten z eksportu — pytanie zostanie zmienione (odpowiedzi zostają). Nowy albo własny (np. "q1") — powstanie nowe pytanie; tej samej nazwy można użyć w "design". Pytanie zdjęte z formularza (miało odpowiedzi) nie jest w eksporcie; jego identyfikator w dokumencie przywraca je razem z odpowiedziami',
-  'questions[].kind': `Rodzaj: ${FIELD_KINDS.map((k) => `"${k}"`).join(', ')}`,
-  'questions[].label': 'Treść pytania',
-  'questions[].help': 'Podpowiedź pod pytaniem (albo null). Przy "consent" — pełna treść oświadczenia; zaznaczona zgoda zapisuje się razem z nią ("tak: …"). "pesel" sprawdza cyfrę kontrolną',
-  'questions[].options': 'Możliwości wyboru — lista (tylko dla "choice")',
-  'questions[].required': 'true — odpowiedź wymagana',
-  'questions[].halfWidth': 'true — pole na pół szerokości',
-  'questions[].identity': `Której danej osoby dotyczy (formularz wypełnia ją sam z profilu): ${IDENTITY_ROLES.map((r) => `"${r}"`).join(', ')}; zwykłe pytanie: "none"`,
-  'questions[].selfEdit': 'true — osoba może później poprawić odpowiedź przez swój link',
-  'questions[].personOnly': 'true — odpowiedź wpisuje i poprawia tylko sama osoba (przez swój link); kancelaria ją czyta, ale nie zmienia i nie wpisuje za nią (np. własne cele kandydata). Włącza też "selfEdit". Pominięte: false',
-  'questions[].answersTo': 'Identyfikator obszaru, do którego trafiają odpowiedzi (kto je czyta). Pominięty: obszar wybrany przy imporcie. Zmiana przy istniejącym pytaniu nie przenosi odpowiedzi — to robi się w module',
-  design: 'Układ i logika formularza (albo null — zwykła lista). Wymaga obszaru formularza',
-  'design.version': 'Zawsze 1',
-  'design.layout': 'Kolejność i grupy — lista elementów; pytania, których tu nie ma, stoją na końcu. Grupa: {"type":"group","id":"g1","kind":"group"|"page"|"tab","title":"…","items":[…]} ("page" — osobny krok formularza, "tab" — zakładka)',
-  'design.layout[].type': '"field" — pytanie, "text" — tekst między pytaniami, "group" — grupa (patrz wyżej)',
-  'design.layout[].id': 'Przy "field": identyfikator pytania (także własny z "questions", np. "q1"); przy tekście i grupie: dowolny, niepowtarzalny',
-  'design.layout[].text': 'Przy "text": treść',
-  'design.layout[].print': 'Przy "field": true / false — czy odpowiedź trafia na wydruk do podpisu. Pominięte: imię i nazwisko, dane rodzica (imię, telefon), zgody i oświadczenia tak; reszta (wiek, szkoła…) nie',
-  'design.layout[].sign': 'Przy "text": true — oświadczenie do podpisu na wydruku (np. zgoda rodzica): w formularzu do przeczytania, bez pola do zaznaczenia; na wydruku nad linią podpisu',
-  'design.nodes': 'Węzły logiki: {"id","kind","x","y", "fieldId"?, "value"?, "op"?, "target"?}; kind: answer, const, age, compare, and, or, not, xor, show, message, label, require. "age" — wiek w pełnych latach z pytania z datą urodzenia albo PESEL-em ("fieldId"), w dniu "value" (RRRR-MM-DD; puste — dziś); porównany z 18 pokazuje pola dla niepełnoletnich',
-  'design.edges': 'Połączenia logiki: {"id","from","to","port":"a"|"b"|"in"}'
+/* Je Schlüssel des Dokuments sein Satz in `formsFormat.json` (`keys.<name>`, Punkte und Klammern daraus entfernt). */
+const KEY_NAMES: Readonly<Record<string, string>> = {
+  questions: 'questions', 'questions[].id': 'qId', 'questions[].kind': 'qKind', 'questions[].label': 'qLabel',
+  'questions[].help': 'qHelp', 'questions[].options': 'qOptions', 'questions[].required': 'qRequired',
+  'questions[].halfWidth': 'qHalfWidth', 'questions[].identity': 'qIdentity', 'questions[].selfEdit': 'qSelfEdit',
+  'questions[].personOnly': 'qPersonOnly', 'questions[].answersTo': 'qAnswersTo', design: 'design',
+  'design.version': 'designVersion', 'design.layout': 'designLayout', 'design.layout[].type': 'layoutType',
+  'design.layout[].id': 'layoutId', 'design.layout[].text': 'layoutText', 'design.layout[].print': 'layoutPrint',
+  'design.layout[].sign': 'layoutSign', 'design.nodes': 'designNodes', 'design.edges': 'designEdges'
 };
+
+/** Was jeder Schlüssel bedeutet — gelesen in der Sprache der App, wenn die Beschreibung entsteht. */
+export const QUESTION_KEYS: Readonly<Record<string, string>> = (() => {
+  const out: Record<string, string> = {};
+  const params = (name: string): Record<string, string> | undefined => (name === 'qKind' ? { kinds: FIELD_KINDS.map((k) => `"${k}"`).join(', ') }
+    : name === 'qIdentity' ? { roles: IDENTITY_ROLES.map((r) => `"${r}"`).join(', ') } : undefined);
+  for (const [key, name] of Object.entries(KEY_NAMES)) {
+    Object.defineProperty(out, key, { get: () => t(K + name, params(name)), enumerable: true });
+  }
+  return out;
+})();
+
+const X = 'formsFormat.example.';
 
 /** Ein ausgefülltes Beispiel — dieselben Schlüssel wie oben. */
 export const QUESTION_EXAMPLE = {
   questions: [
-    { id: 'q1', kind: 'line', label: 'Imię', help: null, options: [], required: true, halfWidth: true, identity: 'given_name', selfEdit: true, answersTo: '<id-obszaru>' },
-    { id: 'q2', kind: 'choice', label: 'Nocleg', help: 'Wybierz jedną możliwość', options: ['Namiot', 'Szkoła'], required: false, halfWidth: false, identity: 'none', selfEdit: true, answersTo: '<id-obszaru>' }
+    { id: 'q1', kind: 'line', get label() { return t(`${X}given`); }, help: null, options: [], required: true, halfWidth: true, identity: 'given_name', selfEdit: true, answersTo: '<id-obszaru>' },
+    { id: 'q2', kind: 'choice', get label() { return t(`${X}stay`); }, get help() { return t(`${X}stayHelp`); }, get options() { return [t(`${X}tent`), t(`${X}school`)]; }, required: false, halfWidth: false, identity: 'none', selfEdit: true, answersTo: '<id-obszaru>' }
   ],
   design: {
     version: 1,
-    layout: [{ type: 'field', id: 'q1' }, { type: 'text', id: 't1', text: 'Zakwaterowanie' }, { type: 'field', id: 'q2', print: true },
-      { type: 'text', id: 't2', text: 'Wyrażam zgodę na udział mojego dziecka.', sign: true }],
+    layout: [{ type: 'field', id: 'q1' }, { type: 'text', id: 't1', get text() { return t(`${X}lodging`); } }, { type: 'field', id: 'q2', print: true },
+      { type: 'text', id: 't2', get text() { return t(`${X}consent`); }, sign: true }],
     nodes: [],
     edges: []
   }
@@ -146,10 +148,10 @@ async function keysOf(who: Who, sealedUnder: readonly string[]): Promise<Keys> {
 
 /** Der Schlüssel der laufenden Epoche eines Bereichs — zum Versiegeln. */
 async function sealingKey(keys: Keys, areaId: string): Promise<{ key: Uint8Array; epoch: number }> {
-  if (keys.ring === null) throw new WorkspaceError('Bez hasła nie da się zapieczętować pytań — odblokuj klucze.');
+  if (keys.ring === null) throw new WorkspaceError(t('formsFormat.msg.noPassword'));
   const area = keys.areas.find((a) => a.areaId === areaId);
   const key = area === undefined ? undefined : (await myEpochKeys(keys.ring, areaId)).get(area.currentEpoch);
-  if (area === undefined || key === undefined) throw new WorkspaceError(`Nie masz klucza obszaru ${area?.name ?? areaId}.`);
+  if (area === undefined || key === undefined) throw new WorkspaceError(t('formsFormat.msg.noAreaKey', { area: area?.name ?? areaId }));
   return { key, epoch: area.currentEpoch };
 }
 
@@ -235,11 +237,11 @@ export function readQuestions(value: unknown, warnings: string[]): Wanted[] {
     const q = entry as Record<string, unknown>;
     const label = str(q.label).trim();
     if (label === '') {
-      if (q.label !== null) warnings.push(`Pytanie ${index + 1} nie ma treści — pominięte.`);
+      if (q.label !== null) warnings.push(t('formsFormat.msg.noLabel', { n: index + 1 }));
       return;
     }
     const kind = (FIELD_KINDS as readonly string[]).includes(str(q.kind)) ? q.kind as FieldKind : 'line';
-    if (kind !== q.kind && q.kind !== undefined) warnings.push(`Pytanie „${label}”: nieznany rodzaj „${str(q.kind)}” — będzie „line”.`);
+    if (kind !== q.kind && q.kind !== undefined) warnings.push(t('formsFormat.msg.unknownKind', { label, kind: str(q.kind) }));
     const identity = (IDENTITY_ROLES as readonly string[]).includes(str(q.identity)) ? q.identity as IdentityRole : 'none';
     const options = Array.isArray(q.options)
       ? q.options.filter((o): o is string => typeof o === 'string').map((o) => o.trim()).filter((o) => o !== '')
@@ -338,9 +340,9 @@ export async function writeFormContent(
   const named = new Set(matchOf.values());
   for (const f of every) {
     if (f.removedAt == null || !named.has(f.fieldId)) continue;
-    options.onStage?.(`Przywracanie pytania „${f.label ?? f.fieldId}”…`);
+    options.onStage?.(t('formsFormat.msg.restoring', { label: f.label ?? f.fieldId }));
     await restoreField(f.fieldId);
-    warnings.push(`„${f.label ?? f.fieldId}” wraca do formularza — razem z dotychczasowymi odpowiedziami.`);
+    warnings.push(t('formsFormat.msg.restored', { label: f.label ?? f.fieldId }));
   }
   const now = every.filter((f) => f.removedAt == null || named.has(f.fieldId));
   const byId = new Map(now.map((f) => [f.fieldId, f]));
@@ -350,7 +352,7 @@ export async function writeFormContent(
   const fresh = wanted.filter((q) => fieldOf(q) === undefined);
 
   if (formArea === null && now.length === 0 && options.answersTo !== null && (fresh.length > 0 || doc.design != null)) {
-    options.onStage?.('Ustawianie obszaru formularza…');
+    options.onStage?.(t('formsFormat.msg.settingArea'));
     await updateModule(form.moduleId, { areaId: options.answersTo });
     formArea = options.answersTo;
   }
@@ -373,9 +375,9 @@ export async function writeFormContent(
     const f = fieldOf(q);
     if (f === undefined) continue;
     ids.set(q.id, f.fieldId);
-    if (f.label === null) { warnings.push(`Pytanie ${q.id} jest zapieczętowane kluczem, którego nie masz — pominięte.`); continue; }
+    if (f.label === null) { warnings.push(t('formsFormat.msg.sealedSkip', { id: q.id })); continue; }
     if (q.answersTo !== null && q.answersTo !== f.areaId) {
-      warnings.push(`„${q.label}”: odpowiedzi zostają w dotychczasowym obszarze — przeniesienie robi się w module.`);
+      warnings.push(t('formsFormat.msg.answersStay', { label: q.label }));
     }
     const differs = f.kind !== q.kind || f.label !== q.label || (f.help ?? null) !== q.help || !same(f.options, q.options)
       || f.isRequired !== q.required || f.isHalfWidth !== q.halfWidth || f.identityRole !== q.identity || f.selfEdit !== q.selfEdit
@@ -400,16 +402,16 @@ export async function writeFormContent(
   for (const q of fresh) {
     const target = q.answersTo ?? options.answersTo ?? formArea ?? now[0]?.areaId ?? null;
     if (target === null) {
-      warnings.push(`„${q.label}”: nie wybrano obszaru odpowiedzi — pytanie pominięte.`);
+      warnings.push(t('formsFormat.msg.noAnswerArea', { label: q.label }));
       continue;
     }
-    if (keys.ring === null) throw new WorkspaceError('Bez hasła nie da się zapieczętować pytań — odblokuj klucze.');
+    if (keys.ring === null) throw new WorkspaceError(t('formsFormat.msg.noPassword'));
 
     if (!intakes.has(target)) {
       const takes = await loadPublicIntake(target).then(() => true, () => false);
       if (!takes) {
-        if (keys.personId === null) throw new WorkspaceError('Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.');
-        options.onStage?.('Tworzenie klucza przyjmowania — kilka sekund…');
+        if (keys.personId === null) throw new WorkspaceError(t('formsFormat.msg.noPerson'));
+        options.onStage?.(t('forms.settings.intakeCreating'));
         await createIntake(keys.ring, target, keys.personId);
       }
       intakes.add(target);
@@ -441,7 +443,7 @@ export async function writeFormContent(
         await removeField(f.fieldId);
         removed += 1;
       } catch (e) {
-        warnings.push(`„${f.label ?? f.fieldId}” zostaje: ${e instanceof WorkspaceError ? e.message : 'nie udało się usunąć'}.`);
+        warnings.push(t('formsFormat.msg.stays', { label: f.label ?? f.fieldId, why: e instanceof WorkspaceError ? e.message : t('formsFormat.msg.deleteFailed') }));
       }
     }
   }
@@ -450,9 +452,9 @@ export async function writeFormContent(
   let designSaved = false;
   if (doc.design !== undefined) {
     if (formArea === null || questionsArea === null) {
-      warnings.push('Układ i logika wymagają obszaru formularza — ustaw go w module i zaimportuj jeszcze raz.');
+      warnings.push(t('formsFormat.msg.designNeedsArea'));
     } else {
-      options.onStage?.('Zapisywanie układu…');
+      options.onStage?.(t('formsFormat.msg.savingLayout'));
       const { key, epoch } = await sealingKey(keys, questionsArea);
       await saveDesign(form.moduleId, questionsArea, epoch, doc.design === null ? null : await sealDesign(remapDesign(doc.design, ids), key, form.moduleId));
       designSaved = true;

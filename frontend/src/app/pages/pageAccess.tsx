@@ -16,6 +16,7 @@ import { createContext, useContext } from 'react';
 
 import type { PageAccess } from './page';
 import type { PagePerson } from './pagePerson';
+import { rich, useT } from '../core/i18n';
 
 export const PageAccessContext = createContext<PageAccess | null>(null);
 
@@ -35,29 +36,21 @@ export function allows(access: PageAccess | null, person: PagePerson): boolean {
  * myślał, że strona zniknęła.
  */
 export function NoAccess({ verdict }: { verdict: 'needsaccess' | 'noaccess' }) {
+  const t = useT();
   return (
     <section className="wk-form">
-      <h1 className="wk-h1">Ta strona wymaga dostępu</h1>
-      <p className="wk-lede">
-        Otworzą ją tylko osoby, które mają do niej dostęp: przez swój link do tej strony (np. z SMS-a)
-        albo przez konto, któremu go nadano.
-      </p>
+      <h1 className="wk-h1">{t('pages.access.title')}</h1>
+      <p className="wk-lede">{t('pages.access.lede')}</p>
       {verdict === 'needsaccess' ? (
         <>
-          <p>
-            <strong>Dostałeś link?</strong> Otwórz go jeszcze raz — w całości, tak jak przyszedł.
-          </p>
-          <p>
-            <strong>Masz konto z dostępem?</strong>{' '}
-            <a className="wk-link" href="#/workspace">Zaloguj się</a>, a potem wróć na tę stronę.
-          </p>
+          <p>{rich(t('pages.access.gotLink'), { b: (s, k) => <strong key={k}>{s}</strong> })}</p>
+          <p>{rich(t('pages.access.hasAccount'), {
+            b: (s, k) => <strong key={k}>{s}</strong>,
+            link: (s, k) => <a key={k} className="wk-link" href="#/workspace">{s}</a>
+          })}</p>
         </>
       ) : (
-        <p>
-          Jesteś zalogowany, ale ani Twoje konto, ani Twoje osoby, ani linki w tej przeglądarce nie mają
-          dostępu do tej strony. Jeśli powinny — poproś o dostęp tych, którzy ją prowadzą, albo otwórz
-          link, który dostałeś do tej strony.
-        </p>
+        <p>{t('pages.access.noAccess')}</p>
       )}
     </section>
   );

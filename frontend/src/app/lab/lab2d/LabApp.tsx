@@ -19,6 +19,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
+import { useT } from '../../core/i18n';
 import { BakePanel, PlayerBar, type BakeProgress } from './ClipControls';
 import type { ClipEngine, ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
@@ -29,7 +30,6 @@ import type { BakeOptions, ChartSample, HostStats } from './engine/protocol';
 import { CELL, QUALITIES, isQuality, readScene, writeScene, type ExtremeMode, type Quality } from './engine/scene';
 import type { Region } from './engine/shapes';
 import { LabHost } from './host';
-import { t } from './i18n';
 import type { Lab2DConfig } from './Lab2D';
 import { ObjectPanel } from './ObjectPanel';
 import { newObjectOp } from './objectKinds';
@@ -87,6 +87,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
   /** Die eigene Ebene schliessen (fehlt im ganzen Fenster der Seite: dort schliesst deren Leiste). */
   onClose?: () => void;
 }) {
+  const t = useT();
   const boxRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<LabHost | null>(null);
   const drag = useRef<{ start: [number, number]; startPx: [number, number]; last: [number, number]; at: number; target: string | null } | null>(null);
@@ -208,7 +209,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
         if (lagRef.current >= 15) setLagging(s.simRate);
       },
       onView: (v, w) => setView({ view: v, walls: w }),
-      onRefused: () => setNote(t('refused')),
+      onRefused: () => setNote(t('lab2d.refused')),
       onError: setError,
       onClip: (c) => {
         setClip(c);
@@ -221,12 +222,12 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
       },
       onBake: (m) => {
         setBake(m.state === 'done' || m.state === 'failed' ? null : { state: m.state, t: m.t, seconds: m.seconds, rate: m.rate, message: m.message, engine: m.engine, note: m.note });
-        if (m.state === 'failed') setNote(m.message === 'engine' ? t('clipEngine') : m.message === 'short' ? t('bakeShort') : `${t('bakeFailed')}${m.message ? ` (${m.message})` : ''}`);
+        if (m.state === 'failed') setNote(m.message === 'engine' ? t('lab2d.clipEngine') : m.message === 'short' ? t('lab2d.bakeShort') : `${t('lab2d.bakeFailed')}${m.message ? ` (${m.message})` : ''}`);
         /* Warum die CPU backt (oder die Karte aufgab) — einmal je Backen. */
         if (m.state === 'preparing') bakeNoteRef.current = undefined;
         if (m.note !== undefined && m.note !== bakeNoteRef.current) {
           bakeNoteRef.current = m.note;
-          setNote(t(m.note === 'cpu-only' ? 'bakeCpuOnly' : m.note === 'no-webgpu' ? 'bakeNoWebgpu' : m.note === 'gpu-lost' ? 'bakeGpuLost' : 'bakeGpuFailed'));
+          setNote(t(`lab2d.${m.note === 'cpu-only' ? 'bakeCpuOnly' : m.note === 'no-webgpu' ? 'bakeNoWebgpu' : m.note === 'gpu-lost' ? 'bakeGpuLost' : 'bakeGpuFailed'}`));
         }
         if (m.state === 'done' || m.state === 'failed') bakeNoteRef.current = undefined;
       },
@@ -255,7 +256,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
           /* Live weiter aus einem Nachweis von der GPU, aber der beschleunigte Weg ging nicht: dasselbe Schlüsselbild auf der CPU. */
           nextScene.current = startScene;
           resumeRef.current = resume;
-          setNote(`${t('accelFailed')}${message ? ` (${message})` : ''}`);
+          setNote(`${t('lab2d.accelFailed')}${message ? ` (${message})` : ''}`);
           setAccel(false);
           return;
         }
@@ -263,7 +264,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
         const q = savedQuality() ?? readScene(config.scene).scene.quality;
         nextScene.current = withQuality(scene ?? startScene, q);
         setQuality(q);
-        setNote(message === 'cpu-only' ? t('accelNoOther') : `${t('accelFailed')}${message ? ` (${message})` : ''}`);
+        setNote(message === 'cpu-only' ? t('lab2d.accelNoOther') : `${t('lab2d.accelFailed')}${message ? ` (${message})` : ''}`);
         setAccel(false);
       }
     });
@@ -309,7 +310,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     if (!running) return;
     setPaused(true);
     host()?.pause(true);
-    setNote(t('pausedForEdit'));
+    setNote(t('lab2d.pausedForEdit'));
   };
   const togglePlay = (): void => {
     if (!live) return;
@@ -322,7 +323,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     if (!next && EDIT_TOOLS.includes(tool)) setTool('select');
   };
   const pickTool = (k: Tool): void => {
-    if (!live) { setNote(t('clipTools')); return; }
+    if (!live) { setNote(t('lab2d.clipTools')); return; }
     if (EDIT_TOOLS.includes(k)) pauseForEdit();
     if (k === tool) { setToolOpts(!toolOpts); return; }
     setTool(k);
@@ -352,7 +353,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     const h = host();
     if (h === null || !ready) return;
     /* Bei der Wiedergabe und beim Backen gehört das Bild dem Nachweis. */
-    if (!live) { setNote(t('clipTools')); return; }
+    if (!live) { setNote(t('lab2d.clipTools')); return; }
     if (EDIT_TOOLS.includes(tool)) pauseForEdit();
     /* Schmal: das Feld des Werkzeugs weicht, sobald man in die Kiste greift (ein Klick auf das Werkzeug holt es zurück). */
     if (e.currentTarget.clientWidth < 640) setToolOpts(false);
@@ -447,7 +448,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     const h = host();
     if (h === null || selected === null) return;
     void h.editObject(selected, patch).then((r) => {
-      if (r?.warning?.startsWith('refused') === true) setNote(t('objAtStart'));
+      if (r?.warning?.startsWith('refused') === true) setNote(t('lab2d.objAtStart'));
       if (r?.rebuilt === true) { samplesRef.current = []; setSamples([]); }
       void refreshOps(h);
     });
@@ -546,7 +547,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
       a.download = 'laboratorium-2d.json';
       a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setNote(t('saved'));
+      setNote(t('lab2d.saved'));
     });
   };
   const loadFile = (file: File): void => {
@@ -599,7 +600,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     arrows = forces.filter((f) => Math.hypot(f.x, f.y) > 1e-4 * big).map((f) => {
       const len = 70 * Math.sqrt(Math.hypot(f.x, f.y) / big);
       const a = Math.atan2(f.y, f.x);
-      return { key: f.key, x1: bx, y1: by, x2: bx + len * Math.cos(a), y2: by - len * Math.sin(a), label: t(f.key) };
+      return { key: f.key, x1: bx, y1: by, x2: bx + len * Math.cos(a), y2: by - len * Math.sin(a), label: t(`lab2d.${f.key}`) };
     });
   }
   const outline: string[] = [];
@@ -627,7 +628,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     const hh = e !== undefined ? e.ny * e.dx : 0.15;
     return Math.round(w / CELL[q]) * Math.round(hh / CELL[q]);
   };
-  const title = (scenarios.length > 1 ? scenario.title : config.title) || t('title');
+  const title = (scenarios.length > 1 ? scenario.title : config.title) || t('lab2d.title');
 
   return (
     <div className={`l2d-app${tab !== null ? ' has-side' : ''}`}>
@@ -653,12 +654,12 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
           {hud && stats !== null && <Hud stats={stats} />}
           {overlay !== 'none' && stats !== null && <Legend overlay={overlay} scale={stats.overlayScale} />}
           {note !== null && <div className="l2d-note" role="status">{note}</div>}
-          {(!ready || error !== null) && <div className="l2d-status">{error ?? t('loading')}</div>}
+          {(!ready || error !== null) && <div className="l2d-status">{error ?? t('lab2d.loading')}</div>}
         </div>
         {toolOpts && live && <ToolOptions tool={tool} s={ts} onChange={(p) => setTs({ ...ts, ...p })} onClose={() => setToolOpts(false)} />}
         {sheet === 'settings' && (
           <SettingsSheet quality={quality} onQuality={changeQuality} extremes={extremesMode} onExtremes={(m) => host()?.setExtremes(m)}
-            accel={accel} accelBlocked={!live ? t('clipAccel') : cpuOnly ? t('accelNoOther') : null} showAccel={HAS_WEBGPU || accel} onAccel={() => toggleAccel()}
+            accel={accel} accelBlocked={!live ? t('lab2d.clipAccel') : cpuOnly ? t('lab2d.accelNoOther') : null} showAccel={HAS_WEBGPU || accel} onAccel={() => toggleAccel()}
             ambient={ambient} onAmbient={changeAmbient} walls={view?.walls ?? null} onSide={(s, wall) => host()?.setBoundary(s, wall ? 'wall' : 'open')}
             particles={particles} particlesBlocked={mode === 'playback'} onParticles={changeParticles} level={level} onLevel={changeLevel} hud={hud} onHud={setHud}
             onSave={save} onLoadFile={loadFile} onEmpty={emptyBox} onScenarioStart={scenarioStart} busy={!live} onClose={() => setSheet(null)} />
@@ -670,7 +671,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
           {tab === 'object' && selectedOp !== null && (
             <ObjectPanel op={selectedOp} view={objectView !== null && objectView.id === selected ? objectView : null} atStart={atStart} onPatch={patchObject} onRemove={removeObject} />
           )}
-          {tab === 'inspect' && (info === null || info === undefined ? <p className="lab-muted">{t('nothingHere')}</p> : <Inspector info={info} level={level} />)}
+          {tab === 'inspect' && (info === null || info === undefined ? <p className="lab-muted">{t('lab2d.nothingHere')}</p> : <Inspector info={info} level={level} />)}
           {tab === 'bubble' && <BubblePanel b={bubble} level={level} />}
           {tab === 'charts' && <Charts samples={shownSamples} level={level} />}
         </SidePanel>

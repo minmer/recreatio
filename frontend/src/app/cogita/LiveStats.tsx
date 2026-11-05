@@ -10,7 +10,7 @@
 
 import { useMemo, useState } from 'react';
 
-import { plural } from '../core/plural';
+import { fmtDate, fmtNumber, rich, t, useT, type Lang } from '../core/i18n';
 import { Loading } from '../ui/Loading';
 import type { Card } from './cardBasics';
 import { Columns, Figure, KnowledgeStats, Line, Tiles, type Point } from './KnowCharts';
@@ -25,19 +25,23 @@ import type { CogitaLibrary } from './store';
 import { percent } from './ui';
 import './rewards.css';
 
+/* Die Namen werden beim Lesen übersetzt (Getter). */
 export const STATS_PIECES = [
-  { value: 'tiles', label: 'Liczby dnia' },
-  { value: 'today', label: 'Punkty dziś — wykres' },
-  { value: 'days', label: 'Punkty dzień po dniu' },
-  { value: 'goal', label: 'Cel dnia dzień po dniu' },
-  { value: 'knowledge', label: 'Gdzie są karty (w pełnym widoku)' }
+  { value: 'tiles' as const, get label() { return t('cogitaViewsRewards.live.piece.tiles'); } },
+  { value: 'today' as const, get label() { return t('cogitaViewsRewards.live.piece.today'); } },
+  { value: 'days' as const, get label() { return t('cogitaViewsRewards.live.piece.days'); } },
+  { value: 'goal' as const, get label() { return t('cogitaViewsRewards.live.piece.goal'); } },
+  { value: 'knowledge' as const, get label() { return t('cogitaViewsRewards.live.piece.knowledge'); } }
 ] as const;
 export type StatsPiece = (typeof STATS_PIECES)[number]['value'];
 
-const NUM = new Intl.NumberFormat('pl-PL');
-const TIME = new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '2-digit' });
-const DATE = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'numeric' });
-const DAY_NAME = new Intl.DateTimeFormat('pl-PL', { weekday: 'short', day: 'numeric', month: 'long' });
+/* Zahlen und Tage in der Sprache der Stelle. */
+const fmt = (lang: Lang) => ({
+  num: (n: number) => fmtNumber(n, undefined, lang),
+  time: (at: number) => fmtDate(new Date(at), { hour: '2-digit', minute: '2-digit' }, lang),
+  date: (at: number) => fmtDate(new Date(at), { day: 'numeric', month: 'numeric' }, lang),
+  dayName: (at: number) => fmtDate(new Date(at), { weekday: 'short', day: 'numeric', month: 'long' }, lang)
+});
 
 /** Alle Punkte eines Tages (auch Ziel, Serie, Abzeichen) — `RewardDay.points` zählt nur, was Antworten bringen. */
 function pointsByDay(state: RewardState): Map<number, number> {
@@ -60,6 +64,8 @@ export function LiveStats({ lib, learner, rules, cards, keys, rename, hidden, sh
   hidden?: ReadonlySet<string>;
   shape: 'strip' | 'block' | 'full';
 }) {
+  const t = useT();
+  const F = fmt(t.lang);
   const { state, fresh } = useRewards(learner, rules, { ...(keys === undefined ? {} : { keys }), ...(rename === undefined ? {} : { rename }), live: true });
   const [range, setRange] = useState(14);
   const show = (p: StatsPiece) => hidden === undefined || !hidden.has(p);
@@ -68,7 +74,7 @@ export function LiveStats({ lib, learner, rules, cards, keys, rename, hidden, sh
   const answered = learner?.progress.answers.size ?? 0;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- neu mit jeder Antwort
   const byCard = useMemo(() => (learner === null ? null : answerIndex(learner.progress, rename)), [learner, rename, answered]);
-  if (state === null) return <Loading lines={2} label="Liczenie statystyk…" />;
+  if (state === null) return <Loading lines={2} label={t('cogitaViewsRewards.live.counting')} />;
 
   const today = state.today;
   const todayPoints = byDay.get(today.day) ?? 0;
@@ -80,11 +86,11 @@ export function LiveStats({ lib, learner, rules, cards, keys, rename, hidden, sh
     return (
       <div className="cg-live-stats" data-live-stats="strip">
         <p className="cg-live-line" data-live-today={todayPoints}>
-          <span className="cg-live-dot">na żywo</span>
-          <span>Dziś <strong>+{NUM.format(todayPoints)}</strong> pkt</span>
-          <span><strong>{today.answers}</strong> {plural(today.answers, 'odpowiedź', 'odpowiedzi', 'odpowiedzi')}</span>
-          <span>trafność <strong>{accuracy === null ? '—' : percent(accuracy)}</strong></span>
-          <span>cel <strong>{Math.min(state.goalNow, g.amount)}/{g.amount}</strong></span>
+          <span className="cg-live-dot">{t('cogitaViewsRewards.live.live')}</span>
+          <span>{rich(t('cogitaViewsRewards.live.todayPts', { count: F.num(todayPoints) }), { b: (x) => <strong>{x}</strong> })}</span>
+          <span>{rich(t('cogitaViewsRewards.live.answers', { count: today.answers }), { b: (x) => <strong>{x}</strong> })}</span>
+          <span>{rich(t('cogitaViewsRewards.live.accuracy', { value: accuracy === null ? '—' : percent(accuracy) }), { b: (x) => <strong>{x}</strong> })}</span>
+          <span>{rich(t('cogitaViewsRewards.live.goal', { value: `${Math.min(state.goalNow, g.amount)}/${g.amount}` }), { b: (x) => <strong>{x}</strong> })}</span>
         </p>
       </div>
     );
@@ -92,26 +98,26 @@ export function LiveStats({ lib, learner, rules, cards, keys, rename, hidden, sh
 
   const line = todayLine(state, now);
   const todayPoints2: Point[] = line.length === 0 ? [] : [
-    { key: 'start', axis: 'start', value: 0, tip: [['0 pkt', 'na początku dnia']] },
-    ...line.map((p, i): Point => ({ key: `t${i}`, axis: TIME.format(new Date(p.at)), value: p.total, tip: [[`${NUM.format(p.total)} pkt`, `o ${TIME.format(new Date(p.at))}`], [`+${NUM.format(p.points)}`, 'za tę odpowiedź']] }))
+    { key: 'start', axis: 'start', value: 0, tip: [[t('cogitaViewsRewards.live.pts', { count: 0 }), t('cogitaViewsRewards.live.dayStart')]] },
+    ...line.map((p, i): Point => ({ key: `t${i}`, axis: F.time(p.at), value: p.total, tip: [[t('cogitaViewsRewards.live.pts', { count: F.num(p.total) }), t('cogitaViewsRewards.live.at', { time: F.time(p.at) })], [`+${F.num(p.points)}`, t('cogitaViewsRewards.live.forAnswer')]] }))
   ];
   const list = lastDays(state, now, range);
   const dayPoints: Point[] = list.map((d) => ({
-    key: String(d.day), axis: DATE.format(new Date(d.day)), value: byDay.get(d.day) ?? 0,
-    tip: [[`${NUM.format(byDay.get(d.day) ?? 0)} pkt`, DAY_NAME.format(new Date(d.day))], [String(d.answers), plural(d.answers, 'odpowiedź', 'odpowiedzi', 'odpowiedzi')]]
+    key: String(d.day), axis: F.date(d.day), value: byDay.get(d.day) ?? 0,
+    tip: [[t('cogitaViewsRewards.live.pts', { count: F.num(byDay.get(d.day) ?? 0) }), F.dayName(d.day)], [String(d.answers), t('cogitaViewsRewards.live.answersWord', { count: d.answers })]]
   }));
   const goalPoints: Point[] = list.map((d) => ({
-    key: String(d.day), axis: DATE.format(new Date(d.day)), value: unitValue(d, g.unit),
-    tip: [[`${NUM.format(unitValue(d, g.unit))} ${GOAL_UNIT_LABEL[g.unit]}`, DAY_NAME.format(new Date(d.day))], [d.met ? '✓' : '—', d.met ? 'cel osiągnięty' : `cel: ${g.amount}`]]
+    key: String(d.day), axis: F.date(d.day), value: unitValue(d, g.unit),
+    tip: [[`${F.num(unitValue(d, g.unit))} ${GOAL_UNIT_LABEL[g.unit]}`, F.dayName(d.day)], [d.met ? '✓' : '—', d.met ? t('cogitaViewsRewards.live.goalMet') : t('cogitaViewsRewards.live.goalOf', { count: g.amount })]]
   }));
   const table = (rows: readonly Point[], head: string) => (
-    <table className="cg-table cg-stats-table"><thead><tr><th>Kiedy</th><th>{head}</th></tr></thead>
-      <tbody>{rows.map((p) => <tr key={p.key}><td>{p.axis}</td><td>{NUM.format(p.value)}</td></tr>)}</tbody></table>
+    <table className="cg-table cg-stats-table"><thead><tr><th>{t('cogitaViewsRewards.live.when')}</th><th>{head}</th></tr></thead>
+      <tbody>{rows.map((p) => <tr key={p.key}><td>{p.axis}</td><td>{F.num(p.value)}</td></tr>)}</tbody></table>
   );
   const chips = (
-    <div className="cg-chips" role="radiogroup" aria-label="Okres">
+    <div className="cg-chips" role="radiogroup" aria-label={t('cogitaViewsRewards.live.period')}>
       {[7, 14, 30].map((d) => (
-        <button key={d} type="button" role="radio" aria-checked={d === range} className={`cg-chip${d === range ? ' is-on' : ''}`} data-live-range={d} onClick={() => setRange(d)}>{d} dni</button>
+        <button key={d} type="button" role="radio" aria-checked={d === range} className={`cg-chip${d === range ? ' is-on' : ''}`} data-live-range={d} onClick={() => setRange(d)}>{t('cogitaViewsRewards.live.days', { count: d })}</button>
       ))}
     </div>
   );
@@ -119,38 +125,38 @@ export function LiveStats({ lib, learner, rules, cards, keys, rename, hidden, sh
   return (
     <div className="cg-live-stats cg-stats" data-live-stats={shape} data-live-today={todayPoints}>
       <div className="cg-live-head">
-        <span className="cg-live-dot">na żywo</span>
+        <span className="cg-live-dot">{t('cogitaViewsRewards.live.live')}</span>
         {shape === 'full' && (show('days') || show('goal')) && chips}
       </div>
       {show('tiles') && (
         <div key={pulse} className={pulse > 0 ? 'cg-live-tiles is-fresh' : 'cg-live-tiles'}>
           <Tiles tiles={[
-            { key: 'points', label: 'Punkty dziś', value: `+${NUM.format(todayPoints)}`, sub: `razem ${NUM.format(state.total)}` },
-            { key: 'answers', label: 'Odpowiedzi dziś', value: NUM.format(today.answers), sub: `${today.cards} ${plural(today.cards, 'karta', 'karty', 'kart')}` },
-            { key: 'accuracy', label: 'Trafność dziś', value: accuracy === null ? '—' : percent(accuracy), sub: `${today.correct} dobrze` },
-            { key: 'goal', label: 'Cel dnia', value: `${NUM.format(Math.min(state.goalNow, g.amount))}/${NUM.format(g.amount)}`, sub: GOAL_UNIT_LABEL[g.unit] },
-            { key: 'streak', label: 'Seria', value: `${state.streak} ${plural(state.streak, 'dzień', 'dni', 'dni')}`, sub: state.streakToday ? 'dziś już się liczy' : state.atRisk ? 'ucz się dziś' : `najdłuższa: ${state.best}` }
+            { key: 'points', label: t('cogitaViewsRewards.live.tile.points'), value: `+${F.num(todayPoints)}`, sub: t('cogitaViewsRewards.live.tile.total', { count: F.num(state.total) }) },
+            { key: 'answers', label: t('cogitaViewsRewards.live.tile.answers'), value: F.num(today.answers), sub: t('cogitaViewsRewards.live.tile.cards', { count: today.cards }) },
+            { key: 'accuracy', label: t('cogitaViewsRewards.live.tile.accuracy'), value: accuracy === null ? '—' : percent(accuracy), sub: t('cogitaViewsRewards.live.tile.correct', { count: today.correct }) },
+            { key: 'goal', label: t('cogitaViewsRewards.live.tile.goal'), value: `${F.num(Math.min(state.goalNow, g.amount))}/${F.num(g.amount)}`, sub: GOAL_UNIT_LABEL[g.unit] },
+            { key: 'streak', label: t('cogitaViewsRewards.live.tile.streak'), value: t('cogitaViewsRewards.live.tile.streakDays', { count: state.streak }), sub: state.streakToday ? t('cogitaViewsRewards.live.tile.counts') : state.atRisk ? t('cogitaViewsRewards.live.tile.risk') : t('cogitaViewsRewards.live.tile.best', { count: state.best }) }
           ]} />
         </div>
       )}
       {show('today') && (
-        <Figure id="live-today" title="Punkty dziś" says="odpowiedź po odpowiedzi — rośnie na żywo" table={todayPoints2.length === 0 ? undefined : table(todayPoints2, 'Punkty razem')}>
-          {todayPoints2.length === 0 ? <p className="cg-muted">Dziś jeszcze bez punktów — pierwsza odpowiedź narysuje linię.</p>
-            : <Line points={todayPoints2} name="Punkty dziś, odpowiedź po odpowiedzi" max={todayPoints2[todayPoints2.length - 1]!.value} pulse={pulse} />}
+        <Figure id="live-today" title={t('cogitaViewsRewards.live.fig.today')} says={t('cogitaViewsRewards.live.fig.todaySays')} table={todayPoints2.length === 0 ? undefined : table(todayPoints2, t('cogitaViewsRewards.live.fig.totalPoints'))}>
+          {todayPoints2.length === 0 ? <p className="cg-muted">{t('cogitaViewsRewards.live.fig.noPoints')}</p>
+            : <Line points={todayPoints2} name={t('cogitaViewsRewards.live.fig.todayName')} max={todayPoints2[todayPoints2.length - 1]!.value} pulse={pulse} />}
         </Figure>
       )}
       {show('days') && shape === 'full' && (
-        <Figure id="live-days" title="Punkty dzień po dniu" says={`ostatnie ${range} dni`} table={table(dayPoints, 'Punkty')}>
-          <Columns points={dayPoints} name="Punkty dzień po dniu" emphasize={dayPoints.length - 1} pulse={pulse} />
+        <Figure id="live-days" title={t('cogitaViewsRewards.live.fig.days')} says={t('cogitaViewsRewards.live.fig.lastDays', { count: range })} table={table(dayPoints, t('cogitaViewsRewards.live.fig.points'))}>
+          <Columns points={dayPoints} name={t('cogitaViewsRewards.live.fig.days')} emphasize={dayPoints.length - 1} pulse={pulse} />
         </Figure>
       )}
       {show('goal') && shape === 'full' && (
-        <Figure id="live-goal" title={`Cel dnia: ${g.amount} ${GOAL_UNIT_LABEL[g.unit]}`} says="linia przerywana — cel" table={table(goalPoints, GOAL_UNIT_LABEL[g.unit])}>
-          <Columns points={goalPoints} name={`Cel dnia dzień po dniu (${GOAL_UNIT_LABEL[g.unit]})`} emphasize={goalPoints.length - 1} rule={{ value: g.amount, label: 'cel' }} pulse={pulse} />
+        <Figure id="live-goal" title={t('cogitaViewsRewards.live.fig.goal', { amount: g.amount, unit: GOAL_UNIT_LABEL[g.unit] })} says={t('cogitaViewsRewards.live.fig.goalSays')} table={table(goalPoints, GOAL_UNIT_LABEL[g.unit])}>
+          <Columns points={goalPoints} name={t('cogitaViewsRewards.live.fig.goalName', { unit: GOAL_UNIT_LABEL[g.unit] })} emphasize={goalPoints.length - 1} rule={{ value: g.amount, label: t('cogitaViewsRewards.live.fig.goalRule') }} pulse={pulse} />
         </Figure>
       )}
       {show('knowledge') && shape === 'full' && (
-        cards === null || byCard === null ? <Loading lines={2} label="Liczenie kart…" /> : <KnowledgeStats lib={lib} cards={cards} answers={byCard} spacing={learner === null ? undefined : spacingFor(lib, learner)} />
+        cards === null || byCard === null ? <Loading lines={2} label={t('cogitaViewsRewards.live.countingCards')} /> : <KnowledgeStats lib={lib} cards={cards} answers={byCard} spacing={learner === null ? undefined : spacingFor(lib, learner)} />
       )}
     </div>
   );

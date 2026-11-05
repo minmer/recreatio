@@ -12,6 +12,7 @@
 
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
 
+import { useT } from '../core/i18n';
 import type { EditorProps } from '../pages/part';
 
 export interface LabPreset {
@@ -44,7 +45,7 @@ function readScenarios(raw: string | undefined): Scenario[] {
       if (x === null || typeof x !== 'object') return [];
       const o = x as Record<string, unknown>;
       if (o.scene === null || typeof o.scene !== 'object') return [];
-      const text = Array.isArray(o.text) ? o.text.filter((t): t is string => typeof t === 'string') : typeof o.text === 'string' ? o.text.split('\n') : [];
+      const text = Array.isArray(o.text) ? o.text.filter((x): x is string => typeof x === 'string') : typeof o.text === 'string' ? o.text.split('\n') : [];
       return [{ title: typeof o.title === 'string' ? o.title : '', text, scene: o.scene }];
     });
   } catch { return []; }
@@ -66,6 +67,7 @@ export function LabEditor({ raw, onSet, busy, presets, sandbox, prompt, Preview,
   /** Eine Liste weiterer Szenariusze anbieten (Laboratorium 2D). */
   scenarios?: boolean;
 }) {
+  const t = useT();
   const [title, setTitle] = useState(raw.title ?? '');
   const [text, setText] = useState(raw.text ?? '');
   const [mode, setMode] = useState<'sandbox' | 'experiment'>(raw.mode === 'sandbox' ? 'sandbox' : 'experiment');
@@ -83,11 +85,11 @@ export function LabEditor({ raw, onSet, busy, presets, sandbox, prompt, Preview,
   const draft = useMemo(() => {
     try {
       const value = JSON.parse(scene) as unknown;
-      return typeof value === 'object' && value !== null && !Array.isArray(value) ? { value } : { error: 'Scena to jeden obiekt { … }.' };
+      return typeof value === 'object' && value !== null && !Array.isArray(value) ? { value } : { error: t('lab.editor.sceneOneObject') };
     } catch (e) {
-      return { error: `To nie jest poprawny JSON: ${e instanceof Error ? e.message : ''}` };
+      return { error: t('lab.editor.notJson', { error: e instanceof Error ? e.message : '' }) };
     }
-  }, [scene]);
+  }, [scene, t]);
 
   const apply = () => {
     if (!('value' in draft)) { setSaid(draft.error ?? null); return; }
@@ -95,7 +97,7 @@ export function LabEditor({ raw, onSet, busy, presets, sandbox, prompt, Preview,
       title: title.trim(), text, mode, scene: JSON.stringify(draft.value), ...extra,
       ...(scenarios === true ? { scenarios: picked.length > 0 ? JSON.stringify(picked) : '' } : {})
     });
-    setSaid('Przyjęto.');
+    setSaid(t('lab.editor.accepted'));
   };
 
   const move = (k: number, by: number): void => {
@@ -108,14 +110,14 @@ export function LabEditor({ raw, onSet, busy, presets, sandbox, prompt, Preview,
   return (
     <div className="an-edit">
       <label className="se-inline">
-        <span>Tytuł</span>
+        <span>{t('lab.editor.title')}</span>
         <input value={title} disabled={busy} maxLength={120} onChange={(e) => setTitle(e.target.value)} />
       </label>
       <label className="se-inline">
-        <span>Rodzaj</span>
+        <span>{t('lab.editor.kind')}</span>
         <select value={mode} disabled={busy} onChange={(e) => setMode(e.target.value === 'sandbox' ? 'sandbox' : 'experiment')}>
-          <option value="experiment">Doświadczenie (scena jak w JSON)</option>
-          <option value="sandbox">Piaskownica (wszystko wolno, gotowe doświadczenia do wczytania)</option>
+          <option value="experiment">{t('lab.editor.kindExperiment')}</option>
+          <option value="sandbox">{t('lab.editor.kindSandbox')}</option>
         </select>
       </label>
       {(choices ?? []).map((c) => (
@@ -127,11 +129,11 @@ export function LabEditor({ raw, onSet, busy, presets, sandbox, prompt, Preview,
         </label>
       ))}
       <label className="se-stack">
-        <span>Tekst dla uczniów (każdy akapit w nowym wierszu)</span>
+        <span>{t('lab.editor.studentText')}</span>
         <textarea rows={3} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
       </label>
       <div className="wk-actions">
-        <select aria-label="Wstaw doświadczenie" value="" disabled={busy}
+        <select aria-label={t('lab.editor.insertLabel')} value="" disabled={busy}
           onChange={(e) => {
             const p = list.find((x) => x.key === e.target.value);
             if (p === undefined) return;
@@ -139,51 +141,51 @@ export function LabEditor({ raw, onSet, busy, presets, sandbox, prompt, Preview,
             setTitle(p.title);
             setText(p.text.join('\n'));
             setMode('experiment');
-            setSaid(`Wstawiono „${p.title}” — sprawdź podgląd i przyjmij.`);
+            setSaid(t('lab.editor.inserted', { title: p.title }));
           }}>
-          <option value="">Wstaw doświadczenie…</option>
-          {list.map((p) => <option key={p.key} value={p.key}>{p.title} — {p.summary}</option>)}
+          <option value="">{t('lab.editor.insertPlaceholder')}</option>
+          {list.map((p) => <option key={p.key} value={p.key}>{t('lab.editor.presetOption', { title: p.title, summary: p.summary })}</option>)}
         </select>
         <button type="button" className="wk-link-btn" disabled={busy} onClick={() => {
-          void prompt().then((t) => navigator.clipboard.writeText(t)).then(() => setSaid('Polecenie dla AI skopiowane — wklej je w swoim czacie, a gotową scenę tutaj.')).catch(() => setSaid('Nie udało się skopiować polecenia.'));
-        }}>Kopiuj polecenie dla AI</button>
+          void prompt().then((text) => navigator.clipboard.writeText(text)).then(() => setSaid(t('lab.editor.copied'))).catch(() => setSaid(t('lab.editor.copyFailed')));
+        }}>{t('lab.editor.copyPrompt')}</button>
       </div>
-      <textarea className="an-edit-json" rows={14} value={scene} spellCheck={false} disabled={busy} aria-label={`Scena (${what}) JSON`} onChange={(e) => setScene(e.target.value)} />
+      <textarea className="an-edit-json" rows={14} value={scene} spellCheck={false} disabled={busy} aria-label={t('lab.editor.sceneJson', { what })} onChange={(e) => setScene(e.target.value)} />
       {'error' in draft && <p className="wk-error">{draft.error}</p>}
       {scenarios === true && (
         <div className="se-stack">
-          <span>Scenariusze do wyboru w laboratorium (pierwszy to scena powyżej)</span>
-          {picked.length === 0 && <p className="wk-card-muted">Brak — laboratorium pokazuje tylko scenę powyżej.</p>}
+          <span>{t('lab.editor.scenarios')}</span>
+          {picked.length === 0 && <p className="wk-card-muted">{t('lab.editor.noScenarios')}</p>}
           {picked.map((p, k) => (
             <div key={k} className="wk-actions">
-              <span>{k + 2}. {p.title || 'bez tytułu'}</span>
-              <button type="button" className="wk-link-btn" disabled={busy || k === 0} onClick={() => move(k, -1)} aria-label={`W górę: ${p.title}`}>↑</button>
-              <button type="button" className="wk-link-btn" disabled={busy || k === picked.length - 1} onClick={() => move(k, 1)} aria-label={`W dół: ${p.title}`}>↓</button>
-              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setPicked(picked.filter((_x, j) => j !== k))}>Usuń</button>
+              <span>{t('lab.editor.scenarioRow', { n: k + 2, title: p.title || t('lab.editor.untitled') })}</span>
+              <button type="button" className="wk-link-btn" disabled={busy || k === 0} onClick={() => move(k, -1)} aria-label={t('lab.editor.moveUp', { title: p.title })}>↑</button>
+              <button type="button" className="wk-link-btn" disabled={busy || k === picked.length - 1} onClick={() => move(k, 1)} aria-label={t('lab.editor.moveDown', { title: p.title })}>↓</button>
+              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setPicked(picked.filter((_x, j) => j !== k))}>{t('lab.editor.remove')}</button>
             </div>
           ))}
           <div className="wk-actions">
-            <select aria-label="Dodaj gotowe doświadczenie jako scenariusz" value="" disabled={busy}
+            <select aria-label={t('lab.editor.addPresetLabel')} value="" disabled={busy}
               onChange={(e) => {
                 const p = list.find((x) => x.key === e.target.value);
                 if (p !== undefined) setPicked([...picked, { title: p.title, text: p.text, scene: p.scene }]);
               }}>
-              <option value="">Dodaj gotowe doświadczenie…</option>
+              <option value="">{t('lab.editor.addPresetPlaceholder')}</option>
               {list.map((p) => <option key={p.key} value={p.key}>{p.title}</option>)}
             </select>
             <button type="button" className="wk-link-btn" disabled={busy || !('value' in draft)} onClick={() => {
               if ('value' in draft) setPicked([...picked, { title: title.trim(), text: text.split('\n').map((x) => x.trim()).filter((x) => x !== ''), scene: draft.value }]);
-            }}>Dodaj obecną scenę</button>
+            }}>{t('lab.editor.addCurrent')}</button>
           </div>
         </div>
       )}
       {'value' in draft && (
-        <div className="an-preview" aria-label="Podgląd">
-          <Preview title={title} text={text.split('\n').map((t) => t.trim()).filter((t) => t !== '')} mode={mode} scene={draft.value} />
+        <div className="an-preview" aria-label={t('lab.editor.preview')}>
+          <Preview title={title} text={text.split('\n').map((x) => x.trim()).filter((x) => x !== '')} mode={mode} scene={draft.value} />
         </div>
       )}
       <div className="wk-actions">
-        <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || !('value' in draft)} onClick={apply}>Przyjmij</button>
+        <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || !('value' in draft)} onClick={apply}>{t('lab.editor.accept')}</button>
         {said !== null && <span className="wk-card-muted" role="status">{said}</span>}
       </div>
     </div>

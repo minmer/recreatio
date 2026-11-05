@@ -1,0 +1,156 @@
+{
+  "matrix": {
+    "title": {
+      "one": "M{n} · {label} — {breakpoint} ({count} kolumna)",
+      "few": "M{n} · {label} — {breakpoint} ({count} kolumny)",
+      "many": "M{n} · {label} — {breakpoint} ({count} kolumn)",
+      "other": "M{n} · {label} — {breakpoint} ({count} kolumny)"
+    },
+    "folded": "zwinięty",
+    "unknown": "Moduł „{kind}\" nie jest znany tej wersji strony."
+  },
+  "app": {
+    "error": "błąd",
+    "baseFailed": "Strony „{path}” nie da się pobrać ({why}) — tylko strony publiczne, i tylko z danymi na żywo.",
+    "baseLocked": "Strona „{path}” jest zaszyfrowana — podgląd jej nie otworzy.",
+    "noModule": "Nie ma takiego modułu: {which} — podaj M1…M{count}, \"modules[i]\", id albo rodzaj.",
+    "viewLabel": "V1 widok",
+    "pasteTitle": "Podgląd strony z JSON",
+    "pasteLede": "Wklej dokument strony (<code>recreatio/page</code>, moduł albo stary dokument wydarzenia) — zobaczysz stronę tak, jak będzie wyglądała po imporcie. Nic nie jest zapisywane.",
+    "doc": "Dokument JSON",
+    "live": "Dane na żywo (kalendarze, msze — tylko odczyt)",
+    "show": "Pokaż stronę",
+    "bar": "Podgląd · nic nie jest zapisane",
+    "change": "Zmień JSON",
+    "gone": "Tego podglądu już nie ma (serwer podglądu został zamknięty).",
+    "gonePaste": "Tego podglądu już nie ma (serwer podglądu został zamknięty) — wklej JSON."
+  },
+  "doc": {
+    "none": "Brak dokumentu JSON.",
+    "invalid": "Nieprawidłowy JSON: {why}",
+    "unreadable": "nie da się odczytać",
+    "noTitle": "Strona nie ma tytułu — import nie zapisze tytułu ani tekstu strony (\"title\" jest potrzebny, żeby zapisać \"lead\").",
+    "images": "Pliki z \"images\" ({count}): w podglądzie stoją pliki podane przez asystenta albo zastępcze obrazy z opisem — prawdziwe dołączy osoba importująca.",
+    "appointments": "Terminy z \"appointments\" ({count}) powstaną dopiero przy imporcie, w kalendarzu wybranym przez osobę importującą — moduły, które na nie wskazują (\"@klucz\"), pokażą je dopiero po imporcie.",
+    "form": "{form}: pytania z dokumentu ({count}) powstaną przy imporcie — podgląd rysuje je z dokumentu (układ i logika działają; bez klauzuli administratora danych, która przyjdzie z obszaru odpowiedzi; wysyłanie wyłączone).",
+    "formWord": "Formularz",
+    "formAt": "Formularz (modules[{at}])",
+    "menu": "Menu jak na stronie „{page}” — podgląd bierze je z tej strony, jeśli jest publiczna."
+  },
+  "fetch": {
+    "noWrite": "Podgląd niczego nie zapisuje.",
+    "noSession": "Nikt nie jest zalogowany (podgląd).",
+    "offline": "Podgląd bez danych na żywo."
+  },
+  "files": {
+    "image": "ZDJĘCIE",
+    "video": "FILM",
+    "sound": "DŹWIĘK",
+    "file": "PLIK"
+  },
+  "form": {
+    "note": "Podgląd: ten formularz powstanie przy imporcie. Nad pytaniami stanie klauzula administratora danych obszaru, do którego trafią odpowiedzi; wysyłanie jest tu wyłączone.",
+    "missing": "Brakuje: {list}"
+  },
+  "knowledge": {
+    "noView": "Nie ma widoku „{view}” — widoki tej bazy: {list}.",
+    "none": "żadnych",
+    "unknownAsked": "Ta wersja aplikacji nie zna jeszcze gestalt „{mode}” — pokazana jest zapisana.",
+    "allEntries": "Wszystkie wpisy",
+    "noSavedView": "Baza nie ma zapisanego widoku — pokazane są wszystkie wpisy.",
+    "unknownSaved": "Widok ma gestalt „{mode}”, której ta wersja aplikacji jeszcze nie zna — pokazany jest jako tabela.",
+    "question": "Pytanie",
+    "clicked": "Kliknięty wpis: {label}",
+    "view": "Widok „{name}”",
+    "cards": "karty: {list}",
+    "mood": {
+      "known": "znane",
+      "due": "do powtórki",
+      "forgotten": "zapomniane",
+      "wrong": "ostatnio źle",
+      "new": "nowe"
+    }
+  },
+  "lint": {
+    "droppedKey": "pominięty przy imporcie (nieznany, nieprawidłowy albo równy domyślnemu): {value}",
+    "readsAs": "import czyta {input} jako {output}",
+    "dropped": "pominięte przy imporcie: {value}",
+    "listShort": "z {count} wpisów import bierze {kept} — pozostałe są nieprawidłowe albo nieznane",
+    "unknownPartKey": "nieznany klucz modułu „{label}” ({kind}) — nic go nie czyta",
+    "unknownScreen": "nieznany rozmiar ekranu — dozwolone: {list}",
+    "unknownFrameKey": "nieznany klucz — miejsce to \"position\" { row, col } i \"size\" { colSpan, rowSpan }",
+    "noSize": "bez liczb \"size.colSpan\" i \"size.rowSpan\" — import pomija to miejsce (moduł stanie w pierwszym wolnym)",
+    "colSpanScreen": "{from} → {to} (szerokości 2, 3, 4, 6; na tym ekranie najwyżej {max})",
+    "rowSpanWords": "{from} → {to} (wysokości 1 pasek, 3 blok, 5 wysoki)",
+    "colMoved": {
+      "one": "{from} → {to} (moduł nie mieści się w {count} kolumnach)",
+      "few": "{from} → {to} (moduł nie mieści się w {count} kolumnach)",
+      "many": "{from} → {to} (moduł nie mieści się w {count} kolumnach)",
+      "other": "{from} → {to} (moduł nie mieści się w {count} kolumnach)"
+    },
+    "unknownAllowed": "nieznany klucz — dozwolone: {list}",
+    "notColour": "{value} to nie kolor #rrggbb — import weźmie kolor domyślny",
+    "notNightColour": "{value} to nie kolor #rrggbb — bez nocnych kolorów (muszą być wszystkie cztery)",
+    "unknownMenuKey": "nieznany klucz pozycji menu — dozwolone: {list}",
+    "menuNoLabel": "pozycja bez \"label\" — import ją pomija",
+    "menuNoImage": "to nie obraz (page-image:<id>, https://… albo /plik.svg) — zostaje sama nazwa",
+    "menuDepth": "menu ma najwyżej 5 poziomów — głębsze pozycje są pomijane",
+    "unknownPageKey": "nieznany klucz strony — dozwolone: {list}",
+    "unknownEntryKey": "nieznany klucz modułu — dozwolone: {list}",
+    "configNotObject": "\"config\" to nie obiekt — moduł zostaje pusty",
+    "owned": "„{key}” prowadzi sam moduł — import go nie ustawia",
+    "ownedNeeds": "„{key}” prowadzi sam moduł — import go nie ustawia (wymagania formularza: \"needs\" obok \"questions\")",
+    "colSpan": "{from} → {to} (szerokości 2, 3, 4, 6)",
+    "rowSpan": "{from} → {to} (wysokości 1, 3, 5)"
+  },
+  "probe": {
+    "requests": {
+      "one": "{count} zapytanie do usługi",
+      "few": "{count} zapytania do usługi",
+      "many": "{count} zapytań do usługi",
+      "other": "{count} zapytania do usługi"
+    },
+    "fresh": "świeża odpowiedź",
+    "modules": {
+      "one": "{count} moduł jeszcze się wczytuje",
+      "few": "{count} moduły jeszcze się wczytują",
+      "many": "{count} modułów jeszcze się wczytuje",
+      "other": "{count} moduły jeszcze się wczytują"
+    },
+    "images": {
+      "one": "{count} obraz w drodze",
+      "few": "{count} obrazy w drodze",
+      "many": "{count} obrazów w drodze",
+      "other": "{count} obrazy w drodze"
+    },
+    "fonts": "czcionki",
+    "sheets": {
+      "one": "{count} arkusz stylów",
+      "few": "{count} arkusze stylów",
+      "many": "{count} arkuszy stylów",
+      "other": "{count} arkusze stylów"
+    },
+    "broken": {
+      "one": "{count} z {total} obrazów nie wczytuje się",
+      "few": "{count} z {total} obrazów nie wczytuje się",
+      "many": "{count} z {total} obrazów nie wczytuje się",
+      "other": "{count} z {total} obrazów nie wczytuje się"
+    },
+    "cutRight": "„{text}” ucięty z prawej o {px} px",
+    "cutBottom": "„{text}” ucięty u dołu o {px} px",
+    "cutBottomClamp": "„{text}” ucięty u dołu o {px} px (skrót do linii)",
+    "scrolls": "„{text}” przewija się wewnątrz ({px} px ukryte)",
+    "spills": "treść wystaje poza kartę: {list}",
+    "tiny": {
+      "one": "{count} tekstów mniejszych niż 12 px (najmniejszy {min} px)",
+      "few": "{count} tekstów mniejszych niż 12 px (najmniejszy {min} px)",
+      "many": "{count} tekstów mniejszych niż 12 px (najmniejszy {min} px)",
+      "other": "{count} tekstów mniejszych niż 12 px (najmniejszy {min} px)"
+    },
+    "sparse": "treść zajmuje {share}% wysokości karty ({px} px pustego miejsca) — mniejsza wysokość (rowSpan) albo więcej treści",
+    "stillLoading": "w chwili zdjęcia nadal się wczytywał",
+    "empty": "karta nic nie pokazuje",
+    "offScreen": "poza ekranem",
+    "edgeCut": "ucięty przez brzeg ekranu — widać {share}%"
+  }
+}

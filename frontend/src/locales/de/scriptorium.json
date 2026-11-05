@@ -1,0 +1,494 @@
+{
+  "boxes": {
+    "latexProject": "Das ganze Projekt als Buch: Teile, Kapitel, Fußnoten, Quellen am Ende.",
+    "latexText": "Text zum Drucken: Fußnoten mit Quellen, Zitate, Quellen am Ende.",
+    "author": "Autor (auf der Titelseite)",
+    "authorPlaceholder": "z. B. Pfr. Johannes Müller",
+    "missing": "Fehlt in der Bibliothek: {keys} — in der Fußnote steht „[Quelle fehlt]“.",
+    "download": ".tex herunterladen",
+    "hidePreview": "Vorschau ausblenden",
+    "pulpit": "Plan für die Kanzel (.tex)",
+    "learnFailed": "Die Wiederholung konnte nicht angelegt werden.",
+    "learn": "Lernen",
+    "learnLead": "Eine Wiederholung dessen, worauf der Text zeigt: Zitate, Kommentare, Wörter aus dem Wörterbuch, Stellen des Plans — in einer Wissensbasis, die dieses Scriptorium nutzt.",
+    "creating": "Wird angelegt…",
+    "learnButton": "Wiederholung aus diesem Text"
+  },
+  "editor": {
+    "elsewhere": "Dieser Eintrag liegt woanders.",
+    "openThere": "Dort öffnen",
+    "missing": "Diesen Eintrag gibt es nicht (oder er wurde gelöscht).",
+    "back": "Zurück zum Scriptorium",
+    "foreignKind": "Dieser Eintrag ist von einer Art, die das Scriptorium nicht führt. Du kannst ihn im Reiter „Alte Einträge“ ansehen und löschen.",
+    "loadTheirs": "Neuere Version laden",
+    "keepMine": "Meine behalten (überschreiben)"
+  },
+  "noDate": "ohne Datum",
+  "delivery": {
+    "coverage": {
+      "label": "Was vom Plan",
+      "title": "Was vom Plan gesagt wurde",
+      "pickFirst": "Wähle zuerst oben die Predigt (den Text) — ihr Plan erscheint hier, Punkt für Punkt.",
+      "noPlan": "Dieser Text hat noch keinen Plan — <a>ergänze ihn im Text</a> (Reiter „Plan“), und hier markierst du, was davon gesagt wurde.",
+      "emptyPoint": "(leerer Punkt)",
+      "how": "Wie",
+      "notePlaceholder": "Notiz: was anders war",
+      "note": "Notiz",
+      "restSaid": "Rest markieren: gesagt",
+      "restSkipped": "Rest markieren: ausgelassen",
+      "clear": "Markierungen löschen",
+      "orphans": {
+        "one": "{count} Markierung betrifft einen Punkt, der nicht mehr im Plan steht.",
+        "other": "{count} Markierungen betreffen Punkte, die nicht mehr im Plan stehen."
+      },
+      "removeThem": "Entfernen"
+    },
+    "timePlaceholder": "m:ss",
+    "timeInRecording": "Zeit in der Aufnahme",
+    "timeFromPlayerTitle": "Zeit aus dem Player eintragen",
+    "timeFromPlayer": "Zeit aus dem Player",
+    "added": {
+      "title": "Was dazukam",
+      "lead": "Was gesagt wurde, aber nicht im Plan stand — ein Beispiel, eine Ankündigung, ein neuer Gedanke.",
+      "placeholder": "Was gesagt wurde (ein, zwei Sätze)",
+      "after": "Nach welchem Punkt",
+      "atEnd": "— am Ende —",
+      "afterPoint": "nach {no} {text}",
+      "add": "+ Was dazukam"
+    },
+    "lesson": {
+      "classFallback": "Klasse",
+      "signIn": "Melde dich an, um der Klasse zu schreiben.",
+      "passwordFirst": "Gib zuerst dein Passwort ein — die Schlüssel sind in diesem Tab nicht offen.",
+      "sent": "An die Klasse gesendet.",
+      "sendFailed": "Senden an die Klasse fehlgeschlagen.",
+      "title": "Unterricht in einer Klasse",
+      "lead": "Das Thema der Stunde ist ein Text aus dem Lehrplan — du wählst ihn unten (Feld „Predigt (Text)“). Darunter markierst du Punkt für Punkt, was von seinem Plan in dieser Klasse dran war.",
+      "class": "Klasse",
+      "noClass": "— ohne Klasse (gewöhnlicher Vortrag) —",
+      "otherClass": "andere Klasse",
+      "state": "Stand der Stunde",
+      "homework": "Aufgabe für die Klasse",
+      "homeworkPlaceholder": "z. B. Gen 1,1-31 lesen",
+      "sending": "Wird gesendet…",
+      "send": "An die Klasse senden",
+      "sendLead": "Das Thema, „Kurz zu diesem Vortrag“ und die Aufgabe — in den Kanal der Klasse (oder ihren Chat)."
+    },
+    "recording": "Aufnahme",
+    "listenHint": "Drücke beim Zuhören ⏱ an einem Punkt — die Zeit aus dem Player wird eingetragen.",
+    "transcript": "Mitschrift des Vortrags (Transkript)",
+    "transcriptPlaceholder": "Was gesagt wurde, Wort für Wort — Absätze durch eine Leerzeile getrennt.",
+    "ai": {
+      "summary": "Aus Aufnahme oder Mitschrift — per KI in deinem eigenen Chat",
+      "lead": "Kopiere die Anweisung — sie enthält den Plan mit den Kennungen der Punkte. Füge sie in deinem Chat zusammen mit der Aufnahme oder Mitschrift ein und die Antwort (JSON) hier: Sie kommt in dieses Formular.",
+      "unknownPoints": {
+        "one": "{count} Markierung zeigt auf einen Punkt, der nicht im Plan steht.",
+        "other": "{count} Markierungen zeigen auf Punkte, die nicht im Plan stehen."
+      },
+      "import": "Ins Formular eintragen",
+      "imported": "Ins Formular eingetragen — es speichert sich selbst."
+    },
+    "exportName": "Vortrag",
+    "box": {
+      "title": "Vorträge",
+      "none": "Noch nicht gehalten. Trage nach der Predigt ein, wann und wo — und was vom Plan gesagt wurde.",
+      "add": "+ Vortrag"
+    }
+  },
+  "heldTimes": {
+    "one": "{count}× gehalten",
+    "other": "{count}× gehalten"
+  },
+  "article": {
+    "readings": "Lesungen:",
+    "text": "Text",
+    "further": "Weitere Informationen",
+    "sources": "Quellen"
+  },
+  "opened": {
+    "statement": "Aussage",
+    "text": "Text",
+    "quote": "Zitat",
+    "entry": "Eintrag",
+    "openInKnowledge": "In Wissen öffnen"
+  },
+  "archive": {
+    "layout": {
+      "list": "Liste",
+      "table": "Tabelle",
+      "tree": "Baum"
+    },
+    "order": {
+      "label": "Reihenfolge",
+      "newest": "neueste",
+      "oldest": "älteste",
+      "titleAz": "Titel A–Z",
+      "titleZa": "Titel Z–A"
+    },
+    "allTexts": "← Alle Texte",
+    "notPublic": "Dieses Scriptorium siehst du nicht — sein Bereich ist nicht öffentlich.",
+    "project": "Projekt",
+    "recorded": "mit Aufnahme",
+    "noTexts": "Noch keine Texte.",
+    "more": {
+      "one": "Mehr ({count})",
+      "other": "Mehr ({count})"
+    },
+    "count": {
+      "one": "{count} Text",
+      "other": "{count} Texte"
+    },
+    "countFor": {
+      "one": "{count} Text — „{query}“",
+      "other": "{count} Texte — „{query}“"
+    },
+    "noMatch": "Nichts passt — ändere die Filter oder die Suche.",
+    "searchPlaceholder": "In den Texten suchen…",
+    "search": "In den Texten suchen",
+    "allValues": "alle",
+    "removeFilter": "Ohne Filter: {name}",
+    "clearFilters": "Filter löschen",
+    "col": {
+      "title": "Titel",
+      "when": "Wann"
+    },
+    "byWhat": "Wonach",
+    "noFacets": "Die Texte haben noch keine Felder, nach denen man sie durchsehen kann (eine Textart mit einem Verweisfeld).",
+    "cycle": "Reihe"
+  },
+  "json": {
+    "sources": {
+      "work": "Quellen",
+      "quote": "Zitate",
+      "person": "Personen"
+    },
+    "elsewhere": {
+      "sources": "{what} sind in der Bibliothek — sie werden dort importiert (Format \"{format}\")",
+      "comment": "Kommentare sind eine eigene Art in Wissen — fertiges Schema: Datei templates/cogita/komentarz.json",
+      "topic": "Themen gibt es nicht mehr — Ordnung geben eigene Arten in Wissen, verbunden durch Verweisfelder (z. B. Felder einer Textart)"
+    },
+    "warn": {
+      "notObject": "{where}: Feld {n} ist kein Objekt — übersprungen.",
+      "badKey": "{where}: Schlüssel „{key}“ — Buchstaben, Ziffern und _, beginnt mit einem Buchstaben; Feld übersprungen.",
+      "coreKey": "{where}: Schlüssel „{key}“ gehört zu den festen Feldern des Textes — Feld übersprungen.",
+      "duplicate": "{where}: zweites Feld „{key}“ — übersprungen.",
+      "badType": "{where}: Feld „{key}“ — Typ „{type}“ gibt es in einer Textart nicht ({types}); Feld übersprungen.",
+      "noKind": "{where}: Feld „{key}“ — in Wissen gibt es keine Art „{token}“; diese Einschränkung entfällt (das Feld zeigt auf jeden Eintrag).",
+      "notNumber": "{where}: „{value}“ ist keine Zahl — übersprungen.",
+      "notBool": "{where}: „{value}“ — ja oder nein; übersprungen.",
+      "notDate": "{where}: „{value}“ ist kein Datum (JJJJ, JJJJ-MM oder JJJJ-MM-TT) — übersprungen.",
+      "unknownValue": "{where}: unbekannter Wert „{value}“."
+    },
+    "example": {
+      "name": "Marienpredigten",
+      "typeName": "Marienpredigt",
+      "mystery": "Geheimnis",
+      "area": "Bereich",
+      "fragment": "Schriftstelle",
+      "title": "Mir geschehe",
+      "occasion": "Hochfest der Verkündigung des Herrn",
+      "annunciation": "Verkündigung",
+      "prayer": "Gebet",
+      "locator": "Łk 1,26-38",
+      "p1": "Maria hört zu, bevor sie antwortet [@bt, Łk 1,29]",
+      "p2": "Wo höre ich heute zu?",
+      "body": "Maria „erschrak über diese Anrede und überlegte“ [@bt, Łk 1,29]."
+    },
+    "description": "# Das Scriptorium als JSON (\"{format}\", Version {version})\n\nWas der Import tut:\nDas Scriptorium ist der Ort zum Schreiben: eigene Texte (\"text\" — Predigten, Vorträge, Betrachtungen, Kapitel), ihre Vorträge (\"delivery\"), Projekte (\"project\" — ein Buch, eine Reihe) und eigene Textarten (\"texttype\"). Ein Text zitiert Quellen aus der Bibliothek (Werke, Zitate, Personen — Format \"{library}\") und zeigt auf Einträge in Lernen (z. B. ein Geheimnis, ein Wort aus dem Wörterbuch, eine Ansicht); in die andere Richtung zeigt nichts auf das Scriptorium.\n- Jeder Eintrag ist { \"id\", \"kind\", \"key\", \"data\" }. Ein Eintrag mit einer Kennung aus einem Export (oder mit dem Schlüssel eines bestehenden Eintrags derselben Art) wird GEÄNDERT — nur die in \"data\" genannten Felder; Felder, die fehlen, bleiben. Um ein Feld zu leeren, gib null an.\n- Ein Eintrag ohne Kennung (oder mit einer unbekannten) wird neu angelegt. Der Import löscht nichts.\n- Verweise können Kennungen oder Schlüssel sein: \"@kazanie-chleb\", \"@ratzinger2007\". Schlüssel aus demselben Dokument gehen auch.\n- Eine Datei mit Werken, Zitaten, Personen, Kommentaren oder Themen wird abgewiesen — mit dem Hinweis, wo sie zu importieren ist.\n- Wer einen Eintrag sieht, entscheidet allein der Bereich des Scriptoriums: die Mitglieder des Bereichs, und ist der Bereich öffentlich — alle. Ein Text wird öffentlich, wenn man ihn in das Scriptorium eines öffentlichen Bereichs verschiebt (er behält seine Kennung).\nGib EIN JSON-Objekt zurück, ohne Kommentare.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"name\": \"Mein Scriptorium\",\n  \"entries\": [ { \"kind\": \"texttype\", \"key\": \"kazanie-maryjne\", \"data\": { … } }, { \"kind\": \"text\", \"data\": { … } }, … ]\n}\n\n## Arten von Einträgen\n{kinds}\n\n## Eine Textart und ihre Felder\nEine Textart (\"texttype\") ist ein Name und die zusätzlichen Felder, die jeder Text dieser Art hat — neben den festen Feldern des Textes (Titel, Datum, Plan, Inhalt …). Felder beschreibt man wie die Felder einer Art in Lernen: {\"key\", \"label\", \"type\", \"multi\", \"options\", \"to\", \"locator\", \"says\"}; \"type\": {types}.\n- \"ref\" — ein Verweis: \"to\" sind Namen von Arten in Lernen (z. B. [\"Geheimnis\"]) oder \"work\", \"quote\", \"person\" (Bibliothek) und \"text\" (ein anderer Text); \"locator\": true — mit Stelle.\n- Ein Text dieser Art: \"textType\": \"@schluessel-der-art\", und die Werte der Felder als gewöhnliche Felder in \"data\" — unter dem Schlüssel des Feldes. Einen Verweis auf einen Eintrag in Lernen kann man mit seiner Kennung oder seinem NAMEN angeben (\"Verkündigung\"); ein Verweis mit Stelle: {\"value\": \"@bt\", \"locator\": \"Łk 1,26-38\"}; mehrere Werte (\"multi\": true) — eine Liste.\n- Die Schlüssel der festen Felder eines Textes sind belegt: {coreKeys}.\n- Ein Text ohne Art ist ein gewöhnlicher Text.\n\nBeispiel — die Art „Marienpredigt“ und eine Predigt dieser Art (mit der Heiligen Schrift \"@bt\" aus der Bibliothek):\n{example}\n\n{markup}\n\n## Stelle in einer Quelle\n{bible}\n\n## Wie die Anwendung diese Daten nutzt\n- Im Scriptorium stehen die Einträge in den Reitern „Texte“, „Vorträge“, „Projekte“ und „Textarten“; ein Text hat einen Editor (Plan · Inhalt · Weitere Informationen) mit Vorschau und daneben seine Vorträge.\n- Ein Text wird gelesen mit Plan, Inhalt, Fußnoten zu den Quellen der Bibliothek und der Liste „Quellen“ am Ende; die Werte der Felder seiner Art stehen im Kopf („Geheimnis: Verkündigung“).\n- Ein Vortrag zeigt über ihre \"id\" auf die Punkte des Plans: beim Text gewählt, zeigt er auf dem Plan, was gesagt, was nur erwähnt, was ausgelassen wurde (mit der Zeit in der Aufnahme) und was dazukam. Vorträge stehen vom neuesten an; im Archiv ist das Datum eines Textes sein letzter Vortrag.\n- Auf Seiten: der Baustein „Text aus dem Scriptorium“ (ein Text — Plan, Vorträge mit Aufnahme, Inhalt, Quellen) und „Textarchiv“ (die Texte des Scriptoriums oder eines Projekts; Suche und Filter nach den Verweisfeldern der Textarten und nach Projekten). Eine Seite zeigt den Eintrag selbst, keine Kopie: eine Korrektur im Scriptorium steht sofort auf jeder Seite.\n- Druck über LaTeX: ein Text als Artikel, ein Projekt als Buch (die Texte in der Reihenfolge von \"outline\"), der Plan allein als „Plan für die Kanzel“.\n- Eine Wissensbasis, die dieses Scriptorium unter ihren Quellen hat, nimmt seine Einträge als Material: eine Textart ist dort eine Art von Eintrag, und Kartenvorlagen und Wiederholungen können auf Texte zugreifen; nichts wird dorthin kopiert. „Wiederholung aus diesem Text“ macht dort eine Wiederholung dessen, worauf der Text zeigt (z. B. Zitate, Kommentare, Wörter aus dem Wörterbuch).\n- In einer Schule ist ein Projekt mit \"projectType\": \"program\" und \"classes\" ein Lehrplan: die Texte seines \"outline\" sind Unterrichtsstunden, und ein Vortrag mit \"classArea\" — eine Stunde in einer Klasse (Klassenbuch, „Umsetzung in den Klassen“).\n- Die Einträge sind im Browser mit dem Schlüssel des Bereichs versiegelt. „Zugang für KI“ (Link des Bereichs, MCP-Server) gibt dem Assistenten, wenn er dieses Scriptorium umfasst, eine Abschrift zum Lesen: Texte, Vorträge, Projekte und Textarten; der Assistent ändert nichts.\n"
+  },
+  "latex": {
+    "missingRef": "Verweis nicht verfügbar"
+  },
+  "plan": {
+    "point": "Punkt des Plans",
+    "mainPlaceholder": "Hauptgedanke…",
+    "subPlaceholder": "Was darunter steht: ein Zitat, ein Beispiel, eine Frage…",
+    "toolbar": "In den Plan einfügen",
+    "source": "Quelle…",
+    "quote": "Zitat aus der Bibliothek…",
+    "fromBase": "Aus einer Wissensbasis…",
+    "upTitle": "Eine Ebene höher (Shift+Tab)",
+    "up": "Ebene höher",
+    "downTitle": "Tiefer (Tab)",
+    "down": "Ebene tiefer",
+    "moveUpTitle": "Nach oben (Alt+↑)",
+    "moveUp": "Nach oben",
+    "moveDownTitle": "Nach unten (Alt+↓)",
+    "moveDown": "Nach unten",
+    "remove": "Punkt entfernen",
+    "emptyLead": "Ein Plan sind die Hauptgedanken der Reihe nach, und unter jedem — Zitate, Beispiele, Fragen, Anwendungen. Aus ihm sprichst du; auf der Seite sieht der Zuhörer den Weg der Predigt, und jeder Vortrag zeigt, was davon gesagt wurde.",
+    "first": "+ Erster Gedanke",
+    "kind": "Art des Punkts",
+    "missingQuote": "In der Bibliothek gibt es kein Zitat „{key}“.",
+    "add": "+ Gedanke",
+    "keys": "Enter — neuer Punkt · Tab / Shift+Tab — tiefer / höher · Alt+↑↓ — verschieben · Esc — Punkt verlassen",
+    "paste": "Fertigen Plan einfügen",
+    "pastePlaceholder": "1. Erster Gedanke\n   a) Beispiel\n   > Zitat\n2. Zweiter Gedanke\n   - Frage?",
+    "addPasted": {
+      "one": "{count} Punkt hinzufügen",
+      "other": "{count} Punkte hinzufügen"
+    },
+    "ai": {
+      "summary": "Plan aus dem Inhalt — per KI in deinem eigenen Chat",
+      "lead": "Kopiere die Anweisung (mit dem Inhalt des Textes), füge sie in deinen Chat ein und die Antwort — JSON — hier. Der Plan kommt in dieses Formular.",
+      "leadReplace": "Kopiere die Anweisung (mit dem Inhalt des Textes), füge sie in deinen Chat ein und die Antwort — JSON — hier. Der Plan kommt in dieses Formular und ersetzt den jetzigen.",
+      "noPlan": "In der Antwort gibt es keinen Plan („plan“).",
+      "found": {
+        "one": "Plan: {count} Punkt, {main} Hauptgedanken.",
+        "other": "Plan: {count} Punkte, {main} Hauptgedanken."
+      },
+      "import": "Plan ins Formular eintragen",
+      "imported": "Der Plan steht im Formular — er speichert sich selbst."
+    }
+  },
+  "prompt": {
+    "titleQuoted": "„{title}“",
+    "titleJoin": " und ",
+    "untitledParen": "(ohne Titel)",
+    "planOne": "Plan:",
+    "planOf": "Plan des Textes „{title}“:",
+    "noPlan": "(dieser Text hat keinen Plan)",
+    "example": {
+      "summary": "Zwei, drei Sätze über diesen Vortrag.",
+      "added": "Was dazukam, in ein, zwei Sätzen.",
+      "transcript": "Die volle Mitschrift — Absätze durch eine Leerzeile getrennt."
+    },
+    "deliveryIntro": "Unten steht der Plan der Predigt {titles}. Dieser Nachricht lege ich eine Aufnahme oder Mitschrift dieses Vortrags bei.",
+    "deliveryIntroWhen": "Unten steht der Plan der Predigt {titles}, gehalten: {when}. Dieser Nachricht lege ich eine Aufnahme oder Mitschrift dieses Vortrags bei.",
+    "deliveryBody": "Vergleiche das Gesagte mit dem Plan:\n- Gib für JEDEN Punkt des Plans \"state\" an: \"said\" — gesagt (ganz oder fast), \"short\" — nur kurz erwähnt, \"skipped\" — ausgelassen.\n- \"at\": wann der Punkt in der Aufnahme beginnt (m:ss oder h:mm:ss) — nur wenn er gesagt wurde und du die Aufnahme hast.\n- \"note\": ein kurzer Satz, in der Sprache der Predigt, was anders war als im Plan (z. B. ein anderes Beispiel, eine andere Reihenfolge) — nur wenn etwas anders war.\n- \"added\": was gesagt wurde, aber nicht im Plan steht — jedes für sich: \"text\" (ein, zwei Sätze), \"at\", \"after\" (die Kennung des Punkts, nach dem es kam).\n- \"summary\": zwei, drei Sätze — was diesmal am wichtigsten war.\n- \"duration\": die Länge der Aufnahme (m:ss).\n- \"transcript\": eine volle Mitschrift Wort für Wort, Absätze durch eine Leerzeile getrennt — nur wenn du sie aus der Aufnahme abschreiben kannst; sonst weglassen.\n- Verwende GENAU die Kennungen der Punkte aus den eckigen Klammern. Ändere den Plan nicht.\n\n{plans}\n\nGib EIN JSON-Objekt zurück, ohne Kommentare, in dieser Form (\"id\" und \"kind\" lass, wie sie sind):\n{example}\n\nFelder:\n{fields}\n",
+    "planExample": {
+      "p1": "Erster Hauptgedanke.",
+      "p2": "Ein Zitat oder Verweis, wie im Text [@klucz, S. 12].",
+      "p3": "Ein Beispiel aus dem Leben.",
+      "p4": "Was folgt daraus für den Zuhörer?"
+    },
+    "plan": "Unten steht der Text der Predigt „{title}“. Mach daraus einen Plan: die Hauptgedanken der Reihe nach, und unter jedem — Zitate, Beispiele, Fragen, Anwendungen.\n\nRegeln:\n- Ein Punkt — ein Gedanke, ein, zwei Sätze, in der Sprache des Textes, in der Reihenfolge des Textes.\n- \"depth\": 0 — Hauptgedanke, 1 — darunter, 2 — noch tiefer.\n- \"kind\": \"thought\" (Gedanke), \"quote\" (Zitat), \"example\" (Beispiel), \"question\" (Frage), \"application\" (Anwendung).\n- Schreibe Verweise auf Quellen genau so ab, wie sie im Text stehen: [@klucz, Stelle] oder ![@klucz-zitat]. Erfinde keine neuen Schlüssel.\n- Füge nichts hinzu, was nicht im Text steht.\n\nWie die Anwendung diese Daten nutzt:\n- Der Plan kommt in das Formular dieses Textes und ersetzt den jetzigen; jeder Punkt bekommt eine feste Kennung.\n- Vorträge markieren Punkte über ihre Kennungen: gesagt, nur erwähnt, ausgelassen — mit der Zeit in der Aufnahme. Markierungen zum vorigen Plan bleiben beim Vortrag, und sein Formular warnt, dass es diese Punkte im Plan nicht mehr gibt (man kann sie entfernen).\n- Der Plan steht vor dem Inhalt des Textes — im Scriptorium, auf Seiten und im Druck (auch allein, als „Plan für die Kanzel“); [@klucz, Stelle] in einem Punkt wird eine Fußnote.\n\nText:\n---\n{body}\n---\n\nGib EIN JSON-Objekt zurück, ohne Kommentare (\"id\" und \"kind\" lass, wie sie sind; der jetzige Plan wird ersetzt):\n{example}\n"
+  },
+  "sermon": {
+    "pointKindDefault": "Gedanke",
+    "unmarked": "Nicht markiert",
+    "seeAlso": " (siehe {list})",
+    "quoteRef": "[Zitat {key}]",
+    "counts": {
+      "said": "gesagt {said} von {points}",
+      "short": "kurz {count}",
+      "skipped": "ausgelassen {count}",
+      "open": "ohne Markierung {count}",
+      "added": "dazugekommen {count}"
+    },
+    "audio": "Aufnahme",
+    "video": "Video",
+    "playFrom": "Ab {time} abspielen",
+    "added": "In diesem Vortrag hinzugekommen",
+    "plan": "Plan",
+    "legend": "Auf dem Plan: ✓ gesagt · ◐ kurz · ✕ ausgelassen",
+    "transcript": "Mitschrift des Vortrags",
+    "deliveries": "Vorträge",
+    "delivery": "Vortrag",
+    "deliveriesCount": {
+      "one": "Vorträge ({count})",
+      "other": "Vorträge ({count})"
+    },
+    "noDate": "Ohne Datum",
+    "collapse": "Zuklappen",
+    "listenOnPlan": "Anhören und auf dem Plan sehen",
+    "seeOnPlan": "Auf dem Plan sehen"
+  },
+  "card": {
+    "loading": "Text wird geladen…",
+    "missing": "Diesen Text gibt es nicht, oder du kannst ihn nicht sehen.",
+    "latex": "Zum Drucken herunterladen (LaTeX)",
+    "latexPlan": "Nur der Plan (LaTeX)",
+    "openAll": "Plan, Aufnahmen und alles",
+    "readAll": "Alles lesen"
+  },
+  "text": {
+    "titlePlaceholder": "Titel des Textes",
+    "part": "Teil des Textes",
+    "parts": {
+      "plan": "Plan",
+      "body": "Inhalt",
+      "further": "Weitere Informationen"
+    },
+    "view": "Ansicht",
+    "views": {
+      "write": "Schreiben",
+      "both": "Nebeneinander",
+      "preview": "Vorschau"
+    },
+    "words": {
+      "one": "{count} Wort",
+      "other": "{count} Wörter"
+    },
+    "wordsOf": {
+      "one": "{count} Wort von {target} ({percent} %)",
+      "other": "{count} Wörter von {target} ({percent} %)"
+    },
+    "bodyPlaceholder": "Inhalt… Eine Quelle fügst du mit der Schaltfläche „Quelle“ ein oder indem du [@klucz, S. 12] schreibst.",
+    "furtherPlaceholder": "Weitere Informationen — Lektüre, Links, Kontext.",
+    "missing": "Nicht in der Bibliothek: {keys} — diese Fußnoten bleiben leer.",
+    "data": "Daten des Textes — Art, Datum, Lesungen, Projekt, Aufnahme",
+    "dataWithType": "Daten des Textes — Art, Datum, Lesungen, Projekt, Aufnahme und Felder der Art",
+    "howToWrite": "Wie man schreibt — Auszeichnung des Inhalts"
+  },
+  "outline": {
+    "title": "Plan",
+    "heading": "Überschrift des Teils",
+    "draft": "Entwurf",
+    "up": "Nach oben",
+    "down": "Nach unten",
+    "remove": "Aus dem Plan entfernen",
+    "outside": "Texte dieses Projekts außerhalb des Plans:",
+    "addToPlan": "zum Plan hinzufügen",
+    "headingPlaceholder": "Überschrift des Teils, z. B. Teil I",
+    "newHeading": "Neue Überschrift",
+    "addHeading": "+ Überschrift",
+    "newText": "+ Neuer Text im Projekt",
+    "bibliography": {
+      "one": "Bibliografie des Projekts ({count})",
+      "other": "Bibliografie des Projekts ({count})"
+    },
+    "copyBibliography": "Bibliografie kopieren"
+  },
+  "type": {
+    "name": "Textart",
+    "newName": "Neue Textart",
+    "textTarget": "Text (Scriptorium)",
+    "saved": "Gespeichert.",
+    "saveFailed": "Speichern fehlgeschlagen.",
+    "back": "← Textarten",
+    "readOnly": "Dieses Scriptorium kannst du nur lesen.",
+    "lede": "Eine Textart ist ein Name und die Felder, die jeder Text dieser Art hat — neben den festen Feldern (Titel, Datum, Plan, Inhalt …). Ein Verweisfeld kann auf Einträge in Lernen zeigen (z. B. ein Geheimnis, einen Bereich) oder auf Quellen der Bibliothek. Ein Text ohne Art ist ein gewöhnlicher Text.",
+    "descriptionPlaceholder": "Wofür diese Art da ist",
+    "loadingKinds": "Arten aus Lernen werden geladen…",
+    "nameLabel": "Name der Textart",
+    "save": "Textart speichern",
+    "texts": "Texte dieser Art",
+    "textsCount": {
+      "one": "Texte dieser Art ({count})",
+      "other": "Texte dieser Art ({count})"
+    },
+    "noTexts": "Noch keine Texte dieser Art.",
+    "addText": "+ Text dieser Art",
+    "noFields": "Die Art „{name}“ hat noch keine eigenen Felder.",
+    "coreField": "festes Feld des Textes „{label}“",
+    "yes": "ja",
+    "no": "nein"
+  },
+  "tools": {
+    "sample": "Text",
+    "toolbar": "Einfügen",
+    "bold": "Fett",
+    "italic": "Kursiv",
+    "heading": "Zwischentitel",
+    "blockquote": "Eingerücktes Zitat",
+    "list": "Liste",
+    "listButton": "• Liste",
+    "footnoteTitle": "Eigene Fußnote",
+    "footnote": "Fußnote",
+    "quoteFailed": "Das Zitat konnte nicht gespeichert werden.",
+    "insertSource": "Quelle einfügen",
+    "insertQuote": "Zitat einfügen",
+    "insertSourceTitle": "Verweis auf eine Quelle einfügen",
+    "insertQuoteTitle": "Zitat aus der Bibliothek einfügen",
+    "saveSelection": "Markierten Abschnitt als neues Zitat speichern…",
+    "source": "Quelle",
+    "place": "Stelle",
+    "placePlaceholder": "s. 23 · J 3,16",
+    "saveQuote": "Zitat speichern und einfügen",
+    "searchSource": "Quelle, Zitat, Text suchen…",
+    "searchQuote": "Zitat suchen…",
+    "quoteLine": "„{text}“ — {origin}",
+    "nothingFound": "Nichts gefunden — füge im Reiter „Quellen“ eine Quelle hinzu.",
+    "locator": "Stelle (Seite, Vers, Nummer) — kann wegbleiben",
+    "locatorBible": "J 3,16",
+    "locatorPage": "s. 23",
+    "insert": "{mark} einfügen",
+    "otherSource": "Andere Quelle"
+  },
+  "lens": {
+    "noCreate": "Einträge einer Wissensbasis legt man in Wissen an — hier kann man nur auf sie zeigen."
+  },
+  "count": {
+    "entries": {
+      "one": "{count} Eintrag",
+      "other": "{count} Einträge"
+    },
+    "words": {
+      "one": "{count} Wort",
+      "other": "{count} Wörter"
+    },
+    "wordsOf": {
+      "one": "{count} Wort von {target}",
+      "other": "{count} Wörter von {target}"
+    },
+    "texts": {
+      "one": "{count} Text",
+      "other": "{count} Texte"
+    },
+    "fields": {
+      "one": "{count} Feld",
+      "other": "{count} Felder"
+    }
+  },
+  "view": {
+    "noKey": "Ohne Schlüssel in diesem Tab ist das Scriptorium geschlossen — melde dich erneut an oder entsperre den Schlüssel.",
+    "loadFailed": "Die Scriptorien konnten nicht geladen werden.",
+    "isKnowledge": "Das ist eine Wissensbasis — sie ist in Wissen.",
+    "isLibrary": "Das ist eine Bibliothek (Quellen).",
+    "openIt": "Öffnen",
+    "missing": "Dieses Scriptorium gibt es nicht, oder du hast keinen Schlüssel dafür.",
+    "all": "Alle Scriptorien",
+    "defaultName": "Scriptorium",
+    "createFailed": "Das Scriptorium konnte nicht angelegt werden.",
+    "onlyYou": "nur du",
+    "area": "Bereich",
+    "title": "Scriptorium",
+    "lede": "Ein Ort zum Schreiben: Predigten, Vorträge, Betrachtungen und Kapitel — mit Plan, Inhalt und Fußnoten — ihre Vorträge (was gesagt, was ausgelassen wurde) und Projekte (ein Buch, eine Reihe). Texte zitieren Quellen aus der Bibliothek und können auf Einträge in Lernen zeigen — z. B. das Rosenkranzgeheimnis, um das es in der Predigt geht. Eigene Textarten (z. B. „Marienpredigt“) geben Texten Felder. Jeder Bereich hat höchstens ein Scriptorium: Alle mit dem Schlüssel des Bereichs lesen und ergänzen es, und ist der Bereich öffentlich — liest es jeder. Ein Text wird öffentlich, wenn du ihn in das Scriptorium eines öffentlichen Bereichs verschiebst.",
+    "rowMeta": "{entries} · {area} · sichtbar für: {audience}",
+    "readOnlySuffix": " · nur lesen",
+    "createFirst": "Scriptorium anlegen",
+    "createAnother": "Neues Scriptorium",
+    "namePlaceholder": "z. B. Predigten und Vorträge",
+    "whoSees": "Wer es sieht",
+    "onlyMeNew": "Nur ich (ein privater Bereich wird angelegt)",
+    "onlyMe": "Nur ich",
+    "publicWarn": "Der Bereich „{name}“ ist öffentlich: Alles in diesem Scriptorium liest jeder, auch ohne Konto.",
+    "creating": "Wird angelegt…",
+    "create": "Anlegen",
+    "opening": "Scriptorium wird geöffnet…",
+    "unreadable": "Mit einem Schlüssel versiegelt, den du nicht hast: {entries}.",
+    "tabs": "Bereiche des Scriptoriums",
+    "tabJson": "Import / Export",
+    "tabOld": "Alte Einträge",
+    "oldWhere": "Quellen (Werke, Zitate, Personen) sind in der Bibliothek, Kommentare sind eine Art in Lernen.",
+    "searchKind": "Suchen: {kind}",
+    "textType": "Textart",
+    "allTypes": "alle Arten",
+    "noType": "ohne Art",
+    "noneOfKind": "Noch kein Eintrag dieser Art.",
+    "noMatch": "Nichts passt.",
+    "json": {
+      "what": "Was exportieren",
+      "summary": "JSON des Scriptoriums — Export und Import",
+      "lead": "Texte, Vorträge, Projekte und Textarten als ein Dokument — Sicherung, Umzug, Arbeit mit KI. Der Import ändert bestehende Einträge an Ort und Stelle und fügt neue hinzu; er löscht nichts.",
+      "import": "Importieren und speichern",
+      "readOnly": "In diesem Scriptorium kannst du nur lesen.",
+      "saving": "Speichere {n} von {total}…",
+      "saveWarning": "{kind} „{name}“: {reason}.",
+      "saveFailed": "konnte nicht gespeichert werden",
+      "saved": "{n} von {total} gespeichert."
+    },
+    "settings": {
+      "saveName": "Namen speichern",
+      "whoSees": "Wer es sieht",
+      "unknownArea": "unbekannt",
+      "audience": "Bereich: {area}. Sichtbar für: {audience}. Damit ein Text öffentlich wird (oder es nicht mehr ist), verschiebe ihn in das Scriptorium eines anderen Bereichs — beim Text, im Kasten „Wer es sieht“.",
+      "audienceReadOnly": "Bereich: {area}. Sichtbar für: {audience} (du kannst nur lesen). Damit ein Text öffentlich wird (oder es nicht mehr ist), verschiebe ihn in das Scriptorium eines anderen Bereichs — beim Text, im Kasten „Wer es sieht“.",
+      "delete": "Scriptorium löschen",
+      "deleteLead": "Löscht alle Einträge ({all}, darunter {texts}); Seiten, die sie zeigten, schreiben, dass es den Text nicht mehr gibt. Das lässt sich nicht rückgängig machen. Exportiere zuerst (Import / Export).",
+      "deleteConfirm": "Gib zur Bestätigung den Namen des Scriptoriums ein",
+      "deleteForever": "Für immer löschen"
+    }
+  }
+}

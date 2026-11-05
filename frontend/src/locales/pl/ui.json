@@ -1,0 +1,101 @@
+{
+  "ask": {
+    "verb": {
+      "delete": "Usuń",
+      "withdraw": "Wycofaj",
+      "callOff": "Odwołaj",
+      "unsubscribe": "Wypisz",
+      "takeDown": "Zdejmij",
+      "detach": "Odłącz",
+      "archive": "Zarchiwizuj",
+      "finish": "Zakończ",
+      "add": "Dodaj",
+      "join": "Dołącz",
+      "connect": "Połącz",
+      "issue": "Wystaw"
+    }
+  },
+  "modal": {
+    "backToPage": "Wróć do strony",
+    "back": "‹ Wróć",
+    "closeFull": "Zamknij pełny ekran"
+  },
+  "month": {
+    "previous": "Poprzedni miesiąc",
+    "next": "Następny miesiąc",
+    "today": "{date} (dziś)"
+  },
+  "password": {
+    "hide": "Ukryj hasło",
+    "show": "Pokaż hasło"
+  },
+  "scanner": {
+    "noCode": "Na zdjęciu nie widać kodu — podejdź bliżej, bez odblasku, kod poziomo.",
+    "video": "Obraz z aparatu",
+    "starting": "Włączanie aparatu…",
+    "denied": "Brak zgody na aparat. Zrób zdjęcie kodu albo wpisz numer.",
+    "none": "Aparat nie jest tu dostępny. Zrób zdjęcie kodu albo wpisz numer.",
+    "reading": "Odczytywanie…",
+    "photo": "Zdjęcie kodu",
+    "orType": "…albo wpisz numer",
+    "placeholder": "978-83-… albo numer w bibliotece"
+  },
+  "tex": {
+    "failed": "Tego wzoru nie da się złożyć: {error}"
+  },
+  "tree": {
+    "searchIn": "Szukaj: {label}",
+    "recent": "Ostatnio",
+    "collapse": "Zwiń: {label}",
+    "expand": "Rozwiń: {label}",
+    "inside": {
+      "one": "{count} w środku",
+      "few": "{count} w środku",
+      "many": "{count} w środku",
+      "other": "{count} w środku"
+    },
+    "empty": "Nic tu nie ma.",
+    "noMatch": "Nic nie pasuje.",
+    "choose": "— wybierz —",
+    "otherArea": "inny obszar"
+  },
+  "json": {
+    "entries": {
+      "one": "{count} pozycja",
+      "few": "{count} pozycje",
+      "many": "{count} pozycji",
+      "other": "{count} pozycji"
+    },
+    "treeLabel": "Co zawiera ten format",
+    "repaired": {
+      "one": "JSON poprawiony przed odczytaniem ({count} miejsce): pojedyncze ukośniki (np. we wzorach LaTeX), znaki końca wiersza w tekście albo otoczka wokół JSON. Sprawdź podgląd.",
+      "few": "JSON poprawiony przed odczytaniem ({count} miejsca): pojedyncze ukośniki (np. we wzorach LaTeX), znaki końca wiersza w tekście albo otoczka wokół JSON. Sprawdź podgląd.",
+      "many": "JSON poprawiony przed odczytaniem ({count} miejsc): pojedyncze ukośniki (np. we wzorach LaTeX), znaki końca wiersza w tekście albo otoczka wokół JSON. Sprawdź podgląd.",
+      "other": "JSON poprawiony przed odczytaniem ({count} miejsca): pojedyncze ukośniki (np. we wzorach LaTeX), znaki końca wiersza w tekście albo otoczka wokół JSON. Sprawdź podgląd."
+    },
+    "exportFailed": "Nie udało się przygotować eksportu.",
+    "importing": "Importowanie…",
+    "importFailed": "Import się nie udał.",
+    "export": "Eksport",
+    "import": "Import",
+    "preparing": "Przygotowywanie…",
+    "show": "Pokaż JSON",
+    "refresh": "Odśwież",
+    "download": "Pobierz plik .json",
+    "editInImport": "Edytuj w imporcie",
+    "exportText": "Eksport JSON",
+    "importText": "Import JSON",
+    "placeholder": "Wklej JSON — z eksportu albo napisany według opisu formatu.",
+    "sample": "Wstaw przykład",
+    "loadFile": "Wczytaj plik…",
+    "clear": "Wyczyść",
+    "invalid": "Nieprawidłowy JSON: {error}",
+    "changes": "Co się zmieni",
+    "imported": "Zaimportowano.",
+    "format": "Opis formatu",
+    "copiedDoc": "Skopiowano opis",
+    "copyDoc": "Kopiuj opis (dla AI)",
+    "fold": "Zwiń",
+    "unfold": "Pokaż"
+  }
+}

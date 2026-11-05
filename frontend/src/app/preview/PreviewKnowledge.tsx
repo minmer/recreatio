@@ -22,6 +22,7 @@ import { CogitaContext, useAsync, type CogitaCtx } from '../cogita/ui';
 import { LIST_MODE_LABEL, readView, type ListMode } from '../cogita/views';
 import type { Learner } from '../cogita/learn';
 import '../cogita/cogita.css';
+import { t } from '../core/i18n';
 import { drawingSamples, type DrawingSample } from '../cogita/interactiveCheck';
 
 export interface KnowledgeInput {
@@ -89,8 +90,8 @@ async function baseFor(doc: unknown): Promise<{ base: MemoryBase; copies: Map<st
 /* -- Welcher Widok, welche Gestalt -------------------------------------------------------------------------------- */
 
 const MODE_WORDS: Readonly<Record<string, string>> = {
-  tabela: 'table', drzewo: 'tree', macierz: 'matrix', mapa: 'map', 'postępy': 'quilt', postepy: 'quilt', 'mapa postępów': 'quilt',
-  kafelki: 'quilt', krajobraz: 'landscape', struktura: 'outline', 'płótno': 'canvas', plotno: 'canvas'
+  tabela: 'table', drzewo: 'tree', macierz: 'matrix', mapa: 'map', 'postępy': 'quilt', postepy: 'quilt', 'mapa postępów': 'quilt', // i18n-ignore: Wörter der Seite, Eingabe
+  kafelki: 'quilt', krajobraz: 'landscape', struktura: 'outline', 'płótno': 'canvas', plotno: 'canvas' // i18n-ignore
 };
 
 /** Die Gestalten, die dieser Bau kennt (was `readView` nicht kennt, wird Tabela). */
@@ -122,7 +123,7 @@ async function pickView(base: MemoryBase, copies: Map<string, string>, said: str
   if (want !== '') {
     chosen = views.find((v) => v.id.toLowerCase() === want) ?? views.find((v) => (v.ref ?? '').replace(/^@/, '').toLowerCase() === want)
       ?? views.find((v) => v.name.trim().toLowerCase() === want);
-    if (chosen === undefined) return { error: `Nie ma widoku „${said}” — widoki tej bazy: ${views.map((v) => `${v.ref ?? v.id} („${v.name}”, ${v.mode})`).join('; ') || 'żadnych'}.` };
+    if (chosen === undefined) return { error: t('preview.knowledge.noView', { view: said ?? '', list: views.map((v) => `${v.ref ?? v.id} („${v.name}”, ${v.mode})`).join('; ') || t('preview.knowledge.none') }) };
   } else {
     chosen = views.find((v) => v.mode === 'landscape') ?? views[0];
   }
@@ -130,20 +131,20 @@ async function pickView(base: MemoryBase, copies: Map<string, string>, said: str
   const mode = asked === null ? null : (MODE_WORDS[asked] ?? asked);
   const knows = (m: string) => readView({ mode: m }).mode === m;
   const notes: string[] = [];
-  if (mode !== null && !knows(mode)) notes.push(`Ta wersja aplikacji nie zna jeszcze gestalt „${asked}” — pokazana jest zapisana.`);
+  if (mode !== null && !knows(mode)) notes.push(t('preview.knowledge.unknownAsked', { mode: asked ?? '' }));
   if (chosen === undefined) {
     /* Ohne Widok: alle Einträge, in der gewünschten Gestalt (sonst als Tabela). */
     const fallback = mode !== null && knows(mode) ? mode : 'table';
     const key = `*:${fallback}`;
     let id = copies.get(key);
     if (id === undefined) {
-      id = (await base.writer.saveDoc('view', { name: 'Wszystkie wpisy', mode: fallback, steps: [{ type: 'source.all', config: {} }], _previewCopy: true })).id;
+      id = (await base.writer.saveDoc('view', { name: t('preview.knowledge.allEntries'), mode: fallback, steps: [{ type: 'source.all', config: {} }], _previewCopy: true })).id;
       copies.set(key, id);
     }
-    notes.push('Baza nie ma zapisanego widoku — pokazane są wszystkie wpisy.');
-    return { id, summary: { id, ref: null, name: 'Wszystkie wpisy', mode: fallback }, asked, note: notes.join(' ') || null };
+    notes.push(t('preview.knowledge.noSavedView'));
+    return { id, summary: { id, ref: null, name: t('preview.knowledge.allEntries'), mode: fallback }, asked, note: notes.join(' ') || null };
   }
-  if (!knows(chosen.mode)) notes.push(`Widok ma gestalt „${chosen.mode}”, której ta wersja aplikacji jeszcze nie zna — pokazany jest jako tabela.`);
+  if (!knows(chosen.mode)) notes.push(t('preview.knowledge.unknownSaved', { mode: chosen.mode }));
   if (mode === null || !knows(mode) || mode === chosen.mode) return { id: chosen.id, summary: chosen, asked, note: notes.join(' ') || null };
   /* Eine andere Gestalt: eine Abschrift des Widoku, nur in diesem Speicher. */
   const key = `${chosen.id}:${mode}`;
@@ -176,7 +177,7 @@ async function summaryOf(base: MemoryBase, doc: unknown): Promise<KnowledgeSumma
     format,
     entries: own.filter((e) => !e.kinds.includes('question')).length,
     questions: own.filter((e) => e.kinds.includes('question')).length,
-    kinds: [...counts].map(([id, count]) => ({ name: id === 'question' ? 'Pytanie' : lib.kind(id)?.name ?? id, count })).sort((a, b) => b.count - a.count),
+    kinds: [...counts].map(([id, count]) => ({ name: id === 'question' ? t('preview.knowledge.question') : lib.kind(id)?.name ?? id, count })).sort((a, b) => b.count - a.count),
     templates: lib.docs('template').length,
     revisions: lib.docs('revision').length,
     cards: new Set(cards.map((c) => c.key)).size,
@@ -218,7 +219,7 @@ function KnowledgeFrame({ base, viewId, learner, title, sub }: { base: MemoryBas
                 : <LandscapeView view={view} cards={cards} learner={learner} onOpen={setOpened} viewKey={`podglad:${viewId}`} />}
           </CogitaContext.Provider>
         </section>
-        {entity !== undefined && <p className="pv-k-open" data-pv-opened={entity.id}>Kliknięty wpis: {base.lib.label(entity)}</p>}
+        {entity !== undefined && <p className="pv-k-open" data-pv-opened={entity.id}>{t('preview.knowledge.clicked', { label: base.lib.label(entity) })}</p>}
       </main>
     </div>
   );
@@ -240,11 +241,11 @@ export async function renderKnowledge(node: HTMLElement, root: Root | null, inpu
   const shownEntries = base.lib.entities().length;
   root?.unmount();
   const next = createRoot(node);
-  const counted = CARD_MOODS.filter((m) => pl.counts[m] > 0).map((m) => `${MOOD_WORD[m]} ${pl.counts[m]}`).join(' · ');
+  const counted = CARD_MOODS.filter((m) => pl.counts[m] > 0).map((m) => `${t(MOOD_WORD[m])} ${pl.counts[m]}`).join(' · ');
   /* Ohne StrictMode — wie die gebaute Seite: Effekte laufen einmal. */
   next.render(
     <KnowledgeFrame base={base} viewId={picked.id} learner={pl.learner} title={base.name}
-      sub={`Widok „${picked.summary.name}” · ${LIST_MODE_LABEL[picked.summary.mode as ListMode] ?? picked.summary.mode} · ${PREVIEW_PROGRESS_LABEL[progress]}${counted === '' ? '' : ` — karty: ${counted}`}`} />
+      sub={`${t('preview.knowledge.view', { name: picked.summary.name })} · ${LIST_MODE_LABEL[picked.summary.mode as ListMode] ?? picked.summary.mode} · ${PREVIEW_PROGRESS_LABEL[progress]}${counted === '' ? '' : ` — ${t('preview.knowledge.cards', { list: counted })}`}`} />
   );
   return {
     root: next,
@@ -256,7 +257,7 @@ export async function renderKnowledge(node: HTMLElement, root: Root | null, inpu
   };
 }
 
-const MOOD_WORD: Readonly<Record<CardMood, string>> = { known: 'znane', due: 'do powtórki', forgotten: 'zapomniane', wrong: 'ostatnio źle', new: 'nowe' };
+const MOOD_WORD: Readonly<Record<CardMood, string>> = { known: 'preview.knowledge.mood.known', due: 'preview.knowledge.mood.due', forgotten: 'preview.knowledge.mood.forgotten', wrong: 'preview.knowledge.mood.wrong', new: 'preview.knowledge.mood.new' };
 
 /** PROBEN DER GENERATOREN — ohne zu zeichnen. */
 export async function knowledgeSamples(input: KnowledgeInput & { readonly count?: number | null }): Promise<SamplesResult | { error: string }> {

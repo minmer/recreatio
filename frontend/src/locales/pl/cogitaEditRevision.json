@@ -1,0 +1,181 @@
+{
+  "revision": "Powtórka",
+  "listHead": "— powtórki ({n}) —",
+  "fromOrigin": " · z: {name}",
+  "intro": "Powtórka wybiera karty (wszystkie, z rodzaju, zbioru, listy albo z widoku), może je zawęzić — także według tego, co już umiesz (np. szczegóły dopiero, gdy ogólne jest znane) — i pyta wybranym sposobem, w wybranej kolejności.",
+  "new": "+ Nowa powtórka",
+  "mode": "Sposób",
+  "from": "Z czego",
+  "fromAll": "wszystkie karty",
+  "fromKind": "rodzaj",
+  "fromCollection": "zbiór",
+  "fromView": "widok (sposób wyświetlania)",
+  "view": "Widok",
+  "kind": {
+    "sourceAll": {
+      "label": "Wszystkie karty",
+      "says": "Każda karta tej bazy wiedzy (i baz, z których korzysta)."
+    },
+    "sourceKind": {
+      "label": "Rodzaj",
+      "says": "Karty wpisów jednego rodzaju — także z biblioteki, z której korzysta ta baza (np. cytaty); „Skąd\" zawęża do jednej biblioteki albo bazy."
+    },
+    "sourceCollection": {
+      "label": "Zbiór",
+      "says": "Karty wpisów zapisanego zbioru — filtra albo listy."
+    },
+    "sourceList": {
+      "label": "Lista",
+      "says": "Karty wybranych wpisów albo pytań."
+    },
+    "sourceView": {
+      "label": "Widok",
+      "says": "Karty wpisów, które pokazuje zapisany sposób wyświetlania (widok) — on decyduje, co wchodzi w grę, powtórka wybiera z tego. Jego filtry znajomości na końcu sprawdzają się w trakcie powtórki, przy każdej karcie."
+    },
+    "filter": {
+      "label": "Filtr",
+      "says": "Zostawia karty z wybranych szablonów, kierunków, form odpowiedzi, stanów (jeszcze nie / w nauce / umiem) albo tylko te, na które przyszła pora."
+    },
+    "sample": {
+      "label": "Próbka z każdego tematu",
+      "says": "Zostawia z każdego tematu kilka losowych kart (\"perTopic\", domyślnie 2) — sprawdzian na wyrywki; co dzień inna próbka."
+    },
+    "union": {
+      "label": "Razem",
+      "says": "Łączy kilka źródeł w jeden stos, bez powtórzeń."
+    },
+    "strategy": {
+      "label": "Sposób pytania",
+      "says": "Jak pytać: losowo określoną liczbę, cały stos raz, poziomami albo według tego, co już umiem — w jakiej kolejności (najpierw ogólne, jak w tekście, według daty, losowo, jak przychodzą, najpierw zaległe) i jak wybierać ze stosu (ściśle następną albo losowo, częściej słabsze)."
+    },
+    "sourceFrom": {
+      "says": "{step} Daje karty tych wpisów."
+    },
+    "through": {
+      "says": "{step} Daje karty tamtych wpisów."
+    },
+    "learning": {
+      "says": "{step} Daje karty tamtych wpisów; „Zostaw też wyjściowe” dokłada je do kart, od których wyszedł (np. powtórka o orbitalach zaczyna się od atomu)."
+    },
+    "filterRule": {
+      "label": "Filtr wpisów",
+      "says": "{step} Zostają karty tych wpisów."
+    },
+    "filterWhen": {
+      "says": "{step} W powtórce sprawdza się w trakcie, przy każdej karcie: co wcześniej czekało, wchodzi, gdy warunek zacznie obowiązywać; karta już w stosie zostaje."
+    }
+  },
+  "whichLibrary": "Z której biblioteki",
+  "allSources": "ze wszystkich źródeł",
+  "noTemplate": "Z tego rodzaju nie powstają jeszcze karty — dodaj w „Karty” szablon dla niego (np. „Luki w cytacie”).",
+  "summary": "Krótki opis",
+  "run": "Powtarzaj",
+  "migrated": "Ta powtórka miała krok „Najpierw podstawy” — teraz to zwykłe kroki: „Idź po kolejności nauki”, „Filtr znajomości” i kolejność „najpierw ogólne”. Działa tak samo; zapisz, żeby została w nowej postaci.",
+  "counting": "Liczenie kart…",
+  "previewFailed": "Podgląd się nie udał.",
+  "cards": {
+    "one": "{count} kart",
+    "few": "{count} kart",
+    "many": "{count} kart",
+    "other": "{count} kart"
+  },
+  "withCondition": "{n} z warunkiem znajomości",
+  "storage": "Gdzie zapisują się odpowiedzi (dla tej powtórki)",
+  "storageHint": "Moduł na stronie (kurs, grupa) może wskazać własny obszar — wtedy idą tam. Bez tego: obszar wybrany tutaj, potem ten z Ustawień bazy, a bez nich zostają u uczącego się. Postępy widzi ten, kto prowadzi wybrany obszar; uczący się, który go nie czyta, zachowuje odpowiedzi dla siebie.",
+  "storageArea": "Obszar dla odpowiedzi tej powtórki",
+  "asInBase": "jak w bazie wiedzy",
+  "save": "Zapisz powtórkę",
+  "offlineOff": "Nie trzymaj bez internetu",
+  "offlineOn": "Trzymaj na urządzeniach bez internetu",
+  "askDelete": "Usunąć powtórkę? Odpowiedzi zostają.",
+  "next": "Następna lekcja",
+  "noNext": "— bez następnej —",
+  "missingNext": "(nie ma takiej powtórki: {value})",
+  "page": "Strona z tą powtórką",
+  "pageHint": "Powtarzają na niej ci, którzy mogą czytać tę bazę wiedzy (zob. „Kto widzi” wyżej) — bez konta postępy zostają w ich przeglądarce.",
+  "whosePage": "Czyja strona",
+  "role": "rola",
+  "pageReady": "Strona gotowa: {url} (skopiowano).",
+  "makePage": "Utwórz stronę z tą powtórką",
+  "daily": "Codzienna powtórka w zadaniach",
+  "atTime": "O której",
+  "taskTitle": "Powtórka: {name}",
+  "taskAdded": "Dodano codzienne zadanie z linkiem do powtórki.",
+  "addTask": "Dodaj do moich zadań",
+  "group": {
+    "sources": "Źródła",
+    "narrow": "Zawężenie",
+    "mode": "Sposób"
+  },
+  "port": {
+    "cards": "Karty",
+    "plan": "Plan"
+  },
+  "error": {
+    "noCollection": "Nie ma takiego zbioru.",
+    "noView": "Nie ma takiego widoku.",
+    "noStrategy": "Powtórka nie ma kroku „Sposób pytania\".",
+    "oneStrategy": "Powtórka może mieć tylko jeden „Sposób pytania\".",
+    "noPlan": "Powtórka nie dała planu."
+  },
+  "modeLabel": {
+    "random": "Losowo, określona liczba",
+    "once": "Cały stos, każda raz",
+    "levels": "Poziomy",
+    "temporal": "Według tego, co umiem"
+  },
+  "orderLabel": {
+    "general": "najpierw ogólne, potem szczegóły",
+    "text": "jak w tekście źródła",
+    "date": "według daty",
+    "random": "losowo",
+    "given": "jak przychodzą",
+    "due": "najpierw zaległe"
+  },
+  "pickLabel": {
+    "next": "ściśle następna",
+    "weighted": "losowo, częściej słabiej znane i dłużej czekające",
+    "sample": "próbka: z każdego tematu kilka losowych kart"
+  },
+  "span": {
+    "min": "{n} min",
+    "h": "{n} h",
+    "days": "{n} dni"
+  },
+  "orderWhy": {
+    "general": "najpierw ogólne, potem szczegóły",
+    "text": "w kolejności tekstu źródła",
+    "date": "według daty",
+    "random": "w losowej kolejności",
+    "given": "w kolejności wyboru powtórki",
+    "due": "najpierw te, na które przyszła pora"
+  },
+  "why": {
+    "levelBasics": " · poziom 1 (podstawy)",
+    "level": " · poziom {n}",
+    "queue": "Kolejna karta{level}",
+    "fresh": "Nowa karta{level}",
+    "again": "Jeszcze raz — przed chwilą była źle",
+    "missed": "Ostatnio była źle — jeszcze raz",
+    "forgotten": "Zapomniana — dawno nie powtarzana (znajomość {pct})",
+    "ahead": "Na zapas — umiesz (znajomość {pct}), tę najsłabiej",
+    "spacer": "Przerywnik — coś, co umiesz, zanim wróci tamto pytanie",
+    "due": "Pora powtórki (znajomość {pct})"
+  },
+  "whyDetail": {
+    "levelBasics": " (poziom 1 — podstawy)",
+    "level": " (poziom {n})",
+    "pickWeighted": " Wybrana losowo spośród {n} w stosie — częściej to, co słabiej znasz i co dłużej czeka.",
+    "pickNext": " Następna spośród {n} w stosie.",
+    "late": "; pora powtórki minęła {span} temu",
+    "queue": "Kolejna karta — {order}{level}.",
+    "fresh": "Nowa karta (nieznana) — {order}{level}. Nowe przychodzą, gdy nic nie czeka na powtórkę.{pick}",
+    "again": "Wraca, bo przed chwilą była źle — zostaje w stosie, aż odpowiesz całkiem dobrze.{pick}",
+    "missed": "Nieznana: ostatnim razem była źle. Przychodzi razem z nowymi, gdy nic nie czeka na powtórkę.{pick}",
+    "forgotten": "Nieznana: znajomość spadła do {pct}{late}. Przychodzi razem z nowymi, gdy nic nie czeka na powtórkę.{pick}",
+    "ahead": "Znana ({pct}) — nic nie czeka na powtórkę i nie ma nic nowego, więc stos bierze to, co umiesz najsłabiej.{pick}",
+    "spacer": "Przerywnik: zostało tylko pytanie, na które była zła odpowiedź — zanim wróci, jedno, które umiesz. Dobra odpowiedź niczego nie zmienia, zła — jak każda.",
+    "due": "Do powtórki: znajomość {pct}{late}. Najpierw to, co znasz najsłabiej.{pick}"
+  },
+  "kindPick": "Rodzaj"
+}

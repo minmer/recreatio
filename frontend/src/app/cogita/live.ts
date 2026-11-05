@@ -18,6 +18,7 @@
  */
 
 import { aad, derive, Field, fromBase64Url, KEY_SIZE, open, openText, seal, sealText, sha256, toBase64Url, unwrapKey, unwrapKeyP256, wrapKey, wrapKeyP256 } from '../core/crypto';
+import { t, texts } from '../core/i18n';
 import { newId } from '../core/ids';
 import { API, call } from '../core/session';
 import type { AnswerSpec, Card } from './cardBasics';
@@ -26,14 +27,14 @@ import { stripInteractive } from './interactive';
 export type SessionKind = 'live' | 'async' | 'sync' | 'story' | 'game' | 'shared';
 export type SessionState = 'lobby' | 'running' | 'paused' | 'finished' | 'closed';
 
-export const SESSION_KIND_LABEL: Record<SessionKind, string> = {
-  live: 'Na żywo (gospodarz i ekran)',
-  async: 'We własnym tempie (grupa)',
-  sync: 'Kilka osób przy jednym urządzeniu',
-  story: 'Opowieść z kodem',
-  game: 'Gra w terenie',
-  shared: 'Otwarty link'
-};
+export const SESSION_KIND_LABEL: Readonly<Record<SessionKind, string>> = texts({
+  live: 'cogitaViewsRewards.session.kind.live',
+  async: 'cogitaViewsRewards.session.kind.async',
+  sync: 'cogitaViewsRewards.session.kind.sync',
+  story: 'cogitaViewsRewards.session.kind.story',
+  game: 'cogitaViewsRewards.session.kind.game',
+  shared: 'cogitaViewsRewards.session.kind.shared'
+});
 
 export interface SessionRow {
   readonly sessionId: string;
@@ -390,7 +391,7 @@ export function connect(sessionId: string, cred: Credentials, listen: Listen, af
       deliver(done.events);
       listen.onState?.(done.session);
     } catch (e) {
-      listen.onError?.(e instanceof Error ? e.message : 'Nie udało się połączyć z sesją.');
+      listen.onError?.(e instanceof Error ? e.message : t('cogitaViewsRewards.session.connectFailed'));
     } finally {
       fetching = false;
       if (again) { again = false; void pull(); }

@@ -14,8 +14,9 @@
  *
  *   node scripts/app-selfcheck-check.mjs
  */
-import { useLocale } from './i18n-node.mjs';
-await useLocale('pl');
+import { readLang, useLocale } from './i18n-node.mjs';
+/* Polnisch für die Vergleiche — Deutsch dazu: eine Baza kann deutsch sprechen. */
+(await useLocale('pl')).dicts.de = await readLang('de');
 import { build } from 'esbuild';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

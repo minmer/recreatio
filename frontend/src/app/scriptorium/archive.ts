@@ -22,6 +22,7 @@
  * </code>
  */
 
+import { t } from '../core/i18n';
 import { ids, str, type LibEntry, type Lookup } from '../library/libraryKinds';
 import { deliveriesOf, lastHeld, planOf, pointLine } from './sermon';
 import { typeMarks } from './textTypes';
@@ -73,7 +74,7 @@ export function archiveRow(entry: LibEntry, look: Lookup): ArchiveRow {
   const projectEntry = look.get(ids(d, 'project')[0] ?? '');
   return {
     id: entry.id,
-    title: str(d, 'title') || 'Bez tytułu',
+    title: str(d, 'title') || t('common.untitled'),
     subtitle: str(d, 'subtitle'),
     date: lastHeld(entry, look),
     occasion: str(held[0]?.data ?? {}, 'occasion') || str(d, 'occasion'),
@@ -100,7 +101,7 @@ export function facetsOf(rows: readonly ArchiveRow[], projects: readonly { reado
     id, name: f.name,
     values: [...f.values.entries()].map(([value, name]) => ({ id: value, name })).sort((a, b) => a.name.localeCompare(b.name, 'pl', { numeric: true }))
   }));
-  if (projects.length > 0) out.push({ id: PROJECTS, name: 'Cykl', values: projects.map((p) => ({ id: p.id, name: p.title })) });
+  if (projects.length > 0) out.push({ id: PROJECTS, name: t('scriptorium.archive.cycle'), values: projects.map((p) => ({ id: p.id, name: p.title })) });
   return out;
 }
 

@@ -7,6 +7,7 @@
 
 import { useRef, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 
+import { fmtDate, t, useT } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import { toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
@@ -60,7 +61,7 @@ export function usePress(onLong: () => void, onTap: () => void) {
   };
 }
 
-const stamp = (at: number) => new Date(at).toLocaleString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const stamp = (at: number) => fmtDate(new Date(at), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 /** Was kopiert wird: mit „wer und wann" über jeder Nachricht, oder nur die Texte. */
 export const readableText = (items: readonly Readable[], withWho: boolean): string =>
@@ -69,8 +70,8 @@ export const readableText = (items: readonly Readable[], withWho: boolean): stri
 /** Der Text der gewählten Nachrichten — zum Einfügen anderswo. */
 export function copyReadable(items: readonly Readable[], withWho = true): void {
   const text = readableText(items, withWho);
-  void navigator.clipboard?.writeText(text).then(() => toast(items.length === 1 ? 'Skopiowano wiadomość.' : `Skopiowano wiadomości: ${items.length}.`))
-    .catch(() => toast('Nie udało się skopiować.'));
+  void navigator.clipboard?.writeText(text).then(() => toast(items.length === 1 ? t('phone.reading.copiedOne') : t('phone.reading.copiedMany', { count: items.length })))
+    .catch(() => toast(t('phone.reading.copyFailed')));
 }
 
 const SIZES = { min: 0.8, max: 4, step: 0.2 };
@@ -78,16 +79,17 @@ const readerStyle = (scale: number) => ({ '--ph-reader-scale': String(scale) } a
 
 /** DIE GEWÄHLTEN GROSS — zum Lesen, zum Vorzeigen; die Grösse bleibt gemerkt. */
 export function MessageReader({ title, items, onClose, withWho = true }: { title: string; items: readonly Readable[]; onClose: () => void; withWho?: boolean }) {
+  const t = useT();
   const [scaleText, setScale] = useRemembered('sms.reader', '1.6');
   const scale = Math.min(SIZES.max, Math.max(SIZES.min, Number(scaleText) || 1.6));
   const change = (by: number) => setScale(String(Math.round(Math.min(SIZES.max, Math.max(SIZES.min, scale + by)) * 10) / 10));
   return (
     <Fullscreen title={title} onClose={onClose}>
-      <div className="ph-reader-tools" role="group" aria-label="Wielkość liter">
-        <button type="button" className="wk-btn wk-btn-quiet" aria-label="Mniejsze litery" disabled={scale <= SIZES.min} onClick={() => change(-SIZES.step)}>A−</button>
+      <div className="ph-reader-tools" role="group" aria-label={t('phone.reading.size')}>
+        <button type="button" className="wk-btn wk-btn-quiet" aria-label={t('phone.reading.smaller')} disabled={scale <= SIZES.min} onClick={() => change(-SIZES.step)}>A−</button>
         <span className="ph-reader-size">{Math.round(scale * 100)}%</span>
-        <button type="button" className="wk-btn wk-btn-quiet" aria-label="Większe litery" disabled={scale >= SIZES.max} onClick={() => change(SIZES.step)}>A+</button>
-        <button type="button" className="wk-btn wk-btn-quiet" onClick={() => copyReadable(items, withWho)}><Icon name="copy" />Kopiuj</button>
+        <button type="button" className="wk-btn wk-btn-quiet" aria-label={t('phone.reading.larger')} disabled={scale >= SIZES.max} onClick={() => change(SIZES.step)}>A+</button>
+        <button type="button" className="wk-btn wk-btn-quiet" onClick={() => copyReadable(items, withWho)}><Icon name="copy" />{t('common.copy')}</button>
       </div>
       <div className="ph-reader" style={readerStyle(scale)}>
         {items.map((m) => (

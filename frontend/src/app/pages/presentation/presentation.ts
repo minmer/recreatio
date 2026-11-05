@@ -39,6 +39,7 @@
  * der Umgebung (`sound`, nur auf Wunsch) und je Szene seine Lautstärke.
  */
 
+import { texts } from '../../core/i18n';
 import { safeHref } from '../../library/libraryMarkup';
 import type { Layout } from '../layout';
 import { motionsJson, readMotions, type MotionUse } from '../motion/motion';
@@ -59,64 +60,64 @@ import { readStory, storyJson, type Story } from './story';
 export const SCENE_CHANGES = ['fade', 'build', 'fly', 'rise', 'zoom', 'cover', 'reveal', 'side', 'cut', 'dissolve'] as const;
 export type SceneChange = (typeof SCENE_CHANGES)[number];
 
-export const SCENE_CHANGE_LABEL: Record<SceneChange, string> = {
-  fade: 'Przenikanie — poprzednia gaśnie, ta się pojawia',
-  build: 'Złożenie — scena jest od razu, jej moduły wchodzą każdy po swojemu',
-  fly: 'Przelot — kamera leci przez poprzednią scenę (jej głębię i chmurę słów)',
-  rise: 'Wynurzenie — ta podnosi się lekko z dołu',
-  zoom: 'Przybliżenie — poprzednia rośnie i znika, ta wyłania się z głębi',
-  cover: 'Nakrycie — ta wjeżdża od dołu na poprzednią',
-  reveal: 'Odsłonięcie — poprzednia odjeżdża w górę i odsłania tę',
-  side: 'Z boku — ta wjeżdża z prawej, poprzednia odsuwa się w lewo',
-  cut: 'Cięcie — bez przejścia',
+export const SCENE_CHANGE_LABEL: Record<SceneChange, string> = texts({
+  fade: 'pagePresentation.sceneChange.fade',
+  build: 'pagePresentation.sceneChange.build',
+  fly: 'pagePresentation.sceneChange.fly',
+  rise: 'pagePresentation.sceneChange.rise',
+  zoom: 'pagePresentation.sceneChange.zoom',
+  cover: 'pagePresentation.sceneChange.cover',
+  reveal: 'pagePresentation.sceneChange.reveal',
+  side: 'pagePresentation.sceneChange.side',
+  cut: 'pagePresentation.sceneChange.cut',
   /* 0108 — der Wechsel des Pokaz von Cogita (.cogita-intro-slide: 480 ms, 12 px, Unschärfe 2 px). */
-  dissolve: 'Rozmycie — poprzednia gaśnie, rozmywa się i opada, ta wyostrza się, unosząc (jak pokaz Cogita)'
-};
+  dissolve: 'pagePresentation.sceneChange.dissolve'
+});
 
 /** Wie ein Baustein erscheint, wenn seine Szene kommt (oder er seine erste erreicht). */
 export const ARRIVALS = ['none', 'fade', 'rise', 'zoom', 'grow', 'left', 'right', 'from-left', 'from-right', 'from-top', 'from-bottom'] as const;
 export type Arrival = (typeof ARRIVALS)[number];
 
-export const ARRIVAL_LABEL: Record<Arrival, string> = {
-  none: 'Jest od razu',
-  fade: 'Rozjaśnia się',
-  rise: 'Wynurza się z dołu',
-  zoom: 'Przybliża się',
-  grow: 'Wyrasta z punktu',
-  left: 'Wsuwa się z lewej',
-  right: 'Wsuwa się z prawej',
-  'from-left': 'Wjeżdża zza lewej krawędzi',
-  'from-right': 'Wjeżdża zza prawej krawędzi',
-  'from-top': 'Zjeżdża z góry',
-  'from-bottom': 'Wjeżdża od dołu'
-};
+export const ARRIVAL_LABEL: Record<Arrival, string> = texts({
+  none: 'pagePresentation.arrival.none',
+  fade: 'pagePresentation.arrival.fade',
+  rise: 'pagePresentation.arrival.rise',
+  zoom: 'pagePresentation.arrival.zoom',
+  grow: 'pagePresentation.arrival.grow',
+  left: 'pagePresentation.arrival.left',
+  right: 'pagePresentation.arrival.right',
+  'from-left': 'pagePresentation.arrival.fromLeft',
+  'from-right': 'pagePresentation.arrival.fromRight',
+  'from-top': 'pagePresentation.arrival.fromTop',
+  'from-bottom': 'pagePresentation.arrival.fromBottom'
+});
 
 /** Wie der Baustein auf der Szene aussieht — die Hülle, nicht der Inhalt. */
 export const SKINS = ['plain', 'card', 'bubble', 'pill', 'panel'] as const;
 export type Skin = (typeof SKINS)[number];
 
-export const SKIN_LABEL: Record<Skin, string> = {
-  plain: 'Bez tła — sam napis, logo, obraz',
-  card: 'Tafla',
-  bubble: 'Bańka — zaokrąglona, z cieniem',
-  pill: 'Pigułka — jedna linijka',
-  panel: 'Pole — wypełnia swój prostokąt kolorem (i obrazem)'
-};
+export const SKIN_LABEL: Record<Skin, string> = texts({
+  plain: 'pagePresentation.skin.plain',
+  card: 'pagePresentation.skin.card',
+  bubble: 'pagePresentation.skin.bubble',
+  pill: 'pagePresentation.skin.pill',
+  panel: 'pagePresentation.skin.panel'
+});
 
 /** Wie ein TEXT darauf steht. `auto`: wie auf der Seite (der Baustein selbst). */
 export const TEXT_TYPES = ['auto', 'display', 'title', 'heading', 'kicker', 'body', 'close', 'note'] as const;
 export type TextType = (typeof TEXT_TYPES)[number];
 
-export const TEXT_TYPE_LABEL: Record<TextType, string> = {
-  auto: 'Jak na stronie',
-  display: 'Wielki napis — zdanie przewodnie (nagłówek strony)',
-  title: 'Tytuł — wersaliki',
-  heading: 'Nagłówek z treścią',
-  kicker: 'Nagłówek w kolorze akcentu z treścią',
-  body: 'Akapity',
-  close: 'Puenta — kursywa w kolorze akcentu, pusta linia dzieli grupy',
-  note: 'Dopisek — mały, rozstrzelony'
-};
+export const TEXT_TYPE_LABEL: Record<TextType, string> = texts({
+  auto: 'pagePresentation.textType.auto',
+  display: 'pagePresentation.textType.display',
+  title: 'pagePresentation.textType.title',
+  heading: 'pagePresentation.textType.heading',
+  kicker: 'pagePresentation.textType.kicker',
+  body: 'pagePresentation.textType.body',
+  close: 'pagePresentation.textType.close',
+  note: 'pagePresentation.textType.note'
+});
 
 /**
  * WELCHER PUNKT DES BAUSTEINS auf `x`, `y` steht — die Mitte (Vorgabe) oder
@@ -126,10 +127,10 @@ export const TEXT_TYPE_LABEL: Record<TextType, string> = {
 export const ORIGINS = ['center', 'top-left', 'top', 'top-right', 'left', 'right', 'bottom-left', 'bottom', 'bottom-right'] as const;
 export type Origin = (typeof ORIGINS)[number];
 
-export const ORIGIN_LABEL: Record<Origin, string> = {
-  center: 'Środek', 'top-left': 'Lewy górny róg', top: 'Środek góry', 'top-right': 'Prawy górny róg', left: 'Środek lewej',
-  right: 'Środek prawej', 'bottom-left': 'Lewy dolny róg', bottom: 'Środek dołu', 'bottom-right': 'Prawy dolny róg'
-};
+export const ORIGIN_LABEL: Record<Origin, string> = texts({
+  center: 'pagePresentation.origin.center', 'top-left': 'pagePresentation.origin.topLeft', top: 'pagePresentation.origin.top', 'top-right': 'pagePresentation.origin.topRight', left: 'pagePresentation.origin.left',
+  right: 'pagePresentation.origin.right', 'bottom-left': 'pagePresentation.origin.bottomLeft', bottom: 'pagePresentation.origin.bottom', 'bottom-right': 'pagePresentation.origin.bottomRight'
+});
 
 /** Wo der Punkt im Baustein liegt — Anteile seiner Breite und Höhe. */
 export const ORIGIN_AT: Record<Origin, { readonly x: number; readonly y: number }> = {
@@ -141,12 +142,12 @@ export const ORIGIN_AT: Record<Origin, { readonly x: number; readonly y: number 
 export const EASES = ['inOut', 'linear', 'in', 'out'] as const;
 export type Ease = (typeof EASES)[number];
 
-export const EASE_LABEL: Record<Ease, string> = {
-  inOut: 'Łagodnie rusza i hamuje',
-  linear: 'Równo',
-  in: 'Przyspiesza (jak rosnące koło)',
-  out: 'Hamuje'
-};
+export const EASE_LABEL: Record<Ease, string> = texts({
+  inOut: 'pagePresentation.ease.inOut',
+  linear: 'pagePresentation.ease.linear',
+  in: 'pagePresentation.ease.in',
+  out: 'pagePresentation.ease.out'
+});
 
 /**
  * DAS FORMAT. `screen` füllt das Fenster (eine Startseite — auf dem Telefon
@@ -156,11 +157,11 @@ export const EASE_LABEL: Record<Ease, string> = {
 export const FORMATS = ['screen', 'wide', 'classic'] as const;
 export type Format = (typeof FORMATS)[number];
 
-export const FORMAT_LABEL: Record<Format, string> = {
-  screen: 'Cały ekran — jak strona startowa (telefon pionowo, z własnymi miejscami)',
-  wide: 'Slajd 16 : 9 — jak w programie do prezentacji',
-  classic: 'Slajd 4 : 3'
-};
+export const FORMAT_LABEL: Record<Format, string> = texts({
+  screen: 'pagePresentation.format.screen',
+  wide: 'pagePresentation.format.wide',
+  classic: 'pagePresentation.format.classic'
+});
 
 /** Das Seitenverhältnis eines festen Formats — `null`: das Fenster. */
 export const ASPECT: Record<Format, number | null> = { screen: null, wide: 16 / 9, classic: 4 / 3 };
@@ -169,12 +170,12 @@ export const ASPECT: Record<Format, number | null> = { screen: null, wide: 16 / 
 export const FONT_PAIRS = ['app', 'spectral', 'cormorant', 'plex'] as const;
 export type FontPair = (typeof FONT_PAIRS)[number];
 
-export const FONT_LABEL: Record<FontPair, string> = {
-  app: 'Jak aplikacja',
-  spectral: 'Spectral + IBM Plex Sans (strona startowa REcreatio)',
-  cormorant: 'Cormorant Garamond + Source Sans (wydarzenia)',
-  plex: 'IBM Plex Sans — bezszeryfowa'
-};
+export const FONT_LABEL: Record<FontPair, string> = texts({
+  app: 'pagePresentation.font.app',
+  spectral: 'pagePresentation.font.spectral',
+  cormorant: 'pagePresentation.font.cormorant',
+  plex: 'pagePresentation.font.plex'
+});
 
 /** Welche Familien ein Paar braucht, und für welche Rolle. */
 export const FONT_FACES: Record<FontPair, { readonly display: string; readonly text: string; readonly ui: string; readonly load: string | null }> = {
@@ -202,13 +203,13 @@ export const FONT_FACES: Record<FontPair, { readonly display: string; readonly t
 export const THREADS = ['none', 'line', 'dots'] as const;
 export type Thread = (typeof THREADS)[number];
 
-export const THREAD_LABEL: Record<Thread, string> = { none: 'Bez nitki', line: 'Linia', dots: 'Kropki' };
+export const THREAD_LABEL: Record<Thread, string> = texts({ none: 'pagePresentation.thread.none', line: 'pagePresentation.thread.line', dots: 'pagePresentation.thread.dots' });
 
 /** Die Leiste der Szenen oben. */
 export const NAVS = ['labels', 'dots', 'none'] as const;
 export type Nav = (typeof NAVS)[number];
 
-export const NAV_LABEL: Record<Nav, string> = { labels: 'Nazwy scen', dots: 'Kropki', none: 'Bez paska' };
+export const NAV_LABEL: Record<Nav, string> = texts({ labels: 'pagePresentation.nav.labels', dots: 'pagePresentation.nav.dots', none: 'pagePresentation.nav.none' });
 
 /**
  * 2026-10-19 — WOVON DIE KLATKI EINES PLATZES ABHÄNGEN, je 0–1:
@@ -223,19 +224,19 @@ export const NAV_LABEL: Record<Nav, string> = { labels: 'Nazwy scen', dots: 'Kro
 export const PROGRESS = ['scene', 'enter', 'leave'] as const;
 export type Progress = (typeof PROGRESS)[number];
 
-export const PROGRESS_LABEL: Record<Progress, string> = {
-  scene: 'Wnętrze sceny — od pierwszego do ostatniego kroku',
-  enter: 'Wejście sceny — przejście z poprzedniej',
-  leave: 'Wyjście sceny — przejście do następnej'
-};
+export const PROGRESS_LABEL: Record<Progress, string> = texts({
+  scene: 'pagePresentation.progress.scene',
+  enter: 'pagePresentation.progress.enter',
+  leave: 'pagePresentation.progress.leave'
+});
 
 /** 2026-10-19 — die Form einer Maske: was vom Baustein zu sehen ist. */
 export const MASK_SHAPES = ['circle', 'ellipse', 'inset'] as const;
 export type MaskShape = (typeof MASK_SHAPES)[number];
 
-export const MASK_LABEL: Record<MaskShape, string> = {
-  circle: 'Koło', ellipse: 'Owal', inset: 'Prostokąt (wcięty od brzegów)'
-};
+export const MASK_LABEL: Record<MaskShape, string> = texts({
+  circle: 'pagePresentation.mask.circle', ellipse: 'pagePresentation.mask.ellipse', inset: 'pagePresentation.mask.inset'
+});
 
 /**
  * 2026-10-19 — WIE EIN BAUSTEIN MIT PLÄTZEN AUF NICHT BENACHBARTEN SZENEN
@@ -246,10 +247,10 @@ export const MASK_LABEL: Record<MaskShape, string> = {
 export const BETWEENS = ['glide', 'leave'] as const;
 export type Between = (typeof BETWEENS)[number];
 
-export const BETWEEN_LABEL: Record<Between, string> = {
-  glide: 'Sunie przez sceny pomiędzy',
-  leave: 'Odchodzi ze swoją sceną i wraca z następną'
-};
+export const BETWEEN_LABEL: Record<Between, string> = texts({
+  glide: 'pagePresentation.between.glide',
+  leave: 'pagePresentation.between.leave'
+});
 
 /* -- Ein Platz ------------------------------------------------------------------------ */
 

@@ -17,6 +17,7 @@
  * <b>Je Grösse:</b> im Streifen klein und still; sonst ganz, bewegt.
  */
 
+import { t, useT } from '../../core/i18n';
 import { ImagePicker } from '../PageFiles';
 import { MotionBox } from '../motion/MotionBox';
 import { MotionField } from '../motion/MotionField';
@@ -91,26 +92,27 @@ function LayersView({ config, still }: { config: Config; still: boolean }) {
 
 /** Die Ebenen bearbeiten: Bild, Reihenfolge, Schatten, Bewegung. */
 function LayersEditor({ raw, onSet, ctx, busy }: EditorProps) {
+  const t = useT();
   const config = read(raw);
   const save = (layers: readonly Ply[]) => onSet({ layers: JSON.stringify(layers.map(plyJson)) });
   const update = (index: number, next: Ply) => save(config.layers.map((one, i) => (i === index ? next : one)));
   return (
     <div className="wk-layers-edit">
-      <p className="wk-hint">Pierwsza warstwa wyznacza rozmiar; następne leżą dokładnie na niej (obrazy tej samej wielkości z przezroczystym tłem).</p>
+      <p className="wk-hint">{t('moduleContent.layers.intro')}</p>
       <ol className="wk-layers-list">
         {config.layers.map((ply, index) => (
           <li key={index}>
             <div className="wk-layers-row">
               <img src={imageUrl(ply.url)} alt="" className="wk-layers-thumb" />
-              <input value={ply.url} disabled={busy} aria-label="Adres obrazu" onChange={(e) => update(index, { ...ply, url: e.target.value })} />
+              <input value={ply.url} disabled={busy} aria-label={t('moduleContent.layers.url')} onChange={(e) => update(index, { ...ply, url: e.target.value })} />
               <label className="se-inline"><span>z</span>
                 <input type="number" min={-10} max={10} value={ply.z} disabled={busy} onChange={(e) => update(index, { ...ply, z: Number(e.target.value) || 0 })} />
               </label>
-              <button type="button" className="se-drop" aria-label="Usuń warstwę" disabled={busy}
+              <button type="button" className="se-drop" aria-label={t('moduleContent.layers.remove')} disabled={busy}
                 onClick={() => save(config.layers.filter((_, i) => i !== index))}>×</button>
             </div>
             <label className="se-inline">
-              <span>Cień</span>
+              <span>{t('moduleContent.layers.shadow')}</span>
               <input value={ply.shadow ?? ''} disabled={busy} placeholder="0 26px 60px rgba(8, 20, 38, 0.6)"
                 onChange={(e) => update(index, { ...ply, shadow: SHADOW.test(e.target.value.trim()) ? e.target.value.trim() : null })} />
             </label>
@@ -129,8 +131,8 @@ const LOGO = (n: number) => `/cogita/logo/Cogita${String(n).padStart(2, '0')}.pn
 
 export const layersPart = definePart<Config>({
   kind: 'layers',
-  label: 'Obraz z warstw',
-  use: 'Znak albo ilustracja z kilku nałożonych warstw, każda z własnym ruchem — np. logo, którego litery się składają, a bańki unoszą.',
+  label: 'moduleContent.layers.label',
+  use: 'moduleContent.layers.use',
   box: { colSpan: 3, rowSpan: 3 },
 
   example: {
@@ -143,22 +145,22 @@ export const layersPart = definePart<Config>({
     ])
   },
   fields: [
-    { key: 'alt', label: 'Opis obrazu', kind: 'line', hint: 'dla czytników ekranu, np. „Cogita”' },
-    { key: 'link', label: 'Link', kind: 'line', hint: 'pusty — bez linku; #/strona albo https://…' }
+    { key: 'alt', label: 'moduleContent.layers.alt', kind: 'line', hint: 'moduleContent.layers.altHint' },
+    { key: 'link', label: 'moduleContent.layers.link', kind: 'line', hint: 'moduleContent.layers.linkHint' }
   ],
   extra: [
     {
-      key: 'layers', shape: 'json', says: 'Warstwy od pierwszej (wyznacza rozmiar) — lista; każda: { "url", "z", "shadow", "motion" }',
+      key: 'layers', shape: 'json', says: 'moduleContent.layers.key.layers',
       inside: {
-        '[].url': 'Adres obrazu (np. "/cogita/logo/Cogita00.png") albo "page-image:<id>" — obraz strony',
-        '[].z': 'Kolejność nakładania: wyżej — z przodu (−10…10; pominięte — 0)',
-        '[].shadow': 'Cień warstwy: "przesunięcie-x przesunięcie-y rozmycie kolor", np. "0 26px 60px rgba(8, 20, 38, 0.6)" (pominięty — bez cienia)',
-        '[].motion': 'Ruch warstwy (opis niżej: Ruch) — np. { "name": "float", "x": 4, "y": 6 } albo { "name": "assemble", "delay": 90 }; lista do trzech',
-        '[].motion.name': `Nazwa ruchu ze słownika: ${MOTION_NAMES.map((name) => `"${name}"`).join(', ')}`,
-        '[].motion.x': 'Regulacja ruchu (tu: wychylenie w bok, px) — każdy ruch ma swoje, opis niżej',
-        '[].motion.y': 'Regulacja ruchu (tu: wychylenie w pionie, px)',
-        '[].motion.duration': 'Czas jednego przebiegu w ms (pominięty — jak w słowniku)',
-        '[].motion.delay': 'Opóźnienie w ms — przy kolejnych literach rośnie (0, 90, 180 …)'
+        '[].url': 'moduleContent.layers.key.url',
+        '[].z': 'moduleContent.layers.key.z',
+        '[].shadow': 'moduleContent.layers.key.shadow',
+        '[].motion': 'moduleContent.layers.key.motion',
+        '[].motion.name': `moduleContent.layers.key.motionName: ${MOTION_NAMES.map((name) => `"${name}"`).join(', ')}`,
+        '[].motion.x': 'moduleContent.layers.key.motionX',
+        '[].motion.y': 'moduleContent.layers.key.motionY',
+        '[].motion.duration': 'moduleContent.layers.key.motionDuration',
+        '[].motion.delay': 'moduleContent.layers.key.motionDelay'
       }
     }
   ],
@@ -166,8 +168,8 @@ export const layersPart = definePart<Config>({
   read,
   hasContent: (c) => c.layers.length > 0,
   shows: (c, size) => size.height === 'strip'
-    ? `${c.layers.length} warstw, małe i nieruchome.`
-    : `${c.layers.length} warstw, każda ze swoim ruchem.`,
+    ? t('moduleContent.layers.showsStrip', { count: c.layers.length })
+    : t('moduleContent.layers.showsAll', { count: c.layers.length }),
   Editor: LayersEditor,
   View: ({ config, ctx }) => <LayersView config={config} still={ctx.size.height === 'strip'} />
 });

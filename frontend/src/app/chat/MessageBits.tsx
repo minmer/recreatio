@@ -12,10 +12,11 @@ import type { Opened, SealedVersion } from './chat';
 import { Modal } from '../ui/Modal';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { fmtDate, useT, type Lang } from '../core/i18n';
 
-const when = (at: string) => new Date(at).toLocaleString('pl-PL', {
+const when = (at: string, lang: Lang) => fmtDate(new Date(at), {
   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-});
+}, lang);
 
 /**
  * DIE GESCHICHTE einer Nachricht — jede Fassung mit ihrer Zeit, die jüngste
@@ -27,6 +28,7 @@ export function HistoryDialog({ load, open, onClose }: {
   open: (version: SealedVersion) => Promise<Opened | null>;
   onClose: () => void;
 }) {
+  const t = useT();
   const [list, setList] = useState<readonly { version: SealedVersion; opened: Opened | null }[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -38,25 +40,25 @@ export function HistoryDialog({ load, open, onClose }: {
         const opened = await Promise.all(versions.map(async (version) => ({ version, opened: await open(version) })));
         if (alive) setList([...opened].reverse());
       } catch (e) {
-        if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać wersji.');
+        if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('chat.history.loadFailed'));
       }
     })();
     return () => { alive = false; };
-  }, [load, open]);
+  }, [load, open, t]);
 
   return (
-    <Modal title="Wersje wiadomości" onClose={onClose}>
+    <Modal title={t('chat.history.title')} onClose={onClose}>
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {list === null && failed === null && <Loading label="Wczytywanie…" />}
+      {list === null && failed === null && <Loading label={t('common.loading')} />}
       {list !== null && (
         <ol className="wk-msg-history">
           {list.map(({ version, opened }, i) => (
             <li key={version.version} className={i === 0 ? 'is-current' : ''}>
               <span className="wk-msg-history-head">
-                Wersja {version.version}{i === 0 ? ' (obecna)' : ''} · {when(version.createdAt)}
+                {t(i === 0 ? 'chat.history.versionCurrent' : 'chat.history.version', { n: version.version, when: when(version.createdAt, t.lang) })}
               </span>
               <span className="wk-msg-history-body">
-                {opened === null ? <em className="wk-row-side">Nie do odczytania — brak klucza tej epoki.</em> : opened.text}
+                {opened === null ? <em className="wk-row-side">{t('chat.history.noKey')}</em> : opened.text}
               </span>
             </li>
           ))}

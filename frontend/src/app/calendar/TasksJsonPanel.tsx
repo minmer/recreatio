@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 import { AreaPick } from '../areas/AreaPick';
 import type { AreaRow } from '../areas/area';
 import { groupName } from '../areas/WhoSees';
+import { useT } from '../core/i18n';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { fold } from '../shell/search';
@@ -29,23 +30,24 @@ export function TasksJson({ me, areas, tasks, onChanged }: {
   tasks: readonly OpenTask[];
   onChanged: () => void;
 }) {
+  const t = useT();
   const [scope, setScope] = useState(ALL);
 
   /* Jede Gruppe mit Namen und Recht — „Tylko ja" darf immer, eine Gruppe, wenn ich dort schreibe. */
   const groups = useMemo((): TaskGroup[] => areas.map((a) => ({
     areaId: a.areaId,
-    name: a.personal === true ? 'Tylko ja' : groupName(areas, a.areaId),
+    name: a.personal === true ? t('calendarDataTasks.onlyMe') : groupName(areas, a.areaId),
     write: a.personal === true || a.myLevel === 'write' || a.myLevel === 'admin',
     ...(a.personal === true ? { personal: true } : {}),
     ...(a.ownChat != null ? { chat: true } : {})
-  })), [areas]);
+  })), [areas, t]);
 
   /* Zur Wahl stehen nur Bereiche, in denen Aufgaben liegen. */
   const withTasks = useMemo(() => areas.filter((a) => tasks.some((t) => t.areaId === a.areaId)), [areas, tasks]);
   const personal = withTasks.find((a) => a.personal === true);
   const chosen = scope === ALL ? tasks : tasks.filter((t) => t.areaId === scope);
   const scopeName = scope === ALL ? '' : fold(groups.find((g) => g.areaId === scope)?.name ?? '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  const fileName = `zadania${scopeName === '' ? '' : `-${scopeName}`}.json`;
+  const fileName = scopeName === '' ? t('calendarData.tasksPanel.fileAll') : t('calendarData.tasksPanel.fileScope', { name: scopeName });
 
   const plan = (doc: unknown) => planTasksImport(doc, { tasks, groups, now: new Date() });
 
@@ -53,18 +55,18 @@ export function TasksJson({ me, areas, tasks, onChanged }: {
     <>
       {withTasks.length > 0 && (
         <label className="wk-field">
-          <span>Do eksportu</span>
+          <span>{t('calendarData.tasksPanel.toExport')}</span>
           <AreaPick
-            label="Które zadania" areas={areas} only={withTasks} value={scope} onChange={setScope}
-            extras={[{ value: ALL, label: 'Wszystkie zadania' }, ...(personal === undefined ? [] : [{ value: personal.areaId, label: 'Tylko ja (prywatne)' }])]}
+            label={t('calendarData.tasksPanel.which')} areas={areas} only={withTasks} value={scope} onChange={setScope}
+            extras={[{ value: ALL, label: t('calendarData.tasksPanel.all') }, ...(personal === undefined ? [] : [{ value: personal.areaId, label: t('calendarData.tasksPanel.private') }])]}
           />
         </label>
       )}
 
       <JsonPanel
         open
-        summary="Zadania jako JSON"
-        lead={<>Zadania, które widzisz, jako jeden dokument — do kopii, do poprawienia ręcznie albo przez AI. Import zmienia zadania z „id” w miejscu i dodaje nowe; usuwa tylko te z „remove”: true. Odhaczenia nie są w dokumencie i import ich nie zmienia.</>}
+        summary={t('calendarData.tasksPanel.summary')}
+        lead={<>{t('calendarData.tasksPanel.lead')}</>}
         fileName={fileName}
         exportDoc={() => exportTasks(chosen, groups)}
         format={TASKS_JSON}
@@ -72,7 +74,7 @@ export function TasksJson({ me, areas, tasks, onChanged }: {
           const planned = plan(doc);
           return 'error' in planned ? planned : { lines: planned.lines, warnings: planned.warnings };
         }}
-        importLabel="Importuj zadania"
+        importLabel={t('calendarData.tasksPanel.importLabel')}
         onImport={async (doc, stage) => {
           const planned = plan(doc);
           if ('error' in planned) throw new WorkspaceError(planned.error);
@@ -87,24 +89,24 @@ export function TasksJson({ me, areas, tasks, onChanged }: {
           const failed: string[] = [];
           let saved = 0;
           for (const [index, change] of planned.changes.entries()) {
-            stage(`Zapisywanie zadań… ${index + 1}/${planned.changes.length}`);
+            stage(t('calendarData.tasksPanel.saving', { n: index + 1, total: planned.changes.length }));
             try {
               if (change.action === 'remove' && change.taskId !== null) await archiveTask(change.taskId);
               else if (change.spec !== null) {
                 const areaId = change.spec.areaId ?? own;
-                if (areaId === null) throw new WorkspaceError('Nie udało się założyć obszaru „Tylko ja”.');
+                if (areaId === null) throw new WorkspaceError(t('calendarData.tasksPanel.noPrivate'));
                 await saveTask(me.ring, draftOf(change.spec, areaId, me.person.id), change.taskId ?? undefined, { quiet: true });
               }
               saved += 1;
             } catch (e) {
-              failed.push(`Nie zapisano „${change.title}”: ${e instanceof WorkspaceError ? e.message : 'błąd połączenia.'}`);
+              failed.push(t('calendarData.tasksPanel.notSaved', { title: change.title, reason: e instanceof WorkspaceError ? e.message : t('calendarData.tasksPanel.network') }));
             }
           }
 
           /* Einmal neu: die Erinnerungen (NotifyBell) und die Liste. */
           tasksChanged();
           onChanged();
-          if (saved === 0) throw new WorkspaceError(failed[0] ?? 'Import się nie udał.');
+          if (saved === 0) throw new WorkspaceError(failed[0] ?? t('calendarData.tasksPanel.failed'));
           return { lines: planned.lines, warnings: [...planned.warnings, ...failed] };
         }}
       />

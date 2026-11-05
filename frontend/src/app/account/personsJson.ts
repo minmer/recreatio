@@ -15,7 +15,7 @@
  */
 
 import { describe, keyLines, pretty, type JsonNode } from '../core/jsonTree';
-import { plural } from '../core/plural';
+import { t } from '../core/i18n';
 import { FIELD_LABEL, PERSON_FIELDS, type PersonField } from './person';
 
 export const PERSONS_FORMAT = 'recreatio/persons';
@@ -28,36 +28,37 @@ export const MAX_LENGTH: Readonly<Record<PersonField, number>> = {
 
 /* -- Die Sätze ----------------------------------------------------------------------------------------- */
 
-const TOP_KEYS: Readonly<Record<string, string>> = {
-  format: `"${PERSONS_FORMAT}"`,
-  version: `${PERSONS_VERSION} — wersja formatu`,
-  persons: 'osoby tego konta (niżej) — zwykle jedna: Ty'
+/** Sätze, die erst beim Lesen übersetzt werden (Sprache der Anwendung zu diesem Zeitpunkt). */
+const lazy = (entries: Readonly<Record<string, () => string>>): Readonly<Record<string, string>> => {
+  const out: Record<string, string> = {};
+  for (const [k, read] of Object.entries(entries)) Object.defineProperty(out, k, { get: read, enumerable: true });
+  return out;
 };
 
-const FIELD_SAYS: Readonly<Record<PersonField, string>> = {
-  given_name: `${FIELD_LABEL.given_name} (do ${MAX_LENGTH.given_name} znaków)`,
-  surname: `${FIELD_LABEL.surname} (do ${MAX_LENGTH.surname} znaków)`,
-  phone: `${FIELD_LABEL.phone}: cyfry, spacje, "+", "-", "(", ")" — co najmniej 6 cyfr (do ${MAX_LENGTH.phone} znaków)`,
-  born: `${FIELD_LABEL.born}: "RRRR-MM-DD" (także "DD.MM.RRRR" — zapisze się jako "RRRR-MM-DD"); formularze wpisują ją w pole daty`,
-  address: `${FIELD_LABEL.address} w jednej linii, np. "ul. Długa 5/3, 31-147 Kraków" (do ${MAX_LENGTH.address} znaków)`,
-  email: `${FIELD_LABEL.email}: jeden adres "nazwa@domena.pl" (do ${MAX_LENGTH.email} znaków)`,
-  nickname: `${FIELD_LABEL.nickname} — jak wołają na Ciebie (do ${MAX_LENGTH.nickname} znaków)`
-};
+const TOP_KEYS: Readonly<Record<string, string>> = lazy({
+  format: () => `"${PERSONS_FORMAT}"`,
+  version: () => t('account.json.key.version', { version: PERSONS_VERSION }),
+  persons: () => t('account.json.key.persons')
+});
 
-const PERSON_KEYS: Readonly<Record<string, string>> = {
-  id: 'identyfikator osoby z eksportu (wymagany) — po nim import wie, czyje dane zmienia; tylko osoby tego konta',
-  name: 'tylko informacja z eksportu: nazwa osoby (rola) — import jej nie zmienia',
+const FIELD_SAYS: Readonly<Record<string, () => string>> = Object.fromEntries(PERSON_FIELDS.map((field) => [
+  field, () => t(`account.json.field.${field}`, { label: FIELD_LABEL[field], max: MAX_LENGTH[field] })
+]));
+
+const PERSON_KEYS: Readonly<Record<string, string>> = lazy({
+  id: () => t('account.json.key.id'),
+  name: () => t('account.json.key.name'),
   ...FIELD_SAYS,
-  shared: 'tylko informacja z eksportu: komu udostępniono które pole, np. {"phone": ["Parafia św. Józefa"]} — udostępnia się i wycofuje w „Moje dane”'
-};
+  shared: () => t('account.json.key.shared')
+});
 
 /** Jeder Schlüssel als Pfad (`persons[].phone`) mit seinem Satz — für die Prüfung. */
-export const PERSONS_KEYS: Readonly<Record<string, string>> = {
-  ...TOP_KEYS,
-  ...Object.fromEntries(Object.entries(PERSON_KEYS).map(([k, v]) => [`persons[].${k}`, v])),
+export const PERSONS_KEYS: Readonly<Record<string, string>> = lazy({
+  ...Object.fromEntries(Object.keys(TOP_KEYS).map((k) => [k, () => TOP_KEYS[k]])),
+  ...Object.fromEntries(Object.keys(PERSON_KEYS).map((k) => [`persons[].${k}`, () => PERSON_KEYS[k]])),
   /* In "shared" heissen die Schlüssel wie die Felder — jedes kann dort stehen. */
-  ...Object.fromEntries(PERSON_FIELDS.map((field) => [`persons[].shared.${field}`, `komu udostępniono pole „${FIELD_LABEL[field]}” — nazwy obszarów`]))
-};
+  ...Object.fromEntries(PERSON_FIELDS.map((field) => [`persons[].shared.${field}`, () => t('account.json.key.sharedField', { label: FIELD_LABEL[field] })]))
+});
 
 const SAMPLE = {
   format: PERSONS_FORMAT,
@@ -69,10 +70,10 @@ const SAMPLE = {
     surname: 'Kowalska',
     phone: '+48 600 100 200',
     born: '1987-05-14',
-    address: 'ul. Długa 5/3, 31-147 Kraków',
+    address: 'ul. Długa 5/3, 31-147 Kraków', // i18n-ignore
     email: 'anna.kowalska@example.pl',
     nickname: '',
-    shared: { phone: ['Parafia św. Józefa'] }
+    shared: { phone: ['Parafia św. Józefa'] } // i18n-ignore
   }]
 };
 
@@ -83,37 +84,17 @@ const SAMPLE = {
  */
 export const PERSONS_USAGE_JSON: JsonNode = {
   key: 'persons.usage',
-  title: 'Jak aplikacja używa tych danych',
-  text: () => `- Dane leżą przy roli osoby, każde pole osobno, zapieczętowane jej kluczem: otwiera je tylko ten, kto ma klucz tej osoby (zwykle tylko Ty). Usługa wie tylko, które pola są wypełnione.
-- Imię i nazwisko (a gdy ich brak — przezwisko) to nazwa osoby w aplikacji: tak nazywają ją Twoje role i listy, i tak podpisane są wiadomości, które wysyłasz w rozmowach.
-- Obszar dostaje pole tylko wtedy, gdy mu je udostępnisz („Moje dane”): kopia jest zapieczętowana kluczem obszaru i czyta ją każdy, kto ma do niego dostęp — np. lista osób obszaru bierze z niej imię i nazwisko.
-- Formularz wypełniany za tę osobę sam wpisuje odpowiedzi na pytania o imię, nazwisko, telefon, datę urodzenia, adres, e-mail i przezwisko. Zgłoszeń już wysłanych import nie zmienia.
-- Udostępnienie cofa się w „Moje dane” („Kto to dostał”): obszar traci kopię, ale tego, co ktoś już przeczytał, nie da się cofnąć.`
+  get title() { return t('account.json.usageTitle'); },
+  text: () => t('account.json.usage')
 };
 
 export const PERSONS_JSON: JsonNode = {
   key: 'persons',
-  title: `Moje dane jako JSON ("${PERSONS_FORMAT}", wersja ${PERSONS_VERSION})`,
-  short: 'Moje dane',
-  text: () => `Dane osób, które prowadzi to konto: imię, nazwisko, telefon, data urodzenia, adres, e-mail, przezwisko (Konto, #/workspace/account → pod „Moje dane” → „Moje dane jako JSON”). Każde pole jest zapieczętowane w przeglądarce osobno — kluczem osoby — i udostępniane osobno.
-Co robi import:
-- Najpierw pokazuje plan zmian; zapisuje dopiero po „Importuj”.
-- Zmienia tylko pola osób tego konta, wskazanych przez "id" z eksportu. Osoby bez "id" albo z cudzym "id" pomija (ostrzeżenie) — nie zakłada osób ani kont i nigdy nie zmienia danych kogoś innego.
-- Pole z nową wartością zapisuje; ta sama wartość — bez zmian. Zmiana odświeża też kopie w obszarach, którym to pole już udostępniono (plan je wymienia); nowym obszarom niczego nie udostępnia.
-- Pusty tekst ("") i null nie usuwają: pole zostaje, jakie było (usuwa się je w „Moje dane”, razem z udostępnieniami).
-- Wartość w złym kształcie (np. data, e-mail, telefon) — ostrzeżenie, pole pominięte.
-Zwróć JEDEN obiekt JSON, bez komentarzy.
-
-Dokument:
-${keyLines(TOP_KEYS)}
-
-Osoba (wpis w "persons"):
-${keyLines(PERSON_KEYS)}
-
-Przykład:
-${pretty(SAMPLE)}`,
+  get title() { return t('account.json.title', { format: PERSONS_FORMAT, version: PERSONS_VERSION }); },
+  get short() { return t('account.page.myData'); },
+  text: () => t('account.json.text', { top: keyLines(TOP_KEYS), person: keyLines(PERSON_KEYS), sample: pretty(SAMPLE) }),
   inside: () => [PERSONS_USAGE_JSON],
-  samples: () => [{ label: 'Moje dane (jedna osoba)', doc: () => SAMPLE }]
+  samples: () => [{ label: t('account.json.sampleLabel'), doc: () => SAMPLE }]
 };
 
 /** Die Beschreibung als Text — ohne Zusammenhang aufrufbar (MCP, `import-formats.mjs`). */
@@ -185,23 +166,23 @@ function valueOf(field: PersonField, raw: string, today: Date): { value: string 
   const text = field === 'address' ? raw.replace(/\s*[\r\n]+\s*/g, ', ').trim() : raw.trim();
   if (field === 'born') {
     const day = dayOf(text, today);
-    return day === null ? { problem: 'to nie data "RRRR-MM-DD" (od 1900 do dziś)' } : { value: day };
+    return day === null ? { problem: t('account.json.problem.date') } : { value: day };
   }
-  if (text.length > MAX_LENGTH[field]) return { problem: `dłuższe niż ${MAX_LENGTH[field]} znaków` };
-  if (field === 'phone' && (!/^[+()\d\s./-]+$/.test(text) || (text.match(/\d/g) ?? []).length < 6)) return { problem: 'to nie numer telefonu (cyfry, spacje, + - ( ), co najmniej 6 cyfr)' };
-  if (field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return { problem: 'to nie adres e-mail' };
-  if (/[\u0000-\u001f]/.test(text)) return { problem: 'zawiera znaki sterujące' };
+  if (text.length > MAX_LENGTH[field]) return { problem: t('account.json.problem.long', { max: MAX_LENGTH[field] }) };
+  if (field === 'phone' && (!/^[+()\d\s./-]+$/.test(text) || (text.match(/\d/g) ?? []).length < 6)) return { problem: t('account.json.problem.phone') };
+  if (field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return { problem: t('account.json.problem.email') };
+  if (/[\u0000-\u001f]/.test(text)) return { problem: t('account.json.problem.control') };
   return { value: text };
 }
 
 export function planPersons(doc: unknown, persons: readonly PersonState[], today = new Date()): PersonsPlan | { error: string } {
-  if (!isObject(doc)) return { error: 'To nie jest dokument z danymi osób (oczekiwano obiektu JSON).' };
-  if (doc.format !== undefined && doc.format !== PERSONS_FORMAT) return { error: `Inny format: "${String(doc.format)}" — oczekiwano "${PERSONS_FORMAT}".` };
-  if (!Array.isArray(doc.persons)) return { error: 'Brakuje listy "persons".' };
+  if (!isObject(doc)) return { error: t('account.json.plan.notDoc') };
+  if (doc.format !== undefined && doc.format !== PERSONS_FORMAT) return { error: t('account.json.plan.otherFormat', { format: String(doc.format), expected: PERSONS_FORMAT }) };
+  if (!Array.isArray(doc.persons)) return { error: t('account.json.plan.noPersons') };
 
   const warnings: string[] = [];
-  if (doc.version !== undefined && doc.version !== PERSONS_VERSION) warnings.push(`Wersja ${String(doc.version)} — znam wersję ${PERSONS_VERSION}; czytam to, co rozpoznaję.`);
-  for (const key of Object.keys(doc)) if (!described(TOP_KEYS, key)) warnings.push(`Nieznany klucz "${key}" — pominięty.`);
+  if (doc.version !== undefined && doc.version !== PERSONS_VERSION) warnings.push(t('account.json.plan.version', { version: String(doc.version), known: PERSONS_VERSION }));
+  for (const key of Object.keys(doc)) if (!described(TOP_KEYS, key)) warnings.push(t('account.json.plan.unknownKey', { key }));
 
   const mine = new Map(persons.map((p) => [p.roleId, p]));
   const seen = new Set<string>();
@@ -209,29 +190,29 @@ export function planPersons(doc: unknown, persons: readonly PersonState[], today
   let same = 0;
 
   doc.persons.forEach((raw, i) => {
-    const where = `Osoba ${i + 1}`;
-    if (!isObject(raw)) { warnings.push(`${where}: to nie obiekt — pominięta.`); return; }
-    if (typeof raw.id !== 'string' || raw.id.trim() === '') { warnings.push(`${where}: bez "id" — import nie zakłada osób (osobę zakłada się w „Role”). Pominięta.`); return; }
+    const where = t('account.json.plan.person', { n: i + 1 });
+    if (!isObject(raw)) { warnings.push(t('account.json.plan.notObject', { who: where })); return; }
+    if (typeof raw.id !== 'string' || raw.id.trim() === '') { warnings.push(t('account.json.plan.noId', { who: where })); return; }
     const person = mine.get(raw.id.trim());
-    if (person === undefined) { warnings.push(`${where}: to nie jest osoba tego konta — pominięta (cudzych danych import nie zmienia).`); return; }
-    if (seen.has(person.roleId)) { warnings.push(`${where}: ta sama osoba drugi raz — pominięta.`); return; }
+    if (person === undefined) { warnings.push(t('account.json.plan.notMine', { who: where })); return; }
+    if (seen.has(person.roleId)) { warnings.push(t('account.json.plan.twice', { who: where })); return; }
     seen.add(person.roleId);
     const who = person.name ?? (typeof raw.name === 'string' && raw.name.trim() !== '' ? raw.name.trim() : where);
 
-    for (const key of Object.keys(raw)) if (!described(PERSON_KEYS, key)) warnings.push(`${who}: nieznany klucz "${key}" — pominięty.`);
+    for (const key of Object.keys(raw)) if (!described(PERSON_KEYS, key)) warnings.push(t('account.json.plan.personUnknownKey', { who, key }));
     for (const field of PERSON_FIELDS) {
       if (!(field in raw)) continue;
       const given = raw[field];
       const was = person.values.get(field) ?? null;
       if (given === null || (typeof given === 'string' && given.trim() === '')) {
-        if (was !== null) warnings.push(`${who}: „${FIELD_LABEL[field]}” puste — pustą wartością pola się nie usuwa (zostaje „${was}”; usuwa się je w „Moje dane”).`);
+        if (was !== null) warnings.push(t('account.json.plan.emptyKeeps', { who, label: FIELD_LABEL[field], was }));
         continue;
       }
-      if (typeof given !== 'string' && typeof given !== 'number') { warnings.push(`${who}: „${FIELD_LABEL[field]}” to nie tekst — pominięte.`); continue; }
+      if (typeof given !== 'string' && typeof given !== 'number') { warnings.push(t('account.json.plan.notText', { who, label: FIELD_LABEL[field] })); continue; }
       const read = valueOf(field, String(given), today);
       if ('problem' in read) {
         /* Was schon so dasteht (aus „Moje dane", frei getippt), ist keine Änderung — darüber wird nicht gewarnt. */
-        if (String(given).trim() !== was) warnings.push(`${who}: „${FIELD_LABEL[field]}” — ${read.problem}; pominięte.`);
+        if (String(given).trim() !== was) warnings.push(t('account.json.plan.problem', { who, label: FIELD_LABEL[field], problem: read.problem }));
         else same += 1;
         continue;
       }
@@ -244,13 +225,15 @@ export function planPersons(doc: unknown, persons: readonly PersonState[], today
   const byPerson = new Map<string, PersonChange[]>();
   for (const c of changes) byPerson.set(c.roleId, [...(byPerson.get(c.roleId) ?? []), c]);
   for (const list of byPerson.values()) {
-    lines.push(`${list[0].person}: ${list.map((c) => `${FIELD_LABEL[c.field]} ${c.was === null ? '(nowe)' : `„${c.was}” →`} „${c.value}”`).join('; ')}`);
+    lines.push(`${list[0].person}: ${list.map((c) => (c.was === null
+      ? t('account.json.plan.changeNew', { label: FIELD_LABEL[c.field], value: c.value })
+      : t('account.json.plan.change', { label: FIELD_LABEL[c.field], was: c.was, value: c.value }))).join('; ')}`);
     const refreshed = new Set<string>();
     for (const c of list) for (const r of mine.get(c.roleId)!.releases) if (r.field === c.field) refreshed.add(`${r.areaName} (${FIELD_LABEL[c.field].toLowerCase()})`);
-    if (refreshed.size > 0) lines.push(`Zmiana odświeży też kopie udostępnione: ${[...refreshed].join(', ')}`);
+    if (refreshed.size > 0) lines.push(t('account.json.plan.refreshes', { list: [...refreshed].join(', ') }));
   }
-  if (same > 0) lines.push(`Bez zmian: ${same} ${plural(same, 'pole', 'pola', 'pól')}`);
-  if (changes.length === 0) lines.push('Nic do zmiany.');
+  if (same > 0) lines.push(t('account.json.plan.same', { count: same }));
+  if (changes.length === 0) lines.push(t('account.json.plan.nothing'));
   return { changes, lines, warnings };
 }
 
@@ -265,18 +248,18 @@ export async function applyPersons(plan: PersonsPlan, set: SetPersonValue, stage
   const couldNot = new Set<string>();
   let saved = 0;
   for (const [i, c] of plan.changes.entries()) {
-    stage(`Zapisywanie ${i + 1} z ${plan.changes.length}…`);
+    stage(t('account.json.apply.saving', { n: i + 1, total: plan.changes.length }));
     try {
       const done = await set(c.roleId, c.field, c.value);
       saved += 1;
       done.refreshed.forEach((one) => refreshed.add(one));
       done.couldNot.forEach((one) => couldNot.add(one));
     } catch (e) {
-      warnings.push(`${c.person}: „${FIELD_LABEL[c.field]}” — ${e instanceof Error && e.message !== '' ? e.message : 'nie udało się zapisać'}`);
+      warnings.push(t('account.json.apply.failed', { who: c.person, label: FIELD_LABEL[c.field], why: e instanceof Error && e.message !== '' ? e.message : t('account.json.apply.saveFailed') }));
     }
   }
-  const lines = [`Zapisane pola: ${saved}`];
-  if (refreshed.size > 0) lines.push(`Odświeżone kopie w: ${[...refreshed].join(', ')}`);
-  if (couldNot.size > 0) warnings.push(`Nie udało się odświeżyć kopii w: ${[...couldNot].join(', ')} — udostępnij tam pole ponownie w „Moje dane”.`);
+  const lines = [t('account.json.apply.saved', { count: saved })];
+  if (refreshed.size > 0) lines.push(t('account.json.apply.refreshed', { list: [...refreshed].join(', ') }));
+  if (couldNot.size > 0) warnings.push(t('account.json.apply.notRefreshed', { list: [...couldNot].join(', ') }));
   return { lines, warnings };
 }

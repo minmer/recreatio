@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 
+import { fmtDate, useT } from '../core/i18n';
 import type { PhoneCtx } from '../phone/phoneContext';
 import { viewPath } from '../routes';
 import { useCrumbs } from '../shell/crumbTrail';
@@ -22,10 +23,10 @@ import {
 } from './lampStore';
 import { LampRadio } from './native';
 import { PaceControl } from './PaceControl';
-import { DAY_SHORT, nextRun, WEEKEND, whenText, WORKDAYS } from './timers';
+import { dayShort, nextRun, WEEKEND, whenText, WORKDAYS } from './timers';
 import { transmit } from './transmit';
 
-const DAY_LONG = ['poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota', 'niedziela'] as const;
+const DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 /** Die erste Aktion, die es gibt: das erste Gerät mit seinem ersten Sygnał. */
 const firstAction = (lamps: readonly Lamp[]): LampTimerAction | null => {
@@ -43,6 +44,7 @@ export function TimerEdit({ ctx, timer, lamps, native, onSaved, onRemoved }: {
   onSaved: (timer: LampTimer) => void;
   onRemoved: (id: string) => void;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState<LampTimerData>(() => {
     if (timer !== null) return timer;
     const first = firstAction(lamps);
@@ -52,7 +54,7 @@ export function TimerEdit({ ctx, timer, lamps, native, onSaved, onRemoved }: {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
-  useCrumbs([{ label: timer === null ? 'Nowy timer' : timerTitle(timer), href: null }]);
+  useCrumbs([{ label: timer === null ? t('lamps.timerEdit.new') : timerTitle(timer), href: null }]);
 
   const set = (patch: Partial<LampTimerData>) => setDraft((d) => ({ ...d, ...patch }));
   const setActions = (make: (list: readonly LampTimerAction[]) => readonly LampTimerAction[]) => setDraft((d) => ({ ...d, actions: make(d.actions) }));
@@ -83,7 +85,7 @@ export function TimerEdit({ ctx, timer, lamps, native, onSaved, onRemoved }: {
 
   const remove = async () => {
     if (timer === null) return;
-    if (!await ask({ title: `Usunąć timer „${timerTitle(timer)}"?`, confirm: 'Usuń', danger: true })) return;
+    if (!await ask({ title: t('lamps.timerEdit.removeAsk', { name: timerTitle(timer) }), confirm: t('common.delete'), danger: true })) return;
     setBusy(true);
     try {
       await removeItem(ctx, timer.id);
@@ -104,57 +106,57 @@ export function TimerEdit({ ctx, timer, lamps, native, onSaved, onRemoved }: {
 
   return (
     <form className="lp-edit" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-      <PageHeader title={timer === null ? 'Nowy timer' : timerTitle(timer)} meta={next !== null ? `Najbliżej: ${whenText(next, Date.now())}` : draft.enabled ? undefined : 'Wyłączony'}
+      <PageHeader title={timer === null ? t('lamps.timerEdit.new') : timerTitle(timer)} meta={next !== null ? t('lamps.timerEdit.next', { when: whenText(next, Date.now()) }) : draft.enabled ? undefined : t('lamps.timerEdit.off')}
         actions={timer !== null && (
-          <MenuButton label="Więcej: timer" items={[{ label: 'Usuń…', icon: 'trash', onSelect: () => void remove() }]} />
+          <MenuButton label={t('lamps.timerEdit.more')} items={[{ label: t('lamps.edit.remove'), icon: 'trash', onSelect: () => void remove() }]} />
         )} />
 
       <div className="lp-pair">
         <label className="wk-field">
-          <span>Godzina</span>
+          <span>{t('lamps.timerEdit.time')}</span>
           <input type="time" value={timeInput} required onChange={(e) => {
             setTimeInput(e.target.value);
             set({ minute: minuteOf(e.target.value) ?? -1 });
           }} />
         </label>
         <label className="wk-field">
-          <span>Nazwa (opcjonalnie)</span>
-          <input value={draft.name} autoComplete="off" placeholder="np. Rano, Na noc" onChange={(e) => set({ name: e.target.value })} />
+          <span>{t('lamps.timerEdit.name')}</span>
+          <input value={draft.name} autoComplete="off" placeholder={t('lamps.timerEdit.namePh')} onChange={(e) => set({ name: e.target.value })} />
         </label>
       </div>
 
       <fieldset className="wk-field lp-days">
-        <legend>Dni {draft.days.length === 0 && '(żaden nie wybrany: codziennie)'}</legend>
-        <div className="lp-day-row" role="group" aria-label="Dni tygodnia">
-          {DAY_SHORT.map((d, i) => (
-            <button key={d} type="button" className="ui-filter" aria-pressed={draft.days.includes(i + 1)} aria-label={DAY_LONG[i]}
-              onClick={() => toggleDay(i + 1)}>{d}</button>
+        <legend>{draft.days.length === 0 ? t('lamps.timerEdit.daysNone') : t('lamps.timerEdit.days')}</legend>
+        <div className="lp-day-row" role="group" aria-label={t('lamps.timerEdit.weekdays')}>
+          {DAYS.map((d) => (
+            <button key={d} type="button" className="ui-filter" aria-pressed={draft.days.includes(d)} aria-label={fmtDate(new Date(2024, 0, d), { weekday: 'long' }, t.lang)}
+              onClick={() => toggleDay(d)}>{dayShort(d)}</button>
           ))}
         </div>
         <div className="wk-actions">
-          <button type="button" className="wk-link-btn" onClick={() => set({ days: [] })}>codziennie</button>
-          <button type="button" className="wk-link-btn" onClick={() => set({ days: [...WORKDAYS] })}>pn–pt</button>
-          <button type="button" className="wk-link-btn" onClick={() => set({ days: [...WEEKEND] })}>weekend</button>
+          <button type="button" className="wk-link-btn" onClick={() => set({ days: [] })}>{t('lamps.day.daily')}</button>
+          <button type="button" className="wk-link-btn" onClick={() => set({ days: [...WORKDAYS] })}>{t('lamps.day.workdays')}</button>
+          <button type="button" className="wk-link-btn" onClick={() => set({ days: [...WEEKEND] })}>{t('lamps.day.weekend')}</button>
         </div>
       </fieldset>
 
       <label className="lp-inline">
         <input type="checkbox" checked={draft.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
-        <span>Włączony</span>
+        <span>{t('lamps.timerEdit.enabled')}</span>
       </label>
 
-      <h2 className="wk-h2">Co zrobić</h2>
-      {withSignals.length === 0 && <p className="wk-empty">Najpierw dodaj urządzenie z co najmniej jednym sygnałem.</p>}
+      <h2 className="wk-h2">{t('lamps.timerEdit.what')}</h2>
+      {withSignals.length === 0 && <p className="wk-empty">{t('lamps.timerEdit.noSignals')}</p>}
       <ol className="lp-action-list">
         {draft.actions.map((a, i) => {
           const found = actionOf(lamps, a);
           return (
             <li key={i} className="lp-action">
-              <select aria-label={`Akcja ${i + 1}`} value={keyOf(a)} onChange={(e) => {
+              <select aria-label={t('lamps.timerEdit.actionN', { n: i + 1 })} value={keyOf(a)} onChange={(e) => {
                 const [lampId, signalId] = e.target.value.split('|');
                 setActions((list) => list.map((x, j) => (j === i ? { lampId, signalId } : x)));
               }}>
-                {found === null && <option value={keyOf(a)}>(usunięty sygnał)</option>}
+                {found === null && <option value={keyOf(a)}>{t('lamps.timers.signalGone')}</option>}
                 {withSignals.map((l) => (
                   <optgroup key={l.id} label={lampTitle(l)}>
                     {l.signals.map((s) => <option key={s.id} value={`${l.id}|${s.id}`}>{s.label}</option>)}
@@ -162,9 +164,9 @@ export function TimerEdit({ ctx, timer, lamps, native, onSaved, onRemoved }: {
                 ))}
               </select>
               <span className="lp-tools">
-                <button type="button" className="wk-icon-btn" aria-label="Wyżej" disabled={i === 0} onClick={() => move(i, -1)}><Icon name="up" /></button>
-                <button type="button" className="wk-icon-btn" aria-label="Niżej" disabled={i === draft.actions.length - 1} onClick={() => move(i, 1)}><Icon name="down" /></button>
-                <button type="button" className="wk-icon-btn" aria-label={`Usuń akcję ${i + 1}`} onClick={() => setActions((list) => list.filter((_, j) => j !== i))}><Icon name="trash" /></button>
+                <button type="button" className="wk-icon-btn" aria-label={t('lamps.up')} disabled={i === 0} onClick={() => move(i, -1)}><Icon name="up" /></button>
+                <button type="button" className="wk-icon-btn" aria-label={t('lamps.down')} disabled={i === draft.actions.length - 1} onClick={() => move(i, 1)}><Icon name="down" /></button>
+                <button type="button" className="wk-icon-btn" aria-label={t('lamps.timerEdit.removeAction', { n: i + 1 })} onClick={() => setActions((list) => list.filter((_, j) => j !== i))}><Icon name="trash" /></button>
               </span>
             </li>
           );
@@ -173,18 +175,18 @@ export function TimerEdit({ ctx, timer, lamps, native, onSaved, onRemoved }: {
       <div className="wk-actions">
         <button type="button" className="wk-btn wk-btn-quiet" disabled={withSignals.length === 0 || draft.actions.length >= ACTIONS_MAX}
           onClick={() => { const first = firstAction(lamps); if (first !== null) setActions((list) => [...list, first]); }}>
-          <Icon name="plus" />Akcja
+          <Icon name="plus" />{t('lamps.timerEdit.action')}
         </button>
         {native && (
           <button type="button" className="wk-btn wk-btn-quiet" disabled={draft.actions.every((a) => actionOf(lamps, a) === null)} onClick={runNow}>
-            <Icon name="play" />Wykonaj teraz
+            <Icon name="play" />{t('lamps.timerEdit.runNow')}
           </button>
         )}
       </div>
-      <p className="wk-working">Akcje idą po kolei, każda tak długo, jak jej sygnał (zwykle ok. 1 s). Timer wykonuje telefon z włączonymi timerami, także przy zamkniętej aplikacji.</p>
+      <p className="wk-working">{t('lamps.timerEdit.actionsNote')}</p>
 
-      <PaceControl pace={draft.pace} onChange={(pace) => set({ pace })} title="Tempo tego timera" between="między ramkami i akcjami"
-        note="Tylko dla tego timera: przerwa między pakietami, ramkami i akcjami oraz najdłuższe nadawanie ramki. Suwaki przycisków go nie zmieniają." />
+      <PaceControl pace={draft.pace} onChange={(pace) => set({ pace })} title={t('lamps.timerEdit.paceTitle')} between={t('lamps.timerEdit.paceBetween')}
+        note={t('lamps.timerEdit.paceNote')} />
 
       <LampConsole native={native} />
 
@@ -195,8 +197,8 @@ export function TimerEdit({ ctx, timer, lamps, native, onSaved, onRemoved }: {
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>
-        <a className="wk-btn wk-btn-quiet" href={viewPath('lamps')}>Anuluj</a>
+        <button type="submit" className="wk-btn" disabled={busy}>{busy ? t('common.saving') : t('common.save')}</button>
+        <a className="wk-btn wk-btn-quiet" href={viewPath('lamps')}>{t('common.cancel')}</a>
       </div>
     </form>
   );

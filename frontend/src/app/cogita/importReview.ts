@@ -22,7 +22,7 @@
 import { blockPlain, blocksIn, type CommentBlock } from '../library/blocks';
 import { DOC_KINDS, DOC_LABEL, kindDoc } from './kinds';
 import { importIds, importProblems, planImport, removalEffects, withRemovals, type ImportPlan } from './json';
-import { plural } from '../core/plural';
+import { t } from '../core/i18n';
 import { fieldsOf, fieldText, labelOf, type Entity, type FieldDef, type KindDef, type Lookup } from './schema';
 import type { CogitaLibrary } from './store';
 
@@ -130,9 +130,9 @@ export function editedValue(change: ImportChange, text: string): { value: unknow
   if (change.edit === 'text') return { value: text };
   if (change.edit === 'number') {
     const n = Number(text.replace(',', '.'));
-    return Number.isFinite(n) ? { value: n } : { error: 'To nie jest liczba.' };
+    return Number.isFinite(n) ? { value: n } : { error: t('cogitaData.review.notNumber') };
   }
-  try { return { value: JSON.parse(text) as unknown }; } catch { return { error: 'To nie jest poprawny JSON.' }; }
+  try { return { value: JSON.parse(text) as unknown }; } catch { return { error: t('cogitaData.review.notJson') }; }
 }
 
 /* -- Die Liste ----------------------------------------------------------------------------------- */
@@ -144,26 +144,25 @@ function plannedLook(lib: CogitaLibrary, plan: ImportPlan): Lookup {
   return { kind: (id) => kinds.get(id) ?? lib.kind(id), entity: (id) => entities.get(id) ?? lib.entity(id) };
 }
 
-const DOC_KEY_LABEL: Readonly<Record<string, string>> = {
-  name: 'Nazwa', steps: 'Kroki', mode: 'Układ', outline: 'Struktura', columns: 'Kolumny', group: 'Grupowanie', matrix: 'Macierz', sort: 'Sortowanie',
-  graph: 'Graf', kinds: 'Rodzaje', direction: 'Kierunek', says: 'Opis', keys: 'Klawisze', paste: 'Wklejanie', order: 'Kolejność',
-  work: 'Dzieło', locator: 'Miejsca', entry: 'Wpis', view: 'Sposób wyświetlania', note: 'Uwaga', query: 'Szukane', list: 'Lista', rule: 'Reguła'
-};
+/** Die Schlüssel eines Dokuments mit eigener Bezeichnung (`cogitaData.review.docKey.<schlüssel>`); die übrigen stehen als Schlüssel da. */
+const DOC_KEYS: ReadonlySet<string> = new Set(['name', 'steps', 'mode', 'outline', 'columns', 'group', 'matrix', 'sort', 'graph', 'kinds', 'direction', 'says', 'keys',
+  'paste', 'order', 'work', 'locator', 'entry', 'view', 'note', 'query', 'list', 'rule']);
+const docKeyLabel = (key: string): string => (DOC_KEYS.has(key) ? t(`cogitaData.review.docKey.${key}`) : key);
 
 /** Was an einem Rodzaj anders wird — in einer Zeile. */
 function kindChange(before: KindDef, after: KindDef): string {
   const out: string[] = [];
-  if (before.name !== after.name) out.push(`nazwa „${before.name}” → „${after.name}”`);
-  if (before.label !== after.label) out.push(`wzór etykiety „${before.label}” → „${after.label}”`);
+  if (before.name !== after.name) out.push(t('cogitaData.review.kindName', { from: before.name, to: after.name }));
+  if (before.label !== after.label) out.push(t('cogitaData.review.kindLabel', { from: before.label, to: after.label }));
   const old = new Map(before.fields.map((f) => [f.key, f]));
   const added = after.fields.filter((f) => !old.has(f.key)).map((f) => f.label);
   const changed = after.fields.filter((f) => old.has(f.key) && !same(kindDoc({ ...before, fields: [old.get(f.key)!] }).fields, kindDoc({ ...after, fields: [f] }).fields)).map((f) => f.label);
-  if (added.length > 0) out.push(`nowe pola: ${added.join(', ')}`);
-  if (changed.length > 0) out.push(`zmienione pola: ${changed.join(', ')}`);
-  if (before.fields.map((f) => f.key).join() !== after.fields.map((f) => f.key).join() && added.length === 0) out.push('inna kolejność pól');
-  if (before.tells !== after.tells) out.push(`pole odróżniające „${before.tells ?? '—'}” → „${after.tells ?? '—'}”`);
-  if (before.system !== after.system) out.push('inna stała rola');
-  if ((before.reading ?? '') !== (after.reading ?? '')) out.push(after.reading === undefined ? 'bez wzoru tekstu do czytania' : 'inny wzór tekstu do czytania');
+  if (added.length > 0) out.push(t('cogitaData.review.newFields', { fields: added.join(', ') }));
+  if (changed.length > 0) out.push(t('cogitaData.review.changedFields', { fields: changed.join(', ') }));
+  if (before.fields.map((f) => f.key).join() !== after.fields.map((f) => f.key).join() && added.length === 0) out.push(t('cogitaData.review.fieldOrder'));
+  if (before.tells !== after.tells) out.push(t('cogitaData.review.kindTells', { from: before.tells ?? '—', to: after.tells ?? '—' }));
+  if (before.system !== after.system) out.push(t('cogitaData.review.kindSystem'));
+  if ((before.reading ?? '') !== (after.reading ?? '')) out.push(after.reading === undefined ? t('cogitaData.review.readingRemoved') : t('cogitaData.review.readingChanged'));
   return out.join('; ');
 }
 
@@ -173,10 +172,10 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
   const out: ImportChange[] = [];
 
   for (const k of plan.kinds) {
-    if (k.isNew) { out.push({ id: `k:${k.id}`, target: 'kind', targetId: k.id, isNew: true, title: `Rodzaj „${k.def.name}”`, beforeText: '', afterText: k.def.fields.map((f) => f.label).join(', '), edit: null }); continue; }
+    if (k.isNew) { out.push({ id: `k:${k.id}`, target: 'kind', targetId: k.id, isNew: true, title: t('cogitaData.import.kindTitle', { name: k.def.name }), beforeText: '', afterText: k.def.fields.map((f) => f.label).join(', '), edit: null }); continue; }
     const before = lib.kind(k.id);
     if (before === undefined || same(kindDoc(before), kindDoc(k.def))) continue;
-    out.push({ id: `k:${k.id}`, target: 'kind', targetId: k.id, isNew: false, title: `Rodzaj „${before.name}”`, beforeText: '', afterText: kindChange(before, k.def), edit: null });
+    out.push({ id: `k:${k.id}`, target: 'kind', targetId: k.id, isNew: false, title: t('cogitaData.import.kindTitle', { name: before.name }), beforeText: '', afterText: kindChange(before, k.def), edit: null });
   }
 
   for (const e of plan.entities) {
@@ -194,13 +193,13 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
       const field = fields.get(key);
       out.push({
         id: `e:${e.id}:${key}`, target: 'entity', targetId: e.id, isNew: false, title, field: key, fieldLabel: field?.label ?? key, ...(stored(was) === undefined && now !== undefined ? { fills: true as const } : {}),
-        beforeText: valueWords(field, was, look), afterText: now === undefined ? '(pole usunięte)' : valueWords(field, now, look),
+        beforeText: valueWords(field, was, look), afterText: now === undefined ? t('cogitaData.review.fieldRemoved') : valueWords(field, now, look),
         ...(now === undefined ? {} : { after: now }), edit: editOf(field, now)
       });
     }
     if (!same(before.kinds, e.kinds)) {
       const name = (ids: readonly string[]) => ids.map((k) => look.kind(k)?.name ?? k).join(', ');
-      out.push({ id: `e:${e.id}:#kinds`, target: 'entity', targetId: e.id, isNew: false, title, field: '#kinds', fieldLabel: 'Rodzaje', beforeText: name(before.kinds), afterText: name(e.kinds), after: e.kinds, edit: null });
+      out.push({ id: `e:${e.id}:#kinds`, target: 'entity', targetId: e.id, isNew: false, title, field: '#kinds', fieldLabel: t('cogitaData.review.kinds'), beforeText: name(before.kinds), afterText: name(e.kinds), after: e.kinds, edit: null });
     }
   }
 
@@ -212,13 +211,13 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
       const who = fx.unlinked.get(r.id) ?? [];
       out.push({
         id: `x:${r.id}`, target: r.target, targetId: r.id, isNew: false, remove: true, title: r.title, beforeText: '',
-        afterText: who.length === 0 ? 'nic na niego nie wskazuje' : `odwołanie zniknie z: ${who.slice(0, 8).join(', ')}${who.length > 8 ? ` i ${who.length - 8} innych` : ''}`, edit: null
+        afterText: who.length === 0 ? t('cogitaData.review.nothingPoints') : t('cogitaData.review.unlinkedFrom', { list: who.length > 8 ? t('cogitaData.import.listedMore', { list: who.slice(0, 8).join(', '), count: who.length - 8 }) : who.join(', ') }), edit: null
       });
     }
   }
 
   for (const d of plan.docs) {
-    const title = `${DOC_LABEL[d.kind]} „${typeof d.data.name === 'string' && d.data.name !== '' ? d.data.name : '—'}”`;
+    const title = t('cogitaData.import.docTitle', { doc: DOC_LABEL[d.kind], name: typeof d.data.name === 'string' && d.data.name !== '' ? d.data.name : '—' });
     if (d.isNew) { out.push({ id: `d:${d.id}`, target: 'doc', targetId: d.id, isNew: true, title, beforeText: '', afterText: '', edit: null }); continue; }
     const before = DOC_KINDS.flatMap((k) => lib.docs(k)).find((x) => x.id === d.id);
     if (before === undefined) continue;
@@ -228,8 +227,8 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
       if (sameStored(was, now)) continue;
       const words = (v: unknown) => (v === undefined ? '—' : typeof v === 'string' || typeof v === 'number' ? clip(String(v)) : clip(JSON.stringify(v), 300));
       out.push({
-        id: `d:${d.id}:${key}`, target: 'doc', targetId: d.id, isNew: false, title, field: key, fieldLabel: DOC_KEY_LABEL[key] ?? key, ...(stored(was) === undefined && now !== undefined ? { fills: true as const } : {}),
-        beforeText: words(was), afterText: now === undefined ? '(usunięte)' : words(now), ...(now === undefined ? {} : { after: now }),
+        id: `d:${d.id}:${key}`, target: 'doc', targetId: d.id, isNew: false, title, field: key, fieldLabel: docKeyLabel(key), ...(stored(was) === undefined && now !== undefined ? { fills: true as const } : {}),
+        beforeText: words(was), afterText: now === undefined ? t('cogitaData.review.removed') : words(now), ...(now === undefined ? {} : { after: now }),
         edit: now === undefined ? null : typeof now === 'string' ? 'text' : 'json'
       });
     }
@@ -268,7 +267,9 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
   for (const c of changes) if (!c.isNew && c.remove !== true) byTarget.set(c.targetId, [...(byTarget.get(c.targetId) ?? []), c]);
 
   /* Was als Neues abgelehnt ist, mit seinem Namen — darauf darf nichts Angenommenes zeigen (`importProblems`). */
-  const unsaved = new Map(changes.filter((c) => c.isNew && !ok(c.id)).map((c) => [c.targetId, c.target === 'entity' ? `wpis „${c.title}”` : c.title.replace(/^Rodzaj /, 'rodzaj ')]));
+  const kindName = (id: string, fallback: string) => plan.kinds.find((k) => k.id === id)?.def.name ?? fallback;
+  const unsaved = new Map(changes.filter((c) => c.isNew && !ok(c.id)).map((c) => [c.targetId,
+    c.target === 'entity' ? t('cogitaData.review.unsavedEntry', { title: c.title }) : c.target === 'kind' ? t('cogitaData.review.unsavedKind', { name: kindName(c.targetId, c.title) }) : c.title]));
 
   /* Ein Rodzaj, dessen Änderung nicht angenommen ist, der aber seinen bleibenden Namen bekommt (`_ref`), wird in seiner alten Gestalt gespeichert — das ist Buchhaltung, kein Inhalt. */
   const kinds: ImportPlan['kinds'] = plan.kinds.flatMap((k) => {
@@ -329,20 +330,19 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
 
   const cleanEntities = entities;
   const cleanDocs = docs;
-  const count = (n: number, one: string) => `${n} ${one}`;
   const lines = [
-    kinds.length === 0 ? '' : `Rodzaje: ${count(kinds.filter((k) => k.isNew).length, 'nowych')}, ${count(kinds.filter((k) => !k.isNew).length, 'do zmiany')}.`,
-    cleanEntities.length === 0 ? '' : `Wpisy: ${count(cleanEntities.filter((e) => e.isNew).length, 'nowych')}, ${count(cleanEntities.filter((e) => !e.isNew).length, 'do zmiany')}.`,
+    kinds.length === 0 ? '' : t('cogitaData.import.summaryKinds', { fresh: kinds.filter((k) => k.isNew).length, changed: kinds.filter((k) => !k.isNew).length }),
+    cleanEntities.length === 0 ? '' : t('cogitaData.import.summaryEntries', { fresh: cleanEntities.filter((e) => e.isNew).length, changed: cleanEntities.filter((e) => !e.isNew).length }),
     ...DOC_KINDS.map((k) => {
       const n = cleanDocs.filter((d) => d.kind === k);
-      return n.length === 0 ? '' : `${DOC_LABEL[k]}: ${count(n.filter((d) => d.isNew).length, 'nowych')}, ${count(n.filter((d) => !d.isNew).length, 'do zmiany')}.`;
+      return n.length === 0 ? '' : t('cogitaData.import.summaryDocs', { doc: DOC_LABEL[k], fresh: n.filter((d) => d.isNew).length, changed: n.filter((d) => !d.isNew).length });
     })
   ].filter(Boolean);
   const titles = new Map(changes.filter((c) => c.target === 'entity').map((c) => [c.targetId, c.title]));
   /* 2026-11-03 — nur die angenommenen Löschungen; was darauf zeigt, schreibt derselbe Zapis mit (`withRemovals`). */
   const removals = (plan.removals ?? []).filter((r) => ok(`x:${r.id}`));
-  if (removals.length > 0) lines.push(`Do usunięcia: ${removals.length}.`);
-  const raw: ImportPlan = { kinds, entities: cleanEntities, docs: cleanDocs, lines: lines.length === 0 ? ['Nic do zapisania.'] : lines, warnings: plan.warnings, unsaved, titles, ...(removals.length === 0 ? {} : { removals }) };
+  if (removals.length > 0) lines.push(t('cogitaData.import.summaryRemove', { count: removals.length }));
+  const raw: ImportPlan = { kinds, entities: cleanEntities, docs: cleanDocs, lines: lines.length === 0 ? [t('cogitaData.review.nothingToSave')] : lines, warnings: plan.warnings, unsaved, titles, ...(removals.length === 0 ? {} : { removals }) };
   const withGone = withRemovals(lib, raw);
   const decided = withGone.plan;
   const { blocked, kept } = importProblems(lib, decided);
@@ -386,12 +386,8 @@ export function importSession(lib: CogitaLibrary, doc: unknown): ImportSession {
   };
 }
 
-/** Wie ein Element in der Zusammenfassung heisst. */
-const TARGET_WORDS: Readonly<Record<ImportChange['target'], readonly [string, string, string]>> = {
-  kind: ['rodzaj', 'rodzaje', 'rodzajów'],
-  entity: ['wpis', 'wpisy', 'wpisów'],
-  doc: ['inny element', 'inne elementy', 'innych elementów']
-};
+/** Wie ein Element in der Zusammenfassung heisst (eine Mehrzahl: `cogitaData.review.target.<art>`). */
+const targetWords = (target: ImportChange['target'], count: number): string => t(`cogitaData.review.target.${target}`, { count });
 
 /**
  * 2026-11-03 — WAS DER IMPORT TUT, GEZÄHLT AN DEM, WAS SICH WIRKLICH ÄNDERT (nicht an dem, was das Dokument nennt):
@@ -401,14 +397,14 @@ export function changeSummary(changes: readonly ImportChange[]): string[] {
   const fresh = changes.filter((c) => c.isNew);
   const edits = changes.filter((c) => !c.isNew && c.remove !== true);
   const gone = changes.filter((c) => c.remove === true);
-  if (fresh.length === 0 && edits.length === 0 && gone.length === 0) return ['Nic nowego i nic do zmiany — dokument zgadza się z tym, co już jest w bazie.'];
+  if (fresh.length === 0 && edits.length === 0 && gone.length === 0) return [t('cogitaData.review.nothingAtAll')];
   const words = (list: readonly ImportChange[]) => (['kind', 'entity', 'doc'] as const)
-    .map((t) => { const n = new Set(list.filter((c) => c.target === t).map((c) => c.targetId)).size; return n === 0 ? '' : `${n} ${plural(n, ...TARGET_WORDS[t])}`; })
+    .map((target) => { const n = new Set(list.filter((c) => c.target === target).map((c) => c.targetId)).size; return n === 0 ? '' : targetWords(target, n); })
     .filter(Boolean).join(', ');
   const touched = new Set(edits.map((c) => `${c.target}:${c.targetId}`)).size;
   return [
-    fresh.length === 0 ? 'Nowe: nic.' : `Nowe: ${fresh.length} — ${words(fresh)}.`,
-    edits.length === 0 ? 'Zmiany w tym, co już jest: żadnych.' : `Zmiany w tym, co już jest: ${edits.length} w ${touched} ${plural(touched, 'elemencie', 'elementach', 'elementach')} — ${words(edits)}.`,
-    ...(gone.length === 0 ? [] : [`Do usunięcia: ${gone.length} — ${words(gone)} (każde wymienione niżej, można je odznaczyć).`])
+    fresh.length === 0 ? t('cogitaData.review.freshNone') : t('cogitaData.review.fresh', { count: fresh.length, words: words(fresh) }),
+    edits.length === 0 ? t('cogitaData.review.editsNone') : t('cogitaData.review.edits', { count: edits.length, touched: t('cogitaData.review.touched', { count: touched }), words: words(edits) }),
+    ...(gone.length === 0 ? [] : [t('cogitaData.review.gone', { count: gone.length, words: words(gone) })])
   ];
 }

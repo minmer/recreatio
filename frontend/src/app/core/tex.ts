@@ -20,6 +20,8 @@
  * (gilt dann für den ganzen Text); ein Seitenwechsel mitten im Wzór.
  */
 
+import { t, texts } from './i18n';
+
 /* -- Lesen ---------------------------------------------------------------------------------------- */
 
 export interface TexAt {
@@ -158,15 +160,15 @@ export function readMacros(raw: unknown): { macros: Record<string, string>; warn
   const macros: Record<string, string> = {};
   const warnings: string[] = [];
   if (raw === undefined || raw === null) return { macros, warnings };
-  if (typeof raw !== 'object' || Array.isArray(raw)) return { macros, warnings: ['"edition.macros" — obiekt {"\\\\R": "\\\\mathbb{R}"}; pominięte.'] };
+  if (typeof raw !== 'object' || Array.isArray(raw)) return { macros, warnings: [t('core.tex.macrosNotObject')] };
   for (const [key, raw0] of Object.entries(raw as Record<string, unknown>)) {
     /* Ein Name oder Text, den JSON verdorben hat (`"\rank"` ohne Entwertung: Wagenrücklauf + „ank"): zurück zum Backslash. */
     const name0 = unControl(key);
     const value = typeof raw0 === 'string' ? unControl(raw0) : raw0;
     const name = name0.startsWith('\\') ? name0 : `\\${name0}`;
-    if (!MACRO_NAME.test(name)) { warnings.push(`Makro „${name0}” — nazwa to \\ i litery (np. "\\\\R"); pominięte.`); continue; }
-    if (typeof value !== 'string' || value.length > MAX_MACRO) { warnings.push(`Makro „${name}” — treść to tekst LaTeX (najwyżej ${MAX_MACRO} znaków); pominięte.`); continue; }
-    if (Object.keys(macros).length >= MAX_MACROS) { warnings.push(`Więcej niż ${MAX_MACROS} makr — reszta pominięta.`); break; }
+    if (!MACRO_NAME.test(name)) { warnings.push(t('core.tex.macroName', { name: name0 })); continue; }
+    if (typeof value !== 'string' || value.length > MAX_MACRO) { warnings.push(t('core.tex.macroBody', { name, max: MAX_MACRO })); continue; }
+    if (Object.keys(macros).length >= MAX_MACROS) { warnings.push(t('core.tex.tooMany', { max: MAX_MACROS })); break; }
     macros[name] = value;
   }
   return { macros, warnings };
@@ -434,15 +436,15 @@ export function repairTexText(text: string, words: ReadonlySet<string> = NO_WORD
 }
 
 /** Was ausgebessert wurde, in Worten (für die Hinweise des Imports). */
-export const TEX_FIX_SAYS: Readonly<Record<TexFix, string>> = {
-  escape: 'pojedynczy \\ zapisany w JSON jako znak sterujący (np. \\f w \\frac) — przywrócony',
-  delimiter: '\\( … \\) i \\[ … \\] zamienione na $ … $ i $$ … $$',
-  environment: 'samodzielne środowisko (\\begin{align} …) ujęte w $$ … $$',
-  double: 'podwójne ukośniki we wzorze (\\\\frac) — zmniejszone do pojedynczych',
-  definition: 'definicje (\\newcommand, \\DeclareMathOperator) przeniesione do makr tekstu',
-  display: 'wzór z \\tag albo środowiskiem w zdaniu — wyświetlony osobno',
-  page: 'granica strony ze środka wzoru — przeniesiona za wzór'
-};
+export const TEX_FIX_SAYS: Readonly<Record<TexFix, string>> = texts({
+  escape: 'core.tex.fix.escape',
+  delimiter: 'core.tex.fix.delimiter',
+  environment: 'core.tex.fix.environment',
+  double: 'core.tex.fix.double',
+  definition: 'core.tex.fix.definition',
+  display: 'core.tex.fix.display',
+  page: 'core.tex.fix.page'
+});
 
 /* -- Als Text, ohne KaTeX -------------------------------------------------------------------------- */
 

@@ -9,6 +9,7 @@
 
 import { RunClosing, type Closing } from './RunClosing';
 import { baseLang, words } from './lang';
+import { LangScope, t, useT } from '../core/i18n';
 import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { answerText, CardFace, givenText, storedGiven } from './CardFace';
@@ -64,7 +65,7 @@ export interface RunSource {
 /** Den Plan einer Wiederholung der Bibliothek rechnen — mit dem Fortschritt dieses Lernenden. */
 export async function planFor(lib: CogitaLibrary, revisionId: string, learner: Learner | null, seed: string, now = Date.now()): Promise<{ plan: Plan | null; problems: string[]; cards: Card[] }> {
   const entry = lib.docs('revision').find((e) => e.id === revisionId);
-  if (entry === undefined) return { plan: null, problems: ['Nie ma takiej powtórki.'], cards: [] };
+  if (entry === undefined) return { plan: null, problems: [t('cogitaLearnRun.run.noRevision')], cards: [] };
   const { cards } = await lib.cards(seed);
   const rename = renamer(lib.merges());
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
@@ -73,7 +74,14 @@ export async function planFor(lib: CogitaLibrary, revisionId: string, learner: L
   return { plan, problems: result.problems, cards };
 }
 
-export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone, closing, backToMap, onTopic, onSlide }: {
+type RunProps = Parameters<typeof RevisionRunIn>[0];
+
+/** 2026-11-05 — der Lauf spricht die Sprache der Baza (ohne Baza: die der Anwendung). */
+export function RevisionRun(props: RunProps) {
+  return <LangScope lang={props.lib === null ? null : baseLang(props.lib)}><RevisionRunIn {...props} /></LangScope>;
+}
+
+function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone, closing, backToMap, onTopic, onSlide }: {
   lib: CogitaLibrary | null;
   source: RunSource;
   learner: Learner | null;
@@ -117,6 +125,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   onSlide?: (id: string) => void;
 }) {
   const ctx = useContext(CogitaContext);
+  const t = useT();
   /*
    * 2026-11-01 — DIE NÄCHSTE LEKTION AN ORT UND STELLE: ohne `onOpenRevision` und ausserhalb des Arbeitsbereichs (eine
    * Seite, ein Link) läuft sie in diesem Lauf weiter. Kommt von aussen eine andere Quelle, gilt wieder sie.
@@ -137,7 +146,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   /* 2026-11-05 (Prompt 17) — gute Antworten hintereinander in diesem Lauf („5 z rzędu”) und wann er begann (das Ende rechnet ab dort). */
   const [inRow, setInRow] = useState(0);
   const startedAt = useRef(Date.now());
-  const MW = motionWords(lib === null ? 'pl' : baseLang(lib));
+  const MW = motionWords(t.lang);
   const [due, setDue] = useState<{ next: number | null; count: number } | null>(null);
   /* Die nächste Stelle des Laufs — erst nach „Dalej", damit das Urteil stehen bleibt. */
   const [pending, setPending] = useState<Session | null>(null);
@@ -148,7 +157,8 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   const [onward, setOnward] = useState(false);
   const [handing, setHanding] = useState(false);
   const askedKeys = useRef(new Set<string>());
-  const W = words(lib === null ? 'pl' : baseLang(lib));
+  const W = words(t.lang);
+  const SC = selfCheckWords(t.lang);
   /* 2026-10-31 — die Antwort auf die Karte, die gerade dasteht (für „Zgłoś problem”), und das offene Zgłoszenie. */
   const [last, setLast] = useState<{ readonly outcome: Outcome; readonly given: unknown } | null>(null);
   const [flag, setFlag] = useState<string | null>(null);
@@ -218,14 +228,14 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
     if (!keepsKey(keeper)) {
       if (AWAY_HERE) {
         setKept('no-key');
-        toast('Ta powtórka jest do nauki bez internetu, ale na tym urządzeniu klucz nie jest zachowany — ustaw „Klucz zachowany na tym urządzeniu” (Konto → Bezpieczeństwo i klucze) i otwórz ją jeszcze raz.');
+        toast(t('cogitaLearnRun.run.keyNotKept'));
       }
       return;
     }
     const { cards: _cards, ...config } = plan;
     const cards = plan.cards.filter((c) => !needsFiles(c));
     const copy: OfflineRevision = {
-      libraryId: lib.libraryId, revisionId: source.revisionId, name: source.title ?? 'Powtórka', plan: config as Record<string, unknown>,
+      libraryId: lib.libraryId, revisionId: source.revisionId, name: source.title ?? t('cogitaLearnRun.run.revision'), plan: config as Record<string, unknown>,
       cards, deps: lib.dependencies(),
       target: made.target === null ? null : { areaId: made.target.areaId, intake: made.target.intake === null ? null : toBase64Url(made.target.intake) },
       holder: { roleId: made.holder.roleId, wrapPublicKey: toBase64Url(made.holder.wrapPublicKey) },
@@ -242,9 +252,9 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
       const ok = await keepOffline(copy, keeper).catch(() => false);
       if (!AWAY_HERE) return;
       setKept(ok ? 'saved' : 'failed');
-      if (!ok) toast('Nie udało się zapisać tej powtórki na tym urządzeniu do nauki bez internetu.');
+      if (!ok) toast(t('cogitaLearnRun.run.keepFailed'));
       else if (!before.some((r) => r.libraryId === libraryId && r.revisionId === revisionId)) {
-        toast('Zapisano na tym urządzeniu — tę powtórkę przejdziesz też bez internetu (Nauka → Bez internetu na tym urządzeniu).');
+        toast(t('cogitaLearnRun.run.keptHere'));
       }
     })();
   };
@@ -276,14 +286,14 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
         if (plan === null && lib !== null && source.revisionId !== undefined) {
           const made = await planFor(lib, source.revisionId, learner, seed);
           if (!alive) return;
-          if (made.plan === null) { setFailed(made.problems.join(' ') || 'Powtórka nie dała planu.'); return; }
+          if (made.plan === null) { setFailed(made.problems.join(' ') || t('cogitaLearnRun.run.noPlan')); return; }
           plan = made.plan;
           all = made.cards;
           planned.current = { plan, withLearner: learner !== null };
           if (learner !== null) keepCopy(plan, learner);
         }
-        if (plan === null) { if (alive) setFailed('Nie ma czego powtarzać.'); return; }
-        if (plan.cards.length === 0) { if (alive) setFailed('W tej powtórce nie ma jeszcze żadnej karty.'); return; }
+        if (plan === null) { if (alive) setFailed(t('cogitaLearnRun.run.nothing')); return; }
+        if (plan.cards.length === 0) { if (alive) setFailed(t('cogitaLearnRun.run.noCards')); return; }
         const fp = new Map(all.map((c) => [c.key, c.fingerprint]));
         const session = start({
           plan, all: all.length > 0 ? all : plan.cards, deps: source.deps ?? lib?.dependencies() ?? [], now: Date.now(), seed,
@@ -300,7 +310,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
           setLog(logTick(EMPTY_LOG, Date.now()));
         }
       } catch (e) {
-        if (alive) setFailed(e instanceof Error ? e.message : 'Nie udało się przygotować powtórki.');
+        if (alive) setFailed(e instanceof Error ? e.message : t('cogitaLearnRun.run.prepareFailed'));
       }
     })();
     return () => { alive = false; };
@@ -372,13 +382,13 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
     setChain({ revisionId: id, title: name });
   };
 
-  if (failed !== null) return <div className="cg"><p className="wk-error">{failed}</p>{onClose !== undefined && <button type="button" className="wk-btn" onClick={onClose}>Wróć</button>}</div>;
-  if (state === null) return <p className="wk-lede">Przygotowywanie kart…</p>;
+  if (failed !== null) return <div className="cg"><p className="wk-error">{failed}</p>{onClose !== undefined && <button type="button" className="wk-btn" onClick={onClose}>{t('cogitaLearnRun.run.back')}</button>}</div>;
+  if (state === null) return <p className="wk-lede">{t('cogitaLearnRun.run.preparing')}</p>;
 
   /* 2026-11-01 — „Ćwicz te jeszcze raz": genau diese Karten, bis jede sitzt; „Wróć" führt zurück zum Ende dieses Laufs. */
   if (practice !== null) {
     return (
-      <RevisionRun lib={lib} learner={learner} source={{ plan: practice.plan, cards: state.all, ...(source.deps === undefined ? {} : { deps: source.deps }), title: practice.title }}
+      <RevisionRunIn lib={lib} learner={learner} source={{ plan: practice.plan, cards: state.all, ...(source.deps === undefined ? {} : { deps: source.deps }), title: practice.title }}
         via={via ?? source.revisionId} onAnswer={onAnswer} onClose={onClose ?? (() => setPractice(null))} lesson rewards={rewards} {...(closing === undefined ? {} : { closing })}
         {...(onTopic === undefined ? {} : { onTopic })} {...(onSlide === undefined ? {} : { onSlide })} />
     );
@@ -422,51 +432,51 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
             onPractise={(id) => setPractice({ plan: readPlan(cardsAbout(state.all, id), { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true }), title: lib.label(lib.entity(id)!) })}
             onOnward={complete ? () => setOnward(true) : null} onBack={onClose ?? null} />
         )}
-        <p>Odpowiedzi: {stats.answered}, dobrze: {stats.correct}{stats.answered > 0 ? ` (${Math.round((stats.correct / stats.answered) * 100)}%)` : ''}.</p>
+        <p>{stats.answered > 0 ? t('cogitaLearnRun.run.answersPct', { answered: stats.answered, correct: stats.correct, pct: Math.round((stats.correct / stats.answered) * 100) }) : t('cogitaLearnRun.run.answers', { answered: stats.answered, correct: stats.correct })}</p>
         <LessonSummary answers={log.answers} cards={summary.cards} firstTry={summary.firstTry} activeMs={log.activeMs} done={lessonNow} />
         {/* 2026-11-05 (Prompt 23, C1/C6) — nach einem Lauf „każda raz“ (z. B. „Sprawdź, co wiesz“): je Thema „umiesz“ oder „luka“. */}
         {session.plan.mode === 'once' && lib !== null && stats.answered > 0 && (
           <SelfCheckSummary lib={lib} cards={state.all} asked={[...askedKeys.current]} missed={new Set(log.missed.keys())} seed={seed}
             {...(onTopic === undefined ? {} : { onTopic })} {...(onSlide === undefined ? {} : { onSlide })}
-            onFill={(list) => setPractice({ plan: readPlan(list, { mode: 'once', order: 'general', pick: 'next' }), title: selfCheckWords(baseLang(lib)).fillTitle(source.title ?? '') })} />
+            onFill={(list) => setPractice({ plan: readPlan(list, { mode: 'once', order: 'general', pick: 'next' }), title: SC.fillTitle(source.title ?? '') })} />
         )}
         <p className="cg-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${levels[l]}`).join(' · ')}</p>
-        {due !== null && <p className="cg-muted">{due.next === null ? 'Nic nie czeka.' : `Następna powtórka: ${new Date(due.next).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' })}.`}</p>}
+        {due !== null && <p className="cg-muted">{due.next === null ? t('cogitaLearnRun.run.nothingWaits') : t('cogitaLearnRun.run.nextReview', { date: new Date(due.next).toLocaleString(t.locale, { dateStyle: 'medium', timeStyle: 'short' }) })}</p>}
         {held.cards > 0 && (
           <p className="wk-note" data-held-back={held.cards}>
-            {held.cards} {held.cards === 1 ? 'karta czeka' : 'kart czeka'}
+            {t('cogitaLearnRun.run.heldCards', { count: held.cards })}
             {/* 2026-11-01 — die Namen mit ihren Wzory (`entityNameTex`). */}
-            {held.needs.length > 0 && <> na to, co trzeba znać wcześniej{lib !== null && <> — najpierw: {held.needs.slice(0, 4).map((id, i) => <Fragment key={id}>{i > 0 && ', '}<TexText text={entityNameTex(lib, id)} /></Fragment>)}</>}</>}
-            {held.conditions.length > 0 && <>{held.needs.length > 0 ? '; ' : ' — '}warunek: <TexText text={held.conditions.slice(0, 2).map((c) => conditionText(c, (id) => (lib === null ? id : entityNameTex(lib, id)))).join('; ')} /></>}
-            . Wejdą same, gdy warunek zacznie obowiązywać.
+            {held.needs.length > 0 && <>{t('cogitaLearnRun.run.heldNeeds')}{lib !== null && <>{t('cogitaLearnRun.run.heldFirst')}{held.needs.slice(0, 4).map((id, i) => <Fragment key={id}>{i > 0 && ', '}<TexText text={entityNameTex(lib, id)} /></Fragment>)}</>}</>}
+            {held.conditions.length > 0 && <>{held.needs.length > 0 ? '; ' : ' — '}{t('cogitaLearnRun.run.heldCondition')}<TexText text={held.conditions.slice(0, 2).map((c) => conditionText(c, (id) => (lib === null ? id : entityNameTex(lib, id)))).join('; ')} /></>}
+            {t('cogitaLearnRun.run.heldEnd')}
           </p>
         )}
-        {learner !== null && learner.waiting > 0 && <p className="wk-note">{learner.waiting} pakietów odpowiedzi czeka na internet — wyślą się same.</p>}
-        {kept === 'saved' && <p className="cg-muted" data-offline-kept="saved">Ta powtórka jest na tym urządzeniu także bez internetu — w stanie z teraz.</p>}
-        {kept === 'no-key' && <p className="wk-note" data-offline-kept="no-key">Bez internetu jej tu nie ma: klucz nie jest zachowany na tym urządzeniu (Konto → Bezpieczeństwo i klucze).</p>}
-        {kept === 'failed' && <p className="wk-note" data-offline-kept="failed">Nie udało się zapisać tej powtórki na tym urządzeniu do nauki bez internetu.</p>}
-        {learner === null && <p className="wk-hint">Bez konta postępy zostają w tej przeglądarce.</p>}
+        {learner !== null && learner.waiting > 0 && <p className="wk-note">{t('cogitaLearnRun.run.packetsWaiting', { count: learner.waiting })}</p>}
+        {kept === 'saved' && <p className="cg-muted" data-offline-kept="saved">{t('cogitaLearnRun.run.keptSaved')}</p>}
+        {kept === 'no-key' && <p className="wk-note" data-offline-kept="no-key">{t('cogitaLearnRun.run.keptNoKey')}</p>}
+        {kept === 'failed' && <p className="wk-note" data-offline-kept="failed">{t('cogitaLearnRun.run.keepFailed')}</p>}
+        {learner === null && <p className="wk-hint">{t('cogitaLearnRun.run.noAccount')}</p>}
         <MissedCards lib={lib} missed={missed}
-          onPractice={() => setPractice({ plan: practicePlan(missed.map((m) => m.card)), title: `Ćwiczenie: ${source.title ?? 'Powtórka'}` })} />
+          onPractice={() => setPractice({ plan: practicePlan(missed.map((m) => m.card)), title: t('cogitaLearnRun.run.practiceTitle', { name: source.title ?? t('cogitaLearnRun.run.revision') }) })} />
         {/* 2026-11-01 — die Powtórka nennt die nächste (`next`): dorthin, in der Nauka, auf der Seite, über den Link. */}
         {next !== null && (
           <div className="cg-lesson-next" data-lesson-next={next.id}>
-            <span className="cg-muted">Następna lekcja</span>
+            <span className="cg-muted">{t('cogitaLearnRun.run.nextLesson')}</span>
             <strong><TexText text={next.name} /></strong>
-            <button type="button" className="wk-btn" data-lesson-next-open="" onClick={() => openRevision(next.id, next.name)}>Następna lekcja</button>
+            <button type="button" className="wk-btn" data-lesson-next-open="" onClick={() => openRevision(next.id, next.name)}>{t('cogitaLearnRun.run.nextLesson')}</button>
           </div>
         )}
         {/* 2026-11-01 (2.11) — nur mit „Serie dni nauki" in den Ustawienia der Baza; 2026-11-02 mit Nagrody statt dessen die Tafel. */}
         {rewards !== null && learner !== null ? <RewardBoard learner={learner} rules={rewards} rename={rename} shape="block" live={false} />
           : lib !== null && <DailyGoal lib={lib} learner={learner} compact />}
         <div className="wk-actions">
-          <button type="button" className={next === null ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => setRound((n) => n + 1)}>Jeszcze raz</button>
-          {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>Wróć</button>}
+          <button type="button" className={next === null ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => setRound((n) => n + 1)}>{t('cogitaLearnRun.run.again')}</button>
+          {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>{t('cogitaLearnRun.run.back')}</button>}
         </div>
         {/* 2026-10-31 — was ich in dieser Powtórka kann, als Diagramme (auch auf einer Seite, für die mit dem Link). */}
         {learner !== null && lib !== null && (
           <details className="cg-run-stats" data-run-stats="">
-            <summary>Statystyki — co umiem w tej powtórce</summary>
+            <summary>{t('cogitaLearnRun.run.stats')}</summary>
             <RunStats lib={lib} cards={state.all} answers={answerIndex(learner.progress, rename)} spacing={spacingFor(lib, learner)} />
           </details>
         )}
@@ -505,13 +515,13 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
       prompt: promptText, given: last === null ? '' : givenText(asked, last.given).slice(0, 500), expected: answerText(asked).slice(0, 500),
       correctness: last === null ? null : last.outcome.correctness
     }, ctx?.seat)
-      .then((ok) => setNote(ok ? 'Dziękujemy — autorzy dostaną zgłoszenie z tą kartą i Twoją odpowiedzią (bez Twojego imienia).' : 'Ta baza wiedzy nie przyjmuje jeszcze zgłoszeń.'), () => setNote('Nie udało się wysłać zgłoszenia.'));
+      .then((ok) => setNote(ok ? t('cogitaLearnRun.run.flagThanks') : t('cogitaLearnRun.run.flagClosed')), () => setNote(t('cogitaLearnRun.run.flagFailed')));
   };
   return (
     <div className="cg">
       {rewards !== null && learner !== null && <RewardHud learner={learner} rules={rewards} rename={rename} />}
       <div className="cg-run-head">
-        <strong><TexText text={source.title ?? 'Powtórka'} /></strong>
+        <strong><TexText text={source.title ?? t('cogitaLearnRun.run.revision')} /></strong>
         <span className="cg-row">
           {/* 2026-11-01 — eine Lektion: wie viele Karten erledigt sind, von allen, die jetzt dazugehören (`lessonProgress`). */}
           {lessonNow !== null ? (
@@ -521,13 +531,13 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
             </span>
           ) : (
             <>
-              {share !== null && <Bar value={share} label="Postęp powtórki" />}
-              <span className="cg-muted">{p.total === null ? `${p.answered} odpowiedzi` : `${p.answered} z ${p.total}`}</span>
+              {share !== null && <Bar value={share} label={t('cogitaLearnRun.run.progress')} />}
+              <span className="cg-muted">{p.total === null ? t('cogitaLearnRun.run.answered', { count: p.answered }) : W.progressOf(p.answered, p.total)}</span>
             </>
           )}
           {/* 2026-11-05 (Prompt 17) — ab drei guten hintereinander ein leiser Zähler; bei 5, 10, 20 leuchtet er kurz. */}
           {inRow >= 3 && <span key={inRow} className={`cg-run-streak${inRow === 5 || inRow === 10 || inRow === 20 ? ' is-glow' : ''}`} data-run-streak={inRow}><RewardIcon name="flame" />{MW.inRow(inRow)}</span>}
-          <button type="button" className="wk-link-btn" data-run-stop="" onClick={() => { void learner?.flush(); setLog((l) => logTick(l, Date.now())); setStopped(true); }}>Zakończ</button>
+          <button type="button" className="wk-link-btn" data-run-stop="" onClick={() => { void learner?.flush(); setLog((l) => logTick(l, Date.now())); setStopped(true); }}>{t('cogitaLearnRun.run.stop')}</button>
         </span>
       </div>
       <CardFace
@@ -538,8 +548,8 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
         lib={lib ?? undefined}
         head={lib === null || fresh.length === 0 ? undefined : (
           /* 2026-10-31 — kurz, damit die Frage im Blick bleibt; mehrere Themen auf einmal je zwei Zeilen. Aufgeklappter Text wird nicht vorgelesen (aria-live der Karte). */
-          <section className="cg-topic-intro" data-topic-intro={fresh.join(' ')} data-many={fresh.length > 1 ? '' : undefined} aria-label="Nowy temat" aria-live="off">
-            <span className="cg-topic-tag">{fresh.length > 1 ? 'Nowe tematy' : 'Nowy temat'}</span>
+          <section className="cg-topic-intro" data-topic-intro={fresh.join(' ')} data-many={fresh.length > 1 ? '' : undefined} aria-label={t('cogitaLearnRun.run.newTopic')} aria-live="off">
+            <span className="cg-topic-tag">{fresh.length > 1 ? t('cogitaLearnRun.run.newTopics') : t('cogitaLearnRun.run.newTopic')}</span>
             {fresh.map((id) => { const e = lib.entity(id); return e === undefined ? null : <TopicIntro key={id} lib={lib} entity={e} />; })}
           </section>
         )}
@@ -599,21 +609,21 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
           <div className="cg-card-foot">
             <div className="cg-row-between">
               {/* 2026-10-30 — jede Wahl erklärbar: warum gerade diese Karte; 2026-10-31 kurz, das Ganze als Hinweis. */}
-              <span className="cg-muted cg-why" data-why={session.why?.reason ?? ''} title={session.why === null ? undefined : whyDetail(session.why, now)}>{card.answer.form === 'flash' ? 'Oceń się sam. ' : ''}{(() => { const id = (card.about ?? [])[0]; const e = id === undefined || lib === null ? undefined : lib.entity(id); return e === undefined || lib === null ? '' : `${W.topicIs}: ${lib.label(e)} · `; })()}{card.core === true && <span className="cg-core-badge" title={selfCheckWords(lib === null ? 'pl' : baseLang(lib)).coreHint} data-card-core="">{selfCheckWords(lib === null ? 'pl' : baseLang(lib)).core}</span>}{card.core === true ? ' · ' : ''}{session.why === null ? '' : whyText(session.why, now)}</span>
+              <span className="cg-muted cg-why" data-why={session.why?.reason ?? ''} title={session.why === null ? undefined : whyDetail(session.why, now)}>{card.answer.form === 'flash' ? t('cogitaLearnRun.run.rateYourself') : ''}{(() => { const id = (card.about ?? [])[0]; const e = id === undefined || lib === null ? undefined : lib.entity(id); return e === undefined || lib === null ? '' : `${W.topicIs}: ${lib.label(e)} · `; })()}{card.core === true && <span className="cg-core-badge" title={SC.coreHint} data-card-core="">{SC.core}</span>}{card.core === true ? ' · ' : ''}{session.why === null ? '' : whyText(session.why, now)}</span>
               <span className="cg-row">
-                {learner !== null && <button type="button" className="wk-link-btn" onClick={() => { void learner.suspend(card.key, true); setNote('Ta karta nie będzie już pytana (możesz to cofnąć w Postępach).'); }}>Nie pytaj o to</button>}
-                {lib !== null && <button type="button" className="wk-link-btn" aria-expanded={flag !== null} data-flag-open="" onClick={() => setFlag((was) => (was === null ? '' : null))}>Zgłoś problem</button>}
+                {learner !== null && <button type="button" className="wk-link-btn" onClick={() => { void learner.suspend(card.key, true); setNote(t('cogitaLearnRun.run.suspended')); }}>{t('cogitaLearnRun.run.suspend')}</button>}
+                {lib !== null && <button type="button" className="wk-link-btn" aria-expanded={flag !== null} data-flag-open="" onClick={() => setFlag((was) => (was === null ? '' : null))}>{t('cogitaLearnRun.run.flag')}</button>}
               </span>
             </div>
             {flag !== null && (
               <form className="cg-flag" data-flag-form="" onSubmit={(e) => { e.preventDefault(); if (flag.trim() !== '') sendFlag(flag); }}>
                 <label className="wk-field">
-                  <span>Co jest nie tak z tą kartą? Autorzy zobaczą kartę, pytanie i Twoją odpowiedź — bez Twojego imienia.</span>
+                  <span>{t('cogitaLearnRun.run.flagAsk')}</span>
                   <textarea rows={3} value={flag} autoFocus maxLength={1000} onChange={(e) => setFlag(e.target.value)} />
                 </label>
                 <div className="cg-row">
-                  <button type="submit" className="wk-btn" disabled={flag.trim() === ''}>Wyślij</button>
-                  <button type="button" className="wk-link-btn" onClick={() => setFlag(null)}>Anuluj</button>
+                  <button type="submit" className="wk-btn" disabled={flag.trim() === ''}>{t('common.send')}</button>
+                  <button type="button" className="wk-link-btn" onClick={() => setFlag(null)}>{t('common.cancel')}</button>
                 </div>
               </form>
             )}

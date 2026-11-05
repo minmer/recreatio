@@ -13,10 +13,8 @@ import data from './species.json';
 import { GAS, LIQUID, MMHG, R_GAS, SOLID, T0, type PhaseId } from './units';
 
 export interface Num { readonly v: number; readonly src: string }
-export interface Names { readonly pl: string; readonly de: string; readonly en: string }
 
 interface PhaseData {
-  readonly name: Names;
   readonly density?: Num | { readonly kell: readonly number[]; readonly src: string };
   readonly cp: Num;
   readonly k: Num | { readonly poly: readonly number[]; readonly src: string };
@@ -31,7 +29,6 @@ export interface SpeciesData {
   readonly id: string;
   readonly formula: string;
   readonly kind: 'substance' | 'material';
-  readonly name: Names;
   readonly molarMass?: Num;
   readonly phases: { readonly solid?: PhaseData; readonly liquid?: PhaseData; readonly gas?: PhaseData };
   readonly melt?: { readonly T: Num; readonly L: Num };
@@ -187,12 +184,6 @@ export const NUC_SITE = Float64Array.from(SPECIES, (s) => s.nucleation?.site.v ?
 export const NUC_BULK = Float64Array.from(SPECIES, (s) => s.nucleation?.bulk.v ?? 0);
 /** Keimstellendichte einer festen Oberfläche (0–1). */
 export const SITE_DENSITY = Float64Array.from(SPECIES, (s) => s.surface?.sites.v ?? 0);
-
-/** Der Name eines Stoffes in einer Phase (für Inspektor und Palette). */
-export function phaseName(sp: number, phase: PhaseId, lang: keyof Names = 'pl'): string {
-  const s = SPECIES[sp];
-  return phaseOf(s, phase)?.name[lang] ?? s.name[lang];
-}
 
 /** Die Farbe eines Stoffes in einer Phase (#rrggbb). */
 export const phaseColor = (sp: number, phase: PhaseId): string => phaseOf(SPECIES[sp], phase)?.color ?? '#888888';

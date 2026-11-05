@@ -15,6 +15,7 @@
  * eigenem Knopf für den ganzen Bildschirm.
  */
 
+import { t, useT } from '../../core/i18n';
 import { definePart, lines, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
 import { LabEditor } from '../../lab/LabEditor';
@@ -46,7 +47,8 @@ const read = (raw: RawConfig): Config => ({
  * Antwort — auf der Frage der Baza ("question") oder der eigenen Karte des Ziels, die für "about" mitzählt.
  */
 function GoalLab({ config, whole, moduleId }: { config: Config; whole: boolean; moduleId: string }) {
-  const onGoal = useStoryGoal(config.raw.question ?? '', aboutOf(config.raw.about), moduleId, config.title || 'Laboratorium fizyki');
+  const t = useT();
+  const onGoal = useStoryGoal(config.raw.question ?? '', aboutOf(config.raw.about), moduleId, config.title || t('moduleContent.physics.title'));
   return <Lab config={{ title: config.title, text: config.text, mode: config.mode, scene: config.scene }} whole={whole} {...(onGoal === undefined ? {} : { onGoal })} />;
 }
 
@@ -64,105 +66,105 @@ function Preview({ title, text: body, mode, scene }: { title: string; text: read
 const SANDBOX = { world: { gravity: 9.81, air: 1 }, bodies: [], show: { values: true } };
 
 const SCENE_DOCS: Readonly<Record<string, string>> = {
-  '.world': 'Świat: grawitacja, opór powietrza, grubość ciał, podłoże, tempo',
-  '.world.gravity': 'Przyspieszenie ziemskie w m/s² (Ziemia 9.81, Księżyc 1.62, 0 — nieważkość)',
-  '.world.air': 'Opór powietrza: 1 — zwykły, 0 — próżnia, więcej — gęstsze powietrze',
-  '.world.depth': 'Grubość ciał w metrach (z niej, gęstości i pola — masa); zwykle 0.1',
-  '.world.ground': 'false — bez podłoża (stół widziany z góry, przestrzeń)',
-  '.world.speed': 'Tempo czasu na starcie (1 — jak w rzeczywistości)',
-  '.vars': 'Wartości losowane przy każdym otwarciu (i przy „Nowe losowanie”) — używane w wyrażeniach "=…" i w tekstach "{nazwa}"',
-  '.vars[].name': 'Nazwa wartości',
-  '.vars[].from': 'Najmniej',
-  '.vars[].to': 'Najwięcej',
-  '.vars[].step': 'Krok (np. 5 — tylko wielokrotności)',
-  '.vars[].pick': 'Zamiast liczby: lista tekstów do wylosowania (np. ciecze)',
-  '.bodies': 'Ciała: kule, klocki, wielokąty — z materiału albo własnej gęstości',
-  '.bodies[].id': 'Nazwa ciała (litery, cyfry, - _) — w połączeniach, celu i wykresie',
-  '.bodies[].label': 'Podpis przy ciele',
-  '.bodies[].shape': '"circle" (r), "box" (w, h) albo "poly" (points — wielokąt wypukły)',
-  '.bodies[].x': 'Położenie środka (poly: początku jego punktów) w metrach',
-  '.bodies[].y': 'Wysokość (podłoże to 0)',
-  '.bodies[].r': 'Promień koła',
-  '.bodies[].w': 'Szerokość klocka',
-  '.bodies[].h': 'Wysokość klocka',
-  '.bodies[].points': 'Punkty wielokąta [[x, y], …] względem x, y',
-  '.bodies[].angle': 'Obrót w stopniach (przeciwnie do wskazówek zegara)',
-  '.bodies[].material': 'Materiał: wood, oak, cork, steel, aluminium, lead, gold, rubber, ice, stone, plastic, glass, paper, foam, ball, egg',
-  '.bodies[].density': 'Własna gęstość w kg/m³ (zamiast materiałowej)',
-  '.bodies[].friction': 'Własne tarcie (0 — śliskie)',
-  '.bodies[].bounce': 'Własna sprężystość odbić (0–1)',
-  '.bodies[].static': 'true — nieruchome (rampa, ściana, stół)',
-  '.bodies[].vx': 'Prędkość początkowa w poziomie (m/s)',
-  '.bodies[].vy': 'Prędkość początkowa w pionie (m/s)',
-  '.bodies[].spin': 'Obroty na starcie (rad/s)',
-  '.bodies[].drag': 'false — nie da się go chwycić',
-  '.bodies[].trace': 'true — rysuje ślad ruchu',
-  '.bodies[].color': 'Własny kolor, np. "#e8823a"',
-  '.joints': 'Połączenia: oś obrotu, pręt, lina, sprężyna, bloczek',
-  '.joints[].type': '"pin" (oś w punkcie "at"), "motor" (oś z napędem), "rod", "rope", "spring", "pulley"',
-  '.joints[].a': 'Pierwsze ciało (id)',
-  '.joints[].b': 'Drugie ciało (id) — pominięte: przyczepione do świata',
-  '.joints[].at': 'Punkt w świecie (gdy brak "b") albo na ciele "b"; przy bloczku — pierwsze koło',
-  '.joints[].on': 'Punkt na ciele "a" względem jego środka (domyślnie środek)',
-  '.joints[].onB': 'Bloczek: punkt na ciele "b"',
-  '.joints[].at2': 'Bloczek: drugie koło',
-  '.joints[].length': 'Długość (domyślnie: jak daleko są końce)',
-  '.joints[].k': 'Sprężyna: sztywność w N/m',
-  '.joints[].damping': 'Sprężyna: tłumienie',
-  '.joints[].speed': 'Silnik: prędkość obrotu (rad/s)',
-  '.joints[].torque': 'Silnik: największy moment siły (N·m)',
-  '.fluids': 'Zbiorniki z cieczą (szklane ścianki)',
-  '.fluids[].id': 'Nazwa zbiornika',
-  '.fluids[].x': 'Lewy brzeg wnętrza',
-  '.fluids[].y': 'Dno wnętrza (wysokość)',
-  '.fluids[].w': 'Szerokość wnętrza',
-  '.fluids[].h': 'Wysokość wnętrza',
-  '.fluids[].wall': 'Grubość ścianek',
-  '.fluids[].layers': 'Warstwy cieczy od dołu (lżejsza sama wypływa na wierzch)',
-  '.fluids[].layers[].liquid': 'Ciecz: water, saltwater, sea, oil, alcohol, glycerin, honey, mercury, milk',
-  '.fluids[].layers[].height': 'Wysokość warstwy w pustym zbiorniku (m)',
-  '.fluids[].holes': 'Otwory w ściankach (strumień wg prawa Torricellego)',
-  '.fluids[].holes[].side': '"left", "right" albo "bottom"',
-  '.fluids[].holes[].at': 'Wysokość nad dnem (przy "bottom": odległość od lewej ścianki)',
-  '.fluids[].holes[].size': 'Szerokość otworu (m)',
-  '.fluids[].holes[].open': 'true — otwarty od początku',
-  '.pipes': 'Rury łączące zbiorniki (naczynia połączone)',
-  '.pipes[].a': 'Pierwszy zbiornik (id)',
-  '.pipes[].b': 'Drugi zbiornik (id)',
-  '.pipes[].y': 'Wysokość rury',
-  '.pipes[].size': 'Średnica rury',
-  '.pipes[].open': 'false — zawór zamknięty',
-  '.show': 'Co widać: strzałki, ślady, siatka, ciśnienie, wartości',
-  '.show.vectors': 'Strzałki: "v" (prędkość), "g" (ciężar), "lift" (wypór), "net" (wypadkowa)',
-  '.show.trace': 'Ciała (id), które rysują ślad',
-  '.show.grid': 'true — siatka co metr',
-  '.show.pressure': 'true — ciśnienie w cieczy jako ciemniejsza barwa w głębi',
-  '.show.values': 'false — bez podpisów mas i sił',
-  '.graph': 'Wykres w czasie dla jednego ciała',
-  '.graph.body': 'Ciało (id)',
-  '.graph.of': 'Wielkości: "h", "x", "v", "vx", "vy", "ek", "ep", "e", "a"',
-  '.allow': 'Co wolno uczniom',
-  '.allow.add': 'false — bez dodawania ciał',
-  '.allow.palette': 'Co można dodać: ball, box, plank, wedge, ramp, wall, pendulum, spring, pulley, seesaw, basin',
-  '.allow.tools': 'Narzędzia: pin, rope, rod, link (sprężyna), ruler, probe (ciśnienie), delete',
-  '.allow.edit': 'false — bez zmiany materiałów i ustawień ciał',
-  '.allow.drag': 'false — ciał nie da się chwytać',
-  '.controls': 'Przełączniki świata w panelu: "air" (powietrze), "gravity" (planeta)',
-  '.goal': 'Cel: ciało w obszarze przez chwilę — wtedy pojawia się napis',
-  '.goal.body': 'Ciało (id)',
-  '.goal.area': 'Obszar [x0, y0, x1, y1] (liczby albo wyrażenia)',
-  '.goal.for': 'Ile sekund ma tam zostać',
-  '.goal.say': 'Co powiedzieć, gdy się uda',
-  '.steps': 'Kroki doświadczenia — „Pokaż” wykonuje je po kolei',
-  '.steps[].say': 'Co robić w tym kroku',
-  '.steps[].do': '"play", "pause", { "open": zbiornik, "hole": 0 } albo { "push": ciało, "vx", "vy" }',
-  '.steps[].do.open': 'Zbiornik, którego otwór otworzyć',
-  '.steps[].do.hole': 'Który otwór (od 0)',
-  '.steps[].do.push': 'Ciało do popchnięcia',
-  '.steps[].do.vx': 'Nowa prędkość w poziomie',
-  '.steps[].do.vy': 'Nowa prędkość w pionie',
-  '.steps[].wait': 'Ile sekund trwa krok przy „Pokaż”',
-  '.view': 'Co widać na starcie: [x0, y0, x1, y1]'
+  '.world': 'moduleContent.physics.scene.world',
+  '.world.gravity': 'moduleContent.physics.scene.worldGravity',
+  '.world.air': 'moduleContent.physics.scene.worldAir',
+  '.world.depth': 'moduleContent.physics.scene.worldDepth',
+  '.world.ground': 'moduleContent.physics.scene.worldGround',
+  '.world.speed': 'moduleContent.physics.scene.worldSpeed',
+  '.vars': 'moduleContent.physics.scene.vars',
+  '.vars[].name': 'moduleContent.physics.scene.varsName',
+  '.vars[].from': 'moduleContent.physics.scene.varsFrom',
+  '.vars[].to': 'moduleContent.physics.scene.varsTo',
+  '.vars[].step': 'moduleContent.physics.scene.varsStep',
+  '.vars[].pick': 'moduleContent.physics.scene.varsPick',
+  '.bodies': 'moduleContent.physics.scene.bodies',
+  '.bodies[].id': 'moduleContent.physics.scene.bodiesId',
+  '.bodies[].label': 'moduleContent.physics.scene.bodiesLabel',
+  '.bodies[].shape': 'moduleContent.physics.scene.bodiesShape',
+  '.bodies[].x': 'moduleContent.physics.scene.bodiesX',
+  '.bodies[].y': 'moduleContent.physics.scene.bodiesY',
+  '.bodies[].r': 'moduleContent.physics.scene.bodiesR',
+  '.bodies[].w': 'moduleContent.physics.scene.bodiesW',
+  '.bodies[].h': 'moduleContent.physics.scene.bodiesH',
+  '.bodies[].points': 'moduleContent.physics.scene.bodiesPoints',
+  '.bodies[].angle': 'moduleContent.physics.scene.bodiesAngle',
+  '.bodies[].material': 'moduleContent.physics.scene.bodiesMaterial',
+  '.bodies[].density': 'moduleContent.physics.scene.bodiesDensity',
+  '.bodies[].friction': 'moduleContent.physics.scene.bodiesFriction',
+  '.bodies[].bounce': 'moduleContent.physics.scene.bodiesBounce',
+  '.bodies[].static': 'moduleContent.physics.scene.bodiesStatic',
+  '.bodies[].vx': 'moduleContent.physics.scene.bodiesVx',
+  '.bodies[].vy': 'moduleContent.physics.scene.bodiesVy',
+  '.bodies[].spin': 'moduleContent.physics.scene.bodiesSpin',
+  '.bodies[].drag': 'moduleContent.physics.scene.bodiesDrag',
+  '.bodies[].trace': 'moduleContent.physics.scene.bodiesTrace',
+  '.bodies[].color': 'moduleContent.physics.scene.bodiesColor',
+  '.joints': 'moduleContent.physics.scene.joints',
+  '.joints[].type': 'moduleContent.physics.scene.jointsType',
+  '.joints[].a': 'moduleContent.physics.scene.jointsA',
+  '.joints[].b': 'moduleContent.physics.scene.jointsB',
+  '.joints[].at': 'moduleContent.physics.scene.jointsAt',
+  '.joints[].on': 'moduleContent.physics.scene.jointsOn',
+  '.joints[].onB': 'moduleContent.physics.scene.jointsOnB',
+  '.joints[].at2': 'moduleContent.physics.scene.jointsAt2',
+  '.joints[].length': 'moduleContent.physics.scene.jointsLength',
+  '.joints[].k': 'moduleContent.physics.scene.jointsK',
+  '.joints[].damping': 'moduleContent.physics.scene.jointsDamping',
+  '.joints[].speed': 'moduleContent.physics.scene.jointsSpeed',
+  '.joints[].torque': 'moduleContent.physics.scene.jointsTorque',
+  '.fluids': 'moduleContent.physics.scene.fluids',
+  '.fluids[].id': 'moduleContent.physics.scene.fluidsId',
+  '.fluids[].x': 'moduleContent.physics.scene.fluidsX',
+  '.fluids[].y': 'moduleContent.physics.scene.fluidsY',
+  '.fluids[].w': 'moduleContent.physics.scene.fluidsW',
+  '.fluids[].h': 'moduleContent.physics.scene.fluidsH',
+  '.fluids[].wall': 'moduleContent.physics.scene.fluidsWall',
+  '.fluids[].layers': 'moduleContent.physics.scene.fluidsLayers',
+  '.fluids[].layers[].liquid': 'moduleContent.physics.scene.fluidsLayersLiquid',
+  '.fluids[].layers[].height': 'moduleContent.physics.scene.fluidsLayersHeight',
+  '.fluids[].holes': 'moduleContent.physics.scene.fluidsHoles',
+  '.fluids[].holes[].side': 'moduleContent.physics.scene.fluidsHolesSide',
+  '.fluids[].holes[].at': 'moduleContent.physics.scene.fluidsHolesAt',
+  '.fluids[].holes[].size': 'moduleContent.physics.scene.fluidsHolesSize',
+  '.fluids[].holes[].open': 'moduleContent.physics.scene.fluidsHolesOpen',
+  '.pipes': 'moduleContent.physics.scene.pipes',
+  '.pipes[].a': 'moduleContent.physics.scene.pipesA',
+  '.pipes[].b': 'moduleContent.physics.scene.pipesB',
+  '.pipes[].y': 'moduleContent.physics.scene.pipesY',
+  '.pipes[].size': 'moduleContent.physics.scene.pipesSize',
+  '.pipes[].open': 'moduleContent.physics.scene.pipesOpen',
+  '.show': 'moduleContent.physics.scene.show',
+  '.show.vectors': 'moduleContent.physics.scene.showVectors',
+  '.show.trace': 'moduleContent.physics.scene.showTrace',
+  '.show.grid': 'moduleContent.physics.scene.showGrid',
+  '.show.pressure': 'moduleContent.physics.scene.showPressure',
+  '.show.values': 'moduleContent.physics.scene.showValues',
+  '.graph': 'moduleContent.physics.scene.graph',
+  '.graph.body': 'moduleContent.physics.scene.graphBody',
+  '.graph.of': 'moduleContent.physics.scene.graphOf',
+  '.allow': 'moduleContent.physics.scene.allow',
+  '.allow.add': 'moduleContent.physics.scene.allowAdd',
+  '.allow.palette': 'moduleContent.physics.scene.allowPalette',
+  '.allow.tools': 'moduleContent.physics.scene.allowTools',
+  '.allow.edit': 'moduleContent.physics.scene.allowEdit',
+  '.allow.drag': 'moduleContent.physics.scene.allowDrag',
+  '.controls': 'moduleContent.physics.scene.controls',
+  '.goal': 'moduleContent.physics.scene.goal',
+  '.goal.body': 'moduleContent.physics.scene.goalBody',
+  '.goal.area': 'moduleContent.physics.scene.goalArea',
+  '.goal.for': 'moduleContent.physics.scene.goalFor',
+  '.goal.say': 'moduleContent.physics.scene.goalSay',
+  '.steps': 'moduleContent.physics.scene.steps',
+  '.steps[].say': 'moduleContent.physics.scene.stepsSay',
+  '.steps[].do': 'moduleContent.physics.scene.stepsDo',
+  '.steps[].do.open': 'moduleContent.physics.scene.stepsDoOpen',
+  '.steps[].do.hole': 'moduleContent.physics.scene.stepsDoHole',
+  '.steps[].do.push': 'moduleContent.physics.scene.stepsDoPush',
+  '.steps[].do.vx': 'moduleContent.physics.scene.stepsDoVx',
+  '.steps[].do.vy': 'moduleContent.physics.scene.stepsDoVy',
+  '.steps[].wait': 'moduleContent.physics.scene.stepsWait',
+  '.view': 'moduleContent.physics.scene.view'
 };
 
 /* Das Beispiel: Schwimmen (aus den fertigen Versuchen — dieselben Dokumente). */
@@ -171,59 +173,63 @@ const EXAMPLE_SCENE = {
   fluids: [{ id: 'woda', x: 0.5, y: 0, w: 4, h: 1.6, layers: [{ liquid: 'water', height: 1 }], holes: [{ side: 'right', at: 0.2, size: 0.03, open: false }] }],
   bodies: [
     { id: 'korek', label: 'korek', shape: 'box', w: 0.4, h: 0.3, x: 1.2, y: 2.2, material: 'cork' },
-    { id: 'lod', label: 'lód', shape: 'box', w: 0.4, h: 0.3, x: 2.4, y: 2.2, material: 'ice' },
+    { id: 'lod', label: 'lód', shape: 'box', w: 0.4, h: 0.3, x: 2.4, y: 2.2, material: 'ice' }, // i18n-ignore
     { id: 'stal', label: 'stal', shape: 'circle', r: 0.15, x: 3.6, y: 2.2, material: 'steel' }
   ],
   show: { vectors: ['g', 'lift'], values: true, pressure: true },
   allow: { add: false, tools: ['probe', 'ruler'] },
   view: [0, -0.3, 5.2, 2.8],
-  steps: [{ say: 'Wrzuć klocki do wody.', do: 'play', wait: 4 }, { say: 'Otwórz otwór w ściance.', do: { open: 'woda', hole: 0 }, wait: 3 }]
+  steps: [{ say: 'Wrzuć klocki do wody.', do: 'play', wait: 4 }, { say: 'Otwórz otwór w ściance.', do: { open: 'woda', hole: 0 }, wait: 3 }] // i18n-ignore
 };
 
 export const physicsPart = definePart<Config>({
   kind: 'physics',
-  label: 'Laboratorium fizyki',
-  use: 'Laboratorium fizyki 2D: ciała z prawdziwych materiałów, równie, wahadła, sprężyny, bloczki, zderzenia, ciecze (ciśnienie, wypór, naczynia połączone, strumienie) — piaskownica albo gotowe doświadczenie szkolne; pełny ekran.',
+  label: 'moduleContent.physics.label',
+  use: 'moduleContent.physics.use',
   box: { colSpan: 6, rowSpan: 5 },
   fields: [],
   read,
   hasContent: () => true,
   missing: () => null,
   shows: (c, size) => size.height === 'strip'
-    ? `${c.title || 'Laboratorium fizyki'} — karta z przyciskiem: laboratorium otwiera się na całym ekranie.`
-    : `${c.mode === 'sandbox' ? 'Piaskownica' : 'Doświadczenie'} „${c.title || 'Laboratorium fizyki'}” — scena, sterowanie obok albo pod nią, przycisk pełnego ekranu.`,
+    ? t('moduleContent.physics.showsStrip', { title: c.title || t('moduleContent.physics.title') })
+    : t(c.mode === 'sandbox' ? 'moduleContent.physics.showsSandbox' : 'moduleContent.physics.showsExperiment', { title: c.title || t('moduleContent.physics.title') }),
   fullscreen: true,
-  Editor: (props) => (
-    <LabEditor {...props} presets={presets} sandbox={SANDBOX} what="laboratorium fizyki" Preview={Preview}
-      prompt={() => import('../../lab/physics/physText').then((m) => m.physPrompt())} />
-  ),
-  View: ({ config, ctx }) => {
+  Editor: function PhysicsEditor(props) {
+    const t = useT();
+    return (
+      <LabEditor {...props} presets={presets} sandbox={SANDBOX} what={t('moduleContent.physics.what')} Preview={Preview}
+        prompt={() => import('../../lab/physics/physText').then((m) => m.physPrompt())} />
+    );
+  },
+  View: function PhysicsView({ config, ctx }) {
+    const t = useT();
     if (ctx.size.height === 'strip' && ctx.whole !== true) {
       return (
         <div className="lab-card">
-          <strong>{config.title || 'Laboratorium fizyki'}</strong>
+          <strong>{config.title || t('moduleContent.physics.title')}</strong>
           {config.text[0] !== undefined && <p className="wk-card-muted">{config.text[0]}</p>}
-          {ctx.openWhole !== undefined && <button type="button" className="wk-btn" onClick={ctx.openWhole}>Otwórz laboratorium</button>}
+          {ctx.openWhole !== undefined && <button type="button" className="wk-btn" onClick={ctx.openWhole}>{t('moduleContent.physics.open')}</button>}
         </div>
       );
     }
     return <GoalLab config={config} whole={ctx.whole === true} moduleId={ctx.moduleId} />;
   },
   example: {
-    title: 'Pływanie ciał',
-    text: 'Które ciała pływają, a które toną?\nUruchom i porównaj, jak głęboko zanurzają się korek i lód.',
+    title: 'Pływanie ciał', // i18n-ignore
+    text: 'Które ciała pływają, a które toną?\nUruchom i porównaj, jak głęboko zanurzają się korek i lód.', // i18n-ignore
     mode: 'experiment',
     scene: JSON.stringify(EXAMPLE_SCENE),
-    question: '<puste albo @kurs/pytanie z bazy opowieści>',
+    question: '<puste albo @kurs/pytanie z bazy opowieści>', // i18n-ignore
     about: '@kurs/plywanie'
   },
   extra: [
-    { key: 'title', shape: 'line', says: 'Tytuł doświadczenia (nad sceną)' },
-    { key: 'text', shape: 'lines', says: 'Tekst dla uczniów — co mają zrobić i zaobserwować (akapity)' },
-    { key: 'mode', shape: 'line', says: '"experiment" — dokładnie ta scena (z „Pokaż”), "sandbox" — piaskownica: wszystko wolno, gotowe doświadczenia do wczytania, zapis i eksport JSON' },
-    { key: 'scene', shape: 'json', says: 'Scena: świat, ciała, połączenia, zbiorniki z cieczą, rury, co widać, co wolno, cel i kroki — silnik jest wbudowany, scena mówi, co w nim stoi', inside: SCENE_DOCS },
-    { key: 'question', shape: 'line', says: 'w opowieści z bazą wiedzy: osiągnięty cel sceny ("goal") liczy się jak dobra odpowiedź na to pytanie z bazy — id albo @nazwa (puste: własna karta celu)' },
-    { key: 'about', shape: 'lines', says: 'w opowieści z bazą wiedzy: dla jakich wpisów bazy liczy się osiągnięty cel — id albo @nazwa, każdy w osobnej linii' }
+    { key: 'title', shape: 'line', says: 'moduleContent.physics.key.title' },
+    { key: 'text', shape: 'lines', says: 'moduleContent.physics.key.text' },
+    { key: 'mode', shape: 'line', says: 'moduleContent.physics.key.mode' },
+    { key: 'scene', shape: 'json', says: 'moduleContent.physics.key.scene', inside: SCENE_DOCS },
+    { key: 'question', shape: 'line', says: 'moduleContent.physics.key.question' },
+    { key: 'about', shape: 'lines', says: 'moduleContent.physics.key.about' }
   ]
 });
 

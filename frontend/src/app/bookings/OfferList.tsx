@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 
+import { rich, useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { type Holder, type Offer, type Rules, askToJoin, takeOffer } from './resource';
 import { type Act, moment, span } from './slotText';
@@ -15,11 +16,13 @@ import { type Act, moment, span } from './slotText';
  * war — je nach dem Grund, den der Dienst nennt. Die Liste ist danach neu.
  */
 const MEANTIME: Record<string, string> = {
-  inviteneeded: 'W międzyczasie ktoś inny wybrał ten termin — nie jest już wolny. Teraz ta osoba decyduje, kto dołączy; możesz poprosić o dołączenie.',
-  full: 'W międzyczasie ktoś zajął ostatnie wolne miejsce — ten termin nie jest już wolny.',
-  locked: 'W międzyczasie ten termin został zajęty przez grupę — nie jest już wolny.',
-  closed: 'W międzyczasie ten termin został zamknięty — nie jest już wolny.'
+  inviteneeded: 'bookings.offer.meantime.inviteneeded',
+  full: 'bookings.offer.meantime.full',
+  locked: 'bookings.offer.meantime.locked',
+  closed: 'bookings.offer.meantime.closed'
 };
+
+const STRONG = { b: (s: string, k: number) => <strong key={k}>{s}</strong> };
 
 const SHADE: Record<Offer['state'], string> = {
   open: 'is-free',
@@ -40,7 +43,8 @@ export function OfferList({ offers, rules, holder, replaces, busy, onAct, onTake
   onAct: Act;
   onTaken: (claimId: string, code: string | null, kept: boolean) => void;
 }) {
-  if (offers.length === 0) return <p className="wk-empty">Nie ma teraz żadnych terminów do wyboru.</p>;
+  const t = useT();
+  if (offers.length === 0) return <p className="wk-empty">{t('bookings.offer.none')}</p>;
 
   return (
     <div className="wk-slot-list">
@@ -69,13 +73,14 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
   onAct: Act;
   onTaken: (claimId: string, code: string | null, kept: boolean) => void;
 }) {
+  const t = useT();
   const [code, setCode] = useState('');
   const [open, setOpen] = useState(false);
 
   const minutes = Math.round((new Date(offer.endsAt).getTime() - new Date(offer.startsAt).getTime()) / 60000);
   const left = Math.max(0, offer.capacity - offer.taken);
 
-  const take = (withCode?: string) => holder !== null && void onAct(replaces !== null ? 'Zamienianie…' : 'Zapisywanie…', async () => {
+  const take = (withCode?: string) => holder !== null && void onAct(replaces !== null ? t('bookings.offer.swapping') : t('bookings.myTerm.saving'), async () => {
     try {
       const done = await takeOffer(rules, offer, holder, withCode, replaces ?? undefined);
       onTaken(done.claimId, done.inviteCode, holder.key !== null);
@@ -87,38 +92,36 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
        */
       const meantime = offer.state === 'open' && withCode === undefined && e instanceof WorkspaceError
         ? MEANTIME[e.verdict ?? ''] : undefined;
-      throw meantime === undefined ? e : new WorkspaceError(meantime, e instanceof WorkspaceError ? e.verdict : null);
+      throw meantime === undefined ? e : new WorkspaceError(t(meantime), e instanceof WorkspaceError ? e.verdict : null);
     }
   });
 
   const said =
     offer.state === 'open'
       ? offer.taken === 0 && rules.inviteHours > 0 && rules.capacity > 1
-        ? `Wolny. Będziesz pierwszy — zdecydujesz, czy chcesz sam zaprosić pozostałych (wtedy przez ${rules.inviteHours} h tylko Ty decydujesz, kto dołączy).`
-        : `Wolny — zostało miejsc: ${left}.`
+        ? t('bookings.offer.freeFirst', { hours: rules.inviteHours })
+        : t('bookings.offer.free', { left })
     : offer.state === 'inviteneeded'
       ? offer.hostPending === true
-        ? `Nie można go teraz wybrać. Osoba, która wybrała go jako pierwsza, decyduje właśnie${offer.inviteUntil !== null
-          ? ` (najpóźniej do ${moment(offer.inviteUntil)})` : ''}, czy zaprosi znajomych. Jeśli nie — termin otworzy się dla wszystkich. Wolnych miejsc: ${left}.`
-        : `Nie można go wybrać bezpośrednio. Pierwsza osoba, która go wybrała, ${offer.inviteUntil !== null
-          ? `do ${moment(offer.inviteUntil)} ` : ''}sama decyduje, kto dołączy — możesz tylko poprosić o dołączenie albo użyć jej kodu. Wolnych miejsc: ${left}.`
-    : offer.state === 'full' ? 'Pełny.'
-    : offer.state === 'locked' ? 'Zamknięty — grupa jest już skompletowana.'
+        ? offer.inviteUntil !== null ? t('bookings.offer.decidingUntil', { until: moment(offer.inviteUntil, t.lang), left }) : t('bookings.offer.deciding', { left })
+        : offer.inviteUntil !== null ? t('bookings.offer.hostedUntil', { until: moment(offer.inviteUntil, t.lang), left }) : t('bookings.offer.hosted', { left })
+    : offer.state === 'full' ? t('bookings.offer.full')
+    : offer.state === 'locked' ? t('bookings.offer.locked')
     : offer.state === 'closed'
-      ? offer.closedBy === 'office' ? 'Zamknięty przez kancelarię.' : 'Zamknięty — grupa jest już skompletowana.'
-    : 'Twój termin.';
+      ? offer.closedBy === 'office' ? t('bookings.offer.closedByOffice') : t('bookings.offer.locked')
+    : t('bookings.offer.mine');
 
   return (
     <article className={`wk-slot ${SHADE[offer.state]}`}>
-      <p className="wk-slot-when">{span(offer.startsAt, offer.endsAt, rules)}</p>
+      <p className="wk-slot-when">{span(offer.startsAt, offer.endsAt, rules, t.lang)}</p>
       <p className="wk-slot-note">
-        {!rules.byNight && `Czas: ${minutes} min · `}Zajętość: {offer.taken}/{offer.capacity}
+        {!rules.byNight && `${t('bookings.myTerm.duration', { minutes })} · `}{t('bookings.myTerm.taken', { taken: offer.taken, capacity: offer.capacity })}
       </p>
       <p className="wk-slot-say">{said}</p>
 
       {holder !== null && offer.state === 'open' && (
         <button type="button" className="wk-btn wk-slot-take" disabled={busy} onClick={() => take()}>
-          {replaces !== null ? 'Zamień na ten termin' : 'Wybierz ten termin'}
+          {replaces !== null ? t('bookings.offer.swapTo') : t('bookings.offer.choose')}
         </button>
       )}
 
@@ -137,35 +140,30 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
               verstehen, dass das eine Frist ist und keine Absage.
             */}
             <p className="wk-slot-explain">
-              <strong>Tego terminu nie wybierzesz sam.</strong> O tym, kto dołączy, decyduje osoba, która
-              wybrała go jako pierwsza
-              {offer.inviteUntil !== null && <> — <strong>do {moment(offer.inviteUntil)}</strong></>}.
-              {' '}Do tego czasu możesz dołączyć na jeden z dwóch sposobów:
+              {offer.inviteUntil !== null ? rich(t('bookings.offer.explainUntil', { until: moment(offer.inviteUntil, t.lang) }), STRONG) : rich(t('bookings.offer.explain'), STRONG)}
             </p>
 
             <div className="wk-slot-ways">
               {/* 1. Ohne Code: die Bitte — der häufigere Fall, also zuerst und gross. */}
               {replaces === null && (
                 <section className="wk-slot-way">
-                  <strong>Nie masz kodu?</strong>
+                  <strong>{t('bookings.offer.noCode')}</strong>
                   <p>
-                    Poproś tę osobę o dołączenie. To tylko prośba — <strong>nie masz pewności, że zostanie
-                    przyjęta</strong>: ta osoba może się zgodzić albo odmówić. Dopóki się nie zgodzi, termin
-                    nie jest Twój. Odpowiedź pojawi się tutaj.
+                    {rich(t('bookings.offer.askLead'), STRONG)}
                   </p>
                   <button type="button" className="wk-btn" disabled={busy}
-                    onClick={() => void onAct('Wysyłanie prośby…', () => askToJoin(rules, offer, holder))}>
-                    Poproś o dołączenie
+                    onClick={() => void onAct(t('bookings.offer.asking'), () => askToJoin(rules, offer, holder))}>
+                    {t('bookings.offer.ask')}
                   </button>
                 </section>
               )}
 
               {/* 2. Mit Code. */}
               <section className="wk-slot-way">
-                <strong>Masz kod od tej osoby?</strong>
+                <strong>{t('bookings.offer.haveCode')}</strong>
                 <label className="wk-field">
-                  <span>Kod zaproszenia (6 znaków)</span>
-                  <input value={code} placeholder="np. A3K9Q2" maxLength={6}
+                  <span>{t('bookings.offer.codeLabel')}</span>
+                  <input value={code} placeholder={t('bookings.offer.codePlaceholder')} maxLength={6}
                     onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                     onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 6 && !busy) take(code); }} />
                 </label>
@@ -175,7 +173,7 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
                 */}
                 {code.length === 6 && (
                   <button type="button" className="wk-btn" disabled={busy} onClick={() => take(code)}>
-                    {replaces !== null ? 'Zamień z kodem' : 'Dołącz z kodem'}
+                    {replaces !== null ? t('bookings.offer.swapWithCode') : t('bookings.offer.joinWithCode')}
                   </button>
                 )}
               </section>
@@ -186,16 +184,16 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
               der Frist nur der Erste darauf, gehört der Termin wieder allen.
             */}
             <p className="wk-hint">
-              {replaces !== null && 'Prośbę o dołączenie wyślesz, gdy nie będziesz mieć innego terminu. '}
-              Jeśli do tego czasu nikt więcej nie dołączy, termin otworzy się dla wszystkich i wybierzesz go bez kodu.
+              {replaces !== null && `${t('bookings.offer.askLater')} `}
+              {t('bookings.offer.afterwards')}
               {' '}
-              <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>Ukryj</button>
+              <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>{t('bookings.offer.hide')}</button>
             </p>
           </div>
         ) : (
           /* Ein richtiger Knopf, kein leiser: hier hinein geht es — nur anders als bei einem grünen. */
           <button type="button" className="wk-btn wk-slot-take" disabled={busy} onClick={() => setOpen(true)}>
-            Poproś o dołączenie albo wpisz kod
+            {t('bookings.offer.askOrCode')}
           </button>
         )
       )}

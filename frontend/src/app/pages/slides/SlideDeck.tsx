@@ -35,6 +35,7 @@ import { defaultLayers, NO_DECK, resolveTheme, type DeckLook, type Layer, type T
 import { colorsAt, colorsOf, deckAt, enterStyle, entering, frameAt } from './slideMotion';
 import { layerCover, layerPlace, layerRoom, sheetsAt } from './slideSheets';
 import { useSlideScroll } from './useSlideScroll';
+import { useT } from '../../core/i18n';
 
 export interface DeckSlide {
   readonly key: string;
@@ -217,6 +218,7 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
   embedded?: boolean;
   control?: MutableRefObject<DeckControl | null>;
 }) {
+  const t = useT();
   const dark = usePrefersDark();
   const look = resolveTheme(theme, dark);
   const scroll = useSlideScroll(slides.length, { keyboard: !embedded });
@@ -389,7 +391,7 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
 
   return (
     <div className={`wk-deck is-${look.mode}${embedded ? ' is-embedded' : ''}${deck.nav !== 'labels' ? ` is-nav-${deck.nav}` : ''}${tall ? ' is-tall' : ''}`} style={vars}>
-      {deck.nav === 'labels' && <nav className="wk-deck-nav" aria-label="Slajdy">{labels}</nav>}
+      {deck.nav === 'labels' && <nav className="wk-deck-nav" aria-label={t('pagesSlides.deck.nav')}>{labels}</nav>}
 
       <div className="wk-deck-viewport" ref={viewportRef}>
         <div className="wk-deck-track" style={{ transform: `translate3d(0, ${-scroll.position}px, 0)` }} onClick={onTrackClick}>
@@ -519,7 +521,7 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
         )}
 
         {/* 0107 — die Leiste als Punkte, rechts in der Mitte (wie der Pokaz von Cogita). */}
-        {deck.nav === 'dots' && slides.length > 1 && <nav className="wk-deck-dots" aria-label="Slajdy">{labels}</nav>}
+        {deck.nav === 'dots' && slides.length > 1 && <nav className="wk-deck-dots" aria-label={t('pagesSlides.deck.nav')}>{labels}</nav>}
       </div>
 
       <footer className="wk-deck-foot">
@@ -528,8 +530,8 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
           {slides.length > 0 ? `${active + 1} / ${slides.length}` : '—'}
         </span>
         <span className="wk-deck-arrows">
-          <button type="button" aria-label="Poprzedni slajd" disabled={active === 0} onClick={() => scrollToSlide(active - 1)}>↑</button>
-          <button type="button" aria-label="Następny slajd" disabled={active >= slides.length - 1} onClick={() => scrollToSlide(active + 1)}>↓</button>
+          <button type="button" aria-label={t('pagesSlides.deck.prev')} disabled={active === 0} onClick={() => scrollToSlide(active - 1)}>↑</button>
+          <button type="button" aria-label={t('pagesSlides.deck.next')} disabled={active >= slides.length - 1} onClick={() => scrollToSlide(active + 1)}>↓</button>
         </span>
       </footer>
     </div>

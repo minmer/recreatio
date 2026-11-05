@@ -15,6 +15,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useT } from '../core/i18n';
 
 export function usePortal(): HTMLElement | null {
   const [host] = useState<HTMLElement | null>(() => {
@@ -64,6 +65,7 @@ export function Modal({ title, onClose, children, wide = false }: {
   children: ReactNode;
   wide?: boolean;
 }) {
+  const t = useT();
   const host = usePortal();
   const box = useRef<HTMLDivElement | null>(null);
   const id = useId();
@@ -76,7 +78,7 @@ export function Modal({ title, onClose, children, wide = false }: {
       <div ref={box} className={`wk-modal${wide ? ' is-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={id}>
         <div className="wk-modal-head">
           <h2 id={id} className="wk-h2">{title}</h2>
-          <button type="button" className="wk-modal-x" aria-label="Zamknij" onClick={onClose}>×</button>
+          <button type="button" className="wk-modal-x" aria-label={t('common.close')} onClick={onClose}>×</button>
         </div>
         <div className="wk-modal-body">{children}</div>
       </div>
@@ -90,6 +92,7 @@ export function Modal({ title, onClose, children, wide = false }: {
  * es mit dem Pfeil, dem × oder Esc.
  */
 export function Fullscreen({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const t = useT();
   const host = usePortal();
   const box = useRef<HTMLDivElement | null>(null);
   const id = useId();
@@ -100,9 +103,9 @@ export function Fullscreen({ title, onClose, children }: { title: string; onClos
   return createPortal(
     <div ref={box} className="wk-full" role="dialog" aria-modal="true" aria-labelledby={id}>
       <div className="wk-full-head">
-        <button type="button" className="wk-full-back" aria-label="Wróć do strony" onClick={onClose}>‹ Wróć</button>
+        <button type="button" className="wk-full-back" aria-label={t('ui.modal.backToPage')} onClick={onClose}>{t('ui.modal.back')}</button>
         <h2 id={id} className="wk-full-title">{title}</h2>
-        <button type="button" className="wk-modal-x" aria-label="Zamknij pełny ekran" onClick={onClose}>×</button>
+        <button type="button" className="wk-modal-x" aria-label={t('ui.modal.closeFull')} onClick={onClose}>×</button>
       </div>
       <div className="wk-full-body">{children}</div>
     </div>,

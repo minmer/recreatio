@@ -16,6 +16,7 @@ import { WorkspaceError, type Who } from '../core/session';
 import { personsOf, type RoleGraphData } from '../roles/roles';
 import { loadPerson, openMine, setValue } from './person';
 import { applyPersons, exportPersons, planPersons, PERSONS_JSON, type PersonState } from './personsJson';
+import { t as tApp, useT } from '../core/i18n';
 
 /** Die Personen des Kontos, offen — nur die, deren Schlüssel dieser Bund hält. */
 async function loadPersons(ring: Ring, graph: RoleGraphData): Promise<PersonState[]> {
@@ -35,7 +36,7 @@ async function loadPersons(ring: Ring, graph: RoleGraphData): Promise<PersonStat
 
 async function openKeys(who: Who): Promise<{ ring: Ring; graph: RoleGraphData }> {
   const { ring, graph } = await keysFor(who);
-  if (ring === null) throw new WorkspaceError('Ta karta nie ma klucza konta — zaloguj się ponownie, żeby otworzyć swoje dane.');
+  if (ring === null) throw new WorkspaceError(tApp('account.personsJson.noKey'));
   return { ring, graph };
 }
 
@@ -43,6 +44,7 @@ export function PersonsJsonPanel({ who, onImported }: { who: Who; onImported: ()
   const [persons, setPersons] = useState<readonly PersonState[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -55,18 +57,18 @@ export function PersonsJsonPanel({ who, onImported }: { who: Who; onImported: ()
 
   return (
     <JsonPanel
-      summary="Moje dane jako JSON"
-      lead={<>Imię, nazwisko, telefon, data urodzenia, adres, e-mail i przezwisko każdej osoby tego konta — do kopii albo do uzupełnienia przez AI. Import zmienia tylko pola osób z tego eksportu (po ich „id”), niczego nie usuwa i nikomu nowemu nie udostępnia.</>}
-      fileName="moje-dane.json"
+      summary={t('account.personsJson.summary')}
+      lead={<>{t('account.personsJson.lead')}</>}
+      fileName={t('account.personsJson.fileName')}
       exportDoc={async () => {
         const { ring, graph } = await openKeys(who);
         return exportPersons(await loadPersons(ring, graph));
       }}
       format={PERSONS_JSON}
       preview={(doc) => (persons === null
-        ? { error: failed ? 'Nie udało się otworzyć danych osób tego konta.' : 'Dane osób jeszcze się otwierają — za chwilę zobaczysz plan.' }
+        ? { error: failed ? t('account.personsJson.openFailed') : t('account.personsJson.notReady') }
         : planPersons(doc, persons))}
-      importLabel="Zapisz dane"
+      importLabel={t('account.personsJson.importLabel')}
       onImport={async (doc, stage) => {
         const { ring, graph } = await openKeys(who);
         const plan = planPersons(doc, await loadPersons(ring, graph));

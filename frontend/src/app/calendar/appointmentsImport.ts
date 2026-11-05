@@ -8,6 +8,7 @@
 import type { CalendarRow } from './calendar';
 import { saveEvent, type EventDraft } from './agenda';
 import type { AppointmentDoc, AppointmentsPlan } from './appointmentsJson';
+import { t } from '../core/i18n';
 import type { Ring } from '../core/keys';
 import { WorkspaceError } from '../core/session';
 
@@ -38,7 +39,7 @@ export async function importAppointments(
   for (const entry of plan.entries) {
     const calendar = chosen.get(entry.key);
     if (calendar !== undefined) calendars.set(entry.key, calendar.calendarId);
-    else warnings.push(`Terminy „${entry.label}” pominięte — nie wybrano kalendarza.`);
+    else warnings.push(t('calendarDataJson.page.noCalendar', { label: entry.label }));
   }
 
   const save = async (doc: AppointmentDoc, calendar: CalendarRow, parentItemId: string | null, position: number | null): Promise<void> => {
@@ -53,10 +54,11 @@ export async function importAppointments(
     };
     let itemId: string;
     try {
-      stage(`Kalendarz: „${doc.title}”…`);
+      stage(t('calendarDataJson.page.stage', { title: doc.title }));
       itemId = await saveEvent(ring, draft);
     } catch (e) {
-      warnings.push(`„${doc.title}” nie trafił do kalendarza: ${e instanceof WorkspaceError ? e.message : 'nie udało się'}${doc.points.length > 0 ? ' (razem z programem)' : ''}.`);
+      const reason = e instanceof WorkspaceError ? e.message : t('calendarDataJson.run.failed');
+      warnings.push(t(doc.points.length > 0 ? 'calendarDataJson.page.notSavedProgram' : 'calendarDataJson.page.notSaved', { title: doc.title, reason }));
       return;
     }
     created++;

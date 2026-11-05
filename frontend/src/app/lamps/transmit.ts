@@ -32,6 +32,7 @@
  * es soll beim Ausprobieren helfen, nicht etwas festhalten.
  */
 
+import { fmtNumber, hasKey, t } from '../core/i18n';
 import { hexOf, readFrame } from './adv';
 import type { LampData, LampSignal } from './lampStore';
 import { DURATION_MAX, DURATION_MIN, FRAMES_MAX, lampTitle, signalProblem } from './lampStore';
@@ -74,26 +75,8 @@ export interface Attempt {
 
 export const HISTORY_MAX = 30;
 
-const CODE_TEXT: Readonly<Record<LampCode, string>> = {
-  'ok': 'Nadano: Android potwierdził start reklamy i ją zatrzymał. Czy lampa zareagowała — tego telefon nie wie.',
-  'no-bluetooth': 'Ten telefon nie ma Bluetooth.',
-  'bluetooth-off': 'Bluetooth jest wyłączony — włącz go i spróbuj ponownie.',
-  'no-advertiser': 'Ten telefon nie potrafi nadawać reklam BLE (Android nie daje nadajnika).',
-  'no-permission': 'Bez zgody na „Urządzenia w pobliżu" aplikacja nie może nadawać.',
-  'data-too-large': 'Android odrzucił pakiet jako za duży (ADVERTISE_FAILED_DATA_TOO_LARGE).',
-  'too-many-advertisers': 'Android: za dużo reklam naraz (ADVERTISE_FAILED_TOO_MANY_ADVERTISERS) — może nadaje inna aplikacja.',
-  'already-started': 'Android: ta reklama już trwa (ADVERTISE_FAILED_ALREADY_STARTED).',
-  'internal-error': 'Android: wewnętrzny błąd Bluetooth (ADVERTISE_FAILED_INTERNAL_ERROR).',
-  'feature-unsupported': 'Android: ten telefon nie obsługuje takiej reklamy (ADVERTISE_FAILED_FEATURE_UNSUPPORTED).',
-  'no-callback': 'Android nie potwierdził startu w ciągu 3 s — nadawanie przerwano.',
-  'stopped': 'Zatrzymano.',
-  'paused': 'Przerwano — aplikacja zeszła z ekranu.',
-  'bad-frame': 'Tego sygnału nie da się nadać.',
-  'error': 'Nadawanie się nie udało.',
-  'unavailable': 'Nadawać może tylko telefon z aplikacją REcreatio (wydanie sms). Tutaj można sygnały ustawiać.'
-};
-
-export const codeText = (code: LampCode): string => CODE_TEXT[code] ?? CODE_TEXT.error;
+/* Texte: lamps.code.<Code> — je Code des Telefons einer. */
+export const codeText = (code: LampCode): string => t(hasKey(`lamps.code.${code}`) ? `lamps.code.${code}` : 'lamps.code.error');
 
 export const stateOf = (code: LampCode): AttemptState =>
   code === 'ok' ? 'sent' : code === 'stopped' || code === 'paused' ? 'stopped' : 'failed';
@@ -147,17 +130,17 @@ export function prepareSignal(signal: LampSignal, pace: Pace = FASTEST): Prepare
 export function timingNotes(shown: readonly AttemptFrame[], result: NativeSendResult): string[] {
   const out: string[] = [];
   const many = shown.length > 1;
-  const name = (i: number) => (many ? `Ramka ${i + 1}: ` : '');
+  const name = (i: number, text: string) => (many ? t('lamps.timing.frame', { n: i + 1, text }) : text);
   result.frames.forEach((r, i) => {
-    if (r.startMs !== undefined && r.startMs > 200) out.push(`${name(i)}Android potrzebował ${r.startMs} ms na start.`);
+    if (r.startMs !== undefined && r.startMs > 200) out.push(name(i, t('lamps.timing.start', { ms: r.startMs })));
     if (r.heldMs !== undefined && r.code === 'ok' && Math.abs(r.heldMs - r.requestedMs) >= 100) {
-      out.push(`${name(i)}nadawana ${r.heldMs} ms zamiast ${r.requestedMs} ms.`);
+      out.push(name(i, t('lamps.timing.held', { ms: r.heldMs, wanted: r.requestedMs })));
     }
     const next = result.frames[i + 1];
     if (next?.startedAt !== undefined && r.stoppedAt !== undefined) {
       const gap = next.startedAt - r.stoppedAt;
       const wanted = shown[i]?.gapMs ?? 0;
-      if (Math.abs(gap - wanted) >= 100) out.push(`Między ramką ${i + 1} a ${i + 2}: ${gap} ms zamiast ${wanted} ms.`);
+      if (Math.abs(gap - wanted) >= 100) out.push(t('lamps.timing.gap', { a: i + 1, b: i + 2, gap, wanted }));
     }
   });
   return out;
@@ -212,7 +195,7 @@ export function heldFrames(frames: readonly NativeFrame[], ms: number): NativeFr
   return out.map((f, i) => (i === out.length - 1 ? { ...f, gapMs: 0 } : f));
 }
 
-const seconds = (ms: number): string => `${(Math.round(ms / 100) / 10).toLocaleString('pl-PL')} s`;
+const seconds = (ms: number): string => `${fmtNumber(Math.round(ms / 100) / 10)} s`;
 
 /* -- Das Protokoll ---------------------------------------------------------------------------- */
 
@@ -282,7 +265,7 @@ function pauseBeforeNext(p: Pace): Promise<void> {
   });
 }
 
-const messageOf = (e: unknown): string => (e instanceof Error ? e.message : typeof e === 'string' ? e : 'Nieznany błąd.');
+const messageOf = (e: unknown): string => (e instanceof Error ? e.message : typeof e === 'string' ? e : t('lamps.code.unknown'));
 
 /**
  * Einen Sygnał senden — nach allen, die schon warten. `radio` ist der Sender
@@ -296,7 +279,7 @@ export function transmit(radio: LampNative | null, lamp: Pick<LampData, 'name' |
     id: `t${++counter}-${Date.now()}`,
     at: Date.now(),
     lamp: lampTitle(lamp),
-    signal: signal.label.trim() || 'Sygnał',
+    signal: signal.label.trim() || t('lamps.signal'),
     frames: prepared.shown,
     state: 'queued',
     code: null,
@@ -329,7 +312,7 @@ async function sendOne(radio: LampNative | null, queued: Attempt, signal: LampSi
   const prepared = prepareSignal(signal, now);
   /* Gehalten: wie lange gesendet wurde, sagt das Ergebnis; die gespeicherten Zeiten gelten dann nicht. */
   const heldText = (result: NativeSendResult): string =>
-    `Nadano przez ${seconds(Math.max(0, result.endedAt - result.startedAt))} — tak długo, jak trzymano przycisk. Czy lampa zareagowała — tego telefon nie wie.`;
+    t('lamps.code.heldOk', { time: seconds(Math.max(0, result.endedAt - result.startedAt)) });
   const finish = (code: LampCode, detail: string | null = null, result: NativeSendResult | null = null, message: string | null = null): Attempt =>
     put({
       ...(attempts.find((a) => a.id === queued.id) ?? queued),

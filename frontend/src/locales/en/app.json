@@ -1,0 +1,30 @@
+{
+  "view": {
+    "areas": "Areas",
+    "wspolnoty": "Communities",
+    "calendar": "Calendar",
+    "tasks": "Tasks",
+    "masses": "Masses and services",
+    "bookings": "Bookings",
+    "chat": "Chats",
+    "sms": "SMS",
+    "contacts": "Contacts",
+    "lamps": "Lamps",
+    "forms": "Forms",
+    "library": "Library",
+    "scriptorium": "Scriptorium",
+    "knowledge": "Knowledge",
+    "learn": "Learning",
+    "registry": "Registry and house visits",
+    "modules": "Modules",
+    "pages": "Pages",
+    "addresses": "Addresses and domains",
+    "roles": "Roles",
+    "account": "Account",
+    "sprawy": "Matters",
+    "widok": "View"
+  },
+  "routes": {
+    "noSlug": "The part \"{route}\" does not name single things — \"{slug}\" does not belong after it."
+  }
+}

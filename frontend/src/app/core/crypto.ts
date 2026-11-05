@@ -27,6 +27,7 @@
  */
 
 import { serialize, type Canon } from './canonical';
+import { t } from './i18n';
 
 export const KEY_SIZE = 32;
 export const NONCE_SIZE = 12;
@@ -298,11 +299,11 @@ export interface Aad {
 export function aad(
   module: string, objectType: string, objectId: string, field: FieldName, version: number
 ): Aad {
-  if (!module || !objectType || !objectId) throw new Error('AAD unvollständig.');
+  if (!module || !objectType || !objectId) throw new Error(t('core.crypto.aadIncomplete'));
   if (module.includes(':') || objectType.includes(':')) {
-    throw new Error('Doppelpunkt trennt die Teile und darf in ihnen nicht vorkommen.');
+    throw new Error(t('core.crypto.aadColon'));
   }
-  if (!Number.isInteger(version) || version < 1) throw new Error('Version beginnt bei 1.');
+  if (!Number.isInteger(version) || version < 1) throw new Error(t('core.crypto.aadVersion'));
   return { module, objectType, objectId, field, version };
 }
 
@@ -386,7 +387,7 @@ export async function keyIdFromPublicKey(spki: Uint8Array): Promise<Uint8Array> 
 /* -- Kopf (21.3) ------------------------------------------------------------ */
 
 export function buildHeader(alg: AlgId, kid: Uint8Array): Uint8Array {
-  if (kid.length !== 16) throw new Error('KeyId muss 16 Byte lang sein.');
+  if (kid.length !== 16) throw new Error(t('core.crypto.keyIdSize'));
 
   const h = new Uint8Array(HEADER_SIZE);
   h[0] = 0x52; // 'R'
@@ -401,13 +402,13 @@ export interface Header { readonly alg: AlgId; readonly keyId: Uint8Array }
 
 /** Magic und Formatversion werden geprüft, BEVOR irgendetwas anderes geschieht. */
 export function readHeader(blob: Uint8Array): Header {
-  if (blob.length < HEADER_SIZE) throw new SealedError('Hülle kürzer als der Kopf.');
-  if (blob[0] !== 0x52 || blob[1] !== 0x43) throw new SealedError('Kein Recreatio-Blob.');
-  if (blob[2] !== FORMAT_VERSION) throw new SealedError(`Formatversion ${blob[2]} ist unbekannt.`);
+  if (blob.length < HEADER_SIZE) throw new SealedError(t('core.crypto.shorterThanHeader'));
+  if (blob[0] !== 0x52 || blob[1] !== 0x43) throw new SealedError(t('core.crypto.notBlob'));
+  if (blob[2] !== FORMAT_VERSION) throw new SealedError(t('core.crypto.unknownVersion', { version: blob[2] }));
 
   const alg = blob[3] as AlgId;
   if (alg !== Alg.AesGcm256 && alg !== Alg.RsaOaep4096) {
-    throw new SealedError(`AlgId 0x${blob[3].toString(16)} ist unbekannt.`);
+    throw new SealedError(t('core.crypto.unknownAlg', { alg: `0x${blob[3].toString(16)}` }));
   }
   return { alg, keyId: blob.slice(4, 20) };
 }
@@ -418,7 +419,7 @@ const fullAad = (header: Uint8Array, a: Aad) => concat(header, utf8.encode(aadTe
 /* -- Versiegeln und Öffnen -------------------------------------------------- */
 
 export async function seal(key: Uint8Array, a: Aad, plaintext: Uint8Array): Promise<Uint8Array> {
-  if (key.length !== KEY_SIZE) throw new Error('Schlüssel muss 32 Byte lang sein.');
+  if (key.length !== KEY_SIZE) throw new Error(t('core.crypto.keySize'));
 
   // 21.2 — Nonce aus dem Zufallsgenerator. Kein Zähler, kein Zeitstempel:
   // zweimal derselbe Nonce unter demselben Schlüssel kostet die
@@ -440,9 +441,9 @@ export const sealText = (key: Uint8Array, a: Aad, text: string) => seal(key, a, 
 
 export async function open(key: Uint8Array, a: Aad, blob: Uint8Array): Promise<Uint8Array> {
   const header = readHeader(blob);
-  if (header.alg !== Alg.AesGcm256) throw new SealedError('Erwartet wurde eine AES-GCM-Hülle.');
+  if (header.alg !== Alg.AesGcm256) throw new SealedError(t('core.crypto.expectedAes'));
   if (blob.length < HEADER_SIZE + NONCE_SIZE + TAG_SIZE) {
-    throw new SealedError(`Hülle zu kurz: ${blob.length} Byte.`);
+    throw new SealedError(t('core.crypto.tooShortBytes', { count: blob.length }));
   }
 
   const nonce = blob.slice(HEADER_SIZE, HEADER_SIZE + NONCE_SIZE);
@@ -464,7 +465,7 @@ export async function open(key: Uint8Array, a: Aad, blob: Uint8Array): Promise<U
   } catch {
     // Kein Klartext ins Protokoll (15.9). Die AAD ist unverschlüsselt und
     // genau die Angabe, die beim Eingrenzen hilft.
-    throw new SealedError(`Integritätsprüfung fehlgeschlagen für '${aadText(a)}'.`);
+    throw new SealedError(t('core.crypto.integrity', { aad: aadText(a) }));
   }
 }
 
@@ -517,7 +518,7 @@ function rsaPrivate(pkcs8: Uint8Array): Promise<CryptoKey> {
 /** Die Gegenrichtung. Fehlte im Altbestand — der Browser packte dort nie aus. */
 export async function unwrapKey(pkcs8: Uint8Array, a: Aad, blob: Uint8Array): Promise<Uint8Array> {
   const header = readHeader(blob);
-  if (header.alg !== Alg.RsaOaep4096) throw new SealedError('Erwartet wurde eine RSA-verpackte Hülle.');
+  if (header.alg !== Alg.RsaOaep4096) throw new SealedError(t('core.crypto.expectedRsa'));
 
   const privateKey = await rsaPrivate(pkcs8);
 
@@ -526,14 +527,14 @@ export async function unwrapKey(pkcs8: Uint8Array, a: Aad, blob: Uint8Array): Pr
     payload = new Uint8Array(await crypto.subtle.decrypt(
       { name: 'RSA-OAEP' }, privateKey, view(blob.slice(HEADER_SIZE))));
   } catch {
-    throw new SealedError('Verpackung liess sich nicht öffnen.');
+    throw new SealedError(t('core.crypto.unwrapFailed'));
   }
 
   const expected = new Uint8Array(
     await crypto.subtle.digest('SHA-256', view(fullAad(blob.slice(0, HEADER_SIZE), a))));
 
   if (payload.length < expected.length || !sameBytes(payload.slice(0, expected.length), expected)) {
-    throw new SealedError(`Label passt nicht zur AAD '${aadText(a)}'.`);
+    throw new SealedError(t('core.crypto.labelMismatch', { aad: aadText(a) }));
   }
 
   return payload.slice(expected.length);
@@ -723,7 +724,7 @@ export async function wrapKeyP256(spki: Uint8Array, a: Aad, keyToWrap: Uint8Arra
 
 /** Die Gegenrichtung — mit dem eigenen privaten ECDH-Schlüssel. */
 export async function unwrapKeyP256(pkcs8: Uint8Array, a: Aad, blob: Uint8Array): Promise<Uint8Array> {
-  if (blob.length <= POINT_SIZE) throw new SealedError('Hülle zu kurz.');
+  if (blob.length <= POINT_SIZE) throw new SealedError(t('core.crypto.tooShort'));
 
   const point = blob.slice(0, POINT_SIZE);
   const mine = await crypto.subtle.importKey('pkcs8', view(pkcs8), { name: 'ECDH', ...P256 }, false, ['deriveBits']);

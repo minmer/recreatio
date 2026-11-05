@@ -23,7 +23,7 @@
  */
 
 import { describe, keyLines, pretty, type JsonNode } from '../core/jsonTree';
-import { plural } from '../core/plural';
+import { fmtDate, t, texts } from '../core/i18n';
 import type { Attachment, ChatKind, Opened, SealedMessage } from './chat';
 import { authorText, messageAuthor } from './chatAuthor';
 import type { Mark } from './chatFeatures';
@@ -48,121 +48,61 @@ export const SEND_AT_MAX_DAYS = 360;
 const MINUTE = 60_000;
 const DAY = 86_400_000;
 
-export const KIND_WORDS: Readonly<Record<ChatKind, string>> = {
-  area: 'rozmowa obszaru',
-  channel: 'kanał ogłoszeń — piszą prowadzący',
-  group: 'grupa',
-  direct: 'rozmowa we dwoje',
-  self: 'Notatki — tylko Ty',
-  seat: 'rozmowa z jedną osobą z formularza'
-};
+export const KIND_WORDS: Readonly<Record<ChatKind, string>> = texts({
+  area: 'chatJson.kind.area',
+  channel: 'chatJson.kind.channel',
+  group: 'chatJson.kind.group',
+  direct: 'chatJson.kind.direct',
+  self: 'chatJson.kind.self',
+  seat: 'chatJson.kind.seat'
+});
 
 /* -- Die Schlüssel ------------------------------------------------------------------------------------- */
 
-const DOC_KEYS: Readonly<Record<string, string>> = {
-  format: `zawsze "${CHAT_FORMAT}"`,
-  version: `wersja formatu: ${CHAT_VERSION}`,
-  chat: 'rozmowa, z której pochodzi eksport (niżej) — tylko informacja: import idzie zawsze do rozmowy otwartej w aplikacji',
-  me: 'kto eksportował i co może w tej rozmowie (niżej) — tylko informacja',
-  exportedAt: 'chwila eksportu (ISO 8601, UTC) — tylko informacja',
-  range: 'co obejmuje eksport (niżej) — tylko informacja',
-  topics: 'tematy rozmowy — wszystkie, także zamknięte (niżej: Temat)',
-  messages: 'wiadomości, od najstarszej (niżej: Wiadomość z eksportu, Nowa wiadomość)',
-  linked: 'zadania i terminy utworzone z wiadomości tej rozmowy (niżej) — tylko do odczytu, import je pomija'
-};
+/** Was in den Erklärungen eingesetzt wird — Grenzen und Format. */
+const said = (): Record<string, string | number> => ({
+  format: CHAT_FORMAT, version: CHAT_VERSION, maxExport: MAX_EXPORT, maxTitle: MAX_TITLE, maxText: MAX_TEXT_BYTES, minMinutes: SEND_AT_MIN_MINUTES,
+  kinds: (Object.keys(KIND_WORDS) as ChatKind[]).map((k) => `"${k}" (${KIND_WORDS[k]})`).join(', ')
+});
 
-const CHAT_KEYS: Readonly<Record<string, string>> = {
-  id: 'identyfikator rozmowy; inny niż rozmowy otwartej — dokument z innej rozmowy: jej wiadomości import pomija, jej tematy zakłada tu jako nowe',
-  kind: `rodzaj: ${(Object.keys(KIND_WORDS) as ChatKind[]).map((k) => `"${k}" (${KIND_WORDS[k]})`).join(', ')}`,
-  title: 'nazwa rozmowy, jak w jej nagłówku'
-};
+/** Eine Tabelle der Schlüssel, deren Erklärung erst beim Lesen geholt wird (in der Sprache der Anwendung). */
+function lazy(group: string, names: readonly string[]): Readonly<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const name of names) {
+    Object.defineProperty(out, name, { get: () => t(`chatJson.keys.${group}.${name.replace('[].', '_')}`, said()), enumerable: true });
+  }
+  return out;
+}
 
-const ME_KEYS: Readonly<Record<string, string>> = {
-  name: 'jak jest podpisana wiadomość tej osoby: „Imię Nazwisko”, a gdy pisze przez rolę — „Imię Nazwisko (Rola)”; jej wiadomości mają "mine": true',
-  writes: 'true — pisze w tej rozmowie: import może dodać jej nowe wiadomości i tematy',
-  moderates: 'true — prowadzi rozmowę: przypina, porządkuje także cudze wiadomości, zmienia każdy temat'
-};
-
-const RANGE_KEYS: Readonly<Record<string, string>> = {
-  from: 'od kiedy (ISO 8601; null — od początku rozmowy)',
-  to: 'do kiedy (chwila eksportu)',
-  topic: 'tylko wiadomości tego tematu ("@klucz" z "topics") albo null — wszystkie',
-  limited: `true — eksport doszedł do limitu ${MAX_EXPORT} wiadomości; starszych z tego okresu w nim nie ma`
-};
-
-const TOPIC_KEYS: Readonly<Record<string, string>> = {
-  id: 'identyfikator tematu z eksportu — z nim import zmienia TEN temat; bez niego zakłada nowy (a gdy temat o tej nazwie już jest, używa istniejącego)',
-  key: 'krótka nazwa do odwołań w tym dokumencie (litery, cyfry, - i _): wiadomość wskazuje temat przez "topic": "@klucz"; eksport tworzy ją z nazwy',
-  title: `nazwa tematu (wymagana przy nowym, do ${MAX_TITLE} znaków); inna niż w rozmowie przy temacie z "id" — zmiana nazwy`,
-  closed: 'true — temat zamknięty (schowany pod „Zamknięte”), false — otwarty; zmiana zamyka albo otwiera go ponownie',
-  createdAt: 'kiedy założony — tylko informacja',
-  createdBy: 'kto założył — tylko informacja',
-  messages: 'ile ma wiadomości — tylko informacja',
-  tasks: 'ile zadań z niego powstało — tylko informacja',
-  appointments: 'ile terminów z niego powstało — tylko informacja'
-};
-
-const MESSAGE_KEYS: Readonly<Record<string, string>> = {
-  id: 'identyfikator wiadomości — z nim import tylko porządkuje ("topic", "pinned", "starred"); treść, nadawca i czas zostają zawsze, jakie są',
-  at: 'kiedy wysłana (ISO 8601, UTC)',
-  author: 'kto napisał — jak w rozmowie: „Imię Nazwisko”, a przez rolę „Imię Nazwisko (Rola)”',
-  mine: 'true — napisała ją osoba z "me"',
-  link: 'true — napisała osoba z linku (bez konta)',
-  topic: 'temat: "@klucz" z "topics" (albo "id" tematu); w eksporcie brak — bez tematu. W imporcie inny niż w rozmowie — przeniesienie (null — poza tematy), brak — bez zmian; przenosi autor wiadomości albo prowadzący (we dwoje i w Notatkach każdy, kto pisze)',
-  text: 'treść',
-  replyTo: '"id" wiadomości, na którą odpowiada',
-  quote: 'cytat, który widział odpowiadający',
-  attachments: 'załączniki — tylko opis; plików w JSON nie ma',
-  'attachments[].name': 'nazwa pliku',
-  'attachments[].type': 'typ (MIME), np. "application/pdf", "image/jpeg"',
-  'attachments[].size': 'rozmiar w bajtach',
-  forwarded: 'true — przekazana z innej rozmowy',
-  imported: 'true — przyszła z importu JSON (w rozmowie oznaczona „Z importu”)',
-  edited: 'kiedy ostatnio poprawiona (historia zmian jest w rozmowie)',
-  deleted: 'kiedy usunięta — treści już nie ma',
-  deletedBy: '"author" — usunął ją autor, "moderator" — prowadzący',
-  blocked: 'true — zablokowana po zgłoszeniu; treści nie ma',
-  unreadable: 'true — nie do odczytania w tej przeglądarce (brak klucza tej epoki rozmowy)',
-  reactions: 'reakcje — tylko informacja (import ich nie zmienia)',
-  'reactions[].emoji': 'znak reakcji, np. "👍"',
-  'reactions[].count': 'ile osób tak zareagowało',
-  'reactions[].mine': 'true — także osoba z "me"',
-  pinned: 'true — przypięta dla wszystkich; w imporcie zmiana przypina albo odpina (false) — tylko prowadzący',
-  starred: 'true — w „Zapisanych wiadomościach” osoby z "me" (widzi je tylko ona); w imporcie zmiana zapisuje albo usuwa z zapisanych (false)'
-};
-
-const NEW_MESSAGE_KEYS: Readonly<Record<string, string>> = {
-  text: `treść (wymagana; najwyżej ${MAX_TEXT_BYTES} bajtów UTF-8, licząc podwójnie znaki nowej linii i cudzysłowy — kilka tysięcy znaków)`,
-  topic: 'temat: "@klucz" z "topics" (także nowego tematu z tego dokumentu) albo "id" istniejącego; brak albo null — bez tematu',
-  replyTo: '"id" wiadomości z tej rozmowy, na którą to odpowiedź — cytat import bierze z tej wiadomości, nigdy z dokumentu',
-  sendAt: `zaplanuj wysłanie (ISO 8601 ze strefą, np. "2026-12-01T09:00:00+01:00"; od ${SEND_AT_MIN_MINUTES} minut do roku naprzód) — czeka w „Zaplanowanych”, gdzie można ją wysłać od razu albo odwołać; bez "sendAt" wychodzi od razu`,
-  silent: 'true — bez dźwięku: nikogo nie budzi powiadomieniem'
-};
-
-const LINKED_KEYS: Readonly<Record<string, string>> = {
-  kind: '"task" — zadanie, "appointment" — termin w kalendarzu',
-  title: 'tytuł',
-  topic: 'temat ("@klucz") albo null',
-  message: '"id" wiadomości, z której powstało zadanie',
-  at: 'zadanie: najbliższy (albo ostatni) termin wykonania; termin: początek (ISO 8601)',
-  end: 'koniec terminu',
-  state: 'zadanie: „zaplanowane”, „teraz”, „przegapione”, „zrobione”, „zaległe”, „co pewien czas”; termin: „zaplanowany” albo „odwołany”'
-};
-
-const prefixed = (prefix: string, keys: Readonly<Record<string, string>>): Record<string, string> =>
-  Object.fromEntries(Object.entries(keys).map(([key, says]) => [`${prefix}${key}`, says]));
+const DOC_KEYS = lazy('doc', ['format', 'version', 'chat', 'me', 'exportedAt', 'range', 'topics', 'messages', 'linked']);
+const CHAT_KEYS = lazy('chat', ['id', 'kind', 'title']);
+const ME_KEYS = lazy('me', ['name', 'writes', 'moderates']);
+const RANGE_KEYS = lazy('range', ['from', 'to', 'topic', 'limited']);
+const TOPIC_KEYS = lazy('topic', ['id', 'key', 'title', 'closed', 'createdAt', 'createdBy', 'messages', 'tasks', 'appointments']);
+const MESSAGE_KEYS = lazy('message', [
+  'id', 'at', 'author', 'mine', 'link', 'topic', 'text', 'replyTo', 'quote', 'attachments', 'attachments[].name', 'attachments[].type',
+  'attachments[].size', 'forwarded', 'imported', 'edited', 'deleted', 'deletedBy', 'blocked', 'unreadable', 'reactions', 'reactions[].emoji',
+  'reactions[].count', 'reactions[].mine', 'pinned', 'starred'
+]);
+const NEW_MESSAGE_KEYS = lazy('new', ['text', 'topic', 'replyTo', 'sendAt', 'silent']);
+const LINKED_KEYS = lazy('linked', ['kind', 'title', 'topic', 'message', 'at', 'end', 'state']);
 
 /** Jeder Pfad, den die Beschreibung erklärt (`messages[].attachments[].name`) — für die Prüfung. */
-export const CHAT_PATHS: Readonly<Record<string, string>> = {
-  ...DOC_KEYS,
-  ...prefixed('chat.', CHAT_KEYS),
-  ...prefixed('me.', ME_KEYS),
-  ...prefixed('range.', RANGE_KEYS),
-  ...prefixed('topics[].', TOPIC_KEYS),
-  ...prefixed('messages[].', MESSAGE_KEYS),
-  ...prefixed('messages[].', NEW_MESSAGE_KEYS),
-  ...prefixed('linked[].', LINKED_KEYS)
-};
+export const CHAT_PATHS: Readonly<Record<string, string>> = (() => {
+  const out: Record<string, string> = {};
+  const add = (prefix: string, keys: Readonly<Record<string, string>>) => {
+    for (const key of Object.keys(keys)) Object.defineProperty(out, `${prefix}${key}`, { get: () => keys[key], enumerable: true, configurable: true });
+  };
+  add('', DOC_KEYS);
+  add('chat.', CHAT_KEYS);
+  add('me.', ME_KEYS);
+  add('range.', RANGE_KEYS);
+  add('topics[].', TOPIC_KEYS);
+  add('messages[].', MESSAGE_KEYS);
+  add('messages[].', NEW_MESSAGE_KEYS);
+  add('linked[].', LINKED_KEYS);
+  return out;
+})();
 
 /* -- Kleinkram ------------------------------------------------------------------------------------------ */
 
@@ -182,7 +122,7 @@ const norm = (text: string): string => text.trim().replace(/\s+/g, ' ').toLocale
 
 /** Ein Schlüssel aus einem Namen: „Pielgrzymka — transport" → `pielgrzymka-transport`. */
 const slug = (text: string): string => text.toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[̀-ͯ]/g, '')
-  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32).replace(/-+$/g, '') || 'temat';
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32).replace(/-+$/g, '') || 'temat'; // i18n-ignore
 
 const KEY = /^[a-z0-9_-]{1,40}$/;
 
@@ -196,7 +136,7 @@ const short = (text: string, max = 160): string => {
 /** Eine Zeit in den Zeilen der Vorschau — wie in der Rozmowa. */
 const when = (at: string): string => {
   const t = Date.parse(at);
-  return Number.isNaN(t) ? at : new Date(t).toLocaleString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(t) ? at : fmtDate(new Date(t), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
 /** Die Schlüssel der Themen im Dokument — aus dem Namen, eindeutig. */
@@ -513,7 +453,7 @@ export interface ChatImportPlan {
   readonly warnings: readonly string[];
 }
 
-export const READ_ONLY_IMPORT = 'Tę rozmowę możesz tylko czytać — import (tematy, porządki, nowe wiadomości) jest dla tych, którzy w niej piszą. Eksport działa jak zawsze.';
+export const readOnlyImport = (): string => t('chatJson.readOnly');
 
 /** Was an einer Nachricht aus dem Export nur zu lesen ist — ein anderer Wert ist eine Warnung, keine Änderung. */
 const READ_ONLY_KEYS = ['at', 'author', 'mine', 'link', 'text', 'replyTo', 'quote', 'attachments', 'forwarded', 'imported', 'edited', 'deleted', 'deletedBy', 'blocked', 'unreadable'] as const;
@@ -551,82 +491,82 @@ const sameTarget = (to: TopicTarget, topicId: string | null): boolean =>
   to.kind === 'none' ? topicId === null : to.kind === 'topic' ? to.topicId === topicId : false;
 
 /** Wann eine geplante Nachricht hinausgeht — auf die Minute: daran erkennt der Import eine, die schon wartet. */
-const minuteOf = (at: string | null): string => (at === null ? 'teraz' : String(Math.round(Date.parse(at) / MINUTE)));
+const minuteOf = (at: string | null): string => (at === null ? 'teraz' : String(Math.round(Date.parse(at) / MINUTE))); // i18n-ignore
 
 /**
  * WAS EIN DOKUMENT IN DIESER ROZMOWA ÄNDERN WÜRDE — oder warum es nicht geht. Jede Zeile eine Änderung, jede
  * Warnung etwas, das ausgelassen wird; geschrieben wird erst auf „Importuj" (`ChatJsonDialog`).
  */
 export function planChatImport(doc: unknown, ctx: ChatImportContext): ChatImportPlan | { error: string } {
-  if (!isObject(doc)) return { error: 'To nie jest dokument rozmowy — oczekiwano jednego obiektu JSON.' };
-  if (doc.format !== undefined && doc.format !== CHAT_FORMAT) return { error: `Inny format: "${String(doc.format)}" — oczekiwano "${CHAT_FORMAT}".` };
-  if (!ctx.writes && !ctx.moderates) return { error: READ_ONLY_IMPORT };
+  if (!isObject(doc)) return { error: t('chatJson.plan.notDoc') };
+  if (doc.format !== undefined && doc.format !== CHAT_FORMAT) return { error: t('chatJson.plan.otherFormat', { found: String(doc.format), format: CHAT_FORMAT }) };
+  if (!ctx.writes && !ctx.moderates) return { error: readOnlyImport() };
 
   const warnings: string[] = [];
-  if (doc.version !== undefined && doc.version !== CHAT_VERSION) warnings.push(`Wersja ${String(doc.version)} — czytana jak wersja ${CHAT_VERSION}.`);
-  for (const key of Object.keys(doc)) if (!own(DOC_KEYS, key)) warnings.push(`Nieznany klucz "${key}" — pominięty.`);
+  if (doc.version !== undefined && doc.version !== CHAT_VERSION) warnings.push(t('chatJson.plan.version', { found: String(doc.version), version: CHAT_VERSION }));
+  for (const key of Object.keys(doc)) if (!own(DOC_KEYS, key)) warnings.push(t('chatJson.plan.unknownTop', { key }));
 
   const source = isObject(doc.chat) ? doc.chat : null;
   const foreign = source !== null && typeof source.id === 'string' && source.id !== ctx.chatId;
-  const sourceTitle = source !== null && typeof source.title === 'string' && source.title.trim() !== '' ? ` („${source.title.trim()}”)` : '';
+  const sourceTitle = source !== null && typeof source.title === 'string' && source.title.trim() !== '' ? t('chatJson.plan.foreignSource', { title: source.title.trim() }) : '';
 
   /* -- Themen -- */
-  const byId = new Map(ctx.topics.map((t) => [t.topicId, t]));
-  const byTitle = new Map(ctx.topics.map((t) => [norm(t.title), t]));
+  const byId = new Map(ctx.topics.map((tp) => [tp.topicId, tp]));
+  const byTitle = new Map(ctx.topics.map((tp) => [norm(tp.title), tp]));
   const refs = new Map<string, TopicTarget | null>();
   const newTopics: NewTopic[] = [];
   const newByTitle = new Map<string, NewTopic>();
   const topicChanges: TopicChange[] = [];
   const seenTopics = new Set<string>();
 
-  if (doc.topics !== undefined && !Array.isArray(doc.topics)) warnings.push('"topics" to nie lista — pominięte.');
+  if (doc.topics !== undefined && !Array.isArray(doc.topics)) warnings.push(t('chatJson.plan.topicsNotList'));
   (Array.isArray(doc.topics) ? doc.topics : []).forEach((raw, i) => {
-    const where = `Temat ${i + 1}`;
-    if (!isObject(raw)) { warnings.push(`${where}: to nie obiekt — pominięty.`); return; }
-    for (const key of Object.keys(raw)) if (!own(TOPIC_KEYS, key)) warnings.push(`${where}: nieznany klucz "${key}" — pominięty.`);
+    const where = t('chatJson.plan.topicN', { n: i + 1 });
+    if (!isObject(raw)) { warnings.push(t('chatJson.plan.topic.notObject', { where })); return; }
+    for (const key of Object.keys(raw)) if (!own(TOPIC_KEYS, key)) warnings.push(t('chatJson.plan.topic.unknownKey', { where, key }));
 
     let key: string | null = null;
     if (raw.key !== undefined && raw.key !== null) {
       const k = typeof raw.key === 'string' ? raw.key.trim().replace(/^@/, '').toLowerCase() : '';
       if (KEY.test(k)) key = k;
-      else warnings.push(`${where}: "key" może mieć tylko litery, cyfry, - i _ (do 40 znaków) — odwołania do niego nie zadziałają.`);
+      else warnings.push(t('chatJson.plan.topic.badKey', { where }));
     }
     let title: string | null = typeof raw.title === 'string' && raw.title.trim() !== '' ? raw.title.trim().replace(/\s+/g, ' ') : null;
-    if (raw.title !== undefined && raw.title !== null && typeof raw.title !== 'string') warnings.push(`${where}: "title" to nie tekst — pominięte.`);
+    if (raw.title !== undefined && raw.title !== null && typeof raw.title !== 'string') warnings.push(t('chatJson.plan.topic.titleNotText', { where }));
     if (title !== null && title.length > MAX_TITLE) {
-      warnings.push(`${where}: nazwa dłuższa niż ${MAX_TITLE} znaków — skrócona.`);
+      warnings.push(t('chatJson.plan.topic.titleLong', { where, max: MAX_TITLE }));
       title = title.slice(0, MAX_TITLE).trim();
     }
     const closed = typeof raw.closed === 'boolean' ? raw.closed : undefined;
-    if (raw.closed !== undefined && raw.closed !== null && closed === undefined) warnings.push(`${where}: "closed" to true albo false — pominięte.`);
+    if (raw.closed !== undefined && raw.closed !== null && closed === undefined) warnings.push(t('chatJson.plan.topic.closedBool', { where }));
     const id = typeof raw.id === 'string' && raw.id.trim() !== '' ? raw.id.trim() : null;
     const existing = id !== null && !foreign ? byId.get(id) : undefined;
 
     let target: TopicTarget | null = null;
     if (existing !== undefined) {
       target = { kind: 'topic', topicId: existing.topicId };
-      if (seenTopics.has(existing.topicId)) warnings.push(`${where}: ten sam temat („${existing.title}”) drugi raz — pominięty.`);
+      if (seenTopics.has(existing.topicId)) warnings.push(t('chatJson.plan.topic.twice', { where, title: existing.title }));
       else {
         seenTopics.add(existing.topicId);
-        if (raw.title !== undefined && title === null) warnings.push(`${where}: pusta nazwa — zostaje „${existing.title}”.`);
+        if (raw.title !== undefined && title === null) warnings.push(t('chatJson.plan.topic.emptyTitle', { where, title: existing.title }));
         const rename = title !== null && title !== existing.title ? title : undefined;
         const close = closed !== undefined && closed !== existing.closed ? closed : undefined;
         if (rename !== undefined || close !== undefined) {
-          if (!existing.mayChange) warnings.push(`${where} („${existing.title}”): nazwę zmienia i temat zamyka ten, kto go założył, albo prowadzący rozmowę — pominięte.`);
+          if (!existing.mayChange) warnings.push(t('chatJson.plan.topic.mayNotChange', { where, title: existing.title }));
           else topicChanges.push({ topicId: existing.topicId, was: existing.title, ...(rename !== undefined ? { title: rename } : {}), ...(close !== undefined ? { closed: close } : {}) });
         }
       }
     } else {
-      if (id !== null && !foreign) warnings.push(`${where}: w tej rozmowie nie ma tematu o tym "id" — ${title === null ? 'pominięty' : 'potraktowany jak nowy'}.`);
-      if (title === null) warnings.push(`${where}: bez nazwy ("title") — pominięty.`);
+      if (id !== null && !foreign) warnings.push(t(title === null ? 'chatJson.plan.topic.noIdSkipped' : 'chatJson.plan.topic.noIdNew', { where }));
+      if (title === null) warnings.push(t('chatJson.plan.topic.noTitle', { where }));
       else {
         const same = byTitle.get(norm(title));
         const twin = newByTitle.get(norm(title));
         if (same !== undefined) target = { kind: 'topic', topicId: same.topicId };
         else if (twin !== undefined) target = { kind: 'new', ref: twin.ref };
-        else if (ctx.kind === 'self') warnings.push(`${where} („${title}”): w Notatkach nie ma tematów — pominięty.`);
-        else if (!ctx.writes) warnings.push(`${where} („${title}”): temat zakłada ktoś, kto pisze w tej rozmowie — pominięty.`);
-        else if (newTopics.length >= MAX_NEW_TOPICS) warnings.push(`${where} („${title}”): najwyżej ${MAX_NEW_TOPICS} nowych tematów w jednym imporcie — pominięty.`);
+        else if (ctx.kind === 'self') warnings.push(t('chatJson.plan.topic.inNotes', { where, title }));
+        else if (!ctx.writes) warnings.push(t('chatJson.plan.topic.notWriter', { where, title }));
+        else if (newTopics.length >= MAX_NEW_TOPICS) warnings.push(t('chatJson.plan.topic.tooMany', { where, title, max: MAX_NEW_TOPICS }));
         else {
           const made: NewTopic = { ref: `#${newTopics.length + 1}`, title, closed: closed === true };
           newTopics.push(made);
@@ -636,19 +576,19 @@ export function planChatImport(doc: unknown, ctx: ChatImportContext): ChatImport
       }
     }
     if (key !== null) {
-      if (refs.has(key)) warnings.push(`${where}: klucz "${key}" drugi raz — "@${key}" wskazuje pierwszy temat z tym kluczem.`);
+      if (refs.has(key)) warnings.push(t('chatJson.plan.topic.keyTwice', { where, key }));
       else refs.set(key, target);
     }
   });
 
   const derived = new Map([...topicKeys(ctx.topics)].map(([topicId, key]) => [key, topicId]));
   const topicTitle = (to: TopicTarget): string | null =>
-    to.kind === 'none' ? null : to.kind === 'topic' ? byId.get(to.topicId)?.title ?? 'temat' : newTopics.find((t) => t.ref === to.ref)?.title ?? 'temat';
+    to.kind === 'none' ? null : to.kind === 'topic' ? byId.get(to.topicId)?.title ?? t('chatJson.plan.topicWord') : newTopics.find((tp) => tp.ref === to.ref)?.title ?? t('chatJson.plan.topicWord');
 
   /** Ein Verweis auf ein Thema — `null`: nicht zu finden (die Warnung steht schon da, mit `instead`). */
   const resolveTopic = (value: unknown, where: string, instead: string): TopicTarget | null => {
     if (value === null || value === '') return { kind: 'none' };
-    if (typeof value !== 'string') { warnings.push(`${where}: "topic" to nie tekst — ${instead}.`); return null; }
+    if (typeof value !== 'string') { warnings.push(t('chatJson.plan.ref.notText', { where, instead })); return null; }
     const v = value.trim();
     if (v.startsWith('@')) {
       const key = v.slice(1).toLowerCase();
@@ -656,15 +596,15 @@ export function planChatImport(doc: unknown, ctx: ChatImportContext): ChatImport
         /* Ohne Eintrag in "topics": der Schlüssel, den der Export dem Thema gibt — ein gekürztes Dokument trifft noch. */
         const topicId = derived.get(key);
         if (topicId !== undefined) return { kind: 'topic', topicId };
-        warnings.push(`${where}: w "topics" nie ma tematu z kluczem "${key}" — ${instead}.`);
+        warnings.push(t('chatJson.plan.ref.noKey', { where, key, instead }));
         return null;
       }
       const target = refs.get(key) ?? null;
-      if (target === null) warnings.push(`${where}: temat "${v}" jest pominięty (wyżej) — ${instead}.`);
+      if (target === null) warnings.push(t('chatJson.plan.ref.skipped', { where, ref: v, instead }));
       return target;
     }
     const known = foreign ? undefined : byId.get(v);
-    if (known === undefined) { warnings.push(`${where}: w tej rozmowie nie ma tematu „${short(v, 40)}” — ${instead}.`); return null; }
+    if (known === undefined) { warnings.push(t('chatJson.plan.ref.noTopic', { where, title: short(v, 40), instead })); return null; }
     return { kind: 'topic', topicId: known.topicId };
   };
 
@@ -679,66 +619,66 @@ export function planChatImport(doc: unknown, ctx: ChatImportContext): ChatImport
    * desselben Dokuments noch, wenn ein Assistent eine eigene Nachricht aus dem Export ohne ihr "id" zurückgibt.
    */
   const posted = new Set<string>([
-    ...ctx.messages.filter((m) => m.mine && m.text !== null).map((m) => `${norm(m.text!)}|teraz`),
+    ...ctx.messages.filter((m) => m.mine && m.text !== null).map((m) => `${norm(m.text!)}|${minuteOf(null)}`),
     ...ctx.scheduled.map((s) => `${norm(s.text)}|${minuteOf(s.sendAt)}`)
   ]);
-  const myName = ctx.me[0] ?? 'osoba, która importuje';
+  const myName = ctx.me[0] ?? t('chatJson.plan.importer');
   let foreignSkipped = 0;
   let notWriting = 0;
   let over = 0;
 
-  if (doc.messages !== undefined && !Array.isArray(doc.messages)) warnings.push('"messages" to nie lista — pominięte.');
+  if (doc.messages !== undefined && !Array.isArray(doc.messages)) warnings.push(t('chatJson.plan.messagesNotList'));
   (Array.isArray(doc.messages) ? doc.messages : []).forEach((raw, i) => {
-    const where = `Wiadomość ${i + 1}`;
-    if (!isObject(raw)) { warnings.push(`${where}: to nie obiekt — pominięta.`); return; }
+    const where = t('chatJson.plan.messageN', { n: i + 1 });
+    if (!isObject(raw)) { warnings.push(t('chatJson.plan.msg.notObject', { where })); return; }
 
     if (raw.id !== undefined && raw.id !== null) {
       /* -- Eine aus der Rozmowa: nur ordnen. -- */
-      if (typeof raw.id !== 'string' || raw.id.trim() === '') { warnings.push(`${where}: nieczytelne "id" — pominięta.`); return; }
+      if (typeof raw.id !== 'string' || raw.id.trim() === '') { warnings.push(t('chatJson.plan.msg.badId', { where })); return; }
       if (foreign) { foreignSkipped += 1; return; }
       const known = byMessage.get(raw.id.trim());
-      if (known !== undefined && seenMessages.has(known.id)) { warnings.push(`${where}: ta sama wiadomość drugi raz — pominięta.`); return; }
+      if (known !== undefined && seenMessages.has(known.id)) { warnings.push(t('chatJson.plan.msg.twice', { where })); return; }
       if (known !== undefined) seenMessages.add(known.id);
       if (known === undefined) {
         const at = typeof raw.at === 'string' ? Date.parse(raw.at) : Number.NaN;
         const older = !ctx.complete && ctx.from !== null && !Number.isNaN(at) && at < Date.parse(ctx.from);
         warnings.push(older
-          ? `${where}: starsza niż wczytane wiadomości tej rozmowy (najwyżej ${MAX_EXPORT}) — pominięta.`
-          : `${where}: w tej rozmowie nie ma wiadomości o tym "id" — pominięta (import nie wstawia cudzych wiadomości).`);
+          ? t('chatJson.plan.msg.older', { where, max: MAX_EXPORT })
+          : t('chatJson.plan.msg.noId', { where }));
         return;
       }
-      const label = `${where} (${String(known.out.author)}, ${when(known.at)})`;
-      for (const key of Object.keys(raw)) if (!own(MESSAGE_KEYS, key)) warnings.push(`${label}: nieznany klucz "${key}" — pominięty.`);
+      const label = t('chatJson.plan.msgLabel', { where, author: String(known.out.author), when: when(known.at) });
+      for (const key of Object.keys(raw)) if (!own(MESSAGE_KEYS, key)) warnings.push(t('chatJson.plan.unknownKey', { label, key }));
 
       const differs = READ_ONLY_KEYS.filter((key) => key in raw && !sameField(key, raw[key], known.out[key]));
       if (differs.length > 0) {
-        warnings.push(`${label}: ${differs.map((k) => `"${k}"`).join(', ')} — inaczej niż w rozmowie. Import nie zmienia treści, nadawcy ani czasu wiadomości (swoją poprawisz w rozmowie: „Edytuj”); pominięte.`);
+        warnings.push(t('chatJson.plan.msg.differs', { label, keys: differs.map((k) => `"${k}"`).join(', ') }));
       }
       if ('reactions' in raw) {
         const mineNow = Array.isArray(raw.reactions)
           ? raw.reactions.filter((r) => isObject(r) && r.mine === true && typeof r.emoji === 'string').map((r) => String((r as Record<string, unknown>).emoji))
           : [];
         if (!Array.isArray(raw.reactions) || mineNow.slice().sort().join(' ') !== known.myReactions.slice().sort().join(' ')) {
-          warnings.push(`${label}: reakcji import nie zmienia — swoją dodasz w rozmowie.`);
+          warnings.push(t('chatJson.plan.msg.reactions', { label }));
         }
       }
 
       if ('topic' in raw) {
-        const to = resolveTopic(raw.topic, label, 'zostaje, gdzie była');
+        const to = resolveTopic(raw.topic, label, t('chatJson.plan.instead.stays'));
         if (to !== null && !sameTarget(to, known.topicId)) {
-          if (!known.mayFile) warnings.push(`${label}: do tematu przenosi ją jej autor albo prowadzący rozmowę — zostaje, gdzie była.`);
+          if (!known.mayFile) warnings.push(t('chatJson.plan.msg.mayNotFile', { label }));
           else moves.push({ messageId: known.id, to });
         }
       }
       for (const kind of ['pinned', 'starred'] as const) {
         if (!(kind in raw)) continue;
         const value = raw[kind];
-        if (value !== true && value !== false && value !== null) { warnings.push(`${label}: "${kind}" to true albo false — pominięte.`); continue; }
+        if (value !== true && value !== false && value !== null) { warnings.push(t('chatJson.plan.msg.flagBool', { label, key: kind })); continue; }
         const on = value === true;
         const was = kind === 'pinned' ? known.pinned : known.starred;
         if (on === was) continue;
-        if (kind === 'pinned' && !ctx.moderates) { warnings.push(`${label}: przypina i odpina prowadzący rozmowę — pominięte.`); continue; }
-        if (!known.live) { warnings.push(`${label}: usunięta albo nieczytelna — nie da się jej ${kind === 'pinned' ? 'przypiąć' : 'zapisać'}.`); continue; }
+        if (kind === 'pinned' && !ctx.moderates) { warnings.push(t('chatJson.plan.msg.pinModerator', { label })); continue; }
+        if (!known.live) { warnings.push(t(kind === 'pinned' ? 'chatJson.plan.msg.goneNoPin' : 'chatJson.plan.msg.goneNoStar', { label })); continue; }
         marks.push({ messageId: known.id, kind: kind === 'pinned' ? 'pin' : 'star', on });
       }
       return;
@@ -746,59 +686,59 @@ export function planChatImport(doc: unknown, ctx: ChatImportContext): ChatImport
 
     /* -- Ohne "id": eine NEUE, als die Person, die importiert. -- */
     if (!ctx.writes) { notWriting += 1; return; }
-    const label = `Nowa wiadomość (pozycja ${i + 1})`;
+    const label = t('chatJson.plan.newN', { n: i + 1 });
     if ('deleted' in raw || raw.blocked === true || raw.unreadable === true) {
-      warnings.push(`${label}: to opis usuniętej albo nieczytelnej wiadomości, bez "id" — pominięta.`);
+      warnings.push(t('chatJson.plan.new.gone', { label }));
       return;
     }
     if ('at' in raw) {
-      warnings.push(`${label}: ma "at" — import nie pisze wstecz, wiadomość z importu nigdy nie udaje dawnej. Usuń "at" (wyjdzie od razu) albo podaj "sendAt" (zaplanuje ją); pominięta.`);
+      warnings.push(t('chatJson.plan.new.at', { label }));
       return;
     }
     if ('author' in raw && raw.author !== null && !(typeof raw.author === 'string' && ctx.me.some((name) => norm(name) === norm(raw.author as string)))) {
-      warnings.push(`${label}: "author" to „${short(String(raw.author), 60)}” — import pisze wyłącznie jako Ty (${myName}), nigdy w czyimś imieniu; pominięta.`);
+      warnings.push(t('chatJson.plan.new.author', { label, author: short(String(raw.author), 60), me: myName }));
       return;
     }
     for (const key of Object.keys(raw)) {
       if (NEW_QUIET.has(key)) continue;
-      if (key === 'attachments') warnings.push(`${label}: plików nie ma w JSON — dołącz je w rozmowie; wiadomość pójdzie bez nich.`);
-      else if (key === 'quote') warnings.push(`${label}: "quote" pominięte — cytat import bierze z wiadomości z "replyTo".`);
-      else if (own(MESSAGE_KEYS, key)) warnings.push(`${label}: "${key}" w nowej wiadomości jest pomijane.`);
-      else warnings.push(`${label}: nieznany klucz "${key}" — pominięty.`);
+      if (key === 'attachments') warnings.push(t('chatJson.plan.new.files', { label }));
+      else if (key === 'quote') warnings.push(t('chatJson.plan.new.quote', { label }));
+      else if (own(MESSAGE_KEYS, key)) warnings.push(t('chatJson.plan.new.ignored', { label, key }));
+      else warnings.push(t('chatJson.plan.unknownKey', { label, key }));
     }
 
     const text = typeof raw.text === 'string' ? raw.text.trim() : '';
-    if (text === '') { warnings.push(`${label}: bez treści ("text") — pominięta.`); return; }
+    if (text === '') { warnings.push(t('chatJson.plan.new.noText', { label })); return; }
     /* Gemessen, wie der Text in der Hülle steht (JSON: Zeilenumbrüche und Anführungszeichen zählen doppelt). */
     const size = bytes(JSON.stringify(text)) - 2;
-    if (size > MAX_TEXT_BYTES) { warnings.push(`${label}: za długa (${size} bajtów, najwyżej ${MAX_TEXT_BYTES}) — podziel ją na kilka; pominięta.`); return; }
+    if (size > MAX_TEXT_BYTES) { warnings.push(t('chatJson.plan.new.tooLong', { label, size, max: MAX_TEXT_BYTES })); return; }
 
     let sendAt: string | null = null;
     if (raw.sendAt !== undefined && raw.sendAt !== null) {
-      const t = typeof raw.sendAt === 'string' ? Date.parse(raw.sendAt) : Number.NaN;
+      const at = typeof raw.sendAt === 'string' ? Date.parse(raw.sendAt) : Number.NaN;
       const now = ctx.now.getTime();
-      if (Number.isNaN(t)) { warnings.push(`${label}: "sendAt" to nie data ISO 8601 (np. "2026-12-01T09:00:00+01:00") — pominięta.`); return; }
-      if (t < now + SEND_AT_MIN_MINUTES * MINUTE) { warnings.push(`${label}: "sendAt" (${when(new Date(t).toISOString())}) jest w przeszłości albo za blisko — zaplanować można od ${SEND_AT_MIN_MINUTES} minut naprzód; bez "sendAt" wyjdzie od razu. Pominięta.`); return; }
-      if (t > now + SEND_AT_MAX_DAYS * DAY) { warnings.push(`${label}: "sendAt" dalej niż rok naprzód — pominięta.`); return; }
-      sendAt = new Date(t).toISOString();
+      if (Number.isNaN(at)) { warnings.push(t('chatJson.plan.new.sendAtBad', { label })); return; }
+      if (at < now + SEND_AT_MIN_MINUTES * MINUTE) { warnings.push(t('chatJson.plan.new.sendAtSoon', { label, when: when(new Date(at).toISOString()), min: SEND_AT_MIN_MINUTES })); return; }
+      if (at > now + SEND_AT_MAX_DAYS * DAY) { warnings.push(t('chatJson.plan.new.sendAtFar', { label })); return; }
+      sendAt = new Date(at).toISOString();
     }
-    if (raw.silent !== undefined && typeof raw.silent !== 'boolean') warnings.push(`${label}: "silent" to true albo false — pominięte.`);
+    if (raw.silent !== undefined && typeof raw.silent !== 'boolean') warnings.push(t('chatJson.plan.new.silentBool', { label }));
 
     let to: TopicTarget = { kind: 'none' };
-    if (raw.topic !== undefined) to = resolveTopic(raw.topic, label, 'pójdzie bez tematu') ?? { kind: 'none' };
+    if (raw.topic !== undefined) to = resolveTopic(raw.topic, label, t('chatJson.plan.instead.noTopic')) ?? { kind: 'none' };
 
     let replyTo: string | null = null;
     let replyText: string | null = null;
     if (raw.replyTo !== undefined && raw.replyTo !== null) {
       const target = typeof raw.replyTo === 'string' && !foreign ? byMessage.get(raw.replyTo.trim()) : undefined;
-      if (target === undefined) warnings.push(`${label}: "replyTo" nie wskazuje wczytanej wiadomości tej rozmowy — pójdzie bez cytatu.`);
-      else if (!target.live) warnings.push(`${label}: wiadomość z "replyTo" jest usunięta albo nieczytelna — pójdzie bez cytatu.`);
-      else { replyTo = target.id; replyText = (target.text !== null && target.text !== '' ? target.text : target.files > 0 ? 'Załącznik' : '').slice(0, 500); }
+      if (target === undefined) warnings.push(t('chatJson.plan.new.replyMissing', { label }));
+      else if (!target.live) warnings.push(t('chatJson.plan.new.replyGone', { label }));
+      else { replyTo = target.id; replyText = (target.text !== null && target.text !== '' ? target.text : target.files > 0 ? t('chat.log.attachment') : '').slice(0, 500); }
     }
 
     const fingerprint = `${norm(text)}|${minuteOf(sendAt)}`;
     if (posted.has(fingerprint)) {
-      warnings.push(`${label}: ${sendAt === null ? 'Twoja wiadomość o tej treści już jest w rozmowie' : 'ta sama wiadomość już czeka w „Zaplanowanych”'} — pominięta, żeby nie było jej dwa razy.`);
+      warnings.push(t(sendAt === null ? 'chatJson.plan.new.dupSent' : 'chatJson.plan.new.dupWaiting', { label }));
       return;
     }
     if (posts.length >= MAX_POSTS) { over += 1; return; }
@@ -807,43 +747,43 @@ export function planChatImport(doc: unknown, ctx: ChatImportContext): ChatImport
   });
 
   if (foreign) {
-    warnings.unshift(`Dokument pochodzi z innej rozmowy${sourceTitle} — jej wiadomości nie zostaną tu przeniesione ani skopiowane${foreignSkipped > 0 ? ` (pominięto ${foreignSkipped})` : ''}; jej tematy powstaną tu jako nowe.`);
+    warnings.unshift(t('chatJson.plan.foreign', { source: sourceTitle, skipped: foreignSkipped > 0 ? t('chatJson.plan.foreignSkipped', { count: foreignSkipped }) : '' }));
   }
-  if (notWriting > 0) warnings.push(`Nowe wiadomości (${notWriting}) pominięte — w tej rozmowie nie piszesz.`);
-  if (over > 0) warnings.push(`Najwyżej ${MAX_POSTS} nowych wiadomości w jednym imporcie — pominięto ${over}.`);
+  if (notWriting > 0) warnings.push(t('chatJson.plan.notWriting', { count: notWriting }));
+  if (over > 0) warnings.push(t('chatJson.plan.over', { max: MAX_POSTS, count: over }));
 
   /* -- Die Zeilen der Vorschau -- */
   const lines: string[] = [];
-  for (const t of newTopics) lines.push(`Nowy temat: „${t.title}”${t.closed ? ' (od razu zamknięty)' : ''}`);
+  for (const tp of newTopics) lines.push(t(tp.closed ? 'chatJson.plan.line.newTopicClosed' : 'chatJson.plan.line.newTopic', { title: tp.title }));
   for (const c of topicChanges) {
-    if (c.title !== undefined) lines.push(`Zmiana nazwy tematu: „${c.was}” → „${c.title}”`);
-    if (c.closed !== undefined) lines.push(`${c.closed ? 'Zamknięcie' : 'Ponowne otwarcie'} tematu „${c.title ?? c.was}”`);
+    if (c.title !== undefined) lines.push(t('chatJson.plan.line.rename', { was: c.was, title: c.title }));
+    if (c.closed !== undefined) lines.push(t(c.closed ? 'chatJson.plan.line.close' : 'chatJson.plan.line.reopen', { title: c.title ?? c.was }));
   }
-  const moved = new Map<string, number>();
+  /* Je Ziel eine Zeile — `null`: aus den Themen. */
+  const moved = new Map<string | null, number>();
   for (const m of moves) {
     const name = topicTitle(m.to);
-    const line = name === null ? 'Poza tematy' : `Do tematu „${name}”`;
-    moved.set(line, (moved.get(line) ?? 0) + 1);
+    moved.set(name, (moved.get(name) ?? 0) + 1);
   }
-  for (const [line, n] of moved) lines.push(`${line}: ${n} ${plural(n, 'wiadomość', 'wiadomości', 'wiadomości')}`);
+  for (const [name, n] of moved) lines.push(name === null ? t('chatJson.plan.line.movedOut', { count: n }) : t('chatJson.plan.line.movedTo', { name, count: n }));
   const count = (kind: 'pin' | 'star', on: boolean) => marks.filter((m) => m.kind === kind && m.on === on).length;
   const markLines: readonly [number, string][] = [
-    [count('pin', true), 'Przypięcie'], [count('pin', false), 'Odpięcie'],
-    [count('star', true), 'Zapisanie (dla Ciebie)'], [count('star', false), 'Usunięcie z zapisanych']
+    [count('pin', true), 'chatJson.plan.line.pin'], [count('pin', false), 'chatJson.plan.line.unpin'],
+    [count('star', true), 'chatJson.plan.line.star'], [count('star', false), 'chatJson.plan.line.unstar']
   ];
-  for (const [n, what] of markLines) if (n > 0) lines.push(`${what}: ${n} ${plural(n, 'wiadomość', 'wiadomości', 'wiadomości')}`);
+  for (const [n, what] of markLines) if (n > 0) lines.push(t(what, { count: n }));
   for (const p of posts) {
     const topic = topicTitle(p.to);
     const reply = p.replyTo === null ? null : byMessage.get(p.replyTo);
     const how = [
-      p.sendAt !== null ? `zaplanowana na ${when(p.sendAt)}` : null,
-      topic !== null ? `w temacie „${topic}”` : null,
-      reply != null ? `odpowiedź na: ${String(reply.out.author)}` : null,
-      p.silent ? 'bez dźwięku' : null
+      p.sendAt !== null ? t('chatJson.plan.how.planned', { when: when(p.sendAt) }) : null,
+      topic !== null ? t('chatJson.plan.how.topic', { topic }) : null,
+      reply != null ? t('chatJson.plan.how.reply', { author: String(reply.out.author) }) : null,
+      p.silent ? t('chatJson.plan.how.silent') : null
     ].filter((x): x is string => x !== null);
-    lines.push(`Nowa wiadomość jako ${myName}${how.length > 0 ? ` (${how.join(', ')})` : ''}, oznaczona „Z importu”: „${short(p.text)}”`);
+    lines.push(t('chatJson.plan.line.post', { me: myName, how: how.length > 0 ? ` (${how.join(', ')})` : '', text: short(p.text) }));
   }
-  if (lines.length === 0) lines.push('Nic do zmiany — dokument zgadza się z rozmową.');
+  if (lines.length === 0) lines.push(t('chatJson.plan.line.nothing'));
 
   return { newTopics, topicChanges, moves, marks, posts, lines, warnings };
 }
@@ -860,15 +800,15 @@ const EX_RADA = '0192f0a0-7c1e-7000-8000-00000000a004';
 const EX_PIOTR = '0192f0a0-7c1e-7000-8000-00000000a005';
 const EX_EWA = '0192f0a0-7c1e-7000-8000-00000000a006';
 const exMessage = (n: number) => `0192f0a0-7c1e-7000-8000-0000000001${String(n).padStart(2, '0')}`;
-const EX_NAMES = new Map([[EX_ANNA, 'Anna Nowak'], [EX_JAN, 'Jan Kowalski'], [EX_MARIA, 'Maria Wiśniewska'], [EX_RADA, 'Rada'], [EX_PIOTR, 'Piotr Zieliński']]);
+const EX_NAMES = new Map([[EX_ANNA, 'Anna Nowak'], [EX_JAN, 'Jan Kowalski'], [EX_MARIA, 'Maria Wiśniewska'], [EX_RADA, 'Rada'], [EX_PIOTR, 'Piotr Zieliński']]); // i18n-ignore
 
-const EX_FIRST = 'Proponuję wynająć autokar na 50 osób — zna ktoś sprawdzoną firmę?';
+const EX_FIRST = 'Proponuję wynająć autokar na 50 osób — zna ktoś sprawdzoną firmę?'; // i18n-ignore
 const EX_OFFER: Attachment = { id: '0192f0a0-7c1e-7000-8000-00000000f001', name: 'oferta-autokar.pdf', type: 'application/pdf', size: 182340, key: 'A'.repeat(43) };
 
 const exItem = (n: number, at: string, author: { role?: string; person?: string; seat?: string }, opened: Opened | null, rest: Partial<SealedMessage> = {}): ExportItem => ({
   message: {
     messageId: exMessage(n), authorRoleId: author.role ?? null, authorSeatId: author.seat ?? null, authorPersonId: author.person ?? null,
-    epoch: 1, bodySealed: opened === null ? null : 'zapieczętowana', createdAt: at, deletedAt: null, version: 1, editedAt: null, topicId: null, ...rest
+    epoch: 1, bodySealed: opened === null ? null : 'zapieczętowana', createdAt: at, deletedAt: null, version: 1, editedAt: null, topicId: null, ...rest // i18n-ignore
   },
   opened
 });
@@ -882,7 +822,7 @@ export function chatExampleInput(): ChatExportInput {
     topicId, title, epoch: 1, createdAt, closedAt, lastMessageAt: null, createdByRoleId: by, createdBySeatId: null, messages, tasks, items: 0
   });
   return {
-    chat: { chatId: EX_CHAT, kind: 'group', title: 'Pielgrzymka do Częstochowy 2027' },
+    chat: { chatId: EX_CHAT, kind: 'group', title: 'Pielgrzymka do Częstochowy 2027' }, // i18n-ignore
     me: { name: 'Jan Kowalski', writes: true, moderates: true },
     at: new Date('2026-10-29T10:00:00.000Z'),
     from: new Date('2026-09-29T10:00:00.000Z'),
@@ -896,14 +836,14 @@ export function chatExampleInput(): ChatExportInput {
     items: [
       exItem(1, '2026-10-02T17:05:00.000Z', { role: EX_ANNA, person: EX_ANNA }, { text: EX_FIRST, name: 'Anna Nowak' }, { topicId: EX_T_TRANSPORT }),
       exItem(2, '2026-10-02T17:20:00.000Z', { role: EX_JAN, person: EX_JAN }, {
-        text: 'Dzwoniłem do firmy z Tarnowa: 6200 zł w obie strony, oferta w załączniku.', name: 'Jan Kowalski',
+        text: 'Dzwoniłem do firmy z Tarnowa: 6200 zł w obie strony, oferta w załączniku.', name: 'Jan Kowalski', // i18n-ignore
         replyTo: exMessage(1), replyText: EX_FIRST, attachments: [EX_OFFER]
       }, { topicId: EX_T_TRANSPORT }),
       exItem(3, '2026-10-03T08:00:00.000Z', { role: EX_RADA, person: EX_MARIA }, {
-        text: 'Rezerwuję dom pielgrzyma na dwie noce — listę osób potrzebuję do piątku.', name: 'Maria Wiśniewska', via: 'Rada'
+        text: 'Rezerwuję dom pielgrzyma na dwie noce — listę osób potrzebuję do piątku.', name: 'Maria Wiśniewska', via: 'Rada' // i18n-ignore
       }, { topicId: EX_T_NOCLEGI, version: 2, editedAt: '2026-10-03T08:12:00.000Z' }),
       exItem(4, '2026-10-04T12:00:00.000Z', { role: EX_PIOTR, person: EX_PIOTR }, null, { deletedAt: '2026-10-04T12:05:00.000Z', deletedBy: 'author' }),
-      exItem(5, '2026-10-05T19:30:00.000Z', { seat: EX_EWA }, { text: 'Czy dzieci do lat 10 jadą za pół ceny?', name: 'Ewa Lis', via: 'Rodzice' })
+      exItem(5, '2026-10-05T19:30:00.000Z', { seat: EX_EWA }, { text: 'Czy dzieci do lat 10 jadą za pół ceny?', name: 'Ewa Lis', via: 'Rodzice' }) // i18n-ignore
     ],
     look: {
       author: (message, opened) => authorText(messageAuthor(message, opened, { name: (id) => EX_NAMES.get(id) ?? null })),
@@ -916,7 +856,7 @@ export function chatExampleInput(): ChatExportInput {
       { messageId: exMessage(2), mine: true, kind: 'star', value: '1' }
     ],
     linked: [
-      { kind: 'task', title: 'Wpłacić zaliczkę za autokar', topicId: EX_T_TRANSPORT, messageId: exMessage(2), at: '2026-11-15T09:00:00.000Z', end: null, state: 'zaplanowane' }
+      { kind: 'task', title: 'Wpłacić zaliczkę za autokar', topicId: EX_T_TRANSPORT, messageId: exMessage(2), at: '2026-11-15T09:00:00.000Z', end: null, state: 'zaplanowane' } // i18n-ignore
     ]
   };
 }
@@ -929,12 +869,12 @@ export const chatTopicsSample = (): Record<string, unknown> => ({
   format: CHAT_FORMAT,
   version: CHAT_VERSION,
   topics: [
-    { key: 'transport', title: 'Pielgrzymka — transport' },
-    { key: 'noclegi', title: 'Pielgrzymka — noclegi' }
+    { key: 'transport', title: 'Pielgrzymka — transport' }, // i18n-ignore
+    { key: 'noclegi', title: 'Pielgrzymka — noclegi' } // i18n-ignore
   ],
   messages: [
-    { topic: '@transport', text: 'Podsumowanie ustaleń: jedziemy autokarem z Tarnowa (6200 zł w obie strony), wyjazd 5 maja o 6:00 spod kościoła. Zaliczka do 15 listopada.' },
-    { topic: '@noclegi', text: 'Kto jeszcze nie potwierdził noclegu w domu pielgrzyma, niech napisze tutaj do piątku.' }
+    { topic: '@transport', text: 'Podsumowanie ustaleń: jedziemy autokarem z Tarnowa (6200 zł w obie strony), wyjazd 5 maja o 6:00 spod kościoła. Zaliczka do 15 listopada.' }, // i18n-ignore
+    { topic: '@noclegi', text: 'Kto jeszcze nie potwierdził noclegu w domu pielgrzyma, niech napisze tutaj do piątku.' } // i18n-ignore
   ]
 });
 
@@ -944,54 +884,37 @@ export function chatReminderSample(now: Date = new Date()): Record<string, unkno
   return {
     format: CHAT_FORMAT,
     version: CHAT_VERSION,
-    messages: [{ text: 'Przypomnienie: dziś o 19:00 spotkanie w salce przy zakrystii — zabierzcie kalendarze.', sendAt: at.toISOString(), silent: true }]
+    messages: [{ text: 'Przypomnienie: dziś o 19:00 spotkanie w salce przy zakrystii — zabierzcie kalendarze.', sendAt: at.toISOString(), silent: true }] // i18n-ignore
   };
 }
 
 /* -- Die Beschreibung als Baum ------------------------------------------------------------------------------- */
 
-const INTRO = (): string => `Jedna rozmowa (Rozmowy → rozmowa → ⋮ „Więcej opcji” → „Rozmowa jako JSON”): wiadomości z wybranego okresu albo jednego tematu — kto i kiedy napisał, odpowiedzi, poprawki, załączniki (nazwa i rozmiar), reakcje, przypięcia — do tego tematy oraz zadania i terminy, które z rozmowy powstały. Do archiwum i do przeczytania, streszczenia albo uporządkowania przez asystenta.
+const INTRO = (): string => `${t('chatJson.desc.intro', { maxPosts: MAX_POSTS, maxExport: MAX_EXPORT })}
 
-Co robi import (zawsze w rozmowie otwartej w aplikacji; najpierw lista zmian z ostrzeżeniami, zapis dopiero po „Importuj”):
-- Tematy bez "id" — zakłada nowe (temat o tej samej nazwie, który już jest, zostaje użyty). Tematy z "id" — zmienia nazwę ("title") albo zamyka i otwiera ("closed"); może ten, kto temat założył, albo prowadzący.
-- Wiadomości z "id" (z eksportu) — tylko porządki: przeniesienie do innego tematu ("topic"; autor wiadomości albo prowadzący), przypięcie ("pinned"; prowadzący) i zapisanie dla siebie ("starred").
-- Wiadomości bez "id" — NOWE wiadomości osoby, która importuje: z jej imieniem i nazwiskiem (jak przy pisaniu ręcznym), z chwilą wysłania i z oznaczeniem „Z importu”, które widzą wszyscy; albo zaplanowane na później ("sendAt"). Najwyżej ${MAX_POSTS} w jednym imporcie; jej wiadomość o tej samej treści, która już jest w rozmowie (albo już czeka zaplanowana), nie idzie drugi raz.
-- Treść wiadomości i nazwy tematów są szyfrowane w przeglądarce kluczem rozmowy — tak samo jak pisane ręcznie. Plik eksportu zawiera je jawnie: to Twoja kopia.
-
-Czego import nigdy nie robi — i dlaczego. Wiadomość jest czyjąś wypowiedzią, podpisaną kluczem roli jej autora. Import może tylko dodać Twoje nowe słowa (widocznie oznaczone) i uporządkować rozmowę:
-- nie pisze w czyimś imieniu — nowa wiadomość z "author" innej osoby jest pomijana;
-- nie pisze wstecz — "at" mówi, kiedy wiadomość napisano; nowa wiadomość z "at" jest pomijana (zamiast tego "sendAt": wysłanie w przyszłości);
-- nie zmienia treści, nadawcy ani czasu istniejących wiadomości — także Twoich (poprawisz je w rozmowie: „Edytuj”, z historią zmian);
-- nie usuwa wiadomości ani tematów — czego nie ma w dokumencie, zostaje, jak jest;
-- nie przenosi wiadomości z innej rozmowy i nie wkleja ich tu jako nowych;
-- nie dodaje plików (JSON ma tylko ich nazwy), reakcji, zadań ani terminów;
-- nie bierze cytatu z dokumentu — cytat odpowiedzi pochodzi z prawdziwej wiadomości ("replyTo").
-Kto w rozmowie tylko czyta, ma sam eksport. Eksport obejmuje najwyżej ${MAX_EXPORT} wiadomości.
-Zwróć JEDEN obiekt JSON, bez komentarzy.
-
-Dokument:
+${t('chatJson.desc.document')}
 ${keyLines(DOC_KEYS)}
-W "chat":
+${t('chatJson.desc.inChat')}
 ${keyLines(CHAT_KEYS)}
-W "me":
+${t('chatJson.desc.inMe')}
 ${keyLines(ME_KEYS)}
-W "range":
+${t('chatJson.desc.inRange')}
 ${keyLines(RANGE_KEYS)}`;
 
-const TOPIC_TEXT = (): string => `Wpis w "topics". Zmienia nazwę i zamyka temat ten, kto go założył, albo prowadzący rozmowę; w Notatkach tematów nie ma. Nowych najwyżej ${MAX_NEW_TOPICS} w jednym imporcie.
+const TOPIC_TEXT = (): string => `${t('chatJson.desc.topic', { max: MAX_NEW_TOPICS })}
 ${keyLines(TOPIC_KEYS)}`;
 
-const MESSAGE_TEXT = (): string => `Eksport opisuje każdą wiadomość tak, jak widać ją w rozmowie. Import czyta z wiadomości z "id" tylko "topic", "pinned" i "starred" — reszta jest do czytania: inna treść, nadawca albo czas dają ostrzeżenie i nic nie zmieniają. Wiadomości, których w dokumencie nie ma, zostają.
+const MESSAGE_TEXT = (): string => `${t('chatJson.desc.message')}
 ${keyLines(MESSAGE_KEYS)}`;
 
-const NEW_MESSAGE_TEXT = (): string => `Wiadomość bez "id" import wysyła w tej rozmowie jako osoba, która importuje (jej imię i nazwisko; gdy pisze przez rolę — z rolą w nawiasie), oznaczoną „Z importu”. Kolejność w dokumencie jest kolejnością wysyłania.
+const NEW_MESSAGE_TEXT = (): string => `${t('chatJson.desc.new')}
 ${keyLines(NEW_MESSAGE_KEYS)}
-Nie podawaj "author" ani "at": wiadomość z "author" innej osoby albo z "at" jest pomijana. Pliki ("attachments"), reakcje, "pinned", "starred" i "quote" nowej wiadomości import pomija.
-Przykład (dwa nowe tematy i po jednej wiadomości w każdym):
+${t('chatJson.desc.newNever')}
+${t('chatJson.desc.newExample')}
 ${pretty(chatTopicsSample())}
-Wiadomość na później, bez dźwięku: {"text": "Przypomnienie: …", "sendAt": "2026-12-01T09:00:00+01:00", "silent": true}`;
+${t('chatJson.desc.newLater')}`;
 
-const LINKED_TEXT = (): string => `Wpis w "linked" — zadanie albo termin, które ktoś utworzył z wiadomości tej rozmowy (menu wiadomości: „Utwórz zadanie”, „Dodaj do kalendarza”). Tylko do odczytu: import go pomija.
+const LINKED_TEXT = (): string => `${t('chatJson.desc.linked')}
 ${keyLines(LINKED_KEYS)}`;
 
 /*
@@ -999,31 +922,31 @@ ${keyLines(LINKED_KEYS)}`;
  * (`sendMessage`), der Name aus „Moje dane" (`myRoleNames`), Wecken ohne Inhalt (`Push.cs`, still bei `silent`),
  * geplant nur mit Recht zur Zeit des Sendens (`ChatDelivery.cs`), Themen (`TopicBar.tsx`).
  */
-const USAGE_TEXT = (): string => `- Rozmowa należy do obszaru, a dostęp do rozmowy to dostęp do obszaru: kto może go czytać, czyta rozmowę; kto może w nim pisać, pisze. Tematy i wiadomości z importu widzą więc wszyscy, którzy widzą rozmowę — tak samo jak pisane ręcznie.
-- Usługa nie czyta wiadomości: leżą zapieczętowane kluczem obszaru, a każdą podpisuje rola, przez którą piszesz; usługa sprawdza tylko podpis. Imię i nazwisko pod wiadomością pochodzi z „Moje dane”.
-- Nowa wiadomość jest dla innych nieprzeczytana (dzwonek, „Czeka na Ciebie”; krok „Przeczytaj wiadomości” traci haczyk, dopóki jej nie przeczytają) i budzi ich telefony — przez Firebase idzie tylko sygnał „sprawdź”, treść otwiera dopiero telefon. Z "silent": true tego sygnału nie ma; nieprzeczytana jest i tak.
-- Wiadomość z "sendAt" czeka zapieczętowana w usłudze; o tej porze wychodzi tylko wtedy, gdy nadal możesz pisać w tej rozmowie — i dopiero wtedy budzi innych.
-- Temat to filtr i miejsce: kto go wybierze, widzi jego wiadomości, a to, co napisze, trafia do niego.
-- Zadania i terminy powstają z wiadomości w aplikacji („Utwórz zadanie”, „Dodaj do kalendarza”) i pamiętają rozmowę, temat i wiadomość; okno „Zadania i terminy z tej rozmowy” zbiera je według tematów.
-- Import nie zmienia, kto ma dostęp do rozmowy — to ustawia się w obszarze.`;
+const USAGE_TEXT = (): string => t('chatJson.desc.usage');
 
-export const CHAT_USAGE_JSON: JsonNode = { key: 'chat.usage', title: 'Jak aplikacja używa tych danych', text: USAGE_TEXT };
-export const CHAT_TOPIC_JSON: JsonNode = { key: 'chat.topic', title: 'Temat ("topics[]")', text: TOPIC_TEXT };
-export const CHAT_MESSAGE_JSON: JsonNode = { key: 'chat.message', title: 'Wiadomość z eksportu ("messages[]" z "id")', short: 'Wiadomość z eksportu', text: MESSAGE_TEXT };
-export const CHAT_NEW_MESSAGE_JSON: JsonNode = { key: 'chat.new', title: 'Nowa wiadomość ("messages[]" bez "id")', short: 'Nowa wiadomość', text: NEW_MESSAGE_TEXT };
-export const CHAT_LINKED_JSON: JsonNode = { key: 'chat.linked', title: 'Zadania i terminy z rozmowy ("linked[]")', short: 'Zadania i terminy', text: LINKED_TEXT };
-export const CHAT_EXAMPLE_JSON: JsonNode = { key: 'chat.example', title: 'Przykład eksportu', text: () => pretty(chatExample()) };
+export const CHAT_USAGE_JSON: JsonNode = { key: 'chat.usage', get title() { return t('chatJson.node.usage'); }, text: USAGE_TEXT };
+export const CHAT_TOPIC_JSON: JsonNode = { key: 'chat.topic', get title() { return t('chatJson.node.topic'); }, text: TOPIC_TEXT };
+export const CHAT_MESSAGE_JSON: JsonNode = {
+  key: 'chat.message', get title() { return t('chatJson.node.message'); }, get short() { return t('chatJson.node.messageShort'); }, text: MESSAGE_TEXT
+};
+export const CHAT_NEW_MESSAGE_JSON: JsonNode = {
+  key: 'chat.new', get title() { return t('chatJson.node.new'); }, get short() { return t('chatJson.node.newShort'); }, text: NEW_MESSAGE_TEXT
+};
+export const CHAT_LINKED_JSON: JsonNode = {
+  key: 'chat.linked', get title() { return t('chatJson.node.linked'); }, get short() { return t('chatJson.node.linkedShort'); }, text: LINKED_TEXT
+};
+export const CHAT_EXAMPLE_JSON: JsonNode = { key: 'chat.example', get title() { return t('chatJson.node.example'); }, text: () => pretty(chatExample()) };
 
 /** 2026-10-29 — DIE ROZMOWA ALS JSON: der Baum, aus dem ihre Beschreibung entsteht (und die Beispiele zum Einsetzen). */
 export const CHAT_JSON: JsonNode = {
   key: 'chat',
-  title: `Rozmowa jako JSON ("${CHAT_FORMAT}", wersja ${CHAT_VERSION})`,
-  short: 'Rozmowa',
+  get title() { return t('chatJson.node.chat', { format: CHAT_FORMAT, version: CHAT_VERSION }); },
+  get short() { return t('chatJson.node.chatShort'); },
   text: INTRO,
   inside: () => [CHAT_USAGE_JSON, CHAT_TOPIC_JSON, CHAT_MESSAGE_JSON, CHAT_NEW_MESSAGE_JSON, CHAT_LINKED_JSON, CHAT_EXAMPLE_JSON],
   samples: () => [
-    { label: 'dwa nowe tematy i wiadomość w każdym', doc: chatTopicsSample },
-    { label: 'przypomnienie na jutro rano, bez dźwięku', doc: () => chatReminderSample() }
+    { label: t('chatJson.sample.topics'), doc: chatTopicsSample },
+    { label: t('chatJson.sample.reminder'), doc: () => chatReminderSample() }
   ]
 };
 

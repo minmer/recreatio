@@ -1,0 +1,22 @@
+{
+  "service": { "mass": "Msza", "confession": "Spowiedź", "devotion": "Nabożeństwo" },
+  "devotionNames": {
+    "rosary": "Różaniec",
+    "wayOfCross": "Droga Krzyżowa",
+    "bitterLaments": "Gorzkie Żale",
+    "may": "Nabożeństwo majowe",
+    "june": "Nabożeństwo czerwcowe",
+    "october": "Nabożeństwo różańcowe",
+    "adoration": "Adoracja Najświętszego Sakramentu",
+    "chaplet": "Koronka do Miłosierdzia Bożego",
+    "novena": "Nowenna do Matki Bożej Nieustającej Pomocy",
+    "holyHour": "Godzina Święta",
+    "jasnaGora": "Apel Jasnogórski",
+    "vespers": "Nieszpory"
+  },
+  "intentions": { "one": "{count} intencja", "few": "{count} intencje", "many": "{count} intencji", "other": "{count} intencji" },
+  "kind": { "single": "pojedyncza", "collective": "zbiorowa" },
+  "status": { "accepted": "przyjęta", "celebrated": "odprawiona", "cancelled": "wycofana" },
+  "weekdayBit": { "mon": "pn", "tue": "wt", "wed": "śr", "thu": "cz", "fri": "pt", "sat": "sb", "sun": "nd" },
+  "day": { "today": "dziś", "tomorrow": "jutro", "todayFull": "dziś, {date}", "tomorrowFull": "jutro, {date}" }
+}

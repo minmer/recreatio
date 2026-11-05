@@ -39,6 +39,7 @@ import { readCondition, type Condition, type FlowFacts } from './logic';
 import { cardEntities, cardLevel, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { fieldsOf, labelOf, valuesOf, type Entity, type Lookup } from './schema';
 import { pick, runSteps, STEP_WORDS, type SelectContext, type Step } from './selection';
+import { t, texts } from '../core/i18n';
 import { orderByPlace } from './structure';
 
 /* -- Was durch den Auswahlgraphen fliesst ----------------------------------------- */
@@ -112,16 +113,16 @@ type Kind = NodeKind<RevisionContext>;
 const out = (cards: readonly Card[]) => ({ cards: { cards, when: NO_WHEN } satisfies CardFlow });
 
 const ALL: Kind = {
-  type: 'source.all', label: 'Wszystkie karty', group: 'Źródła',
-  says: 'Każda karta tej bazy wiedzy (i baz, z których korzysta).',
-  ports: () => ({ inputs: [], outputs: [port('cards', 'Karty')] }),
+  type: 'source.all', get label() { return t('cogitaEditRevision.kind.sourceAll.label'); }, get group() { return t('cogitaEditRevision.group.sources'); },
+  get says() { return t('cogitaEditRevision.kind.sourceAll.says'); },
+  ports: () => ({ inputs: [], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ ctx }) => out(ctx.cards)
 };
 
 const BY_KIND: Kind = {
-  type: 'source.kind', label: 'Rodzaj', group: 'Źródła',
-  says: 'Karty wpisów jednego rodzaju — także z biblioteki, z której korzysta ta baza (np. cytaty); „Skąd" zawęża do jednej biblioteki albo bazy.',
-  ports: () => ({ inputs: [], outputs: [port('cards', 'Karty')] }),
+  type: 'source.kind', get label() { return t('cogitaEditRevision.kind.sourceKind.label'); }, get group() { return t('cogitaEditRevision.group.sources'); },
+  get says() { return t('cogitaEditRevision.kind.sourceKind.says'); },
+  ports: () => ({ inputs: [], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, ctx }) => {
     const from = str(config.from);
     return out(ctx.cards.filter((c) => c.entity !== undefined && ctx.kindsOf(c.entity).includes(str(config.kind))
@@ -130,12 +131,12 @@ const BY_KIND: Kind = {
 };
 
 const BY_COLLECTION: Kind = {
-  type: 'source.collection', label: 'Zbiór', group: 'Źródła',
-  says: 'Karty wpisów zapisanego zbioru — filtra albo listy.',
-  ports: () => ({ inputs: [], outputs: [port('cards', 'Karty')] }),
+  type: 'source.collection', get label() { return t('cogitaEditRevision.kind.sourceCollection.label'); }, get group() { return t('cogitaEditRevision.group.sources'); },
+  get says() { return t('cogitaEditRevision.kind.sourceCollection.says'); },
+  ports: () => ({ inputs: [], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, ctx }) => {
     const members = ctx.collection(str(config.collection));
-    if (members === undefined) throw new Error('Nie ma takiego zbioru.');
+    if (members === undefined) throw new Error(t('cogitaEditRevision.error.noCollection'));
     return out(ctx.cards.filter((c) => c.entity !== undefined && members.has(c.entity)));
   }
 };
@@ -143,9 +144,9 @@ const BY_COLLECTION: Kind = {
 /* 2026-10-23 (Schritt 5) — die Quelle „Temat" gibt es nicht mehr (keine Themen); ein alter Knoten sagt es (`graph.ts`, RETIRED_NODES). */
 
 const BY_LIST: Kind = {
-  type: 'source.list', label: 'Lista', group: 'Źródła',
-  says: 'Karty wybranych wpisów albo pytań.',
-  ports: () => ({ inputs: [], outputs: [port('cards', 'Karty')] }),
+  type: 'source.list', get label() { return t('cogitaEditRevision.kind.sourceList.label'); }, get group() { return t('cogitaEditRevision.group.sources'); },
+  get says() { return t('cogitaEditRevision.kind.sourceList.says'); },
+  ports: () => ({ inputs: [], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, ctx }) => {
     const ids = new Set(lines(config.ids));
     return out(ctx.cards.filter((c) => ids.has(c.question) || (c.entity !== undefined && ids.has(c.entity))));
@@ -154,9 +155,9 @@ const BY_LIST: Kind = {
 
 /** 2026-10-22 (Schritt 11) — eine Powtórka aus einem Eintrag: die Karten dessen, worauf er verweist (ein Kazanie: Cytaty, Komentarze, Słowa). */
 const BY_FROM: Kind = {
-  type: 'source.from', label: STEP_WORDS['source.from'].label, group: 'Źródła',
-  says: `${STEP_WORDS['source.from'].says} Daje karty tych wpisów.`,
-  ports: () => ({ inputs: [], outputs: [port('cards', 'Karty')] }),
+  type: 'source.from', get label() { return STEP_WORDS['source.from'].label; }, get group() { return t('cogitaEditRevision.group.sources'); },
+  get says() { return t('cogitaEditRevision.kind.sourceFrom.says', { step: STEP_WORDS['source.from'].says }); },
+  ports: () => ({ inputs: [], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, ctx }) => {
     if (ctx.select === undefined) return out([]);
     const ids = pick(ctx.select, { type: 'source.from', config }, null);
@@ -178,12 +179,12 @@ const knowingAt = (ctx: RevisionContext): Gauge => {
  * znajomości"); einer weiter vorn wählt mit der Kenntnis von jetzt.
  */
 const BY_VIEW: Kind = {
-  type: 'source.view', label: 'Widok', group: 'Źródła',
-  says: 'Karty wpisów, które pokazuje zapisany sposób wyświetlania (widok) — on decyduje, co wchodzi w grę, powtórka wybiera z tego. Jego filtry znajomości na końcu sprawdzają się w trakcie powtórki, przy każdej karcie.',
-  ports: () => ({ inputs: [], outputs: [port('cards', 'Karty')] }),
+  type: 'source.view', get label() { return t('cogitaEditRevision.kind.sourceView.label'); }, get group() { return t('cogitaEditRevision.group.sources'); },
+  get says() { return t('cogitaEditRevision.kind.sourceView.says'); },
+  ports: () => ({ inputs: [], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, ctx }) => {
     const steps = ctx.viewSteps?.(str(config.view));
-    if (steps === undefined) throw new Error('Nie ma takiego widoku.');
+    if (steps === undefined) throw new Error(t('cogitaEditRevision.error.noView'));
     if (ctx.select === undefined) return out([]);
     let cut = steps.length;
     while (cut > 0 && steps[cut - 1].type === 'filter.when') cut -= 1;
@@ -197,9 +198,9 @@ const BY_VIEW: Kind = {
 };
 
 const FILTER: Kind = {
-  type: 'filter', label: 'Filtr', group: 'Zawężenie',
-  says: 'Zostawia karty z wybranych szablonów, kierunków, form odpowiedzi, stanów (jeszcze nie / w nauce / umiem) albo tylko te, na które przyszła pora.',
-  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  type: 'filter', get label() { return t('cogitaEditRevision.kind.filter.label'); }, get group() { return t('cogitaEditRevision.group.narrow'); },
+  get says() { return t('cogitaEditRevision.kind.filter.says'); },
+  ports: () => ({ inputs: [port('cards', t('cogitaEditRevision.port.cards'), true)], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, inputs, ctx }) => {
     const flow = merge(flowsAt(inputs, 'cards'));
     const templates = new Set(lines(config.templates));
@@ -243,40 +244,40 @@ function throughEntities(ctx: RevisionContext, flow: CardFlow, step: Step): Card
 }
 
 const FOLLOW: Kind = {
-  type: 'follow', label: STEP_WORDS.follow.label, group: 'Zawężenie',
-  says: `${STEP_WORDS.follow.says} Daje karty tamtych wpisów.`,
-  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  type: 'follow', get label() { return STEP_WORDS.follow.label; }, get group() { return t('cogitaEditRevision.group.narrow'); },
+  get says() { return t('cogitaEditRevision.kind.through.says', { step: STEP_WORDS.follow.says }); },
+  ports: () => ({ inputs: [port('cards', t('cogitaEditRevision.port.cards'), true)], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, inputs, ctx }) => ({ cards: throughEntities(ctx, merge(flowsAt(inputs, 'cards')), { type: 'follow', config }) })
 };
 
 /* 2026-10-25 (Wywód) — dieselbe Struktur wie in „Wpisy": die Karten der Schritte unter (oder über) diesen Einträgen. */
 const STRUCTURE: Kind = {
-  type: 'structure', label: STEP_WORDS.structure.label, group: 'Zawężenie',
-  says: `${STEP_WORDS.structure.says} Daje karty tamtych wpisów.`,
-  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  type: 'structure', get label() { return STEP_WORDS.structure.label; }, get group() { return t('cogitaEditRevision.group.narrow'); },
+  get says() { return t('cogitaEditRevision.kind.through.says', { step: STEP_WORDS.structure.says }); },
+  ports: () => ({ inputs: [port('cards', t('cogitaEditRevision.port.cards'), true)], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, inputs, ctx }) => ({ cards: throughEntities(ctx, merge(flowsAt(inputs, 'cards')), { type: 'structure', config }) })
 };
 
 /* 2026-10-30 — die Grundlagen dazu: was vorher zu können ist (die frühere Hälfte „holt Grundlagen" von „Najpierw podstawy"). */
 const LEARNING: Kind = {
-  type: 'learning', label: STEP_WORDS.learning.label, group: 'Zawężenie',
-  says: `${STEP_WORDS.learning.says} Daje karty tamtych wpisów; „Zostaw też wyjściowe” dokłada je do kart, od których wyszedł (np. powtórka o orbitalach zaczyna się od atomu).`,
-  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  type: 'learning', get label() { return STEP_WORDS.learning.label; }, get group() { return t('cogitaEditRevision.group.narrow'); },
+  get says() { return t('cogitaEditRevision.kind.learning.says', { step: STEP_WORDS.learning.says }); },
+  ports: () => ({ inputs: [port('cards', t('cogitaEditRevision.port.cards'), true)], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, inputs, ctx }) => ({ cards: throughEntities(ctx, merge(flowsAt(inputs, 'cards')), { type: 'learning', config }) })
 };
 
 const FILTER_RULE: Kind = {
-  type: 'filter.rule', label: 'Filtr wpisów', group: 'Zawężenie',
-  says: `${STEP_WORDS['filter.rule'].says} Zostają karty tych wpisów.`,
-  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  type: 'filter.rule', get label() { return t('cogitaEditRevision.kind.filterRule.label'); }, get group() { return t('cogitaEditRevision.group.narrow'); },
+  get says() { return t('cogitaEditRevision.kind.filterRule.says', { step: STEP_WORDS['filter.rule'].says }); },
+  ports: () => ({ inputs: [port('cards', t('cogitaEditRevision.port.cards'), true)], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, inputs, ctx }) => ({ cards: throughEntities(ctx, merge(flowsAt(inputs, 'cards')), { type: 'filter.rule', config }) })
 };
 
 /** 2026-10-30 — DIE BEDINGUNG geht mit den Karten zum „Sposób pytania" und gilt im Lauf (die Kenntnis von jetzt). */
 const FILTER_WHEN: Kind = {
-  type: 'filter.when', label: STEP_WORDS['filter.when'].label, group: 'Zawężenie',
-  says: `${STEP_WORDS['filter.when'].says} W powtórce sprawdza się w trakcie, przy każdej karcie: co wcześniej czekało, wchodzi, gdy warunek zacznie obowiązywać; karta już w stosie zostaje.`,
-  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  type: 'filter.when', get label() { return STEP_WORDS['filter.when'].label; }, get group() { return t('cogitaEditRevision.group.narrow'); },
+  get says() { return t('cogitaEditRevision.kind.filterWhen.says', { step: STEP_WORDS['filter.when'].says }); },
+  ports: () => ({ inputs: [port('cards', t('cogitaEditRevision.port.cards'), true)], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, inputs }) => {
     const flow = merge(flowsAt(inputs, 'cards'));
     const condition = readCondition(config.when);
@@ -293,9 +294,9 @@ const FILTER_WHEN: Kind = {
  * dazu eine Probe der übrigen Themen („Uzupełnij luki").
  */
 const SAMPLE: Kind = {
-  type: 'sample', label: 'Próbka z każdego tematu', group: 'Zawężenie',
-  says: 'Zostawia z każdego tematu kilka losowych kart ("perTopic", domyślnie 2) — sprawdzian na wyrywki; co dzień inna próbka.',
-  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  type: 'sample', get label() { return t('cogitaEditRevision.kind.sample.label'); }, get group() { return t('cogitaEditRevision.group.narrow'); },
+  get says() { return t('cogitaEditRevision.kind.sample.says'); },
+  ports: () => ({ inputs: [port('cards', t('cogitaEditRevision.port.cards'), true)], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ config, inputs, ctx }) => {
     const flow = merge(flowsAt(inputs, 'cards'));
     const n = Math.max(1, Math.min(50, Math.round(num(config.perTopic, 2))));
@@ -306,34 +307,34 @@ const SAMPLE: Kind = {
 };
 
 const UNION: Kind = {
-  type: 'union', label: 'Razem', group: 'Zawężenie',
-  says: 'Łączy kilka źródeł w jeden stos, bez powtórzeń.',
-  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  type: 'union', get label() { return t('cogitaEditRevision.kind.union.label'); }, get group() { return t('cogitaEditRevision.group.narrow'); },
+  get says() { return t('cogitaEditRevision.kind.union.says'); },
+  ports: () => ({ inputs: [port('cards', t('cogitaEditRevision.port.cards'), true)], outputs: [port('cards', t('cogitaEditRevision.port.cards'))] }),
   run: ({ inputs }) => ({ cards: merge(flowsAt(inputs, 'cards')) })
 };
 
 export const MODES = ['random', 'once', 'levels', 'temporal'] as const;
 export type Mode = (typeof MODES)[number];
 
-export const MODE_LABEL: Record<Mode, string> = {
-  random: 'Losowo, określona liczba',
-  once: 'Cały stos, każda raz',
-  levels: 'Poziomy',
-  temporal: 'Według tego, co umiem'
-};
+export const MODE_LABEL: Record<Mode, string> = texts({
+  random: 'cogitaEditRevision.modeLabel.random',
+  once: 'cogitaEditRevision.modeLabel.once',
+  levels: 'cogitaEditRevision.modeLabel.levels',
+  temporal: 'cogitaEditRevision.modeLabel.temporal'
+});
 
 /** 2026-10-30 — w jakiej kolejności: stała lista, każda do wyjaśnienia uczącemu się. */
 export const ORDERS = ['general', 'text', 'date', 'random', 'given', 'due'] as const;
 export type Order = (typeof ORDERS)[number];
 
-export const ORDER_LABEL: Record<Order, string> = {
-  general: 'najpierw ogólne, potem szczegóły',
-  text: 'jak w tekście źródła',
-  date: 'według daty',
-  random: 'losowo',
-  given: 'jak przychodzą',
-  due: 'najpierw zaległe'
-};
+export const ORDER_LABEL: Record<Order, string> = texts({
+  general: 'cogitaEditRevision.orderLabel.general',
+  text: 'cogitaEditRevision.orderLabel.text',
+  date: 'cogitaEditRevision.orderLabel.date',
+  random: 'cogitaEditRevision.orderLabel.random',
+  given: 'cogitaEditRevision.orderLabel.given',
+  due: 'cogitaEditRevision.orderLabel.due'
+});
 
 /**
  * 2026-10-30 — którą kartę ze stosu: ściśle następną albo losowo, częściej słabsze i dłużej czekające.
@@ -343,11 +344,11 @@ export const ORDER_LABEL: Record<Order, string> = {
 export const PICKS = ['next', 'weighted', 'sample'] as const;
 export type PickMode = (typeof PICKS)[number];
 
-export const PICK_LABEL: Record<PickMode, string> = {
-  next: 'ściśle następna',
-  weighted: 'losowo, częściej słabiej znane i dłużej czekające',
-  sample: 'próbka: z każdego tematu kilka losowych kart'
-};
+export const PICK_LABEL: Record<PickMode, string> = texts({
+  next: 'cogitaEditRevision.pickLabel.next',
+  weighted: 'cogitaEditRevision.pickLabel.weighted',
+  sample: 'cogitaEditRevision.pickLabel.sample'
+});
 
 export interface Plan {
   readonly cards: readonly Card[];
@@ -505,9 +506,9 @@ function ranksFor(cards: readonly Card[], order: 'text' | 'date', ctx: RevisionC
 }
 
 const STRATEGY: Kind = {
-  type: 'strategy', label: 'Sposób pytania', group: 'Sposób',
-  says: 'Jak pytać: losowo określoną liczbę, cały stos raz, poziomami albo według tego, co już umiem — w jakiej kolejności (najpierw ogólne, jak w tekście, według daty, losowo, jak przychodzą, najpierw zaległe) i jak wybierać ze stosu (ściśle następną albo losowo, częściej słabsze).',
-  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('plan', 'Plan', false, 'plan')] }),
+  type: 'strategy', get label() { return t('cogitaEditRevision.kind.strategy.label'); }, get group() { return t('cogitaEditRevision.group.mode'); },
+  get says() { return t('cogitaEditRevision.kind.strategy.says'); },
+  ports: () => ({ inputs: [port('cards', t('cogitaEditRevision.port.cards'), true)], outputs: [port('plan', t('cogitaEditRevision.port.plan'), false, 'plan')] }),
   run: ({ config, inputs, ctx }) => {
     const flow = merge(flowsAt(inputs, 'cards'));
     /* Bedingungen und Ränge kommen aus dem Graphen, nie aus der Einstellung des Knotens. */
@@ -561,13 +562,13 @@ export function migrateRevision(graph: Graph): Graph {
 export async function planOf(raw: Graph, ctx: RevisionContext): Promise<{ plan: Plan | null; problems: string[] }> {
   const graph = migrateRevision(raw);
   const strategies = graph.nodes.filter((n) => n.type === 'strategy');
-  if (strategies.length !== 1) return { plan: null, problems: [strategies.length === 0 ? 'Powtórka nie ma kroku „Sposób pytania".' : 'Powtórka może mieć tylko jeden „Sposób pytania".'] };
+  if (strategies.length !== 1) return { plan: null, problems: [strategies.length === 0 ? t('cogitaEditRevision.error.noStrategy') : t('cogitaEditRevision.error.oneStrategy')] };
   const result = await evaluate(graph, REVISION_PALETTE, ctx);
   const id = strategies[0].id;
   const error = result.errors.get(id);
   if (error !== undefined) return { plan: null, problems: [...new Set([...result.errors.values()])] };
   const plan = result.outputs.get(id)?.plan as Plan | undefined;
-  return plan === undefined ? { plan: null, problems: ['Powtórka nie dała planu.'] } : { plan, problems: [] };
+  return plan === undefined ? { plan: null, problems: [t('cogitaEditRevision.error.noPlan')] } : { plan, problems: [] };
 }
 
 /* -- Der Lauf ---------------------------------------------------------------------- */
@@ -985,57 +986,58 @@ export function answer(session: Session, correctness: number, at: number, also: 
 /** Eine Dauer, kurz: „5 min", „3 h", „2 dni". */
 function span(ms: number): string {
   const min = Math.max(1, Math.round(ms / 60_000));
-  if (min < 60) return `${min} min`;
+  if (min < 60) return t('cogitaEditRevision.span.min', { n: min });
   const h = Math.round(min / 60);
-  if (h < 48) return `${h} h`;
-  return `${Math.round(h / 24)} dni`;
+  if (h < 48) return t('cogitaEditRevision.span.h', { n: h });
+  return t('cogitaEditRevision.span.days', { n: Math.round(h / 24) });
 }
 
-const ORDER_WHY: Record<Order, string> = {
-  general: 'najpierw ogólne, potem szczegóły',
-  text: 'w kolejności tekstu źródła',
-  date: 'według daty',
-  random: 'w losowej kolejności',
-  given: 'w kolejności wyboru powtórki',
-  due: 'najpierw te, na które przyszła pora'
-};
+const ORDER_WHY: Record<Order, string> = texts({
+  general: 'cogitaEditRevision.orderWhy.general',
+  text: 'cogitaEditRevision.orderWhy.text',
+  date: 'cogitaEditRevision.orderWhy.date',
+  random: 'cogitaEditRevision.orderWhy.random',
+  given: 'cogitaEditRevision.orderWhy.given',
+  due: 'cogitaEditRevision.orderWhy.due'
+});
 
 /**
  * 2026-10-31 — WARUM DIESE KARTE, kurz und menschlich (unter der Karte): „Nowa karta · poziom 2". Die ganze Erklärung —
  * nach welcher Ordnung, unter wie vielen, wie lange überfällig — gibt `whyDetail` (als Hinweis daneben).
  */
 export function whyText(why: Why, _now: number): string {
-  const level = why.level === null ? '' : ` · poziom ${why.level + 1}${why.level === 0 ? ' (podstawy)' : ''}`;
+  const level = why.level === null ? '' : why.level === 0 ? t('cogitaEditRevision.why.levelBasics') : t('cogitaEditRevision.why.level', { n: why.level + 1 });
   const pct = `${Math.round((why.knowness ?? 0) * 100)} %`;
   switch (why.reason) {
-    case 'queue': return `Kolejna karta${level}`;
-    case 'fresh': return `Nowa karta${level}`;
-    case 'again': return 'Jeszcze raz — przed chwilą była źle';
-    case 'missed': return 'Ostatnio była źle — jeszcze raz';
-    case 'forgotten': return `Zapomniana — dawno nie powtarzana (znajomość ${pct})`;
-    case 'ahead': return `Na zapas — umiesz (znajomość ${pct}), tę najsłabiej`;
-    case 'spacer': return 'Przerywnik — coś, co umiesz, zanim wróci tamto pytanie';
-    default: return `Pora powtórki (znajomość ${pct})`;
+    case 'queue': return t('cogitaEditRevision.why.queue', { level });
+    case 'fresh': return t('cogitaEditRevision.why.fresh', { level });
+    case 'again': return t('cogitaEditRevision.why.again');
+    case 'missed': return t('cogitaEditRevision.why.missed');
+    case 'forgotten': return t('cogitaEditRevision.why.forgotten', { pct });
+    case 'ahead': return t('cogitaEditRevision.why.ahead', { pct });
+    case 'spacer': return t('cogitaEditRevision.why.spacer');
+    default: return t('cogitaEditRevision.why.due', { pct });
   }
 }
 
 /** 2026-10-30 — WARUM DIESE KARTE, ganz: die Ordnung, die Ebene, unter wie vielen, wie lange überfällig. */
 export function whyDetail(why: Why, now: number): string {
-  const level = why.level === null ? '' : ` (poziom ${why.level + 1}${why.level === 0 ? ' — podstawy' : ''})`;
+  const level = why.level === null ? '' : why.level === 0 ? t('cogitaEditRevision.whyDetail.levelBasics') : t('cogitaEditRevision.whyDetail.level', { n: why.level + 1 });
   const pickText = why.reason === 'queue' || why.among <= 1 ? ''
-    : why.pick === 'weighted' ? ` Wybrana losowo spośród ${why.among} w stosie — częściej to, co słabiej znasz i co dłużej czeka.`
-    : ` Następna spośród ${why.among} w stosie.`;
+    : why.pick === 'weighted' ? t('cogitaEditRevision.whyDetail.pickWeighted', { n: why.among })
+    : t('cogitaEditRevision.whyDetail.pickNext', { n: why.among });
   const pct = `${Math.round((why.knowness ?? 0) * 100)} %`;
-  const late = why.due !== null && why.due <= now ? `; pora powtórki minęła ${span(now - why.due)} temu` : '';
+  const late = why.due !== null && why.due <= now ? t('cogitaEditRevision.whyDetail.late', { span: span(now - why.due) }) : '';
+  const order = ORDER_WHY[why.order];
   switch (why.reason) {
-    case 'queue': return `Kolejna karta — ${ORDER_WHY[why.order]}${level}.`;
-    case 'fresh': return `Nowa karta (nieznana) — ${ORDER_WHY[why.order]}${level}. Nowe przychodzą, gdy nic nie czeka na powtórkę.${pickText}`;
-    case 'again': return `Wraca, bo przed chwilą była źle — zostaje w stosie, aż odpowiesz całkiem dobrze.${pickText}`;
-    case 'missed': return `Nieznana: ostatnim razem była źle. Przychodzi razem z nowymi, gdy nic nie czeka na powtórkę.${pickText}`;
-    case 'forgotten': return `Nieznana: znajomość spadła do ${pct}${late}. Przychodzi razem z nowymi, gdy nic nie czeka na powtórkę.${pickText}`;
-    case 'ahead': return `Znana (${pct}) — nic nie czeka na powtórkę i nie ma nic nowego, więc stos bierze to, co umiesz najsłabiej.${pickText}`;
-    case 'spacer': return 'Przerywnik: zostało tylko pytanie, na które była zła odpowiedź — zanim wróci, jedno, które umiesz. Dobra odpowiedź niczego nie zmienia, zła — jak każda.';
-    default: return `Do powtórki: znajomość ${pct}${late}. Najpierw to, co znasz najsłabiej.${pickText}`;
+    case 'queue': return t('cogitaEditRevision.whyDetail.queue', { order, level });
+    case 'fresh': return t('cogitaEditRevision.whyDetail.fresh', { order, level, pick: pickText });
+    case 'again': return t('cogitaEditRevision.whyDetail.again', { pick: pickText });
+    case 'missed': return t('cogitaEditRevision.whyDetail.missed', { pick: pickText });
+    case 'forgotten': return t('cogitaEditRevision.whyDetail.forgotten', { pct, late, pick: pickText });
+    case 'ahead': return t('cogitaEditRevision.whyDetail.ahead', { pct, pick: pickText });
+    case 'spacer': return t('cogitaEditRevision.whyDetail.spacer');
+    default: return t('cogitaEditRevision.whyDetail.due', { pct, late, pick: pickText });
   }
 }
 

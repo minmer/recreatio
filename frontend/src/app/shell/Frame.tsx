@@ -22,6 +22,8 @@
  */
 
 import { lazy, Suspense, useState, type ReactNode } from 'react';
+import { initialLang, langChosen, setAppLang, useT } from '../core/i18n';
+import { LangPick } from '../ui/LangPick';
 
 import { HeaderSlotContext } from '../ui/headerSlot';
 import { HeldLinkBar } from '../links/HeldLinkBar';
@@ -45,7 +47,7 @@ export function PlainFrame({ who, onSignOut, wide = false, children }: {
     <div className={wide ? 'wk-root wk-plain is-wide' : 'wk-root wk-plain'}>
       <header className="wk-plain-top" data-app-head="">
         {/* Ohne Konto führt die Marke zur Seite der Initiative, mit Konto zum Arbeitsplatz. */}
-        <a className="wk-brandmark" href={who === undefined ? '#/' : tilesPath()}><b>RE</b>creatio</a>
+        <a className="wk-brandmark" href={who === undefined ? '#/' : tilesPath()}><b>RE</b>creatio</a>{/* i18n-ignore: Marke */}
         {who !== undefined && (
           <Suspense fallback={null}>
             <PlainAccount who={who} onSignOut={onSignOut} />
@@ -64,6 +66,7 @@ export function PlainFrame({ who, onSignOut, wide = false, children }: {
 /* -- Eine öffentliche Seite -------------------------------------------------------------------- */
 
 export function PublicFrame({ children }: { children: ReactNode }) {
+  const t = useT();
   const [slot, setSlot] = useState<HTMLElement | null>(null);
 
   return (
@@ -77,9 +80,11 @@ export function PublicFrame({ children }: { children: ReactNode }) {
         </HeaderSlotContext.Provider>
       </main>
       <footer className="wk-public-foot">
-        <a href="#/">REcreatio</a>
+        <a href="#/">REcreatio</a>{/* i18n-ignore: Marke */}
         <span aria-hidden="true">·</span>
-        <a href={path('workspace')}>Zaloguj się</a>
+        <a href={path('workspace')}>{t('common.signIn')}</a>
+        {/* 2026-11-05 — die Sprache auch ohne Konto wählen; die Wahl lädt die Seite neu. */}
+        <LangPick className="wk-input wk-lang-pick" value={langChosen() ? initialLang() : null} follow={t('shell.lang.browser')} onChange={setAppLang} />
       </footer>
       <UiHosts />
     </div>

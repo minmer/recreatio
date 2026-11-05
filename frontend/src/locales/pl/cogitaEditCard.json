@@ -1,0 +1,258 @@
+{
+  "kind": {
+    "field": {
+      "label": "Pole",
+      "says": "Wartości jednego pola — tego wpisu albo wpisów, które przychodzą z lewej."
+    },
+    "statementThesis": {
+      "label": "Teza",
+      "says": "Pierwsze zdanie treści w blokach — teza (tego wpisu albo wpisów, które przychodzą z lewej; każdy rodzaj z polem „Treść w blokach”)."
+    },
+    "statementPart": {
+      "label": "Część treści",
+      "says": "Blok numer n (1, 2, …) treści w blokach: akapit jako tekst, lista — każdy punkt osobno, tabela — każdy wiersz („Łk 1,35 — Dz 1,8\"). Puste: wszystkie akapity."
+    },
+    "statementTable": {
+      "label": "Tabela z treści",
+      "says": "Wiersze tabeli z treści w blokach jako dwie strony: kolumna A po lewej, kolumna B po prawej (te same miejsca tworzą parę) — do „dopasowania par\" albo pytań o kolumnę."
+    },
+    "statementSubjects": {
+      "label": "O czym jest",
+      "says": "Wpisy, na które wskazują pola-odwołania wypowiedzi (np. „O czym”) — z miejscem (np. „Łk 1,35\")."
+    },
+    "media": {
+      "label": "Obraz albo dźwięk",
+      "says": "Plik z pola — jako pytanie: pokaż obraz, odtwórz nagranie."
+    },
+    "follow": {
+      "label": "Przez odwołania",
+      "says": "Idzie po odwołaniach, krok po kroku (np. autor, potem jego miejsce urodzenia), i daje wpisy na końcu drogi."
+    },
+    "list": {
+      "label": "Lista",
+      "says": "Stała lista wpisana przez autora — np. dodatkowe poprawne odpowiedzi albo własne dystraktory."
+    },
+    "entity": {
+      "label": "Ten wpis",
+      "says": "Wpis, dla którego powstaje karta — z jego etykietą."
+    },
+    "filter": {
+      "label": "Filtr",
+      "says": "Dzieli wpisy według pola: te, których pole ma wartość z „Porównaj z\" (albo wpisaną), i pozostałe — np. słowa w języku tej karty i słowa w innych językach. Bez pola porównuje same wpisy."
+    },
+    "unique": {
+      "label": "Bez powtórzeń",
+      "says": "Każdy wpis (albo tekst) tylko raz — np. języki wszystkich słów tłumaczenia, każdy jeden raz."
+    },
+    "entries": {
+      "label": "Wpisy rodzaju",
+      "says": "Wpisy wybranego rodzaju — wszystkie albo te, których pole ma wartość z „Gdzie pole ma\" (albo wpisaną): słowa o tej samej pisowni, tłumaczenia z tym słowem, słowa w danym języku. Może pominąć ten wpis i wziąć kilka losowo."
+    },
+    "pattern": {
+      "label": "Wzór tekstu",
+      "says": "Składa tekst z wejść: „Kto napisał {0}?\". Kilka wartości na jednym wejściu łączy przecinkiem."
+    },
+    "mask": {
+      "label": "Maska",
+      "says": "Zakrywa część tekstu: koniec, początek albo losowe słowa. Daje tekst z luką, zakrytą część i całość."
+    },
+    "fragments": {
+      "label": "Fragmenty cytatu",
+      "says": "Dzieli cytat na kawałki (7–13 znaków) i układa je w drzewo: najpierw kawałki, potem to, co razem tworzą. Podłącz „Dla każdej wartości\"."
+    },
+    "pick": {
+      "label": "Wybierz jeden",
+      "says": "Bierze jedną wartość z listy (losowo, pierwszą albo ostatnią) i oddaje osobno ją i resztę."
+    },
+    "distractors": {
+      "label": "Dystraktory",
+      "says": "Błędne odpowiedzi do wyboru: to samo pole innych wpisów tego rodzaju, tylko z bieżącego zbioru, lista autora albo wartości najbliższe poprawnej."
+    },
+    "each": {
+      "label": "Dla każdej wartości",
+      "says": "Robi osobną kartę dla każdej wartości z lewej — każde tłumaczenie, każdy fragment cytatu."
+    },
+    "pairs": {
+      "label": "Pary",
+      "says": "Z każdego wpisu para: wartości pola pasujące do lewej strony i te pasujące do prawej (bez prawej: wszystkie pozostałe) — np. z każdego tłumaczenia słowo angielskie i polskie. Wpis bez którejś strony odpada."
+    },
+    "pairsFields": {
+      "label": "Pary z dwóch pól",
+      "says": "Z każdego wpisu para: pole po lewej (np. fragment tekstu) i pole po prawej (puste: teza wpisu) — do „dopasowania par”, np. pięć fragmentów jednego dzieła i ich pięć tez. Wpis bez którejś strony odpada."
+    },
+    "random": {
+      "label": "Losowa wartość",
+      "says": "Losuje liczbę z przedziału (z krokiem) albo jedną pozycję z listy (wpisanej tu albo przychodzącej z lewej) — jeden szablon daje za każdym razem inne pytanie (karta „losowa”: jej historia nie zaczyna się od nowa przy każdym losowaniu). „Ile” > 1: tyle różnych (bez powtórzeń) — np. 4 wpisy do ułożenia w kolejności."
+    },
+    "math": {
+      "label": "Działanie",
+      "says": "Liczy: dodawanie, odejmowanie, mnożenie, dzielenie, potęga, logarytm, zaokrąglanie, reszta z dzielenia."
+    },
+    "calc": {
+      "label": "Oblicz",
+      "says": "Liczy wyrażenia w języku rysunków — np. p0 * p1, mod(p0, 7), round(p0 / 3, 2), sqrt(p0), fmt(p0, 2) — każde w osobnym wierszu albo po „;”, każde daje jedną wartość (np. dystraktory „p0 + 1; p0 - 1; p0 * 2” do „Odpowiedź: jeden wybór”). p0, p1, … to pierwsza liczba z wejścia, n0, n1, … — ile wartości przyszło, l0, l1, … — wszystkie wartości wejścia jako lista (wpisy jako wpisy: sum(l0, it.masa), map(l0, it.label)). Wynik, który jest listą, daje kilka wartości; wynik, który nie jest liczbą (dzielenie przez zero), odpada; gdy wejście, z którego wyrażenie korzysta, nie dało liczby, albo żadne wyrażenie nic nie dało — krok się nie udaje i z tego wpisu nie powstaje karta."
+    },
+    "generate": {
+      "label": "Generator",
+      "says": "Losuje zadanie: liczby z przedziałów (\"params\": [{\"name\": \"s\", \"random\": [20, 500], \"step\": 10}]), pozycje z list ({\"name\": \"f\", \"values\": [\"sin\", \"cos\"]}), wpisy z bazy ({\"name\": \"kation\", \"entry\": {\"kind\": \"@chem/jon\", \"where\": \"it.ladunek > 0\"}}, kilka różnych: \"entries\" z \"count\"), liczy wartości (\"let\": [{\"name\": \"v\", \"value\": \"s / t\"}]) i sprawdza warunki (\"require\": [\"isint(v)\"] — losuje od nowa, najwyżej 60 razy); \"texts\": [{\"name\": \"pytanie\", \"value\": \"Ile to {a} + {b}?\"}] — teksty z wartościami. W wyrażeniach \"this\" to wpis tej karty (this.pole); \"only\": \"this.ladunek > 0\" — tylko takie wpisy rodzaju dostają kartę (inne bez ostrzeżenia). Każda nazwa ma swoje wyjście. Gdy zadania nie da się wylosować, z tego wpisu nie powstaje karta — z powodem w podglądzie."
+    },
+    "aggregate": {
+      "label": "Zbierz",
+      "says": "Zbiera wiele wartości w jedną: suma, ile ich jest, najmniejsza, największa, średnia — np. suma protonów składników związku (pole liczbowe czytane przez odwołanie do wielu wpisów: ten sam składnik dwa razy liczy się dwa razy). „Ile” liczy każdą wartość, także nieliczbową (0, gdy nic nie przyszło); pozostałe tylko liczby — bez żadnej liczby nie dają nic, i z tego wpisu nie powstaje karta."
+    },
+    "compare": {
+      "label": "Porównanie",
+      "says": "Prawda albo fałsz z porównania dwóch liczb lub dat: „urodził się przed …?\"."
+    },
+    "when": {
+      "label": "Warunek",
+      "says": "Karta powstaje tylko wtedy, gdy warunek jest spełniony — np. gdy pole jest wypełnione."
+    },
+    "python": {
+      "label": "Python",
+      "says": "Liczy w Pythonie, w przeglądarce (Pyodide): funkcja run(*wejścia) zwraca wartość albo listę wartości."
+    },
+    "prompt": {
+      "label": "Pytanie",
+      "says": "To, co widzi uczący się: teksty, obrazy, nagrania — w kolejności połączeń z góry na dół."
+    },
+    "answerText": {
+      "label": "Odpowiedź: tekst",
+      "says": "Uczący się wpisuje tekst. Pierwsza wartość jest wzorcowa, kolejne i „inne poprawne\" też się liczą."
+    },
+    "answerGap": {
+      "label": "Odpowiedź: luka w cytacie",
+      "says": "Uczący się uzupełnia lukę. Przyjmuje tekst z luką i zakrytą część (z maski) albo fragment cytatu."
+    },
+    "answerNumber": {
+      "label": "Odpowiedź: liczba",
+      "says": "Uczący się wpisuje liczbę; tolerancja bezwzględna albo w procentach, jednostka do wpisania obok; z wielkością (np. moment siły) liczy się jednostka odpowiedzi: inna jednostka tej samej wielkości jest przeliczana, jednostka innej wielkości — błędem."
+    },
+    "answerDate": {
+      "label": "Odpowiedź: data",
+      "says": "Uczący się wpisuje datę z wymaganą dokładnością (rok, miesiąc, dzień); tolerancja w tych jednostkach."
+    },
+    "answerOne": {
+      "label": "Odpowiedź: jeden wybór",
+      "says": "Uczący się wybiera jedną odpowiedź spośród poprawnej i dystraktorów, w losowej kolejności."
+    },
+    "answerMany": {
+      "label": "Odpowiedź: kilka wyborów",
+      "says": "Uczący się zaznacza wszystkie poprawne spośród poprawnych i dystraktorów."
+    },
+    "answerTruefalse": {
+      "label": "Odpowiedź: prawda albo fałsz",
+      "says": "Uczący się mówi „prawda\" albo „fałsz\"; wartość przychodzi np. z porównania."
+    },
+    "answerOrder": {
+      "label": "Odpowiedź: kolejność",
+      "says": "Uczący się układa pozycje w kolejności — tej, w której przychodzą."
+    },
+    "answerMatch": {
+      "label": "Odpowiedź: dopasowanie par",
+      "says": "Uczący się łączy w pary: pozycje z lewej z pozycjami z prawej (te same miejsca na listach tworzą parę)."
+    },
+    "answerFlash": {
+      "label": "Odpowiedź: fiszka",
+      "says": "Uczący się odwraca kartę i sam ocenia: umiałem, częściowo, nie umiałem."
+    },
+    "answerCode": {
+      "label": "Odpowiedź: kod (Python)",
+      "says": "Uczący się pisze funkcję w Pythonie; sprawdza ją Pyodide w przeglądarce na losowych przypadkach."
+    },
+    "answerPoint": {
+      "label": "Odpowiedź: punkt",
+      "says": "Uczący się wskazuje miejsce na mapie (z pola „miejsce\") albo punkt na obrazie."
+    },
+    "card": {
+      "label": "Karta",
+      "says": "Składa kartę: pytanie, odpowiedź i (po odpowiedzi) wyjaśnienie z połączonych wpisów. Dla zadań z generatora: „Podpowiedzi” (teksty, od łagodnej do konkretnej) i „Rozwiązanie” (tekst z wylosowanymi wartościami i wynikami pośrednimi — po odpowiedzi)."
+    }
+  },
+  "group": {
+    "data": "Dane",
+    "statement": "Wypowiedź",
+    "text": "Tekst",
+    "choice": "Wybór",
+    "numbers": "Liczby",
+    "card": "Karta",
+    "answer": "Odpowiedź"
+  },
+  "port": {
+    "fromEntries": "Z wpisów",
+    "result": "Wynik",
+    "entries": "Wpisy",
+    "values": "Wartości",
+    "correctOne": "Poprawna",
+    "rightSide": "Prawa strona",
+    "leftSide": "Lewa strona",
+    "distractors": "Dystraktory",
+    "hidden": "Zakryte",
+    "value": "Wartość",
+    "text": "Tekst",
+    "question": "Pytanie",
+    "trueFalse": "Prawda / fałsz",
+    "correctMany": "Poprawne",
+    "answer": "Odpowiedź",
+    "parts": "Części",
+    "withGap": "Z luką",
+    "fromList": "Z listy",
+    "explanation": "Wyjaśnienie",
+    "chosen": "Wybrany",
+    "entry": "Wpis",
+    "inOrder": "W dobrej kolejności",
+    "thesis": "Teza",
+    "textWithGap": "Tekst z luką",
+    "solution": "Rozwiązanie",
+    "rest": "Reszta",
+    "rightLike": "Prawa: porównaj z",
+    "items": "Pozycje",
+    "others": "Pozostałe",
+    "compareWith": "Porównaj z",
+    "hints": "Podpowiedzi",
+    "files": "Pliki",
+    "matching": "Pasujące",
+    "startEntries": "Od wpisów",
+    "place": "Miejsce",
+    "list": "Lista",
+    "authorList": "Lista autora",
+    "numbers": "Liczby",
+    "number": "Liczba",
+    "leftLike": "Lewa: porównaj z",
+    "columnB": "Kolumna B",
+    "columnA": "Kolumna A",
+    "eachOnce": "Każda raz",
+    "card": "Karta",
+    "otherCorrect": "Inne poprawne",
+    "whereField": "Gdzie pole ma",
+    "fragments": "Fragmenty",
+    "fragment": "Fragment",
+    "back": "Druga strona",
+    "onward": "Dalej",
+    "quote": "Cytat",
+    "whole": "Całość",
+    "inputN": "wejście {n}"
+  },
+  "error": {
+    "filterNothing": "Filtr nie ma z czym porównać: podłącz „Porównaj z\" albo wpisz wartość.",
+    "entriesNothing": "„Wpisy rodzaju\" z polem nie mają z czym porównać: podłącz „Gdzie pole ma\" albo wpisz wartość.",
+    "pairsFields": "Pary potrzebują pola z wartościami (np. słowa) i pola, według którego się dzielą (np. język).",
+    "pairsLeft": "Pary nie wiedzą, co jest po lewej: podłącz „Lewa: porównaj z\" albo wpisz wartość.",
+    "randomItems": "„Losowa wartość\": potrzeba {count} różnych pozycji, jest {have}.",
+    "randomRange": "„Losowa wartość\": w przedziale jest tylko {have} liczb, a potrzeba {count} różnych.",
+    "cannotCompute": "Tego nie da się policzyć (brak liczby albo dzielenie przez zero).",
+    "calcEmpty": "„Oblicz” nie ma wyrażenia — wpisz np. p0 + 1.",
+    "inputNoNumber": "Wejście {inputs} nie dało liczby (puste pole?).",
+    "tooMuch": "„{source}”: za dużo obliczeń.",
+    "noExprNumber": "Żadne wyrażenie nie dało liczby (np. dzielenie przez zero).",
+    "onlyFor": "Generator, „tylko dla” — „{only}”: {error}.",
+    "generatorEmpty": "Generator nie ma nic do losowania — dodaj \"params\", \"let\" albo \"texts\".",
+    "noTask": "Zadania nie dało się wylosować.",
+    "compareNeeds": "Do porównania potrzeba dwóch liczb albo dat.",
+    "noPython": "Python nie jest tu dostępny."
+  },
+  "value": {
+    "true": "prawda",
+    "false": "fałsz"
+  }
+}

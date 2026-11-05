@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { CogitaLibrary, type Source } from '../cogita/store';
 import type { KindDef } from '../cogita/schema';
 import type { Me } from '../core/me';
+import { t } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { libraryKindOf, loadLibraries, openLibraries } from '../library/library';
 import { storeOf, type Entry, type LibraryStore } from '../library/libraryStore';
@@ -26,7 +27,7 @@ export class ScriptoriumLens extends CogitaLibrary {
   override get kinds(): readonly KindDef[] { return []; }
 
   override async saveEntity(): Promise<Entry> {
-    throw new WorkspaceError('Wpisy bazy wiedzy dodaje się w Wiedzy — tu można je tylko wskazać.');
+    throw new WorkspaceError(t('scriptorium.lens.noCreate'));
   }
 }
 

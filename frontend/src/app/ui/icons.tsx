@@ -1,3 +1,4 @@
+/* i18n-ignore-file — Pfade der Zeichen, kein Text. */
 /**
  * DIE ZEICHEN — eine Sammlung für die ganze Anwendung (2026-10-16).
  *

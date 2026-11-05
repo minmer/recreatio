@@ -16,12 +16,14 @@ import { useEffect, useState } from 'react';
 import { areaPath, loadAreas, type AreaRow } from '../areas/area';
 import { loadChats, type ChatRow } from './chat';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
 export function PickChat({ value, busy, onPick }: {
   value: string;
   busy: boolean;
   onPick: (chatId: string) => void;
 }) {
+  const t = useT();
   const [rows, setRows] = useState<readonly ChatRow[] | null>(null);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
 
@@ -36,7 +38,7 @@ export function PickChat({ value, busy, onPick }: {
     return () => { alive = false; };
   }, []);
 
-  if (rows === null) return <Loading label="Wczytywanie rozmów…" />;
+  if (rows === null) return <Loading label={t('chat.pick.loading')} />;
 
   const known = value === '' || rows.some((r) => r.chatId === value);
   const nameOf = (chat: ChatRow) =>
@@ -45,19 +47,19 @@ export function PickChat({ value, busy, onPick }: {
   return (
     <>
       <select value={known ? value : ''} disabled={busy} onChange={(e) => onPick(e.target.value)}>
-        <option value="">— wybierz rozmowę —</option>
+        <option value="">{t('chat.pick.choose')}</option>
         {rows.map((r) => <option key={r.chatId} value={r.chatId}>{nameOf(r)}</option>)}
       </select>
 
       {rows.length === 0 && (
         <span className="wk-hint">
-          Nie masz jeszcze żadnej rozmowy grupowej. Załóż ją w „Rozmowy" — potem wróć tutaj i wybierz.
+          {t('chat.pick.none')}
         </span>
       )}
 
       {!known && (
         <span className="wk-blocker">
-          Teraz stoi tu „{value}" — to nie jest żadna z Twoich rozmów. Wybierz właściwą.
+          {t('chat.pick.unknown', { value })}
         </span>
       )}
     </>

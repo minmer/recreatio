@@ -9,6 +9,7 @@
 
 import { ALERT_KINDS, alertLabel, moveAlert, toggleAlert, useAlertSettings, type AlertItem } from './alerts';
 import { markFormSeen, markLinksSeen } from '../notify/notify';
+import { useT } from '../core/i18n';
 
 export function AlertRows({ items, compact = false, onPick }: {
   items: readonly AlertItem[];
@@ -16,6 +17,7 @@ export function AlertRows({ items, compact = false, onPick }: {
   compact?: boolean;
   onPick?: () => void;
 }) {
+  const t = useT();
   if (compact) {
     const kinds = [...new Set(items.map((one) => one.kind))];
     return (
@@ -46,7 +48,7 @@ export function AlertRows({ items, compact = false, onPick }: {
             <span className="wk-alert-n">{one.detail}</span>
           </a>
           {one.seen !== undefined && (
-            <button type="button" className="wk-bell-done" title="Przejrzane — nie pokazuj już jako nowe" aria-label={`${one.label}: przejrzane`}
+            <button type="button" className="wk-bell-done" title={t('workspace.alertList.seenTitle')} aria-label={t('workspace.alertList.seenAria', { name: one.label })}
               onClick={() => { if ('form' in one.seen!) void markFormSeen(one.seen.form); else markLinksSeen(); }}>✓</button>
           )}
         </li>
@@ -58,9 +60,10 @@ export function AlertRows({ items, compact = false, onPick }: {
 /** Welche Arten sich melden, und in welcher Reihenfolge — für das Konto. */
 export function AlertSettingsEditor() {
   const [settings, setSettings] = useAlertSettings();
+  const t = useT();
 
   return (
-    <ol className="wk-alert-order" aria-label="Kolejność powiadomień">
+    <ol className="wk-alert-order" aria-label={t('workspace.alertList.order')}>
       {settings.order.map((kind, i) => {
         const def = ALERT_KINDS.find((one) => one.kind === kind)!;
         const on = !settings.off.includes(kind);
@@ -71,9 +74,9 @@ export function AlertSettingsEditor() {
               <span><strong>{def.label}</strong><span className="wk-hint">{def.says}</span></span>
             </label>
             <span className="wk-alert-move">
-              <button type="button" className="wk-icon-btn" aria-label={`${def.label}: wyżej`} disabled={i === 0}
+              <button type="button" className="wk-icon-btn" aria-label={t('workspace.alertList.up', { name: def.label })} disabled={i === 0}
                 onClick={() => setSettings(moveAlert(settings, kind, -1))}>↑</button>
-              <button type="button" className="wk-icon-btn" aria-label={`${def.label}: niżej`} disabled={i === settings.order.length - 1}
+              <button type="button" className="wk-icon-btn" aria-label={t('workspace.alertList.down', { name: def.label })} disabled={i === settings.order.length - 1}
                 onClick={() => setSettings(moveAlert(settings, kind, 1))}>↓</button>
             </span>
           </li>

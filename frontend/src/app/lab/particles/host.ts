@@ -12,6 +12,7 @@
  * Engine rechnet dann auf gemeinsamem Speicher mit allen (`engine/runner.ts`).
  */
 
+import { t } from '../../core/i18n';
 import type { ParticleInfo } from './engine/engine';
 import type { HostMessage, HostStats, View, WorkerMessage } from './engine/protocol';
 import type { HeaterMode, Op, Quality } from './engine/scene';
@@ -53,7 +54,7 @@ export class ParticleHost {
     this.createHelper = createHelper;
     this.worker = createWorker();
     this.worker.addEventListener('message', (e: MessageEvent<WorkerMessage>) => this.receive(e.data));
-    this.worker.addEventListener('error', (e) => events.onError(e.message || 'Silnik przestał działać.'));
+    this.worker.addEventListener('error', (e) => events.onError(e.message || t('labParticles.engineStopped')));
   }
 
   /** Starten: zuerst fragen, wo gezeichnet wird, dann die Szene laden. */
@@ -70,7 +71,7 @@ export class ParticleHost {
       return;
     }
     const gl = this.canvas.getContext('webgl2', { antialias: true, premultipliedAlpha: true, alpha: false });
-    if (gl === null) this.events.onError('Ta przeglądarka nie obsługuje WebGL2 — laboratorium liczy, ale nie rysuje.');
+    if (gl === null) this.events.onError(t('labParticles.noWebgl2'));
     else this.renderer = new ParticleRenderer(gl);
     this.sizeCanvas();
     this.post({ type: 'init', canvas: null, width, height, dpr, scene, showAir, helpers: ports }, ports);

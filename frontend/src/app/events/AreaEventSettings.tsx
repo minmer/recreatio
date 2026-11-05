@@ -14,6 +14,7 @@ import { pagePath } from '../routes';
 import { toast } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
 import { askListing, CATALOGUE_PATH, loadListings, LISTING_WORDS, type Listing } from './events';
+import { useT } from '../core/i18n';
 
 const failure = (e: unknown, fallback: string): string => (e instanceof WorkspaceError ? e.message : fallback);
 
@@ -31,6 +32,7 @@ export function Listings({ areaId, editable }: { areaId: string; editable: boole
   const [address, setAddress] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -39,18 +41,18 @@ export function Listings({ areaId, editable }: { areaId: string; editable: boole
   }, [areaId, round]);
 
   const askFor = async (path: string) => {
-    if (path === '') { setFailed('Podaj adres strony z listą.'); return; }
+    if (path === '') { setFailed(t('events.listings.giveAddress')); return; }
     setBusy(true);
     setFailed(null);
     try {
       const out = await askListing(areaId, { path });
-      toast(out.state === 'shown' ? 'Już jest na tej liście.'
-        : out.catalogue ? 'Prośba wysłana — zdecyduje operator serwisu.'
-        : 'Prośba wysłana — zdecyduje ten, kto prowadzi tę listę.', { kind: 'ok' });
+      toast(out.state === 'shown' ? t('events.listings.already')
+        : out.catalogue ? t('events.listings.sentOperator')
+        : t('events.listings.sentOwner'), { kind: 'ok' });
       setAddress('');
       setRound((n) => n + 1);
     } catch (e) {
-      setFailed(failure(e, 'Nie udało się wysłać prośby.'));
+      setFailed(failure(e, t('events.listings.sendFailed')));
     } finally {
       setBusy(false);
     }
@@ -60,14 +62,14 @@ export function Listings({ areaId, editable }: { areaId: string; editable: boole
 
   return (
     <section className="wk-event-listings" aria-labelledby={`event-listings-${areaId}`}>
-      <h2 className="wk-h2" id={`event-listings-${areaId}`}>Na innych listach</h2>
-      {list === null ? <Loading lines={1} /> : list === 'failed' ? <p className="wk-error">Nie udało się wczytać list.</p> : list.length === 0 ? (
-        <p className="wk-card-muted">Nie stoi jeszcze na żadnej obcej liście.</p>
+      <h2 className="wk-h2" id={`event-listings-${areaId}`}>{t('events.listings.title')}</h2>
+      {list === null ? <Loading lines={1} /> : list === 'failed' ? <p className="wk-error">{t('events.listings.loadFailed')}</p> : list.length === 0 ? (
+        <p className="wk-card-muted">{t('events.listings.none')}</p>
       ) : (
         <ul className="wk-event-listing-rows">
           {list.map((one) => (
             <li key={one.moduleId} data-listing={one.state}>
-              {one.path === null ? <span>lista bez strony</span> : <a className="wk-link" href={pagePath(one.path)}>recreatio.pl/{one.path}</a>}
+              {one.path === null ? <span>{t('events.listings.noPage')}</span> : <a className="wk-link" href={pagePath(one.path)}>{`recreatio.pl/${one.path}`}</a>}
               <span className={one.state === 'shown' ? 'wk-tag wk-tag-open' : 'wk-tag'}>{LISTING_WORDS[one.state]}</span>
             </li>
           ))}
@@ -77,14 +79,14 @@ export function Listings({ areaId, editable }: { areaId: string; editable: boole
       {editable && (
         <form className="wk-event-ask" onSubmit={(e) => { e.preventDefault(); void askFor(listPathOf(address)); }}>
           <label className="wk-field">
-            <span>Pokaż też na…</span>
-            <input value={address} disabled={busy} placeholder="adres strony z listą, np. recreatio.pl/#/parafia/wydarzenia" onChange={(e) => setAddress(e.target.value)} />
+            <span>{t('events.listings.showAlso')}</span>
+            <input value={address} disabled={busy} placeholder={t('events.listings.placeholder')} onChange={(e) => setAddress(e.target.value)} />
           </label>
           <div className="wk-actions">
-            <button type="submit" className="wk-btn wk-btn-line wk-btn-small" disabled={busy || address.trim() === ''}>Poproś</button>
+            <button type="submit" className="wk-btn wk-btn-line wk-btn-small" disabled={busy || address.trim() === ''}>{t('events.listings.ask')}</button>
             {!inCatalogue && (
               <button type="button" className="wk-link-btn" disabled={busy} data-event-catalogue="" onClick={() => void askFor(CATALOGUE_PATH)}>
-                Poproś o miejsce w katalogu recreatio.pl/{CATALOGUE_PATH} — decyduje operator serwisu
+                {t('events.listings.askCatalogue', { path: CATALOGUE_PATH })}
               </button>
             )}
           </div>

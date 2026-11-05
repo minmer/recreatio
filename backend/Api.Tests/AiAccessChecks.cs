@@ -143,6 +143,52 @@ internal static class AiAccessChecks
             && Crypto.InfoAiOAuthCode(id) == "recreatio:v1:ai-oauth-code:01a16af6-5a94-718f-b8b5-abdb3ab6918b", "OAuth: the code's seal is bound to its grant");
 
         {
+            /* 0138 — eine Verbindung, die Bereiche dazubekommt, ohne neu anzumelden. */
+            var conn = Guid.Parse("01a1b000-0000-7000-8000-000000000001");
+            var other = Guid.Parse("01a1b000-0000-7000-8000-000000000002");
+            check(Aad.FieldName(Field.AiMcpConnection) == "ai_mcp_connection" && Aad.FieldName(Field.AiMcpLink) == "ai_mcp_link"
+                && AiMcpConnections.PrivateAad(conn).Text == "ai:mcp:01a1b000-0000-7000-8000-000000000001:ai_mcp_connection:1"
+                && AiMcpConnections.LinkAad(conn, id).Text == "ai:mcp-01a1b000-0000-7000-8000-000000000001:01a16af6-5a94-718f-b8b5-abdb3ab6918b:ai_mcp_link:1"
+                && Crypto.InfoAiMcpConnection(conn) == "recreatio:v1:ai-mcp-connection:01a1b000-0000-7000-8000-000000000001",
+                "0138: a connection's private key is bound to it, a wrapped link to the connection AND the link");
+
+            var secret = Token.NewSecret();
+            var bearer = AiMcpConnections.Prefix + secret;
+            check(AiMcpConnections.SecretOf(bearer) == secret && AiMcpConnections.SecretOf(" " + bearer + " ") == secret
+                && AiMcpConnections.SecretOf(secret) is null && AiMcpConnections.SecretOf(AiMcpConnections.Prefix + "kurz") is null && AiMcpConnections.SecretOf(null) is null,
+                "0138: a connection token is rcm~<secret>; a bare link secret is not one");
+            check(AiMcp.SecretsOf(bearer).Count == 0 && AiMcp.SecretsOf($"{token}.{token}").Count == 1,
+                "0138: a connection token is never read as a list of links, and old tokens (a list of links) still are");
+
+            var (publicKey, privateSealed) = AiMcpConnections.NewKeys(secret, conn);
+            var linkSecret = Token.NewSecret();
+            var wrappedLink = AiMcpConnections.WrapLink(publicKey, conn, id, linkSecret);
+            using (var opened = AiMcpConnections.OpenPrivate(secret, conn, privateSealed))
+            {
+                check(AiMcpConnections.UnwrapLink(opened, conn, id, wrappedLink) == linkSecret,
+                    "0138: a link added later (wrapped with the public key, no token needed) opens with the connection's token");
+                check(AiMcpConnections.UnwrapLink(opened, conn, library, wrappedLink) is null && AiMcpConnections.UnwrapLink(opened, other, id, wrappedLink) is null,
+                    "0138: a wrapped link cannot be moved to another link or another connection");
+            }
+            check(Fails(() => AiMcpConnections.OpenPrivate(Token.NewSecret(), conn, privateSealed)) && Fails(() => AiMcpConnections.OpenPrivate(secret, other, privateSealed)),
+                "0138: without the token (the database alone) or under another connection, the private key stays shut");
+            check(privateSealed.AsSpan().IndexOf(Encoding.UTF8.GetBytes(secret)) == -1 &&wrappedLink.AsSpan().IndexOf(Encoding.UTF8.GetBytes(linkSecret)) == -1,
+                "0138: neither the token nor a link secret is stored in the clear");
+
+            /* Der Baum: der Elternteil ist der nächste FREIGEGEBENE Vorfahr — ein Bereich dazwischen erscheint nie. */
+            Guid A = Guid.Parse("01a1b000-0000-7000-8000-00000000000a"), B = Guid.Parse("01a1b000-0000-7000-8000-00000000000b"),
+                 C = Guid.Parse("01a1b000-0000-7000-8000-00000000000c"), D = Guid.Parse("01a1b000-0000-7000-8000-00000000000d"),
+                 X = Guid.Parse("01a1b000-0000-7000-8000-0000000000ff");
+            var tree = AiMcpTools.TreeOf(new Dictionary<Guid, IReadOnlyList<Guid>> { [A] = [X], [B] = [A, X], [C] = [D, B, A, X], [D] = [B, A, X] });
+            check(tree[A] is { Parent: null, Depth: 0 } && tree[B].Parent == A && tree[D].Parent == B && tree[C].Parent == D && tree[C].Depth == 3
+                && tree[A].Children.SequenceEqual([B]) && !tree.ContainsKey(X), "0138: the hierarchy of authorized areas — an unauthorized root stays out");
+            var gap = AiMcpTools.TreeOf(new Dictionary<Guid, IReadOnlyList<Guid>> { [A] = [], [C] = [B, A] });
+            check(gap[C].Parent == A && gap[C].Depth == 1 && gap[A].Children.SequenceEqual([C]) && !gap.ContainsKey(B),
+                "0138: an unauthorized area in between is skipped, never named");
+            check(AiMcpTools.ReadOnlyPermissions.SequenceEqual(["read"]), "0138: every authorized area is read-only");
+        }
+
+        {
             /* 2026-10-28 — die Formate der JSON-Importe für Assistenten (ImportFormats.json, aus der App erzeugt). */
             var importFormats = ImportFormats.All;
             string[] formatIds = ["library", "work-with-text", "source-text", "knowledge-base", "knowledge-forms", "scriptorium", "page", "area", "calendar-scheme", "calendar-plan", "registry", "guide-book", "guide-argument", "scheme-fakty", "scheme-zbior", "example-atom",

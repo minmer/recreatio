@@ -15,6 +15,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { fmtDate, rich, useT } from '../core/i18n';
 import { loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
 import { storeOf, useLibraryStore } from '../library/libraryStore';
 import { blocksIn, blocksMarkup } from '../library/blocks';
@@ -53,6 +54,7 @@ function proposalData(kind: KindDef | undefined, text: string, answer: string, a
 
 /** Für Lesende: einen Vorschlag schreiben — zu einem Eintrag, als Pytanie oder als Wypowiedź (ein Rodzaj mit Feld blocks). */
 export function Propose({ about, onDone }: { about?: string; onDone?: () => void }) {
+  const t = useT();
   const { lib, me } = useCtx();
   const target = useContributionLibrary();
   const choices = useMemo(() => [...lib.kinds.filter(isStatementKind), ...lib.refKinds.filter((k) => k.id === 'question')],
@@ -66,8 +68,8 @@ export function Propose({ about, onDone }: { about?: string; onDone?: () => void
   const [entity, setEntity] = useState<string | null>(about ?? null);
   const { busy, failed, run } = useBusy();
   const [said, setSaid] = useState<string | null>(null);
-  if (target === undefined) return <Loading label="Wczytywanie…" />;
-  if (target === null || me === null) return <p className="wk-hint">Autorzy tej bazy wiedzy nie przyjmują jeszcze propozycji.</p>;
+  if (target === undefined) return <Loading label={t('cogitaViews.propose.loading')} />;
+  if (target === null || me === null) return <p className="wk-hint">{t('cogitaViews.propose.closed')}</p>;
   return (
     <form className="wk-form cg" onSubmit={(e) => { e.preventDefault(); void run(async () => {
       const store = storeOf(me.ring, target);
@@ -75,17 +77,17 @@ export function Propose({ about, onDone }: { about?: string; onDone?: () => void
       await store.save({ kind: 'entity', data: {
         _kinds: [kind?.id ?? 'question'], ...proposalData(kind, text, answer, entity), _for: lib.libraryId, _proposedAt: new Date().toISOString()
       } });
-      setText(''); setAnswer(''); setSaid('Dziękujemy — autor zobaczy propozycję.'); onDone?.();
+      setText(''); setAnswer(''); setSaid(t('cogitaViews.propose.thanks')); onDone?.();
     }); }}>
       <div className="cg-row">
         <select value={kind?.id ?? 'question'} onChange={(e) => setKind(e.target.value)}>
-          {choices.map((k) => <option key={k.id} value={k.id}>{k.id === 'question' ? 'pytanie' : k.name.toLowerCase()}</option>)}
+          {choices.map((k) => <option key={k.id} value={k.id}>{k.id === 'question' ? t('cogitaViews.propose.question') : k.name.toLowerCase()}</option>)}
         </select>
-        <EntityPicker lib={lib} value={entity} onPick={setEntity} placeholder="do którego wpisu?" />
+        <EntityPicker lib={lib} value={entity} onPick={setEntity} placeholder={t('cogitaViews.propose.whichEntry')} />
       </div>
-      <textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={asks ? 'Treść pytania' : 'Co warto wiedzieć? Pierwsze zdanie to teza.'} required />
-      {asks && <textarea rows={2} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Poprawne odpowiedzi, każda w wierszu" />}
-      <button type="submit" className="wk-btn" disabled={busy || text.trim() === ''}>Zaproponuj</button>
+      <textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={asks ? t('cogitaViews.propose.questionText') : t('cogitaViews.propose.statementText')} required />
+      {asks && <textarea rows={2} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder={t('cogitaViews.propose.answers')} />}
+      <button type="submit" className="wk-btn" disabled={busy || text.trim() === ''}>{t('cogitaViews.propose.submit')}</button>
       {failed !== null && <p className="wk-error">{failed}</p>}
       {said !== null && <p className="wk-hint">{said}</p>}
     </form>
@@ -94,6 +96,7 @@ export function Propose({ about, onDone }: { about?: string; onDone?: () => void
 
 /** Für Autoren: die Vorschläge — annehmen (in den Kurs) oder ablehnen. */
 export function Contributions() {
+  const t = useT();
   const { lib, me } = useCtx();
   const target = useContributionLibrary();
   const { store } = useLibraryStore(me?.ring ?? null, target ?? null);
@@ -101,12 +104,12 @@ export function Contributions() {
   const proposals = useMemo(() => (store === null ? [] : store.all().filter((e) => e.kind === 'entity' && e.data._for === lib.libraryId && e.data._acceptedAt === undefined)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [store, store?.revision, lib.libraryId]);
-  if (target === undefined) return <Loading label="Wczytywanie…" />;
-  if (target === null) return <p className="wk-hint">Wybierz w Ustawieniach bazę wiedzy na propozycje (w obszarze, w którym czytający mogą pisać).</p>;
+  if (target === undefined) return <Loading label={t('cogitaViews.propose.loading')} />;
+  if (target === null) return <p className="wk-hint">{t('cogitaViews.propose.pickLibrary')}</p>;
   if (store === null) return null;
   return (
     <div className="cg">
-      {proposals.length === 0 ? <p className="wk-empty">Nie ma nowych propozycji.</p> : proposals.map((p) => {
+      {proposals.length === 0 ? <p className="wk-empty">{t('cogitaViews.propose.none')}</p> : proposals.map((p) => {
         const entity = entityOf(p);
         const kind = entity === null ? undefined : lib.kind(entity.kinds[0] ?? '');
         const blocks = kind?.fields.find((f) => f.type === 'blocks');
@@ -116,9 +119,9 @@ export function Contributions() {
         return (
           <div key={p.id} className="cg-card">
             {/* 2026-11-01 — Name des Eintrags und Antworten mit ihren Wzory. */}
-            <span className="cg-muted">{kind === undefined ? 'Wiedza (dawny rodzaj — tylko do odrzucenia)' : kind.name}{about !== '' ? <> · do „<TexText text={entityNameTex(lib, about)} />”</> : ''} · {typeof p.data._proposedAt === 'string' ? new Date(p.data._proposedAt).toLocaleDateString('pl-PL') : ''}</span>
+            <span className="cg-muted">{kind === undefined ? t('cogitaViews.propose.oldKind') : kind.name}{about !== '' ? rich(t('cogitaViews.propose.about', { name: about }), { b: () => <TexText text={entityNameTex(lib, about)} /> }) : ''} · {typeof p.data._proposedAt === 'string' ? fmtDate(new Date(p.data._proposedAt), { day: '2-digit', month: '2-digit', year: 'numeric' }, t.lang) : ''}</span>
             <Markup text={blocks === undefined ? String(p.data.text ?? p.data.prompt ?? '') : blocksMarkup(blocksIn(p.data[blocks.key]))} />
-            {Array.isArray(p.data.answers) && <span className="cg-muted">Odpowiedzi: <TexText text={(p.data.answers as unknown[]).join(', ')} /></span>}
+            {Array.isArray(p.data.answers) && <span className="cg-muted">{t('cogitaViews.propose.answersLabel')} <TexText text={(p.data.answers as unknown[]).join(', ')} /></span>}
             <div className="cg-row">
               <button type="button" className="wk-btn" disabled={busy || kind === undefined || entity === null} onClick={() => void run(async () => {
                 if (kind === undefined || entity === null) return;
@@ -127,14 +130,14 @@ export function Contributions() {
                 /* 2026-10-23 — die Bibliothek hält nur Quellen: was angenommen wird, bleibt in dieser Baza. */
                 await lib.saveEntity({ kinds: entity.kinds, data });
                 await store.save({ id: p.id, kind: p.kind, data: { ...p.data, _acceptedAt: new Date().toISOString() } });
-              })}>Przyjmij do kursu</button>
-              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => store.remove(p.id))}>Odrzuć</button>
+              })}>{t('cogitaViews.propose.accept')}</button>
+              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => store.remove(p.id))}>{t('cogitaViews.propose.reject')}</button>
             </div>
           </div>
         );
       })}
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {isObject(target) && <p className="wk-hint">Propozycje leżą w bazie wiedzy „{target.name}".</p>}
+      {isObject(target) && <p className="wk-hint">{t('cogitaViews.propose.where', { name: target.name })}</p>}
     </div>
   );
 }

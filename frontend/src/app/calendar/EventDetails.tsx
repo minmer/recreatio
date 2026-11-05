@@ -10,7 +10,7 @@ import { longDate, sameDay } from '../core/dayMath';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { Modal } from '../ui/Modal';
-import { type CalendarRow, DUTY_LABEL, setPeople } from './calendar';
+import { type CalendarRow, setPeople } from './calendar';
 import { calendarLabel } from './calendarLabel';
 import { type CalEvent, programOf } from './calendarModel';
 import { dutyOf, peopleWord, time } from './eventWords';
@@ -20,6 +20,7 @@ import { useCalendarDocs } from './calendarDocs';
 import { RecordsPanel } from './RecordsPanel';
 import { schemeOf, shownLists, shownValue } from './scheme';
 import { SchemeValue } from './SchemeInput';
+import { rich, useT } from '../core/i18n';
 
 /**
  * 0070 — DAS PROGRAMM EINES TERMINS: seine Teile (aus den geladenen
@@ -52,6 +53,7 @@ export function ProgramOf({ itemId, start, end, events, parentId, onQuickAdd, on
   onLink?: (childItemId: string) => Promise<void>;
   onUnlink?: (childItemId: string) => Promise<void>;
 }) {
+  const t = useT();
   const [linking, setLinking] = useState(false);
   /* Der neue Punkt, solange er eingetippt wird — `null`: zu. */
   const [draft, setDraft] = useState<{ title: string; time: string; until: string } | null>(null);
@@ -109,21 +111,21 @@ export function ProgramOf({ itemId, start, end, events, parentId, onQuickAdd, on
     setAdding(true);
     setAddFailed(null);
     void onQuickAdd(draft.title.trim(), at, minutes)
-      .then(() => setDraft(null), (e: unknown) => setAddFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się dodać punktu.'))
+      .then(() => setDraft(null), (e: unknown) => setAddFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.details.addPartFailed')))
       .finally(() => setAdding(false));
   };
 
-  const label = (e: CalEvent) => `${e.title} · ${e.allDay ? longDate(e.start) : `${longDate(e.start)} ${time(e.start)}`}`;
+  const label = (e: CalEvent) => `${e.title} · ${e.allDay ? longDate(e.start, t.lang) : `${longDate(e.start, t.lang)} ${time(e.start)}`}`;
 
   return (
-    <section className="wk-ev-program" aria-label="Program">
+    <section className="wk-ev-program" aria-label={t('calendarApp.details.program')}>
       {parts.length > 0 ? (
         <ol className="wk-ev-program-list">
           {parts.map((p) => (
             <li key={programOf(p)!.itemId} className="wk-ev-program-row">
               {/* Am Tag des Ganzen genügt die Uhrzeit. */}
               <span className="wk-ev-part-time">
-                {p.allDay ? longDate(p.start) : sameDay(p.start, start) ? `${time(p.start)}–${time(p.end)}` : `${longDate(p.start)} ${time(p.start)}`}
+                {p.allDay ? longDate(p.start, t.lang) : sameDay(p.start, start) ? `${time(p.start)}–${time(p.end)}` : `${longDate(p.start, t.lang)} ${time(p.start)}`}
               </span>
               <span className="wk-ev-program-main">
                 {onOpen !== undefined
@@ -133,16 +135,16 @@ export function ProgramOf({ itemId, start, end, events, parentId, onQuickAdd, on
               </span>
               {onUnlink !== undefined && (
                 <button type="button" className="wk-link-btn wk-ev-program-unlink" disabled={linking}
-                  onClick={() => { setLinking(true); void onUnlink(programOf(p)!.itemId).finally(() => setLinking(false)); }}>odłącz</button>
+                  onClick={() => { setLinking(true); void onUnlink(programOf(p)!.itemId).finally(() => setLinking(false)); }}>{t('calendarApp.details.unlink')}</button>
               )}
             </li>
           ))}
         </ol>
-      ) : <p className="wk-empty">Jeszcze bez punktów programu.</p>}
+      ) : <p className="wk-empty">{t('calendarApp.details.noParts')}</p>}
 
       {draft !== null && (
         <div className="wk-ev-program-new">
-          <input aria-label="Nazwa punktu" placeholder="Nazwa punktu, np. Obiad" value={draft.title} maxLength={200} autoFocus disabled={adding}
+          <input aria-label={t('calendarApp.details.partName')} placeholder={t('calendarApp.details.partNamePlaceholder')} value={draft.title} maxLength={200} autoFocus disabled={adding}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             onKeyDown={(e) => {
               /* Enter dodaje punkt — nie zapisuje całego terminu (to pole stoi w jego formularzu). */
@@ -150,33 +152,33 @@ export function ProgramOf({ itemId, start, end, events, parentId, onQuickAdd, on
               if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setDraft(null); }
             }} />
           <span className="wk-ev-program-span">
-            <input type="time" aria-label="Początek punktu" title="Początek" step={300} value={draft.time} disabled={adding}
+            <input type="time" aria-label={t('calendarApp.details.partStart')} title={t('common.start')} step={300} value={draft.time} disabled={adding}
               onChange={(e) => moveStart(e.target.value)} />
             <span aria-hidden="true">–</span>
-            <input type="time" aria-label="Koniec punktu" title="Koniec" step={300} value={draft.until} disabled={adding}
+            <input type="time" aria-label={t('calendarApp.details.partEnd')} title={t('common.end')} step={300} value={draft.until} disabled={adding}
               onChange={(e) => setDraft({ ...draft, until: e.target.value })} />
           </span>
           <button type="button" className="wk-btn wk-btn-small" disabled={adding || draft.title.trim() === '' || draftMinutes <= 0} onClick={addPart}>
-            {adding ? 'Dodawanie…' : 'Dodaj'}
+            {adding ? t('calendarApp.details.adding') : t('common.add')}
           </button>
-          <button type="button" className="wk-link-btn" disabled={adding} onClick={() => setDraft(null)}>Anuluj</button>
-          {draftMinutes <= 0 && draft.time !== '' && draft.until !== '' && <p className="wk-error">Koniec musi być po początku.</p>}
+          <button type="button" className="wk-link-btn" disabled={adding} onClick={() => setDraft(null)}>{t('common.cancel')}</button>
+          {draftMinutes <= 0 && draft.time !== '' && draft.until !== '' && <p className="wk-error">{t('calendarApp.details.endAfterStart')}</p>}
           {addFailed !== null && <p className="wk-error">{addFailed}</p>}
         </div>
       )}
 
       <div className="wk-actions wk-ev-program-add">
         {onQuickAdd !== undefined && draft === null && (
-          <button type="button" className="wk-link-btn" onClick={openDraft}>+ Nowy punkt programu</button>
+          <button type="button" className="wk-link-btn" onClick={openDraft}>{t('calendarApp.details.newPart')}</button>
         )}
         {onLink !== undefined && childChoices.length > 0 && (
-          <select value="" disabled={linking} aria-label="Podłącz istniejący termin"
+          <select value="" disabled={linking} aria-label={t('calendarApp.details.link')}
             onChange={(e) => {
               if (e.target.value === '') return;
               setLinking(true);
               void onLink(e.target.value).finally(() => setLinking(false));
             }}>
-            <option value="">{linking ? 'Podłączanie…' : '+ Podłącz istniejący termin…'}</option>
+            <option value="">{linking ? t('calendarApp.details.linking') : t('calendarApp.details.linkOption')}</option>
             {childChoices.map((e) => <option key={programOf(e)!.itemId} value={programOf(e)!.itemId}>{label(e)}</option>)}
           </select>
         )}
@@ -195,6 +197,7 @@ export function Details({ me, areas, calendars, event, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const item = event.item;
   const occurrence = item?.occurrence;
   const calendar = occurrence === undefined ? undefined : calendars.find((c) => c.calendarId === occurrence.calendarId);
@@ -218,8 +221,8 @@ export function Details({ me, areas, calendars, event, onClose, onSaved }: {
   const lists = occurrence === undefined ? [] : shownLists(scheme.def, occurrence.kind);
 
   const when = event.allDay
-    ? longDate(event.start)
-    : `${longDate(event.start)}, ${time(event.start)}–${time(event.end)}`;
+    ? longDate(event.start, t.lang)
+    : `${longDate(event.start, t.lang)}, ${time(event.start)}–${time(event.end)}`;
   const repeating = occurrence !== undefined && occurrence.series.repeatKind !== 'none';
 
   const savePeople = async () => {
@@ -231,7 +234,7 @@ export function Details({ me, areas, calendars, event, onClose, onSaved }: {
       onSaved();
       setEditing(false);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.taskDialog.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -241,11 +244,11 @@ export function Details({ me, areas, calendars, event, onClose, onSaved }: {
     <Modal title={event.title} onClose={onClose}>
       <p className="wk-ev-when">{when}</p>
       <p className="wk-hint">
-        {calendar !== undefined ? <>Kalendarz: {calendarLabel(areas, calendar)} · </> : null}
-        Widzi: {groupName(areas, event.areaId)}
+        {calendar !== undefined ? <>{t('calendarApp.details.calendar', { name: calendarLabel(areas, calendar) })} · </> : null}
+        {t('calendarApp.details.sees', { who: groupName(areas, event.areaId) })}
       </p>
       {calendar?.description && <p className="wk-ev-rules">{calendar.description}</p>}
-      {item?.location && <p><strong>Miejsce:</strong> {item.location}</p>}
+      {item?.location && <p>{rich(t('calendarApp.part.place', { place: item.location }), { b: (s) => <strong>{s}</strong> })}</p>}
       {item?.notes && <p className="wk-ev-notes">{item.notes}</p>}
       {item?.link && <p><ItemLink url={item.link} label={item.linkLabel} /></p>}
 
@@ -271,7 +274,7 @@ export function Details({ me, areas, calendars, event, onClose, onSaved }: {
         <p className="wk-ev-people">
           {occurrence.people!.map((p) => (
             <span key={p.roleId} className={`wk-ev-person${me.ring.has(p.roleId) ? ' is-me' : ''}`}>
-              {DUTY_LABEL[p.duty]}: <strong>{me.ring.has(p.roleId) ? 'Ty' : nameOfPinned(me, candidates, p.roleId)}</strong>
+              {t(`calendarApp.duty.${p.duty}`)}: <strong>{me.ring.has(p.roleId) ? t('calendarApp.details.you') : nameOfPinned(me, candidates, p.roleId)}</strong>
             </span>
           ))}
         </p>
@@ -280,31 +283,30 @@ export function Details({ me, areas, calendars, event, onClose, onSaved }: {
       {mayPin && editing && (
         <div className="wk-ev-pin">
           {repeating && (
-            <div className="wk-seg" role="group" aria-label="Dla których terminów">
+            <div className="wk-seg" role="group" aria-label={t('calendarApp.details.scope')}>
               <button type="button" aria-pressed={scope === 'one'} className={scope === 'one' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
-                onClick={() => setScope('one')}>Tylko ten termin</button>
+                onClick={() => setScope('one')}>{t('calendarApp.details.scopeOne')}</button>
               <button type="button" aria-pressed={scope === 'all'} className={scope === 'all' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
-                onClick={() => setScope('all')}>Cała seria</button>
+                onClick={() => setScope('all')}>{t('calendarApp.details.scopeAll')}</button>
             </div>
           )}
           <PeoplePicker me={me} candidates={candidates} value={pinned} onChange={setPinned} defaultDuty={dutyOf(occurrence?.kind ?? '')} />
           {failed !== null && <p className="wk-error">{failed}</p>}
           <div className="wk-actions">
-            <button type="button" className="wk-btn" disabled={busy} onClick={() => void savePeople()}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>
-            <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => setEditing(false)}>Anuluj</button>
+            <button type="button" className="wk-btn" disabled={busy} onClick={() => void savePeople()}>{busy ? t('common.saving') : t('common.save')}</button>
+            <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => setEditing(false)}>{t('common.cancel')}</button>
           </div>
         </div>
       )}
 
       {event.source === 'claim' && (
         <p className="wk-note">
-          To Twoja rezerwacja ({event.claim?.status === 'confirmed' ? 'potwierdzona' : 'czeka na potwierdzenie'}).
-          Zmienisz ją tam, gdzie ją zrobiłeś.
+          {event.claim?.status === 'confirmed' ? t('calendarApp.details.ownClaimConfirmed') : t('calendarApp.details.ownClaimWaiting')}
         </p>
       )}
 
       {item !== undefined && !item.editable && !mayPin && (
-        <p className="wk-hint">Ten termin możesz tylko oglądać — w jego kalendarzu nie piszesz.</p>
+        <p className="wk-hint">{t('calendarApp.details.readOnly')}</p>
       )}
 
       <div className="wk-actions">
@@ -313,7 +315,7 @@ export function Details({ me, areas, calendars, event, onClose, onSaved }: {
             {peopleWord(occurrence?.kind ?? '')}
           </button>
         )}
-        <button type="button" className="wk-btn" onClick={onClose}>Zamknij</button>
+        <button type="button" className="wk-btn" onClick={onClose}>{t('common.close')}</button>
       </div>
     </Modal>
   );

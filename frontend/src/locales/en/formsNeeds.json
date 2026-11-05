@@ -1,0 +1,105 @@
+{
+  "q": {
+    "given": "First name",
+    "surname": "Surname",
+    "born": "Date of birth",
+    "peselHelp": "Needed for the participant's insurance. If the participant has no PESEL number, leave it empty — the date of birth is enough.",
+    "address": "Home address",
+    "guardian": "First name and surname of the parent / legal guardian",
+    "guardianPhone": "Phone of the parent / guardian",
+    "guardianPhoneHelp": "A number that is reachable for the whole duration of the event.",
+    "minorAsk": "The participant is a minor (not yet 18)",
+    "adultName": "First name and surname of the adult carer",
+    "adultNameHelp": "An adult to whom the parent entrusts the care of the participant on site.",
+    "health": "There is something about health we should know (allergies, chronic illnesses, medication)",
+    "healthDetail": "Briefly write what we should know about health",
+    "diet": "The participant follows a diet we must not ignore",
+    "dietDetail": "Which diet",
+    "way": "How will the minor participant take part?"
+  },
+  "approval": "Consent of the parent / legal guardian to take part.\nAs a parent or legal guardian I consent to my child taking part in this event on the terms given by the organiser. I declare that I know their state of health and see no reason against taking part.",
+  "withParent": "The minor participant takes part together with a parent or legal guardian.",
+  "c": {
+    "medical": "Help in an emergency",
+    "medicalHelp": "If health or life is at risk, I agree to calling medical help and to providing necessary help, and I ask the organiser to inform me (or the parent / guardian) without delay.",
+    "health": "Consent to health data",
+    "healthHelp": "If I give information about health or diet, I explicitly consent to its processing (Art. 9(2)(a) GDPR) solely to take care of the participant safely. I can withdraw consent at any time; withdrawal does not affect the lawfulness of earlier processing.",
+    "rules": "Rules of participation",
+    "rulesHelp": "I know the rules of participation given by the organiser (regulations) and undertake to follow them.",
+    "image": "Image (voluntary)",
+    "imageHelp": "I agree to my image being recorded and published free of charge in reports from the event, in accordance with Art. 81 of the Polish Copyright Act. Consent is voluntary, is not a condition of taking part, and I can withdraw it.",
+    "insurance": "Insurance (accident)",
+    "insuranceHelp": "I acknowledge that, to insure the participant against the consequences of accidents, the organiser will pass their first name, surname, date of birth, PESEL number and address to the insurer — only for this purpose and only for the duration of the insurance."
+  },
+  "info": "Information about data (Art. 13 GDPR): the data from this form is seen only by the organiser — the data controller named above. It serves participation in the event, contact on organisational matters and the safety of participants, and the data on health and diet — only the care of the participant, on the basis of explicit consent. You have the right to access your data, to have it corrected, deleted and its processing restricted; consents can be withdrawn at any time through your link or with the organiser. Where you can lodge a complaint is stated in the information about the data controller at the start of the form.",
+  "signer": "legible signature of the parent / legal guardian",
+  "approvalStep": "Parental consent signed — handed in",
+  "way": {
+    "parent": "Together with a parent or legal guardian",
+    "adult": "In the care of an adult authorised by the parent",
+    "consent": "On their own — with written parental consent"
+  },
+  "age": {
+    "label": "How we know the participant is a minor",
+    "birth": "Asks for the date of birth",
+    "birthSays": "question “Date of birth”; a minor is whoever is not yet 18 on the day of filling in — it is worked out automatically",
+    "ask": "Only asks whether they are a minor",
+    "askSays": "a tick box “The participant is a minor”, without a date of birth"
+  },
+  "ways": {
+    "label": "How a minor may take part",
+    "parent": "Together with a parent or legal guardian",
+    "parentSays": "nothing more is needed",
+    "adult": "In the care of an adult authorised by the parent",
+    "adultSays": "the first name and surname of that person are enough",
+    "consent": "On their own, with written parental consent",
+    "consentSays": "the parent's first name and surname, their phone and the consent to sign on the printout; the coordinator ticks off the handed-in consent"
+  },
+  "use": {
+    "ask": "The form only asks whether the participant is a minor.",
+    "birth": "The form asks for the date of birth — whoever is not yet 18 on the day of filling in is a minor.",
+    "ways": "A minor chooses how to take part: {ways}.",
+    "way": "A minor takes part {way}."
+  },
+  "g": {
+    "participant": "Participant",
+    "guardian": "Parent / legal guardian",
+    "health": "Health and diet",
+    "insurance": "Insurance details",
+    "rules": "Declarations and consents"
+  },
+  "need": {
+    "minor": "Participation of minors",
+    "health": "Health and diet, help in an emergency",
+    "healthUse": "“Yes / no” questions about health and diet (with “yes” — a short explanation), consent to help in an emergency and to health data (Art. 9 GDPR).",
+    "insurance": "Accident insurance",
+    "insuranceUse": "First name, surname, date of birth, PESEL (checked) and address — what the insurer needs — plus a notice that the data will go to them. List: tab “Entries” → CSV.",
+    "rules": "Rules of participation, image and data information",
+    "rulesUse": "Acceptance of the rules (required), voluntary image consent and the Art. 13 GDPR information below the questions."
+  },
+  "warn": {
+    "unknown": "“{need}”: \"{key}\" does not know “{value}” — possible: {known}.",
+    "empty": "“{need}”: \"{key}\" without a value — default used.",
+    "one": "“{need}”: \"{key}\" takes one value — “{value}” used."
+  },
+  "json": {
+    "notList": "\"needs\" is not a list — the requirements stay unchanged.",
+    "notNeed": "\"needs\" {n}: this is not a requirement — skipped.",
+    "unknown": "\"needs\" {n}: there is no requirement “{id}” — possible: {known}.",
+    "twice": "\"needs\": “{need}” a second time — skipped.",
+    "unknownKey": "“{need}”: unknown key \"{key}\" — skipped.",
+    "holdsNotObject": "“{need}”: \"holds\" is not an object — skipped.",
+    "lineOn": "Requirement “{need}”: will be turned on{how}.",
+    "lineOnHolds": "Requirement “{need}”: will be turned on{how} (with the questions from the document).",
+    "lineChanged": "Requirement “{need}”: new settings{how}.",
+    "lineOff": "Requirement “{need}” will be turned off (it is not in the document).",
+    "lineStays": "Requirement “{need}” stays on — it is not in the document, but only “Remove questions and requirements not in the document” turns it off.",
+    "keyNeeds": "Form requirements — a list. Each requirement turned on adds its questions, groups and logic; while it is on, its questions cannot be deleted (moving and rewording — yes). Omitted: the requirements stay as they are; [] — none (only “Remove questions and requirements not in the document” turns them off)",
+    "keyId": "Which: {list}. A requirement without settings can be given by its id alone, e.g. \"health\"",
+    "keySetting": "Only \"{id}\" — {label}: {choices}",
+    "keyMany": ". A list, at least one value; when there is only one, the participant does not choose — it applies",
+    "keyOne": ". One value",
+    "keyDefault": ". Omitted: {value}",
+    "keyHolds": "From an export: what in this form belongs to the requirement (key → id of a question, group, text, node or logic connection). Leave it unchanged; then an import into another form takes over the questions from the document instead of adding them a second time. Writing from scratch — omit it: the import adds the questions, groups and logic itself"
+  }
+}

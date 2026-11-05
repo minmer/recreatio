@@ -1,0 +1,220 @@
+{
+  "level": {
+    "read": {
+      "label": "Czyta",
+      "says": "widzi, co jest w obszarze"
+    },
+    "write": {
+      "label": "Pisze",
+      "says": "widzi i dopisuje"
+    },
+    "admin": {
+      "label": "Prowadzi",
+      "says": "może też wpuszczać innych"
+    }
+  },
+  "levelWord": {
+    "read": "czyta",
+    "write": "pisze",
+    "admin": "prowadzi"
+  },
+  "levelSays": {
+    "read": "czyta (widzi, co jest w obszarze)",
+    "write": "pisze (widzi i dopisuje)",
+    "admin": "prowadzi (może też wpuszczać innych)"
+  },
+  "state": {
+    "revoked": "wycofany",
+    "expired": "wygasł",
+    "used": "wykorzystany",
+    "active": "działa"
+  },
+  "noAreas": "bez obszarów",
+  "error": {
+    "incomplete": "Ten link jest niepełny — skopiuj go jeszcze raz w całości.",
+    "pickRole": "Wybierz rolę, którą daje link.",
+    "cannotAdmit": "W jednym z wybranych obszarów nie możesz nikogo wpuścić.",
+    "notYourRole": "Link może dawać tylko rolę, którą masz.",
+    "notLeader": "Prowadzenie roli może dać tylko ten, kto ją prowadzi.",
+    "mismatch": "Ten link nie pasuje do zaproszenia — skopiuj go jeszcze raz w całości."
+  },
+  "aim": {
+    "notAddress": "To nie jest adres.",
+    "notOurs": "Cel musi być adresem na recreatio.pl.",
+    "tooLong": "Cel: najwyżej {max} znaków.",
+    "badChars": "W adresie celu są niedozwolone znaki.",
+    "view": {
+      "calendar": "Kalendarz w warsztacie",
+      "chat": "Rozmowy w warsztacie",
+      "areas": "Obszary w warsztacie"
+    },
+    "pageBound": "strona tylko z dostępem dla wybranego obszaru",
+    "pageAccess": "strona tylko z dostępem",
+    "page": "strona",
+    "joinPage": "strona dołączenia",
+    "label": "Gdzie otwiera się link",
+    "placeholder": "np. parish/grzegorzki/oaza — albo wklej adres strony",
+    "empty": "Puste: link otwiera stronę dołączenia. Z celem: otwiera tę stronę i od razu daje na niej dostęp — także bez konta, w tej przeglądarce.",
+    "willOpen": "Otworzy:",
+    "needsAccount": "ta część warsztatu wymaga konta: kto otworzy link, zaloguje się i doda go do konta. Bez konta działają strony i kalendarz.",
+    "noAccount": "z dostępem od razu, także bez konta."
+  },
+  "progress": {
+    "keys": "Liczenie kluczy linku…",
+    "areas": "Otwieranie obszarów dla linku…",
+    "role": "Łączenie linku z rolą…",
+    "seal": "Pieczętowanie linku…"
+  },
+  "needPassword": "Najpierw podaj hasło.",
+  "expiry": {
+    "day": "dzień",
+    "week": "tydzień",
+    "month": "miesiąc",
+    "months3": "3 miesiące",
+    "year": "rok"
+  },
+  "list": {
+    "loadFailed": "Nie udało się wczytać linków.",
+    "ready": "Link gotowy: {label}",
+    "active": "Działające linki",
+    "noActive": "Nie ma działających linków.",
+    "inactive": "Nieaktywne ({count})"
+  },
+  "busy": {
+    "create": "Tworzenie linku…",
+    "createRole": "Tworzenie roli i linku…",
+    "aim": "Zmiana celu linku…",
+    "revokeAll": "Wycofywanie linku i dostępu…",
+    "revoke": "Wycofywanie linku…",
+    "takeAccess": "Odbieranie dostępu…"
+  },
+  "new": {
+    "noPerson": "Konto nie prowadzi jeszcze żadnej osoby.",
+    "pickRole": "Wybierz rolę, którą daje link — albo utwórz nową.",
+    "nameRole": "Nazwij nową rolę.",
+    "pickAreas": "Zaznacz obszary, do których nowa rola daje dostęp.",
+    "nameLink": "Nazwij link — np. „Rada parafialna\" albo imię osoby.",
+    "title": "Nowy link dostępu",
+    "label": "Dla kogo / po co",
+    "labelPlaceholder": "np. Rada parafialna",
+    "labelHint": "Nazwę widzi ten, kto otworzy link — zanim dołączy.",
+    "lead": "może też zapraszać innych do tej roli",
+    "roleHint": "Kto ma link, ma to, co daje rola. Zmienisz obszary roli — zmienią się dla wszystkich jej linków i formularzy.",
+    "once": "Jednorazowy — po dołączeniu jednej osoby do konta link przestaje działać (wcześniej działa w każdej przeglądarce, w której go otwarto)",
+    "validFor": "Ważny przez",
+    "create": "Utwórz link"
+  },
+  "item": {
+    "someRole": "rola",
+    "roles": {
+      "one": "Rola: <b>{names}</b>",
+      "few": "Role: <b>{names}</b>",
+      "many": "Role: <b>{names}</b>",
+      "other": "Role: <b>{names}</b>"
+    },
+    "canInvite": "(może zapraszać innych)",
+    "once": "jednorazowy",
+    "many": "wielokrotny",
+    "upTo": "do {count} osób",
+    "used": "użyty {count}×",
+    "usedActive": "użyty {count}×, {active} z dostępem",
+    "validUntil": "ważny do {date}",
+    "opens": "Otwiera:",
+    "joinPage": "stronę dołączenia",
+    "changeAim": "Zmień cel",
+    "cannotShow": "Tego linku nie da się już pokazać — utwórz nowy.",
+    "show": "Pokaż link",
+    "hide": "Ukryj",
+    "disable": "Wyłącz link…",
+    "takeAccess": "Odbierz dostęp ({count})",
+    "revokeAsk": "Link przestanie działać — także w przeglądarkach, w których go otwarto. Co z tymi, którzy dodali go do konta?",
+    "revokeAskCount": "Link przestanie działać — także w przeglądarkach, w których go otwarto. Co z tymi, którzy dodali go do konta ({count})?",
+    "keep": "Zostają",
+    "dropToo": "Też tracą dostęp",
+    "aimHint": "Link zostaje ten sam — wysłany wcześniej nadal działa i prowadzi tam, gdzie prowadził. Nowy cel mają adresy pokazane od teraz.",
+    "saveAim": "Zapisz cel"
+  },
+  "held": {
+    "title": "Linki otwarte w tej przeglądarce",
+    "lede": "Działają tu bez logowania i sumują się. Na koncie działają na każdym urządzeniu i pozwalają pisać.",
+    "dead": "nie działa",
+    "onAccount": "na koncie",
+    "inBrowser": "w przeglądarce",
+    "addToAccount": "Dodaj do konta",
+    "forget": "Usuń z przeglądarki"
+  },
+  "share": {
+    "title": "Zaproszenie do recreatio.pl",
+    "warn": "Kto ma ten link, ma dostęp. Wysyłaj go tylko tym, dla których jest."
+  },
+  "shareDialog": {
+    "needPassword": "Najpierw podaj hasło — klucze nie są otwarte w tej karcie.",
+    "failed": "Nie udało się utworzyć linku.",
+    "title": "Udostępnij: {title}",
+    "public": "To jest publiczne — wystarczy ten adres. Kto go otworzy, zobaczy to bez logowania.",
+    "ready": "Link gotowy. Kto go otworzy, ma dostęp od razu.",
+    "lede": "Link daje rolę — a rola dostęp do swoich obszarów. Otworzy się od razu tutaj.",
+    "ledeAim": "Link daje rolę — a rola dostęp do swoich obszarów. Otworzy się od razu tutaj: {aim}.",
+    "lead": "może też zapraszać innych",
+    "more": "Nazwa, ważność, jednorazowy",
+    "name": "Nazwa linku (widzi ją ten, kto go otworzy)",
+    "once": "Jednorazowy — dla jednej osoby"
+  },
+  "bar": {
+    "label": "Link z dostępem",
+    "unjoinedLabel": "Link z dostępem, którego nie ma na koncie",
+    "unjoined": "<b>W tej przeglądarce jest link z dostępem</b> — {access}. Twoje konto go nie ma, a w warsztacie działa tylko to, co ma konto.",
+    "unjoinedNamed": "<b>W tej przeglądarce jest link z dostępem „{label}”</b> — {access}. Twoje konto go nie ma, a w warsztacie działa tylko to, co ma konto.",
+    "notNow": "Nie teraz",
+    "dead": "Ten link z dostępem już nie działa — został wyłączony, wygasł albo był jednorazowy i już go użyto.",
+    "forget": "Usuń go z tej przeglądarki",
+    "opened": "<b>Otwarto z linku</b> — {access}.",
+    "openedNamed": "<b>Otwarto z linku „{label}”</b> — {access}.",
+    "owned": "Ten dostęp masz też na koncie.",
+    "signedIn": "Działa w tej przeglądarce, razem z innymi linkami otwartymi tutaj.",
+    "guest": "Działa w tej przeglądarce, bez logowania.",
+    "guestWrites": "Działa w tej przeglądarce, bez logowania — w kalendarzu także dopisywanie.",
+    "signedInHint": "Jesteś zalogowany — w warsztacie i przy dopisywaniu działa to, co ma konto. Na koncie dostęp działa też na każdym urządzeniu."
+  },
+  "join": {
+    "state": {
+      "revoked": "Ten link został wyłączony przez osobę, która go utworzyła.",
+      "expired": "Ten link wygasł.",
+      "used": "Ten link był jednorazowy i ktoś już przez niego dołączył."
+    },
+    "dead": "Ten link już nie działa.",
+    "noInvite": "W tym linku brakuje zaproszenia.",
+    "noSuchInvite": "Takiego zaproszenia nie ma.",
+    "checking": "Sprawdzanie zaproszenia…",
+    "checkingLink": "Sprawdzanie linku…",
+    "title": "Zaproszenie",
+    "titleNamed": "Zaproszenie: {label}",
+    "toWorkspace": "Przejdź do warsztatu",
+    "joined": "Dołączono",
+    "joinedLede": "Masz teraz dostęp: {access}. Działa na każdym urządzeniu, na którym się zalogujesz.",
+    "goOn": "Przejdź dalej",
+    "seeAreas": "Zobacz obszary",
+    "access": "Dostęp",
+    "validUntil": "Ważne do",
+    "validUntilLink": "Ważny do",
+    "link": "Link",
+    "opens": "Otwiera",
+    "unlockWhy": "Żeby dołączyć, podaj hasło — klucze otwierają się tylko u Ciebie.",
+    "noPerson": "Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach, potem wróć do tego linku.",
+    "failed": "Nie udało się dołączyć.",
+    "as": "Dołączam jako",
+    "joining": "Dołączanie…",
+    "join": "Dołącz",
+    "haveAccount": "Masz konto?",
+    "noSuchLink": "Takiego linku nie ma — skopiuj go jeszcze raz w całości.",
+    "linkNamed": "Link z dostępem: {label}",
+    "guest": "Działa w tej przeglądarce, bez logowania — na stronach tych obszarów.",
+    "guestCalendar": "Działa w tej przeglądarce, bez logowania — na stronach tych obszarów i w ich kalendarzu.",
+    "guestCalendarWrites": "Działa w tej przeglądarce, bez logowania — na stronach tych obszarów i w ich kalendarzu, także dopisywanie terminów."
+  },
+  "person": {
+    "needName": "Podaj imię i nazwisko.",
+    "dead": "Ten link już nie działa w tej przeglądarce.",
+    "noKeys": "Ten link nie otwiera kluczy tego obszaru."
+  }
+}

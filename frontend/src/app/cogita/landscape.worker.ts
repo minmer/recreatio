@@ -15,8 +15,8 @@ type Request =
   | { readonly id: number; readonly type: 'run'; readonly input?: LsInput; readonly state?: LsState; readonly options: LsOptions }
   | { readonly id: number; readonly type: 'stand'; readonly input?: LsInput; readonly state?: LsState }
   | { readonly id: number; readonly type: 'route'; readonly target: string }
-  | { readonly id: number; readonly type: 'world'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>>; readonly places?: Readonly<Record<string, readonly [number, number]>> }
-  | { readonly id: number; readonly type: 'regions'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>> };
+  | { readonly id: number; readonly type: 'world'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly around?: string; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>>; readonly places?: Readonly<Record<string, readonly [number, number]>> }
+  | { readonly id: number; readonly type: 'regions'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly around?: string; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>> };
 
 const engine = new LandscapeEngine();
 let regionsKept: { key: string; tree: RegionTree } | null = null;
@@ -33,7 +33,7 @@ self.addEventListener('message', (event: MessageEvent<Request>) => {
     if (msg.type === 'world') {
       if (regionsKept === null || regionsKept.key !== msg.key) {
         const words = landscapeWords(msg.lang);
-        regionsKept = { key: msg.key, tree: buildRegions(msg.graph, { around: words.around, ...(msg.overrides === undefined ? {} : { overrides: msg.overrides }), ...(msg.previous === undefined ? {} : { previous: msg.previous }) }) };
+        regionsKept = { key: msg.key, tree: buildRegions(msg.graph, { around: msg.around === undefined ? words.around : (label: string) => msg.around!.replace('{label}', label), ...(msg.overrides === undefined ? {} : { overrides: msg.overrides }), ...(msg.previous === undefined ? {} : { previous: msg.previous }) }) };
       }
       if (worldKept === null || worldKept.key !== msg.key) {
         const n = msg.graph.ids.length;
@@ -46,7 +46,7 @@ self.addEventListener('message', (event: MessageEvent<Request>) => {
     if (msg.type === 'regions') {
       if (regionsKept === null || regionsKept.key !== msg.key) {
         const words = landscapeWords(msg.lang);
-        const tree = buildRegions(msg.graph, { around: words.around, ...(msg.overrides === undefined ? {} : { overrides: msg.overrides }), ...(msg.previous === undefined ? {} : { previous: msg.previous }) });
+        const tree = buildRegions(msg.graph, { around: msg.around === undefined ? words.around : (label: string) => msg.around!.replace('{label}', label), ...(msg.overrides === undefined ? {} : { overrides: msg.overrides }), ...(msg.previous === undefined ? {} : { previous: msg.previous }) });
         regionsKept = { key: msg.key, tree };
       }
       self.postMessage({ id: msg.id, ok: true, result: regionsKept.tree });

@@ -131,13 +131,14 @@ const hasEnGroup = (prefix) => {
   return false;
 };
 
+const noComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
 const used = new Set();
-const KEY_CALL = /(?<![\w$.])(?:t|tOr|hasKey)\(\s*(['"`])([a-z][A-Za-z0-9]*\.[^'"`\n]*?)\1/g;
-const KEY_CALL2 = /(?<![\w$])(?:tIn)\(\s*[^,()]+,\s*(['"`])([a-z][A-Za-z0-9]*\.[^'"`\n]*?)\1/g;
+const KEY_CALL = /(?<![\w$.])(?:t|tOr|hasKey)\(\s*(['"`])([a-z][A-Za-z0-9]*\.[\w.${}-]*?)\1/g;
+const KEY_CALL2 = /(?<![\w$])(?:tIn)\(\s*[^,()]+,\s*(['"`])([a-z][A-Za-z0-9]*\.[\w.${}-]*?)\1/g;
 for (const [file, text] of code) {
   const rel = relative(SRC, file);
   for (const re of [KEY_CALL, KEY_CALL2]) {
-    for (const m of text.matchAll(re)) {
+    for (const m of noComments(text).matchAll(re)) {
       const key = m[2];
       const dyn = key.indexOf('${');
       if (dyn >= 0) {
@@ -148,6 +149,17 @@ for (const [file, text] of code) {
         used.add(key);
         if (!hasEnKey(key)) fail(`${rel}: key "${key}" not in en`);
       }
+    }
+  }
+}
+
+/* Die Schlüssel in `texts({ … })`-Tabellen. */
+for (const [file, text] of code) {
+  const rel = relative(SRC, file);
+  for (const block of noComments(text).matchAll(/\btexts\(\s*\{([\s\S]*?)\}\s*\)/g)) {
+    for (const m of block[1].matchAll(/:\s*(['"`])([a-z][A-Za-z0-9]*\.[\w.-]+)\1/g)) {
+      used.add(m[2]);
+      if (!hasEnKey(m[2])) fail(`${rel}: key "${m[2]}" (in texts) not in en`);
     }
   }
 }

@@ -1,0 +1,447 @@
+{
+  "alert": {
+    "forms": {
+      "label": "New submissions",
+      "says": "Someone sent a form — to review."
+    },
+    "chats": {
+      "label": "Unread messages",
+      "says": "Conversations where someone wrote."
+    },
+    "bookings": {
+      "label": "Bookings to confirm",
+      "says": "Someone asks for a time or a place and waits for your “yes”."
+    },
+    "steps": {
+      "label": "Overdue steps",
+      "says": "Things for the office to tick off whose deadline has passed (e.g. consent on paper)."
+    },
+    "tasks": {
+      "label": "Tasks for now",
+      "says": "Tasks open now or overdue."
+    },
+    "today": {
+      "label": "Today's appointments",
+      "says": "Meetings and masses that are today."
+    },
+    "learn": {
+      "label": "Review waiting",
+      "says": "Cards that are due in your knowledge bases."
+    },
+    "links": {
+      "label": "Joined by link",
+      "says": "Someone joined through your link."
+    },
+    "duties": {
+      "label": "Matters to decide",
+      "says": "Data controller, content reports, requests for a place in an event list."
+    },
+    "records": {
+      "label": "Entries to accept",
+      "says": "Someone signed up for a time (or sent an intention) and waits for the office to accept it."
+    },
+    "plans": {
+      "label": "Plans to extend",
+      "says": "Appointments made from a plan (e.g. masses) end soon — plan the next weeks."
+    }
+  },
+  "alertItem": {
+    "newCount": {
+      "one": "{count} new",
+      "other": "{count} new"
+    },
+    "muted": "{name} (muted)",
+    "messages": {
+      "one": "{count} message",
+      "other": "{count} messages"
+    },
+    "toConfirm": "{count} to confirm",
+    "stepsLate": {
+      "one": "{count} step overdue",
+      "other": "{count} steps overdue"
+    },
+    "recordsWait": {
+      "one": "{count} entry waiting",
+      "other": "{count} entries waiting"
+    },
+    "plannedUntil": "planned until {date}",
+    "tasksNow": "To do now",
+    "tasks": {
+      "one": "{count} task",
+      "other": "{count} tasks"
+    },
+    "joinedByLink": "Joined by link",
+    "cards": {
+      "one": "{count} card",
+      "other": "{count} cards"
+    }
+  },
+  "duty": {
+    "area": "Area",
+    "areaOf": "the area",
+    "asksController": "{area} asks for the controller “{name}”",
+    "toSign": "to sign",
+    "offer": "Proposal: “{name}” for {area}",
+    "toAccept": "to accept",
+    "decided": "“{name}” for {area}",
+    "accepted": "accepted",
+    "refused": "refused",
+    "nobody": "{area}: nobody is responsible for the data",
+    "pickController": "choose a controller",
+    "acceptTerms": "accept the terms",
+    "confirmRight": "confirm the authority",
+    "completeData": "complete the details",
+    "pageNobody": "Page {page}: nobody is responsible for the content",
+    "pickArea": "choose an area",
+    "reports": "Content reports",
+    "toDecide": "{count} to decide",
+    "blocked": "Blocked after a report: {what}",
+    "yourContent": "your content",
+    "objectUntil": "objection until {date}",
+    "objectSent": "objection sent",
+    "listing": "{name} asks for a place in the list",
+    "listingAt": "{name} asks for a place in the list {path}",
+    "catalogue": "catalogue",
+    "list": "list"
+  },
+  "alertList": {
+    "seenTitle": "Reviewed — don't show as new any more",
+    "seenAria": "{name}: reviewed",
+    "order": "Order of notifications",
+    "up": "{name}: up",
+    "down": "{name}: down"
+  },
+  "part": {
+    "mypages": {
+      "label": "Your pages",
+      "says": "Pages you work on — also those prepared by someone else (e.g. your group's page)."
+    },
+    "alerts": {
+      "label": "Waiting for you",
+      "says": "New submissions, messages, bookings, overdue steps — in your order."
+    },
+    "agenda": {
+      "label": "Upcoming appointments",
+      "says": "Meetings, masses and other appointments from the calendar."
+    },
+    "tasks": {
+      "label": "Tasks",
+      "says": "What is to do now and what is overdue."
+    },
+    "chats": {
+      "label": "Conversations",
+      "says": "Conversations of areas and people."
+    },
+    "forms": {
+      "label": "Forms",
+      "says": "Forms with the number of submissions and new ones."
+    },
+    "pages": {
+      "label": "Pages",
+      "says": "Pages — open, edit, share."
+    },
+    "access": {
+      "label": "Access",
+      "says": "Links through which others have access — and a new link."
+    },
+    "people": {
+      "label": "People",
+      "says": "Who belongs to the area."
+    },
+    "learn": {
+      "label": "Learning",
+      "says": "Reviews for now, knowledge bases and running sessions."
+    }
+  },
+  "home": {
+    "now": "Now",
+    "goodEvening": "Good evening",
+    "goodDay": "Good day",
+    "setUp": "Set up",
+    "all": "All",
+    "people": "People",
+    "access": "Access"
+  },
+  "viewJson": {
+    "summary": "Notifications as JSON",
+    "lead": "Order and switches of the “Waiting for you” list — for a copy or to be arranged by an AI. The import changes only this account setting; the layout of the Now page is fixed.",
+    "fileName": "notifications.json",
+    "notReady": "The account settings are still opening — you'll see the plan in a moment.",
+    "importLabel": "Save order",
+    "key": {
+      "version": "{version} — format version",
+      "alerts": "the “Waiting for you” list in your order — from the top (below); instead of an object, the bare \"kind\" as text is enough (then the switch stays as it was)",
+      "kind": "kind of notification (below) — the import recognises the entry by it; each kind at most once",
+      "on": "true — shows in the bell and on the Now page; false — switched off (also not counted at the bell); left out — stays as it was",
+      "label": "only information from the export: the name of the kind (the import doesn't change it)"
+    },
+    "usageTitle": "How the app uses this data",
+    "usage": "- Two places read this: the bell (list and number) and the “Waiting for you” list — on the Now page and in the overview of every area. Both show the kinds in this order and skip those switched off.\n- The number at the bell adds up only the switched-on kinds that count in it (“Counts at the bell”).\n- The overview of an area takes from the list only what belongs to that area and the areas in it; tasks, joins by link and reviews stand only on the Now page and in the bell, and “Today's appointments” only on the pages (the bell doesn't load them).\n- The numbers themselves come from one query for news — from what you have access to. The setting doesn't change them, doesn't mark anything as reviewed and doesn't affect other people.\n- System notifications are set separately on each device (“On this device”) — a kind switched off here may still notify there.",
+    "title": "View — notifications as JSON (\"{format}\", version {version})",
+    "short": "View (notifications)",
+    "text": "What the bell and the “Waiting for you” list on the Now page (and in the area overview) show — which kinds and in which order. The setting belongs to the account (sealed in the browser) and works on every device. In the app: “Notifications” (bell → “Settings” or Now → “Waiting for you” → “Set up”, #/workspace/account/widok) → “Notifications as JSON”.\nThe layout of the Now page and of the area overview is fixed (since 2026-10-16): there are no own views, parts or display modes to set — so they are not in this format. The “On this device” settings (system notifications) are separate on each device — also outside the format.\nWhat the import does:\n- First it shows a plan (new order, what switches on, what switches off); it saves only after “Import”.\n- Kinds from the document go to the top of the list, in its order; \"on\" switches on or off. Kinds not in the document stand behind them — in their previous order, switched on or off as before. So it is enough to give those that should be at the top.\n- An unknown kind and a repeated kind — a warning, skipped. It deletes nothing; it creates no new kinds (the app knows them).\nReturn ONE JSON object, without comments.\n\nDocument:\n{top}\n\nEntry (an item in \"alerts\"):\n{alert}\n\nKinds (\"kind\"), in the default order:\n{kinds}\n\nExample (office: submissions and bookings at the top, reviews off):\n{sample}",
+    "kind": "{label}: {says}",
+    "kindCounts": "{label}: {says} Counts at the bell.",
+    "sampleLabel": "Office: submissions and bookings at the top",
+    "plan": {
+      "notDoc": "This is not a view document (a JSON object was expected).",
+      "otherFormat": "Another format: \"{format}\" — expected \"{expected}\".",
+      "version": "Version {version} — I know version {known}; I read what I recognise.",
+      "unknownKey": "Unknown key \"{key}\" — skipped.",
+      "unknownKeyLayout": "Unknown key \"{key}\" — skipped (the page layout is fixed, it can't be set).",
+      "noAlerts": "Nothing to change — no \"alerts\".",
+      "alertsList": "\"alerts\" must be a list.",
+      "notItem": "Entry {n}: neither an object nor a kind — skipped.",
+      "itemUnknownKey": "Entry {n}: unknown key \"{key}\" — skipped.",
+      "unknownKind": "Entry {n}: unknown kind “{kind}” — skipped.",
+      "repeated": "Entry {n}: “{label}” a second time — the first one counts.",
+      "badOn": "Entry {n}: \"on\" is not true/false — the switch stays.",
+      "newOrder": "New order: {list}",
+      "turnOn": "Switches on: {list}",
+      "turnOff": "Switches off: {list}",
+      "nothing": "Nothing to change — order and switches as now.",
+      "missing": "Not in the document — behind them, in the previous order and with the previous switches: {list}"
+    }
+  },
+  "tidy": {
+    "check": "check"
+  },
+  "tidyAll": {
+    "scanning": "Reviewing…",
+    "scanningOne": "Reviewing: {name}…",
+    "controller": "Data controller: {name}",
+    "unreadable": {
+      "one": "{count} form can't be opened with this key — it stays as it is.",
+      "other": "{count} forms can't be opened with this key — they stay as they are."
+    },
+    "scanFailed": "Could not review the database.",
+    "tidying": "Tidying…",
+    "tidyingOne": "Tidying: {name}…",
+    "done": {
+      "one": "Tidied {count} answer in forms.",
+      "other": "Tidied {count} answers in forms."
+    },
+    "doneWithCtrl": {
+      "one": "Tidied {count} answer in forms and {ctrl}.",
+      "other": "Tidied {count} answers in forms and {ctrl}."
+    },
+    "ctrlAddresses": {
+      "one": "{count} data controller address",
+      "other": "{count} data controller addresses"
+    },
+    "applyFailed": "Could not tidy everything — part may have been saved; review again.",
+    "phone": "phone",
+    "address": "address",
+    "title": "Tidy the whole database",
+    "lead": "Every address in the database is written the same way as in the registry — in answers to forms, in people's details and with the data controller; phone numbers as +48 600 700 800. New entries get this form by themselves, while typing. Here you tidy what was saved earlier — everywhere you have the key.",
+    "scan": "Review the database",
+    "scanAgain": "Review again",
+    "allTidy": "Everything is already saved in one form.",
+    "saveChosen": "Save selected ({count})"
+  },
+  "starter": {
+    "signup": {
+      "title": "New event",
+      "says": "Retreat, trip, workshop — a page, a date and a sign-up form.",
+      "makes": "This creates: an event area with a card, the main date, a form (first name, last name, phone, e-mail), a page with the card and the form, and a participants role. The rest you add in the area's “Event” tab.",
+      "nameLabel": "Event name",
+      "namePlaceholder": "e.g. Retreat 2027"
+    },
+    "group": {
+      "title": "New group",
+      "says": "Choir, youth group, council — a place, a conversation and a link for members.",
+      "makes": "This creates: a group area, a members role, the group's conversation and a link that opens the group.",
+      "nameLabel": "Group name",
+      "namePlaceholder": "e.g. Choir"
+    },
+    "course": {
+      "title": "Learning course",
+      "says": "Vocabulary, catechism, exam preparation — reviews for learners.",
+      "makes": "This creates: a course area, a knowledge base with a daily review, a learners role (they read), answer intake (you see progress) and a link for learners.",
+      "nameLabel": "Course name",
+      "namePlaceholder": "e.g. Confirmation 2027 — questions"
+    },
+    "school": {
+      "title": "New school",
+      "says": "Classes, curricula once for everyone, a register for each class.",
+      "makes": "This creates: a school area, a teachers role, a scriptorium for curricula and lessons, and classes — each as an area in the school, with the teachers role. You set the timetable, pupils and register in each class's tab.",
+      "nameLabel": "School name",
+      "namePlaceholder": "e.g. Primary School No. 3"
+    },
+    "giveName": "Enter a name.",
+    "openingKeys": "Opening keys…",
+    "needPassword": "Enter your password first — the keys are not open in this tab.",
+    "creatingArea": "Creating the area…",
+    "kindLost": "The area kind could not be saved.",
+    "kindLostLink": "Set it in the area settings",
+    "roleLearners": "Learners: {name}",
+    "linkLearners": "Creating the link for learners…",
+    "addFirstEntries": "Add the first entries",
+    "roleTeachers": "Teachers: {name}",
+    "teachers": "Teachers",
+    "scriptorium": "Scriptorium for curricula…",
+    "scriptoriumFailed": "The school's scriptorium was not created ({why}).",
+    "error": "error",
+    "scriptoriumLink": "Create it in the “School” tab",
+    "schoolTab": "“School” tab",
+    "schoolNoController": "Pupil lists will accept entries once the school has a data controller.",
+    "schoolNoControllerLink": "Choose one in the school settings",
+    "openSchool": "Open the school",
+    "roleMembers": "Members: {name}",
+    "groupChat": "Setting up the group conversation…",
+    "groupChatFailed": "The group conversation has not been created yet: the area has no data controller.",
+    "pickControllerLink": "Choose one in the area settings",
+    "linkMembers": "Creating the link for members…",
+    "openGroup": "Open the group",
+    "event": "Event…",
+    "mainTerm": "Main date in the calendar…",
+    "openForm": "Open the form",
+    "creatingPage": "Creating the page…",
+    "eventTab": "“Event” tab",
+    "roleParticipants": "Participants: {name}",
+    "linkingRole": "Linking the form with the participants role…",
+    "card": "Event card…",
+    "formNoController": "The form won't accept submissions until the area has a data controller.",
+    "notListed": "It will show in the “Events” lists once the card is in a public area and the page is public — what is still missing is shown in the “Event” tab.",
+    "cardFailed": "The card could not be saved: {why}",
+    "cardFailedLink": "Try in the “Event” tab",
+    "noDate": "Without a date no main date was created — you can add it in the “Event” tab.",
+    "openEvent": "Open the event",
+    "failed": "That did not work — part may already exist; check in Areas.",
+    "done": "Done.",
+    "classes": "Classes (optional — you can add them later too)",
+    "classesPlaceholder": "e.g. 1a, 1b, 2a",
+    "insideOptional": "Inside an area (optional)",
+    "inside": "Inside an area",
+    "standalone": "— standalone —",
+    "pageUnder": "Page with the form — at the address",
+    "noPage": "— no page (add the form later) —",
+    "slugFallback": "event",
+    "start": "Start",
+    "time": "Time (empty: all day)",
+    "end": "End (optional)",
+    "endTime": "End time",
+    "place": "Place (optional)",
+    "placePlaceholder": "e.g. Retreat house in Limanowa",
+    "kind": "Kind (optional)",
+    "kindPlaceholder": "e.g. retreat",
+    "withRole": "Participants role — everyone who signs up sees the event's pages, calendar and conversations",
+    "create": "Create",
+    "keysTakeTime": "Creating keys takes a moment — don't close the tab.",
+    "newMenu": "New",
+    "menuItem": "{title}…",
+    "emptyForm": "Empty form",
+    "newArea": "New area"
+  },
+  "parts": {
+    "locked": "The keys are not open in this tab — sign in again or unlock the key to see this.",
+    "checking": "Checking…",
+    "nothingWaits": "Nothing is waiting — everything reviewed.",
+    "loadingCalendars": "Loading calendars…",
+    "noCalendar": "This area has no calendar yet.",
+    "loadingAgenda": "Loading appointments…",
+    "agendaFailed": "Could not load the appointments.",
+    "nothingWeek": "Nothing in the coming week.",
+    "nothingTwoDays": "Nothing today or tomorrow.",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "allDay": "all day",
+    "loadingTasks": "Loading tasks…",
+    "tasksFailed": "Could not load the tasks.",
+    "late": "overdue",
+    "dueBy": "by {date}",
+    "now": "now",
+    "nothingToDo": "Nothing to do now.",
+    "task": "Task",
+    "done": "Done",
+    "chat": {
+      "seat": "Conversation with: {name}",
+      "self": "Notes",
+      "channel": "Channel: {name}",
+      "other": "Conversation · {name}"
+    },
+    "loadingChats": "Loading conversations…",
+    "chatsFailed": "Could not load the conversations.",
+    "noChats": "No conversation here yet.",
+    "allRead": "Everything read.",
+    "loadingForms": "Loading forms…",
+    "formsFailed": "Could not load the forms.",
+    "formsNothingNew": "Nothing new in the forms.",
+    "noForms": "No forms here.",
+    "entries": {
+      "one": "{count} submission",
+      "other": "{count} submissions"
+    },
+    "entriesClosed": {
+      "one": "{count} submission · closed",
+      "other": "{count} submissions · closed"
+    },
+    "newN": "new: {count}",
+    "noPages": "You don't run any page yet.",
+    "noAreaPages": "No page is just for this area. You set this in the page editor (“Who sees”).",
+    "withAccess": "with access",
+    "share": "Share",
+    "why": {
+      "own": "you run this page",
+      "area": "your group's page",
+      "seat": "your page (from your link)"
+    },
+    "noMyPages": "You don't have any page yet. Your group's page is prepared by the person who runs it — once they give you access, it will appear here.",
+    "shareNamed": "Share: {name}",
+    "loadingLinks": "Loading links…",
+    "linksFailed": "Could not load the links.",
+    "noLinks": "There are no working links.",
+    "noAreaLinks": "There are no working links to this area.",
+    "link": "Link",
+    "linkUsed": "{access} · used {count}×",
+    "allLinks": "All links",
+    "loadFailed": "Could not load.",
+    "level": {
+      "read": "reads",
+      "write": "writes",
+      "admin": "runs"
+    },
+    "loadingPeople": "Loading people…",
+    "peopleFailed": "Could not load the people.",
+    "person": "person",
+    "group": "group",
+    "role": "role",
+    "certifies": "lets in",
+    "seats": "People with a link (from forms): {count}.",
+    "rolesLevels": "Roles and access levels"
+  },
+  "main": {
+    "loadFailed": "Could not load the workshop.",
+    "strayTitle": "There is no such view here",
+    "strayText": "The workshop doesn't know the part <code>{word}</code>.",
+    "title": "Workshop",
+    "calendar": "Calendar",
+    "terms": "Appointments",
+    "tasks": "Tasks",
+    "noSuchPart": "This part of the workshop doesn't exist yet."
+  },
+  "claim": {
+    "noRole": "You have no role that could take over an address.",
+    "enterAddress": "Enter an address.",
+    "shape": "Address: lower-case letters, digits and hyphens; separate parts with a slash.",
+    "reserved": "The address “workspace” belongs to the workshop itself.",
+    "enterCode": "Enter the address code.",
+    "pickRole": "Choose a role.",
+    "failed": "Could not take over the address.",
+    "noAddresses": "You don't run any address yet. An address is taken over: it must be on the list and you need its code.",
+    "shapeLabel": "How to show pages",
+    "list": "List",
+    "tree": "Address tree",
+    "noModule": "This module doesn't exist — or isn't yours.",
+    "summary": "Take over an address",
+    "address": "Address",
+    "addressPlaceholder": "choir",
+    "rootHint": "A bare <code>/</code> is <code>recreatio.pl</code>.",
+    "code": "Address code",
+    "who": "Who will be responsible",
+    "rootRole": "The chosen role is responsible for the address <code>recreatio.pl</code> itself.",
+    "subRole": "The chosen role is responsible for this address and everything under it — <code>{path}/…</code> goes with it.",
+    "done": "The address <code>recreatio.pl/{path}</code> is yours.",
+    "claim": "Take over"
+  }
+}

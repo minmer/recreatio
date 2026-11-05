@@ -1,0 +1,688 @@
+{
+  "person": {
+    "label": "Person",
+    "plural": "Personen",
+    "says": "Autor, Herausgeber, Übersetzer — oder eine Institution, die ein Dokument herausgegeben hat.",
+    "fields": {
+      "personType": {
+        "label": "Wer ist das",
+        "says": "\"person\" — eine Person, \"organization\" — eine Institution"
+      },
+      "name": {
+        "label": "Name",
+        "says": "Der volle Name, wenn er sich nicht in Vor- und Nachname teilt (z. B. \"Franziskus\", \"hl. Augustinus\", \"Kongregation für die Glaubenslehre\")",
+        "hint": "z. B. hl. Augustinus"
+      },
+      "givenNames": {
+        "label": "Vornamen",
+        "says": "Vornamen — in Fußnoten zu Initialen gekürzt",
+        "hint": "z. B. Joseph"
+      },
+      "surname": {
+        "label": "Nachname",
+        "says": "Nachname — danach wird die Bibliografie geordnet",
+        "hint": "z. B. Ratzinger"
+      },
+      "years": {
+        "label": "Jahre",
+        "says": "Lebens- oder Wirkungsjahre",
+        "hint": "z. B. 1927–2022"
+      },
+      "description": {
+        "label": "Beschreibung",
+        "says": "Kurze Beschreibung der Person (Kurzbiografie) — bei ihren Quellen sichtbar"
+      },
+      "url": {
+        "label": "Webseite",
+        "says": "Eine Seite über diese Person (z. B. eine Biografie)"
+      }
+    },
+    "type": {
+      "person": "Person",
+      "organization": "Institution"
+    },
+    "more": {
+      "composer": "Komponist",
+      "choir": "Ausführende — ein Chor als Institution"
+    }
+  },
+  "workTypes": {
+    "book": "Buch",
+    "chapter": "Kapitel in einem Buch",
+    "article": "Zeitschriftenartikel",
+    "periodical": "Zeitschrift",
+    "document": "Dokument (Kirche, amtlich)",
+    "bible": "Heilige Schrift",
+    "web": "Webseite",
+    "talk": "Vortrag, Predigt, Aufnahme",
+    "other": "Andere",
+    "piece": "Musikstück",
+    "score": "Noten",
+    "recording": "Aufnahme",
+    "album": "Album"
+  },
+  "psalms": {
+    "hebrew": "Hebräisch (EÜ, die meisten Übersetzungen)",
+    "greek": "Griechisch (Vulgata)"
+  },
+  "scoreFileItem": {
+    "id": {
+      "label": "Kennung",
+      "says": "Feste Kennung der Datei in der Liste; weggelassen — wird selbst vergeben"
+    },
+    "label": {
+      "label": "Was es ist",
+      "says": "Was die Datei enthält",
+      "hint": "z. B. Partitur · Sopran · Orgel · MusicXML"
+    },
+    "file": {
+      "label": "Datei",
+      "says": "Eine in der App hochgeladene Datei (PDF, Bild, MusicXML, MIDI)"
+    }
+  },
+  "trackRoles": {
+    "part": "Stimme oder Instrument",
+    "whole": "Ganze Aufnahme"
+  },
+  "trackItem": {
+    "id": {
+      "label": "Kennung",
+      "says": "Feste Kennung der Spur; weggelassen — wird selbst vergeben"
+    },
+    "label": {
+      "label": "Stimme / Instrument",
+      "says": "Wessen Stimme oder welches Instrument — oder „Gesamt“",
+      "hint": "z. B. Sopran · Alt · Tenor · Bass · Orgel · Gesamt"
+    },
+    "role": {
+      "label": "Rolle",
+      "says": "\"part\" — Stimme oder Instrument: zusammen mit den anderen Spuren dieser Aufnahme abgespielt; \"whole\" — die ganze Aufnahme: allein abgespielt"
+    },
+    "file": {
+      "label": "Datei",
+      "says": "Eine in der App hochgeladene Audiodatei (MP3, OGG, M4A, WAV, FLAC)"
+    }
+  },
+  "bindings": {
+    "soft": "Broschur",
+    "softFlaps": "Broschur mit Klappen",
+    "hard": "Hardcover",
+    "integrated": "Integrierter Einband",
+    "cloth": "Leinen",
+    "leather": "Leder",
+    "spiral": "Spiralbindung",
+    "ebook": "E-Book",
+    "other": "Andere"
+  },
+  "work": {
+    "label": "Quelle",
+    "plural": "Quellen",
+    "says": "Ein Werk, das man benutzt: Buch, Kapitel, Artikel, kirchliches Dokument, Heilige Schrift, Webseite — oder Musik: Stück, Noten, Aufnahme, Album.",
+    "fields": {
+      "workType": {
+        "label": "Art",
+        "says": "Art: {types}; Musik: {music}. Die Art entscheidet, welche Felder das Werk hat"
+      },
+      "title": {
+        "label": "Titel",
+        "says": "Titel des Werks (Stück, Aufnahme, Album)"
+      },
+      "subtitle": {
+        "label": "Untertitel",
+        "says": "Untertitel (oder die Art des Dokuments, z. B. \"Apostolisches Schreiben\")"
+      },
+      "originalTitle": {
+        "label": "Originaltitel",
+        "says": "Originaltitel (der ursprüngliche Titel einer Übersetzung; bei einem Stück — der Titel in der Originalsprache)"
+      },
+      "otherTitles": {
+        "label": "Andere Titel, Incipit",
+        "says": "Andere Namen, unter denen man das Stück kennt — Incipit (erste Worte), Titel in einer anderen Sprache, geläufiger Name; jeder in einer eigenen Zeile",
+        "hint": "z. B. Du hast mich, Herr, angeblickt"
+      },
+      "authors": {
+        "label": "Autoren",
+        "says": "Autoren — Verweise auf Personen, der Reihe nach (bei Musik: Komponist, Textdichter — Felder weiter unten)"
+      },
+      "composers": {
+        "label": "Komponist",
+        "says": "Komponisten — Verweise auf Personen; Noten und Aufnahmen, die auf das Stück zeigen, müssen sie nicht wiederholen"
+      },
+      "lyricists": {
+        "label": "Textdichter",
+        "says": "Textdichter des Stücks — Verweise auf Personen"
+      },
+      "arrangers": {
+        "label": "Bearbeitung",
+        "says": "Wer das Stück in dieser Fassung bearbeitet (harmonisiert, arrangiert) hat — Verweise auf Personen"
+      },
+      "editors": {
+        "label": "Herausgeber",
+        "says": "Herausgeber — Verweise auf Personen"
+      },
+      "translators": {
+        "label": "Übersetzung",
+        "says": "Übersetzer — Verweise auf Personen (bei einem Stück: Übersetzung des Textes)"
+      },
+      "performers": {
+        "label": "Ausführende",
+        "says": "Wer ausführt — Chor, Ensemble, Dirigent, Solisten: Verweise auf Personen und Institutionen"
+      },
+      "piece": {
+        "label": "Stück",
+        "says": "Welches Stück diese Noten aufzeichnen oder diese Aufnahme ausführt — Verweis auf ein Werk mit \"workType\": \"piece\""
+      },
+      "album": {
+        "label": "Auf dem Album",
+        "says": "Das Album, auf dem diese Aufnahme ist — Verweis auf ein Werk mit \"workType\": \"album\""
+      },
+      "track": {
+        "label": "Titel-Nr.",
+        "says": "Nummer der Aufnahme auf dem Album",
+        "hint": "z. B. 5"
+      },
+      "container": {
+        "label": "In (Buch, Zeitschrift)",
+        "says": "Bei einem Kapitel: das Buch; bei einem Artikel: die Zeitschrift — Verweis auf eine Quelle"
+      },
+      "volume": {
+        "label": "Band / Jahrgang",
+        "says": "Band (Buch, Notensammlung) oder Jahrgang (Zeitschrift)",
+        "hint": "z. B. 1"
+      },
+      "issue": {
+        "label": "Heft",
+        "says": "Heftnummer der Zeitschrift"
+      },
+      "edition": {
+        "label": "Auflage",
+        "says": "Welche Auflage",
+        "hint": "z. B. 2"
+      },
+      "catalogue": {
+        "label": "Katalognummer",
+        "says": "Bei einem Stück: die Nummer im Werkverzeichnis (op. 27 Nr. 2, BWV 147, KV 618); bei Noten und Alben: die Verlagsnummer",
+        "hint": "z. B. KV 618"
+      },
+      "musicKey": {
+        "label": "Tonart",
+        "says": "Tonart (dieser Fassung)",
+        "hint": "z. B. D-Dur"
+      },
+      "voicing": {
+        "label": "Besetzung",
+        "says": "Für welche Stimmen und Instrumente",
+        "hint": "z. B. SATB a cappella · gemischter Chor und Orgel · unisono"
+      },
+      "genre": {
+        "label": "Gattung",
+        "says": "Was für ein Stück oder Buch es ist (Roman, biografischer Roman, Biografie, Reportage, Messbuch, Gebetbuch, Lehrbuch…)",
+        "hint": "z. B. Lied, Psalm, Motette · biografischer Roman, Messbuch"
+      },
+      "duration": {
+        "label": "Dauer",
+        "says": "Wie lange es dauert (Minuten:Sekunden)",
+        "hint": "z. B. 4:32"
+      },
+      "publisher": {
+        "label": "Verlag",
+        "says": "Verlag (bei Aufnahmen und Alben: das Label)"
+      },
+      "place": {
+        "label": "Erscheinungsort",
+        "says": "Erscheinungsort",
+        "hint": "z. B. Freiburg"
+      },
+      "year": {
+        "label": "Jahr",
+        "says": "Erscheinungsjahr (oder Datum eines Dokuments; bei einem Stück — Entstehungsjahr, bei einer Aufnahme — Aufnahmejahr)",
+        "hint": "z. B. 2007"
+      },
+      "series": {
+        "label": "Reihe",
+        "says": "Verlagsreihe, mit der Bandnummer in der Reihe",
+        "hint": "z. B. Quellen der Spiritualität, Bd. 45"
+      },
+      "pages": {
+        "label": "Seiten",
+        "says": "Seitenbereich des Kapitels oder Artikels",
+        "hint": "z. B. 45–60"
+      },
+      "pageCount": {
+        "label": "Seitenzahl",
+        "says": "Wie viele Seiten das Buch hat",
+        "hint": "z. B. 384"
+      },
+      "binding": {
+        "label": "Einband",
+        "says": "Einband: {list}"
+      },
+      "height": {
+        "label": "Höhe (cm)",
+        "says": "Höhe in Zentimetern",
+        "hint": "z. B. 20,5"
+      },
+      "width": {
+        "label": "Breite (cm)",
+        "says": "Breite in Zentimetern",
+        "hint": "z. B. 14,5"
+      },
+      "length": {
+        "label": "Dicke (cm)",
+        "says": "Die dritte Abmessung — Dicke (Tiefe des Buchrückens) in Zentimetern",
+        "hint": "z. B. 2,5"
+      },
+      "siglum": {
+        "label": "Kürzel der Übersetzung",
+        "says": "Bei der Heiligen Schrift: Kürzel der Übersetzung, an die Siglen angehängt",
+        "hint": "z. B. EÜ"
+      },
+      "isbn": {
+        "label": "ISBN",
+        "says": "ISBN des Buchs (mit oder ohne Bindestriche; mehrere — durch Kommas getrennt)"
+      },
+      "ismn": {
+        "label": "ISMN",
+        "says": "ISMN der Notenausgabe",
+        "hint": "z. B. 979-0-2025-0123-4"
+      },
+      "libraryNumber": {
+        "label": "Nummer in der Bibliothek",
+        "says": "Eigene Nummer des Exemplars in dieser Bibliothek (Inventarnummer, Signatur) — man kann danach suchen und sie scannen",
+        "hint": "z. B. B-0124"
+      },
+      "doi": {
+        "label": "DOI",
+        "says": "DOI der Veröffentlichung"
+      },
+      "url": {
+        "label": "Adresse",
+        "says": "Adresse im Netz"
+      },
+      "accessed": {
+        "label": "Abgerufen",
+        "says": "Wann die Seite gelesen wurde (JJJJ-MM-TT)"
+      },
+      "language": {
+        "label": "Sprache",
+        "says": "Sprache (z. B. \"pl\", \"la\"; bei Musik — die Sprache des Textes)"
+      },
+      "lyrics": {
+        "label": "Text",
+        "says": "Text des Stücks — Strophen durch eine Leerzeile getrennt"
+      },
+      "scheme": {
+        "label": "Stellenschema",
+        "hint": "leer: nach der Art",
+        "says": "Wie man Stellen in diesem Werk angibt: {list}; leer — nach der Art (Heilige Schrift: bible, Dokument: numbered, Aufnahme: time — Minuten und Sekunden, sonst: pages)"
+      },
+      "pageSeries": {
+        "label": "Seitenserien",
+        "says": "Wenn ein Buch seine Teile getrennt nummeriert (Einleitung, Anhänge, Beilagen): je eine Beispielseite aus jeder Serie, wie gedruckt, in der Reihenfolge des Buchs, durch Leerzeichen getrennt — z. B. \"xii 12* 1 3' (1) A1\" (römisch, mit Sternchen, normal, mit Apostroph, in Klammern, mit Buchstabe; beliebige Zeichen möglich). Seite \"12*\" und Seite \"12\" sind zwei verschiedene Seiten. Leer — römisch, dann normal, dann die übrigen"
+      },
+      "psalms": {
+        "label": "Psalmenzählung",
+        "says": "Bei der Heiligen Schrift: \"hebrew\" (hebräisch — Einheitsübersetzung, die meisten Übersetzungen) oder \"greek\" (griechisch — Septuaginta, Vulgata)"
+      },
+      "editionOf": {
+        "label": "Ausgabe / Übersetzung des Werks",
+        "says": "Dies ist eine andere Ausgabe oder Übersetzung dieses Werks — Verweis auf eine Quelle. Stellen in der Gliederung (Vers, Nummer, Absatz) gelten für alle Ausgaben; Seiten nicht."
+      },
+      "files": {
+        "label": "Notendateien",
+        "says": "Dateien dieser Noten — Partitur, Stimmen, Notensatz; Dateien werden in der App hochgeladen, JSON aus einem Export überträgt sie in derselben Bibliothek"
+      },
+      "tracks": {
+        "label": "Spuren",
+        "says": "Dateien der Aufnahme — die ganze Aufnahme oder einzelne Stimmen und Instrumente, die zusammen abgespielt werden; Dateien werden in der App hochgeladen, JSON aus einem Export überträgt sie in derselben Bibliothek"
+      }
+    },
+    "more": {
+      "piece": "Musik — ein Stück",
+      "recording": "Musik — eine Aufnahme in Stimmen"
+    }
+  },
+  "quote": {
+    "label": "Zitat",
+    "plural": "Zitate",
+    "says": "Ein Abschnitt aus einer Quelle — mit Stelle (Seite, Vers, Nummer) und Beschreibung.",
+    "fields": {
+      "text": {
+        "label": "Zitattext",
+        "says": "Der genaue Wortlaut des Zitats"
+      },
+      "work": {
+        "label": "Quelle",
+        "says": "Aus welcher Quelle — ein Verweis"
+      },
+      "locator": {
+        "label": "Stelle",
+        "says": "Wo in der Quelle: \"s. 23\", \"J 3,16\", \"nr 24\"",
+        "hint": "s. 23 · J 3,16 · nr 24"
+      },
+      "language": {
+        "label": "Sprache",
+        "says": "Sprache des Zitats (z. B. \"pl\", \"la\")"
+      },
+      "translation": {
+        "label": "Übersetzung",
+        "says": "Übersetzung des Zitats (wenn der Text in einer anderen Sprache ist)"
+      }
+    }
+  },
+  "textStatus": {
+    "idea": "Idee",
+    "draft": "Entwurf",
+    "revision": "Zu überarbeiten",
+    "final": "Fertig"
+  },
+  "pointKinds": {
+    "thought": "Gedanke",
+    "quote": "Zitat",
+    "example": "Beispiel",
+    "question": "Frage",
+    "application": "Anwendung"
+  },
+  "planItem": {
+    "id": {
+      "label": "Kennung",
+      "says": "Feste Kennung des Punkts (z. B. \"p4k2x\"); weggelassen — wird selbst vergeben. Vorträge verweisen darüber auf Punkte"
+    },
+    "text": {
+      "label": "Inhalt",
+      "says": "Der Gedanke in ein, zwei Sätzen, in der Inhaltsschreibweise: [@schlüssel, s. 12] — eine Quelle, ![@zitat-schlüssel] allein — ein Zitat aus der Bibliothek"
+    },
+    "depth": {
+      "label": "Ebene",
+      "says": "0 — Hauptgedanke, 1 — darunter, 2 — noch tiefer"
+    },
+    "kind": {
+      "label": "Art",
+      "says": "Art des Punkts: {list}; weggelassen — Gedanke"
+    }
+  },
+  "coverageStates": {
+    "said": "Gesagt",
+    "short": "Kurz",
+    "skipped": "Ausgelassen"
+  },
+  "coverageItem": {
+    "point": {
+      "label": "Punkt des Plans",
+      "says": "\"id\" des Punkts im Plan des Textes"
+    },
+    "state": {
+      "label": "Wie",
+      "says": "\"said\" — gesagt, \"short\" — nur kurz erwähnt, \"skipped\" — ausgelassen"
+    },
+    "at": {
+      "label": "Zeit",
+      "says": "Wann dieser Punkt in der Aufnahme beginnt (mm:ss oder hh:mm:ss)"
+    },
+    "note": {
+      "label": "Anmerkung",
+      "says": "Was anders war als im Plan"
+    }
+  },
+  "lessonStates": {
+    "planned": "Geplant",
+    "done": "Gehalten",
+    "partial": "Teilweise",
+    "skipped": "Hat nicht stattgefunden"
+  },
+  "classItem": {
+    "area": {
+      "label": "Klasse",
+      "says": "Kennung des Bereichs der Klasse (aus einem Export oder von der Karte der Schule)"
+    }
+  },
+  "addedItem": {
+    "text": {
+      "label": "Was",
+      "says": "Was gesagt wurde (ein, zwei Sätze), in der Inhaltsschreibweise"
+    },
+    "at": {
+      "label": "Zeit",
+      "says": "Wann in der Aufnahme (mm:ss)"
+    },
+    "after": {
+      "label": "Nach Punkt",
+      "says": "\"id\" des Plan-Punkts, nach dem es gesagt wurde; leer — am Ende"
+    }
+  },
+  "text": {
+    "label": "Text",
+    "plural": "Texte",
+    "says": "Ein eigener Text — Predigt, Betrachtung, Buchkapitel — mit Verweisen auf Quellen und Zitate.",
+    "fields": {
+      "textType": {
+        "label": "Textart",
+        "says": "Eigene Textart — ein Verweis (z. B. \"@kazanie-maryjne\"); ihre zusätzlichen Felder stehen dann neben den Feldern des Textes. Weggelassen — ein einfacher Text"
+      },
+      "title": {
+        "label": "Titel",
+        "says": "Titel"
+      },
+      "subtitle": {
+        "label": "Untertitel",
+        "says": "Untertitel"
+      },
+      "project": {
+        "label": "Projekt (Buch, Reihe)",
+        "says": "Zu welchem Buch oder welcher Reihe er gehört — ein Verweis"
+      },
+      "status": {
+        "label": "Arbeitsstand",
+        "says": "Arbeitsstand: {list}"
+      },
+      "date": {
+        "label": "Datum (gehalten / geschrieben)",
+        "says": "Datum (JJJJ-MM-TT) — danach wird das Archiv geordnet"
+      },
+      "occasion": {
+        "label": "Anlass",
+        "says": "Anlass, liturgischer Tag",
+        "hint": "z. B. 18. Sonntag im Jahreskreis"
+      },
+      "place": {
+        "label": "Ort",
+        "says": "Wo er gehalten wurde"
+      },
+      "readings": {
+        "label": "Lesungen",
+        "says": "Lesungen, biblische Siglen",
+        "hint": "z. B. Jes 55,1-3; Röm 8,35.37-39; Mt 14,13-21"
+      },
+      "summary": {
+        "label": "Kurzbeschreibung",
+        "says": "Kurzbeschreibung — im Archiv, über dem Inhalt"
+      },
+      "plan": {
+        "label": "Plan",
+        "says": "Plan — die Hauptgedanken der Reihe nach, darunter Zitate, Beispiele, Fragen, Anwendungen; eine Liste von Punkten { \"id\", \"text\", \"depth\", \"kind\", \"note\" }. Vorträge verweisen über \"id\" auf Punkte"
+      },
+      "body": {
+        "label": "Inhalt",
+        "says": "Inhalt in einfacher Schreibweise (unten: \"Inhaltsschreibweise\") — mit Verweisen [@schlüssel, s. 12]"
+      },
+      "further": {
+        "label": "Weitere Informationen",
+        "says": "Weitere Informationen unter dem Text — in derselben Schreibweise"
+      },
+      "audio": {
+        "label": "Aufnahme (Adresse)",
+        "says": "Adresse der Audioaufnahme"
+      },
+      "video": {
+        "label": "Video (Adresse)",
+        "says": "Adresse der Videoaufnahme"
+      },
+      "targetWords": {
+        "label": "Ziel-Wortzahl",
+        "says": "Wie viele Wörter er haben soll"
+      }
+    }
+  },
+  "delivery": {
+    "label": "Vortrag",
+    "plural": "Vorträge",
+    "says": "Ein Vortrag eines vorbereiteten Textes (Predigt, Konferenz): wann und wo, die Aufnahme — und was vom Plan gesagt wurde, was nur kurz, was ausgelassen und was hinzukam.",
+    "fields": {
+      "texts": {
+        "label": "Predigt (Text)",
+        "says": "Welcher vorbereitete Text gehalten wurde — ein Verweis (meist einer; mehrere, wenn Material verbunden wurde)"
+      },
+      "date": {
+        "label": "Datum",
+        "says": "Wann (JJJJ-MM-TT) — danach wird das Archiv geordnet"
+      },
+      "occasion": {
+        "label": "Anlass",
+        "says": "Liturgischer Tag, Anlass",
+        "hint": "z. B. 18. Sonntag im Jahreskreis"
+      },
+      "place": {
+        "label": "Ort",
+        "says": "Wo: Kirche, Messe",
+        "hint": "z. B. Köln, Messe um 10:30"
+      },
+      "audience": {
+        "label": "Für wen",
+        "says": "Zuhörer",
+        "hint": "z. B. Familienmesse"
+      },
+      "readings": {
+        "label": "Lesungen",
+        "says": "Lesungen des Tages, biblische Siglen"
+      },
+      "audio": {
+        "label": "Aufnahme (Adresse)",
+        "says": "Adresse der Audioaufnahme — eine Datei (mp3, m4a, ogg) oder eine Seite mit der Aufnahme"
+      },
+      "video": {
+        "label": "Video (Adresse)",
+        "says": "Adresse der Videoaufnahme — eine Datei (mp4, webm) oder YouTube"
+      },
+      "duration": {
+        "label": "Länge",
+        "says": "Länge der Aufnahme (mm:ss)",
+        "hint": "z. B. 14:30"
+      },
+      "summary": {
+        "label": "Kurz zu diesem Vortrag",
+        "says": "Was diesmal am wichtigsten war, worin er sich unterschied"
+      },
+      "coverage": {
+        "label": "Was vom Plan",
+        "says": "Was vom Plan des Textes gesagt wurde — Punkt für Punkt: { \"point\", \"state\", \"at\", \"note\" }"
+      },
+      "added": {
+        "label": "Was hinzukam",
+        "says": "Was gesagt wurde, aber nicht im Plan stand: { \"text\", \"at\", \"after\" }"
+      },
+      "transcript": {
+        "label": "Mitschrift (Transkription)",
+        "says": "Was gesagt wurde, Wort für Wort aufgeschrieben — in der Inhaltsschreibweise"
+      },
+      "classArea": {
+        "label": "Klasse",
+        "says": "Eine Stunde in der Schule: Kennung des Bereichs der Klasse, in der diese Stunde war (oder sein soll); weggelassen — ein gewöhnlicher Vortrag"
+      },
+      "state": {
+        "label": "Stand der Stunde",
+        "says": "Nur eine Stunde in einer Klasse: {list}; weggelassen — gehalten"
+      },
+      "homework": {
+        "label": "Aufgabe für die Klasse",
+        "says": "Nur eine Stunde in einer Klasse: Hausaufgabe oder was die Klasse vorbereiten soll"
+      }
+    }
+  },
+  "projectTypes": {
+    "book": "Buch",
+    "series": "Predigtreihe",
+    "collection": "Sammlung",
+    "article": "Artikel",
+    "program": "Lehrplan",
+    "other": "Andere"
+  },
+  "projectStatus": {
+    "planned": "Geplant",
+    "writing": "Ich schreibe",
+    "editing": "Lektorat",
+    "done": "Fertig"
+  },
+  "project": {
+    "label": "Projekt",
+    "plural": "Projekte",
+    "says": "Ein Buch, eine Predigtreihe, eine Sammlung — mit Plan (Kapitel, Teile) und Schreibfortschritt.",
+    "fields": {
+      "projectType": {
+        "label": "Art",
+        "says": "Art: {list}"
+      },
+      "title": {
+        "label": "Titel",
+        "says": "Titel"
+      },
+      "subtitle": {
+        "label": "Untertitel",
+        "says": "Untertitel"
+      },
+      "description": {
+        "label": "Beschreibung",
+        "says": "Beschreibung des Projekts — worum es in dem Buch oder der Reihe geht"
+      },
+      "outline": {
+        "label": "Plan",
+        "says": "Plan: eine Liste von {\"heading\": \"Teil I\"} und {\"text\": Verweis auf einen Text} der Reihe nach; ein Leser sieht die Texte, die er lesen darf"
+      },
+      "status": {
+        "label": "Stand",
+        "says": "Stand: {list}"
+      },
+      "deadline": {
+        "label": "Termin",
+        "says": "Bis wann (JJJJ-MM-TT)"
+      },
+      "targetWords": {
+        "label": "Ziel-Wortzahl",
+        "says": "Wie viele Wörter das Ganze haben soll"
+      },
+      "classes": {
+        "label": "Klassen",
+        "says": "Lehrplan in der Schule: die Klassen, die ihn umsetzen — eine Liste { \"area\": Kennung des Bereichs der Klasse }"
+      }
+    }
+  },
+  "textType": {
+    "label": "Textart",
+    "plural": "Textarten",
+    "says": "Eine eigene Textart (z. B. „Marienpredigt“): ein Name und zusätzliche Felder, die jeder Text dieser Art hat — auch Verweise auf Einträge im Wissen (z. B. Geheimnis, Bereich). Ein Text ohne Art ist ein einfacher Text.",
+    "fields": {
+      "name": {
+        "label": "Name",
+        "says": "Name der Art, z. B. „Marienpredigt“"
+      },
+      "description": {
+        "label": "Beschreibung",
+        "says": "Wozu diese Art dient"
+      },
+      "fields": {
+        "label": "Zusätzliche Felder",
+        "says": "Felder, die jeder Text dieser Art hat — beschrieben wie die Felder einer Art im Wissen: eine Liste {\"key\", \"label\", \"type\", \"multi\", \"options\", \"to\", \"locator\", \"says\"}. \"type\": line, text, number, date, bool, choice, ref, url, list. Bei \"ref\" — \"to\": Namen von Arten im Wissen (z. B. [\"Tajemnica\"]) oder \"work\", \"quote\", \"person\" aus der Bibliothek; \"locator\": true — mit Stelle (z. B. Heilige Schrift + \"Łk 1,26-38\"). Die Schlüssel der festen Felder eines Textes (title, date, plan, body …) sind vergeben"
+      }
+    }
+  },
+  "group": {
+    "texts": "Texte und Vorträge",
+    "music": "Musik"
+  },
+  "musicSays": {
+    "piece": "das Stück selbst: Komponist, Text, Tonart, Besetzung",
+    "score": "eine Notenausgabe, mit Dateien: Partitur, Stimmen, Notensatz",
+    "recording": "eine Aufführung: eine Datei oder mehrere Spuren (Stimmen und Instrumente, zusammen abgespielt)",
+    "album": "eine Sammlung von Aufnahmen"
+  },
+  "untitled": "Ohne Titel"
+}

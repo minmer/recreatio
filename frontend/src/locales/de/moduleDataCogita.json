@@ -1,0 +1,256 @@
+{
+  "f": {
+    "heading": "Überschrift",
+    "fromBase": "Aus welcher Wissensbasis",
+    "answers": "Antworten der Lernenden gehen an",
+    "answersHint": "leer: wie in der Wissensbasis; sonst bleiben sie beim Lernenden",
+    "rewardsInRun": "Punkte und Serie beim Lernen",
+    "rewardsInRunNone": "wie der Baustein „Punkte und Serie“ auf dieser Seite",
+    "rewardsRules": "Regeln der Belohnungen",
+    "rewardsRulesNone": "in der Wissensbasis gewählt (oder eingebaut)",
+    "scope": "Zählt nur die Karten der Wiederholung",
+    "scopeNone": "die ganze Wissensbasis",
+    "whatShows": "Was er zeigt"
+  },
+  "m": {
+    "pickBase": "Wähle eine Wissensbasis.",
+    "pickBaseSame": "Wähle eine Wissensbasis — dieselbe, aus der der Lernbaustein auf der Seite lernt."
+  },
+  "s": {
+    "start": "Starten",
+    "open": "Öffnen"
+  },
+  "ex": {
+    "library": "<bibliotheks-id>",
+    "base": "<wissensbasis-id>",
+    "revision": "<wiederholungs-id>",
+    "revisionOrEmpty": "<wiederholungs-id oder leer>",
+    "area": "<kursbereich-id>",
+    "rewardsOrEmpty": "<belohnungs-id oder leer>",
+    "flow": "<ablauf-id>",
+    "entry": "<eintrags-id>",
+    "views": "<ansicht-id>,<zweite-ansicht-id> (oder leer)"
+  },
+  "revision": {
+    "label": "Wiederholung",
+    "use": "Eine Wiederholung aus einer Wissensbasis (Cogita). Sichtbar für alle, die die Basis lesen dürfen — in einem öffentlichen Bereich (offene Basis) für jeden, ohne Konto; Fortschritt ohne Konto bleibt im Browser. Die Antworten gehen an den Bereich, den du wählst (z. B. einen Kurs) — seine Leitung sieht den Fortschritt.",
+    "exTitle": "Wiederholung vor der Firmung",
+    "titleHint": "leer: Name der Wiederholung",
+    "which": "Welche Wiederholung",
+    "missingRevision": "Wähle eine Wiederholung aus dieser Wissensbasis.",
+    "showsTall": "Die ganze Wiederholung auf einmal — Karte für Karte.",
+    "showsStrip": "Überschrift und Knopf — die Wiederholung öffnet sich beim Klick.",
+    "showsBlock": "Wie viele Karten und wie viele du schon kannst — Knopf „Starten“."
+  },
+  "flow": {
+    "label": "Kurs / Geschichte",
+    "use": "Ein Ablauf aus einer Wissensbasis (Cogita): ein Kurs, eine Geschichte, ein Gespräch in Sprechblasen, eine Karte zum Entdecken. Sichtbar für alle, die die Basis lesen dürfen — in einem öffentlichen Bereich für jeden, ohne Konto.",
+    "exTitle": "Ein Weg durch das Markusevangelium",
+    "titleHint": "leer: Name des Ablaufs",
+    "which": "Welcher Ablauf",
+    "missingFlow": "Wähle einen Ablauf aus dieser Wissensbasis.",
+    "stripTitle": "Kurs",
+    "showsTall": "Der ganze Ablauf auf einmal, Schritt für Schritt.",
+    "showsStrip": "Überschrift und Knopf — der Ablauf öffnet sich beim Klick.",
+    "showsBlock": "Was für ein Ablauf es ist, wie viele Schritte und Ziele — Knopf „Starten“ (oder „Zurück, wo du aufgehört hast“)."
+  },
+  "live": {
+    "label": "An einer Sitzung teilnehmen",
+    "use": "Ein Feld für den Code einer Cogita-Sitzung (Live-Quiz, Wiederholung in der Gruppe, Spiel) — ein Link mit QR-Code öffnet die Sitzung sofort auf dieser Seite.",
+    "exTitle": "Mach beim Quiz mit",
+    "titleHint": "z. B. Mach beim Quiz mit",
+    "showsStrip": "Eine Zeile: Codefeld und „Beitreten“.",
+    "showsTall": "Codefeld mit Erklärung — nach dem Beitritt die ganze Sitzung in der Kachel.",
+    "showsBlock": "Codefeld und „Beitreten“ — nach dem Beitritt Fragen und Antworten in der Kachel."
+  },
+  "card": {
+    "label": "Eintragskarte",
+    "use": "Ein Eintrag einer Wissensbasis — eine Person, ein Ort, ein Begriff, ein Wissen — mit Feldern und Bild. Sichtbar für alle, die die Basis lesen dürfen.",
+    "exTitle": "Hl. Josef",
+    "titleHint": "leer: Name des Eintrags",
+    "which": "Welcher Eintrag",
+    "showsStrip": "Eine Zeile: Name des Eintrags und seine Art.",
+    "showsTall": "Der ganze Eintrag: alle Felder und Dateien.",
+    "showsBlock": "Name, Bild und die ersten vier Felder."
+  },
+  "table": {
+    "label": "Tabelle der Einträge",
+    "use": "Einträge einer Wissensbasis als Tabelle — mit Suche; eine kleine Kachel zeigt eine Liste. Sichtbar für alle, die die Basis lesen dürfen.",
+    "retired": "ersetzt durch den Baustein „Ansicht“ (Tabelle). füge der Seite einen Baustein „Ansicht“ hinzu und entferne diesen",
+    "exTitle": "Gestalten des Alten Testaments",
+    "exKind": "Person",
+    "exColumns": "Lebenszeit, Buch",
+    "titleHint": "z. B. Gestalten",
+    "kind": "Nur Art",
+    "kindHint": "Name der Art, z. B. Person — leer: alle",
+    "columns": "Spalten",
+    "columnsHint": "Feldnamen mit Komma getrennt — leer: die ersten vier",
+    "showsStrip": "Eine Zeile: wie viele Einträge, Knopf „Ansehen“.",
+    "showsTall": "Die ganze Tabelle mit Suche; ein angeklickter Eintrag öffnet sich darunter.",
+    "showsBlock": "Die ersten acht Namen — der Rest im Vollbild."
+  },
+  "topics": {
+    "label": "Themen",
+    "use": "Früher: Themen einer Wissensbasis. Themen gibt es nicht mehr — der Baustein zeigt nur einen Hinweis; Ordnung gibt der Baustein „Ansicht“ mit Achsen (Arten).",
+    "retired": "Themen gibt es nicht mehr — ersetzt durch den Baustein „Ansicht“ (Baum oder Matrix nach Achsen: eigenen Arten, z. B. Geheimnis × Bereich). füge der Seite einen Baustein „Ansicht“ hinzu und entferne diesen",
+    "exTitle": "Themen der Katechese",
+    "titleHint": "z. B. Themen",
+    "showsStrip": "Eine Zeile: wie viele Themen, Knopf „Durchsuchen“.",
+    "showsTall": "Themen zum Vertiefen und die Einträge des gewählten Themas.",
+    "showsBlock": "Themen als Knöpfe — tiefer beim Klick."
+  },
+  "map": {
+    "label": "Wissenskarte",
+    "use": "Die Einträge einer Wiederholung als Karte: was du schon kannst, ist hell; die Grenze zum Entdecken; der Rest im Nebel. Sichtbar für alle, die die Basis lesen dürfen (öffentlicher Bereich: jeder, ohne Konto).",
+    "retired": "ersetzt durch den Baustein „Ansicht“ (Karte). füge der Seite einen Baustein „Ansicht“ hinzu und entferne diesen",
+    "exTitle": "Karte: Apostelgeschichte",
+    "titleHint": "z. B. Wissenskarte",
+    "which": "Aus welcher Wiederholung",
+    "missingRevision": "Wähle eine Wiederholung.",
+    "showsStrip": "Eine Zeile: wie viel du schon kannst, Knopf „Karte“.",
+    "showsTall": "Die ganze Karte mit Namen; ein angeklickter Eintrag und „Lerne das“.",
+    "showsBlock": "Eine kleine Karte — Namen beim Darüberfahren; ein angeklickter Eintrag in Kürze."
+  },
+  "seat": {
+    "label": "Lernen (Person mit Link)",
+    "use": "Wiederholungen aus der Wissensbasis des Kurses für eine Person mit Link — ihr Fortschritt geht an den Kurs (die Leitung sieht ihn unter Fortschritt).",
+    "exTitle": "Dein Lernen",
+    "titleHint": "z. B. Dein Lernen",
+    "revision": "Nur Wiederholung",
+    "revisionHint": "Kennung der Wiederholung — leer: alle Wiederholungen der Wissensbasis",
+    "missingBase": "Wähle die Wissensbasis des Kurses — die Person mit Link muss ihren Bereich lesen dürfen (Rolle eines Formulars oder Freigabe).",
+    "showsStrip": "Überschrift und Knopf — das Lernen öffnet sich beim Klick.",
+    "showsTall": "Wie viele warten, wie viele schon gekonnt sind, und Wiederholungen zur Wahl.",
+    "showsBlock": "Wie viele jetzt warten und Wiederholungen zur Wahl."
+  },
+  "rewards": {
+    "label": "Punkte und Serie",
+    "use": "Punkte, Serie der Lerntage, Tagesziel, Stufe und Abzeichen der Person, die hier lernt — live: jede Antwort in einem Lernbaustein auf dieser Seite gibt sofort Punkte („+10“), entzündet die Flamme der Serie, füllt das Tagesziel. Die Regeln (wie viele Punkte wofür, das Ziel, Stufen, Abzeichen) sind die „Belohnungen“ der Wissensbasis (Lernen → Belohnungen) — jede Seite wählt ihre eigenen.",
+    "exTitle": "Deine Punkte",
+    "titleHint": "z. B. Deine Punkte",
+    "bitPoints": "Punkte",
+    "bitLevel": "Stufe",
+    "bitStreak": "Tagesserie",
+    "bitGoal": "Tagesziel",
+    "bitBadges": "Abzeichen",
+    "bitFeed": "Letzte Belohnungen",
+    "showsStrip": "Eine Zeile: Punkte, Stufe, Serie, Tagesziel, Abzeichen — nach jeder Antwort „+10“ darüber.",
+    "showsTall": "Alles: Punkte mit Stufe, die Flamme der Serie mit den letzten 28 Tagen, der Ring des Tagesziels, alle Abzeichen und die letzten Belohnungen.",
+    "showsBlock": "Punkte mit Stufe, die Flamme der Serie mit der Woche, der Ring des Tagesziels (was angehakt ist); ein einzelnes gewähltes Element — groß."
+  },
+  "stats": {
+    "label": "Live-Statistik",
+    "use": "Diagramme und Zahlen der Person, die hier lernt — sie wachsen mit jeder Antwort in einem Lernbaustein auf dieser Seite: Punkte heute Antwort für Antwort, Punkte und Tagesziel Tag für Tag, Trefferquote, Serie; in der vollen Ansicht auch, wo die Karten stehen (was sitzt, was verblasst).",
+    "exTitle": "Live",
+    "titleHint": "z. B. Live",
+    "bitTiles": "Zahlen des Tages",
+    "bitToday": "Punkte heute — Diagramm",
+    "bitDays": "Punkte Tag für Tag",
+    "bitGoal": "Tagesziel Tag für Tag",
+    "bitKnowledge": "Wo die Karten stehen (in der vollen Ansicht)",
+    "showsStrip": "Eine Zeile: heutige Punkte, Antworten, Trefferquote und Tagesziel — live.",
+    "showsTall": "Zahlen des Tages, Diagramm der heutigen Punkte, Punkte und Tagesziel Tag für Tag (7/14/30 Tage), wo die Karten stehen.",
+    "showsBlock": "Zahlen des Tages und das Diagramm der heutigen Punkte — es wächst mit jeder Antwort."
+  },
+  "landscape": {
+    "label": "Wissenslandschaft",
+    "use": "Die Wissenslandschaft einer Basis (Cogita): in der Mitte „Du“, ringsum Felder dessen, was du jetzt lernen kannst, weiter draußen Berge — je höher, desto mehr fehlt; was du kannst, wird Land. Klick auf ein Feld: lesen, lernen, wiederholen, ein Ziel setzen. Hier wählt die lernende Person, wie oft Fragen wiederkommen — öfter, normal, seltener oder „Einmal und fertig“ (einmal richtig und Schluss) — sofern die Leitung es nicht in den Einstellungen der Basis für alle festgelegt hat. Ohne Ansicht — die ganze Basis; mit Ansicht — nur ihre Einträge; mit mehreren Ansichten wählt die lernende Person über der Karte, welche Landschaft sie sieht. Ein Klick auf das Haus in der Mitte zeigt Statistik und Belohnungen, ein Doppelklick — alles zusammen. Sichtbar für alle, die die Basis lesen dürfen.",
+    "titleHint": "leer: Name der Ansicht oder „Wissenslandschaft“",
+    "views": "Welche Ansichten (zur Wahl)",
+    "viewsHint": "leer: die ganze Basis; mehrere — die lernende Person wählt",
+    "bitSpacing": "Wahl „Wie oft fragen“ und „Wie viele Karten auf einmal“ (wenn die lernende Person sie ändern darf)",
+    "bitLearner": "Wer lernt und wo der Fortschritt bleibt",
+    "bitSearch": "Suche (in der vollen Ansicht)",
+    "showsAsk": " Darüber die Wahl, wie oft gefragt wird (wenn erlaubt).",
+    "showsStrip": "Überschrift und Knopf — die Landschaft öffnet sich beim Klick.",
+    "showsTall": "Die ganze Landschaft: zoomen, drehen, Felder mit „Lernen“, Ziel und Wege.{ask}",
+    "showsTallSearch": "Die ganze Landschaft: zoomen, drehen, Felder mit „Lernen“, Ziel und Wege, Suche.{ask}",
+    "showsBlock": "Eine kleine Landschaft — bis zu 24 Felder; der Rest im Vollbild.{ask}"
+  },
+  "settings": {
+    "label": "Lerneinstellungen",
+    "use": "Einstellungen der Person, die hier lernt: wie oft Fragen wiederkommen — öfter, normal, seltener, „Einmal und fertig“ (einmal richtig und Schluss) oder eigene Abstände. Gilt für alles Lernen aus dieser Basis (Landschaft, Wiederholungen, Kurse) — auch auf anderen Seiten. Hat die Leitung die Abstände für alle festgelegt (Einstellungen der Basis), zeigt der Baustein nur, was gilt. Wähle denselben Bereich für Antworten wie im Lernbaustein der Seite.",
+    "exTitle": "Wie oft fragen",
+    "titleHint": "leer: „Lerneinstellungen“",
+    "answersHint": "derselbe wie im Lernbaustein dieser Seite — leer: wie in der Wissensbasis",
+    "showsStrip": "Eine Zeile: wie oft jetzt gefragt wird und „Ändern“.",
+    "showsBlock": "Wie oft fragen — mit einem Klick zu wählen, mit Beschreibung; „Andere…“ stellt die Abstände genau ein."
+  },
+  "v": {
+    "myStats": "Meine Statistik",
+    "closed": "Diese Wissensbasis kannst du hier nicht lesen — sie ist nicht öffentlich oder du hast keinen Zugang.",
+    "teacherAnswers": "Antworten der Lernenden →",
+    "revision": "Wiederholung",
+    "noRevision": "Diese Wiederholung gibt es in der Wissensbasis nicht.",
+    "counting": "Karten werden gezählt…",
+    "cards": {
+      "one": "{count} Karte",
+      "other": "{count} Karten"
+    },
+    "levels": " · {known}: {nKnown} · {learning}: {nLearning}",
+    "howMuchKnown": "Wie viel du schon kannst",
+    "repeat": "Wiederholen",
+    "flow": "Ablauf",
+    "noFlow": "Diesen Ablauf gibt es in der Wissensbasis nicht.",
+    "page": "Seite",
+    "steps": {
+      "one": "{count} Schritt",
+      "other": "{count} Schritte"
+    },
+    "questions": {
+      "one": "{count} Frage",
+      "other": "{count} Fragen"
+    },
+    "goals": "Ziele: {goals}",
+    "resume": "Zurück, wo du aufgehört hast",
+    "session": "Sitzung",
+    "sessionCode": "Sitzung {code}",
+    "openSession": "Sitzung öffnen",
+    "sessionOver": "Diese Sitzung ist schon zu Ende.",
+    "sessionOpening": "Sitzung wird geöffnet…",
+    "codeLabel": "Sitzungscode (vom Bildschirm der Leitung)",
+    "code": "Sitzungscode",
+    "codePlaceholder": "z. B. K7M2QX",
+    "join": "Beitreten",
+    "liveNote": "Ohne Konto: du stellst dich mit Namen vor, die Antworten gehen an die Leitung. Ein Link oder QR-Code vom Bildschirm öffnet die Sitzung sofort.",
+    "entry": "Eintrag",
+    "pickEntryTop": "Wähle oben auf der Seite einen Eintrag.",
+    "pickEntry": "Wähle einen Eintrag in den Einstellungen des Bausteins — oder stelle auf der Seite „Auswahl: Eintrag aus einer Wissensbasis“ ein.",
+    "noEntry": "Diesen Eintrag gibt es in der Wissensbasis nicht.",
+    "entries": "Einträge",
+    "entriesCount": {
+      "one": "{count} Eintrag",
+      "other": "{count} Einträge"
+    },
+    "see": "Ansehen",
+    "andMore": "und {count} weitere",
+    "wholeTable": "die ganze Tabelle",
+    "searchTablePh": "In der Tabelle suchen…",
+    "searchTable": "In der Tabelle suchen",
+    "noMatch": "Nichts passt.",
+    "topicsGone": "Themen gibt es nicht mehr — Ordnung geben jetzt eigene Arten (z. B. „Geheimnis“, „Bereich“). Diesen Baustein ersetzt der Baustein „Ansicht“: ein Baum oder eine Matrix nach Achsen.",
+    "xOfY": "{x} von {y}",
+    "map": "Karte",
+    "mapLegend": "Du kannst {x} von {y} · gestrichelter Rand — dorthin kannst du gehen; Nebel — noch nicht entdeckt.",
+    "inFog": "Noch im Nebel",
+    "learnThis": {
+      "one": "Lerne das ({count} Karte)",
+      "other": "Lerne das ({count} Karten)"
+    },
+    "baseOpening": "Wissensbasis wird geöffnet…",
+    "baseNotFromLink": "Diese Wissensbasis ist über diesen Link nicht erreichbar.",
+    "dueNow": {
+      "one": " · jetzt fällig: {count} Karte",
+      "other": " · jetzt fällig: {count} Karten"
+    },
+    "noRevisions": "In dieser Wissensbasis gibt es noch keine Wiederholung.",
+    "waiting": {
+      "one": "{count} Paket mit Antworten wartet auf das Internet.",
+      "other": "{count} Pakete mit Antworten warten auf das Internet."
+    },
+    "seatEmpty": "Hier erscheint das Lernen — für die Person, die ihren Link öffnet.",
+    "pointsLater": "Punkte erscheinen hier, sobald du zu lernen beginnst.",
+    "pointsLocal": "Ohne Konto werden die Punkte in diesem Browser gezählt.",
+    "statsLater": "Statistiken erscheinen hier, sobald du zu lernen beginnst."
+  }
+}

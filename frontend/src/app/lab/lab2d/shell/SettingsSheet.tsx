@@ -6,9 +6,10 @@
 
 import { useRef, type ReactNode } from 'react';
 
+import { useT } from '../../../core/i18n';
 import { Icon } from '../../../ui/icons';
 import type { ExtremeMode, Quality, SideName } from '../engine/scene';
-import { num, t, type TextKey } from '../i18n';
+import { num, type TextKey } from '../i18n';
 import type { Level } from '../panels';
 import type { Walls } from '../render/glRenderer';
 
@@ -94,55 +95,56 @@ export function SettingsSheet(p: {
   busy: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const a = p.ambient;
   const ext = EXTREMES.find((x) => x.m === p.extremes) ?? EXTREMES[0];
   return (
-    <section className="l2d-sheet" aria-label={t('settings')} onPointerDown={(e) => e.stopPropagation()}>
+    <section className="l2d-sheet" aria-label={t('lab2d.settings')} onPointerDown={(e) => e.stopPropagation()}>
       <header className="l2d-sheet-head">
-        <h2>{t('settings')}</h2>
-        <button type="button" className="l2d-icon" onClick={p.onClose} aria-label={t('closePanel')} title={t('closePanel')}><Icon name="x" /></button>
+        <h2>{t('lab2d.settings')}</h2>
+        <button type="button" className="l2d-icon" onClick={p.onClose} aria-label={t('lab2d.closePanel')} title={t('lab2d.closePanel')}><Icon name="x" /></button>
       </header>
       <div className="l2d-sheet-body">
-        <Group title={t('setCompute')}>
-          <span className="l2d-label">{t('quality')}</span>
-          <Segmented label={t('quality')} value={p.quality} onChange={p.onQuality} options={QUALITY.map((x) => ({ value: x.q, text: `${x.mm} mm` }))} />
-          <span className="l2d-label">{t('extremes')}</span>
-          <Segmented label={t('extremes')} value={p.extremes} onChange={p.onExtremes} options={EXTREMES.map((x) => ({ value: x.m, text: t(x.label) }))} />
-          <p className="l2d-note-line">{t(ext.note)}</p>
-          {p.showAccel && <Toggle label={t('accelSetting')} on={p.accel} disabled={!p.accel && p.accelBlocked !== null} title={p.accelBlocked ?? t('accelTitle')} onChange={() => p.onAccel()} />}
-          {p.accel && <p className="l2d-note-line">{t('accelNoteShort')}</p>}
+        <Group title={t('lab2d.setCompute')}>
+          <span className="l2d-label">{t('lab2d.quality')}</span>
+          <Segmented label={t('lab2d.quality')} value={p.quality} onChange={p.onQuality} options={QUALITY.map((x) => ({ value: x.q, text: t('lab2d.cellMm', { mm: x.mm }) }))} />
+          <span className="l2d-label">{t('lab2d.extremes')}</span>
+          <Segmented label={t('lab2d.extremes')} value={p.extremes} onChange={p.onExtremes} options={EXTREMES.map((x) => ({ value: x.m, text: t(`lab2d.${x.label}`) }))} />
+          <p className="l2d-note-line">{t(`lab2d.${ext.note}`)}</p>
+          {p.showAccel && <Toggle label={t('lab2d.accelSetting')} on={p.accel} disabled={!p.accel && p.accelBlocked !== null} title={p.accelBlocked ?? t('lab2d.accelTitle')} onChange={() => p.onAccel()} />}
+          {p.accel && <p className="l2d-note-line">{t('lab2d.accelNoteShort')}</p>}
         </Group>
-        <Group title={t('room')}>
+        <Group title={t('lab2d.room')}>
           <div className="l2d-chips">
-            {PRESSURES.map((x) => <button key={x.key} type="button" className={Math.abs(a.p - x.kPa) < 0.5 ? 'is-on' : ''} onClick={() => p.onAmbient({ ...a, p: x.kPa })}>{t(x.key)}</button>)}
+            {PRESSURES.map((x) => <button key={x.key} type="button" className={Math.abs(a.p - x.kPa) < 0.5 ? 'is-on' : ''} onClick={() => p.onAmbient({ ...a, p: x.kPa })}>{t(`lab2d.${x.key}`)}</button>)}
           </div>
-          <Range label={t('pressure')} value={a.p} unit="kPa" min={50} max={250} step={0.5} digits={1} onChange={(v) => p.onAmbient({ ...a, p: v })} />
-          <Range label={t('roomTemp')} value={a.T} unit="°C" min={0} max={40} step={1} digits={0} onChange={(v) => p.onAmbient({ ...a, T: v })} />
-          <Range label={t('humidity')} value={100 * a.rh} unit="%" min={0} max={100} step={5} digits={0} onChange={(v) => p.onAmbient({ ...a, rh: v / 100 })} />
-          <Range label={t('oxygen')} value={100 * a.o2} unit="%" min={0} max={50} step={1} digits={0} title={t('oxygenNote')} onChange={(v) => p.onAmbient({ ...a, o2: v / 100 })} />
-          <Range label={t('gravity')} value={a.g} unit="g" min={0.25} max={2} step={0.05} digits={2} onChange={(v) => p.onAmbient({ ...a, g: v })} />
+          <Range label={t('lab2d.pressure')} value={a.p} unit="kPa" min={50} max={250} step={0.5} digits={1} onChange={(v) => p.onAmbient({ ...a, p: v })} />
+          <Range label={t('lab2d.roomTemp')} value={a.T} unit="°C" min={0} max={40} step={1} digits={0} onChange={(v) => p.onAmbient({ ...a, T: v })} />
+          <Range label={t('lab2d.humidity')} value={100 * a.rh} unit="%" min={0} max={100} step={5} digits={0} onChange={(v) => p.onAmbient({ ...a, rh: v / 100 })} />
+          <Range label={t('lab2d.oxygen')} value={100 * a.o2} unit="%" min={0} max={50} step={1} digits={0} title={t('lab2d.oxygenNote')} onChange={(v) => p.onAmbient({ ...a, o2: v / 100 })} />
+          <Range label={t('lab2d.gravity')} value={a.g} unit="g" min={0.25} max={2} step={0.05} digits={2} onChange={(v) => p.onAmbient({ ...a, g: v })} />
         </Group>
-        <Group title={t('sides')}>
+        <Group title={t('lab2d.sides')}>
           <div className="l2d-chips">
             {SIDES.map((x) => {
               const wall = p.walls === null ? x.s !== 'top' : p.walls[x.s];
-              return <button key={x.s} type="button" className={wall ? 'is-on' : ''} aria-pressed={wall} onClick={() => p.onSide(x.s, !wall)}>{t(x.label)}: {t(wall ? 'sideWall' : 'sideOpen')}</button>;
+              return <button key={x.s} type="button" className={wall ? 'is-on' : ''} aria-pressed={wall} onClick={() => p.onSide(x.s, !wall)}>{t(`lab2d.${x.label}`)}: {t(`lab2d.${wall ? 'sideWall' : 'sideOpen'}`)}</button>;
             })}
           </div>
         </Group>
-        <Group title={t('view')}>
-          <Toggle label={t('particlesShort')} on={p.particles} disabled={p.particlesBlocked} title={p.particlesBlocked ? t('clipParticles') : undefined} onChange={p.onParticles} />
-          <span className="l2d-label">{t('level')}</span>
-          <Segmented label={t('level')} value={p.level} onChange={p.onLevel} options={[{ value: 'primary', text: t('levelPrimary') }, { value: 'secondary', text: t('levelSecondaryShort') }]} />
-          <Toggle label={t('hudShort')} on={p.hud} onChange={p.onHud} />
+        <Group title={t('lab2d.view')}>
+          <Toggle label={t('lab2d.particlesShort')} on={p.particles} disabled={p.particlesBlocked} title={p.particlesBlocked ? t('lab2d.clipParticles') : undefined} onChange={p.onParticles} />
+          <span className="l2d-label">{t('lab2d.level')}</span>
+          <Segmented label={t('lab2d.level')} value={p.level} onChange={p.onLevel} options={[{ value: 'primary', text: t('lab2d.levelPrimary') }, { value: 'secondary', text: t('lab2d.levelSecondaryShort') }]} />
+          <Toggle label={t('lab2d.hudShort')} on={p.hud} onChange={p.onHud} />
         </Group>
-        <Group title={t('sceneFile')}>
+        <Group title={t('lab2d.sceneFile')}>
           <div className="l2d-chips">
-            <button type="button" onClick={p.onSave}><Icon name="download" />{t('saveShort')}</button>
-            <button type="button" disabled={p.busy} onClick={() => fileRef.current?.click()}><Icon name="upload" />{t('loadScene')}</button>
-            <button type="button" disabled={p.busy} onClick={p.onEmpty}><Icon name="trash" />{t('emptyBox')}</button>
-            <button type="button" disabled={p.busy} onClick={p.onScenarioStart}><Icon name="refresh" />{t('scenarioStart')}</button>
+            <button type="button" onClick={p.onSave}><Icon name="download" />{t('lab2d.saveShort')}</button>
+            <button type="button" disabled={p.busy} onClick={() => fileRef.current?.click()}><Icon name="upload" />{t('lab2d.loadScene')}</button>
+            <button type="button" disabled={p.busy} onClick={p.onEmpty}><Icon name="trash" />{t('lab2d.emptyBox')}</button>
+            <button type="button" disabled={p.busy} onClick={p.onScenarioStart}><Icon name="refresh" />{t('lab2d.scenarioStart')}</button>
           </div>
           <input ref={fileRef} type="file" accept=".json,application/json" className="l2d-file" onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f !== undefined) p.onLoadFile(f); e.currentTarget.value = ''; }} />
         </Group>

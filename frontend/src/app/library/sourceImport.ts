@@ -15,18 +15,18 @@
  */
 
 import { newId } from '../core/ids';
-import { plural } from '../core/plural';
+import { t } from '../core/i18n';
 import { kindsDoc, LIBRARY_FORMAT, LIBRARY_VERSION, planLibraryImport, type ImportBase, type LibraryImportPlan } from './libraryJson';
 import { kindOf, MUSIC_TYPES, WORK_TYPES, workTitle, type LibEntry, type LibKind } from './libraryKinds';
 import type { LibraryStore } from './libraryStore';
 import { SCHEMES, schemeOf, workScheme, type SchemeId } from './locations';
 import {
-  MATH_ASK, nextManifest, overlapsWith, PART_KIND, pageRangeLabel, partData, planSourceImport, portionDocs, readManifest, readPart, samePart,
-  SOURCE_FORMAT, SOURCE_TEXT_USE, SOURCE_VERSION, sourceTextDescription, TEXT_KIND, type TexCheck, type TextManifest
+  mathAsk, nextManifest, overlapsWith, PART_KIND, pageRangeLabel, partData, planSourceImport, portionDocs, readManifest, readPart, samePart,
+  SOURCE_FORMAT, sourceTextUse, SOURCE_VERSION, sourceTextDescription, TEXT_KIND, type TexCheck, type TextManifest
 } from './sourceText';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const count = (n: number, one: string, few: string, many: string) => `${n} ${plural(n, one, few, many)}`;
+
 
 export interface ImportSay {
   readonly lines: string[];
@@ -46,23 +46,28 @@ export function previewPortions(work: LibEntry, manifest: TextManifest | undefin
   let unchecked = 0;
   for (const [i, raw] of docs.entries()) {
     const plan = planSourceImport(raw, { work, ...(running === undefined ? {} : { manifest: running }), ...(tex === undefined ? {} : { tex }) });
-    const label = docs.length > 1 ? `Część ${i + 1}: ` : '';
+    const label = docs.length > 1 ? t('librarySource.preview.partPrefix', { n: i + 1 }) : '';
     if ('error' in plan) { if (docs.length === 1) return plan; warnings.push(`${label}${plan.error}`); continue; }
     const s = plan.summary;
-    const range = s.first === undefined ? '' : `, miejsca ${s.first}${s.last !== s.first ? ` – ${s.last}` : ''}`;
-    const pages = s.pages === undefined ? '' : `, ${pageRangeLabel(s.pages)}`;
-    const formulas = s.formulas === undefined ? '' : `, ${count(s.formulas, 'wzór', 'wzory', 'wzorów')}${s.checked ? (s.texErrors === 0 ? ' (wszystkie się składają)' : ` (${s.texErrors} z błędem)`) : ''}`;
-    const statements = s.statements === 0 ? '' : `, ${count(s.statements, 'ramka', 'ramki', 'ramek')} (twierdzenia, definicje, dowody…)`;
+    const items: string[] = [t('librarySource.preview.blocks', { count: s.blocks }), t('librarySource.preview.words', { count: s.words })];
+    if (s.first !== undefined) items.push(s.last !== s.first ? t('librarySource.preview.placesRange', { first: s.first, last: s.last ?? '' }) : t('librarySource.preview.places', { first: s.first }));
+    if (s.pages !== undefined) items.push(pageRangeLabel(s.pages));
+    if (s.notes > 0) items.push(t('librarySource.preview.notes', { count: s.notes }));
+    if (s.formulas !== undefined) {
+      const f = t('librarySource.preview.formulas', { count: s.formulas });
+      items.push(!s.checked ? f : s.texErrors === 0 ? t('librarySource.preview.formulasOk', { formulas: f }) : t('librarySource.preview.formulasBad', { formulas: f, errors: s.texErrors }));
+    }
+    if (s.statements !== 0) items.push(t('librarySource.preview.frames', { count: s.statements }));
     if (s.formulas !== undefined && !s.checked) unchecked += s.formulas;
-    lines.push(`${plan.replaces ? 'Zastąpi' : 'Doda'} część „${plan.portion.label}” (${plan.portion.key}): ${count(s.blocks, 'blok', 'bloki', 'bloków')}, ${count(s.words, 'słowo', 'słowa', 'słów')}${range}${pages}${s.notes > 0 ? `, ${count(s.notes, 'przypis', 'przypisy', 'przypisów')}` : ''}${formulas}${statements}.`);
-    if (plan.setScheme !== undefined) lines.push(`${label}Układ miejsc dzieła: ${schemeOf(plan.setScheme).label} („${plan.setScheme}”).`);
-    for (const other of overlapsWith(running, plan)) warnings.push(`${label}część „${other}” obejmuje te same miejsca — czy to nie ten sam fragment pod innym kluczem?`);
+    lines.push(t(plan.replaces ? 'librarySource.preview.replaces' : 'librarySource.preview.adds', { label: plan.portion.label, key: plan.portion.key, items: items.join(', ') }));
+    if (plan.setScheme !== undefined) lines.push(`${label}${t('librarySource.preview.setScheme', { label: schemeOf(plan.setScheme).label, scheme: plan.setScheme })}`);
+    for (const other of overlapsWith(running, plan)) warnings.push(`${label}${t('librarySource.preview.overlap', { other })}`);
     warnings.push(...plan.warnings.map((w) => `${label}${w}`));
     /* 2026-10-27 — je Teil eine eigene vorläufige Kennung: mit einer gemeinsamen verdrängte jeder Teil den vorigen, und ein Teil wurde nur mit dem davor verglichen. */
     running = readManifest(nextManifest(running, work.id, plan, `preview-${i}`));
   }
-  if (lines.length === 0) return { error: warnings[0] ?? 'Nic do zaimportowania.' };
-  if (unchecked > 0) lines.push(`Składanie wzorów (${unchecked}) jeszcze trwa — za chwilę podgląd powie, czy wszystkie przechodzą.`);
+  if (lines.length === 0) return { error: warnings[0] ?? t('librarySource.preview.nothing') };
+  if (unchecked > 0) lines.push(t('librarySource.preview.typesetting', { n: unchecked }));
   return { lines, warnings };
 }
 
@@ -87,26 +92,26 @@ export async function writePortions(opts: {
   const textId = current?.id ?? newId();
   for (const [i, raw] of docs.entries()) {
     const plan = planSourceImport(raw, { work, ...(read === undefined ? {} : { manifest: read }), ...(tex === undefined ? {} : { tex }) });
-    if ('error' in plan) { warnings.push(`Część ${i + 1}: ${plan.error}`); continue; }
+    if ('error' in plan) { warnings.push(`${t('librarySource.preview.partPrefix', { n: i + 1 })}${plan.error}`); continue; }
     const had = read?.parts.find((p) => p.key === plan.portion.key);
     if (had !== undefined) {
       const before = await target.heavy(had.id);
-      if (before !== null && samePart(readPart(before.data), plan)) { lines.push(`„${plan.portion.label}”: bez zmian.`); continue; }
+      if (before !== null && samePart(readPart(before.data), plan)) { lines.push(t('librarySource.write.unchanged', { label: plan.portion.label })); continue; }
     }
-    stage(`Zapisywanie części ${i + 1} z ${docs.length}…`);
+    stage(t('librarySource.write.saving', { n: i + 1, total: docs.length }));
     const partId = had?.id ?? newId();
     await target.save({ id: partId, kind: PART_KIND, data: partData(textId, work.id, plan) });
     current = await target.save({ id: textId, kind: TEXT_KIND, data: nextManifest(read, work.id, plan, partId) });
     read = readManifest(current.data);
-    lines.push(`„${plan.portion.label}”: ${had === undefined ? 'dodana' : 'zastąpiona'}.`);
+    lines.push(t(had === undefined ? 'librarySource.write.added' : 'librarySource.write.replaced', { label: plan.portion.label }));
     warnings.push(...plan.warnings);
     if (plan.setScheme !== undefined && typeof work.data.scheme !== 'string' && workStore?.own(work.id) !== undefined) {
       await workStore.save({ id: work.id, kind: 'work', ...(work.key === undefined ? {} : { key: work.key }), data: { ...work.data, scheme: plan.setScheme } }).catch(() => {
-        warnings.push('Nie udało się zapisać układu miejsc przy dziele — tekst ma go i tak.');
+        warnings.push(t('librarySource.write.schemeFailed'));
       });
     }
   }
-  return { lines: lines.length === 0 ? ['Nic nie zapisano.'] : lines, warnings };
+  return { lines: lines.length === 0 ? [t('librarySource.write.nothing')] : lines, warnings };
 }
 
 /* -- Ein Werk mit seinem Text ------------------------------------------------------------------ */
@@ -142,8 +147,8 @@ function workEntryOf(raw: Record<string, unknown>): Record<string, unknown> {
 export function planWorkWithText(
   raw: unknown, base: ImportBase, textManifest: (workId: string) => TextManifest | undefined = () => undefined, tex?: TexCheck
 ): WorkWithTextPlan | { error: string } {
-  if (!isObject(raw) || raw.format !== SOURCE_FORMAT) return { error: `Oczekiwano dokumentu "${SOURCE_FORMAT}" z dziełem ("work") i jego tekstem ("portions" albo "portion" i "blocks").` };
-  if (raw.version !== SOURCE_VERSION) return { error: `Nieznana wersja ${String(raw.version)} — ta aplikacja czyta wersję ${SOURCE_VERSION}.` };
+  if (!isObject(raw) || raw.format !== SOURCE_FORMAT) return { error: t('librarySource.withWork.expected', { format: SOURCE_FORMAT }) };
+  if (raw.version !== SOURCE_VERSION) return { error: t('librarySource.import.unknownVersion', { version: String(raw.version), known: SOURCE_VERSION }) };
 
   let work: LibEntry | undefined;
   let library: LibraryImportPlan = { drafts: [], created: 0, updated: 0, unchanged: 0, lines: [], warnings: [] };
@@ -162,23 +167,23 @@ export function planWorkWithText(
     const known = typeof entry.key === 'string' ? base.byKey(entry.key) : base.get(id);
     work = draft !== undefined ? { id: draft.id, kind: 'work', ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data }
       : known !== undefined && known.kind === 'work' ? known : undefined;
-    if (work === undefined) return { error: 'Dzieła z "work" nie da się zapisać — sprawdź jego pola.' };
+    if (work === undefined) return { error: t('librarySource.withWork.workInvalid') };
   } else if (typeof raw.work === 'string' && raw.work.trim() !== '') {
     const ref = raw.work.trim().replace(/^@/, '');
     work = base.get(ref) ?? base.byKey(ref);
-    if (work === undefined || work.kind !== 'work') return { error: `Nie ma w bibliotece dzieła „${raw.work}” — opisz je w "work" jako obiekt (pola dzieła), a powstanie razem z tekstem.` };
+    if (work === undefined || work.kind !== 'work') return { error: t('librarySource.withWork.workUnknown', { work: raw.work }) };
     if (extra.length > 0) {
       const planned = planLibraryImport({ format: LIBRARY_FORMAT, version: LIBRARY_VERSION, entries: extra }, base);
       if ('error' in planned) return planned;
       library = planned;
     }
   } else {
-    return { error: '"work" — dzieło: obiekt z polami nowego dzieła (np. {"key": "kowalski2020", "data": {"workType": "article", "title": "…"}}) albo klucz istniejącego ("@kowalski2020").' };
+    return { error: t('librarySource.withWork.workMissing') };
   }
 
   const docs = portionDocs(raw);
   const hasText = docs.some((d) => isObject(d) && (Array.isArray(d.blocks) || isObject(d.portion)));
-  const text = hasText ? previewPortions(work, textManifest(work.id), docs, tex) : { lines: [], warnings: ['Dokument nie ma tekstu ("portions" albo "portion" i "blocks") — zapisze się tylko dzieło.'] };
+  const text = hasText ? previewPortions(work, textManifest(work.id), docs, tex) : { lines: [], warnings: [t('librarySource.withWork.noText')] };
   if ('error' in text) return text;
 
   const title = workTitle(work.data);
@@ -189,8 +194,8 @@ export function planWorkWithText(
     workIsNew: isNew,
     docs: hasText ? docs : [],
     lines: [
-      `${isNew ? 'Nowe dzieło' : library.drafts.some((d) => d.id === work!.id) ? 'Uzupełni dzieło' : 'Dzieło'}: „${title}”${work.key === undefined ? '' : ` [@${work.key}]`}.`,
-      ...(library.drafts.filter((d) => d.id !== work!.id).length > 0 ? [`Oprócz niego w bibliotece: ${library.drafts.filter((d) => d.id !== work!.id).map((d) => `${kindOf(d.kind)?.label ?? d.kind} „${String(d.data.title ?? d.data.surname ?? d.data.name ?? d.key ?? '')}”${d.existing ? ' (zmiana)' : ''}`).join(', ')}.`] : []),
+      t(isNew ? 'librarySource.withWork.newWork' : library.drafts.some((d) => d.id === work!.id) ? 'librarySource.withWork.fillWork' : 'librarySource.withWork.work', { title, key: work.key === undefined ? '' : ` [@${work.key}]` }),
+      ...(library.drafts.filter((d) => d.id !== work!.id).length > 0 ? [t('librarySource.withWork.besides', { list: library.drafts.filter((d) => d.id !== work!.id).map((d) => t(d.existing ? 'librarySource.withWork.otherChanged' : 'librarySource.withWork.other', { kind: kindOf(d.kind)?.label ?? d.kind, title: String(d.data.title ?? d.data.surname ?? d.data.name ?? d.key ?? '') })).join(', ') })] : []),
       ...text.lines
     ],
     warnings: [...library.warnings, ...text.warnings]
@@ -205,29 +210,29 @@ export const WORK_WITH_TEXT_EXAMPLE: Readonly<Record<string, unknown>> = {
   version: SOURCE_VERSION,
   work: {
     key: 'kowalski2020',
-    data: { workType: 'article', title: 'Miłość, która pyta', subtitle: 'O J 21,15-17', authors: ['@kowalski'], container: '@przeglad', year: '2020', volume: '12', issue: '2', pages: '45–60', language: 'pl' }
+    data: { workType: 'article', title: 'Miłość, która pyta', subtitle: 'O J 21,15-17', authors: ['@kowalski'], container: '@przeglad', year: '2020', volume: '12', issue: '2', pages: '45–60', language: 'pl' } // i18n-ignore
   },
   entries: [
     { kind: 'person', key: 'kowalski', data: { personType: 'person', givenNames: 'Jan', surname: 'Kowalski' } },
-    { kind: 'work', key: 'przeglad', data: { workType: 'periodical', title: 'Przegląd Biblijny' } }
+    { kind: 'work', key: 'przeglad', data: { workType: 'periodical', title: 'Przegląd Biblijny' } } // i18n-ignore
   ],
   scheme: 'pages',
   edition: { language: 'pl', pdfPageOffset: -44 },
   portions: [
     {
-      portion: { key: 'wstep', label: 'Wstęp', order: 1 },
+      portion: { key: 'wstep', label: 'Wstęp', order: 1 }, // i18n-ignore
       blocks: [
         { type: 'page', page: '45', pdf: 1 },
-        { type: 'heading', level: 1, text: 'Miłość, która pyta' },
-        { type: 'paragraph', text: 'Trzykrotne pytanie Jezusa odpowiada trzykrotnemu zaparciu się Piotra.{{note 1}} Nie jest przesłuchaniem, lecz uzdrowieniem {{page 46 pdf 2}} pamięci.' },
-        { type: 'note', id: '1', text: 'Por. J 18,15-27.' }
+        { type: 'heading', level: 1, text: 'Miłość, która pyta' }, // i18n-ignore
+        { type: 'paragraph', text: 'Trzykrotne pytanie Jezusa odpowiada trzykrotnemu zaparciu się Piotra.{{note 1}} Nie jest przesłuchaniem, lecz uzdrowieniem {{page 46 pdf 2}} pamięci.' }, // i18n-ignore
+        { type: 'note', id: '1', text: 'Por. J 18,15-27.' } // i18n-ignore
       ]
     },
     {
-      portion: { key: 'rozdz-1', label: '1. Słowa pytania', order: 2 },
+      portion: { key: 'rozdz-1', label: '1. Słowa pytania', order: 2 }, // i18n-ignore
       blocks: [
-        { type: 'heading', level: 2, text: '1. Słowa pytania' },
-        { type: 'paragraph', text: 'W dwóch pierwszych pytaniach pada czasownik agapao, w trzecim — phileo.' }
+        { type: 'heading', level: 2, text: '1. Słowa pytania' }, // i18n-ignore
+        { type: 'paragraph', text: 'W dwóch pierwszych pytaniach pada czasownik agapao, w trzecim — phileo.' } // i18n-ignore
       ]
     }
   ]
@@ -248,43 +253,22 @@ const forText = (def: LibKind): LibKind => ({
 export function workWithTextDescription(scheme?: SchemeId): string {
   const work = forText(kindOf('work')!);
   const person = forText(kindOf('person')!);
-  return `# Dzieło z pełnym tekstem jako JSON ("${SOURCE_FORMAT}", wersja ${SOURCE_VERSION})
-
-Jeden dokument tworzy w Bibliotece wpis dzieła (książki, artykułu, rozdziału, dokumentu…), wpisy, na które ono wskazuje (autorzy, czasopismo, książka zbiorowa), i jego pełny tekst. Dzieło o kluczu, który już jest w bibliotece, zostaje uzupełnione (podane pola), nie zdublowane; tak samo autor albo czasopismo o istniejącym kluczu.
-
-{
-  "format": "${SOURCE_FORMAT}",
-  "version": ${SOURCE_VERSION},
-  "work": { "key": "nazwisko2020", "data": { … pola dzieła … } },   — albo "@klucz" dzieła, które już jest
-  "entries": [ { "kind": "person", "key": "…", "data": { … } }, { "kind": "work", "key": "…", "data": { "workType": "periodical", … } } ],
-  "scheme": "pages",          — jak wskazuje się miejsca w tym dziele (niżej)
-  "edition": { … },           — opcjonalnie: przesunięcie stron PDF, język
-  "portions": [ { "portion": { "key", "label", "order" }, "blocks": [ … ] }, … ]
-}
-
-- Odwołania w polach dzieła ("authors", "editors", "translators", "container") to klucze z "@": do wpisów z "entries" albo do takich, które już są w bibliotece.
-- Opis dzieła bierz ze strony tytułowej, metryczki albo nagłówka artykułu; czego tam nie ma, nie wpisuj.
-
-## Pola dzieła i osoby
+  return `${t('librarySource.withWork.head', { format: SOURCE_FORMAT, version: SOURCE_VERSION })}
 ${kindsDoc([work, person])}
 
-${sourceTextDescription(scheme, { usage: false }).replace(/^# .*\n/, '## Tekst\n')}
-## Pełny przykład (artykuł w czasopiśmie, tekst w dwóch częściach)
+${sourceTextDescription(scheme, { usage: false }).replace(/^# .*\n/, `${t('librarySource.withWork.textHead')}\n`)}
+${t('librarySource.withWork.exampleHead')}
 ${JSON.stringify(WORK_WITH_TEXT_EXAMPLE, null, 2)}
 
-## Jak aplikacja używa tych danych
-- Dzieło i wpisy z "entries" trafiają do biblioteki, w której importuje się dokument; tekst — do biblioteki wybranej przy imporcie. Po zapisie otwiera się strona dzieła.
-- Dzieło, autorzy i czasopismo to zwykłe wpisy Biblioteki (widzi je, kto widzi jej obszar): mają swoje strony i cytuje się je kluczem — [@kowalski2020, s. 47] w tekście Skryptorium, we wpisie bazy wiedzy albo w module strony „Tekst” staje się przypisem.
-${SOURCE_TEXT_USE}
+${t('librarySource.withWork.use')}
+${sourceTextUse()}
 `;
 }
 
 /** Der Auftrag für die eigene KI: Werk + Text aus einer Datei (PDF, Scan). */
 export function workWithTextPrompt(): string {
-  return `Przekształć załączone źródło (PDF, skan albo plik z książką lub artykułem) w JEDEN dokument JSON do importu w Bibliotece Recreatio: opis dzieła (dane bibliograficzne ze strony tytułowej albo nagłówka artykułu), jego autorów i — jeśli to artykuł albo rozdział — czasopismo lub książkę, w której jest, oraz cały tekst podzielony na części.
-
-Przepisz tekst wiernie — słowo w słowo, w kolejności oryginału, z podziałem na akapity, nagłówkami, listami, tabelami i przypisami, z granicami stron dokładnie tam, gdzie wypadają (także w środku akapitu). Nie poprawiaj, nie streszczaj, nie dopisuj niczego, czego nie ma w źródle. Co nieczytelne albo niepewne — oznacz. Jeśli całość nie zmieści się w jednej odpowiedzi, w pierwszej daj "work", "entries" i pierwsze części, a w następnych — "work": "@klucz-dzieła" i kolejne części.
-${MATH_ASK}
+  return `${t('librarySource.withWork.prompt')}
+${mathAsk()}
 
 ${workWithTextDescription()}`;
 }

@@ -1,0 +1,63 @@
+{
+  "retired": {
+    "sourceTopic": "The “Topic” source no longer exists — there are no topics. Choose a kind, a collection or a list."
+  },
+  "error": {
+    "upstream": "The previous step failed.",
+    "noStep": "There is no such step.",
+    "noPort": "There is no such input or output.",
+    "mismatch": "That doesn't fit: “{out}” doesn't give what “{into}” needs.",
+    "wouldCycle": "That would make a loop — the step would depend on itself.",
+    "selfLoop": "A step cannot lead to itself.",
+    "unknownKind": "Unknown kind of step: “{type}”.",
+    "edgeNoInput": "The connection leads to an input that doesn't exist.",
+    "edgeMismatch": "The connection “{out}” → “{into}” doesn't fit.",
+    "oneEdge": "The input “{into}” takes one connection.",
+    "cycle": "The graph has a loop.",
+    "stepFailed": "This step failed."
+  },
+  "json": {
+    "notJson": "this is not JSON",
+    "invalid": "This is not valid JSON yet: {error}"
+  },
+  "thisBase": "this base",
+  "paletteHint": "Click to add a step; connect an output (on the right) to an input (on the left). Delete the selected one with the Delete key.",
+  "removeStep": "remove step",
+  "flowStart": "start of the flow",
+  "startHere": "Start here",
+  "linksNoDrag": "Connections without dragging",
+  "cyclesAllowed": "A flow may go back (e.g. to the chapter choice).",
+  "settingsJson": "Settings as JSON",
+  "source": {
+    "anywhere": "— from everywhere",
+    "thisBase": "this knowledge base",
+    "libraryMark": " (library)"
+  },
+  "flowFallback": "Flow",
+  "viewFallback": "View",
+  "rule": {
+    "compare": "Comparison",
+    "anchors": "matching (typos)",
+    "bidirectional": "from both sides",
+    "prefix": "from the beginning",
+    "threshold": "Pass threshold (0–1)",
+    "similar": "similar letters (ą/a, ł/l) count half",
+    "punctuation": "ignore punctuation",
+    "caseSensitive": "letter case matters",
+    "spaces": "spaces don't count",
+    "scripts": "sub/superscripts (₂, ²) like plain digits"
+  },
+  "options": {
+    "legend": "Options (each has its own output)",
+    "placeholder": "option {n}",
+    "onlyWhen": "Only when:",
+    "afterChoice": "After the choice:",
+    "add": "+ option"
+  },
+  "media": {
+    "noKey": "You don't have this area's key.",
+    "uploadFailed": "The file could not be uploaded.",
+    "remove": "remove file",
+    "uploading": "Uploading…"
+  }
+}

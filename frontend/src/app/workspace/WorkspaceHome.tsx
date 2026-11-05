@@ -29,6 +29,7 @@ import { PART_VIEWS } from './ViewParts';
 import { areasNow, useLoaded } from './viewData';
 import { AREA_PARTS, areaViewId, MINE, partDef, withInside, type PartKind, type ViewConfig } from './workspaceViews';
 import { loadDue } from '../cogita/learn';
+import { useT, type T } from '../core/i18n';
 
 /* -- Ein Kasten ------------------------------------------------------------------------- */
 
@@ -73,25 +74,26 @@ function Part({ kind, mode, view, scope, who, desk, more, wide }: {
 
 /* -- Teraz ---------------------------------------------------------------------------- */
 
-const MINE_VIEW: ViewConfig = { id: MINE, name: 'Teraz', kind: 'mine', areaIds: [], parts: [] };
+const mineView = (t: T): ViewConfig => ({ id: MINE, name: t('workspace.home.now'), kind: 'mine', areaIds: [], parts: [] });
 
-function greeting(now: Date): string {
+function greeting(now: Date, t: T): string {
   const h = now.getHours();
-  return h < 5 || h >= 18 ? 'Dobry wieczór' : 'Dzień dobry';
+  return h < 5 || h >= 18 ? t('workspace.home.goodEvening') : t('workspace.home.goodDay');
 }
 
 export function WorkspaceHome({ who, desk }: { who: Who; desk: Desk }) {
+  const t = useT();
   const taker = leadsNoPage(desk);
   const now = new Date();
   /* Nauka nur, wo es etwas zu lernen gibt — ein leerer Kasten wäre Rauschen. */
   const learning = useLoaded(() => loadDue().then((r) => r.due.length > 0), []);
-  const p = { view: MINE_VIEW, scope: null, who, desk } as const;
+  const p = { view: mineView(t), scope: null, who, desk } as const;
 
   return (
     <div className="wk-teraz">
       <PageHeader
-        title={greeting(now)}
-        meta={now.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' })}
+        title={greeting(now, t)}
+        meta={now.toLocaleDateString(t.locale, { weekday: 'long', day: 'numeric', month: 'long' })}
         actions={taker ? undefined : <NewMenu who={who} />}
       />
 
@@ -99,13 +101,13 @@ export function WorkspaceHome({ who, desk }: { who: Who; desk: Desk }) {
 
       <div className="wk-teraz-grid">
         <div className="wk-teraz-col">
-          <Part kind="alerts" mode="list" {...p} more={{ label: 'Ustaw', href: viewPath('account', 'widok') }} />
+          <Part kind="alerts" mode="list" {...p} more={{ label: t('workspace.home.setUp'), href: viewPath('account', 'widok') }} />
           <Part kind="chats" mode="unread" {...p} more={{ label: VIEWS.chat, href: viewPath('chat') }} />
           {learning === true && <Part kind="learn" mode="due" {...p} more={{ label: VIEWS.learn, href: viewPath('learn') }} />}
         </div>
         <div className="wk-teraz-col">
           <Part kind="agenda" mode="today" {...p} more={{ label: VIEWS.calendar, href: viewPath('calendar') }} />
-          <Part kind="tasks" mode="now" {...p} more={{ label: 'Wszystkie', href: viewPath('tasks') }} />
+          <Part kind="tasks" mode="now" {...p} more={{ label: t('workspace.home.all'), href: viewPath('tasks') }} />
           {!taker && <Part kind="pages" mode="list" {...p} more={{ label: VIEWS.pages, href: viewPath('pages') }} />}
         </div>
       </div>
@@ -116,11 +118,12 @@ export function WorkspaceHome({ who, desk }: { who: Who; desk: Desk }) {
 /* -- Der Überblick eines Bereichs ----------------------------------------------------- */
 
 export function AreaOverview({ who, desk, area }: { who: Who; desk: Desk; area: AreaRow }) {
+  const t = useT();
   const areas = useLoaded(() => areasNow(), []);
   const view: ViewConfig = { id: areaViewId(area.areaId), name: area.name, kind: 'area', areaIds: [area.areaId], parts: AREA_PARTS };
   const scope: ReadonlySet<string> = new Set(withInside(areas ?? [], [area.areaId]));
   const p = { view, scope, who, desk } as const;
-  const tab = (t: string) => viewPath('areas', area.areaId, t);
+  const tab = (step: string) => viewPath('areas', area.areaId, step);
 
   return (
     <div className="wk-teraz-grid">
@@ -131,9 +134,9 @@ export function AreaOverview({ who, desk, area }: { who: Who; desk: Desk; area: 
       </div>
       <div className="wk-teraz-col">
         <Part kind="agenda" mode="week" {...p} more={{ label: VIEWS.calendar, href: viewPath('calendar') }} />
-        <Part kind="people" mode="list" {...p} more={{ label: 'Osoby', href: tab('osoby') }} />
+        <Part kind="people" mode="list" {...p} more={{ label: t('workspace.home.people'), href: tab('osoby') }} />
         <Part kind="pages" mode="list" {...p} />
-        <Part kind="access" mode="links" {...p} more={{ label: 'Dostęp', href: tab('dostep') }} />
+        <Part kind="access" mode="links" {...p} more={{ label: t('workspace.home.access'), href: tab('dostep') }} />
       </div>
     </div>
   );

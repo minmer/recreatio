@@ -94,24 +94,56 @@ public static class AiMcp
         var fromPath = ctx.GetRouteValue("link") as string;
         var header = ctx.Request.Headers.Authorization.ToString();
         var bearer = header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? header[7..].Trim() : null;
+
+        /*
+         * 0138 — EINE VERBINDUNG: ihre Bereiche, jeder für sich geprüft. Gilt gerade keiner, bleibt sie trotzdem
+         * angemeldet (die Werkzeuge sagen, wo man einen Bereich hinzufügt) — sonst müsste sich der Assistent neu
+         * anmelden, und genau das soll das Hinzufügen nicht verlangen.
+         */
+        if (fromPath is null && AiMcpConnections.SecretOf(bearer) is not null)
+        {
+            var opened = await AiMcpConnections.OpenAsync(db, bearer!, ctx.RequestAborted);
+            if (opened is null)
+            {
+                await Refuse(ctx, true);
+                return;
+            }
+            ctx.Items[SecretsKey] = opened.Secrets;
+            ctx.Items[AiMcpConnections.ConnectionKey] = opened;
+            await next(ctx);
+            return;
+        }
+
         var secrets = fromPath is not null ? SecretsOf(fromPath) : SecretsOf(bearer);
 
         var works = new List<string>();
         foreach (var secret in secrets) if (await AiAccess.LinkWorksAsync(db, secret, ctx.RequestAborted)) works.Add(secret);
         if (works.Count == 0)
         {
-            var root = AiAccess.PublicRoot(ctx.Request);
-            /* Kopfzeilen sind ASCII — die Beschreibung englisch, die polnische steht im Körper. */
-            var error = secrets.Count == 0 ? "" : ", error=\"invalid_token\", error_description=\"The access link was deleted, has expired, or its creator no longer leads the area.\"";
-            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            ctx.Response.Headers.WWWAuthenticate = $"Bearer resource_metadata=\"{root}/.well-known/oauth-protected-resource/mcp\", scope=\"{Scope}\"{error}";
-            ctx.Response.Headers.CacheControl = "no-store";
-            await ctx.Response.WriteAsJsonAsync(new { error = secrets.Count == 0 ? "unauthorized" : "invalid_token", message = "Połącz Recreatio przez OAuth albo podaj link dostępu dla AI." });
+            await Refuse(ctx, secrets.Count > 0);
             return;
         }
         ctx.Items[SecretsKey] = works;
         await next(ctx);
     }
+
+    /// <summary>401 mit dem Hinweis, wo OAuth beginnt (RFC 9728); mit einem Ausweis, der nicht mehr gilt, <c>invalid_token</c>.</summary>
+    private static async Task Refuse(HttpContext ctx, bool hadToken)
+    {
+        var root = AiAccess.PublicRoot(ctx.Request);
+        /* Kopfzeilen sind ASCII — die Beschreibung englisch, die polnische steht im Körper. */
+        var error = hadToken ? ", error=\"invalid_token\", error_description=\"The connection or access link was revoked, has expired, or its creator no longer leads the area.\"" : "";
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        ctx.Response.Headers.WWWAuthenticate = $"Bearer resource_metadata=\"{root}/.well-known/oauth-protected-resource/mcp\", scope=\"{Scope}\"{error}";
+        ctx.Response.Headers.CacheControl = "no-store";
+        await ctx.Response.WriteAsJsonAsync(new { error = hadToken ? "invalid_token" : "unauthorized", message = "Połącz Recreatio przez OAuth albo podaj link dostępu dla AI." });
+    }
+
+    /// <summary>Wo der Mensch die Bereiche einer Verbindung verwaltet (in der App — öffnet nur, wer angemeldet ist).</summary>
+    public static string ManageUrl(IConfiguration config) => $"{AiMcpTools.AppOrigin(config)}/#/workspace/account/{ManageStep}";
+
+    /// <summary>Der Schritt der Seite „Dostęp dla AI" im Konto (frontend: aiAccess/AiConnections.tsx).</summary>
+    public const string ManageStep = "dostep-ai";
 }
 
 /// <summary>
@@ -122,7 +154,7 @@ public static class AiMcp
 /// hat noch keine Abschrift).
 /// </summary>
 [McpServerToolType]
-public sealed class AiMcpTools
+public sealed partial class AiMcpTools
 {
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -197,7 +229,9 @@ public sealed class AiMcpTools
         if (opened.Count == 0)
             throw new McpException(limited
                 ? "rate_limited: za dużo zapytań na minutę — spróbuj za chwilę."
-                : "unauthorized: żaden z udostępnionych linków już nie działa (usunięty, wygasły albo jego twórca nie prowadzi już obszaru). Połącz Recreatio ponownie.");
+                : ctx.Items[AiMcpConnections.ConnectionKey] is AiMcpConnections.Opened
+                    ? $"no_areas: this connection has no working area right now (none added, removed, or their links expired). The user adds or renews areas in Recreatio — {AiMcp.ManageUrl(config)} — no reconnection is needed; call list_collections again afterwards."
+                    : "unauthorized: żaden z udostępnionych linków już nie działa (usunięty, wygasły albo jego twórca nie prowadzi już obszaru). Połącz Recreatio ponownie.");
         var all = AiAccess.Opened.Combine(opened);
         foreach (var o in opened) o.Dispose();
         var app = AppOrigin(config);
@@ -298,6 +332,10 @@ public sealed class AiMcpTools
     [Description("List the collections the user authorized: Libraries (sources: works, quotes, persons), Scriptoria (own texts, deliveries, projects) and knowledge bases (Cogita). For each: id, area, number of entries, the kinds of entries with counts, and when its snapshot was made. Call this first.")]
     public static async Task<CollectionsResult> ListCollections(IHttpContextAccessor http, Db db, IConfiguration config, CancellationToken cancellationToken)
     {
+        /* 0138 — eine Verbindung ohne geltenden Bereich: eine leere Liste mit dem Weg, einen hinzuzufügen (kein Fehler). */
+        if (http.HttpContext?.Items[AiMcpConnections.ConnectionKey] is AiMcpConnections.Opened { Secrets.Count: 0 } empty)
+            return new CollectionsResult([], empty.Expires.ToString("O"),
+                $"This connection has no working area right now. The user adds areas (or renews expired ones) in Recreatio: {AiMcp.ManageUrl(config)} — no reconnection is needed; they appear here at the next call.");
         using var o = await OpenAsync(http, db, config, cancellationToken);
         var collections = o.Parts.Select(p => new CollectionInfo(
                 Ids.ToText(p.LibraryId), p.Part, AiAccess.PartLabel(p.Part), p.Name, p.AreaName, p.Items.Count, p.MadeAt, true,
@@ -306,7 +344,7 @@ public sealed class AiMcpTools
             .Concat(o.Missing.Select(m => new CollectionInfo(Ids.ToText(m.Library), m.Part, AiAccess.PartLabel(m.Part), AiAccess.PartLabel(m.Part), m.Area, 0, null, false, [], 0)))
             .ToList();
         return new CollectionsResult(collections, o.Expires.ToString("O"),
-            "Ready = false: the collection's snapshot is not built yet (it appears when someone who writes in the area opens Recreatio). Its entries are not missing, only not yet readable here. SnapshotCurrent = false: the collection changed after the snapshot was made (ChangedAt) — what you read here is the state at SnapshotMadeAt; the browser of someone who writes there rebuilds it (right after an import, otherwise within a minute of the last change while the app is open). Texts = full texts of works stored in the collection (read them with list_texts / read_text).");
+            "Ready = false: the collection's snapshot is not built yet (it appears when someone who writes in the area opens Recreatio). Its entries are not missing, only not yet readable here. SnapshotCurrent = false: the collection changed after the snapshot was made (ChangedAt) — what you read here is the state at SnapshotMadeAt; the browser of someone who writes there rebuilds it (right after an import, otherwise within a minute of the last change while the app is open). Texts = full texts of works stored in the collection (read them with list_texts / read_text). Areas the user adds to this connection in Recreatio appear here at the next call, without reconnecting; get_access_overview shows the authorized areas, their hierarchy and permissions.");
     }
 
     [McpServerTool(Name = "get_schema", Title = "Rodzaje wpisów", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]

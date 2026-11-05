@@ -183,7 +183,7 @@ try {
   assert.ok(fromElsewhere.warnings[0].includes('z innej rozmowy') && fromElsewhere.warnings[0].includes('pominięto 5'));
   assert.equal(m.neededFrom(foreign, input.chat.chatId), null, 'and nothing older is loaded for it');
   const reader = m.planChatImport(example, contextOf({ writes: false, moderates: false }));
-  assert.deepEqual(reader, { error: m.READ_ONLY_IMPORT }, 'who only reads gets the export alone');
+  assert.deepEqual(reader, { error: m.readOnlyImport() }, 'who only reads gets the export alone');
   const writer = contextOf({ moderates: false, mayFile: (msg) => msg.authorRoleId === input.items[1].message.authorRoleId, topicMayChange: () => false });
   const tidy = plain(example);
   tidy.messages[1].pinned = false;

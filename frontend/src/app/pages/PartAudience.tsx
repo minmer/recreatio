@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import type { AreaRow } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
 import { areasNow } from '../workspace/viewData';
+import { useT } from '../core/i18n';
 
 /** Die Bereiche, die ich sehe — einmal geladen. */
 export function useSeenAreas(): readonly AreaRow[] {
@@ -28,26 +29,25 @@ export function AudienceField({ value, busy, onChange }: {
   busy: boolean;
   onChange: (areaId: string | null) => void;
 }) {
+  const t = useT();
   const areas = useSeenAreas();
   /* Zur Wahl: was ich lese (der Dienst verlangt es) — nicht „Tylko ja" und keine Rozmowy. */
   const readable = areas.filter((a) => a.myLevel !== null && a.personal !== true && a.ownChat == null);
 
   return (
     <div className="wk-field wk-part-audience">
-      <span>Widoczne dla</span>
+      <span>{t('pages.audience.label')}</span>
       <AreaPick
-        label="Widoczne dla"
+        label={t('pages.audience.label')}
         areas={areas}
         only={readable}
         value={value ?? ''}
         onChange={(next) => onChange(next === '' ? null : next)}
-        extras={[{ value: '', label: 'Wszystkich' }]}
+        extras={[{ value: '', label: t('pages.audience.all') }]}
         disabled={busy}
       />
       {value !== null && (
-        <p className="wk-part-audience-says">
-          Tylko osoby z tego obszaru — z kontem, przez link z dostępem albo przez swój własny link z formularza. Pozostali tego modułu nie zobaczą.
-        </p>
+        <p className="wk-part-audience-says">{t('pages.audience.note')}</p>
       )}
     </div>
   );

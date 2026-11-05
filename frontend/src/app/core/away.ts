@@ -29,6 +29,7 @@
 
 import { aad, derive, Field, fromBase64Url, KEY_SIZE, openText, sealText, toBase64Url } from './crypto';
 import { idbDelete, idbGet, idbKeys, idbPut } from './idb';
+import { t } from './i18n';
 import { device, knownDevice } from './kept';
 import { openMasterKey } from './keys';
 import { native } from './platform';
@@ -86,7 +87,7 @@ export async function openAway(deviceKey: Uint8Array, accountId: string, sealed:
   const raw: unknown = JSON.parse(await openText(deviceKey, accountAad(accountId), fromBase64Url(sealed)));
   const one = raw as Partial<AwayAccount>;
   if (typeof one.loginId !== 'string' || typeof one.salt !== 'string' || typeof one.masterKeySealed !== 'string' || one.accountId !== accountId) {
-    throw new Error('Nieczytelne konto na tym urządzeniu.');
+    throw new Error(t('core.away.unreadable'));
   }
   return { accountId, loginId: one.loginId, salt: one.salt, masterKeySealed: one.masterKeySealed, savedAt: typeof one.savedAt === 'number' ? one.savedAt : 0 };
 }
@@ -178,12 +179,12 @@ export function endAway(): void {
 export async function signInAway(typed: string, password: string): Promise<AwaySession> {
   const name = loginName(typed);
   const account = (await awayAccounts()).find((a) => a.loginId === name);
-  if (account === undefined) throw new WorkspaceError('Tego konta nie ma na tym urządzeniu bez internetu.');
+  if (account === undefined) throw new WorkspaceError(t('core.away.noAccount'));
   let master: Uint8Array;
   try {
     master = await proveAway(account, password);
   } catch {
-    throw new WorkspaceError('Hasło się nie zgadza.');
+    throw new WorkspaceError(t('core.away.wrongPassword'));
   }
   const key = await awayKeyFrom(master, account.accountId);
   master.fill(0);

@@ -21,6 +21,7 @@ import { tidyPhones } from './phone';
 import { normalizeAddressLines } from '../registry/postal';
 import { loadSeats, officeSeatKey, type SeatRow } from '../seats/seat';
 import { fromBase64Url } from '../core/crypto';
+import { t } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 
 export type TidyKind = 'phone' | 'address';
@@ -96,11 +97,11 @@ export function seatKeyFinder(ring: Ring): (seatId: string) => Promise<{ key: Ui
 
   return async (seatId) => {
     const hit = (await all()).find((one) => one.row.seatId === seatId);
-    if (hit === undefined) throw new WorkspaceError('Tego miejsca nie ma wśród Twoich obszarów.');
+    if (hit === undefined) throw new WorkspaceError(t('forms.links.seatUnknown'));
     const areaKey = (await myEpochKeys(ring, hit.areaId)).get(hit.epoch);
     const intake = hit.row.origin === 'self' ? await openIntakeKey(await loadIntake(hit.areaId), ring) : undefined;
     const key = await officeSeatKey(hit.row, areaKey ?? new Uint8Array(32), intake);
-    if (key === null) throw new WorkspaceError('Do tego miejsca nie ma klucza.');
+    if (key === null) throw new WorkspaceError(t('forms.links.seatNoKey'));
     return { key, under: hit.row.under };
   };
 }

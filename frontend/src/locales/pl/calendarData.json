@@ -1,0 +1,25 @@
+{
+  "jsonSection": {
+    "choice": {
+      "year": "od dziś na rok",
+      "around": "rok wstecz i rok naprzód",
+      "days": "wybrane dni…",
+      "all": "wszystko (to może potrwać)"
+    },
+    "readerOnly": "Import jest dla prowadzących ten kalendarz — tutaj możesz pobrać eksport.",
+    "loadFailed": "Nie udało się odczytać terminów kalendarza.",
+    "checking": "Sprawdzanie terminów kalendarza…",
+    "writersOnly": "Import jest dla prowadzących ten kalendarz.",
+    "checkingCalendar": "Sprawdzanie kalendarza…",
+    "title": "Terminy jako JSON",
+    "range": "Eksport — zakres",
+    "fromDay": "Od dnia",
+    "toDay": "Do dnia",
+    "summary": "JSON terminów — eksport i import",
+    "lead": "Terminy tego kalendarza („{format}”): pojedyncze i serie, z programem, schematem i dniami serii — z zakresu wybranego wyżej i serie, które w niego sięgają.",
+    "leadWriter": "Import zmienia terminy z \"id\" na miejscu, dodaje te bez \"id\", a usuwa tylko oznaczone \"remove\". Intencje, zapisy i rezerwacje zostają, jak są.",
+    "fileName": "terminy-{name}.json",
+    "fileFallback": "kalendarz",
+    "importLabel": "Importuj terminy"
+  }
+}

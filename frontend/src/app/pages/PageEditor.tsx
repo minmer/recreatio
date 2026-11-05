@@ -34,6 +34,8 @@ import { toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 import { PageResponsible } from './PageResponsible';
 import type { PageResponsible as Responsible } from '../areas/controllers';
+import { useT } from '../core/i18n';
+import { LangPick } from '../ui/LangPick';
 
 export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
   path: string;
@@ -45,6 +47,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
   /** Den Baustein aufschlagen — als Unterseite DIESER Seite (`Workspace`). */
   onOpenModule: (moduleId: string) => void;
 }) {
+  const t = useT();
 
   const [title, setTitle] = useState('');
   const [lead, setLead] = useState('');
@@ -130,24 +133,21 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
       await look();
       return true;
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pages.editor.failed'));
       return false;
     } finally {
       setBusy(null);
     }
   };
 
-  if (!ready) return <Loading label="Wczytywanie strony…" />;
+  if (!ready) return <Loading label={t('pages.editor.loading')} />;
 
   if (locked) {
     return (
       <div className="ui-empty">
-        <h2 className="wk-h2">Ta strona jest zaszyfrowana</h2>
-        <p>
-          Ta przeglądarka nie ma klucza, który ją otwiera — nie masz klucza żadnego z jej obszarów, a rola, która ją prowadzi,
-          nie dostała go przy szyfrowaniu. Poproś osobę z dostępem do jej obszarów, żeby w Ustawieniach strony odnowiła klucz.
-        </p>
-        <button type="button" className="wk-btn" onClick={() => void look()}>Spróbuj ponownie</button>
+        <h2 className="wk-h2">{t('pages.sealed.title')}</h2>
+        <p>{t('pages.editor.lockedText')}</p>
+        <button type="button" className="wk-btn" onClick={() => void look()}>{t('common.retry')}</button>
       </div>
     );
   }
@@ -157,12 +157,12 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
     <div className="wk-page-edit">
       <PageHeader
         title={title.trim() !== '' ? title : path === '' ? 'recreatio.pl' : path}
-        meta={<a href={`#/${path}`}>recreatio.pl/{path}</a>}
+        meta={<a href={`#/${path}`}>{`recreatio.pl/${path}`}</a>}
         actions={(
           <>
-            <a className="wk-btn wk-btn-quiet" href={pagePath(path)}><Icon name="eye" />Zobacz stronę</a>
+            <a className="wk-btn wk-btn-quiet" href={pagePath(path)}><Icon name="eye" />{t('pages.editor.view')}</a>
             {/* 0094 — die Adresse weitergeben; verlangt die Seite Zugang, mit einem Link, der ihn gibt. */}
-            <ShareButton who={who} label="Udostępnij" className="wk-btn wk-btn-quiet"
+            <ShareButton who={who} label={t('pages.editor.share')} className="wk-btn wk-btn-quiet"
               target={{ title: title.trim() === '' ? path : title.trim(), aim: path, areaIds: accessAreaIds, open: accessAreaIds.length === 0 }} />
           </>
         )}
@@ -175,7 +175,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
         es gilt für sie und alle darunter. Zugeklappt, bis man es braucht.
       */}
       <details className="wk-fold wk-menued-fold">
-        <summary>Menu strony</summary>
+        <summary>{t('pages.editor.menu')}</summary>
         <MenuEditor key={menuKey} path={path} />
       </details>
 
@@ -184,35 +184,35 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
         onSubmit={(e) => {
           e.preventDefault();
           if (busy === null && title.trim() !== '') {
-            void act('Zapisywanie…', () =>
+            void act(t('pages.editor.saving'), () =>
               savePage(path, { title: title.trim(), lead: lead.trim() === '' ? null : lead.trim() })
-            ).then((ok) => { if (ok) toast('Zapisane.', { kind: 'ok' }); });
+            ).then((ok) => { if (ok) toast(t('pages.editor.saved'), { kind: 'ok' }); });
           }
         }}
       >
         <label className="wk-field">
-          <span>Tytuł</span>
+          <span>{t('pages.editor.title')}</span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
 
         <label className="wk-field">
-          <span>Tekst</span>
+          <span>{t('pages.editor.text')}</span>
           <textarea rows={5} value={lead} onChange={(e) => setLead(e.target.value)} />
         </label>
 
         <p className="wk-hint">
           {sealedPage
-            ? 'Tytuł i tekst są zaszyfrowane — czytają je tylko osoby z kluczem tej strony; serwer ich nie zna.'
+            ? t('pages.editor.textSealed')
             : accessAreaIds.length > 0
-              ? 'Tytuł i tekst czytają osoby z dostępem do tej strony (serwer też je widzi, dopóki strona nie jest zaszyfrowana).'
-              : 'Tytuł i tekst są jawne — czyta je każdy, kto wejdzie pod ten adres.'}
+              ? t('pages.editor.textAccess')
+              : t('pages.editor.textPublic')}
         </p>
 
         {failed !== null && <p className="wk-error">{failed}</p>}
 
         <div className="wk-actions">
           <button type="submit" className="wk-btn" disabled={busy !== null || title.trim() === ''}>
-            {busy ?? 'Zapisz'}
+            {busy ?? t('common.save')}
           </button>
         </div>
       </form>
@@ -224,32 +224,44 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
       */}
       {(
       <details className="wk-fold" open={subject !== null || subjectDirty}>
-        <summary>Wybór na stronie{subject === null ? '' : ' — ustawiony'}</summary>
+        <summary>{subject === null ? t('pages.editor.subject') : t('pages.editor.subjectSet')}</summary>
         <SubjectSettings value={subject} busy={busy !== null} onChange={(next) => { setSubject(next); setSubjectDirty(true); }} />
         <div className="wk-actions">
           <button type="button" className="wk-btn" disabled={busy !== null || !subjectDirty}
-            onClick={() => void act('Zapisywanie wyboru…', () => savePageSubject(path, writeSubject(subject)))}>
-            {busy ?? 'Zapisz wybór'}
+            onClick={() => void act(t('pages.editor.savingSubject'), () => savePageSubject(path, writeSubject(subject)))}>
+            {busy ?? t('pages.editor.saveSubject')}
           </button>
         </div>
       </details>
       )}
 
-      <h3 className="wk-h2">Moduły</h3>
+      <h3 className="wk-h2">{t('pages.editor.modules')}</h3>
 
       {/*
         0062 — WIE DIE SEITE ERSCHEINT. Als Seite: die Bausteine im Raster, wie
         bisher. Als Slajdy: jeder Baustein ein Bildschirm, mit eigenem Hintergrund
         — wie die Ereignisseiten des Altbestands.
       */}
-      <div className="wk-seg" role="group" aria-label="Rodzaj strony">
-        {([['page', 'Strona z modułami'], ['slides', 'Slajdy — każdy moduł osobno'], ['presentation', 'Prezentacja — sceny, moduły w dowolnym miejscu']] as const).map(([value, label]) => (
+      <div className="wk-seg" role="group" aria-label={t('pages.editor.modeLabel')}>
+        {([['page', 'pages.editor.modePage'], ['slides', 'pages.editor.modeSlides'], ['presentation', 'pages.editor.modePresentation']] as const).map(([value, label]) => (
           <button key={value} type="button" aria-pressed={mode === value} disabled={busy !== null}
             className={mode === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
             onClick={() => { if (mode !== value) { setMode(value); setLookDirty(true); } }}>
-            {label}
+            {t(label)}
           </button>
         ))}
+      </div>
+
+      {/* 2026-11-05 — DIE SPRACHE DER SEITE (im Aussehen, `look.lang`): ohne Wahl jeder Besucher in seiner. */}
+      <div className="wk-field">
+        <span>{t('i18n.pageLang')}</span>
+        <LangPick value={pageLook.lang ?? null} follow={t('i18n.followVisitor')} label={t('i18n.pageLang')} disabled={busy !== null}
+          onChange={(lang) => {
+            const { lang: _was, ...rest } = pageLook;
+            setPageLook(lang === null ? rest : { ...rest, lang });
+            setLookDirty(true);
+          }} />
+        <span className="wk-hint">{t('i18n.pageLangNote')}</span>
       </div>
 
       {mode === 'presentation' ? (
@@ -268,7 +280,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
           onLook={(next) => { setPageLook(next); setLookDirty(true); }}
           onOpenModule={(moduleId, next) => {
             setParts(next);
-            void act('Zapisywanie modułów…', () => saveParts(path, next)).then(() => {
+            void act(t('pages.editor.savingModules'), () => saveParts(path, next)).then(() => {
               setDirty(false);
               onOpenModule(moduleId);
             });
@@ -286,7 +298,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
           onLook={(next) => { setPageLook(next); setLookDirty(true); }}
           onOpenModule={(moduleId, next) => {
             setParts(next);
-            void act('Zapisywanie modułów…', () => saveParts(path, next)).then(() => {
+            void act(t('pages.editor.savingModules'), () => saveParts(path, next)).then(() => {
               setDirty(false);
               onOpenModule(moduleId);
             });
@@ -309,7 +321,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
         onOpenModule={(moduleId, next) => {
           setParts(next);
 
-          void act('Zapisywanie modułów…', () => saveParts(path, next)).then(() => {
+          void act(t('pages.editor.savingModules'), () => saveParts(path, next)).then(() => {
             setDirty(false);
             onOpenModule(moduleId);
           });
@@ -323,15 +335,15 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
           type="button"
           className="wk-btn"
           disabled={busy !== null || (!dirty && !lookDirty)}
-          onClick={() => void act(mode === 'slides' ? 'Zapisywanie slajdów…' : mode === 'presentation' ? 'Zapisywanie prezentacji…' : 'Zapisywanie modułów…', async () => {
+          onClick={() => void act(t(mode === 'slides' ? 'pages.editor.savingSlides' : mode === 'presentation' ? 'pages.editor.savingPresentation' : 'pages.editor.savingModules'), async () => {
             if (dirty) await saveParts(path, parts);
             if (lookDirty) await savePageLook(path, { mode, theme: writeLook(pageLook) });
           })}
         >
-          {busy ?? (mode === 'slides' ? 'Zapisz slajdy' : mode === 'presentation' ? 'Zapisz prezentację' : 'Zapisz moduły')}
+          {busy ?? t(mode === 'slides' ? 'pages.editor.saveSlides' : mode === 'presentation' ? 'pages.editor.savePresentation' : 'pages.editor.saveModules')}
         </button>
 
-        {!dirty && !lookDirty && busy === null && <span className="wk-blocker">Nic się nie zmieniło.</span>}
+        {!dirty && !lookDirty && busy === null && <span className="wk-blocker">{t('pages.editor.unchanged')}</span>}
       </div>
 
       {/*
@@ -357,15 +369,15 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
       {(
       <>
       <h3 className="wk-h2">
-        Mapa logiki strony{' '}
+        {t('pages.editor.logicMap')}{' '}
         <button type="button" className="wk-link-btn" aria-expanded={mapOpen} onClick={() => setMapOpen(!mapOpen)}>
-          {mapOpen ? 'Zwiń' : logic === null ? 'Otwórz' : 'Otwórz (ustawiona)'}
+          {t(mapOpen ? 'pages.editor.fold' : logic === null ? 'pages.editor.open' : 'pages.editor.openSet')}
         </button>
       </h3>
 
       {mapOpen && (
         dirty || lookDirty ? (
-          <p className="wk-warn">Najpierw zapisz moduły — mapa łączy się z modułami, które są już na stronie.</p>
+          <p className="wk-warn">{t('pages.editor.saveFirst')}</p>
         ) : (
           <PageLogicEditor
             key={logicKey(logic, parts)}

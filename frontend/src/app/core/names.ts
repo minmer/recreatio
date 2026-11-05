@@ -32,6 +32,7 @@ import { heldAreaKey } from '../links/linkAccess';
 import { keysFor } from './ringOf';
 import { seatAreaKey } from '../roles/roleBundle';
 import { whoIsThere, WorkspaceError } from './session';
+import { t } from './i18n';
 
 /* -- Die Etiketten -------------------------------------------------------------------------- */
 
@@ -139,16 +140,16 @@ export async function nameKey(areaId: string, epoch: number): Promise<Uint8Array
 export async function writeKey(areaId: string, options: { readonly person?: boolean; readonly ring?: Ring | null } = {}): Promise<{ epoch: number; key: Uint8Array }> {
   const c = current();
   const ring = options.ring ?? await ringNow(c);
-  if (ring === null) throw new WorkspaceError('Do zapisania nazwy potrzebny jest klucz — zaloguj się ponownie.');
+  if (ring === null) throw new WorkspaceError(t('core.names.needKey'));
 
   const keys = await heldKeys(c, ring, areaId, null);
   const epochs = [...keys.keys()].sort((a, b) => b - a);
   const epoch = epochs[0];
-  if (epoch === undefined) throw new WorkspaceError('Nie masz klucza tego obszaru — nazwy nie da się zapieczętować.');
+  if (epoch === undefined) throw new WorkspaceError(t('core.names.noAreaKey'));
 
   if (options.person === true) {
     const open = await loadPublicKey(areaId).catch(() => null);
-    if (open !== null && open.epoch === epoch) throw new WorkspaceError('Ten obszar jest jawny — imienia i nazwiska nie da się w nim ukryć.');
+    if (open !== null && open.epoch === epoch) throw new WorkspaceError(t('core.names.openArea'));
   }
 
   return { epoch, key: keys.get(epoch)! };
@@ -163,7 +164,7 @@ export const sealName = async (key: Uint8Array, a: Aad, text: string): Promise<s
 export async function sealUnderArea(areaId: string, a: Aad, text: string, options: { readonly person?: boolean; readonly ring?: Ring | null } = {}): Promise<NameOut> {
   const { epoch, key } = await writeKey(areaId, options);
   const sealed = await sealName(key, a, text);
-  if (await openWith(key, a, sealed) !== text.trim()) throw new WorkspaceError('Nazwa nie dała się zapieczętować — spróbuj jeszcze raz.');
+  if (await openWith(key, a, sealed) !== text.trim()) throw new WorkspaceError(t('core.names.sealFailed'));
   return { nameSealed: sealed, nameEpoch: epoch };
 }
 

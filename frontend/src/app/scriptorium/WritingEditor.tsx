@@ -11,6 +11,7 @@
  * öffentlichen Bereichs zieht („Kto widzi").
  */
 
+import { useT } from '../core/i18n';
 import { FieldList } from '../library/LibraryFields';
 import { containerPath, type OpenLibrary } from '../library/library';
 import { AreaBox } from '../library/LibraryAreaBox';
@@ -57,17 +58,18 @@ export function WritingEditor({ me, who, store, library, entryId, kind, preset =
   kind: string | null;
   preset?: Record<string, unknown>;
 }) {
+  const t = useT();
   const existing = entryId === null ? undefined : store.own(entryId);
   const home = entryId === null || existing !== undefined ? undefined : store.homeOf(entryId);
   if (entryId !== null && home !== undefined) {
-    return <p className="wk-note">Ten wpis jest gdzie indziej. <a href={containerPath(home.libraryId, entryId)}>Otwórz go tam</a></p>;
+    return <p className="wk-note">{t('scriptorium.editor.elsewhere')} <a href={containerPath(home.libraryId, entryId)}>{t('scriptorium.editor.openThere')}</a></p>;
   }
   if (entryId !== null && existing === undefined) {
-    return <p className="wk-empty">Tego wpisu nie ma (albo został usunięty). <a href={viewPath('scriptorium', library.libraryId)}>Wróć do skryptorium</a></p>;
+    return <p className="wk-empty">{t('scriptorium.editor.missing')} <a href={viewPath('scriptorium', library.libraryId)}>{t('scriptorium.editor.back')}</a></p>;
   }
   const shownKind = existing?.kind ?? kind ?? '';
   if (!isWritingKind(shownKind)) {
-    return <p className="wk-note">Ten wpis jest rodzaju, którego skryptorium nie prowadzi. Można go przejrzeć i usunąć w zakładce „Stare wpisy”. <a href={viewPath('scriptorium', library.libraryId, 'stare')}>Stare wpisy</a></p>;
+    return <p className="wk-note">{t('scriptorium.editor.foreignKind')} <a href={viewPath('scriptorium', library.libraryId, 'stare')}>{t('scriptorium.view.tabOld')}</a></p>;
   }
   if (shownKind === 'texttype') return <TextTypeEditor key={entryId ?? 'new-type'} me={me} store={store} library={library} existing={existing} />;
   return <Editor key={entryId ?? `new-${kind}`} me={me} who={who} store={store} library={library} existing={existing} kind={shownKind} preset={preset} />;
@@ -82,6 +84,7 @@ function Editor({ me, who, store, library, existing, kind, preset }: {
   kind: string;
   preset: Record<string, unknown>;
 }) {
+  const t = useT();
   const def = kindOf(kind)!;
   const readOnly = !library.writes;
   const draft = useEntryDraft(store, existing, kind, () => defaults(kind, preset), readOnly);
@@ -102,12 +105,12 @@ function Editor({ me, who, store, library, existing, kind, preset }: {
         <p className={`lib-state is-${state}`} role="status">{draft.status}</p>
         {state === 'stale' && (
           <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={draft.reloadTheirs}>Wczytaj nowszą wersję</button>
-            <button type="button" className="wk-link-btn" onClick={() => void draft.saveNow()}>Zachowaj moją (nadpisz)</button>
+            <button type="button" className="wk-btn" onClick={draft.reloadTheirs}>{t('scriptorium.editor.loadTheirs')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => void draft.saveNow()}>{t('scriptorium.editor.keepMine')}</button>
           </div>
         )}
         {draft.failed !== null && state !== 'stale' && <p className="wk-error">{draft.failed}</p>}
-        {readOnly && <p className="wk-note">To skryptorium możesz tylko czytać.</p>}
+        {readOnly && <p className="wk-note">{t('scriptorium.type.readOnly')}</p>}
       </header>
 
       <div className="lib-editor-grid">
@@ -124,7 +127,7 @@ function Editor({ me, who, store, library, existing, kind, preset }: {
             <OutlineEditor store={store} library={library} project={saved} value={outline(data)} readOnly={readOnly} onChange={(next) => set({ outline: next })} />
           )}
           {state === 'new' && !readOnly && (
-            <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => void draft.create((made) => window.location.replace(here(made)))}>Zapisz</button></div>
+            <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => void draft.create((made) => window.location.replace(here(made)))}>{t('common.save')}</button></div>
           )}
         </div>
 

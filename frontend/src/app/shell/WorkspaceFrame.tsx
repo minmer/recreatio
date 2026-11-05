@@ -8,6 +8,7 @@
  * mitlädt: er kommt mit dem Arbeitsplatz (`WorkspaceShell`, `lazy`).
  */
 
+import { useT } from '../core/i18n';
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { Crumbs } from './Crumbs';
@@ -65,6 +66,7 @@ const entry = (place: Place, label: string, icon: IconName, count?: number): Nav
  * zum Bauen hätte er nur als leere Orte. Er sieht, was er braucht.
  */
 export function useNav(): Nav {
+  const t = useT();
   const { digest } = useSyncExternalStore(notifySubscribe, notifyNow);
   const [stamp, setStamp] = useState(0);
   useEffect(() => {
@@ -82,39 +84,39 @@ export function useNav(): Nav {
   /* 0129–0131 — Sprawy: nur, wenn etwas wartet (oder für den Betreiber, der Meldungen entscheidet). */
   const duties = digest?.duties;
   const sprawy = duties !== undefined && (duties.count > 0 || duties.reports.isOperator || duties.takedowns.length > 0)
-    ? [entry('sprawy', 'Sprawy', 'shield', duties.count)] : [];
+    ? [entry('sprawy', t('app.view.sprawy'), 'shield', duties.count)] : [];
 
   /* 2026-10-17 — SMS und Kontakte (Ausgabe „sms"): neben den Rozmowy, nicht in ihnen. Auf dem Telefon steht SMS unten in der Leiste. */
-  const phone = usePhoneShown() ? [entry('sms', 'SMS', 'phone'), entry('contacts', 'Kontakty', 'users'), entry('lamps', 'Lampy', 'bulb')] : [];
+  const phone = usePhoneShown() ? [entry('sms', t('app.view.sms'), 'phone'), entry('contacts', t('app.view.contacts'), 'users'), entry('lamps', t('app.view.lamps'), 'bulb')] : [];
 
   if (basic) {
     return {
-      main: [entry('home', 'Teraz', 'home'), entry('calendar', 'Kalendarz', 'calendar'), entry('chat', 'Rozmowy', 'chat', chats), ...phone, entry('areas', 'Obszary', 'layers'), entry('wspolnoty', 'Wspólnoty', 'users'), ...sprawy],
+      main: [entry('home', t('shell.nav.home'), 'home'), entry('calendar', t('app.view.calendar'), 'calendar'), entry('chat', t('app.view.chat'), 'chat', chats), ...phone, entry('areas', t('app.view.areas'), 'layers'), entry('wspolnoty', t('app.view.wspolnoty'), 'users'), ...sprawy],
       parish: [],
-      knowledge: [entry('knowledge', 'Wiedza', 'branch'), entry('learn', 'Nauka', 'cap')],
+      knowledge: [entry('knowledge', t('app.view.knowledge'), 'branch'), entry('learn', t('app.view.learn'), 'cap')],
       settings: []
     };
   }
 
   return {
     main: [
-      entry('home', 'Teraz', 'home'),
-      entry('calendar', 'Kalendarz', 'calendar'),
-      entry('chat', 'Rozmowy', 'chat', chats),
+      entry('home', t('shell.nav.home'), 'home'),
+      entry('calendar', t('app.view.calendar'), 'calendar'),
+      entry('chat', t('app.view.chat'), 'chat', chats),
       ...phone,
-      entry('forms', 'Formularze', 'form', fresh),
-      entry('areas', 'Obszary', 'layers'), entry('wspolnoty', 'Wspólnoty', 'users'),
-      entry('pages', 'Strony', 'globe'),
+      entry('forms', t('app.view.forms'), 'form', fresh),
+      entry('areas', t('app.view.areas'), 'layers'), entry('wspolnoty', t('app.view.wspolnoty'), 'users'),
+      entry('pages', t('app.view.pages'), 'globe'),
       ...sprawy
     ],
     parish: [
-      entry('masses', 'Msze i nabożeństwa', 'cross'),
-      entry('bookings', 'Rezerwacje', 'key', bookings),
-      entry('registry', 'Kartoteka i kolęda', 'place')
+      entry('masses', t('app.view.masses'), 'cross'),
+      entry('bookings', t('app.view.bookings'), 'key', bookings),
+      entry('registry', t('app.view.registry'), 'place')
     ],
     /* Cogita groups Wiedza and Nauka between the library and Skryptorium. */
-    knowledge: [entry('library', 'Biblioteka', 'book'), entry('knowledge', 'Wiedza', 'branch'), entry('learn', 'Nauka', 'cap'), entry('scriptorium', 'Skryptorium', 'compose')],
-    settings: [entry('modules', 'Moduły', 'blocks'), entry('roles', 'Role', 'badge'), entry('addresses', 'Adresy i domeny', 'at')]
+    knowledge: [entry('library', t('app.view.library'), 'book'), entry('knowledge', t('app.view.knowledge'), 'branch'), entry('learn', t('app.view.learn'), 'cap'), entry('scriptorium', t('app.view.scriptorium'), 'compose')],
+    settings: [entry('modules', t('app.view.modules'), 'blocks'), entry('roles', t('app.view.roles'), 'badge'), entry('addresses', t('app.view.addresses'), 'at')]
   };
 }
 
@@ -139,12 +141,13 @@ const initials = (login: string): string => {
 /* -- Die Seitenleiste ---------------------------------------------------------------------- */
 
 function NavList({ entries, at, studium = false }: { entries: readonly NavEntry[]; at: Place | null; studium?: boolean }) {
+  const t = useT();
   const renderItems = (items: readonly NavEntry[]) => items.map((one) => (
     <li key={one.place}>
       <a className="wk-nav-item" href={one.href} aria-current={at === one.place ? 'page' : undefined} data-nav={one.place}>
         <Icon name={one.icon} />
         <span>{one.label}</span>
-        {one.count !== undefined && <span className="wk-count" aria-label={`${one.count} nowych`}>{one.count > 99 ? '99+' : one.count}</span>}
+        {one.count !== undefined && <span className="wk-count" aria-label={t('shell.nav.newCount', { count: one.count })}>{one.count > 99 ? '99+' : one.count}</span>}
       </a>
     </li>
   ));
@@ -157,23 +160,24 @@ function NavList({ entries, at, studium = false }: { entries: readonly NavEntry[
 }
 
 function Sidebar({ nav, spot, who, onSignOut }: { nav: Nav; spot: Spot; who: Who; onSignOut?: () => void }) {
+  const t = useT();
   const at = placeOf(spot);
   const inSettings = nav.settings.some((one) => one.place === at);
 
   return (
-    <aside className="wk-side" aria-label="Menu">
-      <a className="wk-brandmark" href={tilesPath()}><b>RE</b>creatio</a>
-      <nav aria-label="Warsztat">
+    <aside className="wk-side" aria-label={t('shell.frame.menu')}>
+      <a className="wk-brandmark" href={tilesPath()}><b>RE</b>creatio</a>{/* i18n-ignore: Marke */}
+      <nav aria-label={t('shell.account.workspace')}>
         <NavList entries={nav.main} at={at} />
         {nav.parish.length > 0 && (
           <>
-            <p className="wk-nav-label">Parafia</p>
+            <p className="wk-nav-label">{t('shell.nav.parish')}</p>
             <NavList entries={nav.parish} at={at} />
           </>
         )}
         {nav.knowledge.length > 0 && (
           <>
-            <p className="wk-nav-label">Studium</p>
+            <p className="wk-nav-label">{t('shell.nav.studium')}</p>
             <NavList entries={nav.knowledge} at={at} studium />
           </>
         )}
@@ -184,7 +188,7 @@ function Sidebar({ nav, spot, who, onSignOut }: { nav: Nav; spot: Spot; who: Who
           <details className="wk-nav-more" open={inSettings}>
             <summary className="wk-nav-item">
               <Icon name="settings" />
-              <span>Ustawienia</span>
+              <span>{t('shell.nav.settings')}</span>
               <Icon name="next" className="wk-nav-chev" />
             </summary>
             <NavList entries={nav.settings} at={at} />
@@ -198,9 +202,10 @@ function Sidebar({ nav, spot, who, onSignOut }: { nav: Nav; spot: Spot; who: Who
 
 /** Das Konto: wer angemeldet ist — und Konto, Powiadomienia, Wyloguj. */
 function AccountMenu({ who, onSignOut }: { who: Who; onSignOut?: () => void }) {
+  const t = useT();
   return (
     <MenuButton
-      label={`Konto: ${who.loginId}`}
+      label={t('shell.account.menu', { login: who.loginId })}
       className="wk-me"
       trigger={(
         <>
@@ -210,11 +215,12 @@ function AccountMenu({ who, onSignOut }: { who: Who; onSignOut?: () => void }) {
         </>
       )}
       items={[
-        { label: 'Konto i hasło', icon: 'user', onSelect: () => { window.location.hash = viewPath('account').slice(1); } },
-        { label: 'Powiadomienia', icon: 'bell', onSelect: () => { window.location.hash = viewPath('account', 'widok').slice(1); } },
-        { label: 'Bezpieczeństwo i klucze', icon: 'shield', onSelect: () => { window.location.hash = viewPath('account', 'bezpieczenstwo').slice(1); } },
-        { label: 'Przeniesienie danych', icon: 'refresh', onSelect: () => { window.location.hash = viewPath('account', 'przeniesienie').slice(1); } },
-        onSignOut !== undefined && { label: 'Wyloguj', icon: 'logout', onSelect: onSignOut }
+        { label: t('shell.account.account'), icon: 'user', onSelect: () => { window.location.hash = viewPath('account').slice(1); } },
+        { label: t('shell.account.notifications'), icon: 'bell', onSelect: () => { window.location.hash = viewPath('account', 'widok').slice(1); } },
+        { label: t('i18n.title'), icon: 'globe', onSelect: () => { window.location.hash = viewPath('account', 'jezyk').slice(1); } },
+        { label: t('shell.account.security'), icon: 'shield', onSelect: () => { window.location.hash = viewPath('account', 'bezpieczenstwo').slice(1); } },
+        { label: t('shell.account.transfer'), icon: 'refresh', onSelect: () => { window.location.hash = viewPath('account', 'przeniesienie').slice(1); } },
+        onSignOut !== undefined && { label: t('shell.account.signOut'), icon: 'logout', onSelect: onSignOut }
       ]}
     />
   );
@@ -230,6 +236,7 @@ export function WorkspaceFrame({ who, spot, onSignOut, cut = false, children }: 
   cut?: boolean;
   children: ReactNode;
 }) {
+  const t = useT();
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const nav = useNav();
 
@@ -243,17 +250,17 @@ export function WorkspaceFrame({ who, spot, onSignOut, cut = false, children }: 
       <Sidebar nav={nav} spot={spot} who={who} onSignOut={onSignOut} />
       <div className="wk-frame">
         <header className="wk-bar" data-app-head="">
-          <a className="wk-brandmark" href={tilesPath()}><b>RE</b>creatio</a>
+          <a className="wk-brandmark" href={tilesPath()}><b>RE</b>creatio</a>{/* i18n-ignore: Marke */}
           <button type="button" className="wk-find" data-search-open="" onClick={openSearch}>
             <Icon name="search" />
-            <span>Szukaj osób, formularzy, stron…</span>
-            <kbd>Ctrl K</kbd>
+            <span>{t('shell.frame.find')}</span>
+            <kbd>{t('shell.frame.findKey')}</kbd>
           </button>
           <span className="wk-bar-fill" />
           <div className="wk-top-menu" ref={setSlot} />
           <NowPlayingBar />
-          {cut && <a className="wk-bar-cut" role="status" href={viewPath('learn', 'bez-sieci')} title="Usługa nie odpowiada. Bez internetu działa nauka z tego urządzenia.">Bez internetu</a>}
-          <button type="button" className="wk-bar-btn is-phone" aria-label="Szukaj" onClick={openSearch}><Icon name="search" /></button>
+          {cut && <a className="wk-bar-cut" role="status" href={viewPath('learn', 'bez-sieci')} title={t('shell.frame.cutTitle')}>{t('shell.alone.state.cut')}</a>}
+          <button type="button" className="wk-bar-btn is-phone" aria-label={t('common.search')} onClick={openSearch}><Icon name="search" /></button>
           <NotifyBell who={who} />
         </header>
         <main className="wk-main">
@@ -275,13 +282,14 @@ export function WorkspaceFrame({ who, spot, onSignOut, cut = false, children }: 
 
 /** Für `PlainFrame` (ein Link, eine Bestätigung) — nachgeladen, nur wenn jemand angemeldet ist. */
 export function PlainAccount({ who, onSignOut }: { who: Who; onSignOut?: () => void }) {
+  const t = useT();
   return (
     <>
       <NotifyBell who={who} />
       {onSignOut !== undefined && (
-        <MenuButton label={`Konto: ${who.loginId}`} icon="user" items={[
-          { label: 'Warsztat', icon: 'home', onSelect: () => { window.location.hash = tilesPath().slice(1); } },
-          { label: 'Wyloguj', icon: 'logout', onSelect: onSignOut }
+        <MenuButton label={t('shell.account.menu', { login: who.loginId })} icon="user" items={[
+          { label: t('shell.account.workspace'), icon: 'home', onSelect: () => { window.location.hash = tilesPath().slice(1); } },
+          { label: t('shell.account.signOut'), icon: 'logout', onSelect: onSignOut }
         ]} />
       )}
     </>

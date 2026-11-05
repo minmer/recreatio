@@ -8,6 +8,7 @@
 import { LandscapeEngine, type LsInput, type LsOptions, type LsRun, type LsStand, type LsState } from './landscape';
 import type { Lang } from './lang';
 import { landscapeWords } from './landscapeWords';
+import { t } from '../core/i18n';
 import { buildRegions, type RegionGraphInput, type RegionOverrides, type RegionTree } from './regions';
 import { worldLayout, type WorldLayout } from './worldLayout';
 
@@ -35,6 +36,9 @@ export interface LandscapeClient {
 }
 
 type Factory = () => Worker;
+
+/* Der Worker hat keine Wörterbücher: das Muster „Wokół: {label}“ kommt aus dem Hauptfaden mit. */
+const aroundOf = (lang: Lang): string => landscapeWords(lang).around('{label}');
 
 let factory: Factory | null | undefined;
 
@@ -101,11 +105,11 @@ export function landscapeClient(): LandscapeClient {
     const w = waiting.get(event.data.id);
     if (w === undefined) return;
     waiting.delete(event.data.id);
-    if (event.data.ok) w.resolve(event.data.result); else w.reject(new Error(event.data.error ?? 'Krajobraz: błąd obliczeń.'));
+    if (event.data.ok) w.resolve(event.data.result); else w.reject(new Error(event.data.error ?? t('cogitaLearn.landscapeClient.failed')));
   };
   worker.onerror = () => {
     broken = true;
-    for (const w of waiting.values()) w.reject(new Error('Krajobraz: worker przestał działać.'));
+    for (const w of waiting.values()) w.reject(new Error(t('cogitaLearn.landscapeClient.workerDied')));
     waiting.clear();
   };
   const ask = <T>(message: Record<string, unknown>): Promise<T> => new Promise<T>((resolve, reject) => {
@@ -132,8 +136,8 @@ export function landscapeClient(): LandscapeClient {
       if (broken) return viaFallback().stand(again());
       return ask<LsStand>({ type: 'stand', input, state });
     },
-    regions: (r) => (broken ? viaFallback().regions(r) : ask<RegionTree>({ type: 'regions', ...r })),
-    world: (r) => (broken ? viaFallback().world(r) : ask<{ tree: RegionTree; world: WorldLayout }>({ type: 'world', ...r })),
+    regions: (r) => (broken ? viaFallback().regions(r) : ask<RegionTree>({ type: 'regions', ...r, around: aroundOf(r.lang) })),
+    world: (r) => (broken ? viaFallback().world(r) : ask<{ tree: RegionTree; world: WorldLayout }>({ type: 'world', ...r, around: aroundOf(r.lang) })),
     route: (target) => (broken ? viaFallback().route(target) : ask({ type: 'route', target })),
     dispose: () => { worker.terminate(); waiting.clear(); }
   };

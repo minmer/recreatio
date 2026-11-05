@@ -29,6 +29,7 @@ import { WorkspaceError } from '../core/session';
 import { AreaPick } from '../areas/AreaPick';
 import { PostalInput } from '../registry/PostalInput';
 import { toast } from '../ui/dialogs';
+import { useT } from '../core/i18n';
 
 export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
   const [values, setValues] = useState<Map<PersonField, string>>(new Map());
@@ -36,6 +37,7 @@ export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   const look = useCallback(async () => {
     try {
@@ -45,9 +47,9 @@ export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
       setAreas((await loadAreas()).areas);
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać danych.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('account.card.loadFailed'));
     }
-  }, [roleId, ring]);
+  }, [roleId, ring, t]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -59,7 +61,7 @@ export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
       await todo();
       await look();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally {
       setBusy(null);
     }
@@ -67,9 +69,9 @@ export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
 
   return (
     <>
-      <h2 className="wk-h2">Moje dane</h2>
+      <h2 className="wk-h2">{t('account.page.myData')}</h2>
 
-      <p className="wk-hint">Każde pole udostępniasz osobno — kto dostaje telefon, nie widzi przy okazji daty urodzenia.</p>
+      <p className="wk-hint">{t('account.card.lead')}</p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {busy !== null && <p className="wk-hint">{busy}</p>}
@@ -110,6 +112,7 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
   const [target, setTarget] = useState('');
+  const t = useT();
 
   useEffect(() => { setDraft(value ?? ''); }, [value]);
 
@@ -127,9 +130,9 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
     const { refreshed, couldNot } = await setValue(roleId, ring, field, draft);
 
     if (couldNot.length > 0) {
-      onSaid(`Zapisano. Nie udało się odświeżyć w: ${couldNot.join(', ')}`);
+      onSaid(t('account.card.savedNotRefreshed', { areas: couldNot.join(', ') }));
     } else if (refreshed.length > 0) {
-      onSaid(`Zapisano i odświeżono w: ${refreshed.join(', ')}`);
+      onSaid(t('account.card.savedRefreshed', { areas: refreshed.join(', ') }));
     }
   };
 
@@ -143,7 +146,7 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
     const areaKey = keys.get(area.currentEpoch);
 
     if (areaKey === undefined) {
-      throw new WorkspaceError('Nie masz klucza tej epoki — nie da się udostępnić.');
+      throw new WorkspaceError(t('account.card.noEpochKey'));
     }
 
     await releaseValue(roleId, field, value, {
@@ -156,8 +159,8 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
       <span>
         <strong>{FIELD_LABEL[field]}</strong>
         <span className="wk-row-side">
-          {value === null ? ' · puste' : ` · ${value}`}
-          {releases.length > 0 && ` · udostępnione: ${releases.length}`}
+          {value === null ? ` · ${t('account.card.empty')}` : ` · ${value}`}
+          {releases.length > 0 && ` · ${t('account.card.shared', { count: releases.length })}`}
         </span>
 
         {open && (
@@ -165,12 +168,12 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
             {/* 0071 — eine Anschrift in Teilen, mit Vorschlägen; gespeichert als Zeile wie bisher. */}
             {field === 'address' ? (
               <div className="wk-field">
-                <span>Adres</span>
+                <span>{t('account.field.address')}</span>
                 <PostalInput value={draft} onChange={setDraft} />
               </div>
             ) : (
               <label className="wk-field">
-                <span>Wartość</span>
+                <span>{t('account.card.value')}</span>
                 <input value={draft} onChange={(e) => setDraft(e.target.value)} />
               </label>
             )}
@@ -179,17 +182,17 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
               <button
                 type="button" className="wk-btn"
                 disabled={busy || draft.trim() === '' || draft === value}
-                onClick={() => void onAct('Zapisywanie…', save)}
+                onClick={() => void onAct(t('common.saving'), save)}
               >
-                Zapisz
+                {t('common.save')}
               </button>
 
               {value !== null && (
                 <button
                   type="button" className="wk-link-btn" disabled={busy}
-                  onClick={() => void onAct('Usuwanie…', () => forgetValue(roleId, field))}
+                  onClick={() => void onAct(t('account.keeping.removingOne'), () => forgetValue(roleId, field))}
                 >
-                  Usuń
+                  {t('common.delete')}
                 </button>
               )}
             </div>
@@ -200,18 +203,15 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
               automatisch jedem, der die alte einmal bekommen hat.
             */}
             {releases.length > 0 && (
-              <p className="wk-hint">
-                Zmiana nie aktualizuje tego, co już udostępniłeś. Udostępnij
-                ponownie temu, kto ma znać nową wartość.
-              </p>
+              <p className="wk-hint">{t('account.card.changeNote')}</p>
             )}
 
             {/* -- Wohin es gegangen ist -------------------------------- */}
 
-            <h4 className="wk-h2">Kto to dostał</h4>
+            <h4 className="wk-h2">{t('account.card.whoGot')}</h4>
 
             {releases.length === 0 ? (
-              <p className="wk-empty">Nikt.</p>
+              <p className="wk-empty">{t('account.card.nobody')}</p>
             ) : (
               <ul className="wk-tile-lines">
                 {releases.map((r) => (
@@ -220,12 +220,12 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
                     {' · '}
                     <button
                       type="button" className="wk-link-btn" disabled={busy}
-                      onClick={() => void onAct('Wycofywanie…', async () => {
+                      onClick={() => void onAct(t('account.card.withdrawing'), async () => {
                         const done = await withdrawValue(roleId, field, r.areaId);
                         onSaid(done.note);
                       })}
                     >
-                      Wycofaj
+                      {t('account.card.withdraw')}
                     </button>
                   </li>
                 ))}
@@ -235,9 +235,9 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
             {value !== null && reachable.length > 0 && (
               <>
                 <label className="wk-field">
-                  <span>Udostępnij obszarowi</span>
+                  <span>{t('account.card.shareTo')}</span>
                   <AreaPick
-                    label="Udostępnij obszarowi" value={target} onChange={setTarget}
+                    label={t('account.card.shareTo')} value={target} onChange={setTarget}
                     areas={areas} only={reachable.filter((a) => !releases.some((r) => r.areaId === a.areaId))}
                   />
                 </label>
@@ -245,17 +245,13 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
                 <div className="wk-actions">
                   <button
                     type="button" className="wk-btn" disabled={busy || target === ''}
-                    onClick={() => void onAct('Udostępnianie…', give).then(() => setTarget(''))}
+                    onClick={() => void onAct(t('account.card.sharing'), give).then(() => setTarget(''))}
                   >
-                    Udostępnij
+                    {t('account.card.share')}
                   </button>
                 </div>
 
-                <p className="wk-hint">
-                  Wartość zostanie zapieczętowana kluczem tego obszaru — osobną
-                  kopertą, tylko dla niego. Obcemu obszarowi dane przekazuje się
-                  przez jego formularz, nie tutaj.
-                </p>
+                <p className="wk-hint">{t('account.card.shareNote')}</p>
               </>
             )}
           </div>
@@ -263,7 +259,7 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
       </span>
 
       <button type="button" className="wk-link-btn" onClick={() => setOpen(!open)}>
-        {open ? 'Zamknij' : value === null ? 'Wpisz' : 'Zmień'}
+        {open ? t('common.close') : value === null ? t('account.card.enter') : t('common.change')}
       </button>
     </li>
   );

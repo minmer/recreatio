@@ -1,0 +1,52 @@
+{
+  "frame": {
+    "controls": "Sterowanie",
+    "fullscreen": "Pełny ekran",
+    "exitFullscreen": "Zamknij pełny ekran",
+    "exitFullscreenEsc": "Zamknij pełny ekran (Esc)"
+  },
+  "graph": {
+    "empty": "Wykres pojawi się, gdy coś się zacznie dziać."
+  },
+  "liquid": {
+    "water": "woda",
+    "saltwater": "woda słona",
+    "sea": "woda morska",
+    "oil": "olej",
+    "alcohol": "alkohol",
+    "glycerin": "gliceryna",
+    "honey": "miód",
+    "mercury": "rtęć",
+    "milk": "mleko"
+  },
+  "editor": {
+    "sceneOneObject": "Scena to jeden obiekt { … }.",
+    "notJson": "To nie jest poprawny JSON: {error}",
+    "accepted": "Przyjęto.",
+    "title": "Tytuł",
+    "kind": "Rodzaj",
+    "kindExperiment": "Doświadczenie (scena jak w JSON)",
+    "kindSandbox": "Piaskownica (wszystko wolno, gotowe doświadczenia do wczytania)",
+    "studentText": "Tekst dla uczniów (każdy akapit w nowym wierszu)",
+    "insertLabel": "Wstaw doświadczenie",
+    "inserted": "Wstawiono „{title}” — sprawdź podgląd i przyjmij.",
+    "insertPlaceholder": "Wstaw doświadczenie…",
+    "presetOption": "{title} — {summary}",
+    "copied": "Polecenie dla AI skopiowane — wklej je w swoim czacie, a gotową scenę tutaj.",
+    "copyFailed": "Nie udało się skopiować polecenia.",
+    "copyPrompt": "Kopiuj polecenie dla AI",
+    "sceneJson": "Scena ({what}) JSON",
+    "scenarios": "Scenariusze do wyboru w laboratorium (pierwszy to scena powyżej)",
+    "noScenarios": "Brak — laboratorium pokazuje tylko scenę powyżej.",
+    "scenarioRow": "{n}. {title}",
+    "untitled": "bez tytułu",
+    "moveUp": "W górę: {title}",
+    "moveDown": "W dół: {title}",
+    "remove": "Usuń",
+    "addPresetLabel": "Dodaj gotowe doświadczenie jako scenariusz",
+    "addPresetPlaceholder": "Dodaj gotowe doświadczenie…",
+    "addCurrent": "Dodaj obecną scenę",
+    "preview": "Podgląd",
+    "accept": "Przyjmij"
+  }
+}

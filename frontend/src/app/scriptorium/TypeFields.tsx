@@ -12,6 +12,7 @@ import { useMemo } from 'react';
 import { FieldEditor } from '../cogita/EntityEditor';
 import { fieldShown, readKind, type FieldDef } from '../cogita/schema';
 import { CogitaContext, type CogitaCtx } from '../cogita/ui';
+import { t as tApp, useT } from '../core/i18n';
 import type { Me } from '../core/me';
 import type { Who } from '../core/session';
 import { containerPath } from '../library/library';
@@ -23,7 +24,7 @@ import type { ScriptoriumLens } from './lens';
 
 /** Die Felder eines Rodzaj tekstu als Felder von Nauka (für den Editor). */
 export function typeFieldDefs(type: Pick<LibEntry, 'id' | 'data'>): FieldDef[] {
-  return readKind(type.id, { name: 'Rodzaj tekstu', fields: type.data.fields }).fields
+  return readKind(type.id, { name: tApp('scriptorium.type.name'), fields: type.data.fields }).fields
     .filter((f) => !CORE_KEYS.has(f.key) && (TEXT_TYPE_FIELD_TYPES as readonly string[]).includes(f.type))
     .map((f) => ({ ...f, uncertain: false }));
 }
@@ -44,19 +45,20 @@ export function TypeFields({ lens, me, who, type, data, set, readOnly }: {
   set: (patch: EntryData) => void;
   readOnly: boolean;
 }) {
+  const t = useT();
   const fields = useMemo(() => typeFieldDefs(type), [type]);
   const ctx = useMemo<CogitaCtx>(() => ({
     lib: lens,
-    name: 'Skryptorium',
+    name: t('scriptorium.view.title'),
     writes: !readOnly,
     keyOf: async () => undefined,
     keyIn: async () => undefined,
     me,
     who,
     href: (...tail) => (tail[0] === undefined ? viewPath('knowledge') : cogitaPath(tail[0], ...tail.slice(1)))
-  }), [lens, readOnly, me, who]);
+  }), [lens, readOnly, me, who, t]);
 
-  if (fields.length === 0) return <p className="wk-empty">Rodzaj „{String(type.data.name ?? '')}” nie ma jeszcze własnych pól.</p>;
+  if (fields.length === 0) return <p className="wk-empty">{t('scriptorium.type.noFields', { name: String(type.data.name ?? '') })}</p>;
   return (
     <CogitaContext.Provider value={ctx}>
       <div className="lib-fields lib-type-fields" data-type-fields="">

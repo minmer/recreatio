@@ -1,0 +1,289 @@
+{
+  "keys": {
+    "doc": {
+      "format": "always \"{format}\"",
+      "version": "{version} (format version)",
+      "buttons": "button pace: { \"pauseMs\" } (below: Pace); left out — unchanged",
+      "lamps": "devices with their signals (below); left out — unchanged",
+      "timers": "timers (below); left out — unchanged"
+    },
+    "lamp": {
+      "id": "identifier from the export — by it the import changes the same device; without it (or with an identifier that is not here, e.g. from another account) a new one is created",
+      "key": "a short name the timer actions in this document point to (\"@key\"): letters, digits, - _ . (up to 40 characters), unique — not saved",
+      "name": "name, e.g. „Bedroom lamp” — a name or a number is required",
+      "number": "device number as text, e.g. \"3\" (orders the buttons); null — no number",
+      "room": "room, e.g. „Bedroom”, or null",
+      "note": "a note on the protocol (manufacturer, remote address, what the bytes mean) or null",
+      "protocol": "\"ble-adv\" — raw (legacy) BLE advertisement; the only protocol, may be left out",
+      "signals": "signals — the device's buttons (below)",
+      "remove": "true — deletes the device together with its signals (only with \"id\"); timers using them will stop running them — the list of changes warns"
+    },
+    "signal": {
+      "id": "the signal's identifier from the export (within the device) — by it the import changes the same signal; without it a new one is created",
+      "key": "a short name of the signal for timer actions (\"@key\"), unique within the device — not saved",
+      "label": "the button label, e.g. „On” (required)",
+      "note": "a note or null",
+      "frames": "frames sent one after another, 1 to {max} (below); given ones replace all frames of the signal",
+      "remove": "true — deletes the signal (only with \"id\")"
+    },
+    "frame": {
+      "hex": "the whole BLE advertisement packet in hex, as in nRF Connect: \"1EFF0000…\"; the import removes spaces, colons, commas and 0x",
+      "durationMs": "how long to transmit, {min}–{max} ms (default {default})",
+      "gapMs": "pause before the next frame, 0–{max} ms (default 0; meaningless after the last)"
+    },
+    "timer": {
+      "id": "identifier from the export — by it the import changes the same timer; without it a new one is created",
+      "name": "name, e.g. „Morning” (optional; without it — „Timer 07:00”)",
+      "time": "time \"HH:MM\" by the phone's clock, e.g. \"06:45\" — required for a new timer",
+      "days": "days of the week: 1–7 (1 = Monday … 7 = Sunday) or \"pn\", \"wt\", \"śr\", \"cz\", \"pt\", \"so\", \"nd\"; [] — every day",
+      "enabled": "true — on (default), false — off",
+      "pace": "this timer's pace: { \"pauseMs\", \"limitMs\" } (below); left out for a new one — fastest",
+      "actions": "actions sent one after another, 1 to {max} (below); given ones replace all actions of the timer",
+      "remove": "true — deletes the timer (only with \"id\")"
+    },
+    "action": {
+      "lamp": "device: \"@key\" from this document, \"id\" from the export, or the device's name or number („Bedroom lamp”, \"no. 3\")",
+      "signal": "a signal of THAT device: \"@key\", \"id\" or the button label („On”)"
+    },
+    "pace": {
+      "pauseMs": "pause between transmissions, 0–{max} ms: between packets in a frame (a packet every 100 ms + pause), between frames and between actions; 0 — no pause",
+      "limitMs": "only in a timer: transmit each frame for at most this many ms (at least {min}); null — as long as saved"
+    }
+  },
+  "noName": "(no name)",
+  "at": {
+    "doc": "Document",
+    "frame": "frame",
+    "frameN": "frame {n}",
+    "signal": "{where}, signal {which}",
+    "lamp": "Device {which}",
+    "timer": "Timer {which}",
+    "action": "{at}, action {n}",
+    "buttons": "Button pace (\"buttons\")"
+  },
+  "warn": {
+    "unknownKey": "{where}: unknown key „{key}” — skipped.",
+    "unknownKeys": "{where}: unknown keys {keys} — skipped.",
+    "notText": "{where} must be text — skipped.",
+    "badId": "{where}: \"id\" must be text from the export — skipped.",
+    "badKey": "{where}: \"key\" is letters, digits, - _ . (up to 40 characters) — {value} skipped.",
+    "keyTaken": "{where}: the key \"@{key}\" is already in the document — this one skipped.",
+    "notList": "\"{name}\" must be a list — skipped.",
+    "framesNotList": "\"frames\" must be a list of frames {\"hex\", \"durationMs\", \"gapMs\"}",
+    "noHex": "{at}: no \"hex\" packet",
+    "signalsNotList": "{where}: \"signals\" must be a list — signals unchanged.",
+    "notObjectM": "{at}: this is not an object — skipped.",
+    "notObjectN": "{at}: this is not an object — skipped.",
+    "idTwiceSignal": "{at}: the same \"id\" a second time — skipped.",
+    "idTwiceN": "{at}: the same \"id\" a second time in the document — skipped.",
+    "idTwiceM": "{at}: the same \"id\" a second time in the document — skipped.",
+    "signalIdForeign": "{at}: \"id\" does not belong to this device's signals — a new signal will be created.",
+    "removeNoSignal": "{at}: \"remove\" without the \"id\" of a signal of this device — nothing to delete.",
+    "removeOnlyTrue": "{at}: \"remove\" can only be true — skipped.",
+    "signalSkipped": "{at}: {problem} — signal skipped.",
+    "signalKept": "{at}: {problem} — signal unchanged.",
+    "tooManySignals": {
+      "one": "{where}: at most {max} signals in a device — {count} new one skipped.",
+      "other": "{where}: at most {max} signals in a device — {count} new ones skipped."
+    },
+    "daysNotList": "\"days\" is a list (e.g. [\"pn\", \"śr\"] or [1, 3]; [] — every day), but it is {value}",
+    "badDays": "unknown days {days} (1–7 or pn, wt, śr, cz, pt, so, nd)",
+    "paceNotObject": "{where}: \"pace\" is {\"pauseMs\", \"limitMs\"} — pace unchanged.",
+    "pauseNotNumber": "{where}: \"pauseMs\" must be a number — unchanged.",
+    "pauseClamped": "{where}: \"pauseMs\" from 0 to {max} ms — clamped.",
+    "limitNotNumber": "{where}: \"limitMs\" is a number or null — unchanged.",
+    "limitClamped": "{where}: \"limitMs\" at least {min} ms — clamped.",
+    "version": "Version {got} — the import knows version {version}; whatever it doesn't know, it skips.",
+    "lampIdIsTimer": "{at}: \"id\" belongs to a timer, not a device — a new device will be created.",
+    "lampIdForeign": "{at}: \"id\" belongs to no device here (e.g. from another account) — a new one will be created, with a new \"id\".",
+    "removeNoLamp": "{at}: \"remove\" without the \"id\" of an existing device — nothing to delete.",
+    "protocolSkipped": "{at}: unknown protocol {protocol} (there is only \"ble-adv\") — device skipped.",
+    "protocolKept": "{at}: unknown protocol {protocol} (there is only \"ble-adv\") — device unchanged.",
+    "noNameSkipped": "{at}: no name and no number — device skipped.",
+    "noNameKept": "{at}: no name and no number — device unchanged.",
+    "lampTwin": "{at}: no \"id\" — a second device „{name}” will be created next to the existing one; to change the existing one, give its \"id\" from the export.",
+    "lampRef": "{where}: \"lamp\" is \"@key\", \"id\" or a device name — action skipped.",
+    "lampAmbiguous": "{where}: „{text}” matches {count} devices — give \"@key\" or \"id\"; action skipped.",
+    "lampRemoved": "{where}: the device „{name}” is being deleted in this document — action skipped.",
+    "lampMissing": "{where}: there is no device {ref} — action skipped.",
+    "signalRef": "{where}: \"signal\" is \"@key\", \"id\" or a button label — action skipped.",
+    "signalAmbiguous": "{where}: „{text}” matches {count} signals of „{title}” — give \"@key\" or \"id\"; action skipped.",
+    "signalRemoved": "{where}: the signal „{label}” („{title}”) is being deleted in this document — action skipped.",
+    "signalMissing": "{where}: „{title}” has no signal {ref} — action skipped.",
+    "timerIdIsLamp": "{at}: \"id\" belongs to a device, not a timer — a new timer will be created.",
+    "timerIdForeign": "{at}: \"id\" belongs to no timer here (e.g. from another account) — a new one will be created, with a new \"id\".",
+    "removeNoTimer": "{at}: \"remove\" without the \"id\" of an existing timer — nothing to delete.",
+    "timerSkipped": "{at}: {why} — timer skipped.",
+    "timerKept": "{at}: {why} — timer unchanged.",
+    "badEnabled": "{at}: \"enabled\" is true or false — skipped.",
+    "actionNotObject": "{where}: an action is {\"lamp\": …, \"signal\": …} — skipped.",
+    "tooManyActions": {
+      "one": "{at}: at most {max} actions — {count} more skipped.",
+      "other": "{at}: at most {max} actions — {count} more skipped."
+    },
+    "brokenActions": {
+      "one": "{at}: {count} action points to a device or signal that no longer exists — it stays, but the timer won't run it.",
+      "other": "{at}: {count} actions point to a device or signal that no longer exists — they stay, but the timer won't run them."
+    },
+    "timerTwin": "{at}: no \"id\" — a second identical timer will be created next to the existing one ({head}); to change the existing one, give its \"id\" from the export.",
+    "actionToRemovedLamp": "Timer {head}: the action „{action}” points to a device being deleted — the timer won't run this action.",
+    "actionToRemovedSignal": "Timer {head}: the action „{action}” points to a signal being deleted — the timer won't run this action.",
+    "buttonsNotObject": "\"buttons\" is {\"pauseMs\": …} — skipped.",
+    "buttonsPause": "Button pace: \"pauseMs\" from 0 to {max} ms — skipped.",
+    "tooManyRows": "Together there would be {rows} devices and timers — the service accepts at most {max}; the surplus new ones won't be saved."
+  },
+  "err": {
+    "notDoc": "This is not a lamps document — an object {\"format\": \"{format}\", …} was expected.",
+    "otherFormat": "Another format: „{got}” — here you import \"{format}\".",
+    "nothing": "The document has neither \"lamps\" nor \"timers\" nor \"buttons\" — nothing to import."
+  },
+  "line": {
+    "lampNoSignals": "„{name}” without signals",
+    "lampWithSignals": {
+      "one": "„{name}” with {count} signal",
+      "other": "„{name}” with {count} signals"
+    },
+    "newLamp": {
+      "one": "New device: {head} — {count} signal.",
+      "other": "New device: {head} — {count} signals."
+    },
+    "newLampSignals": {
+      "one": "New device: {head} — {count} signal: {labels}.",
+      "other": "New device: {head} — {count} signals: {labels}."
+    },
+    "changedLamp": "Changed device: „{name}” — {what}.",
+    "tempo": "; pace: {tempo}",
+    "off": " (off)",
+    "newTimer": "New timer: {head} — {actions}{extra}.",
+    "changedTimer": "Changed timer: {head} — {what}.",
+    "removedLamp": "Deleted device: {title}.",
+    "removedTimer": "Deleted timer: {title}.",
+    "buttons": "Button pace — pause: {pause} (was: {was}).",
+    "nothing": "Nothing will change — the document matches what is saved.",
+    "unchanged": "Unchanged: {lamps}, {timers}."
+  },
+  "what": {
+    "name": "name {from} → {to}",
+    "number": "number {from} → {to}",
+    "room": "room {from} → {to}",
+    "note": "note",
+    "added": {
+      "one": "new signal {list}",
+      "other": "new signals {list}"
+    },
+    "changed": {
+      "one": "changed signal {list}",
+      "other": "changed signals {list}"
+    },
+    "removed": {
+      "one": "deleted signal {list}",
+      "other": "deleted signals {list}"
+    },
+    "order": "order of signals",
+    "save": "saved again",
+    "time": "time {from} → {to}",
+    "days": "days {from} → {to}",
+    "on": "on",
+    "off": "off",
+    "tempo": "pace: {tempo}",
+    "fastest": "fastest",
+    "actions": "actions: {list}"
+  },
+  "why": {
+    "badTime": "\"time\" is a time \"HH:MM\" (e.g. \"07:00\"), but it is {value}",
+    "noTime": "no time \"time\"",
+    "actionsNotList": "\"actions\" is a list {\"lamp\", \"signal\"}",
+    "emptyActions": "empty \"actions\" list — a timer must send something",
+    "noActionHits": "no action points to a signal",
+    "noActions": "no \"actions\" — a timer must send something"
+  },
+  "timers": {
+    "one": "{count} timer",
+    "other": "{count} timers"
+  },
+  "bytes": {
+    "one": "{count} byte",
+    "other": "{count} bytes"
+  },
+  "stage": {
+    "remove": "Deleting ({n} of {total})…",
+    "lamps": "Saving devices ({n} of {total})…",
+    "timers": "Saving timers ({n} of {total})…"
+  },
+  "sample": {
+    "bedroomLamp": "Bedroom lamp",
+    "bedroom": "Bedroom",
+    "bedroomNote": "Remote with HFKJ in the packet, manufacturer ID 0x0000",
+    "on": "On",
+    "off": "Off",
+    "livingLamp": "Living room lamp",
+    "living": "Living room",
+    "warm": "Warm light",
+    "night": "Night mode",
+    "nightNote": "Dims first, then warm light",
+    "morning": "Morning",
+    "forNight": "Night",
+    "weekendMorning": "Weekend morning",
+    "dusk": "Dusk",
+    "lampId": "<device id from the export>",
+    "kidsRoom": "Kids' room",
+    "signalId": "<signal id>",
+    "dark": "Lights out",
+    "otherSignalId": "<id of another signal>",
+    "timerId": "<timer id>",
+    "otherTimerId": "<id of another timer>"
+  },
+  "node": {
+    "intro": "Lamps are Bluetooth LE devices controlled by a phone with the REcreatio app (the SMS edition for Android): each device has buttons — signals, i.e. BLE advertisement packets entered by hand or read from the remote. Timers send signals at a set time. A document may contain everything (a backup, a move to another account) or only a part — e.g. just timers prepared by AI.\nWhat the import does:\n- It first shows the list of changes with warnings; only „Import” saves. Saving goes the same way as a change by hand: devices and timers are encrypted in the browser with the key of the „Only me” area, and the phone that runs the timers gets the new plan right away.\n- An entry with an \"id\" from the export is changed in place — only the keys the document gives; the rest stays as it was. An entry without \"id\" (or with an \"id\" that is not here — e.g. from another account) is created as new, with a new \"id\" — on every import again, so take a fresh export for further changes.\n- It deletes nothing unless an entry with \"id\" has \"remove\": true — a device, a signal or a timer; the list of changes shows it.\n- An entry with an error (bad packet, no time, action without a device) is skipped with a warning; the rest is saved. Unknown keys also give a warning.\n- Whether THIS phone runs the timers is set on the phone (the timer list) — the document does not contain it.\nLimits: at most {rows} devices and timers together, {signals} signals in a device, {frames} frames in a signal, {actions} actions in a timer.\nReturn ONE JSON object, without comments.",
+    "usage": {
+      "title": "How the app uses this data",
+      "text": "- Devices and timers live in your „Only me” area, each sealed separately: only you see them, on every device where you sign in; the service only sees that they exist.\n- Only a phone with the app in the SMS edition transmits (Bluetooth LE advertisement). In the browser and in the regular app, devices, signals and timers can be set up but not transmitted.\n- A timer remembers the device and the signal, not the bytes: a corrected signal also applies in timers as soon as the phone stores the new plan.\n- The phone keeps its own timer plan, and the alarm transmits on time — even when the app is closed; „Recent runs” are shown in the timer list on the phone.\n- The plan is stored anew after every change made on this phone (also after an import) and when the app starts: an import done in the browser is picked up by the phone the next time the app is opened.\n- The button pace (\"buttons\") is remembered on the account: it applies at once to every press, on every phone; it does not change timers."
+    },
+    "frame": {
+      "title": "Frame (\"frames[]\")",
+      "lead": "A frame is one packet and how long to transmit it; the frames of a signal go one after another.",
+      "text": "A packet is a „legacy” BLE advertisement: at most {max} bytes, with one manufacturer data structure — length, FF, manufacturer ID (2 bytes, little endian), data; e.g. \"1EFF0000…\" is {bytes} with ID 0x0000. The phone does not transmit other structures (flags, names, UUIDs, service data) — the import skips a signal with them. Zeros at the end (padding from listening) are not transmitted."
+    },
+    "signal": {
+      "title": "Signal (\"signals[]\")",
+      "lead": "A signal is a button: a label and what the phone transmits when it is pressed — one frame or several in order (a sequence). A short press sends the whole signal; holding transmits while the button is held.",
+      "text": "The import skips a signal with an error (e.g. a bad packet) with a warning — a change to an existing signal is then not applied; the rest of the device is saved."
+    },
+    "lamp": {
+      "title": "Device (\"lamps[]\")",
+      "lead": "A device orders the buttons: name, number and room do not select a receiver — a BLE advertisement reaches every lamp in range, and which one switches on is decided by the bytes in the packet.",
+      "text": "Signals of an existing device: with \"id\" they change in place, without \"id\" they are added, unlisted ones stay. When the document lists ALL signals of the device, its order applies; when only some — new ones are added at the end. Devices appear on the page by number, then by name."
+    },
+    "action": {
+      "title": "Timer action (\"actions[]\")",
+      "lead": "Action: which signal of which device to send.",
+      "text": "\"@key\" is the \"key\" of a device or signal in this document; the key the export gives a device and signal (e.g. \"@lampa-w-sypialni-nr-1\", \"@wlacz\") also works when the device itself is not in the document. Names are compared ignoring case and Polish characters; a name must point to exactly one device (one signal) — otherwise the action is skipped with a warning. The export writes actions as \"@key\"."
+    },
+    "pace": {
+      "title": "Pace (\"pace\", \"buttons\")",
+      "lead": "Pace slows transmission without changing the saved signals. In a timer: { \"pauseMs\", \"limitMs\" }; in \"buttons\" (buttons and test sends, remembered on the account) only \"pauseMs\" — how long a button transmits is decided by holding it."
+    },
+    "timer": {
+      "title": "Timer (\"timers[]\")",
+      "lead": "A timer sends signals in order at a given time on chosen days of the week. It is run by a phone with the REcreatio app (SMS edition) on which timers are switched on — even when the app is closed.",
+      "text": "To change an existing timer, \"id\" and what changes are enough (e.g. {\"id\": \"…\", \"enabled\": false}). The import skips a timer with a bad time, bad days or no action that points to something (an existing one stays unchanged)."
+    },
+    "root": {
+      "title": "Lamps as JSON (\"{format}\", version {version})",
+      "short": "Lamps"
+    },
+    "example": {
+      "title": "Example: two lamps and two timers"
+    },
+    "exampleTimers": {
+      "title": "Example: only timers for lamps that already exist",
+      "lead": "Without identifiers — devices and signals by name (as an AI that has not seen the export will write them):"
+    },
+    "exampleChange": {
+      "title": "Example: change and delete",
+      "lead": "Identifiers from the export; only what is given changes:"
+    },
+    "sampleFull": "two lamps with signals and two timers",
+    "sampleTimers": "only timers for lamps that already exist (e.g. from AI)"
+  }
+}

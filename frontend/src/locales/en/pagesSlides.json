@@ -1,0 +1,44 @@
+{
+  "deck": {
+    "start": "Start",
+    "personal": "Your matters",
+    "nav": "Slides",
+    "prev": "Previous slide",
+    "next": "Next slide"
+  },
+  "legacy": {
+    "instead": {
+      "form": "registration form — add the “Form” module and put the questions in it",
+      "registration": "own registration — the “Your registration” module (behind a personal link)",
+      "card": "participant card — questions in the “Form” module, consents in its settings",
+      "roster": "participant list — the form's registrations in the Workshop",
+      "checklist": "list of things to do — the “Steps” module (behind a personal link)",
+      "topics": "topics to talk about — the “Conversation” module",
+      "meme": "memes — not yet in the new system"
+    },
+    "parts": "Parts",
+    "page": "Page {n}",
+    "internal": "{name} (internal)",
+    "unknownKind": "unknown kind “{kind}”",
+    "hidden": "“{label}” was hidden — moved over, check whether it should be visible.",
+    "skipped": "Part {n} “{label}” skipped: {why}."
+  },
+  "transition": {
+    "scroll": "Scroll — comes in from below, like a sheet (default)",
+    "flow": "Flow — moves up with the scrolling and blends with the previous one",
+    "fade": "Crossfade — the previous one stays, this one appears on it",
+    "cover": "Cover — this one slides over the previous one, which stays and dims",
+    "reveal": "Reveal — the previous one moves up and reveals this one",
+    "zoom": "Zoom — the previous one grows and vanishes, this one emerges from the depth",
+    "side": "From the side — this one comes in from the right, the previous one moves left",
+    "dissolve": "Dissolve — the previous one fades, blurs and sinks, this one sharpens while rising (like the Cogita show)"
+  },
+  "enter": {
+    "none": "No effect",
+    "rise": "Rises from below",
+    "fade": "Brightens",
+    "zoom": "Zooms in",
+    "left": "Slides in from the left",
+    "right": "Slides in from the right"
+  }
+}

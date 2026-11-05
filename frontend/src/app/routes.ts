@@ -19,6 +19,8 @@
  * Server ein Aufruf der Startseite.
  */
 
+import { t, texts } from './core/i18n';
+
 interface RouteDef {
   /**
    * Benennt dieser Teil einzelne Dinge?
@@ -295,7 +297,7 @@ export function parsePath(hash: string): Address {
 /** Die Adresse eines Teils. */
 export function path(route: Route, slug?: string | null, ...tail: readonly string[]): string {
   if (slug !== undefined && slug !== null && slug !== '' && !ROUTES[route].slugged) {
-    throw new Error(`Der Teil "${route}" benennt keine einzelnen Dinge — "${slug}" gehört nicht dahinter.`);
+    throw new Error(t('app.routes.noSlug', { route, slug }));
   }
 
   const words = [route, slug ?? '', ...tail]
@@ -366,29 +368,29 @@ export function needsIdentity(address: Address): boolean {
  * Der Pfeil in der Ansicht führt deshalb auf `#/workspace` und nicht auf
  * `history.back()`: wer über einen Link hereinkommt, hat kein Zurück.
  */
-export const VIEWS = {
+export const VIEWS = texts({
   /*
    * Die Bereiche stehen VOR dem Kalender, weil sie unter ihm liegen: ein
    * Kalender gehört einem Bereich, und ein Bereich ist ein benannter Schlüssel
    * mit seinen Epochen — kein Anhängsel einer Organisation. Wer den Kalender
    * zuerst sucht, findet hier, woran er hängt.
    */
-  areas: 'Obszary',
+  areas: 'app.view.areas',
 
   /*
    * 0137 — WSPÓLNOTY: ein Baum von Bereichen mit Positionen und Personen, geführt eingerichtet
    * (`communities/`). Über den Bereichen, nicht statt ihrer: jede Einheit IST ein Bereich.
    */
-  wspolnoty: 'Wspólnoty',
+  wspolnoty: 'app.view.wspolnoty',
 
   /*
    * 0054 — DER EIGENE KALENDER: alles, was ich sehe, und meine eigenen
    * Termine. Die Messen mit ihren Intentionen haben ihre eigene Kanzlei
    * (`masses`) — dort tippt man Zettel ab, hier plant man seinen Tag.
    */
-  calendar: 'Kalendarz',
-  tasks: 'Zadania',
-  masses: 'Msze i nabożeństwa',
+  calendar: 'app.view.calendar',
+  tasks: 'app.view.tasks',
+  masses: 'app.view.masses',
 
   /*
    * Was man sich für eine Zeit nehmen kann (0039) — das Treffen mit dem
@@ -396,18 +398,18 @@ export const VIEWS = {
    * Angebote dort stehen; nicht in ihm, weil hier Menschen etwas halten und
    * dort nur Zeiten stehen.
    */
-  bookings: 'Rezerwacje',
-  chat: 'Rozmowy',
+  bookings: 'app.view.bookings',
+  chat: 'app.view.chat',
 
   /*
    * 2026-10-17 — DAS TELEFON (Ausgabe „sms" der App, `phone/`): die SMS neben
    * den Rozmowy und nicht in ihnen, und das eigene Adressbuch. Im Menü nur,
    * wo es das Telefon gibt (oder gab: dann im Browser das Archiv).
    */
-  sms: 'SMS',
-  contacts: 'Kontakty',
+  sms: 'app.view.sms',
+  contacts: 'app.view.contacts',
   /* 2026-10-18 — LAMPY (`lamps/`): Sygnały per Bluetooth LE vom Telefon, und vom Pilot lernen. */
-  lamps: 'Lampy',
+  lamps: 'app.view.lamps',
 
   /*
    * 2026-10-16 — FORMULARZE: ein Ort für Formulare, ihre Zgłoszenia und
@@ -415,28 +417,28 @@ export const VIEWS = {
    * Name eines Bausteins, nicht dessen, was man dort tut. Die alte Adresse
    * führt hierher (`Workspace.tsx`); „Moduły" bleibt für alle Arten (Ustawienia).
    */
-  forms: 'Formularze',
+  forms: 'app.view.forms',
 
   /*
    * 0064 — DIE BIBLIOTHEK: seit 2026-10-23 nur Quellen — Werke, Zitate,
    * Personen. Vor den Bausteinen, weil Seiten aus ihr zeigen
    * (Zitatsammlung) — und weil Skryptorium und Cogita auf ihr aufbauen.
    */
-  library: 'Biblioteka',
+  library: 'app.view.library',
 
   /*
    * 2026-10-23 (0124) — DAS SKRYPTORIUM: die eigenen Texte, ihre
    * Wygłoszenia, Projekte und Rodzaje tekstów. Zwischen Bibliothek und
    * Nauka: es zitiert aus der einen und verweist auf die andere.
    */
-  scriptorium: 'Skryptorium',
+  scriptorium: 'app.view.scriptorium',
 
   /*
    * 2026-10-24 — WIEDZA: die Bazy wiedzy zum Sammeln, Ordnen, Verbinden und
    * Erkunden (`knowledge/<baza>/wpisy|dodaj|schematy`) — ohne je etwas lernen
    * zu müssen. Dieselben Bazy wie in der Nauka (`cogita/parts.ts`).
    */
-  knowledge: 'Wiedza',
+  knowledge: 'app.view.knowledge',
 
   /*
    * 0109 — NAUKA: was jetzt dran ist, Sitzungen, das Lernen ohne Netz — und
@@ -445,31 +447,31 @@ export const VIEWS = {
    * wiedzy, auch in anderen Bereichen. 2026-10-24: hier nur noch das Lernen —
    * die Einträge und Schematy stehen in der Wiedza.
    */
-  learn: 'Nauka',
+  learn: 'app.view.learn',
 
   /*
    * 0071 — DIE KARTOTEKA: Adressen eines Gebiets (der Pfarrei), die Familien
    * darin und die Kolęda Jahr für Jahr. Die Adressen in Teilen, die Familien
    * versiegelt.
    */
-  registry: 'Kartoteka i kolęda',
+  registry: 'app.view.registry',
   /*
    * Bausteine stehen VOR den Seiten, weil sie unter ihnen liegen: eine
    * Seite zeigt Bausteine, sie besitzt sie nicht (0036). Wer den Bogen
    * sucht, findet hier das Ding — nicht die Stelle, an der es zufaellig
    * haengt.
    */
-  modules: 'Moduły',
-  pages: 'Strony',
-  addresses: 'Adresy i domeny',
-  roles: 'Role',
+  modules: 'app.view.modules',
+  pages: 'app.view.pages',
+  addresses: 'app.view.addresses',
+  roles: 'app.view.roles',
 
   /*
    * Das Konto selbst — und die eine Entscheidung, die daran hängt: wie lange
    * der Schlüssel lebt. Sie steht NICHT bei „Obszary": dort geht es um
    * Schlüssel, die Inhalte öffnen, hier um den, der das Konto öffnet.
    */
-  account: 'Konto',
+  account: 'app.view.account',
 
   /*
    * 0129–0131 — SPRAWY: was ein Mensch entscheiden muss und nicht übersehen
@@ -478,14 +480,14 @@ export const VIEWS = {
    * von Wydarzenia. Was den Administrator danych betrifft, entscheidet sich in den
    * Ustawienia des Bereichs; hier steht, wohin.
    */
-  sprawy: 'Sprawy',
+  sprawy: 'app.view.sprawy',
 
   /*
    * 0094 — EIN WIDOK: die Seite des Warsztat, wie ein Widok sie beschreibt
    * (`#/workspace/widok/<kennung>`). Ohne Kennung der zuletzt offene.
    */
-  widok: 'Widok'
-} as const;
+  widok: 'app.view.widok'
+});
 
 export type View = keyof typeof VIEWS;
 

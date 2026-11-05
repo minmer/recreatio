@@ -40,7 +40,7 @@ import {
 import {
   authorText, chooseSpeaker, isMine, messageAuthor, speakerKey, speakersOf, speakerText, throughRole, type GraphLike
 } from './chatAuthor';
-import { plural } from '../core/plural';
+import { rich, useT } from '../core/i18n';
 import { keysFor } from '../core/ringOf';
 import { SpeakerPick } from './SpeakerPick';
 import type { Ring } from '../core/keys';
@@ -67,11 +67,12 @@ type RolePerson = Extract<PagePerson, { kind: 'role' }>;
  * Gruppe braucht es sie nicht.
  */
 export function PageChatCard({ title, chatId, path = null }: { title: string; chatId: string; path?: string | null }) {
+  const t = useT();
   const person = usePerson();
-  const head = <h2 className="wk-card-title">{title.trim() === '' ? 'Rozmowa' : title}</h2>;
+  const head = <h2 className="wk-card-title">{title.trim() === '' ? t('chat.page.room') : title}</h2>;
 
   if (chatId === '') {
-    return <>{head}<p className="wk-card-muted">Tu pojawi się rozmowa grupy — trzeba ją jeszcze wybrać.</p></>;
+    return <>{head}<p className="wk-card-muted">{t('chat.pageChat.notChosen')}</p></>;
   }
 
   const chosen = person?.chosen ?? null;
@@ -88,8 +89,8 @@ export function PageChatCard({ title, chatId, path = null }: { title: string; ch
   const fallback = (
     <p className="wk-card-muted">
       {person?.loading === true
-        ? 'Wczytywanie…'
-        : 'Ta rozmowa należy do grupy. Zaloguj się albo otwórz swój osobisty link — wtedy pojawi się tutaj.'}
+        ? t('common.loading')
+        : t('chat.pageChat.signIn')}
     </p>
   );
 
@@ -114,6 +115,7 @@ export function PageChatCard({ title, chatId, path = null }: { title: string; ch
 /* -- Die Rozmowa für jemanden mit Konto ------------------------------------ */
 
 export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring: Ring; asRoleId: string }) {
+  const t = useT();
   const [chat, setChat] = useState<ChatDetail | null | undefined>(undefined);
   const [talk, setTalk] = useState<ReadonlyMap<number, Uint8Array>>(new Map());
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
@@ -221,10 +223,10 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
       return derived;
     } catch (e) {
       setChat(null);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć rozmowy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.room.openFailed'));
       return null;
     }
-  }, [chatId, ring]);
+  }, [chatId, ring, t]);
 
   const open = useCallback(async (keys: ReadonlyMap<number, Uint8Array>, messages: readonly SealedMessage[]) =>
     Promise.all(messages.map(async (message) => ({ message, opened: await openMessage(keys, message) }))), []);
@@ -297,10 +299,10 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   /* 0080 — in der Rozmowa des Bereichs und im Kanał sagt die Art, wer schreibt. */
   const chrome = useChatChrome({ endpoint, extras, keys: talk, canModerate: moderates && chat != null && !fixedPolicy(chat.kind), onPolicy: () => void look() });
 
-  if (chat === undefined) return <Loading label="Wczytywanie rozmowy…" />;
+  if (chat === undefined) return <Loading label={t('chat.link.loading')} />;
   if (chat === null) {
     /* 0095 — das Konto liest hier nicht; ein Link in diesem Browser vielleicht doch (Lesen zählt zusammen). */
-    return <ReadThroughLink chatId={chatId} fallback={<p className="wk-card-muted">{failed ?? 'Ta rozmowa nie jest dla Ciebie — albo już jej nie ma.'}</p>} />;
+    return <ReadThroughLink chatId={chatId} fallback={<p className="wk-card-muted">{failed ?? t('chat.pageChat.notForYou')}</p>} />;
   }
 
   /* 0095 — meine: die Rolle UND die Person, die durch sie sprach. */
@@ -313,15 +315,15 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
       seat: (seatId) => chat?.seats.find((one) => one.seatId === seatId)
     });
     /* Meine eigenen: „Ty" — mit der Rolle, wenn durch sie; mit dem Namen, wenn hier mehr als eine eigene Person spricht. */
-    if (mine(message)) return persons2.size > 1 ? `${authorText(author)} · Ty` : author.via === null ? 'Ty' : `Ty (${author.via})`;
+    if (mine(message)) return persons2.size > 1 ? `${authorText(author)} · ${t('chat.you')}` : author.via === null ? t('chat.you') : `${t('chat.you')} (${author.via})`;
     return message.authorRoleId !== null && message.authorPersonId == null && names.get(message.authorRoleId) === undefined && opened?.name == null
-      ? 'ktoś z grupy' : authorText(author);
+      ? t('chat.pageChat.someoneInGroup') : authorText(author);
   };
 
   const rules: MessageRules = {
     mine,
     author: authorName,
-    note: (message) => (message.authorSeatId !== null ? 'z linku' : null),
+    note: (message) => (message.authorSeatId !== null ? t('chat.link.fromLink') : null),
     canEdit: (message, opened) => mine(message) && message.deletedAt === null && opened !== null && speakers.some((one) => one.roleId === message.authorRoleId),
     canDelete: (message) => mine(message) && message.deletedAt === null,
     canRestore: (message) => message.deletedAt !== null && mine(message) && message.deletedBy === 'author',
@@ -346,7 +348,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   };
 
   const send = async (body: string, options: SendOptions) => {
-    if (speaker === null) throw new WorkspaceError(noPerson ? 'Do rozmowy potrzebna jest osoba — załóż ją w Koncie.' : 'W tej rozmowie tylko czytasz.');
+    if (speaker === null) throw new WorkspaceError(noPerson ? t('chat.forward.needPerson') : t('chat.forward.readOnly'));
     /* Die Person und, wenn durch eine Rolle, die Rolle reisen in der Nachricht mit (0053, 0095). */
     const name = nameOf(speaker.personId);
     const via = throughRole(speaker) ? nameOf(speaker.roleId) : null;
@@ -368,10 +370,10 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   };
 
   const n = chat.members.length;
-  const subtitle = chrome.status.typing ? <span className="ch-typing">ktoś pisze…</span> : [
-    `${n} ${plural(n, 'uczestnik', 'uczestnicy', 'uczestników')}`,
-    chat.seats.length > 0 ? `${chat.seats.length} z linkiem` : null,
-    chrome.status.channel ? 'kanał' : null,
+  const subtitle = chrome.status.typing ? <span className="ch-typing">{t('chat.room.someoneTyping')}</span> : [
+    t('chat.room.members', { count: n }),
+    chat.seats.length > 0 ? t('chat.list.withLink', { count: chat.seats.length }) : null,
+    chrome.status.channel ? t('chat.room.channel') : null,
     chrome.presence
   ].filter(Boolean).join(' · ');
 
@@ -393,7 +395,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
         on={on}
         more={more}
         onEarlier={earlier}
-        empty="Jeszcze nikt nic nie napisał — możesz zacząć."
+        empty={t('chat.room.empty')}
         onFiles={(files) => composer.current?.addFiles(files)}
         unreadAfter={unreadAfter ?? null}
         search={extras.search}
@@ -404,9 +406,9 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
         ref={composer}
         endpoint={endpoint}
         onlineSend={chrome.onlineSend}
-        readOnly={noPerson ? 'Do rozmowy potrzebna jest osoba (imię i nazwisko) — załóż ją w Koncie.'
-          : speaker === null ? 'W tej rozmowie tylko czytasz.' : extras.features?.canWrite === false ? 'Ten kanał pozwala Ci tylko czytać.' : null}
-        placeholder={speaker !== null && speakers.length > 1 ? `Wiadomość jako ${speakerText(speaker, nameOf)}` : 'Wiadomość'}
+        readOnly={noPerson ? t('chat.pageChat.needPerson')
+          : speaker === null ? t('chat.forward.readOnly') : extras.features?.canWrite === false ? t('chat.room.channelOnlyRead') : null}
+        placeholder={speaker !== null && speakers.length > 1 ? t('chat.room.messageAs', { name: speakerText(speaker, nameOf) }) : t('chat.chrome.message')}
         reply={reply}
         onClearReply={() => setReply(null)}
         editing={editing === null ? null : { id: editing.message.messageId, text: editing.opened.text }}
@@ -419,7 +421,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
         }}
         onScheduled={chrome.scheduled.refresh}
         before={<>
-          {asked !== null && <p className="ch-note">{asked} nie pisze w tej grupie — piszesz jako <strong>{speakerText(speaker!, nameOf)}</strong>.</p>}
+          {asked !== null && <p className="ch-note">{rich(t('chat.pageChat.asked', { name: asked, as: speakerText(speaker!, nameOf) }), { b: (s, k) => <strong key={k}>{s}</strong> })}</p>}
           {chrome.chip}
         </>}
         sendAs={speaker !== null && speakers.length > 1 ? <SpeakerPick speakers={speakers} speaker={speaker} name={nameOf} onPick={(one) => pick(speakerKey(one))} /> : null}
@@ -440,13 +442,14 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
  * dort aufnehmen).
  */
 function ReadThroughLink({ chatId, fallback }: { chatId: string; fallback: React.ReactNode }) {
+  const t = useT();
   const [readable, setReadable] = useState<boolean | undefined>(undefined);
   useEffect(() => {
     let alive = true;
     void loadLinkChat(chatId).then((found) => { if (alive) setReadable(found !== null); });
     return () => { alive = false; };
   }, [chatId]);
-  if (readable === undefined) return <Loading label="Wczytywanie rozmowy…" />;
+  if (readable === undefined) return <Loading label={t('chat.link.loading')} />;
   return readable ? <LinkChatRoom chatId={chatId} under={null} onJoined={() => undefined} signedIn /> : <>{fallback}</>;
 }
 

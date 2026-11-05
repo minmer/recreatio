@@ -6,6 +6,8 @@
  * v = √(2·g·h)); ein U-Rohr misst so einen Gasdruck (Manometer).
  */
 
+import { t } from '../core/i18n';
+
 export interface Liquid {
   readonly key: string;
   readonly name: string;
@@ -17,16 +19,21 @@ export interface Liquid {
   readonly thick: number;
 }
 
+/** Eine Flüssigkeit; ihr Name kommt beim Lesen aus lab.json (`lab.liquid.<key>`). */
+function liquid(key: string, density: number, color: string, thick: number): Liquid {
+  return { key, get name() { return t(`lab.liquid.${key}`); }, density, color, thick };
+}
+
 export const LIQUIDS: Readonly<Record<string, Liquid>> = {
-  water: { key: 'water', name: 'woda', density: 1000, color: 'rgba(64, 150, 220, 0.55)', thick: 1 },
-  saltwater: { key: 'saltwater', name: 'woda słona', density: 1100, color: 'rgba(52, 128, 196, 0.6)', thick: 1.1 },
-  sea: { key: 'sea', name: 'woda morska', density: 1025, color: 'rgba(40, 140, 170, 0.6)', thick: 1.05 },
-  oil: { key: 'oil', name: 'olej', density: 900, color: 'rgba(222, 186, 60, 0.6)', thick: 6 },
-  alcohol: { key: 'alcohol', name: 'alkohol', density: 790, color: 'rgba(200, 225, 240, 0.4)', thick: 1.2 },
-  glycerin: { key: 'glycerin', name: 'gliceryna', density: 1260, color: 'rgba(220, 230, 235, 0.55)', thick: 40 },
-  honey: { key: 'honey', name: 'miód', density: 1420, color: 'rgba(214, 140, 30, 0.75)', thick: 120 },
-  mercury: { key: 'mercury', name: 'rtęć', density: 13534, color: 'rgba(170, 176, 184, 0.95)', thick: 1.5 },
-  milk: { key: 'milk', name: 'mleko', density: 1030, color: 'rgba(245, 243, 235, 0.92)', thick: 2 }
+  water: liquid('water', 1000, 'rgba(64, 150, 220, 0.55)', 1),
+  saltwater: liquid('saltwater', 1100, 'rgba(52, 128, 196, 0.6)', 1.1),
+  sea: liquid('sea', 1025, 'rgba(40, 140, 170, 0.6)', 1.05),
+  oil: liquid('oil', 900, 'rgba(222, 186, 60, 0.6)', 6),
+  alcohol: liquid('alcohol', 790, 'rgba(200, 225, 240, 0.4)', 1.2),
+  glycerin: liquid('glycerin', 1260, 'rgba(220, 230, 235, 0.55)', 40),
+  honey: liquid('honey', 1420, 'rgba(214, 140, 30, 0.75)', 120),
+  mercury: liquid('mercury', 13534, 'rgba(170, 176, 184, 0.95)', 1.5),
+  milk: liquid('milk', 1030, 'rgba(245, 243, 235, 0.92)', 2)
 };
 
 /** Normaler Luftdruck (Pa). */

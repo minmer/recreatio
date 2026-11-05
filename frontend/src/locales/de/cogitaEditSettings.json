@@ -1,0 +1,140 @@
+{
+  "sources": {
+    "intro": "<b>Bibliotheken</b> — nur für Verweise: ihre Werke, Zitate und Personen kann man in Feldern angeben und zitieren, aber sie werden keine Karten. <b>Skriptorien</b> — ihre Texte (mit den Feldern ihrer Textart, z. B. Geheimnis, Bereich) kann man in Ansichten und Matrizen zeigen, in Feldern angeben und über Vorlagen lernen. <b>Andere Wissensbasen</b> — zum Weiterverwenden: ihre Arten, Einträge, Vorlagen, Wiederholungen und Abläufe wirken hier und werden dort geändert. Jede Quelle sieht nur, wer Zugang zu ihrem Bereich hat.",
+    "title": "Quellen",
+    "none": "Noch keine Quellen.",
+    "kindBooks": "Bibliothek — für Verweise",
+    "kindWriting": "Skriptorium — Texte",
+    "kindKnowledge": "Wissensbasis — zum Weiterverwenden",
+    "unavailable": "in diesem Tab nicht verfügbar",
+    "entries": {
+      "one": "{count} Eintrag",
+      "other": "{count} Einträge"
+    },
+    "loading": "wird geladen…",
+    "add": "Quelle hinzufügen",
+    "addPlaceholder": "— Bibliothek, Skriptorium oder Wissensbasis hinzufügen —"
+  },
+  "authorsOnly": "Die Einstellungen der Wissensbasis ändern ihre Autoren.",
+  "storage": {
+    "title": "Wo die Antworten der Lernenden gespeichert werden",
+    "hint": "Den Fortschritt der Lernenden sieht, wer den gewählten Bereich leitet (z. B. eine Lehrkraft). Das gilt für das Lernen hier in der App und für Bausteine ohne eigene Wahl — ein Baustein auf der Seite eines Kurses (oder einer Gruppe) leitet die Antworten in seinen eigenen Bereich, sodass dieselbe Basis vielen Kursen dienen kann. Ohne Wahl — nur der Lernende selbst.",
+    "learnerPrivate": "privater Bereich des Lernenden",
+    "myPrivate": "mein privater Bereich"
+  },
+  "reports": {
+    "title": "Meldungen und Zahlen von Lernenden (anonym)",
+    "hint": "Gemeldete Karten und Fehlerzahlen gehen an den Eingang des Bereichs dieser Wissensbasis — ohne Namen."
+  },
+  "motivation": {
+    "title": "Motivation",
+    "rewards": "Belohnungsregeln im Lernen",
+    "rewardsDefault": "— Vorgabe: die ersten Regeln der Basis, ohne sie die eingebauten —",
+    "rewardsFallback": "Belohnungen",
+    "rewardsLink": "Belohnungen: Regeln und deine Punkte →",
+    "rankings": "Ranglisten gibt es nur in Live-Sitzungen."
+  },
+  "fromOrigin": " · aus: {name}",
+  "language": {
+    "title": "Lernsprache",
+    "hint": "In dieser Sprache sprechen die Lernbildschirme: Landschaft, Pfad, Wiederholung und ihr Abschluss. Ohne Wahl — erkannt aus den Namen in der Basis (jetzt: {lang}).",
+    "detect": "— aus der Basis erkennen —"
+  },
+  "tags": {
+    "title": "Perspektiven",
+    "hint": "Diese Basis hat noch alte Perspektiven ({tags}). Perspektiven und Themen gibt es nicht mehr — Ordnung geben eigene Arten (z. B. „Geheimnis“, „Bereich“), verbunden durch Verweisfelder."
+  },
+  "join": {
+    "title": "Seite zum Beitreten einer Sitzung",
+    "hint": "Eine Seite mit dem Baustein „Einer Sitzung beitreten“ (z. B. parafia/quiz). Link und QR-Code der Sitzung führen dorthin."
+  },
+  "proposals": {
+    "title": "Vorschläge von Lesenden",
+    "hint": "Autoren ändern die Basis direkt; andere schlagen Erklärungen und Fragen vor, und der Autor nimmt sie an.",
+    "none": "— keine Vorschläge —"
+  },
+  "base": {
+    "title": "Wissensbasis",
+    "name": "Name der Wissensbasis",
+    "saveName": "Namen speichern",
+    "area": "Bereich: {area} — wer seinen Schlüssel hat, lernt aus dieser Basis; wer darin schreibt, baut sie.",
+    "unknownArea": "unbekannt",
+    "delete": "Wissensbasis löschen",
+    "deleteHint": "Löscht alle Einträge, Vorlagen, Wiederholungen, Abläufe und Antworten der Lernenden; Sitzungen bleiben, aber ohne Basis. Das lässt sich nicht rückgängig machen — exportiere zuerst (JSON).",
+    "typeName": "Tippe den Namen zur Bestätigung ein",
+    "deleteForever": "Für immer löschen"
+  },
+  "onlyYou": "nur du",
+  "remove": "entfernen",
+  "kind": {
+    "knowledge": "Wissensbasis",
+    "writing": "Skriptorium",
+    "books": "Bibliothek"
+  },
+  "intake": {
+    "checking": "Eingang wird geprüft…",
+    "works": "Eingang funktioniert",
+    "worksIn": "Eingang funktioniert · {area}",
+    "none": "dieser Bereich hat noch keinen Eingang — die Antworten sieht nur der Lernende",
+    "keyFor": "Eingangsschlüssel für die Rolle:",
+    "role": "Rolle",
+    "creating": "Schlüssel wird erstellt (ein paar Sekunden)…",
+    "create": "Eingang erstellen"
+  },
+  "deps": {
+    "title": "Abhängigkeiten",
+    "hint": "Die Reihenfolge des Lernens kommt vor allem aus den Feldern „Zuerst muss man kennen“ in Arten und Fragen (Lernen → Pfad); hier — zusätzliche Abhängigkeiten zwischen einzelnen Einträgen. „Zuerst muss man kennen“ sperrt Karten, bis die Grundlage beherrscht ist; jede Kante gibt einen Teil der Kenntnis (Gewicht) nach oben weiter.",
+    "weightOf": "Gewicht {n}",
+    "proposal": "Vorschlag",
+    "confirm": "bestätigen",
+    "child": "Eintrag, der abhängt",
+    "parent": "wovon",
+    "weight": "Gewicht"
+  },
+  "values": {
+    "title": "Werte des Kurses",
+    "hint": "Sie ändern sich beim Lernen (Schritte von Abläufen, Fortschritte): Punkte, Nähe zu Figuren, Vorräte. Sie bleiben zwischen Sitzungen.",
+    "key": "Schlüssel",
+    "scopePerson": "einer Person",
+    "scopeGroup": "einer Gruppe",
+    "scopeSession": "einer Sitzung",
+    "visAll": "alle sehen",
+    "visGroup": "Gruppe",
+    "visPerson": "nur die Person",
+    "initial": "Am Start",
+    "score": "Punkte",
+    "newLabel": "Neuer Wert",
+    "add": "+ Wert",
+    "save": "Werte speichern",
+    "min": "min",
+    "max": "max"
+  },
+  "rules": {
+    "fallback": "Regeln",
+    "title": "Regeln für Live-Sitzungen",
+    "own": "— eigene Regeln ({n}) —",
+    "fromPreset": "+ aus Vorlagen",
+    "roundTimer": "Zeit pro Frage (s)",
+    "actionTimer": "Nach der ersten Antwort (s)",
+    "baseCorrect": "Für eine richtige Antwort",
+    "firstBonus": "Bonus für die erste",
+    "speedBonus": "Tempobonus (max)",
+    "streakBonus": "Serienbonus",
+    "penalty": "Strafe für einen Fehler",
+    "autoNext": "nächste Frage automatisch",
+    "save": "Regeln speichern",
+    "foreign": "Diese Regeln stammen aus „{name}“ — sie wirken hier und werden dort geändert."
+  },
+  "looks": {
+    "title": "Darstellungen",
+    "hint": "Eine Darstellung sagt, wie ein Ablauf seine Schritte zeigt und was von jeder Art von Eintrag zu sehen ist (z. B. die Karte einer Person: Name, Jahre, Porträt).",
+    "fallback": "Darstellung",
+    "transition": "Übergang (z. B. fade, slide)",
+    "newName": "Neue Darstellung",
+    "add": "+ Darstellung"
+  },
+  "daily": {
+    "label": "Tagesziel — Karten pro Tag",
+    "hint": "Eine Serie sind die Tage hintereinander, an denen das Ziel erreicht ist. Jeder Lernende sieht nur seine eigenen Tage."
+  }
+}

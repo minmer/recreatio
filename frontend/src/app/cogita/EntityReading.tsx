@@ -30,6 +30,7 @@ import { parseMarkup, type Inline } from '../library/libraryMarkup';
 import { Blocks, countNotes, Inlines, MarkupLinks, NoteList, type MarkupLinkTo } from '../library/markupView';
 import { placeFor, workLook } from '../library/sourceFind';
 import type { TextLink } from '../library/sourceText';
+import { useT } from '../core/i18n';
 import { hasTex } from '../core/tex';
 import { TexText } from '../ui/tex/Tex';
 import { citedPlaces, formatReading, leadAt, leadPlain, leadShape, readingParts, readingPattern, readingSource } from './reading';
@@ -288,14 +289,16 @@ function sourceOf(lib: CogitaLibrary, entity: Entity, r: Reading): SourceLink | 
 export const entitySource = (lib: CogitaLibrary, entity: Entity): SourceLink | null => sourceOf(lib, entity, readingOf(lib, entity));
 
 /** „Otwórz w źródle": im Arbeitsbereich der Czytnik an der Stelle, sonst klappt der Abschnitt darunter auf. Ohne Quelle nichts. */
-export function SourceOpen({ lib, entity, label = 'Otwórz w źródle' }: { lib: CogitaLibrary; entity: Entity; label?: string }) {
+export function SourceOpen({ lib, entity, label: given }: { lib: CogitaLibrary; entity: Entity; label?: string }) {
+  const t = useT();
+  const label = given ?? t('cogitaViews.read.openInSource');
   const [open, setOpen] = useState(false);
   const source = useMemo(() => entitySource(lib, entity), [lib, entity]);
   if (source === null) return null;
   if (source.href !== undefined) return <a className="wk-link-btn" href={source.href} data-open-source="">{label}</a>;
   return (
     <>
-      <button type="button" className="wk-link-btn" aria-expanded={open} data-open-source="" onClick={() => setOpen((x) => !x)}>{open ? 'Ukryj tekst źródła' : label}</button>
+      <button type="button" className="wk-link-btn" aria-expanded={open} data-open-source="" onClick={() => setOpen((x) => !x)}>{open ? t('cogitaViews.read.hideSource') : label}</button>
       {open && <div className="cg-source-passage"><Passage look={source.look} link={source.link} /></div>}
     </>
   );
@@ -313,6 +316,7 @@ export function EntityReading({ lib, entity, onEntity, variant = 'line' }: {
   onEntity?: (id: string) => void;
   variant?: 'line' | 'preview';
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const bodyId = `cg-read-${useId().replace(/[^A-Za-z0-9]/g, '')}`;
   const r = readingOf(lib, entity);
@@ -353,8 +357,8 @@ export function EntityReading({ lib, entity, onEntity, variant = 'line' }: {
           <WorldsSection data={entity.data} compact />
           {(slide || unitFlow !== null) && <SlideActions lib={lib} entity={entity} unitFlow={unitFlow} questions={slide} />}
           {onEntity !== undefined
-            ? <button type="button" className="wk-link-btn cg-reading-open" onClick={() => onEntity(entity.id)}>Otwórz wpis</button>
-            : href !== undefined && <a className="wk-link-btn cg-reading-open" href={href}>Otwórz wpis</a>}
+            ? <button type="button" className="wk-link-btn cg-reading-open" onClick={() => onEntity(entity.id)}>{t('cogitaViews.read.openEntry')}</button>
+            : href !== undefined && <a className="wk-link-btn cg-reading-open" href={href}>{t('cogitaViews.read.openEntry')}</a>}
         </div>
       )}
     </div>
@@ -379,9 +383,10 @@ export function ExplainList({ lib, ids, onEntity }: { lib: CogitaLibrary; ids: r
 
 /** 2026-10-31 — im Editor des Rodzaju: ein Eintrag, wie ihn „Nowy temat" mit diesem Wzór zeigt (leer: wie ohne Wzór). */
 export function ReadingPreview({ lib, entity, pattern }: { lib: CogitaLibrary; entity: Entity; pattern: string }) {
+  const t = useT();
   return (
-    <section className="cg-topic-intro" data-reading-preview="" aria-label="Podgląd tekstu do czytania">
-      <span className="cg-topic-tag">Podgląd — tak wygląda „Nowy temat”</span>
+    <section className="cg-topic-intro" data-reading-preview="" aria-label={t('cogitaViews.read.previewLabel')}>
+      <span className="cg-topic-tag">{t('cogitaViews.read.previewTag')}</span>
       <TopicIntro lib={lib} entity={entity} pattern={pattern} />
     </section>
   );
@@ -401,6 +406,7 @@ export function TopicIntro({ lib, entity, pattern, noTitle = false, noSource = f
   /** 2026-11-01 — ohne „Czytaj tekst" (die Tafel einer Kachel hat „Otwórz w źródle"). */
   noSource?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [passage, setPassage] = useState(false);
   const [clamped, setClamped] = useState(false);
@@ -472,12 +478,12 @@ export function TopicIntro({ lib, entity, pattern, noTitle = false, noSource = f
           {(more || clamped) && (
             <button type="button" className="wk-link-btn" aria-expanded={open} aria-controls={bodyId} data-read-more=""
               onClick={() => { then.current = open ? { back: true } : { focus: true }; setOpen((x) => !x); }}>
-              {open ? 'Zwiń tekst' : 'Czytaj dalej'}
+              {open ? t('cogitaViews.read.collapse') : t('cogitaViews.read.readMore')}
             </button>
           )}
           {source !== null && (source.href !== undefined
-            ? <a className="wk-link-btn" href={source.href} data-read-source="">Czytaj tekst</a>
-            : <button type="button" className="wk-link-btn" aria-expanded={passage} data-read-source="" onClick={() => setPassage((x) => !x)}>{passage ? 'Ukryj tekst' : 'Czytaj tekst'}</button>)}
+            ? <a className="wk-link-btn" href={source.href} data-read-source="">{t('cogitaViews.read.readText')}</a>
+            : <button type="button" className="wk-link-btn" aria-expanded={passage} data-read-source="" onClick={() => setPassage((x) => !x)}>{passage ? t('cogitaViews.read.hideText') : t('cogitaViews.read.readText')}</button>)}
         </div>
       )}
       {passage && source !== null && <Passage look={source.look} link={source.link} />}

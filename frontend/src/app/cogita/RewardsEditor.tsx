@@ -30,6 +30,7 @@ import {
 import { BadgeMedal, RewardBoard, RewardIcon } from './RewardViews';
 import type { CogitaLibrary } from './store';
 import { OriginTag, useBusy, useCtx } from './ui';
+import { useT } from '../core/i18n';
 
 /** 2026-11-05 (Prompt 17) — das Wort der Seite „Odznaki i poziomy" in der Adresse (`nagrody/odznaki`) — keine Kennung eines Dokuments. */
 export const BADGES_SLUG = 'odznaki';
@@ -66,6 +67,7 @@ export function useRunRewards(): RewardRules | null {
 /* -- Der Reiter -------------------------------------------------------------------------------------------------------- */
 
 export function RewardsTab({ learner, chosen, go }: { learner: Learner | null; chosen: string | null; go: (...tail: string[]) => void }) {
+  const t = useT();
   const { lib, writes, href } = useCtx();
   const base = useBaseRewards();
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
@@ -77,14 +79,14 @@ export function RewardsTab({ learner, chosen, go }: { learner: Learner | null; c
   return (
     <div className="cg cg-rewards" data-rewards-tab="">
       <section className="cg-card">
-        <h3>Twoje nagrody</h3>
-        {!base.on && <p className="cg-muted" data-rewards-off="">W Nauce tej bazy punkty są wyłączone{writes ? ' — włączysz je tutaj albo w Ustawieniach (Motywacja).' : '.'} Moduły „Punkty i seria” na stronach liczą je i tak.</p>}
+        <h3>{t('cogitaEditRewards.yours')}</h3>
+        {!base.on && <p className="cg-muted" data-rewards-off="">{writes ? t('cogitaEditRewards.offWrites') : t('cogitaEditRewards.off')}</p>}
         {!base.on && writes && (
           <div className="wk-actions">
-            <button type="button" className="wk-btn" disabled={busy} data-rewards-enable="" onClick={() => void run(() => lib.saveSettings({ motivation: 'rewards' }))}>Włącz punkty w Nauce</button>
+            <button type="button" className="wk-btn" disabled={busy} data-rewards-enable="" onClick={() => void run(() => lib.saveSettings({ motivation: 'rewards' }))}>{t('cogitaEditRewards.enable')}</button>
           </div>
         )}
-        <p className="cg-muted">Zasady: <strong>{base.rules.name}</strong>{base.id === null ? ' (wbudowane)' : ''} — {describeRewards(base.rules)}.</p>
+        <p className="cg-muted">{t('cogitaEditRewards.rulesLabel')} <strong>{base.rules.name}</strong>{base.id === null ? t('cogitaEditRewards.builtIn') : ''} — {describeRewards(base.rules)}.</p>
         {/* 2026-11-05 (Prompt 17) — der Eingang zu „Odznaki i poziomy". */}
         <div className="wk-actions">
           <a className="wk-btn wk-btn-quiet" href={href('nagrody', BADGES_SLUG)} data-rewards-badges-link=""><RewardIcon name="medal" className="is-medal" />{RW.title}</a>
@@ -127,6 +129,7 @@ function OwnBadges({ learner, rules, rename, lang }: { learner: Learner | null; 
 
 /** Die Dokumente „Nagrody": Liste, ein neues aus einem fertigen Anfang, der Editor des gewählten. */
 function RewardDocs({ chosen, active, go, learner }: { chosen: string | null; active: string | null; go: (...tail: string[]) => void; learner: Learner | null }) {
+  const t = useT();
   const { lib } = useCtx();
   const { busy, failed, run } = useBusy();
   const [preset, setPreset] = useState(REWARD_PRESETS[0]!.id);
@@ -137,16 +140,16 @@ function RewardDocs({ chosen, active, go, learner }: { chosen: string | null; ac
   return (
     <>
       <section className="cg-card" data-reward-docs={docs.length}>
-        <h3>Zasady nagród</h3>
-        <p className="cg-muted">Kilka zasad w jednej bazie: każde miejsce wybiera swoje — moduł „Punkty i seria” albo „Statystyki na żywo” na stronie, a Nauka tę, którą wskażesz. Punkty liczą się z odpowiedzi, więc zmiana zasad zmienia je od razu wszystkim.</p>
-        {docs.length === 0 ? <p className="wk-empty">Nie ma jeszcze własnych zasad — wszędzie obowiązują wbudowane („Punkty, seria i poziomy”).</p> : (
+        <h3>{t('cogitaEditRewards.docsTitle')}</h3>
+        <p className="cg-muted">{t('cogitaEditRewards.docsHint')}</p>
+        {docs.length === 0 ? <p className="wk-empty">{t('cogitaEditRewards.noDocs')}</p> : (
           <ul className="lib-list">
             {docs.map((e) => {
               const rules = readRewards(e.data);
               return (
                 <li key={e.id} className="cg-method">
                   <button type="button" className={`lib-row${e.id === chosen ? ' is-on' : ''}`} data-reward-doc={e.id} onClick={() => go('nagrody', e.id)}>
-                    <span className="lib-row-title">{rules.name} <OriginTag id={e.id} />{e.id === active ? <span className="cg-chip is-on"> w Nauce</span> : null}</span>
+                    <span className="lib-row-title">{rules.name} <OriginTag id={e.id} />{e.id === active ? <span className="cg-chip is-on">{t('cogitaEditRewards.inLearning')}</span> : null}</span>
                     <span className="lib-row-meta">{describeRewards(rules)}</span>
                   </button>
                 </li>
@@ -155,14 +158,14 @@ function RewardDocs({ chosen, active, go, learner }: { chosen: string | null; ac
           </ul>
         )}
         <div className="cg-row">
-          <select value={preset} disabled={busy} aria-label="Gotowy początek" onChange={(e) => setPreset(e.target.value)}>
+          <select value={preset} disabled={busy} aria-label={t('cogitaEditRewards.preset')} onChange={(e) => setPreset(e.target.value)}>
             {REWARD_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
           <button type="button" className="wk-btn" disabled={busy} data-reward-new="" onClick={() => void run(async () => {
             const p = REWARD_PRESETS.find((x) => x.id === preset) ?? REWARD_PRESETS[0]!;
             const made = await lib.saveDoc('reward', rewardsData(p.rules));
             go('nagrody', made.id);
-          })}><Icon name="plus" />Nagrody</button>
+          })}><Icon name="plus" />{t('cogitaEditRewards.rewards')}</button>
         </div>
         <p className="cg-muted">{REWARD_PRESETS.find((x) => x.id === preset)?.says}</p>
         {failed !== null && <p className="wk-error">{failed}</p>}
@@ -172,7 +175,7 @@ function RewardDocs({ chosen, active, go, learner }: { chosen: string | null; ac
         : (
           <section className="cg-card">
             <h3>{readRewards(doc.data).name}</h3>
-            <p className="cg-muted">Te zasady pochodzą z innej bazy wiedzy ({lib.origin(doc.id)?.name ?? '?'}) — tu można ich używać, zmienia się je tam.</p>
+            <p className="cg-muted">{t('cogitaEditRewards.foreign', { name: lib.origin(doc.id)?.name ?? '?' })}</p>
             <p className="cg-muted">{describeRewards(readRewards(doc.data))}</p>
           </section>
         ))}
@@ -205,6 +208,7 @@ function RewardEditor({ id, data, active, isDefault, learner, onGone }: {
   learner: Learner | null;
   onGone: () => void;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const { busy, failed, run } = useBusy();
   /* 2026-11-05 (Prompt 17) — die neuen Worte des Editors (er bleibt polnisch wie die übrigen). */
@@ -233,83 +237,83 @@ function RewardEditor({ id, data, active, isDefault, learner, onGone }: {
   return (
     <section className="cg-card cg-reward-editor" data-reward-editor={id}>
       <div className="cg-row-between">
-        <h3>{draft.name || 'Nagrody'}</h3>
+        <h3>{draft.name || t('cogitaEditRewards.rewards')}</h3>
         <span className="cg-row">
-          {active ? <span className="cg-chip is-on" data-reward-active="">obowiązują w Nauce</span>
-            : <button type="button" className="wk-link-btn" disabled={busy} data-reward-use="" onClick={() => void run(() => lib.saveSettings({ motivation: 'rewards', rewards: id }))}>Użyj w Nauce</button>}
-          {!active && isDefault && <span className="cg-muted">(domyślne tej bazy)</span>}
+          {active ? <span className="cg-chip is-on" data-reward-active="">{t('cogitaEditRewards.active')}</span>
+            : <button type="button" className="wk-link-btn" disabled={busy} data-reward-use="" onClick={() => void run(() => lib.saveSettings({ motivation: 'rewards', rewards: id }))}>{t('cogitaEditRewards.use')}</button>}
+          {!active && isDefault && <span className="cg-muted">{t('cogitaEditRewards.isDefault')}</span>}
         </span>
       </div>
 
       <label className="wk-field">
-        <span>Nazwa</span>
+        <span>{t('common.name')}</span>
         <input value={draft.name} maxLength={80} data-reward-field="name" onChange={(e) => set({ name: e.target.value })} />
       </label>
 
       <fieldset className="cg-reward-group">
-        <legend>Punkty</legend>
+        <legend>{t('cogitaEditRewards.points')}</legend>
         <div className="cg-row cg-reward-nums">
           {POINT_KINDS.map((k) => <Num key={k} label={POINT_LABEL[k]} value={draft.points[k]} max={10_000} data={`points.${k}`} onChange={(v) => setPoint(k, v)} />)}
         </div>
         <div className="cg-row cg-reward-nums">
-          <Num label="Utrwalona: następna powtórka za co najmniej (dni)" value={draft.known.days} min={0.01} max={365} step={0.5} data="known.days" onChange={(v) => set({ known: { days: v } })} />
-          <Num label="Szybka: w ciągu (sekund)" value={draft.fast.seconds} min={1} max={600} data="fast.seconds" onChange={(v) => set({ fast: { seconds: v } })} />
-          <Num label="Seria dobrych: co ile z rzędu" value={draft.combo.every} min={2} max={1000} data="combo.every" onChange={(v) => set({ combo: { every: v } })} />
+          <Num label={t('cogitaEditRewards.knownDays')} value={draft.known.days} min={0.01} max={365} step={0.5} data="known.days" onChange={(v) => set({ known: { days: v } })} />
+          <Num label={t('cogitaEditRewards.fastSeconds')} value={draft.fast.seconds} min={1} max={600} data="fast.seconds" onChange={(v) => set({ fast: { seconds: v } })} />
+          <Num label={t('cogitaEditRewards.comboEvery')} value={draft.combo.every} min={2} max={1000} data="combo.every" onChange={(v) => set({ combo: { every: v } })} />
         </div>
       </fieldset>
 
       <fieldset className="cg-reward-group">
-        <legend>Cel dnia i seria dni</legend>
+        <legend>{t('cogitaEditRewards.goalStreak')}</legend>
         <div className="cg-row cg-reward-nums">
-          <Num label="Cel dnia" value={draft.goal.amount} min={1} max={100_000} data="goal.amount" onChange={(v) => set({ goal: { ...draft.goal, amount: v } })} />
+          <Num label={t('cogitaEditRewards.goal')} value={draft.goal.amount} min={1} max={100_000} data="goal.amount" onChange={(v) => set({ goal: { ...draft.goal, amount: v } })} />
           <label className="wk-field">
-            <span>Czego</span>
+            <span>{t('cogitaEditRewards.goalUnit')}</span>
             <select value={draft.goal.unit} data-reward-field="goal.unit" onChange={(e) => set({ goal: { ...draft.goal, unit: e.target.value as GoalUnit } })}>
               {GOAL_UNITS.map((u) => <option key={u} value={u}>{GOAL_UNIT_LABEL[u]}</option>)}
             </select>
           </label>
           <label className="wk-field">
-            <span>Dzień serii to dzień</span>
+            <span>{t('cogitaEditRewards.streakDay')}</span>
             <select value={draft.streak.counts} data-reward-field="streak.counts" onChange={(e) => set({ streak: { ...draft.streak, counts: e.target.value === 'any' ? 'any' : 'goal' } })}>
-              <option value="goal">z osiągniętym celem</option>
-              <option value="any">z jakąkolwiek nauką</option>
+              <option value="goal">{t('cogitaEditRewards.streakGoal')}</option>
+              <option value="any">{t('cogitaEditRewards.streakAny')}</option>
             </select>
           </label>
-          <Num label="Dni przerwy, które nie przerywają serii" value={draft.streak.grace} max={6} data="streak.grace" onChange={(v) => set({ streak: { ...draft.streak, grace: v } })} />
-          <Num label="Premia za serię rośnie do dnia" value={draft.streak.max} min={1} max={365} data="streak.max" onChange={(v) => set({ streak: { ...draft.streak, max: v } })} />
+          <Num label={t('cogitaEditRewards.grace')} value={draft.streak.grace} max={6} data="streak.grace" onChange={(v) => set({ streak: { ...draft.streak, grace: v } })} />
+          <Num label={t('cogitaEditRewards.streakMax')} value={draft.streak.max} min={1} max={365} data="streak.max" onChange={(v) => set({ streak: { ...draft.streak, max: v } })} />
         </div>
       </fieldset>
 
       <fieldset className="cg-reward-group" data-reward-levels={draft.levels.length}>
-        <legend>Poziomy</legend>
-        {draft.levels.length === 0 && <p className="cg-muted">Bez poziomów.</p>}
+        <legend>{t('cogitaEditRewards.levels')}</legend>
+        {draft.levels.length === 0 && <p className="cg-muted">{t('cogitaEditRewards.noLevels')}</p>}
         {draft.levels.map((l, i) => (
           <div key={i} className="cg-row">
-            <Num label="Od punktów" value={l.at} max={100_000_000} onChange={(v) => setLevel(i, { at: v })} />
-            <label className="wk-field"><span>Nazwa</span><input value={l.name} maxLength={60} onChange={(e) => setLevel(i, { name: e.target.value })} /></label>
-            <button type="button" className="wk-link-btn" aria-label={`Usuń poziom ${l.name}`} onClick={() => set({ levels: draft.levels.filter((_, j) => j !== i) })}>×</button>
+            <Num label={t('cogitaEditRewards.fromPoints')} value={l.at} max={100_000_000} onChange={(v) => setLevel(i, { at: v })} />
+            <label className="wk-field"><span>{t('common.name')}</span><input value={l.name} maxLength={60} onChange={(e) => setLevel(i, { name: e.target.value })} /></label>
+            <button type="button" className="wk-link-btn" aria-label={t('cogitaEditRewards.removeLevel', { name: l.name })} onClick={() => set({ levels: draft.levels.filter((_, j) => j !== i) })}>×</button>
           </div>
         ))}
-        <button type="button" className="wk-link-btn" data-reward-add-level="" onClick={() => set({ levels: [...draft.levels, { at: (draft.levels[draft.levels.length - 1]?.at ?? 0) * 2 || 100, name: `Poziom ${draft.levels.length + 1}` }] })}>+ poziom</button>
+        <button type="button" className="wk-link-btn" data-reward-add-level="" onClick={() => set({ levels: [...draft.levels, { at: (draft.levels[draft.levels.length - 1]?.at ?? 0) * 2 || 100, name: t('cogitaEditRewards.levelN', { n: draft.levels.length + 1 }) }] })}>{t('cogitaEditRewards.addLevel')}</button>
       </fieldset>
 
       <fieldset className="cg-reward-group" data-reward-badges={draft.badges.length}>
-        <legend>Odznaki</legend>
-        {draft.badges.length === 0 && <p className="cg-muted">Bez odznak.</p>}
+        <legend>{t('cogitaEditRewards.badges')}</legend>
+        {draft.badges.length === 0 && <p className="cg-muted">{t('cogitaEditRewards.noBadges')}</p>}
         {draft.badges.map((x, i) => (
           <div key={i} className="cg-row cg-reward-badge-row">
             <span className="cg-reward-badge-preview" aria-hidden data-reward-badge-material={materials.get(`#${i}`) ?? 0}><BadgeMedal material={materials.get(`#${i}`) ?? 0} icon={x.icon} /></span>
-            <label className="wk-field"><span>Nazwa</span><input value={x.name} maxLength={60} onChange={(e) => setBadge(i, { name: e.target.value })} /></label>
+            <label className="wk-field"><span>{t('common.name')}</span><input value={x.name} maxLength={60} onChange={(e) => setBadge(i, { name: e.target.value })} /></label>
             <label className="wk-field">
-              <span>Znak</span>
+              <span>{t('cogitaEditRewards.icon')}</span>
               <select value={x.icon} onChange={(e) => setBadge(i, { icon: e.target.value as BadgeIcon })}>{BADGE_ICONS.map((ic) => <option key={ic} value={ic}>{ic}</option>)}</select>
             </label>
             <label className="wk-field">
-              <span>Za</span>
+              <span>{t('cogitaEditRewards.measure')}</span>
               <select value={x.measure} data-reward-badge-measure={i} onChange={(e) => setBadge(i, { measure: e.target.value as RewardMeasure })}>{REWARD_MEASURES.map((m) => <option key={m} value={m}>{MEASURE_LABEL[m]}</option>)}</select>
             </label>
-            <Num label="Od" value={x.atLeast} min={1} max={x.measure === 'map' ? 100 : 100_000_000} onChange={(v) => setBadge(i, { atLeast: v })} />
-            <Num label="Punkty" value={x.points} max={10_000} onChange={(v) => setBadge(i, { points: v })} />
+            <Num label={t('cogitaEditRewards.atLeast')} value={x.atLeast} min={1} max={x.measure === 'map' ? 100 : 100_000_000} onChange={(v) => setBadge(i, { atLeast: v })} />
+            <Num label={t('cogitaEditRewards.points')} value={x.points} max={10_000} onChange={(v) => setBadge(i, { points: v })} />
             {/* 2026-11-05 (Prompt 17) — die Art (die Gruppe auf „Odznaki i poziomy"); leer: aus dem Mass. */}
             <label className="wk-field">
               <span>{EDITOR_WORDS.editorKind}</span>
@@ -323,57 +327,57 @@ function RewardEditor({ id, data, active, isDefault, learner, onGone }: {
               <span>{EDITOR_WORDS.editorTier}</span>
               <select value={x.tier === undefined ? '' : String(x.tier)} data-reward-badge-tier={i} onChange={(e) => { const v = Number(e.target.value); setBadge(i, { tier: v >= 1 && v <= 5 ? (v as 1 | 2 | 3 | 4 | 5) : undefined }); }}>
                 <option value="">{EDITOR_WORDS.editorTierAuto(EDITOR_WORDS.material[autoMaterials.get(`#${i}`) ?? 0] ?? '')}</option>
-                {[1, 2, 3, 4, 5].map((t) => <option key={t} value={String(t)}>{EDITOR_WORDS.material[t - 1]}</option>)}
+                {[1, 2, 3, 4, 5].map((k) => <option key={k} value={String(k)}>{EDITOR_WORDS.material[k - 1]}</option>)}
               </select>
             </label>
-            <label className="wk-field cg-reward-says"><span>Opis</span><input value={x.says ?? ''} maxLength={200} onChange={(e) => setBadge(i, { says: e.target.value })} /></label>
-            <button type="button" className="wk-link-btn" aria-label={`Usuń odznakę ${x.name}`} onClick={() => set({ badges: draft.badges.filter((_, j) => j !== i) })}>×</button>
+            <label className="wk-field cg-reward-says"><span>{t('cogitaEditRewards.says')}</span><input value={x.says ?? ''} maxLength={200} onChange={(e) => setBadge(i, { says: e.target.value })} /></label>
+            <button type="button" className="wk-link-btn" aria-label={t('cogitaEditRewards.removeBadge', { name: x.name })} onClick={() => set({ badges: draft.badges.filter((_, j) => j !== i) })}>×</button>
             {isExtraMeasure(x.measure) && <p className="cg-muted cg-reward-map-note" data-reward-map-note={i}>{EDITOR_WORDS.editorMapNote}</p>}
           </div>
         ))}
-        <button type="button" className="wk-link-btn" data-reward-add-badge="" onClick={() => set({ badges: [...draft.badges, { id: '', name: `Odznaka ${draft.badges.length + 1}`, icon: 'star', measure: 'points', atLeast: 100, points: 0 }] })}>+ odznaka</button>
+        <button type="button" className="wk-link-btn" data-reward-add-badge="" onClick={() => set({ badges: [...draft.badges, { id: '', name: t('cogitaEditRewards.badgeN', { n: draft.badges.length + 1 }), icon: 'star', measure: 'points', atLeast: 100, points: 0 }] })}>{t('cogitaEditRewards.addBadge')}</button>
       </fieldset>
 
       <div className="wk-actions">
-        <button type="button" className="wk-btn" disabled={busy} data-reward-save="" onClick={() => void save(draft)}>Zapisz</button>
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { setJson(JSON.stringify(rewardsData(preview), null, 2)); setJsonError(null); }}>JSON</button>
+        <button type="button" className="wk-btn" disabled={busy} data-reward-save="" onClick={() => void save(draft)}>{t('common.save')}</button>
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { setJson(JSON.stringify(rewardsData(preview), null, 2)); setJsonError(null); }}>{t('cogitaEditRewards.json')}</button>
         <button type="button" className="wk-link-btn" disabled={busy} data-reward-delete="" onClick={async () => {
-          if (!await askText('Usunąć te nagrody? Punkty liczą się z odpowiedzi, więc nic nie ginie — moduły i Nauka, które je wybrały, wezmą zasady domyślne.')) return;
+          if (!await askText(t('cogitaEditRewards.askDelete'))) return;
           void run(async () => {
             if (lib.settings().rewards === id) await lib.saveSettings({ rewards: undefined });
             await lib.remove(id);
             onGone();
           });
-        }}>Usuń</button>
-        {saved && <span className="cg-muted" role="status">Zapisano.</span>}
+        }}>{t('common.delete')}</button>
+        {saved && <span className="cg-muted" role="status">{t('cogitaEditRewards.saved')}</span>}
       </div>
       {failed !== null && <p className="wk-error">{failed}</p>}
 
       {json !== null && (
         <div className="cg-reward-json" data-reward-json="">
           <label className="wk-field">
-            <span>Te zasady jako JSON — zmień i zastosuj (czego brakuje, bierze się z zasad wbudowanych)</span>
+            <span>{t('cogitaEditRewards.jsonLabel')}</span>
             <textarea rows={14} value={json} spellCheck={false} onChange={(e) => setJson(e.target.value)} />
           </label>
           {jsonError !== null && <p className="wk-error">{jsonError}</p>}
           <div className="cg-row">
             <button type="button" className="wk-btn" disabled={busy} data-reward-json-apply="" onClick={() => {
               let parsed: unknown;
-              try { parsed = JSON.parse(json); } catch (e) { setJsonError(`To nie jest poprawny JSON: ${e instanceof Error ? e.message : String(e)}`); return; }
-              if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) { setJsonError('Oczekiwany jest obiekt {…} z zasadami.'); return; }
+              try { parsed = JSON.parse(json); } catch (e) { setJsonError(t('cogitaEditRewards.jsonInvalid', { error: e instanceof Error ? e.message : String(e) })); return; }
+              if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) { setJsonError(t('cogitaEditRewards.jsonObject')); return; }
               const rules = readRewards(parsed);
               setDraft(rules);
               setJsonError(null);
               setJson(null);
               void save(rules);
-            }}>Zastosuj i zapisz</button>
-            <button type="button" className="wk-link-btn" onClick={() => setJson(null)}>Zamknij</button>
+            }}>{t('cogitaEditRewards.applySave')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => setJson(null)}>{t('common.close')}</button>
           </div>
         </div>
       )}
 
       <div className="cg-reward-preview" data-reward-preview="">
-        <h4>Twoje punkty według tych zasad</h4>
+        <h4>{t('cogitaEditRewards.preview')}</h4>
         <p className="cg-muted">{describeRewards(preview)}</p>
         <RewardBoard learner={learner} rules={preview} rename={rename} shape="block" />
       </div>

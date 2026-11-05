@@ -25,6 +25,7 @@
  * Rein und ohne React — geprüft in `app-presentation-check`.
  */
 
+import { t } from '../../core/i18n';
 import { type Piece, type Scene, type Show, type ShowLink } from './presentation';
 
 /** Das Ende — dort hört der Weg auf. */
@@ -197,30 +198,30 @@ export function reachable(show: Show, pieces: readonly Piece[]): ReadonlySet<str
 }
 
 /** Ein Ziel in Worten — für die Auswahl im Editor und die Karte. */
-export function targetLabel(show: Show, said: string | null | undefined, fallback = '— nigdzie —'): string {
-  const t = resolveTarget(show, said);
-  if (t.kind === 'scene') {
-    const at = show.scenes.findIndex((sc) => sc.key === t.key);
-    return `${at + 1}. ${show.scenes[at].label || 'Scena'}`;
+export function targetLabel(show: Show, said: string | null | undefined, fallback?: string): string {
+  const to = resolveTarget(show, said);
+  if (to.kind === 'scene') {
+    const at = show.scenes.findIndex((sc) => sc.key === to.key);
+    return `${at + 1}. ${show.scenes[at].label || t('pagePresentation.paths.scene')}`;
   }
-  if (t.kind === 'link') return `↗ ${t.link.label || t.link.href}`;
-  if (t.kind === 'step') return t.step === null ? 'Własny krok tej sceny' : `Krok ${t.step + 1} tej sceny`;
-  if (t.kind === 'gate') {
-    const gate = gatesOf(show).find((g) => g.key === t.key);
-    return `⑂ ${gate?.label || (gate?.type === 'set' ? 'Zmień wartość' : 'Warunek')}`;
+  if (to.kind === 'link') return `↗ ${to.link.label || to.link.href}`;
+  if (to.kind === 'step') return to.step === null ? t('pagePresentation.paths.ownStep') : t('pagePresentation.paths.step', { n: to.step + 1 });
+  if (to.kind === 'gate') {
+    const gate = gatesOf(show).find((g) => g.key === to.key);
+    return `⑂ ${gate?.label || (gate?.type === 'set' ? t('pagePresentation.gate.set') : t('pagePresentation.gate.condition'))}`;
   }
-  if (t.kind === 'end') return 'Koniec';
-  return fallback;
+  if (to.kind === 'end') return t('pagePresentation.paths.end');
+  return fallback ?? t('pagePresentation.paths.nowhere');
 }
 
 /** Wohin ein Ausgang führen kann: jede Szene, jeder Weg hinaus, das Ende. */
 export function targetOptions(show: Show): { readonly value: string; readonly label: string }[] {
   return [
-    ...show.scenes.map((sc, i) => ({ value: sc.key, label: `${i + 1}. ${sc.label || 'Scena'}` })),
-    ...show.links.map((link) => ({ value: `${LINK}${link.id}`, label: `↗ ${link.label || link.href}` })),
+    ...show.scenes.map((sc, i) => ({ value: sc.key, label: `${i + 1}. ${sc.label || t('pagePresentation.paths.scene')}` })),
+    ...show.links.map((link) => ({ value: `${LINK}${link.id}`, label: `↗ ${link.label || link.href}` })), // i18n-ignore
     /* 2026-10-21 — und die Tore des Przebiegs. */
-    ...gatesOf(show).map((gate) => ({ value: `${GATE}${gate.key}`, label: `⑂ ${gate.label || (gate.type === 'set' ? 'Zmień wartość' : 'Warunek')}` })),
-    { value: END, label: 'Koniec' }
+    ...gatesOf(show).map((gate) => ({ value: `${GATE}${gate.key}`, label: `⑂ ${gate.label || (gate.type === 'set' ? t('pagePresentation.gate.set') : t('pagePresentation.gate.condition'))}` })),
+    { value: END, label: t('pagePresentation.paths.end') }
   ];
 }
 
@@ -228,8 +229,8 @@ export function targetOptions(show: Show): { readonly value: string; readonly la
 export function goOptions(show: Show, steps: number): { readonly value: string; readonly label: string }[] {
   return [
     ...targetOptions(show),
-    ...(steps > 1 ? [{ value: STEP, label: 'Własny krok tej sceny' }] : []),
-    ...Array.from({ length: steps > 1 ? steps : 0 }, (_, n) => ({ value: `${STEP}:${n}`, label: `Krok ${n + 1} tej sceny` }))
+    ...(steps > 1 ? [{ value: STEP, label: t('pagePresentation.paths.ownStep') }] : []),
+    ...Array.from({ length: steps > 1 ? steps : 0 }, (_, n) => ({ value: `${STEP}:${n}`, label: t('pagePresentation.paths.step', { n: n + 1 }) }))
   ];
 }
 

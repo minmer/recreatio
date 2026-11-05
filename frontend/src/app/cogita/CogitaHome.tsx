@@ -25,6 +25,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { areaKeys } from '../chat/chat';
 import type { OpenLibrary } from '../library/library';
 import type { LibraryStore } from '../library/libraryStore';
+import { useT } from '../core/i18n';
 import type { Me } from '../core/me';
 import { viewPath } from '../routes';
 import type { Who } from '../core/session';
@@ -52,7 +53,7 @@ import { SpacingLine } from './SpacingSettings';
 import { AddHub, LearnFrom, SchemaHub } from './KnowledgeParts';
 import type { Learner } from './learn';
 import { renamer } from './learn';
-import { cogitaPath, KNOWLEDGE_MORE, KNOWLEDGE_READER_TABS, KNOWLEDGE_TABS, LEARN_MORE, LEARN_READER_TABS, LEARN_TABS, type CogitaPart } from './parts';
+import { cogitaPath, tabLabel, KNOWLEDGE_MORE, KNOWLEDGE_READER_TABS, KNOWLEDGE_TABS, LEARN_MORE, LEARN_READER_TABS, LEARN_TABS, type CogitaPart } from './parts';
 import { LearnersProgress, OwnProgress } from './Progress';
 import { Pending } from './Pending';
 import { REVISION_PRESETS } from './presets';
@@ -93,12 +94,14 @@ export function CogitaHome({ me, who, library, store, trail, part = 'knowledge' 
 }
 
 function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
+  const t = useT();
   const ctx = useCtx();
   const { lib, writes, me, href } = ctx;
   const holder = useMemo(() => (me === null ? null : holderOfMe(me)), [me]);
-  const { learner } = useLearner(lib, holder);
+  const { learner, loading } = useLearner(lib, holder);
   /* 2026-10-30 — der Lernende auch für die Wiedza: Widoki mit „Filtr znajomości" sehen seine Kenntnis. */
-  const withLearner = useMemo<CogitaCtx>(() => ({ ...ctx, learner }), [ctx, learner]);
+  /* 2026-11-05 — und wie weit er lädt (der Krajobraz wartet mit einem Kreis). */
+  const withLearner = useMemo<CogitaCtx>(() => ({ ...ctx, learner, learnerLoading: loading }), [ctx, learner, loading]);
   const known = useCallback((_kind: string, entry: Parameters<typeof isOldInBase>[0]) => !isOldInBase(entry, (id) => lib.kind(id)), [lib]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const old = useMemo(() => (writes && part === 'knowledge' ? oldEntriesOf(lib.store, known).length : 0), [writes, part, lib.store, lib.revision, known]);
@@ -107,7 +110,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
   const readerLearn = rewardsOn ? LEARN_READER_TABS : LEARN_READER_TABS.filter(([slug]) => slug !== 'nagrody');
   const tabs: readonly (readonly [string, string])[] = part === 'knowledge' ? (writes ? KNOWLEDGE_TABS : KNOWLEDGE_READER_TABS) : (writes ? LEARN_TABS : readerLearn);
   const more: readonly (readonly [string, string])[] = !writes ? [] : part === 'knowledge'
-    ? (old > 0 || trail[0] === 'stare' ? [...KNOWLEDGE_MORE, ['stare', `Stare wpisy (${old})`]] : KNOWLEDGE_MORE)
+    ? (old > 0 || trail[0] === 'stare' ? [...KNOWLEDGE_MORE, ['stare', t('cogitaViews.home.oldEntries', { count: old })]] : KNOWLEDGE_MORE)
     : LEARN_MORE;
   const all = [...tabs, ...more];
   const tab = all.some(([slug]) => slug === trail[0]) ? trail[0]! : tabs[0]![0];
@@ -117,20 +120,20 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
   /* 2026-11-03 (F) — beim Nachzählen bleiben die alten Karten stehen (nichts fällt kurz auf „Liczenie kart…" zurück). */
   const [cards] = useAsyncKeep(() => (part === 'learn' ? lib.cards('learn').then((r) => r.cards) : Promise.resolve(null)), [lib.revision, part]);
   const other = part === 'knowledge'
-    ? { href: viewPath('learn', lib.libraryId), label: 'Ucz się z tej bazy', icon: 'cap' as const }
-    : { href: viewPath('knowledge', lib.libraryId), label: 'Wiedza tej bazy', icon: 'branch' as const };
+    ? { href: viewPath('learn', lib.libraryId), label: t('cogitaViews.home.learnFromBase'), icon: 'cap' as const }
+    : { href: viewPath('knowledge', lib.libraryId), label: t('cogitaViews.home.baseKnowledge'), icon: 'branch' as const };
 
   return (
     <CogitaContext.Provider value={withLearner}>
     <div className="cg" data-cogita-part={part}>
-      <nav className="cg-subtabs cg-parttabs" aria-label={part === 'knowledge' ? 'Wiedza' : 'Nauka'}>
-        {tabs.map(([slug, label]) => <a key={slug} className={slug === tab ? 'is-on' : ''} aria-current={slug === tab ? 'page' : undefined} href={href(slug)}>{label}</a>)}
+      <nav className="cg-subtabs cg-parttabs" aria-label={part === 'knowledge' ? t('cogitaViews.home.knowledge') : t('cogitaViews.home.learning')}>
+        {tabs.map(([slug, label]) => <a key={slug} className={slug === tab ? 'is-on' : ''} aria-current={slug === tab ? 'page' : undefined} href={href(slug)}>{tabLabel(slug, label, t)}</a>)}
         {more.length > 0 && (
           <MenuButton
-            label={part === 'knowledge' ? 'Więcej: wiedza' : 'Więcej: nauka'}
+            label={part === 'knowledge' ? t('cogitaViews.home.moreKnowledge') : t('cogitaViews.home.moreLearning')}
             className={more.some(([slug]) => slug === tab) ? 'cg-subtabs-more is-on' : 'cg-subtabs-more'}
-            trigger={<>{more.find(([slug]) => slug === tab)?.[1] ?? 'Więcej'}<Icon name="chevron" /></>}
-            items={more.map(([slug, label]) => ({ label, checked: slug === tab, onSelect: () => go(slug) }))}
+            trigger={<>{((m) => (m === undefined ? t('cogitaViews.home.more') : tabLabel(m[0], m[1], t)))(more.find(([slug]) => slug === tab))}<Icon name="chevron" /></>}
+            items={more.map(([slug, label]) => ({ label: tabLabel(slug, label, t), checked: slug === tab, onSelect: () => go(slug) }))}
           />
         )}
         <a className="cg-other-part" href={other.href}><Icon name={other.icon} />{other.label}</a>
@@ -145,7 +148,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
       {tab === 'zaproponuj' && <Propose />}
       {tab === 'json' && <CogitaJson />}
       {tab === 'stare' && <OldEntries store={lib.store} known={known} writes={writes} labelOf={oldInBaseLabel}
-        where="Rodzajów „Wiedza”, „Komentarz” i „Temat” już nie ma: wypowiedź to wpis własnego rodzaju z polem „Treść w blokach” (gotowy schemat: templates/cogita/komentarz.json), a porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”)." />}
+        where={t('cogitaViews.home.oldWhere')} />}
       {/* -- Nauka -- */}
       {tab === 'nauka' && <LearnTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
       {/* 2026-10-27 — die Reihenfolge des Lernens: Ebenen von den Grundlagen her, was sitzt und was wartet. */}
@@ -153,7 +156,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
       {tab === 'karty' && <TemplateEditor chosenId={trail[1] ?? null} onChoose={(id) => go('karty', ...(id === null ? [] : [id]))} />}
       {tab === 'powtorki' && <RevisionEditor chosenId={trail[1] ?? null} onChoose={(id) => go('powtorki', ...(id === null ? [] : [id]))} onRun={(id) => go('nauka', id)} />}
       {tab === 'przebiegi' && <FlowsTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
-      {tab === 'sesje' && <SessionsTab trail={trail.slice(1)} go={(...t) => go('sesje', ...t)} />}
+      {tab === 'sesje' && <SessionsTab trail={trail.slice(1)} go={(...rest) => go('sesje', ...rest)} />}
       {tab === 'postepy' && (
         <div className="cg">
           {/*
@@ -166,7 +169,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
           {trail[1] === undefined && <LearnersProgress cards={cards ?? null} chosen={null} />}
         </div>
       )}
-      {tab === 'mapa' && (cards === undefined ? <p className="wk-hint">Liczenie kart…</p> : <ExploreMap learner={learner} cards={cards ?? []} />)}
+      {tab === 'mapa' && (cards === undefined ? <p className="wk-hint">{t('cogitaViews.home.countingCards')}</p> : <ExploreMap learner={learner} cards={cards ?? []} />)}
       {/* 2026-11-02 — Nagrody: die eigene Tafel; für Autoren die Zasady nagród (`RewardsEditor.tsx`). */}
       {tab === 'nagrody' && <RewardsTab learner={learner} chosen={trail[1] ?? null} go={go} />}
       {/* -- in beiden -- */}
@@ -179,6 +182,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
 /* -- Nauka ------------------------------------------------------------------------------------ */
 
 function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; learner: Learner | null; cards: readonly Card[] | null; go: (...tail: string[]) => void }) {
+  const t = useT();
   const { lib, writes, who, me } = useCtx();
   const { busy, run } = useBusy();
   const revisions = lib.docs('revision');
@@ -186,7 +190,7 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
   const source = useMemo(() => {
     const entry = revisions.find((e) => e.id === chosen);
-    return entry === undefined ? null : { revisionId: entry.id, title: String(entry.data.name ?? 'Powtórka') };
+    return entry === undefined ? null : { revisionId: entry.id, title: String(entry.data.name ?? t('cogitaViews.home.revisionDefault')) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosen, revisions.length]);
   /* 2026-11-01 — eine Powtórka, die ihren Bereich für Antworten nennt (`answersTo.ts`): ein eigener Lernender dorthin. */
@@ -197,7 +201,7 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   const rewards = useBaseRewards();
   if (source !== null) {
     /* 2026-10-31 — der eigene Lernende dieser Powtórka lädt erst: solange warten, sonst finge der Lauf ohne ihn an. */
-    if (storage !== null && holder !== null && own.learner === null && own.failed === null) return <Loading label="Wczytywanie postępów…" />;
+    if (storage !== null && holder !== null && own.learner === null && own.failed === null) return <Loading label={t('cogitaViews.home.loadingProgress')} />;
     /* Ob das Konto den Schlüssel hier behält, prüft der Lauf selbst — und sagt es, statt still nichts abzulegen. */
     return <RevisionRun lib={lib} learner={storage === null ? learner : own.learner} source={source} keep={who !== null && lib.settings().offline.includes(source.revisionId!)} onClose={() => go('nauka')}
       onOpenRevision={(id) => go('nauka', id)} rewards={rewards.on ? rewards.rules : null} />;
@@ -208,8 +212,8 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   return (
     <div className="cg">
       <div className="cg-card">
-        <strong>{cards === null ? 'Liczenie kart…' : `${cards.length} kart w kursie`}</strong>
-        {due !== null && <span className="cg-muted">Na teraz: {due} · nowe: {fresh}</span>}
+        <strong>{cards === null ? t('cogitaViews.home.countingCards') : t('cogitaViews.home.cardsInCourse', { count: cards.length })}</strong>
+        {due !== null && <span className="cg-muted">{t('cogitaViews.home.dueNow', { due, fresh: fresh ?? 0 })}</span>}
         {/* 2026-11-04 (Prompt 15) — welche Abstände gelten, und der Weg, sie zu ändern. */}
         <SpacingLine lib={lib} learner={learner} />
       </div>
@@ -219,17 +223,17 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
       <LearnQuilt cards={cards} learner={learner} />
       {revisions.length === 0 ? (
         <div className="cg-card">
-          <p className="wk-hint">Nie ma jeszcze powtórek.</p>
-          {writes && <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => { const made = await lib.saveDoc('revision', REVISION_PRESETS[0].make()); go('nauka', made.id); })}>Utwórz „Powtórkę codzienną" ze wszystkich kart</button>}
+          <p className="wk-hint">{t('cogitaViews.home.noRevisions')}</p>
+          {writes && <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => { const made = await lib.saveDoc('revision', REVISION_PRESETS[0].make()); go('nauka', made.id); })}>{t('cogitaViews.home.makeDaily')}</button>}
         </div>
       ) : (
         <div className="cg-grid">
           {revisions.map((e) => (
             <div key={e.id} className="cg-card">
               {/* 2026-11-01 — Namen mit ihren Wzory. */}
-              <strong><TexText text={String(e.data.name ?? 'Powtórka')} /></strong>
+              <strong><TexText text={String(e.data.name ?? t('cogitaViews.home.revisionDefault'))} /></strong>
               {typeof e.data.summary === 'string' && <span className="cg-muted"><TexText text={e.data.summary} /></span>}
-              <button type="button" className="wk-btn" onClick={() => go('nauka', e.id)}>Powtarzaj</button>
+              <button type="button" className="wk-btn" onClick={() => go('nauka', e.id)}>{t('cogitaViews.home.practise')}</button>
             </div>
           ))}
         </div>
@@ -238,9 +242,9 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
         <div className="cg-grid">
           {lib.docs('flow').map((e) => (
             <div key={e.id} className="cg-card">
-              <strong><TexText text={String(e.data.name ?? 'Przebieg')} /></strong>
-              <span className="cg-muted">{learner?.progress.positions.has(e.id) ? 'w trakcie' : 'przebieg'}</span>
-              <button type="button" className="wk-link-btn" onClick={() => go('przebiegi', e.id, 'graj')}>{learner?.progress.positions.has(e.id) ? 'Wróć do miejsca' : 'Zacznij'}</button>
+              <strong><TexText text={String(e.data.name ?? t('cogitaViews.home.flowDefault'))} /></strong>
+              <span className="cg-muted">{learner?.progress.positions.has(e.id) ? t('cogitaViews.home.inProgress') : t('cogitaViews.home.flow')}</span>
+              <button type="button" className="wk-link-btn" onClick={() => go('przebiegi', e.id, 'graj')}>{learner?.progress.positions.has(e.id) ? t('cogitaViews.home.resume') : t('cogitaViews.home.start')}</button>
             </div>
           ))}
         </div>
@@ -252,11 +256,12 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
 /* -- Wiedza: Wpisy und Dodaj ------------------------------------------------------------------------ */
 
 function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: string[]) => void }) {
+  const t = useT();
   const { lib, sources } = useCtx();
   if (trail[0] !== undefined && trail[0] !== 'widok' && lib.entity(trail[0]) !== undefined) {
     return (
       <div className="cg">
-        <a className="wk-link" href={'#'} onClick={(e) => { e.preventDefault(); window.history.back(); }}>← wróć</a>
+        <a className="wk-link" href={'#'} onClick={(e) => { e.preventDefault(); window.history.back(); }}>{t('cogitaViews.home.back')}</a>
         {/* 2026-10-25 (Wywód) — der Weg von der Wurzel und was unter diesem Eintrag liegt, wenn seine Rodzaje Strukturfelder haben. */}
         <EntityStructure id={trail[0]} onOpen={(id) => go('wpisy', id)} />
         {/* 2026-10-27 — was vor diesem Eintrag zu können ist und was auf ihm aufbaut (`prerequisites.ts`). */}
@@ -272,7 +277,7 @@ function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: st
   }
   /* 2026-10-25 — ein Eintrag (oder ein Widok an einem Eintrag) aus einer Quelle, die noch lädt: warten statt der Liste. */
   const waiting = (trail[0] !== undefined && trail[0] !== 'widok') || (trail[0] === 'widok' && trail[2] !== undefined && lib.entity(trail[2]) === undefined);
-  if (waiting && sources?.loading === true) return <p className="wk-hint">Otwieranie bazy i jej źródeł…</p>;
+  if (waiting && sources?.loading === true) return <p className="wk-hint">{t('cogitaViews.home.openingBase')}</p>;
   return <EntityList viewId={trail[0] === 'widok' ? trail[1] ?? null : null} startAt={trail[0] === 'widok' ? trail[2] ?? null : null}
     onOpen={(id) => go('wpisy', id)} onView={(id) => go('wpisy', ...(id === null ? [] : ['widok', id]))}
     onAdd={() => go('dodaj')} onDesign={(id) => go('schematy', 'wyswietlanie', ...(id === null ? [] : [id]))} />;
@@ -295,6 +300,7 @@ function AddTab({ trail, go }: { trail: readonly string[]; go: (...tail: string[
 /* -- Przebiegi ---------------------------------------------------------------------------------- */
 
 function FlowsTab({ trail, learner, cards, go }: { trail: readonly string[]; learner: Learner | null; cards: readonly Card[] | null; go: (...tail: string[]) => void }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   const entry = trail[0] === undefined ? undefined : lib.docs('flow').find((e) => e.id === trail[0]);
   const flow = useMemo(() => {
@@ -308,15 +314,15 @@ function FlowsTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   const [asked] = useState(() => Date.now());
   const jump = flow !== null && trail[1] === 'graj' && trail[2] === 'przeglad' ? { step: reviewStart(flow), at: asked } : null;
   if (flow !== null && (trail[1] === 'graj' || !writes)) {
-    if (content === null) return <p className="wk-hint">Przygotowywanie…</p>;
+    if (content === null) return <p className="wk-hint">{t('cogitaViews.home.preparing')}</p>;
     /* 2026-11-04 — je Ablauf ein eigener Spieler: von einer Erzählung direkt zur nächsten bleibt nichts vom Stand der vorigen. */
-    return <FlowPlayer key={flow.id} flow={flow} content={content} learner={learner} onClose={() => go(writes ? 'przebiegi' : 'nauka')} backLabel={writes ? 'Przebiegi' : 'Nauka'} jumpTo={jump} />;
+    return <FlowPlayer key={flow.id} flow={flow} content={content} learner={learner} onClose={() => go(writes ? 'przebiegi' : 'nauka')} backLabel={writes ? t('cogitaViews.tabs.flows') : t('cogitaViews.home.learning')} jumpTo={jump} />;
   }
   if (!writes) {
     return (
       <div className="cg-grid">
-        {lib.docs('flow').map((e) => <div key={e.id} className="cg-card"><strong><TexText text={String(e.data.name ?? 'Przebieg')} /></strong><button type="button" className="wk-btn" onClick={() => go('przebiegi', e.id, 'graj')}>Zacznij</button></div>)}
-        {lib.docs('flow').length === 0 && <p className="wk-empty">Nie ma jeszcze przebiegów.</p>}
+        {lib.docs('flow').map((e) => <div key={e.id} className="cg-card"><strong><TexText text={String(e.data.name ?? t('cogitaViews.home.flowDefault'))} /></strong><button type="button" className="wk-btn" onClick={() => go('przebiegi', e.id, 'graj')}>{t('cogitaViews.home.start')}</button></div>)}
+        {lib.docs('flow').length === 0 && <p className="wk-empty">{t('cogitaViews.home.noFlows')}</p>}
       </div>
     );
   }

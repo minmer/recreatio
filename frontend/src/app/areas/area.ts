@@ -27,6 +27,7 @@ import {
 } from '../core/crypto';
 import { newId } from '../core/ids';
 import type { Ring, SealedRole } from '../core/keys';
+import { t } from '../core/i18n';
 import { call, WorkspaceError } from '../core/session';
 
 /**
@@ -432,7 +433,7 @@ export async function joinArea(
   const keys = await myEpochKeys(ring, areaId);
 
   if (keys.size === 0) {
-    throw new WorkspaceError('Nie masz klucza tego obszaru — nie możesz nikogo dodać.');
+    throw new WorkspaceError(t('areas.noKeyToAdd'));
   }
 
   const member: Member = { roleId: role.id, kind: role.kind, wrapPublicKey: role.wrapPublicKey, capabilities: [] };

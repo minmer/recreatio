@@ -26,7 +26,8 @@ import { AppointmentOptions } from '../calendar/AppointmentOptions';
 import { PAGE_JSON, partFormat } from './pageJsonText';
 import { keepOwn } from './part';
 import { partOf } from './parts/registry';
-import { asRecord, asText, count } from './event/kit';
+import { asRecord, asText } from './event/kit';
+import { t, useT } from '../core/i18n';
 import { ImageNeeds, type ImageChoice } from './ImageNeeds';
 import { readImageNeeds, type NeedsPlan } from './pageImageNeeds';
 import { planShownPage, runPageImport } from './pageImportRun';
@@ -41,14 +42,16 @@ function dropPreviews(choices: readonly ImageChoice[]): void {
 function needsLine(needs: NeedsPlan, chosen: Readonly<Record<string, ImageChoice>>): string {
   const have = needs.needs.filter((n) => chosen[n.key] !== undefined).length;
   const lacking = needs.needs.length - have;
-  return `Pliki do dodania: ${needs.needs.length} — dodane ${have}${lacking > 0 ? `, brakuje ${lacking}` : ''} (niżej).`;
+  return lacking > 0
+    ? t('pages.json.needsLineMissing', { total: needs.needs.length, have, lacking })
+    : t('pages.json.needsLine', { total: needs.needs.length, have });
 }
 
 function needsWarnings(needs: NeedsPlan, chosen: Readonly<Record<string, ImageChoice>>): string[] {
   const lacking = needs.needs.filter((n) => chosen[n.key] === undefined);
   return [
     ...needs.warnings,
-    ...(lacking.length === 0 ? [] : [`Bez pliku zostaną puste miejsca: ${lacking.map((n) => `„${n.label}”`).join(', ')} — dodaj pliki niżej albo później w edytorze.`])
+    ...(lacking.length === 0 ? [] : [t('pages.json.emptyPlaces', { names: lacking.map((n) => t('pages.json.quoted', { name: n.label })).join(', ') })])
   ];
 }
 
@@ -60,6 +63,7 @@ export function PageJson({ now, who, unsaved, onDone }: {
   unsaved: boolean;
   onDone: () => Promise<void> | void;
 }) {
+  const t = useT();
   const [options, setOptions] = useState<ImportOptions>(DEFAULT_IMPORT);
   const [replaceQuestions, setReplaceQuestions] = useState(false);
   const [answersTo, setAnswersTo] = useState('');
@@ -119,8 +123,8 @@ export function PageJson({ now, who, unsaved, onDone }: {
       warnings: [
         ...done.warnings,
         ...(needs === undefined ? [] : needsWarnings(needs, imageFor)),
-        ...unchosen.map((e) => `Wybierz kalendarz dla terminów „${e.label}” — bez tego zostaną pominięte.`),
-        ...(homeless ? ['Wybierz obszar, do którego trafiają odpowiedzi nowego formularza — bez niego jego pytania i wymagania nie powstaną.'] : [])
+        ...unchosen.map((e) => t('pages.json.chooseCalendar', { label: e.label })),
+        ...(homeless ? [t('pages.json.chooseArea')] : [])
       ]
     };
   };
@@ -143,14 +147,14 @@ export function PageJson({ now, who, unsaved, onDone }: {
 
   return (
     <JsonPanel
-      summary="JSON strony — eksport i import"
-      lead={<>Cała strona — tytuł, wygląd, menu, mapa logiki i moduły z treścią (formularze z pytaniami) — jako jeden dokument. Wyeksportuj, zmień i zaimportuj: moduły zmieniają się w miejscu, a zgłoszenia, linki i mapa logiki zostają.</>}
+      summary={t('pages.json.summary')}
+      lead={<>{t('pages.json.lead')}</>}
       fileName={`strona-${now.path.replace(/[^a-z0-9]+/gi, '-')}.json`}
       exportDoc={exportDoc}
       format={PAGE_JSON}
       preview={preview}
-      importLabel="Importuj i zapisz"
-      note={unsaved ? 'Niezapisane zmiany w edytorze zostaną zapisane razem z importem.' : null}
+      importLabel={t('pages.json.import')}
+      note={unsaved ? t('pages.json.unsaved') : null}
       onImport={run}
       options={(doc) => {
         const kind = documentKind(doc);
@@ -172,27 +176,27 @@ export function PageJson({ now, who, unsaved, onDone }: {
             {kind === 'page' || kind === 'legacy' ? (
               <label className="pe-check">
                 <input type="checkbox" checked={options.replace} onChange={(e) => set({ replace: e.target.checked })} />
-                <span>Zastąp moduły strony — których nie ma w dokumencie, znikną ze strony</span>
+                <span>{t('pages.json.replace')}</span>
               </label>
             ) : null}
             {(fromElsewhere || kind === 'module') && (
               <label className="pe-check">
                 <input type="checkbox" checked={options.copyModules} onChange={(e) => set({ copyModules: e.target.checked })} />
-                <span>Moduły z innych stron jako kopie (bez tego to te same moduły — zmiana w jednym miejscu zmienia oba)</span>
+                <span>{t('pages.json.copies')}</span>
               </label>
             )}
             {kind === 'legacy' && pages.length > 1 && (
               <label className="wk-field">
-                <span>Która strona wydarzenia</span>
+                <span>{t('pages.json.legacyPage')}</span>
                 <select value={options.legacyPage} onChange={(e) => set({ legacyPage: Number(e.target.value) })}>
-                  {pages.map((one) => <option key={one.index} value={one.index}>{one.label} — {one.parts.length} części</option>)}
+                  {pages.map((one) => <option key={one.index} value={one.index}>{t('pages.json.legacyOption', { label: one.label, count: one.parts.length })}</option>)}
                 </select>
               </label>
             )}
             {kind === 'legacy' && (
               <label className="pe-check">
                 <input type="checkbox" checked={options.takeTheme} onChange={(e) => set({ takeTheme: e.target.checked })} />
-                <span>Weź też kolory wydarzenia</span>
+                <span>{t('pages.json.takeTheme')}</span>
               </label>
             )}
             {!('error' in planned) && [...planned.forms.values()].some((f) => f.questions !== undefined || f.needs !== undefined) && (
@@ -214,21 +218,22 @@ export function PageJson({ now, who, unsaved, onDone }: {
 function configOfDoc(doc: unknown, kind: string): { config: unknown } | { error: string } {
   const root = asRecord(doc);
   const said = documentKind(doc);
-  if (said === 'page' || said === 'legacy') return { error: 'To dokument całej strony — importuj go w „JSON strony” pod modułami.' };
+  if (said === 'page' || said === 'legacy') return { error: t('pages.json.wholePage') };
   const docKind = asText(root.kind);
-  if (docKind !== '' && docKind !== kind) return { error: `To treść modułu „${partOf(docKind)?.label ?? docKind}”, a ten moduł to „${partOf(kind)?.label ?? kind}”.` };
+  if (docKind !== '' && docKind !== kind) return { error: t('pages.json.otherKind', { said: partOf(docKind)?.label ?? docKind, here: partOf(kind)?.label ?? kind }) };
   return Object.prototype.hasOwnProperty.call(root, 'config') ? { config: root.config } : { config: root };
 }
 
 /** 0064 — EIN BAUSTEIN ALS JSON, in seinen Einstellungen (Raster und Slajdy). */
 export function PartJson({ part, onSet }: { part: DraftPart; onSet: (patch: Record<string, string>) => void }) {
+  const t = useT();
   const def = partOf(part.kind);
   if (def === undefined) return null;
 
   return (
     <JsonPanel
-      summary="JSON tego modułu"
-      lead={<>Treść tego modułu jako JSON — do skopiowania, poprawienia albo przygotowania przez AI. Import zmienia szkic; zapisuje „Zapisz moduły”.</>}
+      summary={t('pages.json.partSummary')}
+      lead={<>{t('pages.json.partLead')}</>}
       fileName={`modul-${part.kind}.json`}
       exportDoc={() => ({ format: PART_FORMAT, version: 1, id: part.id, module: part.moduleId ?? part.id, kind: part.kind, config: def.json.toJson(part.config) })}
       format={partFormat(part.kind)}
@@ -237,15 +242,15 @@ export function PartJson({ part, onSet }: { part: DraftPart; onSet: (patch: Reco
         if ('error' in got) return got;
         const patch = replacing(part.config, keepOwn(def.json, part.config, configFromJson(part.kind, got.config)));
         const changed = Object.keys(patch).length;
-        return { lines: [changed === 0 ? 'Treść bez zmian.' : `Treść: ${count(changed, 'zmieniony klucz', 'zmienione klucze', 'zmienionych kluczy')}.`], warnings: [] };
+        return { lines: [changed === 0 ? t('pages.json.partSame') : t('pages.json.partChanged', { count: changed })], warnings: [] };
       }}
-      importLabel="Wstaw do szkicu"
+      importLabel={t('pages.json.partImport')}
       onImport={async (doc) => {
         const got = configOfDoc(doc, part.kind);
         if ('error' in got) throw new Error(got.error);
         const patch = replacing(part.config, keepOwn(def.json, part.config, configFromJson(part.kind, got.config)));
         if (Object.keys(patch).length > 0) onSet(patch);
-        return { lines: ['Treść jest w szkicu — zapisz moduły, żeby została.'], warnings: [] };
+        return { lines: [t('pages.json.partDone')], warnings: [] };
       }}
     />
   );

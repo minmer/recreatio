@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useId, useMemo, useState } from 'react';
+import { useT } from '../core/i18n';
 
 import {
   complete, display, EMPTY_ADDRESS, formatAddress, isEmpty, normalizeAddressLine, parseAddress, PART_LABEL, suggestParts,
@@ -35,6 +36,7 @@ export function PostalInput({ value, onChange, onParts, parts: given, compact = 
   const [line, setLine] = useState(value ?? '');
   const [open, setOpen] = useState(() => compact || (value ?? '') !== '');
   const [unsure, setUnsure] = useState(false);
+  const t = useT();
 
   /*
    * 0082 — WER DIE ZEILE VERLÄSST, bekommt die Adresse in ihrer einen Form:
@@ -75,18 +77,18 @@ export function PostalInput({ value, onChange, onParts, parts: given, compact = 
     <div className="wk-postal">
       {!compact && (
         <div className="wk-postal-line">
-          <input value={line} placeholder="np. ul. Długa 5/3, 31-147 Kraków" autoComplete="street-address"
+          <input value={line} placeholder={t('registry.postal.placeholder')} autoComplete="street-address"
             onChange={(e) => { setLine(e.target.value); onChange?.(e.target.value); }}
             onBlur={() => { void settle(line); }} />
           <button type="button" className="wk-link-btn" onClick={() => {
             if (!open && line.trim() !== '') { const p = parseAddress(line); setParts(p); onParts?.(p); }
             setOpen((was) => !was);
-          }}>{open ? 'Ukryj części' : 'Części adresu'}</button>
+          }}>{open ? t('registry.postal.hideParts') : t('registry.postal.parts')}</button>
         </div>
       )}
 
       {open && unsure && (
-        <span className="wk-hint wk-postal-tip">Sprawdź części poniżej — nie wszystko w tym adresie dało się jednoznacznie rozpoznać.</span>
+        <span className="wk-hint wk-postal-tip">{t('registry.postal.unsure')}</span>
       )}
       {open && (
         <div className="wk-postal-parts">
@@ -95,11 +97,11 @@ export function PostalInput({ value, onChange, onParts, parts: given, compact = 
               onChange={(v) => commit({ ...parts, [key]: v })} />
           ))}
           {parts.street !== '' && parts.locality === '' && parts.post === '' && (
-            <span className="wk-hint wk-postal-tip">Brak miejscowości — podaj ją albo pocztę, żeby ulicę dało się odróżnić od innych o tej samej nazwie.</span>
+            <span className="wk-hint wk-postal-tip">{t('registry.postal.noLocality')}</span>
           )}
           {parts.street !== '' && (
             <button type="button" className="wk-link-btn wk-postal-tip" onClick={() => commit({ ...parts, locality: parts.street, street: '' })}>
-              „{parts.street}" to miejscowość, nie ulica
+              {t('registry.postal.isLocality', { street: parts.street })}
             </button>
           )}
         </div>
@@ -116,6 +118,7 @@ function PartField({ kind, value, parentHint, onChange }: {
   const [draft, setDraft] = useState(value);
   const [hints, setHints] = useState<readonly PartRow[]>([]);
   const suggests = (SUGGESTED as readonly string[]).includes(kind);
+  const t = useT();
 
   useEffect(() => { setDraft(value); }, [value]);
 
@@ -135,7 +138,7 @@ function PartField({ kind, value, parentHint, onChange }: {
     <label className={`wk-field wk-postal-${kind}${wide ? '' : ' is-short'}`}>
       <span>{PART_LABEL[kind]}</span>
       <input value={draft} list={suggests ? id : undefined} inputMode={kind === 'postcode' ? 'numeric' : undefined}
-        placeholder={kind === 'postcode' ? '00-000' : kind === 'street' && parentHint !== '' ? `ulica w: ${parentHint}` : undefined}
+        placeholder={kind === 'postcode' ? '00-000' : kind === 'street' && parentHint !== '' ? t('registry.postal.streetIn', { locality: parentHint }) : undefined}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => { const shown = display(kind, draft); if (shown !== value) onChange(shown); }} />
       {suggests && <datalist id={id}>{options.map((o) => <option key={o} value={o} />)}</datalist>}

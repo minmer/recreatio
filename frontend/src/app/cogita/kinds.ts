@@ -52,6 +52,7 @@ import { KINDS as LIBRARY_KINDS, type LibEntry, type LibField, type LibFieldType
 import { readKind, type Entity, type FieldDef, type FieldType, type KindDef } from './schema';
 import { QUANTITY_KINDS } from '../core/quantities';
 import { formsOfField, QUESTION_TYPES, SHOW_MAX } from './questionTypes';
+import { t, texts } from '../core/i18n';
 
 /** Die Art im Klartext für jeden Eintrag, der keine eingebaute ist. */
 export const ENTITY = 'entity';
@@ -63,25 +64,25 @@ export const LEGACY_KNOWLEDGE = 'knowledge';
 export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
-export const DOC_LABEL: Record<DocKind, string> = {
-  addform: 'Formularz dodawania',
+export const DOC_LABEL: Readonly<Record<DocKind, string>> = texts({
+  addform: 'cogitaData.docKind.addform',
   /* 2026-10-25 (Wywód) — ein Weg aus der Bibliothek: ein Werk (ganz oder Teile davon) → ein Eintrag, ein Widok (`anchors.ts`). */
-  anchor: 'Wejście z Biblioteki',
-  kind: 'Rodzaj',
-  template: 'Szablon kart',
-  revision: 'Powtórka',
-  flow: 'Przebieg',
-  look: 'Wygląd',
-  rules: 'Zasady sesji',
-  values: 'Wartości',
-  collection: 'Zbiór',
-  view: 'Widok',
-  settings: 'Ustawienia',
-  merge: 'Połączenie',
-  contribution: 'Propozycja',
+  anchor: 'cogitaData.docKind.anchor',
+  kind: 'cogitaData.docKind.kind',
+  template: 'cogitaData.docKind.template',
+  revision: 'cogitaData.docKind.revision',
+  flow: 'cogitaData.docKind.flow',
+  look: 'cogitaData.docKind.look',
+  rules: 'cogitaData.docKind.rules',
+  values: 'cogitaData.docKind.values',
+  collection: 'cogitaData.docKind.collection',
+  view: 'cogitaData.docKind.view',
+  settings: 'cogitaData.docKind.settings',
+  merge: 'cogitaData.docKind.merge',
+  contribution: 'cogitaData.docKind.contribution',
   /* 2026-11-02 — punkty, seria, cel dnia, poziomy, odznaki (`rewards.ts`). */
-  reward: 'Nagrody'
-};
+  reward: 'cogitaData.docKind.reward'
+});
 
 export const isDocKind = (kind: string): kind is DocKind => (DOC_KINDS as readonly string[]).includes(kind);
 
@@ -117,12 +118,12 @@ function fromLibrary(f: LibField): FieldDef {
 
 /** Wie das Etikett einer eingebauten Art aus ihren Feldern entsteht — und was Gleichnamige unterscheidet. */
 const PATTERNS: Record<string, { label: string; tells?: string }> = {
-  person: { label: '{name} {givenNames} {surname}', tells: 'years' },
-  work: { label: '{title}: {subtitle}', tells: 'year' },
+  person: { label: '{name} {givenNames} {surname}', tells: 'years' }, // i18n-ignore
+  work: { label: '{title}: {subtitle}', tells: 'year' }, // i18n-ignore
   quote: { label: '{text}', tells: 'locator' },
   text: { label: '{title}', tells: 'date' },
   project: { label: '{title}', tells: 'projectType' },
-  delivery: { label: '{date} {occasion}', tells: 'place' }
+  delivery: { label: '{date} {occasion}', tells: 'place' } // i18n-ignore
 };
 
 const field = (key: string, label: string, type: FieldType, more: Partial<FieldDef> = {}): FieldDef =>
@@ -149,75 +150,82 @@ function builtin(id: string): KindDef {
  * (`when`); gemeinsam sind die Frage, „Wyjaśnienie", „O czym" (was die Frage prüft: ihre Kenntnis
  * zählt dort, und sie wartet auf das, was dort zuerst zu können ist) und „Najpierw trzeba znać".
  */
-const q = (key: string, label: string, type: FieldType, more: Partial<FieldDef> = {}): FieldDef => {
-  const forms = formsOfField(key);
-  return field(key, label, type, { ...more, ...(forms === undefined ? {} : { when: { field: 'form', values: forms } }) });
+/*
+ * 2026-11-05 — Name, Bezeichnungen und Erklärungen der eingebauten Frage in der Sprache der Anwendung
+ * (`cogitaData.question.*`): Getter, beim Lesen geholt. Wer die eingebaute Frage ändert, speichert seine eigenen.
+ */
+const Q = 'cogitaData.question';
+const qf = (key: string, type: FieldType, more: Partial<FieldDef> = {}, said?: () => string, inverse = false): FieldDef => {
+  const out = field(key, '', type, more);
+  Object.defineProperty(out, 'label', { get: () => t(`${Q}.label.${key}`), enumerable: true, configurable: true });
+  Object.defineProperty(out, 'says', { get: said ?? (() => t(`${Q}.says.${key}`)), enumerable: true, configurable: true });
+  if (inverse) Object.defineProperty(out, 'inverse', { get: () => t(`${Q}.inverse.${key}`), enumerable: true, configurable: true });
+  return out;
 };
+const q = (key: string, type: FieldType, more: Partial<FieldDef> = {}, said?: () => string): FieldDef => {
+  const forms = formsOfField(key);
+  return qf(key, type, { ...more, ...(forms === undefined ? {} : { when: { field: 'form', values: forms } }) }, said);
+};
+const options = (key: string, values: readonly string[]) =>
+  values.map((value) => ({ value, get label() { return t(`${Q}.option.${key}.${value}`); } }));
 
 export const QUESTION: KindDef = {
   id: 'question',
-  name: 'Pytanie',
+  get name() { return t(`${Q}.name`); },
   label: '{prompt}',
   tells: 'form',
   system: 'question',
   fields: [
-    field('form', 'Rodzaj pytania', 'choice', {
-      options: QUESTION_TYPES.map((t) => ({ value: t.form, label: t.label })),
-      says: `Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: ${QUESTION_TYPES.map((t) => `${t.form} (${t.label})`).join(', ')}`
-    }),
-    q('prompt', 'Pytanie', 'markup', { role: 'text', says: 'Treść pytania; przy „Prawda czy fałsz” — zdanie, przy fiszce — jej przód, przy luce — tekst z luką [[słowo]] (kilka luk: każda osobno). Wzory: $…$ w zdaniu, $$…$$ osobno' }),
-    /* 2026-11-01 (Lemma) — Podpowiedzi vor der Antwort, das Wyjaśnienie als Text danach. */
-    q('hints', 'Podpowiedzi', 'list', { says: 'Podpowiedzi przed odpowiedzią, od łagodnej do konkretnej (1–3, z wzorami $…$); każda odsłonięta obniża najwyższy wynik tej odpowiedzi o ¼' }),
-    q('explanation', 'Wyjaśnienie (tekst)', 'markup', { says: 'Wyjaśnienie pokazywane zaraz po odpowiedzi, rozwinięte (2–4 zdania, wzory $…$, źródła [@dzieło, s. 12])' }),
-    q('answers', 'Poprawne odpowiedzi', 'list', { says: 'Przyjmowane odpowiedzi (text, number, date, gap) — pierwsza jest wzorcowa; wpisywanie nigdy nie wymaga LaTeX-a' }),
-    q('options', 'Do wyboru', 'list', { says: 'Możliwości (one, many) — mogą mieć wzory $…$' }),
-    q('correct', 'Które są dobre', 'list', { says: 'Numery dobrych możliwości, od 0 (one, many)' }),
-    q('feedback', 'Zdanie do każdej możliwości', 'list', { says: 'Po jednym zdaniu do każdej możliwości, w tej samej kolejności co „Do wyboru” (puste: bez zdania) — po odpowiedzi stoi pod wybraną i pod dobrymi (one, many)' }),
-    q('value', 'Prawda?', 'bool', { says: 'Czy zdanie jest prawdziwe (truefalse)' }),
-    q('left', 'Lewa strona', 'list', { says: 'Lewa strona par, np. lata (match)' }),
-    q('right', 'Prawa strona', 'list', { says: 'Prawa strona par, w tej samej kolejności, np. wydarzenia (match)' }),
-    q('leftLabel', 'Nagłówek lewej strony', 'line', { says: 'Nad lewą kolumną karty, np. „Rok” (match)' }),
-    q('rightLabel', 'Nagłówek prawej strony', 'line', { says: 'Nad prawą kolumną karty, np. „Wydarzenie” (match)' }),
-    q('show', 'Ile naraz', 'number', { says: `Długa lista: tyle par (match) albo zdań (many) na jednej karcie (2–${SHOW_MAX}) — każda para / każde zdanie ma wtedy swoją kartę, a resztę miejsc zajmują losowe inne; puste: wszystko na jednej karcie` }),
-    /* 2026-11-01 — Fassungen einer Frage „Kilka z kilku" mit denselben Sätzen teilen ihre Antworten. */
-    q('share', 'Wspólne części', 'text', { says: 'Nazwa zbioru części: pytania z tą samą nazwą liczą odpowiedź na tę samą część razem — to samo zdanie (many, truefalse), tę samą parę (match), to samo słowo w luce (gap), ten sam nazwany fakt (fact). Np. kilka wersji „Które zdania są twierdzeniami?”. Puste: części tylko tego pytania' }),
-    q('fact', 'O jaki fakt pyta', 'text', { says: 'Nazwa jednego faktu, o który pyta pytanie bez części (text, number, date, one, flash, order…): pytania o tym samym fakcie dzielą odpowiedzi — np. „Kiedy był Grunwald?” i „Co było w 1410?” z "fact": "Grunwald 1410". „Prawda czy fałsz”: zdanie, które ocenia (bez tego — treść pytania), to samo co zdanie w „Kilka z kilku” z tym samym "share"' }),
-    q('items', 'W dobrej kolejności', 'list', { says: 'Elementy w poprawnej kolejności (order); kafelki dobrej odpowiedzi w kolejności (build)' }),
-    q('extra', 'Kafelki zbędne', 'list', { says: 'Kafelki, których nie trzeba użyć (build); „Ułóż w kolejności” ich nie pokazuje' }),
-    q('alternatives', 'Inne dobre kolejności', 'json', { says: 'Inne przyjmowane odpowiedzi z kafelków: lista list, np. [["$B$", "$=$", "$A$"]] (build)' }),
-    q('preview', 'Podgląd', 'choice', { options: [{ value: 'math', label: 'jako wzór' }, { value: 'text', label: 'jako tekst' }], says: 'math albo text — jak pokazać to, co ułożone (build: domyślnie wzór; order: bez — bez podglądu)' }),
-    q('join', 'Między kafelkami', 'json', { says: 'Co stoi między kafelkami w podglądzie — tekst, domyślnie " " (build, order)' }),
-    q('choices', 'Do wyboru w lukach', 'json', { says: 'Do każdej luki [[…]] po kolei lista ZŁYCH możliwości, np. [["Satz 2.1", "Lemma 3.4"], []] — luka z listą jest do wybrania, z pustą — do wpisania (gap)' }),
-    q('back', 'Odwrotna strona', 'list', { says: 'Co jest na odwrocie fiszki (flash)' }),
-    q('tolerance', 'Tolerancja', 'number', { says: 'Ile wolno się pomylić (liczba; data — w jednostkach dokładności)' }),
-    q('relative', 'Tolerancja względna', 'bool', { says: 'Tolerancja jako ułamek wartości (liczba)' }),
-    q('unit', 'Jednostka', 'line', { says: 'Jednostka liczby' }),
-    q('quantity', 'Wielkość', 'choice', { options: QUANTITY_KINDS.map((k) => ({ value: k.id, label: k.label })), says: 'Jaka wielkość (number): Torque, Energy, Mass, Length … — wtedy odpowiedź może mieć inną jednostkę tej wielkości (przeliczana), a jednostka innej wielkości jest błędem (12 J na pytanie o moment siły)' }),
-    q('precision', 'Dokładność daty', 'choice', { options: [{ value: 'year', label: 'rok' }, { value: 'month', label: 'miesiąc' }, { value: 'day', label: 'dzień' }], says: 'year, month albo day' }),
-    q('task', 'Zadanie', 'text', { says: 'Opis zadania (code)' }),
-    q('starter', 'Początek kodu', 'text', { says: 'Kod na start, z def transform(x): (code)' }),
-    q('createInput', 'Dane testowe', 'text', { says: 'def create_input(seed): … — dane do sprawdzenia (code)' }),
-    q('reference', 'Rozwiązanie wzorcowe', 'text', { says: 'def reference(x): … — wynik, z którym porównuje się kod (code)' }),
-    q('cases', 'Ile przypadków', 'number', { says: 'Na ilu danych sprawdzić (code)' }),
-    q('tests', 'Przykłady', 'json', { says: 'Widoczne przykłady: [{"input": [3, 1, 2], "output": [1, 2, 3], "note": "…"}] — sprawdzane przed ukrytymi przypadkami (code); może być tekstem JSON' }),
-    q('place', 'Miejsce', 'geo', { says: 'Szukany punkt: {"lat": …, "lon": …} (point)' }),
-    q('radius', 'Promień (m)', 'number', { says: 'Jak blisko trzeba trafić, w metrach (point)' }),
-    q('drawing', 'Rysunek (JSON)', 'text', { says: 'Rysunek do poruszania — ten sam JSON co w module „Animacja” strony: vars, sim, controls, rules (z "goal": true — cel), world (rzeczy do budowania, np. waga), elements (interactive)' }),
-    q('goal', 'Cel (wyrażenie)', 'line', { says: 'Kiedy odpowiedź jest dobra, np. "abs(x - cel) < 0.5 && y <= 0" — liczone w symulacji do końca; puste: reguły rysunku z "goal": true (interactive)' }),
-    q('solution', 'Rozwiązanie', 'line', { says: 'Wartości, które rozwiązują zadanie, np. "kat = 45; v0 = 12" albo własności rzeczy "w2.pos = 5" — pokazywane po złej odpowiedzi; puste: "task.solve" rysunku (interactive)' }),
-    /* 2026-11-05 (Prompt 23, D2) — Ziele nacheinander, und ob das Bild das Treffen schon beim Ausprobieren zeigt. */
-    q('goals', 'Cele po kolei', 'list', { says: 'Kilka celów (wyrażeń), które trzeba osiągnąć PO KOLEI, np. ["x > 3", "y < 1"] — zamiast "goal" (interactive)' }),
-    q('check', 'Kiedy sprawdzać', 'choice', { options: [{ value: 'live', label: 'cel widać już przy próbach' }, { value: 'submit', label: 'dopiero po „Sprawdź”' }], says: '"live" (domyślnie) — rysunek pokazuje trafienie już podczas prób, ocena po „Sprawdź”; "submit" — nic nie zdradza celu, dopiero „Sprawdź” ocenia (interactive)' }),
-    field('explain', 'Wyjaśnienie (wpisy)', 'ref', { multi: true, says: 'Wpisy pokazywane po odpowiedzi, zwinięte (np. wypowiedź z treścią w blokach)' }),
-    /* 2026-11-01 (Lemma) — neue Zahlen je Versuch, gerechnet in der Sprache der Rysunki. */
-    field('params', 'Parametry', 'json', { says: 'Wartości losowane przy każdym pytaniu: [{"name": "a", "random": [2, 30], "step": 1}], {"name": "f", "values": [...]}, 2026-11-03 także wpisy z bazy: {"name": "kation", "entry": {"kind": "@rodzaj", "where": "it.ladunek > 0"}}, {"name": "zd", "entries": {"kind": "@rodzaj", "count": 4}}; w tekstach {a}, {kation.symbol}' }),
-    field('let', 'Wartości liczone', 'json', { says: 'Liczone z parametrów, po kolei: [{"name": "r", "value": "mod(a, n)"}] — język wyrażeń rysunków z listami i wpisami (filter, map, sortby, choose, gcd, lcm, sub, sup …); w tekstach {r}, {fmt(x, 2)}' }),
-    field('require', 'Warunki losowania', 'list', { says: 'Warunki, które losowanie musi spełnić, np. "a > 2*n" — losuje się od nowa (do 60 razy); gdy się nie da, karta nie powstaje' }),
-    /* 2026-11-05 (Prompt 23, C3) — eine Kernfrage: „Sprawdź, co wiesz" fragt je Thema seine Kernfragen, die Karte trägt „kluczowe". */
-    field('core', 'Pytanie kluczowe', 'bool', { says: 'Kluczowe dla tematów z „O czym”: „Sprawdź, co wiesz” pyta o nie raz, a ich znajomość mówi, czy temat to „luka” (warunek z rel "core")' }),
-    field('about', 'O czym', 'ref', { multi: true, inverse: 'pytania', says: 'Wpisy, które to pytanie sprawdza: jego wynik liczy się do ich znajomości, a samo pytanie czeka, aż opanujesz to, co trzeba znać przed nimi' }),
-    /* 2026-10-27 — Voraussetzungen der Frage selbst (eine andere Frage, ein Eintrag): erst sie, dann diese. */
-    field('needs', 'Najpierw trzeba znać', 'ref', { multi: true, prerequisite: 'up', inverse: 'Trzeba znać przed pytaniem', says: 'Wpisy albo pytania, które trzeba opanować, zanim padnie to pytanie (np. „Czym jest atom?” przed „Czym jest orbital?”)' })
+    qf('form', 'choice', {
+      options: QUESTION_TYPES.map((qt) => ({ value: qt.form, get label() { return qt.label; } }))
+    }, () => t(`${Q}.says.form`, { list: QUESTION_TYPES.map((qt) => `${qt.form} (${qt.label})`).join(', ') })),
+    q('prompt', 'markup', { role: 'text' }),
+    q('hints', 'list'),
+    q('explanation', 'markup'),
+    q('answers', 'list'),
+    q('options', 'list'),
+    q('correct', 'list'),
+    q('feedback', 'list'),
+    q('value', 'bool'),
+    q('left', 'list'),
+    q('right', 'list'),
+    q('leftLabel', 'line'),
+    q('rightLabel', 'line'),
+    q('show', 'number', {}, () => t(`${Q}.says.show`, { max: SHOW_MAX })),
+    q('share', 'text'),
+    q('fact', 'text'),
+    q('items', 'list'),
+    q('extra', 'list'),
+    q('alternatives', 'json'),
+    q('preview', 'choice', { options: options('preview', ['math', 'text']) }),
+    q('join', 'json'),
+    q('choices', 'json'),
+    q('back', 'list'),
+    q('tolerance', 'number'),
+    q('relative', 'bool'),
+    q('unit', 'line'),
+    q('quantity', 'choice', { options: QUANTITY_KINDS.map((k) => ({ value: k.id, get label() { return k.label; } })) }),
+    q('precision', 'choice', { options: options('precision', ['year', 'month', 'day']) }),
+    q('task', 'text'),
+    q('starter', 'text'),
+    q('createInput', 'text'),
+    q('reference', 'text'),
+    q('cases', 'number'),
+    q('tests', 'json'),
+    q('place', 'geo'),
+    q('radius', 'number'),
+    q('drawing', 'text'),
+    q('goal', 'line'),
+    q('solution', 'line'),
+    q('goals', 'list'),
+    q('check', 'choice', { options: options('check', ['live', 'submit']) }),
+    qf('explain', 'ref', { multi: true }),
+    qf('params', 'json'),
+    qf('let', 'json'),
+    qf('require', 'list'),
+    qf('core', 'bool'),
+    qf('about', 'ref', { multi: true }, undefined, true),
+    qf('needs', 'ref', { multi: true, prerequisite: 'up' }, undefined, true)
   ]
 };
 

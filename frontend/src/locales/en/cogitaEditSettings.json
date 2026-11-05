@@ -1,0 +1,140 @@
+{
+  "sources": {
+    "intro": "<b>Libraries</b> — only for references: their works, quotes and persons can be pointed to in fields and quoted, but they don't become cards. <b>Scriptoria</b> — their texts (with the fields of their text kind, e.g. mystery, area) can be shown in views and matrices, pointed to in fields and learnt through templates. <b>Other knowledge bases</b> — to reuse: their kinds, entries, templates, reviews and flows work here, and are changed over there. Each source is seen only by those with access to its area.",
+    "title": "Sources",
+    "none": "No sources yet.",
+    "kindBooks": "library — for references",
+    "kindWriting": "scriptorium — texts",
+    "kindKnowledge": "knowledge base — to reuse",
+    "unavailable": "unavailable in this tab",
+    "entries": {
+      "one": "{count} entry",
+      "other": "{count} entries"
+    },
+    "loading": "loading…",
+    "add": "Add a source",
+    "addPlaceholder": "— add a library, scriptorium or knowledge base —"
+  },
+  "authorsOnly": "The knowledge base settings are changed by its authors.",
+  "storage": {
+    "title": "Where learners' answers are saved",
+    "hint": "Learners' progress is seen by whoever leads the chosen area (e.g. a teacher). This is the choice for learning here, in the app, and for modules without their own — a module on a course (or group) page sends answers to its own area, so the same base can serve many courses. Without a choice — only the learner themselves.",
+    "learnerPrivate": "the learner's private area",
+    "myPrivate": "my private area"
+  },
+  "reports": {
+    "title": "Reports and numbers from learners (anonymous)",
+    "hint": "Reported cards and error counts go to the intake of this knowledge base's area — without names."
+  },
+  "motivation": {
+    "title": "Motivation",
+    "rewards": "Reward rules in Learning",
+    "rewardsDefault": "— default: the base's first rules, otherwise the built-in ones —",
+    "rewardsFallback": "Rewards",
+    "rewardsLink": "Rewards: rules and your points →",
+    "rankings": "Rankings exist only in live sessions."
+  },
+  "fromOrigin": " · from: {name}",
+  "language": {
+    "title": "Learning language",
+    "hint": "The learning screens speak this language: the landscape, the path, the review and its ending. Without a choice — detected from the names in the base (now: {lang}).",
+    "detect": "— detect from the base —"
+  },
+  "tags": {
+    "title": "Perspectives",
+    "hint": "This base still has old perspectives ({tags}). Perspectives and topics no longer exist — order comes from your own kinds (e.g. “Mystery”, “Area”) linked by reference fields."
+  },
+  "join": {
+    "title": "Page for joining a session",
+    "hint": "A page with the “Join a session” module (e.g. parafia/quiz). The session's link and QR code lead there."
+  },
+  "proposals": {
+    "title": "Proposals from readers",
+    "hint": "Authors change the base directly; others propose explanations and questions, and the author accepts them.",
+    "none": "— no proposals —"
+  },
+  "base": {
+    "title": "Knowledge base",
+    "name": "Name of the knowledge base",
+    "saveName": "Save name",
+    "area": "Area: {area} — whoever has its key learns from this base; whoever writes in it builds it.",
+    "unknownArea": "unknown",
+    "delete": "Delete the knowledge base",
+    "deleteHint": "Deletes all entries, templates, reviews, flows and learners' answers; sessions stay, but without the base. This cannot be undone — export it first (JSON).",
+    "typeName": "Type the name to confirm",
+    "deleteForever": "Delete forever"
+  },
+  "onlyYou": "only you",
+  "remove": "remove",
+  "kind": {
+    "knowledge": "knowledge base",
+    "writing": "scriptorium",
+    "books": "library"
+  },
+  "intake": {
+    "checking": "Checking the intake…",
+    "works": "intake works",
+    "worksIn": "intake works · {area}",
+    "none": "this area has no intake yet — only the learner will see the answers",
+    "keyFor": "Intake key for the role:",
+    "role": "role",
+    "creating": "Creating the key (a few seconds)…",
+    "create": "Create intake"
+  },
+  "deps": {
+    "title": "Dependencies",
+    "hint": "The learning order comes mainly from the “Must know first” fields in kinds and questions (Learning → Path); here — extra dependencies between single entries. “Must know first” blocks cards until the basis is mastered; each edge passes part of the knowledge (weight) upwards.",
+    "weightOf": "weight {n}",
+    "proposal": "proposal",
+    "confirm": "confirm",
+    "child": "entry that depends",
+    "parent": "on what",
+    "weight": "Weight"
+  },
+  "values": {
+    "title": "Course values",
+    "hint": "They change while learning (flow steps, progress): points, closeness to characters, resources. They stay between sessions.",
+    "key": "Key",
+    "scopePerson": "of a person",
+    "scopeGroup": "of a group",
+    "scopeSession": "of a session",
+    "visAll": "everyone sees",
+    "visGroup": "group",
+    "visPerson": "only the person",
+    "initial": "At start",
+    "score": "points",
+    "newLabel": "New value",
+    "add": "+ value",
+    "save": "Save values",
+    "min": "min",
+    "max": "max"
+  },
+  "rules": {
+    "fallback": "Rules",
+    "title": "Live session rules",
+    "own": "— own rules ({n}) —",
+    "fromPreset": "+ from presets",
+    "roundTimer": "Time per question (s)",
+    "actionTimer": "After the first answer (s)",
+    "baseCorrect": "For a correct answer",
+    "firstBonus": "Bonus for the first",
+    "speedBonus": "Speed bonus (max)",
+    "streakBonus": "Streak bonus",
+    "penalty": "Penalty for a mistake",
+    "autoNext": "next question automatically",
+    "save": "Save rules",
+    "foreign": "These rules are from “{name}” — they work here and are changed there."
+  },
+  "looks": {
+    "title": "Looks",
+    "hint": "A look says how a flow shows its steps and what is visible of each kind of entry (e.g. a person's card: name, years, portrait).",
+    "fallback": "Look",
+    "transition": "transition (e.g. fade, slide)",
+    "newName": "New look",
+    "add": "+ look"
+  },
+  "daily": {
+    "label": "Daily goal — cards per day",
+    "hint": "A streak is the days in a row on which the goal is reached. Each learner sees only their own days."
+  }
+}

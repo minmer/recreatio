@@ -9,6 +9,7 @@ import type { Ring, SealedRole } from '../core/keys';
 import { WorkspaceError } from '../core/session';
 import type { Called } from '../roles/called';
 import { type RoleGraphData, createRole, loadRoles } from '../roles/roles';
+import { useT } from '../core/i18n';
 import { Segment } from '../ui/Segment';
 import { type AreaRow, type Member, joinArea } from './area';
 import { KIND_NAME } from './areaWords';
@@ -39,6 +40,7 @@ export function AddRole({ area, ring, graph, self, members, names, busy, onAct }
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState<'new' | 'mine' | 'code'>('new');
   const [code, setCode] = useState('');
@@ -64,18 +66,18 @@ export function AddRole({ area, ring, graph, self, members, names, busy, onAct }
     (m.capabilities.includes('admin') || m.capabilities.includes('certify')) && ring.maySign(m.roleId))?.roleId ?? null;
 
   const blocker =
-    issuer === null ? 'Żadna z Twoich ról nie może tu nikogo wpuścić.'
-    : from === 'new' && self === null ? 'Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.'
-    : from === 'new' && name.trim() === '' ? 'Nazwij rolę.'
-    : from === 'mine' && chosen === null ? 'Wszystkie Twoje role już tu są.'
-    : from === 'code' && !looksLikeCode(code) ? 'Wklej kod do rozmów tej osoby — w całości.'
-    : from === 'code' && codeName.trim() === '' ? 'Wpisz, jak ta osoba ma się tu nazywać.'
+    issuer === null ? t('areas.addRole.noIssuer')
+    : from === 'new' && self === null ? t('areas.noPerson')
+    : from === 'new' && name.trim() === '' ? t('areas.addRole.nameIt')
+    : from === 'mine' && chosen === null ? t('areas.addRole.allHere')
+    : from === 'code' && !looksLikeCode(code) ? t('areas.addRole.pasteCode')
+    : from === 'code' && codeName.trim() === '' ? t('areas.addRole.nameCode')
     : null;
 
   if (!open) {
     return (
       <button type="button" className="wk-tree-add" disabled={busy} onClick={() => setOpen(true)}>
-        <span aria-hidden="true">+</span> Dodaj rolę
+        <span aria-hidden="true">+</span> {t('areas.addRole.title')}
       </button>
     );
   }
@@ -85,7 +87,7 @@ export function AddRole({ area, ring, graph, self, members, names, busy, onAct }
 
     let done = false;
 
-    await onAct(from === 'new' ? 'Liczenie kluczy nowej roli…' : 'Dodawanie…', async () => {
+    await onAct(from === 'new' ? t('areas.addRole.computing') : t('areas.adding'), async () => {
       /*
        * KTOŚ Z INNEGO KONTA — po jego kodzie do rozmów (0052). Dostaje klucz
        * obszaru i zaświadczenie jak każda rola, a nazwa, pod którą go
@@ -93,7 +95,7 @@ export function AddRole({ area, ring, graph, self, members, names, busy, onAct }
        */
       if (from === 'code') {
         const card = await roleCard(code);
-        if (present.has(card.roleId)) throw new WorkspaceError('Ta osoba już jest w tym obszarze.');
+        if (present.has(card.roleId)) throw new WorkspaceError(t('areas.addRole.already'));
         await joinArea(ring, area.areaId, { id: card.roleId, kind: card.kind, wrapPublicKey: card.wrapPublicKey }, issuer, level);
         await setMemberName(area.areaId, await areaKeys(ring, area.areaId, true), card.roleId, codeName, issuer).catch(() => undefined);
         setCode('');
@@ -108,7 +110,7 @@ export function AddRole({ area, ring, graph, self, members, names, busy, onAct }
         if (self === null) return;
         const { id } = await createRole(ring, self, { kind, name });
         const made = (await loadRoles()).roles.find((r) => r.id === id);
-        if (made === undefined) throw new WorkspaceError('Rola powstała, ale jeszcze jej nie widać — odśwież.');
+        if (made === undefined) throw new WorkspaceError(t('areas.addRole.notYetVisible'));
         role = made;
       } else {
         if (chosen === null) return;
@@ -126,18 +128,18 @@ export function AddRole({ area, ring, graph, self, members, names, busy, onAct }
     }
   };
 
-  const who = (id: string) => names.get(id)?.name ?? labels.get(id) ?? 'bez nazwy';
+  const who = (id: string) => names.get(id)?.name ?? labels.get(id) ?? t('areas.noName');
 
   return (
     <form className="wk-form wk-add-role" onSubmit={(e) => { e.preventDefault(); void add(); }}>
-      <h3 className="wk-h2">Dodaj rolę</h3>
+      <h3 className="wk-h2">{t('areas.addRole.title')}</h3>
 
       <Segment
         now={from}
         options={[
-          { value: 'new' as const, label: 'Nowa dla tego obszaru' },
-          { value: 'mine' as const, label: 'Jedna z moich' },
-          { value: 'code' as const, label: 'Osoba z kodem' }
+          { value: 'new' as const, label: t('areas.addRole.fromNew') },
+          { value: 'mine' as const, label: t('areas.addRole.fromMine') },
+          { value: 'code' as const, label: t('areas.addRole.fromCode') }
         ]}
         busy={busy}
         onPick={setFrom}
@@ -146,18 +148,18 @@ export function AddRole({ area, ring, graph, self, members, names, busy, onAct }
       {from === 'new' ? (
         <>
           <label className="wk-field">
-            <span>Nazwa</span>
-            <input value={name} placeholder="np. Katecheci" autoComplete="off"
+            <span>{t('common.name')}</span>
+            <input value={name} placeholder={t('areas.addRole.namePlaceholder')} autoComplete="off"
               onChange={(e) => setName(e.target.value)} />
           </label>
 
           <div className="wk-field">
-            <span>Rodzaj</span>
+            <span>{t('areas.addRole.kind')}</span>
             <Segment
               now={kind}
               options={[
-                { value: 'role' as const, label: 'Rola — funkcja' },
-                { value: 'group' as const, label: 'Grupa — ci, którzy należą' }
+                { value: 'role' as const, label: t('areas.addRole.kindRole') },
+                { value: 'group' as const, label: t('areas.addRole.kindGroup') }
               ]}
               busy={busy}
               onPick={setKind}
@@ -165,25 +167,25 @@ export function AddRole({ area, ring, graph, self, members, names, busy, onAct }
           </div>
 
           {self !== null && (
-            <p className="wk-hint">Prowadzi ją {who(self.id)}. Komu ją przekazać, ustawisz w Rolach.</p>
+            <p className="wk-hint">{t('areas.addRole.heldBy', { name: who(self.id) })}</p>
           )}
         </>
       ) : from === 'code' ? (
         <>
           <label className="wk-field">
-            <span>Kod do rozmów tej osoby</span>
-            <input value={code} placeholder="np. 01a0…" autoComplete="off" onChange={(e) => setCode(e.target.value)} />
-            <span className="wk-hint">Każda osoba ma go u siebie w „Rozmowach". Kod pozwala tylko zaprosić — niczego nie otwiera.</span>
+            <span>{t('areas.addRole.code')}</span>
+            <input value={code} placeholder={t('areas.addRole.codePlaceholder')} autoComplete="off" onChange={(e) => setCode(e.target.value)} />
+            <span className="wk-hint">{t('areas.addRole.codeHint')}</span>
           </label>
           <label className="wk-field">
-            <span>Jak ma się tu nazywać</span>
-            <input value={codeName} placeholder="np. Anna Nowak" autoComplete="off" onChange={(e) => setCodeName(e.target.value)} />
-            <span className="wk-hint">Nazwę widzą tylko osoby z tego obszaru.</span>
+            <span>{t('areas.addRole.codeName')}</span>
+            <input value={codeName} placeholder={t('areas.addRole.codeNamePlaceholder')} autoComplete="off" onChange={(e) => setCodeName(e.target.value)} />
+            <span className="wk-hint">{t('areas.addRole.codeNameHint')}</span>
           </label>
         </>
       ) : candidates.length > 0 ? (
         <label className="wk-field">
-          <span>Rola</span>
+          <span>{t('areas.addRole.role')}</span>
           <select value={chosen?.id ?? ''} onChange={(e) => setPick(e.target.value)}>
             {candidates.map((r) => (
               <option key={r.id} value={r.id}>{who(r.id)} · {KIND_NAME[r.kind]}</option>
@@ -193,25 +195,25 @@ export function AddRole({ area, ring, graph, self, members, names, busy, onAct }
       ) : null}
 
       <div className="wk-field">
-        <span>Co może w tym obszarze</span>
+        <span>{t('areas.addRole.level')}</span>
         <Segment
           now={level}
           options={[
-            { value: 'read' as const, label: 'Czyta' },
-            { value: 'write' as const, label: 'Pisze' },
-            { value: 'admin' as const, label: 'Prowadzi' }
+            { value: 'read' as const, label: t('areas.addRole.levelRead') },
+            { value: 'write' as const, label: t('areas.addRole.levelWrite') },
+            { value: 'admin' as const, label: t('areas.addRole.levelAdmin') }
           ]}
           busy={busy}
           onPick={setLevel}
         />
-        {level === 'admin' && <span className="wk-hint">Kto prowadzi, może też wpuszczać innych.</span>}
+        {level === 'admin' && <span className="wk-hint">{t('areas.addRole.adminHint')}</span>}
       </div>
 
       {blocker !== null && !busy && <p className="wk-blocker">{blocker}</p>}
 
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy || blocker !== null}>Dodaj</button>
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setOpen(false)}>Anuluj</button>
+        <button type="submit" className="wk-btn" disabled={busy || blocker !== null}>{t('common.add')}</button>
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setOpen(false)}>{t('common.cancel')}</button>
       </div>
     </form>
   );

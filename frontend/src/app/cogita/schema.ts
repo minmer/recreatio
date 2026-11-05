@@ -25,6 +25,7 @@
  * gezeigt, nicht gelöscht.
  */
 
+import { appLang, fmtDate, t, texts } from '../core/i18n';
 import { plainText, type TexMode } from '../library/libraryMarkup';
 import { texPieces, texSource } from '../core/tex';
 import { blocksIn, blocksTitle, type CommentBlock } from '../library/blocks';
@@ -47,24 +48,24 @@ export const FIELD_TYPES = ['line', 'text', 'markup', 'blocks', 'number', 'date'
  */
 export type FieldType = (typeof FIELD_TYPES)[number] | 'outline' | 'json';
 
-export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
-  line: 'Wiersz tekstu',
-  text: 'Dłuższy tekst',
-  markup: 'Tekst z przypisami',
-  number: 'Liczba z jednostką',
-  date: 'Data (rok, miesiąc albo dzień)',
-  bool: 'Tak / nie / nie wiadomo',
-  choice: 'Wybór z listy',
-  ref: 'Odwołanie',
-  media: 'Obraz, dźwięk, film, dokument',
-  url: 'Adres strony',
-  list: 'Lista w kolejności',
-  geo: 'Miejsce na mapie',
-  range: 'Zakres z kilku odcinków',
-  outline: 'Plan (nagłówki i teksty)',
-  blocks: 'Treść w blokach (akapity, listy, tabele)',
-  json: 'Dane w JSON'
-};
+export const FIELD_TYPE_LABEL: Readonly<Record<FieldType, string>> = texts({
+  line: 'cogitaData.fieldType.line',
+  text: 'cogitaData.fieldType.text',
+  markup: 'cogitaData.fieldType.markup',
+  number: 'cogitaData.fieldType.number',
+  date: 'cogitaData.fieldType.date',
+  bool: 'cogitaData.fieldType.bool',
+  choice: 'cogitaData.fieldType.choice',
+  ref: 'cogitaData.fieldType.ref',
+  media: 'cogitaData.fieldType.media',
+  url: 'cogitaData.fieldType.url',
+  list: 'cogitaData.fieldType.list',
+  geo: 'cogitaData.fieldType.geo',
+  range: 'cogitaData.fieldType.range',
+  outline: 'cogitaData.fieldType.outline',
+  blocks: 'cogitaData.fieldType.blocks',
+  json: 'cogitaData.fieldType.json'
+});
 
 /**
  * `outline` gehört nur dem Projekt der eingebauten Arten (Gliederung aus
@@ -76,14 +77,14 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set<string>([...FIELD_TYPES, 'outli
 export const VALUE_STATES = ['known', 'approximate', 'disputed', 'unknown', 'na', 'pending'] as const;
 export type ValueState = (typeof VALUE_STATES)[number];
 
-export const VALUE_STATE_LABEL: Record<ValueState, string> = {
-  known: 'pewne',
-  approximate: 'w przybliżeniu',
-  disputed: 'sporne',
-  unknown: 'nieznane',
-  na: 'nie dotyczy',
-  pending: 'do ustalenia'
-};
+export const VALUE_STATE_LABEL: Readonly<Record<ValueState, string>> = texts({
+  known: 'cogitaData.valueState.known',
+  approximate: 'cogitaData.valueState.approximate',
+  disputed: 'cogitaData.valueState.disputed',
+  unknown: 'cogitaData.valueState.unknown',
+  na: 'cogitaData.valueState.na',
+  pending: 'cogitaData.valueState.pending'
+});
 
 /** Ein Stand, der keinen Wert trägt — „nieznane" ist eine Auskunft, kein leeres Feld. */
 const WITHOUT_VALUE: ReadonlySet<ValueState> = new Set<ValueState>(['unknown', 'na', 'pending']);
@@ -102,34 +103,12 @@ export type RangeOf = (typeof RANGE_OF)[number];
  * „wer sind die Autoren", „welcher Titel". Die Namen sind die Schlüssel der
  * bisherigen Arten, damit deren Einträge unverändert weiterlaufen.
  */
+/* 2026-11-05 — die Bezeichnungen in der Sprache der Anwendung (`cogitaData.fieldRole.<rolle>`), beim Lesen geholt. */
 export const FIELD_ROLES: readonly { readonly role: string; readonly label: string }[] = [
-  { role: 'title', label: 'Tytuł' },
-  { role: 'subtitle', label: 'Podtytuł' },
-  { role: 'name', label: 'Nazwa' },
-  { role: 'givenNames', label: 'Imiona' },
-  { role: 'surname', label: 'Nazwisko' },
-  { role: 'authors', label: 'Autorzy' },
-  { role: 'editors', label: 'Redakcja' },
-  { role: 'translators', label: 'Tłumaczenie' },
-  { role: 'container', label: 'Zawarte w' },
-  { role: 'volume', label: 'Tom' },
-  { role: 'issue', label: 'Numer' },
-  { role: 'edition', label: 'Wydanie' },
-  { role: 'publisher', label: 'Wydawca' },
-  { role: 'place', label: 'Miejsce wydania' },
-  { role: 'year', label: 'Rok' },
-  { role: 'series', label: 'Seria' },
-  { role: 'pages', label: 'Strony' },
-  { role: 'isbn', label: 'ISBN' },
-  { role: 'doi', label: 'DOI' },
-  { role: 'url', label: 'Adres' },
-  { role: 'siglum', label: 'Skrót przekładu' },
-  { role: 'text', label: 'Tekst cytatu' },
-  { role: 'work', label: 'Źródło' },
-  { role: 'locator', label: 'Miejsce w źródle' },
-  { role: 'description', label: 'Opis' },
-  { role: 'body', label: 'Treść' }
-];
+  'title', 'subtitle', 'name', 'givenNames', 'surname', 'authors', 'editors', 'translators', 'container', 'volume', 'issue',
+  'edition', 'publisher', 'place', 'year', 'series', 'pages', 'isbn', 'doi', 'url', 'siglum', 'text', 'work', 'locator',
+  'description', 'body'
+].map((role) => ({ role, get label() { return t(`cogitaData.fieldRole.${role}`); } }));
 
 /* -- Das Modell ---------------------------------------------------------------------- */
 
@@ -432,28 +411,28 @@ export function problemsOf(kind: KindDef, look: Pick<Lookup, 'kind'>): string[] 
   const out: string[] = [];
   const keys = new Set(kind.fields.map((f) => f.key));
   for (const token of patternKeys(kind.label)) {
-    if (!keys.has(token)) out.push(`Wzór etykiety używa pola „${token}", którego ten rodzaj nie ma.`);
+    if (!keys.has(token)) out.push(t('cogitaData.kindProblem.labelField', { field: token }));
   }
   for (const token of patternKeys(kind.reading ?? '')) {
-    if (!keys.has(token)) out.push(`Wzór tekstu do czytania używa pola „${token}", którego ten rodzaj nie ma.`);
+    if (!keys.has(token)) out.push(t('cogitaData.kindProblem.readingField', { field: token }));
   }
   for (const field of kind.fields) {
     for (const target of field.to ?? []) {
-      if (target !== kind.id && look.kind(target) === undefined) out.push(`Pole „${field.label}" odwołuje się do rodzaju, którego nie ma.`);
+      if (target !== kind.id && look.kind(target) === undefined) out.push(t('cogitaData.kindProblem.refMissing', { field: field.label }));
     }
-    if (field.type === 'choice' && (field.options ?? []).length === 0) out.push(`Pole „${field.label}" nie ma nic do wyboru.`);
+    if (field.type === 'choice' && (field.options ?? []).length === 0) out.push(t('cogitaData.kindProblem.noOptions', { field: field.label }));
     /* 2026-10-27 — „Pokaż, gdy": das Wahlfeld muss es in diesem Rodzaj geben. */
     if (field.when !== undefined) {
       const by = kind.fields.find((f) => f.key === field.when!.field);
-      if (by === undefined) out.push(`Pole „${field.label}" pokazuje się tylko przy wartościach pola „${field.when.field}", którego ten rodzaj nie ma.`);
-      else if (by.type !== 'choice') out.push(`Pole „${field.label}" zależy od pola „${by.label}", które nie jest wyborem z listy.`);
+      if (by === undefined) out.push(t('cogitaData.kindProblem.whenMissing', { field: field.label, by: field.when.field }));
+      else if (by.type !== 'choice') out.push(t('cogitaData.kindProblem.whenNotChoice', { field: field.label, by: by.label }));
       else {
         const missing = field.when.values.filter((v) => !(by.options ?? []).some((o) => o.value === v));
-        if (missing.length > 0) out.push(`Pole „${field.label}" zależy od wartości ${missing.map((v) => `„${v}"`).join(', ')}, których nie ma w polu „${by.label}".`);
+        if (missing.length > 0) out.push(t('cogitaData.kindProblem.whenValues', { field: field.label, values: missing.map((v) => t('cogitaData.kindProblem.quoted', { value: v })).join(', '), by: by.label }));
       }
     }
   }
-  if (kind.fields.length === 0) out.push('Rodzaj nie ma jeszcze żadnego pola.');
+  if (kind.fields.length === 0) out.push(t('cogitaData.kindProblem.noFields'));
   return out;
 }
 
@@ -511,20 +490,26 @@ export function coarsen(date: DateValue, to: DatePrecision): DateValue {
   return date;
 }
 
-const MONTHS = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
-const MONTHS_OF = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
+/* 2026-11-05 — Monatsnamen aus `Intl` (in der Sprache der Anwendung); das Jahr selbst gesetzt, auch vor Christus. */
+const monthName = (m: number): string | undefined =>
+  m >= 1 && m <= 12 ? fmtDate(Date.UTC(2000, m - 1, 15), { month: 'long', timeZone: 'UTC' }) : undefined;
+const dayMonth = (d: number, m: number): string => {
+  const at = new Date(Date.UTC(2000, m - 1, d));
+  return at.getUTCMonth() === m - 1 ? fmtDate(at, { day: 'numeric', month: 'long', timeZone: 'UTC' }) : `${d} ${monthName(m) ?? m}`;
+};
+const yearText = (y: number): string => (y < 0 ? t('cogitaData.date.bc', { year: -y }) : String(y));
 
 export function dateText(date: DateValue): string {
-  const year = date.y < 0 ? `${-date.y} przed Chr.` : String(date.y);
+  const year = yearText(date.y);
   if (date.m === undefined) return year;
-  if (date.d === undefined) return `${MONTHS[date.m - 1]} ${year}`;
-  return `${date.d} ${MONTHS_OF[date.m - 1]} ${year}`;
+  if (date.d === undefined) return t('cogitaData.date.monthYear', { month: monthName(date.m) ?? String(date.m), year });
+  return t('cogitaData.date.dayMonthYear', { dayMonth: dayMonth(date.d, date.m), year });
 }
 
 /** 2026-11-01 — ein Teil eines Datums in Worten: das Jahr (vor Christus so gesagt), der Monat als Name, der Tag als Zahl. */
 export function datePartText(part: DatePrecision, value: number): string {
-  if (part === 'year') return value < 0 ? `${-value} przed Chr.` : String(value);
-  if (part === 'month') return MONTHS[value - 1] ?? String(value);
+  if (part === 'year') return yearText(value);
+  if (part === 'month') return monthName(value) ?? String(value);
   return String(value);
 }
 
@@ -577,7 +562,7 @@ function pointText(point: number | string, of: RangeOf): string {
 /** `992–1000, 1002–1025` · `ok. 960–992` · `1990–` (bez znanego końca). */
 export function rangeText(range: RangeValue, of: RangeOf): string {
   return range.segments.map((s) => {
-    const approx = s.fromState === 'approximate' || s.toState === 'approximate' ? 'ok. ' : '';
+    const approx = s.fromState === 'approximate' || s.toState === 'approximate' ? t('cogitaData.value.approxPrefix') : '';
     const from = s.fromState === 'unknown' ? '?' : pointText(s.from, of);
     if (s.toState === 'open') return `${approx}${from}–`;
     if (s.to === undefined) return `${approx}${from}`;
@@ -646,9 +631,10 @@ function readBool(raw: unknown): BoolValue | null {
   if (raw === true || raw === false) return raw;
   const text = str(raw).trim().toLowerCase();
   /* 2026-10-27 — auch „prawda" / „fałsz": so schreibt man die Antwort eines Pytania „Prawda czy fałsz" in eine Zeile. */
-  if (['tak', 'yes', 'true', 't', 'prawda'].includes(text)) return true;
-  if (['nie', 'no', 'false', 'n', 'fałsz', 'falsz'].includes(text)) return false;
-  if (['unknown', 'nie wiadomo', '?'].includes(text)) return 'unknown';
+  /* 2026-11-05 — gelesen wird in jeder Sprache der Anwendung (Eingabe, kein Text der Oberfläche). */
+  if (['tak', 'yes', 'true', 't', 'prawda', 'ja', 'wahr'].includes(text)) return true;
+  if (['nie', 'no', 'false', 'n', 'fałsz', 'falsz', 'nein', 'falsch'].includes(text)) return false; // i18n-ignore
+  if (['unknown', 'nie wiadomo', '?', 'weiß nicht', 'unbekannt'].includes(text)) return 'unknown'; // i18n-ignore
   return null;
 }
 
@@ -796,8 +782,8 @@ export function fieldUnit(field: FieldDef): Unit | undefined {
 export function quantityEnvelope(field: FieldDef, value: number, unit: Unit | undefined): { value: number; unit: string; si: number } | { error: string } {
   const kind = fieldKind(field);
   const own = unit ?? fieldUnit(field);
-  if (own === undefined) return { error: 'To pole nie ma jednostki.' };
-  if (kind !== undefined && !measures(own, kind)) return { error: `„${own.symbol}” nie mierzy wielkości: ${kindById(kind)?.label ?? kind}.` };
+  if (own === undefined) return { error: t('cogitaData.value.noUnit') };
+  if (kind !== undefined && !measures(own, kind)) return { error: t('cogitaData.value.wrongUnit', { unit: own.symbol, quantity: kindById(kind)?.label ?? kind }) };
   return { value, unit: own.id, si: toSI(value, own) };
 }
 
@@ -942,12 +928,12 @@ export function valueText(field: FieldDef, value: FieldValue | null, look: Looku
     case 'line':
     case 'text':
     case 'url': return typeof value === 'string' ? value.trim() : '';
-    case 'number': return typeof value === 'number' ? `${String(value).replace('.', ',')}${field.unit ? ` ${field.unit}` : ''}` : '';
+    case 'number': return typeof value === 'number' ? `${appLang() === 'en' ? String(value) : String(value).replace('.', ',')}${field.unit ? ` ${field.unit}` : ''}` : '';
     case 'date': {
       const date = readDate(value);
       return date === null ? '' : dateText(date);
     }
-    case 'bool': return value === true ? 'tak' : value === false ? 'nie' : value === 'unknown' ? 'nie wiadomo' : '';
+    case 'bool': return value === true ? t('cogitaData.value.yes') : value === false ? t('cogitaData.value.no') : value === 'unknown' ? t('cogitaData.value.unknown') : '';
     case 'choice': return typeof value === 'string' ? (field.options ?? []).find((o) => o.value === value)?.label ?? value : '';
     case 'ref': {
       if (typeof value !== 'string') return '';
@@ -956,11 +942,11 @@ export function valueText(field: FieldDef, value: FieldValue | null, look: Looku
       const target = look.entity(value);
       return target === undefined ? '…' : depth >= 2 ? '…' : labelOf(target, look, depth + 1, false, tex);
     }
-    case 'media': return isObject(value) && 'file' in value ? str((value as MediaRef).name) || 'plik' : '';
+    case 'media': return isObject(value) && 'file' in value ? str((value as MediaRef).name) || t('cogitaData.value.file') : '';
     case 'list': return Array.isArray(value) ? (value as readonly string[]).join(', ') : '';
     case 'geo': return isObject(value) && 'lat' in value ? `${(value as GeoPoint).lat}, ${(value as GeoPoint).lon}` : '';
     case 'range': return isObject(value) && 'segments' in value ? rangeText(value as RangeValue, field.rangeOf ?? 'number') : '';
-    case 'outline': return Array.isArray(value) ? `${value.length} poz.` : '';
+    case 'outline': return Array.isArray(value) ? t('cogitaData.value.items', { count: value.length }) : '';
     /* Eine Aussage heisst nach ihrer Teza (dem ersten Satz) — sonst nach dem Anfang ihrer Liste oder Tabelle. */
     case 'blocks': return blocksTitle(blocksIn(value), whole);
     case 'json': return typeof value === 'string' ? (value.length > 60 ? `${value.slice(0, 59)}…` : value) : '';
@@ -989,7 +975,7 @@ export function fieldText(entity: Entity, field: FieldDef, look: Lookup, depth =
       const plain = v.entered !== undefined ? enteredText(v.entered) : valueText(field, v.value, look, depth, whole, tex);
       const text = v.locator === undefined || typeof v.value !== 'string' ? plain : placeText(look.entity(v.value), v.locator, plain);
       if (v.value === null) return `(${VALUE_STATE_LABEL[v.state]})`;
-      return v.state === 'approximate' ? `ok. ${text}` : v.state === 'disputed' ? `${text} (?)` : text;
+      return v.state === 'approximate' ? `${t('cogitaData.value.approxPrefix')}${text}` : v.state === 'disputed' ? `${text} (?)` : text;
     })
     .filter((t) => t !== '')
     .join(', ');

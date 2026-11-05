@@ -1,0 +1,120 @@
+{
+  "view": {
+    "noKey": "Without a key in this tab the library is locked — sign in again or unlock your key.",
+    "loadFailed": "Could not load the libraries.",
+    "isKnowledge": "This is a knowledge base — it is in Knowledge.",
+    "isScriptorium": "This is a scriptorium — texts, deliveries and projects.",
+    "openKnowledge": "Open it",
+    "openScriptorium": "Open it",
+    "missing": "This library does not exist or you have no key to it.",
+    "allLibraries": "All libraries"
+  },
+  "list": {
+    "defaultName": "My library",
+    "createFailed": "Could not create the library.",
+    "onlyYou": "only you",
+    "area": "area",
+    "title": "Library",
+    "lede": "Sources, quotes and their authors — one place for every reference. You write texts in the Scriptorium and arrange knowledge (comments, people, places, events) in Knowledge; both cite from here. Everything is encrypted in the browser. Every area has its library: the area's members see it, and when the area is public — everyone. You work with all of them at once: references and search reach every library you can see.",
+    "entries": {
+      "one": "{count} entry",
+      "other": "{count} entries"
+    },
+    "meta": "{entries} · {area} · seen by: {who}",
+    "readOnly": " · read only",
+    "createFirst": "Create a library",
+    "createNew": "New library",
+    "name": "Name",
+    "namePlaceholder": "e.g. Sermons and sources",
+    "whoSees": "Who sees it",
+    "onlyMeNew": "Only me (a private area will be created)",
+    "onlyMe": "Only me",
+    "sharedHint": "A shared library is read and added to by everyone who has the area's key. Every area has one library.",
+    "creating": "Creating…",
+    "create": "Create"
+  },
+  "home": {
+    "opening": "Opening the library…",
+    "sealed": {
+      "one": "{count} entry is sealed with a key you do not have.",
+      "other": "{count} entries are sealed with a key you do not have."
+    },
+    "sections": "Library sections",
+    "map": "Map",
+    "json": "Import / export",
+    "settings": "Settings",
+    "old": "Old entries",
+    "oldWhere": "Texts, deliveries and projects are now in the Scriptorium; comments are a kind in Knowledge."
+  },
+  "search": {
+    "placeholder": "Search the whole library — title, author, part of a quote, ISBN, number…",
+    "label": "Search the library",
+    "none": "Nothing found."
+  },
+  "kindList": {
+    "search": "Search: {what}",
+    "everywhere": "also from other libraries ({n})",
+    "musicHint": "Pieces, sheet music and recordings — also recordings in voices (soprano, alto, tenor, bass, instruments) that sound together. The type decides which fields an entry has; files are encrypted in the browser.",
+    "empty": "There is no entry of this kind yet.",
+    "noMatch": "Nothing matches.",
+    "otherLibrary": "another library"
+  },
+  "meta": {
+    "tracks": {
+      "one": "{count} track",
+      "other": "{count} tracks"
+    },
+    "files": {
+      "one": "{count} file",
+      "other": "{count} files"
+    },
+    "number": "no. {number}",
+    "quotes": {
+      "one": "{count} quote",
+      "other": "{count} quotes"
+    },
+    "sources": {
+      "one": "{count} source",
+      "other": "{count} sources"
+    }
+  },
+  "settings": {
+    "failed": "It did not work.",
+    "area": "Area: {area} — whoever has its key reads this library.",
+    "areaReadOnly": "Area: {area} — whoever has its key reads this library. You can only read it.",
+    "unknownArea": "unknown",
+    "saveName": "Save name",
+    "whoSees": "Who sees it",
+    "seenBy": "Seen by: {who}. To make an entry public (or stop it being public), move it to another area's library — on the entry, in the “Who sees it” box.",
+    "oldCopies": {
+      "one": "{count} entry still has old, separately published copies (from before 22.10.2026). Nobody reads them any more; they can be withdrawn.",
+      "other": "{count} entries still have old, separately published copies (from before 22.10.2026). Nobody reads them any more; they can be withdrawn."
+    },
+    "withdraw": "Withdraw old copies",
+    "delete": "Delete library",
+    "deleteHint": "Deletes all entries; pages that showed them will say the text is gone. This cannot be undone. Export first (Import / export).",
+    "deleteConfirm": "Type the library's name to confirm",
+    "deleteForever": "Delete forever"
+  },
+  "settle": {
+    "before": "This collection was made before the rule “whoever sees the area sees it”, so today nobody outside the area reads it.",
+    "public": "The area is public: after confirming, all entries ({n}) will be seen by everyone, even without an account.",
+    "notPublic": "The area is not public: after confirming, nothing changes for anyone outside the area.",
+    "understood": "I understand who will see it",
+    "confirm": "Confirm visibility by area"
+  },
+  "json": {
+    "what": "What to export",
+    "summary": "Library JSON — export and import",
+    "summaryKind": "JSON import / export: {kind}",
+    "lead": "All entries (or chosen kinds) as one document — a backup, a move, work with AI. The import changes existing entries in place and adds new ones; it deletes nothing.",
+    "leadKind": "{kind} as JSON — e.g. several books at once prepared by AI. The import also accepts the people and sources they point to; it changes existing entries in place and deletes nothing.",
+    "fileName": "library",
+    "import": "Import and save",
+    "readOnly": "You can only read in this library.",
+    "saving": "Saving {n} of {total}…",
+    "saveFailed": "{kind} “{title}”: {error}.",
+    "notSaved": "could not be saved",
+    "saved": "Saved {n} of {total}."
+  }
+}

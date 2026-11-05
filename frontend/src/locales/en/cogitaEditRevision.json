@@ -1,0 +1,179 @@
+{
+  "revision": "Review",
+  "listHead": "— reviews ({n}) —",
+  "fromOrigin": " · from: {name}",
+  "intro": "A review picks cards (all, from a kind, a collection, a list or a view), can narrow them down — also by what you already know (e.g. details only once the general is known) — and asks in the chosen way, in the chosen order.",
+  "new": "+ New review",
+  "mode": "Mode",
+  "from": "From what",
+  "fromAll": "all cards",
+  "fromKind": "kind",
+  "fromCollection": "collection",
+  "fromView": "view (way of displaying)",
+  "view": "View",
+  "kind": {
+    "sourceAll": {
+      "label": "All cards",
+      "says": "Every card of this knowledge base (and of the bases it uses)."
+    },
+    "sourceKind": {
+      "label": "Kind",
+      "says": "Cards of the entries of one kind — also from a library this base uses (e.g. quotes); “From where” narrows it to one library or base."
+    },
+    "sourceCollection": {
+      "label": "Collection",
+      "says": "Cards of the entries of a saved collection — a filter or a list."
+    },
+    "sourceList": {
+      "label": "List",
+      "says": "Cards of chosen entries or questions."
+    },
+    "sourceView": {
+      "label": "View",
+      "says": "Cards of the entries shown by a saved way of displaying (a view) — it decides what comes into play, the review picks from it. Its knowledge filters at the end are checked during the review, at each card."
+    },
+    "filter": {
+      "label": "Filter",
+      "says": "Keeps the cards of chosen templates, directions, answer forms, states (not yet / learning / known) or only those that are due."
+    },
+    "sample": {
+      "label": "Sample from each topic",
+      "says": "Keeps a few random cards from each topic (\"perTopic\", 2 by default) — a spot check; a different sample every day."
+    },
+    "union": {
+      "label": "Together",
+      "says": "Joins several sources into one stack, without repeats."
+    },
+    "strategy": {
+      "label": "Way of asking",
+      "says": "How to ask: a given number at random, the whole stack once, in levels or by what I already know — in what order (general first, as in the text, by date, at random, as they come, overdue first) and how to pick from the stack (strictly the next one or at random, weaker ones more often)."
+    },
+    "sourceFrom": {
+      "says": "{step} Gives the cards of these entries."
+    },
+    "through": {
+      "says": "{step} Gives the cards of those entries."
+    },
+    "learning": {
+      "says": "{step} Gives the cards of those entries; “Also keep the starting ones” adds them to the cards it started from (e.g. a review about orbitals starts with the atom)."
+    },
+    "filterRule": {
+      "label": "Entry filter",
+      "says": "{step} The cards of these entries stay."
+    },
+    "filterWhen": {
+      "says": "{step} In a review it is checked as it goes, at each card: what waited before comes in once the condition starts to hold; a card already in the stack stays."
+    }
+  },
+  "whichLibrary": "From which library",
+  "allSources": "from all sources",
+  "noTemplate": "No cards are made from this kind yet — add a template for it in “Cards” (e.g. “Gaps in a quote”).",
+  "summary": "Short description",
+  "run": "Review",
+  "migrated": "This review had a “Basics first” step — now those are ordinary steps: “Follow the learning order”, “Knowledge filter” and the order “general first”. It works the same; save it to keep it in the new form.",
+  "counting": "Counting cards…",
+  "previewFailed": "The preview failed.",
+  "cards": {
+    "one": "{count} card",
+    "other": "{count} cards"
+  },
+  "withCondition": "{n} with a knowledge condition",
+  "storage": "Where the answers are saved (for this review)",
+  "storageHint": "A module on a page (course, group) can point to its own area — then they go there. Without it: the area chosen here, then the one from the base Settings, and without them they stay with the learner. Progress is seen by whoever leads the chosen area; a learner who can't read it keeps the answers to themselves.",
+  "storageArea": "Area for this review's answers",
+  "asInBase": "as in the knowledge base",
+  "save": "Save review",
+  "offlineOff": "Don't keep offline",
+  "offlineOn": "Keep on devices without internet",
+  "askDelete": "Delete the review? The answers stay.",
+  "next": "Next lesson",
+  "noNext": "— none next —",
+  "missingNext": "(no such review: {value})",
+  "page": "Page with this review",
+  "pageHint": "Those who can read this knowledge base review on it (see “Who sees” above) — without an account their progress stays in their browser.",
+  "whosePage": "Whose page",
+  "role": "role",
+  "pageReady": "Page ready: {url} (copied).",
+  "makePage": "Create a page with this review",
+  "daily": "Daily review in tasks",
+  "atTime": "At what time",
+  "taskTitle": "Review: {name}",
+  "taskAdded": "A daily task with a link to the review was added.",
+  "addTask": "Add to my tasks",
+  "group": {
+    "sources": "Sources",
+    "narrow": "Narrowing",
+    "mode": "Mode"
+  },
+  "port": {
+    "cards": "Cards",
+    "plan": "Plan"
+  },
+  "error": {
+    "noCollection": "There is no such collection.",
+    "noView": "There is no such view.",
+    "noStrategy": "The review has no “Way of asking” step.",
+    "oneStrategy": "A review can have only one “Way of asking”.",
+    "noPlan": "The review gave no plan."
+  },
+  "modeLabel": {
+    "random": "At random, a given number",
+    "once": "The whole stack, each once",
+    "levels": "Levels",
+    "temporal": "By what I know"
+  },
+  "orderLabel": {
+    "general": "general first, then details",
+    "text": "as in the source text",
+    "date": "by date",
+    "random": "at random",
+    "given": "as they come",
+    "due": "overdue first"
+  },
+  "pickLabel": {
+    "next": "strictly the next one",
+    "weighted": "at random, less known and longer waiting ones more often",
+    "sample": "sample: a few random cards from each topic"
+  },
+  "span": {
+    "min": "{n} min",
+    "h": "{n} h",
+    "days": "{n} days"
+  },
+  "orderWhy": {
+    "general": "general first, then details",
+    "text": "in the order of the source text",
+    "date": "by date",
+    "random": "in random order",
+    "given": "in the order the review chose",
+    "due": "the due ones first"
+  },
+  "why": {
+    "levelBasics": " · level 1 (basics)",
+    "level": " · level {n}",
+    "queue": "Next card{level}",
+    "fresh": "New card{level}",
+    "again": "Once more — it was wrong a moment ago",
+    "missed": "It was wrong last time — once more",
+    "forgotten": "Forgotten — not reviewed for a long time (knowledge {pct})",
+    "ahead": "Ahead — you know it (knowledge {pct}), this one least",
+    "spacer": "A break — something you know before that question comes back",
+    "due": "Time to review (knowledge {pct})"
+  },
+  "whyDetail": {
+    "levelBasics": " (level 1 — basics)",
+    "level": " (level {n})",
+    "pickWeighted": " Picked at random from {n} in the stack — more often what you know less and what has waited longer.",
+    "pickNext": " The next of {n} in the stack.",
+    "late": "; the review was due {span} ago",
+    "queue": "Next card — {order}{level}.",
+    "fresh": "New card (unknown) — {order}{level}. New ones come when nothing is waiting for review.{pick}",
+    "again": "It comes back because it was wrong a moment ago — it stays in the stack until you answer quite well.{pick}",
+    "missed": "Unknown: it was wrong last time. It comes together with new ones when nothing is waiting for review.{pick}",
+    "forgotten": "Unknown: knowledge dropped to {pct}{late}. It comes together with new ones when nothing is waiting for review.{pick}",
+    "ahead": "Known ({pct}) — nothing is waiting for review and there is nothing new, so the stack takes what you know least.{pick}",
+    "spacer": "A break: only the question with a wrong answer is left — before it comes back, one you know. A good answer changes nothing, a wrong one — like any other.",
+    "due": "To review: knowledge {pct}{late}. What you know least comes first.{pick}"
+  },
+  "kindPick": "Kind"
+}

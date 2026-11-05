@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { Ring } from '../core/keys';
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 import { keysFor } from '../core/ringOf';
 import { WorkspaceError, type Who } from '../core/session';
 import { useCrumbs } from '../shell/crumbTrail';
@@ -29,7 +29,8 @@ interface Loaded {
 }
 
 export function TransferPage({ who }: { who: Who }) {
-  useCrumbs([{ label: 'Przeniesienie danych', href: null }]);
+  const t = useT();
+  useCrumbs([{ label: t('account.page.transfer'), href: null }]);
 
   const [loaded, setLoaded] = useState<Loaded | null | 'failed'>(null);
   const [busy, setBusy] = useState(false);
@@ -48,7 +49,7 @@ export function TransferPage({ who }: { who: Who }) {
 
   if (loaded === null) return <div className="wk-narrow ui-page"><Loading lines={4} /></div>;
   if (loaded === 'failed') {
-    return <div className="wk-narrow ui-page"><p className="wk-error">Nie udało się wczytać stanu przeniesienia.</p></div>;
+    return <div className="wk-narrow ui-page"><p className="wk-error">{t('account.transfer.loadFailed')}</p></div>;
   }
 
   const { status, ring } = loaded;
@@ -60,10 +61,11 @@ export function TransferPage({ who }: { who: Who }) {
     setSaid(null);
     try {
       const done = await rewrapForms(ring, status.rsaForms);
-      setSaid(`Przepakowano ${done.rewrapped} ${plural(done.rewrapped, 'odpowiedź', 'odpowiedzi', 'odpowiedzi')} z koperty RSA`
-        + (done.failed > 0 ? `; ${done.failed} ${plural(done.failed, 'formularz się nie otworzył', 'formularze się nie otworzyły', 'formularzy się nie otworzyło')}.` : '.'));
+      setSaid(done.failed > 0
+        ? t('account.transfer.rewrappedFailed', { count: done.rewrapped, failed: t('account.transfer.formsFailed', { count: done.failed }) })
+        : t('account.transfer.rewrapped', { count: done.rewrapped }));
     } catch (e) {
-      setSaid(e instanceof WorkspaceError ? e.message : 'Nie udało się przepakować.');
+      setSaid(e instanceof WorkspaceError ? e.message : t('account.transfer.rewrapFailed'));
     } finally {
       setBusy(false);
       invalidate();
@@ -74,38 +76,35 @@ export function TransferPage({ who }: { who: Who }) {
   return (
     <div className="wk-narrow ui-page wk-transfer">
       <PageHeader
-        title="Przeniesienie danych"
-        meta={status.rsa === 0 ? 'Wszystko jest już w obecnej postaci.' : `Odpowiedzi w kopertach RSA w całej bazie: ${status.rsa}`}
+        title={t('account.page.transfer')}
+        meta={status.rsa === 0 ? t('account.transfer.allCurrent') : t('account.transfer.rsaTotal', { count: status.rsa })}
       />
 
-      <p className="wk-lede">
-        Platforma przeszła na obecną postać danych. Zostały odpowiedzi, które leżą jeszcze w kopertach RSA pod kluczem
-        innego obszaru — przepakowuje je ta przeglądarka, pod klucz kancelarii. Nic nie zmienia tego, kto co widzi.
-      </p>
+      <p className="wk-lede">{t('account.transfer.lead')}</p>
 
       {ring === null && status.rsaForms.length > 0 && (
-        <Unlock who={who} why="Odpowiedzi przepakowuje ta przeglądarka — potrzebne jest hasło." onDone={() => void look()} />
+        <Unlock who={who} why={t('account.transfer.unlockWhy')} onDone={() => void look()} />
       )}
 
       {said !== null && <p className="wk-done" role="status">{said}</p>}
 
-      <section className="wk-box" aria-label="Do przeniesienia">
+      <section className="wk-box" aria-label={t('account.transfer.toMove')}>
         <div className="wk-line is-wrap wk-line-first">
           <span className={`wk-line-ic ${status.rsaForms.length === 0 ? 'is-ok' : 'is-warn'}`}>
             <Icon name={status.rsaForms.length === 0 ? 'check' : 'lock'} />
           </span>
           <span className="wk-line-text">
-            <span className="wk-line-title">Odpowiedzi w kopertach RSA</span>
+            <span className="wk-line-title">{t('account.transfer.rsaTitle')}</span>
             <span className="wk-line-sub">
               {status.rsaForms.length === 0
-                ? (status.rsa === 0 ? 'Wszystkie odpowiedzi leżą pod kluczem kancelarii.' : 'Pozostałe należą do formularzy, których nie prowadzisz.')
-                : `${mine} ${plural(mine, 'odpowiedź', 'odpowiedzi', 'odpowiedzi')} w ${status.rsaForms.length} ${plural(status.rsaForms.length, 'formularzu', 'formularzach', 'formularzach')} — zostaną przepakowane pod klucz kancelarii.`}
+                ? (status.rsa === 0 ? t('account.transfer.allOffice') : t('account.transfer.othersForms'))
+                : t('account.transfer.mine', { answers: t('account.transfer.answers', { count: mine }), forms: t('account.transfer.inForms', { count: status.rsaForms.length }) })}
             </span>
           </span>
           {ring !== null && status.rsaForms.length > 0 && (
             <span className="wk-line-end">
               <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy} onClick={() => void rewrap()}>
-                {busy ? 'Przepakowywanie…' : 'Przepakuj'}
+                {busy ? t('account.transfer.rewrapping') : t('account.transfer.rewrap')}
               </button>
             </span>
           )}
@@ -113,23 +112,24 @@ export function TransferPage({ who }: { who: Who }) {
       </section>
 
       <section aria-labelledby="transfer-server">
-        <h2 className="wk-h2" id="transfer-server">Po stronie serwera</h2>
+        <h2 className="wk-h2" id="transfer-server">{t('account.transfer.server')}</h2>
         <ul className="wk-list">
-          <Count n={status.migrations.length} label={`skrypty bazy bez wpisu${status.migrations.length > 0 ? ` (${status.migrations[0]} … ${status.migrations[status.migrations.length - 1]})` : ''}`} />
-          <Count n={status.legacySchemas.length} label={`puste schematy starego systemu${status.legacySchemas.length > 0 ? `: ${status.legacySchemas.join(', ')}` : ''}`} />
-          <Count n={status.unheld} label="role, których nikt już nie trzyma" />
+          <Count n={status.migrations.length} label={status.migrations.length > 0 ? t('account.transfer.migrationsRange', { from: status.migrations[0], to: status.migrations[status.migrations.length - 1] }) : t('account.transfer.migrations')} />
+          <Count n={status.legacySchemas.length} label={status.legacySchemas.length > 0 ? t('account.transfer.legacyList', { list: status.legacySchemas.join(', ') }) : t('account.transfer.legacy')} />
+          <Count n={status.unheld} label={t('account.transfer.unheld')} />
         </ul>
-        <p>To porządkuje administrator serwera — opis w documentation/TRANSFER.md.</p>
+        <p>{t('account.transfer.adminNote')}</p>
       </section>
     </div>
   );
 }
 
 function Count({ n, label }: { n: number; label: string }) {
+  const t = useT();
   return (
     <li className="wk-row">
       <span><strong>{n}</strong> {label}</span>
-      {n === 0 && <span className="wk-tag">gotowe</span>}
+      {n === 0 && <span className="wk-tag">{t('account.transfer.ready')}</span>}
     </li>
   );
 }

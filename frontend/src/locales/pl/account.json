@@ -1,0 +1,254 @@
+{
+  "look": {
+    "crumb": "Powiadomienia"
+  },
+  "keeping": {
+    "loadFailed": "Nie udało się wczytać ustawień.",
+    "removing": "Usuwanie zachowanych kluczy…",
+    "enabling": "Włączanie…",
+    "memoryOnly": "Od teraz klucz żyje tylko w pamięci.",
+    "removed": "Usunięto zachowane klucze ({count}). Po restarcie zapytamy o hasło.",
+    "keptHere": "Klucz jest zachowany na tym urządzeniu.",
+    "keptNext": "Włączone. Klucz zostanie zachowany przy następnym logowaniu.",
+    "changeFailed": "Nie udało się zmienić ustawienia.",
+    "removingOne": "Usuwanie…",
+    "forgotten": "Urządzenie zapyta o hasło przy następnym otwarciu.",
+    "removeFailed": "Nie udało się usunąć."
+  },
+  "page": {
+    "myData": "Moje dane",
+    "noPerson": "Dane należą do <b>osoby</b>, a konto osobą nie jest. Załóż osobę w „Role\", wtedy będzie komu je przypisać.",
+    "loginKeys": "Logowanie i klucze",
+    "accountOf": "Konto {login}",
+    "keyKept": "Klucz zachowany",
+    "keyMemory": "Klucz tylko w pamięci",
+    "keepingDevices": "{mode} · {devices}",
+    "devices": {
+      "one": "{count} urządzenie",
+      "few": "{count} urządzenia",
+      "many": "{count} urządzeń",
+      "other": "{count} urządzenia"
+    },
+    "transfer": "Przeniesienie danych",
+    "transferSub": "Dane sprzed zmian platformy — do obecnej postaci"
+  },
+  "security": {
+    "title": "Bezpieczeństwo i klucze",
+    "how": "Jak to działa",
+    "point": {
+      "password": "<b>Hasło zostaje na urządzeniu.</b> Przeglądarka liczy z niego klucz; do usługi idzie tylko dowód, że go znasz.",
+      "browser": "<b>Dane są szyfrowane w przeglądarce.</b> Imiona, nazwy, wiadomości i odpowiedzi trafiają do usługi już zaszyfrowane.",
+      "access": "<b>Dostęp to klucz.</b> Kto ma klucz obszaru, czyta jego dane; nadanie dostępu przekazuje klucz, wycofanie zmienia go na nowy.",
+      "link": "<b>Link też jest kluczem.</b> Osoba z linkiem widzi tylko to, do czego link prowadzi — i tylko dopóki go nie wycofasz.",
+      "lost": "<b>Hasła nie da się odzyskać.</b> Bez niego nikt, także administrator, nie otworzy Twoich kluczy."
+    },
+    "keyHere": "Klucz na tym urządzeniu",
+    "howLong": "Jak długo żyje klucz",
+    "keptTitle": "Zachowany — nie pyta po restarcie",
+    "keptText": "Usługa przechowuje go zapieczętowanego kluczem tego urządzenia, którego sama nie zna. Kto ma to urządzenie <em>i</em> Twoją sesję, ma wszystko.",
+    "tabTitle": "Tylko w pamięci — pyta po każdym restarcie",
+    "tabText": "Klucz żyje tylko w otwartych kartach. Wybranie tego <b>usuwa</b> zachowane klucze na wszystkich urządzeniach.",
+    "devices": "Urządzenia z zachowanym kluczem",
+    "noDevices": "Klucz nie jest nigdzie zachowany.",
+    "thisDevice": "To urządzenie",
+    "otherDevice": "Inne urządzenie, dodane {date}",
+    "unused": "jeszcze nieużywane",
+    "lastUsed": "ostatnio {date}",
+    "forget": "Zapomnij",
+    "forgetHint": "Zapomniane urządzenie nie jest wylogowane — przy następnym otwarciu zapyta o hasło."
+  },
+  "delete": {
+    "checkFailed": "Nie udało się sprawdzić konta.",
+    "failed": "Nie udało się usunąć konta.",
+    "goneTitle": "Konto usunięte",
+    "goneText": "Konto <b>{login}</b> zostało usunięte. Na tym urządzeniu nie ma już jego kluczy.",
+    "finish": "Zakończ",
+    "title": "Usunięcie konta",
+    "lead": "Na zawsze i na wszystkich urządzeniach. Najpierw zobaczysz, co zniknie.",
+    "open": "Usuń konto…",
+    "ask": "Usunąć konto?",
+    "checking": "Sprawdzanie, co zostanie usunięte…",
+    "willGo": "Zostanie usunięte:",
+    "accountItem": "konto <b>{login}</b>, logowanie i sesje na wszystkich urządzeniach;",
+    "accountItemKeys": "konto <b>{login}</b>, logowanie i sesje na wszystkich urządzeniach (zachowane klucze: {count});",
+    "person": "Twoja osoba i jej dane — klucze, nazwy, dane osobowe;",
+    "persons": "Twoje osoby ({count}) i ich dane — klucze, nazwy, dane osobowe;",
+    "personal": "Twój osobisty kalendarz i zadania;",
+    "messages": "treść Twoich wiadomości ({count}) — w rozmowach zostanie „wiadomość usunięta”;",
+    "bookings": "Twoje przyszłe rezerwacje terminów.",
+    "stays": "<b>Zostaje</b>, bo należy do wspólnot: zgłoszenia wysłane w formularzach, minione terminy.",
+    "staysPages": "<b>Zostaje</b>, bo należy do wspólnot: zgłoszenia wysłane w formularzach, minione terminy, strony: {pages}.",
+    "onlyYou": "Uwaga — tylko Ty masz do tego klucze.",
+    "groups": "Te grupy zostaną <b>usunięte</b> razem z kontem — z kalendarzami, zadaniami i rozmowami:",
+    "orphans": "To zostanie, ale nikt już tego nie otworzy ani nie poprowadzi:",
+    "orphanArea": "obszar „{name}”",
+    "orphanRole": "rola „{name}”",
+    "noName": "bez nazwy",
+    "giveAccess": "Jeśli mają działać dalej, najpierw nadaj komuś dostęp.",
+    "controllers": "Ci administratorzy danych przestaną obowiązywać — formularze, rezerwacje i rozmowy tych obszarów niczego nie przyjmą, dopóki ktoś nie wskaże nowego:",
+    "typeLogin": "Wpisz nazwę konta: <b>{login}</b>",
+    "password": "Hasło",
+    "go": "Usuń konto na zawsze"
+  },
+  "seats": {
+    "title": "Moje miejsca",
+    "revoked": "link wycofany",
+    "hint": "Tu docierasz także bez linku."
+  },
+  "field": {
+    "given_name": "Imię",
+    "surname": "Nazwisko",
+    "phone": "Telefon",
+    "born": "Data urodzenia",
+    "address": "Adres",
+    "email": "E-mail",
+    "nickname": "Przezwisko"
+  },
+  "card": {
+    "loadFailed": "Nie udało się wczytać danych.",
+    "lead": "Każde pole udostępniasz osobno — kto dostaje telefon, nie widzi przy okazji daty urodzenia.",
+    "savedNotRefreshed": "Zapisano. Nie udało się odświeżyć w: {areas}",
+    "savedRefreshed": "Zapisano i odświeżono w: {areas}",
+    "noEpochKey": "Nie masz klucza tej epoki — nie da się udostępnić.",
+    "empty": "puste",
+    "shared": "udostępnione: {count}",
+    "value": "Wartość",
+    "changeNote": "Zmiana nie aktualizuje tego, co już udostępniłeś. Udostępnij ponownie temu, kto ma znać nową wartość.",
+    "whoGot": "Kto to dostał",
+    "nobody": "Nikt.",
+    "withdrawing": "Wycofywanie…",
+    "withdraw": "Wycofaj",
+    "shareTo": "Udostępnij obszarowi",
+    "sharing": "Udostępnianie…",
+    "share": "Udostępnij",
+    "shareNote": "Wartość zostanie zapieczętowana kluczem tego obszaru — osobną kopertą, tylko dla niego. Obcemu obszarowi dane przekazuje się przez jego formularz, nie tutaj.",
+    "enter": "Wpisz"
+  },
+  "personsJson": {
+    "noKey": "Ta karta nie ma klucza konta — zaloguj się ponownie, żeby otworzyć swoje dane.",
+    "summary": "Moje dane jako JSON",
+    "lead": "Imię, nazwisko, telefon, data urodzenia, adres, e-mail i przezwisko każdej osoby tego konta — do kopii albo do uzupełnienia przez AI. Import zmienia tylko pola osób z tego eksportu (po ich „id”), niczego nie usuwa i nikomu nowemu nie udostępnia.",
+    "fileName": "moje-dane.json",
+    "openFailed": "Nie udało się otworzyć danych osób tego konta.",
+    "notReady": "Dane osób jeszcze się otwierają — za chwilę zobaczysz plan.",
+    "importLabel": "Zapisz dane"
+  },
+  "transfer": {
+    "loadFailed": "Nie udało się wczytać stanu przeniesienia.",
+    "rewrapped": {
+      "one": "Przepakowano {count} odpowiedź z koperty RSA.",
+      "few": "Przepakowano {count} odpowiedzi z koperty RSA.",
+      "many": "Przepakowano {count} odpowiedzi z koperty RSA.",
+      "other": "Przepakowano {count} odpowiedzi z koperty RSA."
+    },
+    "rewrappedFailed": {
+      "one": "Przepakowano {count} odpowiedź z koperty RSA; {failed}.",
+      "few": "Przepakowano {count} odpowiedzi z koperty RSA; {failed}.",
+      "many": "Przepakowano {count} odpowiedzi z koperty RSA; {failed}.",
+      "other": "Przepakowano {count} odpowiedzi z koperty RSA; {failed}."
+    },
+    "formsFailed": {
+      "one": "{count} formularz się nie otworzył",
+      "few": "{count} formularze się nie otworzyły",
+      "many": "{count} formularzy się nie otworzyło",
+      "other": "{count} formularzy się nie otworzyło"
+    },
+    "rewrapFailed": "Nie udało się przepakować.",
+    "allCurrent": "Wszystko jest już w obecnej postaci.",
+    "rsaTotal": "Odpowiedzi w kopertach RSA w całej bazie: {count}",
+    "lead": "Platforma przeszła na obecną postać danych. Zostały odpowiedzi, które leżą jeszcze w kopertach RSA pod kluczem innego obszaru — przepakowuje je ta przeglądarka, pod klucz kancelarii. Nic nie zmienia tego, kto co widzi.",
+    "unlockWhy": "Odpowiedzi przepakowuje ta przeglądarka — potrzebne jest hasło.",
+    "toMove": "Do przeniesienia",
+    "rsaTitle": "Odpowiedzi w kopertach RSA",
+    "allOffice": "Wszystkie odpowiedzi leżą pod kluczem kancelarii.",
+    "othersForms": "Pozostałe należą do formularzy, których nie prowadzisz.",
+    "mine": "{answers} w {forms} — zostaną przepakowane pod klucz kancelarii.",
+    "answers": {
+      "one": "{count} odpowiedź",
+      "few": "{count} odpowiedzi",
+      "many": "{count} odpowiedzi",
+      "other": "{count} odpowiedzi"
+    },
+    "inForms": {
+      "one": "{count} formularzu",
+      "few": "{count} formularzach",
+      "many": "{count} formularzach",
+      "other": "{count} formularzach"
+    },
+    "rewrapping": "Przepakowywanie…",
+    "rewrap": "Przepakuj",
+    "server": "Po stronie serwera",
+    "migrations": "skrypty bazy bez wpisu",
+    "migrationsRange": "skrypty bazy bez wpisu ({from} … {to})",
+    "legacy": "puste schematy starego systemu",
+    "legacyList": "puste schematy starego systemu: {list}",
+    "unheld": "role, których nikt już nie trzyma",
+    "adminNote": "To porządkuje administrator serwera — opis w documentation/TRANSFER.md.",
+    "ready": "gotowe"
+  },
+  "json": {
+    "key": {
+      "version": "{version} — wersja formatu",
+      "persons": "osoby tego konta (niżej) — zwykle jedna: Ty",
+      "id": "identyfikator osoby z eksportu (wymagany) — po nim import wie, czyje dane zmienia; tylko osoby tego konta",
+      "name": "tylko informacja z eksportu: nazwa osoby (rola) — import jej nie zmienia",
+      "shared": "tylko informacja z eksportu: komu udostępniono które pole, np. {\"phone\": [\"Parafia św. Józefa\"]} — udostępnia się i wycofuje w „Moje dane”",
+      "sharedField": "komu udostępniono pole „{label}” — nazwy obszarów"
+    },
+    "field": {
+      "given_name": "{label} (do {max} znaków)",
+      "surname": "{label} (do {max} znaków)",
+      "phone": "{label}: cyfry, spacje, \"+\", \"-\", \"(\", \")\" — co najmniej 6 cyfr (do {max} znaków)",
+      "born": "{label}: \"RRRR-MM-DD\" (także \"DD.MM.RRRR\" — zapisze się jako \"RRRR-MM-DD\"); formularze wpisują ją w pole daty",
+      "address": "{label} w jednej linii, np. \"ul. Długa 5/3, 31-147 Kraków\" (do {max} znaków)",
+      "email": "{label}: jeden adres \"nazwa@domena.pl\" (do {max} znaków)",
+      "nickname": "{label} — jak wołają na Ciebie (do {max} znaków)"
+    },
+    "usageTitle": "Jak aplikacja używa tych danych",
+    "usage": "- Dane leżą przy roli osoby, każde pole osobno, zapieczętowane jej kluczem: otwiera je tylko ten, kto ma klucz tej osoby (zwykle tylko Ty). Usługa wie tylko, które pola są wypełnione.\n- Imię i nazwisko (a gdy ich brak — przezwisko) to nazwa osoby w aplikacji: tak nazywają ją Twoje role i listy, i tak podpisane są wiadomości, które wysyłasz w rozmowach.\n- Obszar dostaje pole tylko wtedy, gdy mu je udostępnisz („Moje dane”): kopia jest zapieczętowana kluczem obszaru i czyta ją każdy, kto ma do niego dostęp — np. lista osób obszaru bierze z niej imię i nazwisko.\n- Formularz wypełniany za tę osobę sam wpisuje odpowiedzi na pytania o imię, nazwisko, telefon, datę urodzenia, adres, e-mail i przezwisko. Zgłoszeń już wysłanych import nie zmienia.\n- Udostępnienie cofa się w „Moje dane” („Kto to dostał”): obszar traci kopię, ale tego, co ktoś już przeczytał, nie da się cofnąć.",
+    "title": "Moje dane jako JSON (\"{format}\", wersja {version})",
+    "text": "Dane osób, które prowadzi to konto: imię, nazwisko, telefon, data urodzenia, adres, e-mail, przezwisko (Konto, #/workspace/account → pod „Moje dane” → „Moje dane jako JSON”). Każde pole jest zapieczętowane w przeglądarce osobno — kluczem osoby — i udostępniane osobno.\nCo robi import:\n- Najpierw pokazuje plan zmian; zapisuje dopiero po „Importuj”.\n- Zmienia tylko pola osób tego konta, wskazanych przez \"id\" z eksportu. Osoby bez \"id\" albo z cudzym \"id\" pomija (ostrzeżenie) — nie zakłada osób ani kont i nigdy nie zmienia danych kogoś innego.\n- Pole z nową wartością zapisuje; ta sama wartość — bez zmian. Zmiana odświeża też kopie w obszarach, którym to pole już udostępniono (plan je wymienia); nowym obszarom niczego nie udostępnia.\n- Pusty tekst (\"\") i null nie usuwają: pole zostaje, jakie było (usuwa się je w „Moje dane”, razem z udostępnieniami).\n- Wartość w złym kształcie (np. data, e-mail, telefon) — ostrzeżenie, pole pominięte.\nZwróć JEDEN obiekt JSON, bez komentarzy.\n\nDokument:\n{top}\n\nOsoba (wpis w \"persons\"):\n{person}\n\nPrzykład:\n{sample}",
+    "sampleLabel": "Moje dane (jedna osoba)",
+    "problem": {
+      "date": "to nie data \"RRRR-MM-DD\" (od 1900 do dziś)",
+      "long": "dłuższe niż {max} znaków",
+      "phone": "to nie numer telefonu (cyfry, spacje, + - ( ), co najmniej 6 cyfr)",
+      "email": "to nie adres e-mail",
+      "control": "zawiera znaki sterujące"
+    },
+    "plan": {
+      "notDoc": "To nie jest dokument z danymi osób (oczekiwano obiektu JSON).",
+      "otherFormat": "Inny format: \"{format}\" — oczekiwano \"{expected}\".",
+      "noPersons": "Brakuje listy \"persons\".",
+      "version": "Wersja {version} — znam wersję {known}; czytam to, co rozpoznaję.",
+      "unknownKey": "Nieznany klucz \"{key}\" — pominięty.",
+      "person": "Osoba {n}",
+      "notObject": "{who}: to nie obiekt — pominięta.",
+      "noId": "{who}: bez \"id\" — import nie zakłada osób (osobę zakłada się w „Role”). Pominięta.",
+      "notMine": "{who}: to nie jest osoba tego konta — pominięta (cudzych danych import nie zmienia).",
+      "twice": "{who}: ta sama osoba drugi raz — pominięta.",
+      "personUnknownKey": "{who}: nieznany klucz \"{key}\" — pominięty.",
+      "emptyKeeps": "{who}: „{label}” puste — pustą wartością pola się nie usuwa (zostaje „{was}”; usuwa się je w „Moje dane”).",
+      "notText": "{who}: „{label}” to nie tekst — pominięte.",
+      "problem": "{who}: „{label}” — {problem}; pominięte.",
+      "changeNew": "{label} (nowe) „{value}”",
+      "change": "{label} „{was}” → „{value}”",
+      "refreshes": "Zmiana odświeży też kopie udostępnione: {list}",
+      "same": {
+        "one": "Bez zmian: {count} pole",
+        "few": "Bez zmian: {count} pola",
+        "many": "Bez zmian: {count} pól",
+        "other": "Bez zmian: {count} pola"
+      },
+      "nothing": "Nic do zmiany."
+    },
+    "apply": {
+      "saving": "Zapisywanie {n} z {total}…",
+      "failed": "{who}: „{label}” — {why}",
+      "saveFailed": "nie udało się zapisać",
+      "saved": "Zapisane pola: {count}",
+      "refreshed": "Odświeżone kopie w: {list}",
+      "notRefreshed": "Nie udało się odświeżyć kopii w: {list} — udostępnij tam pole ponownie w „Moje dane”."
+    }
+  }
+}

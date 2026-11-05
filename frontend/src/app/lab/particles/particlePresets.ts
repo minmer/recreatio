@@ -5,6 +5,7 @@
  * Wasser auf einer Heizplatte (Wärme und Sieden kommen in M1b/M1c).
  */
 
+import { t } from '../../core/i18n';
 import type { LabPreset } from '../LabEditor';
 
 /** Eine leere Kiste voll Luft (Piaskownica). */
@@ -28,19 +29,18 @@ export const BOILING_SCENE: Readonly<Record<string, unknown>> = {
   ]
 };
 
+/** Ein Aufbau mit seinen Texten (labParticles.json: Titel, Kurzbeschreibung, Absätze) — übersetzt erst beim Lesen. */
+function preset(id: string, key: string, scene: Readonly<Record<string, unknown>>): LabPreset {
+  return {
+    key,
+    scene,
+    get title() { return t(`labParticles.preset.${id}.title`); },
+    get summary() { return t(`labParticles.preset.${id}.summary`); },
+    get text() { return t(`labParticles.preset.${id}.text`).split('\n'); }
+  };
+}
+
 export const PARTICLE_PRESETS: readonly LabPreset[] = [
-  {
-    key: 'zlewka-na-plycie',
-    title: 'Zlewka z wodą na płycie grzejnej',
-    summary: 'scena wrzenia: zlewka z wodą (20 °C) na stalowej płycie grzejnej w skrzynce pełnej powietrza',
-    text: ['W zlewce jest woda o temperaturze pokojowej, pod nią płyta grzejna.', 'Zbadaj cząstki narzędziem „Badaj” — każda ma swój skład, temperaturę i masę.'],
-    scene: BOILING_SCENE
-  },
-  {
-    key: 'pusta-skrzynka',
-    title: 'Pusta skrzynka',
-    summary: 'skrzynka pełna powietrza — maluj wodę, stawiaj ściany i aparaturę',
-    text: ['Skrzynka jest pełna powietrza. Maluj wodę, rysuj ściany, stawiaj zlewki i płyty grzejne.'],
-    scene: SANDBOX_PARTICLES
-  }
+  preset('beakerOnPlate', 'zlewka-na-plycie', BOILING_SCENE),
+  preset('emptyBox', 'pusta-skrzynka', SANDBOX_PARTICLES)
 ];

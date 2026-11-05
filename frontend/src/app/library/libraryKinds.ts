@@ -28,6 +28,7 @@
 import { blockMarkups, blockRefs, blocksOf, blocksTitle, statementBlocks } from './blocks';
 import { mapRefTokens } from './libraryMarkup';
 import { TEXT_SCHEMES, workLocatorKey } from './locations';
+import { t, texts } from '../core/i18n';
 
 export type EntryData = Record<string, unknown>;
 
@@ -169,84 +170,84 @@ export function outline(data: EntryData, key = 'outline'): OutlineItem[] {
 }
 
 const clip = (text: string, length: number): string =>
-  text.length <= length ? text : `${text.slice(0, length - 1).trimEnd()}…`;
+  text.length <= length ? text : `${text.slice(0, length - 1).trimEnd()}…`; // i18n-ignore
 
 /** Polnisch nach ASCII, für Schlüssel: „Świętość” → „swietosc”. */
 export function slug(text: string): string {
-  return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
+  return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l') // i18n-ignore
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 /* -- Personen ---------------------------------------------------------------------------- */
 
 export const personName = (data: EntryData): string =>
-  str(data, 'name').trim() || [str(data, 'givenNames'), str(data, 'surname')].map((s) => s.trim()).filter(Boolean).join(' ') || 'Osoba';
+  str(data, 'name').trim() || [str(data, 'givenNames'), str(data, 'surname')].map((s) => s.trim()).filter(Boolean).join(' ') || t('libraryKinds.person.label');
 
 const PERSON: LibKind = {
   kind: 'person',
-  label: 'Osoba',
-  plural: 'Osoby',
-  says: 'Autor, redaktor, tłumacz — albo instytucja, która wydała dokument.',
+  label: 'libraryKinds.person.label',
+  plural: 'libraryKinds.person.plural',
+  says: 'libraryKinds.person.says',
   keyed: true,
   fields: [
     {
-      key: 'personType', label: 'Kto to', type: 'select', says: '"person" — osoba, "organization" — instytucja',
-      options: [{ value: 'person', label: 'Osoba' }, { value: 'organization', label: 'Instytucja' }]
+      key: 'personType', label: 'libraryKinds.person.fields.personType.label', type: 'select', says: 'libraryKinds.person.fields.personType.says',
+      options: [{ value: 'person', label: 'libraryKinds.person.type.person' }, { value: 'organization', label: 'libraryKinds.person.type.organization' }]
     },
-    { key: 'name', label: 'Jak się nazywa', type: 'line', says: 'Pełna nazwa, gdy nie dzieli się na imię i nazwisko (np. "Franciszek", "św. Augustyn", "Kongregacja Nauki Wiary")', hint: 'np. św. Augustyn' },
-    { key: 'givenNames', label: 'Imiona', type: 'line', says: 'Imiona — w przypisach skracane do inicjałów', hint: 'np. Joseph' },
-    { key: 'surname', label: 'Nazwisko', type: 'line', says: 'Nazwisko — według niego układa się bibliografia', hint: 'np. Ratzinger' },
-    { key: 'years', label: 'Lata', type: 'line', says: 'Lata życia albo działalności', hint: 'np. 1927–2022' },
-    { key: 'description', label: 'Opis', type: 'text', says: 'Krótki opis osoby (biogram) — widoczny przy jej źródłach' },
-    { key: 'url', label: 'Adres strony', type: 'url', says: 'Strona o tej osobie (np. biografia)' }
+    { key: 'name', label: 'libraryKinds.person.fields.name.label', type: 'line', says: 'libraryKinds.person.fields.name.says', hint: 'libraryKinds.person.fields.name.hint' },
+    { key: 'givenNames', label: 'libraryKinds.person.fields.givenNames.label', type: 'line', says: 'libraryKinds.person.fields.givenNames.says', hint: 'libraryKinds.person.fields.givenNames.hint' },
+    { key: 'surname', label: 'libraryKinds.person.fields.surname.label', type: 'line', says: 'libraryKinds.person.fields.surname.says', hint: 'libraryKinds.person.fields.surname.hint' },
+    { key: 'years', label: 'libraryKinds.person.fields.years.label', type: 'line', says: 'libraryKinds.person.fields.years.says', hint: 'libraryKinds.person.fields.years.hint' },
+    { key: 'description', label: 'libraryKinds.person.fields.description.label', type: 'text', says: 'libraryKinds.person.fields.description.says' },
+    { key: 'url', label: 'libraryKinds.person.fields.url.label', type: 'url', says: 'libraryKinds.person.fields.url.says' }
   ],
   title: (data) => personName(data),
   sort: (entry) => (str(entry.data, 'surname') || personName(entry.data)).toLowerCase(),
   example: {
     key: 'ratzinger',
-    data: { personType: 'person', givenNames: 'Joseph', surname: 'Ratzinger', years: '1927–2022', description: 'Papież Benedykt XVI.' }
+    data: { personType: 'person', givenNames: 'Joseph', surname: 'Ratzinger', years: '1927–2022', description: 'Papież Benedykt XVI.' } // i18n-ignore
   },
   /* 2026-10-26 — der Komponist und der Chor der Musikbeispiele (beim Werk). */
   more: [
-    { label: 'kompozytor', key: 'mozart', data: { personType: 'person', givenNames: 'Wolfgang Amadeus', surname: 'Mozart', years: '1756–1791' } },
-    { label: 'wykonawca — chór jako instytucja', key: 'schola-katedralna', data: { personType: 'organization', name: 'Schola Katedralna' } }
+    { label: 'libraryKinds.person.more.composer', key: 'mozart', data: { personType: 'person', givenNames: 'Wolfgang Amadeus', surname: 'Mozart', years: '1756–1791' } },
+    { label: 'libraryKinds.person.more.choir', key: 'schola-katedralna', data: { personType: 'organization', name: 'Schola Katedralna' } }
   ]
 };
 
 /* -- Werke (Quellen) --------------------------------------------------------------------- */
 
 /** Die Überschriften der Rodzaje in der Auswahl (2026-10-26). */
-export const TEXT_GROUP = 'Teksty i wystąpienia';
-export const MUSIC_GROUP = 'Muzyka';
+export const TEXT_GROUP = 'libraryKinds.group.texts';
+export const MUSIC_GROUP = 'libraryKinds.group.music';
 
 export const WORK_TYPES = [
-  { value: 'book', label: 'Książka', group: TEXT_GROUP },
-  { value: 'chapter', label: 'Rozdział w książce', group: TEXT_GROUP },
-  { value: 'article', label: 'Artykuł w czasopiśmie', group: TEXT_GROUP },
-  { value: 'periodical', label: 'Czasopismo', group: TEXT_GROUP },
-  { value: 'document', label: 'Dokument (Kościoła, urzędowy)', group: TEXT_GROUP },
-  { value: 'bible', label: 'Pismo Święte', group: TEXT_GROUP },
-  { value: 'web', label: 'Strona internetowa', group: TEXT_GROUP },
-  { value: 'talk', label: 'Wykład, kazanie, nagranie', group: TEXT_GROUP },
-  { value: 'other', label: 'Inne', group: TEXT_GROUP },
+  { value: 'book', label: 'libraryKinds.workTypes.book', group: TEXT_GROUP },
+  { value: 'chapter', label: 'libraryKinds.workTypes.chapter', group: TEXT_GROUP },
+  { value: 'article', label: 'libraryKinds.workTypes.article', group: TEXT_GROUP },
+  { value: 'periodical', label: 'libraryKinds.workTypes.periodical', group: TEXT_GROUP },
+  { value: 'document', label: 'libraryKinds.workTypes.document', group: TEXT_GROUP },
+  { value: 'bible', label: 'libraryKinds.workTypes.bible', group: TEXT_GROUP },
+  { value: 'web', label: 'libraryKinds.workTypes.web', group: TEXT_GROUP },
+  { value: 'talk', label: 'libraryKinds.workTypes.talk', group: TEXT_GROUP },
+  { value: 'other', label: 'libraryKinds.workTypes.other', group: TEXT_GROUP },
   /*
     2026-10-26 — MUSIK, ein eigener Teil der Bibliothek („Muzyka"): der Utwór als solcher, Nuty (eine Ausgabe,
     mit ihren Dateien), ein Nagranie (eine Aufführung: eine Datei oder mehrere — die Stimmen, die Instrumente,
     die zusammen spielen) und die Płyta, auf der Nagrania stehen. Was der Rodzaj ist, entscheidet, welche Felder es gibt.
   */
-  { value: 'piece', label: 'Utwór muzyczny', group: MUSIC_GROUP },
-  { value: 'score', label: 'Nuty', group: MUSIC_GROUP },
-  { value: 'recording', label: 'Nagranie', group: MUSIC_GROUP },
-  { value: 'album', label: 'Płyta, album', group: MUSIC_GROUP }
+  { value: 'piece', label: 'libraryKinds.workTypes.piece', group: MUSIC_GROUP },
+  { value: 'score', label: 'libraryKinds.workTypes.score', group: MUSIC_GROUP },
+  { value: 'recording', label: 'libraryKinds.workTypes.recording', group: MUSIC_GROUP },
+  { value: 'album', label: 'libraryKinds.workTypes.album', group: MUSIC_GROUP }
 ] as const;
 
 /** Was ein Rodzaj im JSON heisst und bedeutet. */
-const MUSIC_SAYS: Readonly<Record<string, string>> = {
-  piece: 'sam utwór: kompozytor, słowa, tonacja, obsada',
-  score: 'wydanie nut, z plikami: partytura, głosy, zapis nutowy',
-  recording: 'wykonanie: jeden plik albo kilka ścieżek (głosy i instrumenty, odtwarzane razem)',
-  album: 'zbiór nagrań'
-};
+const MUSIC_SAYS: Readonly<Record<string, string>> = texts({
+  piece: 'libraryKinds.musicSays.piece',
+  score: 'libraryKinds.musicSays.score',
+  recording: 'libraryKinds.musicSays.recording',
+  album: 'libraryKinds.musicSays.album'
+});
 
 export const MUSIC_TYPES: ReadonlySet<string> = new Set(['piece', 'score', 'recording', 'album']);
 
@@ -259,8 +260,8 @@ const notMusic = (data: EntryData): boolean => !isMusic(data);
 const ofType = (type: string) => (entry: LibEntry): boolean => entry.kind === 'work' && str(entry.data, 'workType') === type;
 
 const PSALMS = [
-  { value: 'hebrew', label: 'Hebrajska (BT)' },
-  { value: 'greek', label: 'Grecka (Wulgata)' }
+  { value: 'hebrew', label: 'libraryKinds.psalms.hebrew' },
+  { value: 'greek', label: 'libraryKinds.psalms.greek' }
 ] as const;
 
 const isPart = (data: EntryData) =>['chapter', 'article'].includes(str(data, 'workType'));
@@ -270,135 +271,140 @@ const isVolume = typeIsNot('chapter', 'article', 'web', 'talk', 'piece', 'record
 
 /** Eine Datei der Nuty: was sie ist (die Partitur, eine Stimme) und die Datei. */
 const SCORE_FILE_ITEM: readonly LibField[] = [
-  { key: 'id', label: 'Identyfikator', type: 'line', says: 'Stały identyfikator pliku na liście; pominięty — nada się sam' },
-  { key: 'label', label: 'Co to jest', type: 'line', says: 'Co zawiera plik', hint: 'np. Partytura · Sopran · Organy · MusicXML' },
-  { key: 'file', label: 'Plik', type: 'media', says: 'Plik wgrany w aplikacji (PDF, obraz, MusicXML, MIDI)' }
+  { key: 'id', label: 'libraryKinds.scoreFileItem.id.label', type: 'line', says: 'libraryKinds.scoreFileItem.id.says' },
+  { key: 'label', label: 'libraryKinds.scoreFileItem.label.label', type: 'line', says: 'libraryKinds.scoreFileItem.label.says', hint: 'libraryKinds.scoreFileItem.label.hint' },
+  { key: 'file', label: 'libraryKinds.scoreFileItem.file.label', type: 'media', says: 'libraryKinds.scoreFileItem.file.says' }
 ];
 
 /** Eine Spur eines Nagrania: die Stimme oder das Instrument (oder das Ganze) und die Datei. */
 export const TRACK_ROLES = [
-  { value: 'part', label: 'Głos albo instrument' },
-  { value: 'whole', label: 'Całe nagranie' }
+  { value: 'part', label: 'libraryKinds.trackRoles.part' },
+  { value: 'whole', label: 'libraryKinds.trackRoles.whole' }
 ] as const;
 
 const TRACK_ITEM: readonly LibField[] = [
-  { key: 'id', label: 'Identyfikator', type: 'line', says: 'Stały identyfikator ścieżki; pominięty — nada się sam' },
-  { key: 'label', label: 'Głos / instrument', type: 'line', says: 'Czyj to głos albo jaki instrument — albo „Całość”', hint: 'np. Sopran · Alt · Tenor · Bas · Organy · Całość' },
+  { key: 'id', label: 'libraryKinds.trackItem.id.label', type: 'line', says: 'libraryKinds.trackItem.id.says' },
+  { key: 'label', label: 'libraryKinds.trackItem.label.label', type: 'line', says: 'libraryKinds.trackItem.label.says', hint: 'libraryKinds.trackItem.label.hint' },
   {
-    key: 'role', label: 'Rola', type: 'select', options: TRACK_ROLES,
-    says: '"part" — głos albo instrument: odtwarzane razem z innymi ścieżkami tego nagrania; "whole" — całe nagranie: odtwarzane samo'
+    key: 'role', label: 'libraryKinds.trackItem.role.label', type: 'select', options: TRACK_ROLES,
+    says: 'libraryKinds.trackItem.role.says'
   },
-  { key: 'file', label: 'Plik', type: 'media', says: 'Plik dźwiękowy wgrany w aplikacji (MP3, OGG, M4A, WAV, FLAC)' }
+  { key: 'file', label: 'libraryKinds.trackItem.file.label', type: 'media', says: 'libraryKinds.trackItem.file.says' }
 ];
 
 export const BINDINGS = [
-  { value: 'soft', label: 'Miękka' },
-  { value: 'soft-flaps', label: 'Miękka ze skrzydełkami' },
-  { value: 'hard', label: 'Twarda' },
-  { value: 'integrated', label: 'Zintegrowana' },
-  { value: 'cloth', label: 'Płócienna' },
-  { value: 'leather', label: 'Skórzana' },
-  { value: 'spiral', label: 'Spirala' },
-  { value: 'ebook', label: 'E-book' },
-  { value: 'other', label: 'Inna' }
+  { value: 'soft', label: 'libraryKinds.bindings.soft' },
+  { value: 'soft-flaps', label: 'libraryKinds.bindings.softFlaps' },
+  { value: 'hard', label: 'libraryKinds.bindings.hard' },
+  { value: 'integrated', label: 'libraryKinds.bindings.integrated' },
+  { value: 'cloth', label: 'libraryKinds.bindings.cloth' },
+  { value: 'leather', label: 'libraryKinds.bindings.leather' },
+  { value: 'spiral', label: 'libraryKinds.bindings.spiral' },
+  { value: 'ebook', label: 'libraryKinds.bindings.ebook' },
+  { value: 'other', label: 'libraryKinds.bindings.other' }
 ] as const;
 
 export const workTitle = (data: EntryData): string => {
   const title = str(data, 'title').trim();
   const sub = str(data, 'subtitle').trim();
-  return title === '' ? 'Bez tytułu' : sub === '' ? title : `${title}. ${sub}`;
+  return title === '' ? t('libraryKinds.untitled') : sub === '' ? title : `${title}. ${sub}`; // i18n-ignore
 };
 
 const WORK: LibKind = {
   kind: 'work',
-  label: 'Źródło',
-  plural: 'Źródła',
-  says: 'Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Kościoła, Pismo Święte, strona — albo muzyka: utwór, nuty, nagranie, płyta.',
+  label: 'libraryKinds.work.label',
+  plural: 'libraryKinds.work.plural',
+  says: 'libraryKinds.work.says',
   keyed: true,
   fields: [
     {
-      key: 'workType', label: 'Rodzaj', type: 'select', options: WORK_TYPES,
-      says: `Rodzaj: ${WORK_TYPES.filter((t) => !MUSIC_TYPES.has(t.value)).map((t) => `"${t.value}" (${t.label})`).join(', ')}; muzyka: ${WORK_TYPES.filter((t) => MUSIC_TYPES.has(t.value)).map((t) => `"${t.value}" (${t.label} — ${MUSIC_SAYS[t.value]})`).join(', ')}. Rodzaj decyduje, które pola dzieło ma`
+      key: 'workType', label: 'libraryKinds.work.fields.workType.label', type: 'select', options: WORK_TYPES,
+      get says() {
+        return t('libraryKinds.work.fields.workType.says', {
+          types: WORK_TYPES.filter((w) => !MUSIC_TYPES.has(w.value)).map((w) => `"${w.value}" (${w.label})`).join(', '),
+          music: WORK_TYPES.filter((w) => MUSIC_TYPES.has(w.value)).map((w) => `"${w.value}" (${w.label} — ${MUSIC_SAYS[w.value]})`).join(', ')
+        });
+      }
     },
-    { key: 'title', label: 'Tytuł', type: 'line', says: 'Tytuł dzieła (utworu, nagrania, płyty)' },
-    { key: 'subtitle', label: 'Podtytuł', type: 'line', says: 'Podtytuł (albo rodzaj dokumentu, np. "adhortacja apostolska")' },
-    { key: 'originalTitle', label: 'Tytuł oryginału', type: 'line', says: 'Tytuł oryginału (oryginalny tytuł przekładu; przy utworze — tytuł w języku oryginału)', when: typeIsNot('score', 'album') },
+    { key: 'title', label: 'libraryKinds.work.fields.title.label', type: 'line', says: 'libraryKinds.work.fields.title.says' },
+    { key: 'subtitle', label: 'libraryKinds.work.fields.subtitle.label', type: 'line', says: 'libraryKinds.work.fields.subtitle.says' },
+    { key: 'originalTitle', label: 'libraryKinds.work.fields.originalTitle.label', type: 'line', says: 'libraryKinds.work.fields.originalTitle.says', when: typeIsNot('score', 'album') },
     /* 2026-10-26 — wonach man einen Utwór kennt: der Incipit, ein Titel in einer anderen Sprache (auch eine Antwort, die später gelten soll). */
     {
-      key: 'otherTitles', label: 'Inne tytuły, incipit', type: 'text', when: typeIs('piece', 'recording'),
-      says: 'Inne nazwy, po których ludzie znają utwór — incipit (pierwsze słowa), tytuł w innym języku, nazwa potoczna; każda w osobnym wierszu', hint: 'np. Pan kiedyś stanął nad brzegiem'
+      key: 'otherTitles', label: 'libraryKinds.work.fields.otherTitles.label', type: 'text', when: typeIs('piece', 'recording'),
+      says: 'libraryKinds.work.fields.otherTitles.says', hint: 'libraryKinds.work.fields.otherTitles.hint'
     },
-    { key: 'authors', label: 'Autorzy', type: 'refs', to: ['person'], says: 'Autorzy — odwołania do osób, w kolejności (przy muzyce: kompozytor, autor słów — pola niżej)', when: notMusic },
-    { key: 'composers', label: 'Kompozytor', type: 'refs', to: ['person'], says: 'Kompozytorzy — odwołania do osób; nuty i nagranie, które wskazują utwór, nie muszą go powtarzać', when: typeIs('piece', 'score', 'recording') },
-    { key: 'lyricists', label: 'Autor słów', type: 'refs', to: ['person'], says: 'Autorzy słów utworu — odwołania do osób', when: typeIs('piece', 'score', 'recording') },
-    { key: 'arrangers', label: 'Opracowanie', type: 'refs', to: ['person'], says: 'Kto opracował (zharmonizował, zaaranżował) utwór w tej wersji — odwołania do osób', when: typeIs('piece', 'score', 'recording') },
-    { key: 'editors', label: 'Redakcja', type: 'refs', to: ['person'], says: 'Redaktorzy — odwołania do osób', when: typeIsNot('piece', 'recording', 'album') },
-    { key: 'translators', label: 'Tłumaczenie', type: 'refs', to: ['person'], says: 'Tłumacze — odwołania do osób (przy utworze: przekład słów)', when: typeIsNot('score', 'recording', 'album') },
-    { key: 'performers', label: 'Wykonawcy', type: 'refs', to: ['person'], says: 'Kto wykonuje — chór, zespół, dyrygent, soliści: odwołania do osób i instytucji', when: typeIs('recording', 'album') },
+    { key: 'authors', label: 'libraryKinds.work.fields.authors.label', type: 'refs', to: ['person'], says: 'libraryKinds.work.fields.authors.says', when: notMusic },
+    { key: 'composers', label: 'libraryKinds.work.fields.composers.label', type: 'refs', to: ['person'], says: 'libraryKinds.work.fields.composers.says', when: typeIs('piece', 'score', 'recording') },
+    { key: 'lyricists', label: 'libraryKinds.work.fields.lyricists.label', type: 'refs', to: ['person'], says: 'libraryKinds.work.fields.lyricists.says', when: typeIs('piece', 'score', 'recording') },
+    { key: 'arrangers', label: 'libraryKinds.work.fields.arrangers.label', type: 'refs', to: ['person'], says: 'libraryKinds.work.fields.arrangers.says', when: typeIs('piece', 'score', 'recording') },
+    { key: 'editors', label: 'libraryKinds.work.fields.editors.label', type: 'refs', to: ['person'], says: 'libraryKinds.work.fields.editors.says', when: typeIsNot('piece', 'recording', 'album') },
+    { key: 'translators', label: 'libraryKinds.work.fields.translators.label', type: 'refs', to: ['person'], says: 'libraryKinds.work.fields.translators.says', when: typeIsNot('score', 'recording', 'album') },
+    { key: 'performers', label: 'libraryKinds.work.fields.performers.label', type: 'refs', to: ['person'], says: 'libraryKinds.work.fields.performers.says', when: typeIs('recording', 'album') },
     {
-      key: 'piece', label: 'Utwór', type: 'ref', to: ['work'], when: typeIs('score', 'recording'),
-      says: 'Jaki utwór zapisują te nuty albo wykonuje to nagranie — odwołanie do dzieła z "workType": "piece"',
+      key: 'piece', label: 'libraryKinds.work.fields.piece.label', type: 'ref', to: ['work'], when: typeIs('score', 'recording'),
+      says: 'libraryKinds.work.fields.piece.says',
       pick: { only: ofType('piece'), makeWith: { workType: 'piece' } }
     },
     {
-      key: 'album', label: 'Na płycie', type: 'ref', to: ['work'], when: typeIs('recording'),
-      says: 'Płyta (album), na której jest to nagranie — odwołanie do dzieła z "workType": "album"',
+      key: 'album', label: 'libraryKinds.work.fields.album.label', type: 'ref', to: ['work'], when: typeIs('recording'),
+      says: 'libraryKinds.work.fields.album.says',
       pick: { only: ofType('album'), makeWith: { workType: 'album' } }
     },
-    { key: 'track', label: 'Nr na płycie', type: 'line', says: 'Numer nagrania na płycie', hint: 'np. 5', when: typeIs('recording') },
-    { key: 'container', label: 'W (książka, czasopismo)', type: 'ref', to: ['work'], says: 'Dla rozdziału: książka; dla artykułu: czasopismo — odwołanie do źródła', when: isPart },
-    { key: 'volume', label: 'Tom / rocznik', type: 'line', says: 'Tom (książka, zbiór nut) albo rocznik (czasopismo)', hint: 'np. 1', when: typeIsNot('piece', 'recording', 'album') },
-    { key: 'issue', label: 'Numer', type: 'line', says: 'Numer czasopisma', when: (d) => str(d, 'workType') === 'article' },
-    { key: 'edition', label: 'Wydanie', type: 'line', says: 'Które wydanie', hint: 'np. 2', when: typeIsNot('piece', 'recording', 'album') },
-    { key: 'catalogue', label: 'Numer katalogowy', type: 'line', says: 'Przy utworze: numer w katalogu dzieł (op. 27 nr 2, BWV 147, KV 618); przy nutach i płycie: numer wydawcy', hint: 'np. KV 618', when: typeIs('piece', 'score', 'album') },
-    { key: 'musicKey', label: 'Tonacja', type: 'line', says: 'Tonacja (tej wersji)', hint: 'np. D-dur', when: typeIs('piece', 'score', 'recording') },
-    { key: 'voicing', label: 'Obsada', type: 'line', says: 'Na jakie głosy i instrumenty', hint: 'np. SATB a cappella · chór mieszany i organy · unisono', when: typeIs('piece', 'score', 'recording') },
+    { key: 'track', label: 'libraryKinds.work.fields.track.label', type: 'line', says: 'libraryKinds.work.fields.track.says', hint: 'libraryKinds.work.fields.track.hint', when: typeIs('recording') },
+    { key: 'container', label: 'libraryKinds.work.fields.container.label', type: 'ref', to: ['work'], says: 'libraryKinds.work.fields.container.says', when: isPart },
+    { key: 'volume', label: 'libraryKinds.work.fields.volume.label', type: 'line', says: 'libraryKinds.work.fields.volume.says', hint: 'libraryKinds.work.fields.volume.hint', when: typeIsNot('piece', 'recording', 'album') },
+    { key: 'issue', label: 'libraryKinds.work.fields.issue.label', type: 'line', says: 'libraryKinds.work.fields.issue.says', when: (d) => str(d, 'workType') === 'article' },
+    { key: 'edition', label: 'libraryKinds.work.fields.edition.label', type: 'line', says: 'libraryKinds.work.fields.edition.says', hint: 'libraryKinds.work.fields.edition.hint', when: typeIsNot('piece', 'recording', 'album') },
+    { key: 'catalogue', label: 'libraryKinds.work.fields.catalogue.label', type: 'line', says: 'libraryKinds.work.fields.catalogue.says', hint: 'libraryKinds.work.fields.catalogue.hint', when: typeIs('piece', 'score', 'album') },
+    { key: 'musicKey', label: 'libraryKinds.work.fields.musicKey.label', type: 'line', says: 'libraryKinds.work.fields.musicKey.says', hint: 'libraryKinds.work.fields.musicKey.hint', when: typeIs('piece', 'score', 'recording') },
+    { key: 'voicing', label: 'libraryKinds.work.fields.voicing.label', type: 'line', says: 'libraryKinds.work.fields.voicing.says', hint: 'libraryKinds.work.fields.voicing.hint', when: typeIs('piece', 'score', 'recording') },
     /* 2026-10-27 — auch bei Büchern: eine Powieść biograficzna erzählt Wirkliches anders als eine Biografia, ein Mszał ist ein Zbiór numerierter Teile. */
-    { key: 'genre', label: 'Gatunek', type: 'line', says: 'Jaki to utwór albo jaka to książka (powieść, powieść biograficzna, biografia, reportaż, mszał, modlitewnik, podręcznik…)', hint: 'np. pieśń, psalm, motet · powieść biograficzna, mszał', when: typeIs('piece', 'book') },
-    { key: 'duration', label: 'Czas trwania', type: 'line', says: 'Jak długo trwa (minuty:sekundy)', hint: 'np. 4:32', when: typeIs('recording', 'album') },
-    { key: 'publisher', label: 'Wydawca', type: 'line', says: 'Wydawnictwo (przy nagraniu i płycie: wytwórnia)', when: typeIsNot('piece') },
-    { key: 'place', label: 'Miejsce wydania', type: 'line', says: 'Miejsce wydania', hint: 'np. Kraków', when: typeIsNot('piece') },
-    { key: 'year', label: 'Rok', type: 'line', says: 'Rok wydania (albo data dokumentu; przy utworze — rok powstania, przy nagraniu — rok nagrania)', hint: 'np. 2007' },
-    { key: 'series', label: 'Seria', type: 'line', says: 'Seria wydawnicza, z numerem tomu w serii', hint: 'np. Źródła Monastyczne, t. 45', when: isVolume },
-    { key: 'pages', label: 'Strony', type: 'line', says: 'Zakres stron rozdziału albo artykułu', hint: 'np. 45–60', when: isPart },
-    { key: 'pageCount', label: 'Liczba stron', type: 'number', says: 'Ile stron ma książka', hint: 'np. 384', when: isVolume },
-    { key: 'binding', label: 'Oprawa', type: 'select', options: BINDINGS, says: `Oprawa: ${BINDINGS.map((b) => `"${b.value}" (${b.label})`).join(', ')}`, when: isVolume },
-    { key: 'height', label: 'Wysokość (cm)', type: 'number', says: 'Wysokość w centymetrach', hint: 'np. 20,5', when: isVolume },
-    { key: 'width', label: 'Szerokość (cm)', type: 'number', says: 'Szerokość w centymetrach', hint: 'np. 14,5', when: isVolume },
-    { key: 'length', label: 'Grubość (cm)', type: 'number', says: 'Trzeci wymiar — grubość (długość grzbietu w głąb) w centymetrach', hint: 'np. 2,5', when: isVolume },
-    { key: 'siglum', label: 'Skrót przekładu', type: 'line', says: 'Dla Pisma Świętego: skrót przekładu, dopisywany do sigli', hint: 'np. BT', when: (d) => str(d, 'workType') === 'bible' },
-    { key: 'isbn', label: 'ISBN', type: 'line', says: 'Numer ISBN książki (z kreskami albo bez; kilka — po przecinku)', when: notMusic },
-    { key: 'ismn', label: 'ISMN', type: 'line', says: 'Numer ISMN wydania nut', hint: 'np. 979-0-2025-0123-4', when: typeIs('score') },
-    { key: 'libraryNumber', label: 'Numer w bibliotece', type: 'line', says: 'Własny numer egzemplarza w tej bibliotece (numer inwentarzowy, sygnatura) — można po nim szukać i go zeskanować', hint: 'np. B-0124', when: (d) => isVolume(d) || typeIs('album')(d) },
-    { key: 'doi', label: 'DOI', type: 'line', says: 'Identyfikator DOI publikacji', when: notMusic },
-    { key: 'url', label: 'Adres', type: 'url', says: 'Adres w sieci' },
-    { key: 'accessed', label: 'Dostęp', type: 'date', says: 'Kiedy strona była czytana (RRRR-MM-DD)', when: (d) => str(d, 'workType') === 'web' || str(d, 'url') !== '' },
-    { key: 'language', label: 'Język', type: 'line', says: 'Język (np. "pl", "la"; przy muzyce — język słów)', when: typeIsNot('album') },
-    { key: 'lyrics', label: 'Słowa', type: 'text', says: 'Słowa utworu — zwrotki oddzielone pustym wierszem', when: typeIs('piece') },
+    { key: 'genre', label: 'libraryKinds.work.fields.genre.label', type: 'line', says: 'libraryKinds.work.fields.genre.says', hint: 'libraryKinds.work.fields.genre.hint', when: typeIs('piece', 'book') },
+    { key: 'duration', label: 'libraryKinds.work.fields.duration.label', type: 'line', says: 'libraryKinds.work.fields.duration.says', hint: 'libraryKinds.work.fields.duration.hint', when: typeIs('recording', 'album') },
+    { key: 'publisher', label: 'libraryKinds.work.fields.publisher.label', type: 'line', says: 'libraryKinds.work.fields.publisher.says', when: typeIsNot('piece') },
+    { key: 'place', label: 'libraryKinds.work.fields.place.label', type: 'line', says: 'libraryKinds.work.fields.place.says', hint: 'libraryKinds.work.fields.place.hint', when: typeIsNot('piece') },
+    { key: 'year', label: 'libraryKinds.work.fields.year.label', type: 'line', says: 'libraryKinds.work.fields.year.says', hint: 'libraryKinds.work.fields.year.hint' },
+    { key: 'series', label: 'libraryKinds.work.fields.series.label', type: 'line', says: 'libraryKinds.work.fields.series.says', hint: 'libraryKinds.work.fields.series.hint', when: isVolume },
+    { key: 'pages', label: 'libraryKinds.work.fields.pages.label', type: 'line', says: 'libraryKinds.work.fields.pages.says', hint: 'libraryKinds.work.fields.pages.hint', when: isPart },
+    { key: 'pageCount', label: 'libraryKinds.work.fields.pageCount.label', type: 'number', says: 'libraryKinds.work.fields.pageCount.says', hint: 'libraryKinds.work.fields.pageCount.hint', when: isVolume },
+    { key: 'binding', label: 'libraryKinds.work.fields.binding.label', type: 'select', options: BINDINGS, get says() { return t('libraryKinds.work.fields.binding.says', { list: BINDINGS.map((b) => `"${b.value}" (${b.label})`).join(', ') }); }, when: isVolume },
+    { key: 'height', label: 'libraryKinds.work.fields.height.label', type: 'number', says: 'libraryKinds.work.fields.height.says', hint: 'libraryKinds.work.fields.height.hint', when: isVolume },
+    { key: 'width', label: 'libraryKinds.work.fields.width.label', type: 'number', says: 'libraryKinds.work.fields.width.says', hint: 'libraryKinds.work.fields.width.hint', when: isVolume },
+    { key: 'length', label: 'libraryKinds.work.fields.length.label', type: 'number', says: 'libraryKinds.work.fields.length.says', hint: 'libraryKinds.work.fields.length.hint', when: isVolume },
+    { key: 'siglum', label: 'libraryKinds.work.fields.siglum.label', type: 'line', says: 'libraryKinds.work.fields.siglum.says', hint: 'libraryKinds.work.fields.siglum.hint', when: (d) => str(d, 'workType') === 'bible' },
+    { key: 'isbn', label: 'libraryKinds.work.fields.isbn.label', type: 'line', says: 'libraryKinds.work.fields.isbn.says', when: notMusic },
+    { key: 'ismn', label: 'libraryKinds.work.fields.ismn.label', type: 'line', says: 'libraryKinds.work.fields.ismn.says', hint: 'libraryKinds.work.fields.ismn.hint', when: typeIs('score') },
+    { key: 'libraryNumber', label: 'libraryKinds.work.fields.libraryNumber.label', type: 'line', says: 'libraryKinds.work.fields.libraryNumber.says', hint: 'libraryKinds.work.fields.libraryNumber.hint', when: (d) => isVolume(d) || typeIs('album')(d) },
+    { key: 'doi', label: 'libraryKinds.work.fields.doi.label', type: 'line', says: 'libraryKinds.work.fields.doi.says', when: notMusic },
+    { key: 'url', label: 'libraryKinds.work.fields.url.label', type: 'url', says: 'libraryKinds.work.fields.url.says' },
+    { key: 'accessed', label: 'libraryKinds.work.fields.accessed.label', type: 'date', says: 'libraryKinds.work.fields.accessed.says', when: (d) => str(d, 'workType') === 'web' || str(d, 'url') !== '' },
+    { key: 'language', label: 'libraryKinds.work.fields.language.label', type: 'line', says: 'libraryKinds.work.fields.language.says', when: typeIsNot('album') },
+    { key: 'lyrics', label: 'libraryKinds.work.fields.lyrics.label', type: 'text', says: 'libraryKinds.work.fields.lyrics.says', when: typeIs('piece') },
     /* 2026-10-24 — wie Stellen in diesem Werk gelesen werden, und wovon es eine Ausgabe ist (`locations.ts`, `sourceText.ts`). */
     {
-      key: 'scheme', label: 'Układ miejsc', type: 'select', options: TEXT_SCHEMES.map((s) => ({ value: s.id, label: s.label })),
-      says: `Jak wskazuje się miejsca w tym dziele: ${TEXT_SCHEMES.map((s) => `"${s.id}" (${s.label})`).join(', ')}; puste — z rodzaju (Pismo Święte: bible, dokument: numbered, nagranie: time — minuty i sekundy, inne: pages)`,
-      hint: 'puste: z rodzaju', when: notMusic
+      key: 'scheme', label: 'libraryKinds.work.fields.scheme.label', type: 'select', options: TEXT_SCHEMES.map((s) => ({ value: s.id, get label() { return s.label; } })),
+      get says() { return t('libraryKinds.work.fields.scheme.says', { list: TEXT_SCHEMES.map((s) => `"${s.id}" (${s.label})`).join(', ') }); },
+      hint: 'libraryKinds.work.fields.scheme.hint', when: notMusic
     },
     /*
      * 2026-10-27 — Seiten in Serien, für jedes Buch: in welcher Reihenfolge sie im Buch stehen — je eine Beispielseite
      * (`locations.ts` readSeries). Welche Zeichen eine Serie hat, sagt die Seite selbst; hier nur die Reihenfolge.
      */
     {
-      key: 'pageSeries', label: 'Serie stron', type: 'line',
-      says: 'Gdy książka numeruje swoje części osobno (wstęp, dodatki, wkładki): po jednej przykładowej stronie z każdej serii, tak jak jest wydrukowana, w kolejności książki, oddzielone spacją — np. "xii 12* 1 3\' (1) A1" (rzymskie, z gwiazdką, zwykłe, z apostrofem, w nawiasie, z literą; znaki mogą być dowolne). Strona "12*" i strona "12" to dwie różne strony. Puste — rzymskie, potem zwykłe, potem pozostałe',
+      key: 'pageSeries', label: 'libraryKinds.work.fields.pageSeries.label', type: 'line',
+      says: 'libraryKinds.work.fields.pageSeries.says',
       hint: "np. xii 12* 1 3'", when: (d) => notMusic(d) && ['', 'pages', 'outline'].includes(str(d, 'scheme'))
     },
     {
-      key: 'psalms', label: 'Numeracja psalmów', type: 'select', options: PSALMS,
-      says: 'Dla Pisma Świętego: "hebrew" (hebrajska — Biblia Tysiąclecia, większość przekładów) albo "greek" (grecka — Septuaginta, Wulgata)',
+      key: 'psalms', label: 'libraryKinds.work.fields.psalms.label', type: 'select', options: PSALMS,
+      says: 'libraryKinds.work.fields.psalms.says',
       when: (d) => str(d, 'workType') === 'bible' || str(d, 'scheme') === 'bible'
     },
-    { key: 'editionOf', label: 'Wydanie / przekład dzieła', type: 'ref', to: ['work'], says: 'To jest inne wydanie albo przekład tego dzieła — odwołanie do źródła. Miejsca w strukturze (werset, numer, paragraf) są wspólne dla wszystkich wydań; strony nie.', when: notMusic },
+    { key: 'editionOf', label: 'libraryKinds.work.fields.editionOf.label', type: 'ref', to: ['work'], says: 'libraryKinds.work.fields.editionOf.says', when: notMusic },
     /* 2026-10-26 — die Dateien der Musik: die Seiten der Nuty, die Spuren eines Nagrania (`MusicFiles.tsx`). */
-    { key: 'files', label: 'Pliki nut', type: 'items', item: SCORE_FILE_ITEM, says: 'Pliki tych nut — partytura, głosy, zapis nutowy; pliki wgrywa się w aplikacji, JSON z eksportu przenosi je w tej samej bibliotece', when: typeIs('score') },
-    { key: 'tracks', label: 'Ścieżki', type: 'items', item: TRACK_ITEM, says: 'Pliki nagrania — całe nagranie albo osobne głosy i instrumenty, które odtwarza się razem; pliki wgrywa się w aplikacji, JSON z eksportu przenosi je w tej samej bibliotece', when: typeIs('recording') }
+    { key: 'files', label: 'libraryKinds.work.fields.files.label', type: 'items', item: SCORE_FILE_ITEM, says: 'libraryKinds.work.fields.files.says', when: typeIs('score') },
+    { key: 'tracks', label: 'libraryKinds.work.fields.tracks.label', type: 'items', item: TRACK_ITEM, says: 'libraryKinds.work.fields.tracks.says', when: typeIs('recording') }
   ],
   title: (data) => workTitle(data),
   sort: (entry, look) => {
@@ -412,26 +418,26 @@ const WORK: LibKind = {
   example: {
     key: 'ratzinger2007',
     data: {
-      workType: 'book', title: 'Jezus z Nazaretu', subtitle: 'Część 1: Od chrztu w Jordanie do Przemienienia',
-      originalTitle: 'Jesus von Nazareth', authors: ['@ratzinger'], volume: '1', publisher: 'Wydawnictwo M', place: 'Kraków', year: '2007',
-      series: 'Dzieła wybrane, t. 1', pageCount: 384, binding: 'hard', height: 24, width: 16.5, length: 3,
+      workType: 'book', title: 'Jezus z Nazaretu', subtitle: 'Część 1: Od chrztu w Jordanie do Przemienienia', // i18n-ignore
+      originalTitle: 'Jesus von Nazareth', authors: ['@ratzinger'], volume: '1', publisher: 'Wydawnictwo M', place: 'Kraków', year: '2007', // i18n-ignore
+      series: 'Dzieła wybrane, t. 1', pageCount: 384, binding: 'hard', height: 24, width: 16.5, length: 3, // i18n-ignore
       isbn: '978-83-7595-061-8', libraryNumber: 'B-0042'
     }
   },
   /* 2026-10-26 — Musik: der Utwór und ein Nagranie davon in Stimmen (die Dateien kommen in der App dazu). */
   more: [
     {
-      label: 'muzyka — utwór', key: 'mozart-ave-verum',
+      label: 'libraryKinds.work.more.piece', key: 'mozart-ave-verum',
       data: {
-        workType: 'piece', title: 'Ave verum corpus', otherTitles: 'Witaj, Ciało prawdziwe', composers: ['@mozart'],
-        catalogue: 'KV 618', musicKey: 'D-dur', voicing: 'chór mieszany, smyczki i organy', genre: 'motet', year: '1791', language: 'la'
+        workType: 'piece', title: 'Ave verum corpus', otherTitles: 'Witaj, Ciało prawdziwe', composers: ['@mozart'], // i18n-ignore
+        catalogue: 'KV 618', musicKey: 'D-dur', voicing: 'chór mieszany, smyczki i organy', genre: 'motet', year: '1791', language: 'la' // i18n-ignore
       }
     },
     {
-      label: 'muzyka — nagranie w głosach', key: 'ave-verum-schola2024',
+      label: 'libraryKinds.work.more.recording', key: 'ave-verum-schola2024',
       data: {
-        workType: 'recording', title: 'Ave verum corpus', piece: '@mozart-ave-verum', performers: ['@schola-katedralna'], year: '2024', duration: '3:05',
-        tracks: [{ label: 'Sopran', role: 'part' }, { label: 'Alt', role: 'part' }, { label: 'Tenor', role: 'part' }, { label: 'Bas', role: 'part' }, { label: 'Całość', role: 'whole' }]
+        workType: 'recording', title: 'Ave verum corpus', piece: '@mozart-ave-verum', performers: ['@schola-katedralna'], year: '2024', duration: '3:05', // i18n-ignore
+        tracks: [{ label: 'Sopran', role: 'part' }, { label: 'Alt', role: 'part' }, { label: 'Tenor', role: 'part' }, { label: 'Bas', role: 'part' }, { label: 'Całość', role: 'whole' }] // i18n-ignore
       }
     }
   ]
@@ -441,23 +447,23 @@ const WORK: LibKind = {
 
 const QUOTE: LibKind = {
   kind: 'quote',
-  label: 'Cytat',
-  plural: 'Cytaty',
-  says: 'Fragment ze źródła — z miejscem (strona, werset, numer) i opisem.',
+  label: 'libraryKinds.quote.label',
+  plural: 'libraryKinds.quote.plural',
+  says: 'libraryKinds.quote.says',
   keyed: true,
   fields: [
-    { key: 'text', label: 'Tekst cytatu', type: 'text', says: 'Dokładne brzmienie cytatu' },
-    { key: 'work', label: 'Źródło', type: 'ref', to: ['work'], says: 'Z jakiego źródła — odwołanie' },
-    { key: 'locator', label: 'Miejsce', type: 'line', says: 'Gdzie w źródle: "s. 23", "J 3,16", "nr 24"', hint: 's. 23 · J 3,16 · nr 24' },
-    { key: 'language', label: 'Język', type: 'line', says: 'Język cytatu (np. "pl", "la")' },
-    { key: 'translation', label: 'Przekład', type: 'text', says: 'Przekład cytatu (gdy tekst jest w innym języku)' }
+    { key: 'text', label: 'libraryKinds.quote.fields.text.label', type: 'text', says: 'libraryKinds.quote.fields.text.says' },
+    { key: 'work', label: 'libraryKinds.quote.fields.work.label', type: 'ref', to: ['work'], says: 'libraryKinds.quote.fields.work.says' },
+    { key: 'locator', label: 'libraryKinds.quote.fields.locator.label', type: 'line', says: 'libraryKinds.quote.fields.locator.says', hint: 'libraryKinds.quote.fields.locator.hint' },
+    { key: 'language', label: 'libraryKinds.quote.fields.language.label', type: 'line', says: 'libraryKinds.quote.fields.language.says' },
+    { key: 'translation', label: 'libraryKinds.quote.fields.translation.label', type: 'text', says: 'libraryKinds.quote.fields.translation.says' }
   ],
-  title: (data) => clip(str(data, 'text').replace(/\s+/g, ' ').trim() || 'Cytat', 90),
+  title: (data) => clip(str(data, 'text').replace(/\s+/g, ' ').trim() || t('libraryKinds.quote.label'), 90),
   sort: (entry, look) => quoteOrder(entry, look).slice(0, 64),
   example: {
     key: 'ratzinger2007-1',
     data: {
-      text: 'Modlitwa jest rozmową z Bogiem, w której człowiek staje się sobą.',
+      text: 'Modlitwa jest rozmową z Bogiem, w której człowiek staje się sobą.', // i18n-ignore
       work: '@ratzinger2007', locator: 's. 168'
     }
   }
@@ -483,10 +489,10 @@ export function textTypeName(data: EntryData, look: Lookup): string {
 }
 
 export const TEXT_STATUS = [
-  { value: 'idea', label: 'Pomysł' },
-  { value: 'draft', label: 'Szkic' },
-  { value: 'revision', label: 'Do poprawy' },
-  { value: 'final', label: 'Gotowy' }
+  { value: 'idea', label: 'libraryKinds.textStatus.idea' },
+  { value: 'draft', label: 'libraryKinds.textStatus.draft' },
+  { value: 'revision', label: 'libraryKinds.textStatus.revision' },
+  { value: 'final', label: 'libraryKinds.textStatus.final' }
 ] as const;
 
 /*
@@ -497,18 +503,18 @@ export const TEXT_STATUS = [
  * `![@cytat]` allein ist ein Zitat aus der Bibliothek.
  */
 export const POINT_KINDS = [
-  { value: 'thought', label: 'Myśl' },
-  { value: 'quote', label: 'Cytat' },
-  { value: 'example', label: 'Przykład' },
-  { value: 'question', label: 'Pytanie' },
-  { value: 'application', label: 'Zastosowanie' }
+  { value: 'thought', label: 'libraryKinds.pointKinds.thought' },
+  { value: 'quote', label: 'libraryKinds.pointKinds.quote' },
+  { value: 'example', label: 'libraryKinds.pointKinds.example' },
+  { value: 'question', label: 'libraryKinds.pointKinds.question' },
+  { value: 'application', label: 'libraryKinds.pointKinds.application' }
 ] as const;
 
 const PLAN_ITEM: readonly LibField[] = [
-  { key: 'id', label: 'Identyfikator', type: 'line', says: 'Stały identyfikator punktu (np. "p4k2x"); pominięty — nada się sam. Wygłoszenia wskazują punkty po nim' },
-  { key: 'text', label: 'Treść', type: 'markup', says: 'Myśl w jednym-dwóch zdaniach, w zapisie treści: [@klucz, s. 12] — źródło, sam ![@klucz-cytatu] — cytat z biblioteki' },
-  { key: 'depth', label: 'Poziom', type: 'number', says: '0 — główna myśl, 1 — pod nią, 2 — jeszcze głębiej' },
-  { key: 'kind', label: 'Rodzaj', type: 'select', options: POINT_KINDS, says: `Rodzaj punktu: ${POINT_KINDS.map((k) => `"${k.value}" (${k.label})`).join(', ')}; pominięty — myśl` }
+  { key: 'id', label: 'libraryKinds.planItem.id.label', type: 'line', says: 'libraryKinds.planItem.id.says' },
+  { key: 'text', label: 'libraryKinds.planItem.text.label', type: 'markup', says: 'libraryKinds.planItem.text.says' },
+  { key: 'depth', label: 'libraryKinds.planItem.depth.label', type: 'number', says: 'libraryKinds.planItem.depth.says' },
+  { key: 'kind', label: 'libraryKinds.planItem.kind.label', type: 'select', options: POINT_KINDS, get says() { return t('libraryKinds.planItem.kind.says', { list: POINT_KINDS.map((k) => `"${k.value}" (${k.label})`).join(', ') }); } }
 ];
 
 /*
@@ -517,16 +523,16 @@ const PLAN_ITEM: readonly LibField[] = [
  * und was dazukam, das nicht im Plan stand.
  */
 export const COVERAGE_STATES = [
-  { value: 'said', label: 'Powiedziane' },
-  { value: 'short', label: 'Krótko' },
-  { value: 'skipped', label: 'Pominięte' }
+  { value: 'said', label: 'libraryKinds.coverageStates.said' },
+  { value: 'short', label: 'libraryKinds.coverageStates.short' },
+  { value: 'skipped', label: 'libraryKinds.coverageStates.skipped' }
 ] as const;
 
 const COVERAGE_ITEM: readonly LibField[] = [
-  { key: 'point', label: 'Punkt planu', type: 'line', says: '"id" punktu z planu tekstu' },
-  { key: 'state', label: 'Jak', type: 'select', options: COVERAGE_STATES, says: '"said" — powiedziane, "short" — tylko wspomniane, krótko, "skipped" — pominięte' },
-  { key: 'at', label: 'Czas', type: 'line', says: 'Kiedy w nagraniu zaczyna się ten punkt (mm:ss albo gg:mm:ss)' },
-  { key: 'note', label: 'Uwaga', type: 'text', says: 'Co było inaczej niż w planie' }
+  { key: 'point', label: 'libraryKinds.coverageItem.point.label', type: 'line', says: 'libraryKinds.coverageItem.point.says' },
+  { key: 'state', label: 'libraryKinds.coverageItem.state.label', type: 'select', options: COVERAGE_STATES, says: 'libraryKinds.coverageItem.state.says' },
+  { key: 'at', label: 'libraryKinds.coverageItem.at.label', type: 'line', says: 'libraryKinds.coverageItem.at.says' },
+  { key: 'note', label: 'libraryKinds.coverageItem.note.label', type: 'text', says: 'libraryKinds.coverageItem.note.says' }
 ];
 
 /*
@@ -535,66 +541,66 @@ const COVERAGE_ITEM: readonly LibField[] = [
  * die Klasse. Ohne Klasse ist es ein gewöhnliches Wygłoszenie (ein Kazanie), und der Stand fehlt.
  */
 export const LESSON_STATES = [
-  { value: 'planned', label: 'Zaplanowana' },
-  { value: 'done', label: 'Zrealizowana' },
-  { value: 'partial', label: 'Częściowo' },
-  { value: 'skipped', label: 'Nie odbyła się' }
+  { value: 'planned', label: 'libraryKinds.lessonStates.planned' },
+  { value: 'done', label: 'libraryKinds.lessonStates.done' },
+  { value: 'partial', label: 'libraryKinds.lessonStates.partial' },
+  { value: 'skipped', label: 'libraryKinds.lessonStates.skipped' }
 ] as const;
 
 const CLASS_ITEM: readonly LibField[] = [
-  { key: 'area', label: 'Klasa', type: 'line', says: 'Identyfikator obszaru klasy (z eksportu albo z karty szkoły)' }
+  { key: 'area', label: 'libraryKinds.classItem.area.label', type: 'line', says: 'libraryKinds.classItem.area.says' }
 ];
 
 const ADDED_ITEM: readonly LibField[] = [
-  { key: 'text', label: 'Co', type: 'markup', says: 'Co zostało powiedziane (jedno-dwa zdania), w zapisie treści' },
-  { key: 'at', label: 'Czas', type: 'line', says: 'Kiedy w nagraniu (mm:ss)' },
-  { key: 'after', label: 'Po punkcie', type: 'line', says: '"id" punktu planu, po którym to padło; puste — na końcu' }
+  { key: 'text', label: 'libraryKinds.addedItem.text.label', type: 'markup', says: 'libraryKinds.addedItem.text.says' },
+  { key: 'at', label: 'libraryKinds.addedItem.at.label', type: 'line', says: 'libraryKinds.addedItem.at.says' },
+  { key: 'after', label: 'libraryKinds.addedItem.after.label', type: 'line', says: 'libraryKinds.addedItem.after.says' }
 ];
 
 const TEXT: LibKind = {
   kind: 'text',
-  label: 'Tekst',
-  plural: 'Teksty',
-  says: 'Własny tekst — kazanie, rozważanie, rozdział książki — z odwołaniami do źródeł i cytatów.',
+  label: 'libraryKinds.text.label',
+  plural: 'libraryKinds.text.plural',
+  says: 'libraryKinds.text.says',
   keyed: true,
   fields: [
     /* 2026-10-23 — der Rodzaj gehört dem Besitzer (ein Eintrag „Rodzaj tekstu" mit eigenen Feldern); ohne ihn ist es ein einfacher Text. */
-    { key: 'textType', label: 'Rodzaj tekstu', type: 'ref', to: ['texttype'], says: 'Własny rodzaj tekstu — odwołanie (np. "@kazanie-maryjne"); jego dodatkowe pola stoją wtedy obok pól tekstu. Pominięty — zwykły tekst' },
-    { key: 'title', label: 'Tytuł', type: 'line', says: 'Tytuł' },
-    { key: 'subtitle', label: 'Podtytuł', type: 'line', says: 'Podtytuł' },
-    { key: 'project', label: 'Projekt (książka, cykl)', type: 'ref', to: ['project'], says: 'Do jakiej książki albo cyklu należy — odwołanie' },
-    { key: 'status', label: 'Stan pracy', type: 'select', options: TEXT_STATUS, says: `Stan pracy: ${TEXT_STATUS.map((t) => `"${t.value}"`).join(', ')}` },
-    { key: 'date', label: 'Data wygłoszenia / napisania', type: 'date', says: 'Data (RRRR-MM-DD) — według niej układa się archiwum' },
-    { key: 'occasion', label: 'Okazja', type: 'line', says: 'Okazja, dzień liturgiczny', hint: 'np. XVIII Niedziela zwykła' },
-    { key: 'place', label: 'Miejsce', type: 'line', says: 'Gdzie wygłoszony' },
-    { key: 'readings', label: 'Czytania', type: 'line', says: 'Czytania, sigla biblijne', hint: 'np. Iz 55,1-3; Rz 8,35.37-39; Mt 14,13-21' },
-    { key: 'summary', label: 'Krótki opis', type: 'text', says: 'Krótki opis — w archiwum, nad treścią' },
+    { key: 'textType', label: 'libraryKinds.text.fields.textType.label', type: 'ref', to: ['texttype'], says: 'libraryKinds.text.fields.textType.says' },
+    { key: 'title', label: 'libraryKinds.text.fields.title.label', type: 'line', says: 'libraryKinds.text.fields.title.says' },
+    { key: 'subtitle', label: 'libraryKinds.text.fields.subtitle.label', type: 'line', says: 'libraryKinds.text.fields.subtitle.says' },
+    { key: 'project', label: 'libraryKinds.text.fields.project.label', type: 'ref', to: ['project'], says: 'libraryKinds.text.fields.project.says' },
+    { key: 'status', label: 'libraryKinds.text.fields.status.label', type: 'select', options: TEXT_STATUS, get says() { return t('libraryKinds.text.fields.status.says', { list: TEXT_STATUS.map((s) => `"${s.value}"`).join(', ') }); } },
+    { key: 'date', label: 'libraryKinds.text.fields.date.label', type: 'date', says: 'libraryKinds.text.fields.date.says' },
+    { key: 'occasion', label: 'libraryKinds.text.fields.occasion.label', type: 'line', says: 'libraryKinds.text.fields.occasion.says', hint: 'libraryKinds.text.fields.occasion.hint' },
+    { key: 'place', label: 'libraryKinds.text.fields.place.label', type: 'line', says: 'libraryKinds.text.fields.place.says' },
+    { key: 'readings', label: 'libraryKinds.text.fields.readings.label', type: 'line', says: 'libraryKinds.text.fields.readings.says', hint: 'libraryKinds.text.fields.readings.hint' },
+    { key: 'summary', label: 'libraryKinds.text.fields.summary.label', type: 'text', says: 'libraryKinds.text.fields.summary.says' },
     {
-      key: 'plan', label: 'Plan', type: 'items', item: PLAN_ITEM,
-      says: 'Plan — główne myśli po kolei, pod nimi cytaty, przykłady, pytania, zastosowania; lista punktów { "id", "text", "depth", "kind", "note" }. Wygłoszenia odwołują się do punktów po "id"'
+      key: 'plan', label: 'libraryKinds.text.fields.plan.label', type: 'items', item: PLAN_ITEM,
+      says: 'libraryKinds.text.fields.plan.says'
     },
-    { key: 'body', label: 'Treść', type: 'markup', says: 'Treść w prostym zapisie (niżej: "Zapis treści") — z odwołaniami [@klucz, s. 12]' },
-    { key: 'further', label: 'Dalsze informacje', type: 'markup', says: 'Dalsze informacje pod tekstem — w tym samym zapisie' },
-    { key: 'audio', label: 'Nagranie (adres)', type: 'url', says: 'Adres nagrania audio' },
-    { key: 'video', label: 'Wideo (adres)', type: 'url', says: 'Adres nagrania wideo' },
-    { key: 'targetWords', label: 'Docelowa liczba słów', type: 'number', says: 'Ile słów ma mieć' }
+    { key: 'body', label: 'libraryKinds.text.fields.body.label', type: 'markup', says: 'libraryKinds.text.fields.body.says' },
+    { key: 'further', label: 'libraryKinds.text.fields.further.label', type: 'markup', says: 'libraryKinds.text.fields.further.says' },
+    { key: 'audio', label: 'libraryKinds.text.fields.audio.label', type: 'url', says: 'libraryKinds.text.fields.audio.says' },
+    { key: 'video', label: 'libraryKinds.text.fields.video.label', type: 'url', says: 'libraryKinds.text.fields.video.says' },
+    { key: 'targetWords', label: 'libraryKinds.text.fields.targetWords.label', type: 'number', says: 'libraryKinds.text.fields.targetWords.says' }
   ],
-  title: (data) => str(data, 'title').trim() || 'Bez tytułu',
+  title: (data) => str(data, 'title').trim() || t('libraryKinds.untitled'),
   sort: (entry) => (str(entry.data, 'date') || '0000-00-00') + ' ' + str(entry.data, 'title').toLowerCase().slice(0, 50),
   example: {
     key: 'kazanie-chleb',
     data: {
-      textType: '@kazanie-maryjne', title: 'Chleb, który daje życie', date: '2026-08-02', occasion: 'XVIII Niedziela zwykła',
+      textType: '@kazanie-maryjne', title: 'Chleb, który daje życie', date: '2026-08-02', occasion: 'XVIII Niedziela zwykła', // i18n-ignore
       readings: 'Wj 16,2-4.12-15; Ef 4,17.20-24; J 6,24-35', status: 'final',
-      summary: 'O głodzie, którego nie nasyci chleb.',
+      summary: 'O głodzie, którego nie nasyci chleb.', // i18n-ignore
       plan: [
-        { id: 'p1', text: 'Głód, którego nie nasyci chleb', depth: 0 },
-        { id: 'p2', text: 'Prośba o chleb sięga dalej niż pokarm [@ratzinger2007, s. 183]', depth: 1, kind: 'quote' },
-        { id: 'p3', text: '![@ratzinger2007-1]', depth: 1, kind: 'quote' },
-        { id: 'p4', text: 'Chleb dzielony przy stole w domu', depth: 1, kind: 'example' },
-        { id: 'p5', text: 'Gdzie w tym tygodniu będę szukać chleba?', depth: 0, kind: 'question' }
+        { id: 'p1', text: 'Głód, którego nie nasyci chleb', depth: 0 }, // i18n-ignore
+        { id: 'p2', text: 'Prośba o chleb sięga dalej niż pokarm [@ratzinger2007, s. 183]', depth: 1, kind: 'quote' }, // i18n-ignore
+        { id: 'p3', text: '![@ratzinger2007-1]', depth: 1, kind: 'quote' }, // i18n-ignore
+        { id: 'p4', text: 'Chleb dzielony przy stole w domu', depth: 1, kind: 'example' }, // i18n-ignore
+        { id: 'p5', text: 'Gdzie w tym tygodniu będę szukać chleba?', depth: 0, kind: 'question' } // i18n-ignore
       ],
-      body: '## Głód\nJezus mówi, że jest chlebem życia — a prośba o chleb sięga dalej niż pokarm [@ratzinger2007, s. 183].\n\n![@ratzinger2007-1]\n\nModlitwa to nie technika^[Por. też Katechizm, nr 2559.].',
+      body: '## Głód\nJezus mówi, że jest chlebem życia — a prośba o chleb sięga dalej niż pokarm [@ratzinger2007, s. 183].\n\n![@ratzinger2007-1]\n\nModlitwa to nie technika^[Por. też Katechizm, nr 2559.].', // i18n-ignore
       further: 'Do czytania: [@ratzinger2007].', project: '@niedziele-2026'
     }
   }
@@ -607,98 +613,98 @@ const deliveredText = (data: EntryData, look: Lookup): LibEntry | undefined => l
 
 const DELIVERY: LibKind = {
   kind: 'delivery',
-  label: 'Wygłoszenie',
-  plural: 'Wygłoszenia',
-  says: 'Jedno wygłoszenie przygotowanego tekstu (kazania, konferencji): kiedy i gdzie, nagranie — i co z planu zostało powiedziane, co tylko krótko, co pominięte, a co doszło.',
+  label: 'libraryKinds.delivery.label',
+  plural: 'libraryKinds.delivery.plural',
+  says: 'libraryKinds.delivery.says',
   keyed: false,
   fields: [
-    { key: 'texts', label: 'Kazanie (tekst)', type: 'refs', to: ['text'], says: 'Który przygotowany tekst wygłoszono — odwołanie (zwykle jedno; kilka, gdy łączyło się materiał)' },
-    { key: 'date', label: 'Data', type: 'date', says: 'Kiedy (RRRR-MM-DD) — według niej układa się archiwum' },
-    { key: 'occasion', label: 'Okazja', type: 'line', says: 'Dzień liturgiczny, okazja', hint: 'np. XVIII Niedziela zwykła' },
-    { key: 'place', label: 'Miejsce', type: 'line', says: 'Gdzie: kościół, Msza', hint: 'np. Kraków, Msza o 10:30' },
-    { key: 'audience', label: 'Dla kogo', type: 'line', says: 'Słuchacze', hint: 'np. Msza z udziałem dzieci' },
-    { key: 'readings', label: 'Czytania', type: 'line', says: 'Czytania tego dnia, sigla biblijne' },
-    { key: 'audio', label: 'Nagranie (adres)', type: 'url', says: 'Adres nagrania audio — plik (mp3, m4a, ogg) albo strona z nagraniem' },
-    { key: 'video', label: 'Wideo (adres)', type: 'url', says: 'Adres nagrania wideo — plik (mp4, webm) albo YouTube' },
-    { key: 'duration', label: 'Długość', type: 'line', says: 'Długość nagrania (mm:ss)', hint: 'np. 14:30' },
-    { key: 'summary', label: 'Krótko o tym wygłoszeniu', type: 'text', says: 'Co tym razem było najważniejsze, czym się różniło' },
+    { key: 'texts', label: 'libraryKinds.delivery.fields.texts.label', type: 'refs', to: ['text'], says: 'libraryKinds.delivery.fields.texts.says' },
+    { key: 'date', label: 'libraryKinds.delivery.fields.date.label', type: 'date', says: 'libraryKinds.delivery.fields.date.says' },
+    { key: 'occasion', label: 'libraryKinds.delivery.fields.occasion.label', type: 'line', says: 'libraryKinds.delivery.fields.occasion.says', hint: 'libraryKinds.delivery.fields.occasion.hint' },
+    { key: 'place', label: 'libraryKinds.delivery.fields.place.label', type: 'line', says: 'libraryKinds.delivery.fields.place.says', hint: 'libraryKinds.delivery.fields.place.hint' },
+    { key: 'audience', label: 'libraryKinds.delivery.fields.audience.label', type: 'line', says: 'libraryKinds.delivery.fields.audience.says', hint: 'libraryKinds.delivery.fields.audience.hint' },
+    { key: 'readings', label: 'libraryKinds.delivery.fields.readings.label', type: 'line', says: 'libraryKinds.delivery.fields.readings.says' },
+    { key: 'audio', label: 'libraryKinds.delivery.fields.audio.label', type: 'url', says: 'libraryKinds.delivery.fields.audio.says' },
+    { key: 'video', label: 'libraryKinds.delivery.fields.video.label', type: 'url', says: 'libraryKinds.delivery.fields.video.says' },
+    { key: 'duration', label: 'libraryKinds.delivery.fields.duration.label', type: 'line', says: 'libraryKinds.delivery.fields.duration.says', hint: 'libraryKinds.delivery.fields.duration.hint' },
+    { key: 'summary', label: 'libraryKinds.delivery.fields.summary.label', type: 'text', says: 'libraryKinds.delivery.fields.summary.says' },
     {
-      key: 'coverage', label: 'Co z planu', type: 'items', item: COVERAGE_ITEM,
-      says: 'Co z planu tekstu zostało powiedziane — punkt po punkcie: { "point", "state", "at", "note" }'
+      key: 'coverage', label: 'libraryKinds.delivery.fields.coverage.label', type: 'items', item: COVERAGE_ITEM,
+      says: 'libraryKinds.delivery.fields.coverage.says'
     },
     {
-      key: 'added', label: 'Co doszło', type: 'items', item: ADDED_ITEM,
-      says: 'Co zostało powiedziane, a nie było w planie: { "text", "at", "after" }'
+      key: 'added', label: 'libraryKinds.delivery.fields.added.label', type: 'items', item: ADDED_ITEM,
+      says: 'libraryKinds.delivery.fields.added.says'
     },
-    { key: 'transcript', label: 'Zapis (transkrypcja)', type: 'markup', says: 'To, co zostało powiedziane, spisane słowo w słowo — w zapisie treści' },
+    { key: 'transcript', label: 'libraryKinds.delivery.fields.transcript.label', type: 'markup', says: 'libraryKinds.delivery.fields.transcript.says' },
     /* 0134 — eine Lekcja in einer Klasse. */
-    { key: 'classArea', label: 'Klasa', type: 'line', says: 'Lekcja w szkole: identyfikator obszaru klasy, w której była (albo ma być) ta lekcja; pominięty — zwykłe wygłoszenie' },
-    { key: 'state', label: 'Stan lekcji', type: 'select', options: LESSON_STATES, says: `Tylko lekcja w klasie: ${LESSON_STATES.map((s) => `"${s.value}" (${s.label})`).join(', ')}; pominięty — zrealizowana` },
-    { key: 'homework', label: 'Zadanie dla klasy', type: 'text', says: 'Tylko lekcja w klasie: zadanie domowe albo to, co klasa ma przygotować' }
+    { key: 'classArea', label: 'libraryKinds.delivery.fields.classArea.label', type: 'line', says: 'libraryKinds.delivery.fields.classArea.says' },
+    { key: 'state', label: 'libraryKinds.delivery.fields.state.label', type: 'select', options: LESSON_STATES, get says() { return t('libraryKinds.delivery.fields.state.says', { list: LESSON_STATES.map((s) => `"${s.value}" (${s.label})`).join(', ') }); } },
+    { key: 'homework', label: 'libraryKinds.delivery.fields.homework.label', type: 'text', says: 'libraryKinds.delivery.fields.homework.says' }
   ],
   title: (data, look) => {
     const text = deliveredText(data, look);
-    return [text === undefined ? '' : str(text.data, 'title').trim(), str(data, 'date'), str(data, 'occasion')].filter((s) => s !== '').join(' · ') || 'Wygłoszenie';
+    return [text === undefined ? '' : str(text.data, 'title').trim(), str(data, 'date'), str(data, 'occasion')].filter((s) => s !== '').join(' · ') || t('libraryKinds.delivery.label');
   },
   sort: (entry, look) => clip(`${str(entry.data, 'date') || '0000-00-00'} ${str(deliveredText(entry.data, look)?.data ?? {}, 'title').toLowerCase()}`, 64),
   example: {
     data: {
-      texts: ['@kazanie-chleb'], date: '2026-08-02', occasion: 'XVIII Niedziela zwykła', place: 'Kraków, Msza o 10:30',
+      texts: ['@kazanie-chleb'], date: '2026-08-02', occasion: 'XVIII Niedziela zwykła', place: 'Kraków, Msza o 10:30', // i18n-ignore
       audio: 'https://example.pl/kazania/2026-08-02.mp3', duration: '14:30', summary: 'Tym razem mocniej o niedzielnej Eucharystii.',
       coverage: [
         { point: 'p1', state: 'said', at: '0:40' },
         { point: 'p2', state: 'said', at: '2:05' },
-        { point: 'p3', state: 'short', at: '4:30', note: 'Bez całego cytatu.' },
+        { point: 'p3', state: 'short', at: '4:30', note: 'Bez całego cytatu.' }, // i18n-ignore
         { point: 'p4', state: 'skipped' },
         { point: 'p5', state: 'said', at: '11:20' }
       ],
-      added: [{ text: 'Zaproszenie na czwartkową adorację.', at: '13:05', after: 'p5' }]
+      added: [{ text: 'Zaproszenie na czwartkową adorację.', at: '13:05', after: 'p5' }] // i18n-ignore
     }
   }
 };
 
 export const PROJECT_TYPES = [
-  { value: 'book', label: 'Książka' },
-  { value: 'series', label: 'Cykl kazań' },
-  { value: 'collection', label: 'Zbiór' },
-  { value: 'article', label: 'Artykuł' },
+  { value: 'book', label: 'libraryKinds.projectTypes.book' },
+  { value: 'series', label: 'libraryKinds.projectTypes.series' },
+  { value: 'collection', label: 'libraryKinds.projectTypes.collection' },
+  { value: 'article', label: 'libraryKinds.projectTypes.article' },
   /* 0134 — das Programm einer Schule: seine Lekcje in der Gliederung, die Klassen, die es verwirklichen. */
-  { value: 'program', label: 'Program nauczania' },
-  { value: 'other', label: 'Inny' }
+  { value: 'program', label: 'libraryKinds.projectTypes.program' },
+  { value: 'other', label: 'libraryKinds.projectTypes.other' }
 ] as const;
 
 export const PROJECT_STATUS = [
-  { value: 'planned', label: 'Planowany' },
-  { value: 'writing', label: 'Piszę' },
-  { value: 'editing', label: 'Redakcja' },
-  { value: 'done', label: 'Gotowy' }
+  { value: 'planned', label: 'libraryKinds.projectStatus.planned' },
+  { value: 'writing', label: 'libraryKinds.projectStatus.writing' },
+  { value: 'editing', label: 'libraryKinds.projectStatus.editing' },
+  { value: 'done', label: 'libraryKinds.projectStatus.done' }
 ] as const;
 
 const PROJECT: LibKind = {
   kind: 'project',
-  label: 'Projekt',
-  plural: 'Projekty',
-  says: 'Książka, cykl kazań, zbiór — z planem (rozdziały, części) i postępem pisania.',
+  label: 'libraryKinds.project.label',
+  plural: 'libraryKinds.project.plural',
+  says: 'libraryKinds.project.says',
   keyed: true,
   fields: [
-    { key: 'projectType', label: 'Rodzaj', type: 'select', options: PROJECT_TYPES, says: `Rodzaj: ${PROJECT_TYPES.map((t) => `"${t.value}" (${t.label})`).join(', ')}` },
-    { key: 'title', label: 'Tytuł', type: 'line', says: 'Tytuł' },
-    { key: 'subtitle', label: 'Podtytuł', type: 'line', says: 'Podtytuł' },
-    { key: 'description', label: 'Opis', type: 'text', says: 'Opis projektu — o czym jest książka albo cykl' },
-    { key: 'outline', label: 'Plan', type: 'outline', says: 'Plan: lista {"heading": "Część I"} i {"text": <odwołanie do tekstu>} w kolejności; czytelnik widzi te teksty, które może czytać' },
-    { key: 'status', label: 'Stan', type: 'select', options: PROJECT_STATUS, says: `Stan: ${PROJECT_STATUS.map((t) => `"${t.value}"`).join(', ')}` },
-    { key: 'deadline', label: 'Termin', type: 'date', says: 'Do kiedy (RRRR-MM-DD)' },
-    { key: 'targetWords', label: 'Docelowa liczba słów', type: 'number', says: 'Ile słów ma mieć całość' },
+    { key: 'projectType', label: 'libraryKinds.project.fields.projectType.label', type: 'select', options: PROJECT_TYPES, get says() { return t('libraryKinds.project.fields.projectType.says', { list: PROJECT_TYPES.map((p) => `"${p.value}" (${p.label})`).join(', ') }); } },
+    { key: 'title', label: 'libraryKinds.project.fields.title.label', type: 'line', says: 'libraryKinds.project.fields.title.says' },
+    { key: 'subtitle', label: 'libraryKinds.project.fields.subtitle.label', type: 'line', says: 'libraryKinds.project.fields.subtitle.says' },
+    { key: 'description', label: 'libraryKinds.project.fields.description.label', type: 'text', says: 'libraryKinds.project.fields.description.says' },
+    { key: 'outline', label: 'libraryKinds.project.fields.outline.label', type: 'outline', says: 'libraryKinds.project.fields.outline.says' },
+    { key: 'status', label: 'libraryKinds.project.fields.status.label', type: 'select', options: PROJECT_STATUS, get says() { return t('libraryKinds.project.fields.status.says', { list: PROJECT_STATUS.map((p) => `"${p.value}"`).join(', ') }); } },
+    { key: 'deadline', label: 'libraryKinds.project.fields.deadline.label', type: 'date', says: 'libraryKinds.project.fields.deadline.says' },
+    { key: 'targetWords', label: 'libraryKinds.project.fields.targetWords.label', type: 'number', says: 'libraryKinds.project.fields.targetWords.says' },
     /* 0134 — ein Programm (der Projekt einer Schule) und die Klassen, die es verwirklichen. */
-    { key: 'classes', label: 'Klasy', type: 'items', item: CLASS_ITEM, says: 'Program nauczania w szkole: klasy, które go realizują — lista { "area": identyfikator obszaru klasy }' }
+    { key: 'classes', label: 'libraryKinds.project.fields.classes.label', type: 'items', item: CLASS_ITEM, says: 'libraryKinds.project.fields.classes.says' }
   ],
-  title: (data) => str(data, 'title').trim() || 'Projekt',
+  title: (data) => str(data, 'title').trim() || t('libraryKinds.project.label'),
   sort: (entry) => str(entry.data, 'title').toLowerCase(),
   example: {
     key: 'niedziele-2026',
     data: {
-      projectType: 'series', title: 'Niedziele 2026', description: 'Kazania niedzielne roku B.',
-      outline: [{ heading: 'Lipiec' }, { text: '@kazanie-chleb' }], status: 'writing'
+      projectType: 'series', title: 'Niedziele 2026', description: 'Kazania niedzielne roku B.', // i18n-ignore
+      outline: [{ heading: 'Lipiec' }, { text: '@kazanie-chleb' }], status: 'writing' // i18n-ignore
     }
   }
 };
@@ -719,32 +725,51 @@ const PROJECT: LibKind = {
 const TEXT_TYPE: LibKind = {
   /* Gespeichert als Wort aus Kleinbuchstaben — wie jede Art beim Dienst (`IsKind`). */
   kind: 'texttype',
-  label: 'Rodzaj tekstu',
-  plural: 'Rodzaje tekstów',
-  says: 'Własny rodzaj tekstu (np. „Kazanie maryjne”): nazwa i dodatkowe pola, które ma każdy tekst tego rodzaju — także odwołania do wpisów w Wiedzy (np. tajemnica, obszar). Tekst bez rodzaju to zwykły tekst.',
+  label: 'libraryKinds.textType.label',
+  plural: 'libraryKinds.textType.plural',
+  says: 'libraryKinds.textType.says',
   keyed: true,
   fields: [
-    { key: 'name', label: 'Nazwa', type: 'line', says: 'Nazwa rodzaju, np. „Kazanie maryjne”' },
-    { key: 'description', label: 'Opis', type: 'text', says: 'Do czego służy ten rodzaj' },
+    { key: 'name', label: 'libraryKinds.textType.fields.name.label', type: 'line', says: 'libraryKinds.textType.fields.name.says' },
+    { key: 'description', label: 'libraryKinds.textType.fields.description.label', type: 'text', says: 'libraryKinds.textType.fields.description.says' },
     {
-      key: 'fields', label: 'Dodatkowe pola', type: 'fields',
-      says: 'Pola, które ma każdy tekst tego rodzaju — opisane jak pola rodzaju w Wiedzy: lista {"key", "label", "type", "multi", "options", "to", "locator", "says"}. "type": line, text, number, date, bool, choice, ref, url, list. Przy "ref" — "to": nazwy rodzajów w Wiedzy (np. ["Tajemnica"]) albo "work", "quote", "person" z biblioteki; "locator": true — z miejscem (np. Pismo Święte + "Łk 1,26-38"). Klucze stałych pól tekstu (title, date, plan, body …) są zajęte'
+      key: 'fields', label: 'libraryKinds.textType.fields.fields.label', type: 'fields',
+      says: 'libraryKinds.textType.fields.fields.says'
     }
   ],
-  title: (data) => str(data, 'name').trim() || 'Rodzaj tekstu',
+  title: (data) => str(data, 'name').trim() || t('libraryKinds.textType.label'),
   sort: (entry) => str(entry.data, 'name').toLowerCase(),
   example: {
     key: 'kazanie-maryjne',
     data: {
       name: 'Kazanie maryjne',
-      description: 'Kazania o tajemnicach różańca w obszarach życia Maryi.',
+      description: 'Kazania o tajemnicach różańca w obszarach życia Maryi.', // i18n-ignore
       fields: [
-        { key: 'tajemnica', label: 'Tajemnica', type: 'ref', to: ['Tajemnica'], says: 'Która tajemnica różańca' },
-        { key: 'obszar', label: 'Obszar', type: 'ref', to: ['Obszar'], says: 'Który obszar życia Maryi' }
+        { key: 'tajemnica', label: 'Tajemnica', type: 'ref', to: ['Tajemnica'], says: 'Która tajemnica różańca' }, // i18n-ignore
+        { key: 'obszar', label: 'Obszar', type: 'ref', to: ['Obszar'], says: 'Który obszar życia Maryi' } // i18n-ignore
       ]
     }
   }
 };
+
+/*
+ * 2026-11-05 — DIE TEXTE DER ARTEN stehen in `locales/<lang>/libraryKinds.json`: oben steht je ein Schlüssel
+ * ('libraryKinds.…'), hier wird daraus ein Getter, der beim Lesen übersetzt — `kind.label`, `field.says`,
+ * `option.label` bleiben Texte für jeden, der sie liest.
+ */
+const LOCALIZED = new Set(['label', 'plural', 'says', 'hint', 'group']);
+function localize(node: unknown, seen = new Set<object>()): void {
+  if (typeof node !== 'object' || node === null || seen.has(node)) return;
+  seen.add(node);
+  for (const [prop, desc] of Object.entries(Object.getOwnPropertyDescriptors(node))) {
+    if (!('value' in desc)) continue;
+    const value: unknown = desc.value;
+    if (LOCALIZED.has(prop) && typeof value === 'string' && value.startsWith('libraryKinds.')) {
+      Object.defineProperty(node, prop, { get: () => t(value), enumerable: true, configurable: true });
+    } else if (typeof value === 'object' && prop !== 'data') localize(value, seen);
+  }
+}
+localize([PERSON, WORK, QUOTE, TEXT, DELIVERY, PROJECT, TEXT_TYPE, WORK_TYPES, TRACK_ROLES, BINDINGS, TEXT_STATUS, POINT_KINDS, COVERAGE_STATES, LESSON_STATES, PROJECT_TYPES, PROJECT_STATUS]);
 
 /** Die Bibliothek (2026-10-23): nur Quellen — in dieser Reihenfolge stehen ihre Reiter. */
 export const LIBRARY_KINDS: readonly LibKind[] = [WORK, QUOTE, PERSON];

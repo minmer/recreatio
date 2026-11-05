@@ -301,22 +301,29 @@ public static class AiOAuth
         var grant = await GrantAsync(connection, "id = @id AND approved_at IS NULL", p => p.AddWithValue("@id", id), ctx.RequestAborted);
         if (grant is null) return Results.Json(new { error = "Ta prośba o połączenie wygasła — zacznij od nowa w aplikacji asystenta." }, statusCode: 404);
 
+        var links = new List<(Guid AccessId, string Secret)>();
         foreach (var secret in secrets)
         {
-            await using var cmd = new SqlCommand("""
-                SELECT area_id FROM app.ai_access WHERE token_sha256 = @hash AND key_wrapped IS NOT NULL AND expires_at > SYSDATETIMEOFFSET();
-                """, connection);
-            cmd.Parameters.Add("@hash", System.Data.SqlDbType.VarBinary, 32).Value = Token.HashSecret(secret);
-            var area = await cmd.ExecuteScalarAsync(ctx.RequestAborted) as Guid?;
-            if (area is null || !await Area.MayAsync(connection, who.Value.AccountId, area.Value, Capability.Admin, ctx.RequestAborted)
-                || !await AiAccess.LinkWorksAsync(db, secret, ctx.RequestAborted))
+            if (await AiMcpConnections.LinkOfLeaderAsync(db, connection, who.Value.AccountId, secret, ctx.RequestAborted) is not Guid accessId)
                 return Results.Json(new { error = "Jeden z wybranych linków nie działa albo nie prowadzisz jego obszaru." }, statusCode: 403);
+            links.Add((accessId, secret));
+        }
+
+        /*
+         * 0138 — der Assistent bekommt eine VERBINDUNG statt der festen Liste: in der App kommen später Bereiche dazu
+         * oder fallen heraus, ohne neue Anmeldung. Ohne die Migration wie bisher (das Token ist die Liste).
+         */
+        var payload = secrets;
+        if (await AiMcpConnections.ReadyAsync(connection, ctx.RequestAborted))
+        {
+            var (_, token) = await AiMcpConnections.CreateAsync(connection, who.Value.AccountId, grant.ClientId, grant.ClientName, links, ctx.RequestAborted);
+            payload = [token];
         }
 
         var code = Token.NewSecret();
         var key = Crypto.Derive(Encoding.UTF8.GetBytes(code), Crypto.InfoAiOAuthCode(id), Crypto.KeySize);
         byte[] sealedSecrets;
-        try { sealedSecrets = Crypto.Seal(key, CodeAad(id), JsonSerializer.Serialize(secrets)); }
+        try { sealedSecrets = Crypto.Seal(key, CodeAad(id), JsonSerializer.Serialize(payload)); }
         finally { CryptographicOperations.ZeroMemory(key); }
 
         await using (var update = new SqlCommand("""
@@ -402,7 +409,21 @@ public static class AiOAuth
         catch (DecryptException) { return TokenError("invalid_grant", "Kod nie pasuje."); }
         finally { CryptographicOperations.ZeroMemory(key); }
 
-        /* Wie lange: bis der erste der Links abläuft. */
+        /* 0138 — eine Verbindung: sie gilt ab jetzt, ein Jahr lang; ihre Bereiche ändern sich in der App. */
+        if (secrets.Count == 1 && AiMcpConnections.SecretOf(secrets[0]) is not null)
+        {
+            if (await AiMcpConnections.ClaimAsync(connection, secrets[0], ctx.RequestAborted) is not DateTimeOffset until)
+                return TokenError("invalid_grant", "Połączenie już nie istnieje.");
+            return Results.Json(new
+            {
+                access_token = secrets[0],
+                token_type = "Bearer",
+                expires_in = (long)Math.Max(60, (until - DateTimeOffset.UtcNow).TotalSeconds),
+                scope = grant.Scope ?? AiMcp.Scope
+            });
+        }
+
+        /* Wie lange (alte Tokens, vor 0138): bis der erste der Links abläuft. */
         var expires = DateTimeOffset.MaxValue;
         foreach (var secret in secrets)
         {

@@ -12,6 +12,7 @@ import 'reactflow/dist/style.css';
 
 import { ask } from '../ui/dialogs';
 import { kindLabel } from '../areas/profile';
+import { useT } from '../core/i18n';
 import { flatten, holdersOf, kindOf, positionsOf, staffing, type CommunityDoc } from './community';
 import { mayMove } from './communityEdit';
 
@@ -30,6 +31,7 @@ interface UnitData {
 interface SmallData { readonly label: string; readonly kind: 'position' | 'person' }
 
 function UnitBox({ data }: NodeProps<UnitData>) {
+  const t = useT();
   return (
     <div className={`wk-cm-node${data.selected ? ' is-on' : ''}${data.removed ? ' is-removed' : ''}`} data-cm-node={data.key}>
       <Handle type="target" position={Position.Left} />
@@ -39,7 +41,7 @@ function UnitBox({ data }: NodeProps<UnitData>) {
       {data.warn.map((l) => <span key={l} className="wk-fmap-warn">⚠ {l}</span>)}
       {data.hidden >= 0 && (
         <button type="button" className="wk-link-btn nodrag" onClick={(e) => { e.stopPropagation(); data.onToggle(data.key); }}>
-          {data.hidden > 0 ? `+ ${data.hidden} niżej` : '− zwiń'}
+          {data.hidden > 0 ? t('communities.structure.hiddenBelow', { count: data.hidden }) : t('communities.structure.collapse')}
         </button>
       )}
       <Handle type="source" position={Position.Right} />
@@ -66,6 +68,7 @@ export function StructureMap({ doc, selected, onPick, onMove }: {
   onPick: (key: string) => void;
   onMove: (key: string, target: string) => void;
 }) {
+  const t = useT();
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
   const [people, setPeople] = useState(false);
   const toggle = (key: string) => setClosed((was) => { const next = new Set(was); if (next.has(key)) next.delete(key); else next.add(key); return next; });
@@ -89,8 +92,8 @@ export function StructureMap({ doc, selected, onPick, onMove }: {
         id: key, type: 'unit', position: { x: f.depth * COL, y },
         data: {
           key, name: f.unit.name, kind: kindLabel(kindOf(doc, f.unit)),
-          lines: [`${positionsOf(doc, f.unit).length} poz. · ${doc.persons.filter((p) => p.remove !== true && p.places.some((pl) => pl.unit === key)).length} os.`],
-          warn: gaps.filter((g) => g.unit === key && g.have < g.want).map((g) => `${g.positionName}: brakuje ${g.want - g.have}`),
+          lines: [t('communities.structure.nodeCounts', { positions: positionsOf(doc, f.unit).length, persons: doc.persons.filter((p) => p.remove !== true && p.places.some((pl) => pl.unit === key)).length })],
+          warn: gaps.filter((g) => g.unit === key && g.have < g.want).map((g) => t('communities.structure.missing', { position: g.positionName, count: g.want - g.have })),
           hidden: f.unit.units === undefined || f.unit.units.length === 0 ? -1 : closed.has(key) ? below : 0,
           selected: key === selected, removed: f.unit.remove === true, onToggle: toggle
         } satisfies UnitData
@@ -108,7 +111,7 @@ export function StructureMap({ doc, selected, onPick, onMove }: {
     };
     place(doc.unit.key);
     return { nodes, edges };
-  }, [doc, closed, people, selected]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [doc, closed, people, selected, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const drop = async (_e: unknown, node: Node) => {
     if (node.type !== 'unit') return;
@@ -118,14 +121,14 @@ export function StructureMap({ doc, selected, onPick, onMove }: {
     if (!mayMove(doc, node.id, target.id)) return;
     const what = flatten(doc.unit).find((f) => f.unit.key === node.id)?.unit.name ?? node.id;
     const where = flatten(doc.unit).find((f) => f.unit.key === target.id)?.unit.name ?? target.id;
-    if (await ask({ title: `Przenieść „${what}” pod „${where}”?`, body: 'Zmiana trafi do planu — zapisze się dopiero po „Zapisz zmiany”.', confirm: 'Przenieś' })) onMove(node.id, target.id);
+    if (await ask({ title: t('communities.structure.moveAsk', { what, where }), body: t('communities.structure.moveAskBody'), confirm: t('communities.structure.move') })) onMove(node.id, target.id);
   };
 
   return (
     <div className="wk-cm-map" data-cm-map="">
       <div className="wk-actions">
-        <label className="wk-check"><input type="checkbox" checked={people} onChange={(e) => setPeople(e.target.checked)} /> Pokaż pozycje i osoby</label>
-        <span className="wk-note">Przeciągnij jednostkę na inną, żeby ją tam przenieść.</span>
+        <label className="wk-check"><input type="checkbox" checked={people} onChange={(e) => setPeople(e.target.checked)} /> {t('communities.structure.showPeople')}</label>
+        <span className="wk-note">{t('communities.structure.dragHint')}</span>
       </div>
       <div className="wk-cm-canvas">
         <ReactFlow key={`${closed.size}-${people}`} nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} fitView minZoom={0.2}

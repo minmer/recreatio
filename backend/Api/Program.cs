@@ -175,6 +175,7 @@ LibraryCatalog.Map(app);
 AiAccess.Map(app);
 /* 0127 — dasselbe als MCP (/mcp) mit OAuth (/oauth, /.well-known). */
 AiMcp.Map(app);
+AiMcpConnections.Map(app);
 
 /* 0109 — Cogita: Antworten und Kenntnis (versiegelt, an die Annahme), direkt veröffentlichte Bausteine, Sitzungen, Spiele. */
 Cogita.Map(app);

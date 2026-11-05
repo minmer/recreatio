@@ -28,18 +28,20 @@ import { ChatRoom } from './ChatRoom';
 import { useMe } from './chatShared';
 import { NewChat } from './NewChat';
 import { useBarHeight } from '../ui/useBarHeight';
+import { useT } from '../core/i18n';
 
 /* -- Die Ansicht ------------------------------------------------------------------ */
 
 export function ChatView({ who, trail }: { who: Who; trail: readonly string[] }) {
+  const t = useT();
   const me = useMe(who);
   const at = trail[0];
   /* Die Rozmowa füllt, was unter dem Kopf der App bleibt. */
   const top = useBarHeight();
 
-  if (me === undefined) return <p className="wk-lede">Wczytywanie…</p>;
+  if (me === undefined) return <p className="wk-lede">{t('common.loading')}</p>;
   if (me === null) {
-    return <p className="wk-note">Bez hasła w tej karcie rozmowy są zamknięte — zaloguj się ponownie albo odblokuj klucz.</p>;
+    return <p className="wk-note">{t('chat.page.locked')}</p>;
   }
 
   const room = at === 'nowa' ? <div className="ch-page"><NewChat me={me} /></div>
@@ -49,7 +51,7 @@ export function ChatView({ who, trail }: { who: Who; trail: readonly string[] })
   return (
     <div className={`ch-app${room !== null ? ' has-room' : ''}`} style={{ '--ch-top': `${top}px` } as CSSProperties}>
       <ChatList me={me} current={at} />
-      <section className="ch-main" aria-label="Rozmowa">{room ?? <ChatWelcome me={me} />}</section>
+      <section className="ch-main" aria-label={t('chat.page.room')}>{room ?? <ChatWelcome me={me} />}</section>
     </div>
   );
 }

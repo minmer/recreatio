@@ -19,6 +19,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+import { useT } from '../../core/i18n';
 import { newId } from '../../core/ids';
 import type { DraftPart } from '../page';
 import { pieceLabelOf } from './PagePresentation';
@@ -44,11 +45,12 @@ type PathData =
   | { readonly kind: 'end' };
 
 function PathNode({ data, selected }: NodeProps<PathData>) {
+  const t = useT();
   if (data.kind === 'end') {
     return (
       <div className={`pm-node is-end${selected ? ' is-on' : ''}`}>
         <Handle id="in" type="target" position={Position.Left} className="pm-handle" />
-        <strong>Koniec</strong>
+        <strong>{t('pagePresentation.paths.end')}</strong>
       </div>
     );
   }
@@ -72,20 +74,20 @@ function PathNode({ data, selected }: NodeProps<PathData>) {
     return (
       <div className={`pm-node is-link${selected ? ' is-on' : ''}`}>
         <Handle id="in" type="target" position={Position.Left} className="pm-handle" />
-        <strong>↗ {data.label || 'Link'}</strong>
+        <strong>↗ {data.label || t('pagePresentation.map.link')}</strong>
         <span className="pm-href">{data.href}</span>
       </div>
     );
   }
   return (
     <div className={`pm-node is-scene${selected ? ' is-on' : ''}${data.reached ? '' : ' is-unreached'}${data.onRoute ? ' is-route' : ''}`}>
-      <Handle id="in" type="target" position={Position.Left} className="pm-handle" title="Wejście sceny" />
+      <Handle id="in" type="target" position={Position.Left} className="pm-handle" title={t('pagePresentation.map.sceneIn')} />
       <div className="pm-head">
         <span className="pm-num">{data.index + 1}</span>
-        <strong>{data.label || 'Scena'}</strong>
-        {data.start && <span className="pm-tag">początek</span>}
+        <strong>{data.label || t('pagePresentation.paths.scene')}</strong>
+        {data.start && <span className="pm-tag">{t('pagePresentation.map.start')}</span>}
       </div>
-      {!data.reached && <span className="pm-warn">nie da się tu dojść</span>}
+      {!data.reached && <span className="pm-warn">{t('pagePresentation.map.unreachable')}</span>}
       <ul className="pm-exits">
         {data.exits.map((exit) => (
           <li key={exit.id} className={exit.id === NEXT ? 'is-next' : 'is-button'}>
@@ -115,6 +117,7 @@ export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, o
   /** Eine Szene zum Bearbeiten öffnen (Doppelklick, „Otwórz scenę"). */
   onOpenScene: (index: number) => void;
 }) {
+  const t = useT();
   const pieces = useMemo(() => parts.map((part) => ({ part, piece: readPiece(part.layout) })), [parts]);
   const reached = useMemo(() => reachable(show, pieces.map((p) => p.piece)), [show, pieces]);
   const route = useMemo(() => new Set(routeOf(show)), [show]);
@@ -129,8 +132,8 @@ export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, o
   const questionsOn = (key: string) => pieces.filter((p) => p.part.kind === 'question' && p.piece.places[key] !== undefined);
   const story = show.story ?? NO_STORY;
   const gateExits = (gate: Gate): Exit[] => (gate.type === 'condition'
-    ? [{ id: 'yes', label: 'tak' }, { id: 'no', label: 'nie' }]
-    : [{ id: NEXT, label: 'dalej' }]);
+    ? [{ id: 'yes', label: t('pagePresentation.map.yes') }, { id: 'no', label: t('pagePresentation.map.no') }]
+    : [{ id: NEXT, label: t('pagePresentation.map.onward') }]);
 
   const nodes: Node<PathData>[] = [
     ...show.scenes.map((sc, index): Node<PathData> => ({
@@ -141,11 +144,11 @@ export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, o
       data: {
         kind: 'scene', index, label: sc.label, start: index === 0, reached: reached.has(sc.key), onRoute: route.has(sc.key),
         exits: [
-          { id: NEXT, label: 'Dalej — strzałki, przewijanie' },
-          ...buttonsOf(sc.key).map((p) => ({ id: p.part.id, label: `Przycisk: ${pieceLabelOf(p.part)}` })),
+          { id: NEXT, label: t('pagePresentation.map.nextExit') },
+          ...buttonsOf(sc.key).map((p) => ({ id: p.part.id, label: t('pagePresentation.map.button', { name: pieceLabelOf(p.part) }) })),
           ...questionsOn(sc.key).flatMap((p) => [
-            { id: `${p.part.id}:right`, label: `Dobrze: ${pieceLabelOf(p.part)}` },
-            { id: `${p.part.id}:wrong`, label: `Źle: ${pieceLabelOf(p.part)}` }
+            { id: `${p.part.id}:right`, label: t('pagePresentation.map.right', { name: pieceLabelOf(p.part) }) },
+            { id: `${p.part.id}:wrong`, label: t('pagePresentation.map.wrong', { name: pieceLabelOf(p.part) }) }
           ])
         ]
       }
@@ -323,7 +326,7 @@ export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, o
   const gate = chosen !== null && chosen.startsWith(GATE) ? story.gates.find((g) => g.key === chosen.slice(GATE.length)) : undefined;
 
   return (
-    <section className="pm" aria-label="Przejścia między scenami">
+    <section className="pm" aria-label={t('pagePresentation.map.title')}>
       <div className="pm-canvas">
         <ReactFlow
           nodes={nodes}
@@ -349,18 +352,18 @@ export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, o
       <aside className="pm-side">
         {scene !== undefined ? (
           <div className="wk-form">
-            <h3 className="wk-h2">{sceneIndex + 1}. {scene.label || 'Scena'}</h3>
-            {!reached.has(scene.key) && <p className="wk-warn">Do tej sceny nie prowadzi żaden przycisk ani „dalej” — nikt jej nie zobaczy.</p>}
+            <h3 className="wk-h2">{sceneIndex + 1}. {scene.label || t('pagePresentation.paths.scene')}</h3>
+            {!reached.has(scene.key) && <p className="wk-warn">{t('pagePresentation.map.noWayIn')}</p>}
             <label className="wk-field">
-              <span>„Dalej” — strzałki, przewijanie, spacja — prowadzi do</span>
+              <span>{t('pagePresentation.map.nextLeads')}</span>
               <select value={scene.next ?? ''} disabled={busy} data-pm-next={scene.key} onChange={(e) => setNext(scene.key, e.target.value === '' ? null : e.target.value)}>
-                <option value="">następnej na liście ({targetLabel(show, show.scenes[sceneIndex + 1]?.key ?? END, 'Koniec')})</option>
+                <option value="">{t('pagePresentation.map.nextInList', { target: targetLabel(show, show.scenes[sceneIndex + 1]?.key ?? END, t('pagePresentation.paths.end')) })}</option>
                 {options.filter((o) => o.value !== scene.key).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </label>
 
-            <h4 className="pb-h">Przyciski na tej scenie</h4>
-            {pieces.filter((p) => p.piece.places[scene.key] !== undefined).length === 0 && <p className="wk-hint">Na tej scenie nie ma modułów.</p>}
+            <h4 className="pb-h">{t('pagePresentation.map.buttons')}</h4>
+            {pieces.filter((p) => p.piece.places[scene.key] !== undefined).length === 0 && <p className="wk-hint">{t('pagePresentation.map.noModules')}</p>}
             <ul className="pm-buttons">
               {pieces.filter((p) => p.piece.places[scene.key] !== undefined).map((p) => {
                 const on = p.piece.go[scene.key] !== undefined;
@@ -372,9 +375,9 @@ export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, o
                       <span>{pieceLabelOf(p.part)}</span>
                     </label>
                     {on && (
-                      <select value={p.piece.go[scene.key] ?? ''} disabled={busy} aria-label={`${pieceLabelOf(p.part)} prowadzi do`} data-pm-go={p.part.id}
+                      <select value={p.piece.go[scene.key] ?? ''} disabled={busy} aria-label={t('pagePresentation.map.leadsTo', { name: pieceLabelOf(p.part) })} data-pm-go={p.part.id}
                         onChange={(e) => setButton(scene.key, p.part.id, e.target.value)}>
-                        <option value="">— nigdzie (jeszcze) —</option>
+                        <option value="">{t('pagePresentation.map.nowhereYet')}</option>
                         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
                     )}
@@ -384,16 +387,16 @@ export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, o
             </ul>
             {questionsOn(scene.key).length > 0 && (
               <>
-                <h4 className="pb-h">Pytania na tej scenie</h4>
+                <h4 className="pb-h">{t('pagePresentation.map.questions')}</h4>
                 {questionsOn(scene.key).map((p) => (
                   <div key={p.part.id} className="pm-question">
                     <strong>{pieceLabelOf(p.part)}</strong>
                     {(['right', 'wrong'] as const).map((outcome) => (
                       <label key={outcome} className="wk-field">
-                        <span>{outcome === 'right' ? 'Po dobrej odpowiedzi' : 'Po złej odpowiedzi'}</span>
+                        <span>{outcome === 'right' ? t('pagePresentation.map.afterRight') : t('pagePresentation.map.afterWrong')}</span>
                         <select value={p.piece.go[outcomeKey(scene.key, outcome)] ?? ''} disabled={busy} data-pm-outcome={`${p.part.id}:${outcome}`}
                           onChange={(e) => setOutcome(scene.key, p.part.id, outcome, e.target.value === '' ? undefined : e.target.value)}>
-                          <option value="">tak jak „dalej” tej sceny</option>
+                          <option value="">{t('pagePresentation.map.likeNext')}</option>
                           {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </label>
@@ -403,7 +406,7 @@ export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, o
               </>
             )}
             <div className="wk-actions">
-              <button type="button" className="wk-link-btn" onClick={() => onOpenScene(sceneIndex)}>Otwórz scenę</button>
+              <button type="button" className="wk-link-btn" onClick={() => onOpenScene(sceneIndex)}>{t('pagePresentation.map.openScene')}</button>
             </div>
           </div>
         ) : gate !== undefined ? (
@@ -411,45 +414,42 @@ export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, o
             onGate={(next) => setGate(gate.key, next)} onDelete={() => setGate(gate.key, null)} />
         ) : link !== undefined ? (
           <div className="wk-form">
-            <h3 className="wk-h2">Link zewnętrzny</h3>
+            <h3 className="wk-h2">{t('pagePresentation.map.externalLink')}</h3>
             <label className="wk-field">
-              <span>Napis (na przycisku „dalej” na końcu)</span>
+              <span>{t('pagePresentation.map.linkLabel')}</span>
               <input value={link.label} disabled={busy} maxLength={80} onChange={(e) => setLink(link.id, { label: e.target.value })} />
             </label>
             <label className="wk-field">
-              <span>Adres</span>
+              <span>{t('pagePresentation.map.address')}</span>
               <input defaultValue={link.href} disabled={busy}
                 onBlur={(e) => { const made = textLink(e.target.value); if (made !== null) setLink(link.id, { href: made }); else e.target.value = link.href; }} />
-              <span className="wk-hint">https://…, www.…, #/strona tutaj, mailto:…, tel:…</span>
+              <span className="wk-hint">{t('pagePresentation.map.addressHint')}</span>
             </label>
             <div className="wk-actions">
-              <button type="button" className="wk-link-btn se-drop" disabled={busy} onClick={() => dropLink(link.id)}>Usuń link</button>
+              <button type="button" className="wk-link-btn se-drop" disabled={busy} onClick={() => dropLink(link.id)}>{t('pagePresentation.map.removeLink')}</button>
             </div>
           </div>
         ) : (
           <div className="wk-form">
             <p className="wk-hint">
-              Każda scena ma jedno wejście (z lewej) i wyjścia (z prawej): „dalej” — strzałki i przewijanie — oraz po jednym
-              na każdy przycisk. Przeciągnij od wyjścia do sceny, końca albo linku. Linia przerywana — „dalej” prowadzi do
-              następnej na liście; usuń ją (Delete), żeby tu był koniec. Kliknij scenę, żeby wybrać cele z listy i zrobić
-              przyciski; dwuklik — otwiera scenę.
+              {t('pagePresentation.map.help')}
             </p>
           </div>
         )}
 
         <details className="wk-fold pm-add" open={show.links.length === 0}>
-          <summary>+ Link zewnętrzny</summary>
+          <summary>{t('pagePresentation.map.addLink')}</summary>
           <label className="wk-field">
-            <span>Napis</span>
-            <input value={label} disabled={busy} maxLength={80} placeholder="np. Zapisz się" onChange={(e) => setLabel(e.target.value)} />
+            <span>{t('pagePresentation.map.text')}</span>
+            <input value={label} disabled={busy} maxLength={80} placeholder={t('pagePresentation.map.textPlaceholder')} onChange={(e) => setLabel(e.target.value)} />
           </label>
           <label className="wk-field">
-            <span>Adres</span>
-            <input value={href} disabled={busy} placeholder="https://… albo #/parafia/zapisy" onChange={(e) => setHref(e.target.value)} />
+            <span>{t('pagePresentation.map.address')}</span>
+            <input value={href} disabled={busy} placeholder={t('pagePresentation.map.addressPlaceholder')} onChange={(e) => setHref(e.target.value)} />
           </label>
-          {href.trim() !== '' && !linkOk && <p className="wk-blocker">To nie jest adres, który może być linkiem.</p>}
+          {href.trim() !== '' && !linkOk && <p className="wk-blocker">{t('pagePresentation.map.notLink')}</p>}
           <div className="wk-actions">
-            <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || !linkOk} onClick={addLink}>Dodaj link</button>
+            <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || !linkOk} onClick={addLink}>{t('pagePresentation.map.addLinkBtn')}</button>
           </div>
         </details>
 
@@ -458,11 +458,11 @@ export function PathsEditor({ show, parts, path, title, busy, onShow, onParts, o
         <div className="wk-actions">
           <button type="button" className="wk-link-btn" disabled={busy || Object.keys(show.map).length === 0}
             onClick={() => onShow({ ...show, map: {} })}>
-            Ułóż mapę od nowa
+            {t('pagePresentation.map.relayout')}
           </button>
         </div>
         <p className="wk-hint">
-          Bez połączeń prezentacja idzie po kolei. Droga bez naciskania przycisków: {routeOf(show).length} z {show.scenes.length} scen.
+          {t('pagePresentation.map.route', { n: routeOf(show).length, count: show.scenes.length })}
         </p>
       </aside>
     </section>

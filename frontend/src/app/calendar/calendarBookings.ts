@@ -20,6 +20,7 @@
 import { openHolderNames } from '../core/holderNames';
 import type { Status } from '../bookings/resource';
 import { call } from '../core/session';
+import { appLang, fmtDate, t } from '../core/i18n';
 
 export interface BookingResource {
   readonly resourceId: string;
@@ -114,18 +115,18 @@ export const waitsForOffice = (claim: HeldClaim): boolean => claim.status === 'p
 export function holderName(claim: HeldClaim): string {
   if (claim.name !== null && claim.name.trim() !== '') return claim.name;
   if (claim.withLink && claim.registeredAt !== null) {
-    return `osoba z linku (zapisana ${new Date(claim.registeredAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })})`;
+    return t('calendarApp.claim.linkPersonSince', { date: fmtDate(new Date(claim.registeredAt), { day: 'numeric', month: 'short' }, appLang()) });
   }
-  return claim.withLink ? 'osoba z linku' : 'bez nazwy';
+  return claim.withLink ? t('calendarApp.claim.linkPerson') : t('calendarApp.claim.noName');
 }
 
 /** Der Stand eines Anspruchs, kurz. */
 export function claimWord(claim: HeldClaim): string {
-  if (waitsForOffice(claim)) return 'czeka na potwierdzenie';
-  if (claim.status === 'pending' && claim.awaits === 'host') return 'prosi gospodarza o miejsce';
-  if (claim.hostPending) return 'pierwszy — decyduje, czy zaprasza';
-  if (claim.hosting) return 'gospodarz terminu';
-  return claim.byOffice ? 'wpisany przez kancelarię' : 'potwierdzony';
+  if (waitsForOffice(claim)) return t('calendarApp.claim.waiting');
+  if (claim.status === 'pending' && claim.awaits === 'host') return t('calendarApp.claim.asksHost');
+  if (claim.hostPending) return t('calendarApp.claim.hostPending');
+  if (claim.hosting) return t('calendarApp.claim.hosting');
+  return claim.byOffice ? t('calendarApp.claim.byOffice') : t('calendarApp.claim.confirmed');
 }
 
 /** Wie viele am Termin auf ein Ja der Kanzlei warten. */

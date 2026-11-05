@@ -17,6 +17,7 @@ import { WorkspaceError } from '../core/session';
 import { viewPath } from '../routes';
 import { toast } from '../ui/dialogs';
 import { areasNow } from '../workspace/viewData';
+import { rich, useT } from '../core/i18n';
 
 export function PageResponsible({ path, isPublic, responsible }: {
   path: string;
@@ -25,6 +26,7 @@ export function PageResponsible({ path, isPublic, responsible }: {
   /** Wie die Seite es zuletzt sagte; `undefined`: nicht geladen. */
   responsible: Responsible | null | undefined;
 }) {
+  const t = useT();
   const [current, setCurrent] = useState<Responsible | null | undefined>(responsible);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [picked, setPicked] = useState('');
@@ -39,7 +41,7 @@ export function PageResponsible({ path, isPublic, responsible }: {
   }, []);
 
   const mine = areas.filter((a) => a.myLevel === 'admin' && a.personal !== true && a.ownChat == null);
-  const areaName = (id: string) => areas.find((a) => a.areaId === id)?.name ?? 'obszar';
+  const areaName = (id: string) => areas.find((a) => a.areaId === id)?.name ?? t('pages.responsible.area');
   const here = (p: string) => (p === '' ? 'recreatio.pl' : p);
 
   const save = async (areaId: string | null) => {
@@ -49,9 +51,9 @@ export function PageResponsible({ path, isPublic, responsible }: {
       const out = await setPageController(path, areaId);
       setCurrent(out.responsible);
       setPicked('');
-      toast(areaId === null ? 'Usunięto wskazanie.' : 'Zapisano, kto odpowiada za stronę.', { kind: 'ok' });
+      toast(areaId === null ? t('pages.responsible.removed') : t('pages.responsible.saved'), { kind: 'ok' });
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pages.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -62,40 +64,36 @@ export function PageResponsible({ path, isPublic, responsible }: {
   return (
     <>
       {isPublic && nobody && (
-        <p className="wk-warn" data-page-responsible="none">
-          Ta strona jest publiczna, a nikt nie odpowiada za jej treść — zapiszesz ją dopiero, gdy wskażesz obszar
-          (niżej: „Kto odpowiada za tę stronę”).
-        </p>
+        <p className="wk-warn" data-page-responsible="none">{t('pages.responsible.warn')}</p>
       )}
 
       <details className="wk-fold" open={isPublic && nobody}>
-        <summary>Kto odpowiada za tę stronę{current?.controller ? ` — ${current.controller.name}` : ''}</summary>
+        <summary>{current?.controller ? t('pages.responsible.titleWith', { name: current.controller.name }) : t('pages.responsible.title')}</summary>
         <div className="wk-page-responsible">
           {current === undefined ? null : current === null || current.controller === null ? (
             <p className="wk-note">
               {isPublic
-                ? 'Nikt nie jest wskazany. Każda publiczna strona potrzebuje kogoś, kto za nią odpowiada — może to być organizacja pośrednicząca.'
-                : 'Nikt nie jest wskazany — za stronę tylko z dostępem odpowiada administrator danych jej obszarów.'}
+                ? t('pages.responsible.nobodyPublic')
+                : t('pages.responsible.nobodyAccess')}
             </p>
           ) : (
             <p className="wk-controller-line">
               <strong>{current.controller.name}</strong>
               {current.controller.address !== null && `, ${current.controller.address}`}
-              {' '}— obszar <a href={viewPath('areas', current.areaId, 'ustawienia')}>{areaName(current.areaId)}</a>
-              {current.fromPath === path
-                ? '; obowiązuje też dla stron poniżej.'
-                : `; wskazane na stronie ${here(current.fromPath)} — obowiązuje też tutaj.`}
+              {' '}{rich(current.fromPath === path ? t('pages.responsible.areaHere', { area: areaName(current.areaId) }) : t('pages.responsible.areaFrom', { area: areaName(current.areaId), page: here(current.fromPath) }), {
+                link: (s, k) => <a key={k} href={viewPath('areas', current.areaId, 'ustawienia')}>{s}</a>
+              })}
             </p>
           )}
 
           {mine.length === 0 ? (
-            <p className="wk-note">Wskazać można obszar, który prowadzisz i który ma administratora danych.</p>
+            <p className="wk-note">{t('pages.responsible.canPick')}</p>
           ) : (
             <div className="wk-page-responsible-pick">
-              <AreaPick areas={areas} only={mine} value={picked} onChange={setPicked} label="Obszar, który odpowiada" placeholder="Wybierz obszar…" disabled={busy} />
-              <button type="button" className="wk-btn wk-btn-small" disabled={busy || picked === ''} onClick={() => void save(picked)}>Wskaż</button>
+              <AreaPick areas={areas} only={mine} value={picked} onChange={setPicked} label={t('pages.responsible.pickLabel')} placeholder={t('pages.responsible.pickPlaceholder')} disabled={busy} />
+              <button type="button" className="wk-btn wk-btn-small" disabled={busy || picked === ''} onClick={() => void save(picked)}>{t('pages.responsible.pick')}</button>
               {current !== undefined && current !== null && current.fromPath === path && (
-                <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void save(null)}>Usuń wskazanie</button>
+                <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void save(null)}>{t('pages.responsible.remove')}</button>
               )}
             </div>
           )}

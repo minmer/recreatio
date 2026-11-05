@@ -28,7 +28,7 @@ import HelperWorker from './app/lab/particles/helper.worker?worker&inline';
 import './app/app.css';
 import './app/ui/ui.css';
 import './locales';
-import { startI18n } from './app/core/i18n';
+import { startI18n, t } from './app/core/i18n';
 
 const RELOADED = 'recreatio.lab.reloaded';
 
@@ -82,7 +82,7 @@ async function start(): Promise<void> {
   const payload = await decodeLab(window.location.hash);
   const preset = PARTICLE_PRESETS[0];
   const config = payload ?? { title: preset.title, text: preset.text, scene: BOILING_SCENE };
-  document.title = `${config.title || 'Laboratorium cząstek'} — REcreatio`;
+  document.title = t('labParticles.pageTitle', { title: config.title || t('labParticles.title') });
   const root = document.getElementById('root');
   if (root === null) return;
   root.className = 'pl-page';

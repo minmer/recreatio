@@ -8,7 +8,7 @@ import { type CalendarRow, loadCalendars } from '../calendar/calendar';
 import { EventDialog } from '../calendar/EventDialog';
 import { TaskDialog } from '../calendar/TaskDialog';
 import type { Me as Person } from '../core/me';
-import { plural } from '../core/plural';
+import { rich, useT } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
 import { nameOf } from '../roles/RolePicker';
@@ -36,6 +36,7 @@ const ChatJsonDialog = later(() => import('./ChatJsonDialog').then((m) => m.Chat
 /* -- Eine Rozmowa -------------------------------------------------------------------- */
 
 export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
+  const t = useT();
   const endpoint = chatEndpoint(chatId);
   /* 0076 — gemeldet wird über `notify.ts` (die Glocke), nicht noch einmal hier. */
   const extras = useChatExtras(endpoint, { notify: false });
@@ -110,10 +111,10 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       return { found, held: derived, area: held };
     } catch (e) {
       setChat(null);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć rozmowy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.room.openFailed'));
       return null;
     }
-  }, [chatId, me.ring]);
+  }, [chatId, me.ring, t]);
 
   const open = async (held: ReadonlyMap<number, Uint8Array>, messages: readonly SealedMessage[]) =>
     Promise.all(messages.map(async (message) => ({ message, opened: await openMessage(held, message) })));
@@ -236,12 +237,12 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   /* 2026-10-29 — eine eigene Person schreibt hier (ein Kanał kann es trotzdem verbieten) — für den Import als JSON. */
   const writes = speaker !== null && extras.features?.canWrite !== false;
 
-  if (chat === undefined) return <p className="ch-empty">Wczytywanie…</p>;
+  if (chat === undefined) return <p className="ch-empty">{t('common.loading')}</p>;
   if (chat === null) {
     return (
       <div className="ch-page">
-        <p><a className="wk-link" href={viewPath('chat')}>← Rozmowy</a></p>
-        <p className="wk-error">{failed ?? 'Takiej rozmowy nie ma.'}</p>
+        <p><a className="wk-link" href={viewPath('chat')}>{t('chat.new.back')}</a></p>
+        <p className="wk-error">{failed ?? t('chat.room.notFound')}</p>
       </div>
     );
   }
@@ -249,14 +250,14 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const self = chat.kind === 'self';
   const other = chat.kind === 'direct' ? chat.members.find((m) => !me.ring.has(m.roleId)) : undefined;
   const seatChat = chat.kind === 'seat';
-  const title = self ? 'Notatki'
-    : seatChat ? `Rozmowa z: ${chat.seats[0]?.name ?? 'osobą z formularza'}`
+  const title = self ? t('chat.title.notes')
+    : seatChat ? t('chat.title.seat', { name: chat.seats[0]?.name ?? t('chat.title.formPerson') })
     : other !== undefined ? nameOf(other.roleId, other.kind, names, me.names)
-    : chat.kind === 'channel' ? `Kanał: ${titleOfArea(areas, chat.areaId, chat.areaName)}`
+    : chat.kind === 'channel' ? t('chat.title.channel', { name: titleOfArea(areas, chat.areaId, chat.areaName) })
     : titleOfArea(areas, chat.areaId, chat.areaName);
 
   /* 0068 — das gewählte Thema, wenn es das noch gibt. */
-  const currentTopic = topic !== '' && topics.some((t) => t.topicId === topic) ? topic : null;
+  const currentTopic = topic !== '' && topics.some((tp) => tp.topicId === topic) ? topic : null;
   const person = me.roles.find((r) => r.kind === 'person') ?? null;
   const asPerson: Person | null = person === null ? null : { ring: me.ring, roles: me.roles, person, names: me.names };
   const kindOf = (roleId: string) => chat.members.find((m) => m.roleId === roleId)?.kind;
@@ -281,14 +282,14 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
      * Die eigenen: „Ty" — mit der Rolle, wenn durch sie geschrieben; mit dem
      * Namen, wenn hier mehr als eine eigene Person spricht (die eines Kindes).
      */
-    if (mine(message)) return persons.size > 1 ? `${authorText(author)} · Ty` : author.via === null ? 'Ty' : `Ty (${author.via})`;
+    if (mine(message)) return persons.size > 1 ? `${authorText(author)} · ${t('chat.you')}` : author.via === null ? t('chat.you') : `${t('chat.you')} (${author.via})`;
     return authorText(author);
   };
 
   const rules: MessageRules = {
     mine,
     author: authorName,
-    note: (message) => (message.authorSeatId !== null ? 'z linku' : null),
+    note: (message) => (message.authorSeatId !== null ? t('chat.link.fromLink') : null),
     /* 0058 — bearbeiten nur die eigene; zurückholen der Verfasser (wenn er selbst löschte) oder wer moderiert. */
     canEdit: (message, opened) => mine(message) && message.deletedAt === null && opened !== null && chat.writers.includes(message.authorRoleId ?? ''),
     canDelete: (message) => message.deletedAt === null && (mine(message) || moderates),
@@ -327,7 +328,7 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   };
 
   const send = async (body: string, options: SendOptions) => {
-    if (speaker === null) throw new WorkspaceError(noPerson ? 'Do rozmowy potrzebna jest osoba — załóż ją w Koncie.' : 'W tej rozmowie tylko czytasz.');
+    if (speaker === null) throw new WorkspaceError(noPerson ? t('chat.forward.needPerson') : t('chat.forward.readOnly'));
     /*
      * Die Person und, wenn durch eine Rolle, die Rolle reisen in der Nachricht
      * mit — für die, die die Namen des Bereichs nicht lesen (0053, 0095).
@@ -355,34 +356,34 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   /* Unter dem Namen: wer gerade schreibt, sonst wer dabei ist. */
   const n = chat.members.length;
   const theirs = other === undefined ? undefined : extras.features?.receipts.find((r) => r.roleIds.includes(other.roleId))?.available;
-  const subtitle = chrome.status.typing ? <span className="ch-typing">{chat.kind === 'direct' ? 'pisze…' : 'ktoś pisze…'}</span>
-    : self ? 'tylko Ty · szyfrowane w przeglądarce'
+  const subtitle = chrome.status.typing ? <span className="ch-typing">{chat.kind === 'direct' ? t('chat.room.typing') : t('chat.room.someoneTyping')}</span>
+    : self ? t('chat.room.selfSub')
     /* 0111 — „online" / „ostatnio w aplikacji" geht vor den Godziny dostępności (wenn der andere es teilt). */
-    : chat.kind === 'direct' ? (chrome.presence ?? (theirs === true ? 'w godzinach dostępności' : theirs === false ? 'poza godzinami dostępności' : 'rozmowa we dwoje'))
+    : chat.kind === 'direct' ? (chrome.presence ?? (theirs === true ? t('chat.room.available') : theirs === false ? t('chat.room.away') : t('chat.list.kindDirect')))
     : [
-      `${n} ${plural(n, 'uczestnik', 'uczestnicy', 'uczestników')}`,
-      chat.seats.length > 0 ? `${chat.seats.length} z linkiem` : null,
-      chrome.status.channel ? 'kanał' : null,
-      chrome.status.available + chrome.status.away > 0 ? `dostępnych: ${chrome.status.available}` : null,
+      t('chat.room.members', { count: n }),
+      chat.seats.length > 0 ? t('chat.list.withLink', { count: chat.seats.length }) : null,
+      chrome.status.channel ? t('chat.room.channel') : null,
+      chrome.status.available + chrome.status.away > 0 ? t('chat.room.availableN', { count: chrome.status.available }) : null,
       chrome.presence
     ].filter(Boolean).join(' · ');
 
   const menu: MenuItem[] = [
     ...chrome.items,
-    { label: 'Zadania i terminy z rozmowy', icon: 'check' as const, onSelect: () => setLinked(true) },
+    { label: t('chat.room.linked'), icon: 'check' as const, onSelect: () => setLinked(true) },
     /* 2026-10-29 — die Rozmowa als JSON: Export für jeden Leser; Import (`chatJson.ts`) für wer schreibt oder moderiert. */
-    { label: 'Rozmowa jako JSON', icon: 'braces' as const, onSelect: () => setJson(true) },
-    ...(self ? [] : [{ label: `Uczestnicy i ustawienia`, icon: 'users' as const, onSelect: () => setSettings(true) }]),
-    { label: self ? 'Mój prywatny obszar' : 'Obszar tej rozmowy', icon: 'area', onSelect: () => { window.location.hash = viewPath('areas', chat.areaId); } },
+    { label: t('chat.room.json'), icon: 'braces' as const, onSelect: () => setJson(true) },
+    ...(self ? [] : [{ label: t('chat.room.settings'), icon: 'users' as const, onSelect: () => setSettings(true) }]),
+    { label: self ? t('chat.room.privateArea') : t('chat.settings.area'), icon: 'area', onSelect: () => { window.location.hash = viewPath('areas', chat.areaId); } },
     /* 0105 — wer den Bereich führt (zu zweit: jeder der beiden) löscht die Rozmowa für alle. */
     ...(moderates || (chat.kind === 'direct' && chat.writers.length > 0)
-      ? [{ label: 'Usuń rozmowę', icon: 'trash' as const, danger: true, onSelect: () => setRemoving(true) }]
+      ? [{ label: t('chat.room.remove'), icon: 'trash' as const, danger: true, onSelect: () => setRemoving(true) }]
       : [])
   ];
 
-  const readOnly = noPerson ? 'Do rozmowy potrzebna jest osoba (imię i nazwisko) — załóż ją w Koncie, w zakładce „Role".'
-    : speakers.length === 0 ? (chat.kind === 'channel' ? 'W tym kanale piszą ci, którzy mają w obszarze prawo zapisu — Ty czytasz.' : 'W tej rozmowie tylko czytasz.')
-    : extras.features?.canWrite === false ? 'Ten kanał pozwala Ci tylko czytać.'
+  const readOnly = noPerson ? t('chat.room.needPerson')
+    : speakers.length === 0 ? (chat.kind === 'channel' ? t('chat.room.channelRead') : t('chat.forward.readOnly'))
+    : extras.features?.canWrite === false ? t('chat.room.channelOnlyRead')
     : null;
 
   return (
@@ -421,7 +422,7 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
         on={on}
         more={more}
         onEarlier={earlier}
-        empty={self ? 'Zapisuj tu myśli, linki i pliki dla siebie — nikt inny ich nie zobaczy.' : 'Jeszcze nikt nic nie napisał — możesz zacząć.'}
+        empty={self ? t('chat.room.selfEmpty') : t('chat.room.empty')}
         onFiles={(files) => composer.current?.addFiles(files)}
         unreadAfter={unreadAfter ?? null}
         search={extras.search}
@@ -433,7 +434,7 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
         endpoint={endpoint}
         onlineSend={chrome.onlineSend}
         readOnly={readOnly}
-        placeholder={speaker !== null && speakers.length > 1 ? `Wiadomość jako ${speakerText(speaker, known)}` : self ? 'Notatka' : 'Wiadomość'}
+        placeholder={speaker !== null && speakers.length > 1 ? t('chat.room.messageAs', { name: speakerText(speaker, known) }) : self ? t('chat.room.note') : t('chat.chrome.message')}
         reply={reply}
         onClearReply={() => setReply(null)}
         editing={editing === null ? null : { id: editing.message.messageId, text: editing.opened.text }}
@@ -451,7 +452,7 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
 
       {chrome.dialogs}
       {settings && (
-        <Modal title={`Uczestnicy (${chat.members.length}${chat.seats.length > 0 ? ` + ${chat.seats.length} z linkiem` : ''}) i ustawienia`} wide onClose={() => setSettings(false)}>
+        <Modal title={chat.seats.length > 0 ? t('chat.room.settingsTitleSeats', { count: chat.members.length, seats: chat.seats.length }) : t('chat.room.settingsTitle', { count: chat.members.length })} wide onClose={() => setSettings(false)}>
           <ChatSettings me={me} chat={chat} names={names} keys={keys} onChanged={() => void lookChat(true)} />
         </Modal>
       )}
@@ -476,9 +477,9 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
           author={(message, opened) => authorText(authorOfMessage(message, opened))}
           mine={mine}
           mayFile={(message) => moderates || mine(message) || ((chat.kind === 'direct' || self) && writes)}
-          topicBy={(t) => (t.createdByRoleId !== null ? known(t.createdByRoleId)
-            : t.createdBySeatId !== null ? chat.seats.find((one) => one.seatId === t.createdBySeatId)?.name ?? 'osoba z linkiem' : null)}
-          topicMayChange={(t) => moderates || (t.createdByRoleId !== null ? me.ring.has(t.createdByRoleId) : writes)}
+          topicBy={(tp) => (tp.createdByRoleId !== null ? known(tp.createdByRoleId)
+            : tp.createdBySeatId !== null ? chat.seats.find((one) => one.seatId === tp.createdBySeatId)?.name ?? t('chat.author.linkPerson') : null)}
+          topicMayChange={(tp) => moderates || (tp.createdByRoleId !== null ? me.ring.has(tp.createdByRoleId) : writes)}
           onImported={(moved) => {
             if (moved.size > 0) {
               setShown((was) => (was ?? []).map((w) => (moved.has(w.message.messageId) ? { ...w, message: { ...w.message, topicId: moved.get(w.message.messageId) ?? null } } : w)));
@@ -500,11 +501,11 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
             const moved = new Set(done.moved);
             setShown((was) => (was ?? []).map((w) => (moved.has(w.message.messageId) ? { ...w, message: { ...w.message, topicId } } : w)));
             await lookTopics();
-            const name = topicId === null ? null : 'title' in target ? target.title : topics.find((t) => t.topicId === topicId)?.title ?? 'temat';
+            const name = topicId === null ? null : 'title' in target ? target.title : topics.find((tp) => tp.topicId === topicId)?.title ?? t('chat.room.topic');
             collecting.done();
             setCollecting(null);
-            setNote(`${moved.size === 1 ? 'Przeniesiono 1 wiadomość' : `Przeniesiono ${moved.size} wiadomości`}${name === null ? ' poza tematy' : ` do „${name}"`}.`
-              + (done.notYours > 0 ? ` ${done.notYours} cudzych przenosi prowadzący.` : ''));
+            setNote((name === null ? t('chat.room.movedOut', { count: moved.size }) : t('chat.room.movedInto', { count: moved.size, name }))
+              + (done.notYours > 0 ? ` ${t('chat.room.notYours', { count: done.notYours })}` : ''));
           }} />
       )}
       {taskFrom !== null && asPerson !== null && (
@@ -542,6 +543,7 @@ function RemoveChat({ chatId, title, kind, seats, onClose }: {
   seats: number;
   onClose: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -554,30 +556,28 @@ function RemoveChat({ chatId, title, kind, seats, onClose }: {
       onClose();
       window.location.hash = viewPath('chat');
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć rozmowy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.room.removeFailed'));
       setBusy(false);
     }
   };
 
   return (
-    <Modal title="Usunąć rozmowę?" onClose={onClose}>
+    <Modal title={t('chat.room.removeAsk')} onClose={onClose}>
       <div className="wk-form" data-remove-chat="">
         <p>
-          <strong>{title}</strong> zniknie dla wszystkich{kind === 'direct' ? ' — także dla drugiej osoby' : ''}
-          {seats > 0 ? ` — także dla osób z linkiem (${seats})` : ''}: wszystkie wiadomości, pliki i tematy.
-          Tego nie da się cofnąć.
+          {rich(t('chat.room.removeText', { title, also: `${kind === 'direct' ? t('chat.room.removeAlsoOther') : ''}${seats > 0 ? t('chat.room.removeAlsoSeats', { count: seats }) : ''}` }), { b: (s, k) => <strong key={k}>{s}</strong> })}
         </p>
         <p className="wk-hint">
           {kind === 'self'
-            ? 'Zostaje Twój prywatny obszar. Zadania i terminy utworzone z notatek zostają — bez odnośnika do nich.'
-            : 'Zostaje obszar rozmowy i jego uczestnicy — można w nim później zacząć nową rozmowę. Zadania i terminy utworzone z wiadomości zostają, bez odnośnika do rozmowy.'}
+            ? t('chat.room.removeSelfHint')
+            : t('chat.room.removeHint')}
         </p>
         {failed !== null && <p className="wk-error">{failed}</p>}
         <div className="wk-actions">
           {/* Der Fokus steht zuerst auf „Anuluj" — Enter löscht nichts aus Versehen. */}
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={onClose}>Anuluj</button>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={onClose}>{t('common.cancel')}</button>
           <button type="button" className="wk-btn wk-btn-danger" disabled={busy} data-remove-chat-confirm="" onClick={() => void remove()}>
-            {busy ? 'Usuwanie…' : 'Usuń rozmowę'}
+            {busy ? t('chat.askSetup.removing') : t('chat.room.remove')}
           </button>
         </div>
       </div>

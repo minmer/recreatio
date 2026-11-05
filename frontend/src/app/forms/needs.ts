@@ -43,6 +43,18 @@
 
 import type { FieldKind, IdentityRole } from './form';
 import type { LayoutItem, LogicEdge, LogicNode } from './formDesign';
+import { appLang, LANGS, localeOf, t, texts, tIn } from '../core/i18n';
+
+/*
+ * Die Wortlaute kommen aus `locales/<lang>/formsNeeds.json` — gelesen, wenn sie
+ * gebraucht werden (beim Einschalten in der Sprache der App), nicht beim Laden.
+ */
+const N = 'formsNeeds.';
+const tx = <T extends object>(base: object, keys: Readonly<Record<string, string>>): T => {
+  const out: Record<string, unknown> = { ...base };
+  for (const [prop, key] of Object.entries(keys)) Object.defineProperty(out, prop, { get: () => t(N + key), enumerable: true });
+  return out as T;
+};
 
 /* -- Die Wortlaute ------------------------------------------------------------------- */
 
@@ -64,29 +76,23 @@ export interface Q {
   readonly options?: readonly string[];
 }
 
-const Q_GIVEN: Q = { id: 'given', kind: 'line', label: 'Imię', identity: 'given_name', required: true, half: true };
-const Q_SURNAME: Q = { id: 'surname', kind: 'line', label: 'Nazwisko', identity: 'surname', required: true, half: true };
-const Q_BORN: Q = { id: 'born', kind: 'date', label: 'Data urodzenia', identity: 'born', required: true, half: true };
-const Q_PESEL: Q = {
-  id: 'pesel', kind: 'pesel', label: 'PESEL', half: true,
-  help: 'Potrzebny do ubezpieczenia uczestnika. Jeśli uczestnik nie ma numeru PESEL, zostaw puste — wystarczy data urodzenia.'
-};
-const Q_ADDRESS: Q = { id: 'address', kind: 'line', label: 'Adres zamieszkania', identity: 'address', required: true };
+const Q_GIVEN: Q = tx({ id: 'given', kind: 'line', identity: 'given_name', required: true, half: true }, { label: 'q.given' });
+const Q_SURNAME: Q = tx({ id: 'surname', kind: 'line', identity: 'surname', required: true, half: true }, { label: 'q.surname' });
+const Q_BORN: Q = tx({ id: 'born', kind: 'date', identity: 'born', required: true, half: true }, { label: 'q.born' });
+const Q_PESEL: Q = tx({ id: 'pesel', kind: 'pesel', label: 'PESEL', half: true }, { help: 'q.peselHelp' });
+const Q_ADDRESS: Q = tx({ id: 'address', kind: 'line', identity: 'address', required: true }, { label: 'q.address' });
 /*
  * WAS DIE LOGIK VERBERGEN KANN, VERLANGT DIE LOGIK (Knoten „Wymagane"), nicht
  * die Frage selbst: der Dienst prüft „wymagane" ohne die Logik zu sehen (sie
  * ist versiegelt) — und wiese jeden Erwachsenen ab, der keinen Elternteil und
  * keine Zustimmung der Eltern angibt.
  */
-const Q_GNAME: Q = { id: 'guardian', kind: 'line', label: 'Imię i nazwisko rodzica / opiekuna prawnego' };
-const Q_GPHONE: Q = { id: 'guardianPhone', kind: 'phone', label: 'Telefon rodzica / opiekuna', help: 'Numer czynny przez cały czas trwania wydarzenia.' };
+const Q_GNAME: Q = tx({ id: 'guardian', kind: 'line' }, { label: 'q.guardian' });
+const Q_GPHONE: Q = tx({ id: 'guardianPhone', kind: 'phone' }, { label: 'q.guardianPhone', help: 'q.guardianPhoneHelp' });
 
 /* 2026-10-24 — die Minderjährigkeit ohne Geburtsdatum, die Wahl, wie, und der Erwachsene. */
-const Q_MINOR: Q = { id: 'minorAsk', kind: 'checkbox', label: 'Uczestnik jest niepełnoletni (nie ma jeszcze 18 lat)' };
-const Q_ADULT: Q = {
-  id: 'adultName', kind: 'line', label: 'Imię i nazwisko pełnoletniego opiekuna',
-  help: 'Osoba dorosła, której rodzic powierza opiekę nad uczestnikiem na miejscu.'
-};
+const Q_MINOR: Q = tx({ id: 'minorAsk', kind: 'checkbox' }, { label: 'q.minorAsk' });
+const Q_ADULT: Q = tx({ id: 'adultName', kind: 'line' }, { label: 'q.adultName', help: 'q.adultNameHelp' });
 
 /*
  * 0087 — DIE ZUSTIMMUNG DER ELTERN IST KEIN KÄSTCHEN. Ein Häkchen setzt das Kind,
@@ -95,54 +101,30 @@ const Q_ADULT: Q = {
  * Formular (`sign`) und auf dem Ausdruck über der Linie, auf der der
  * Elternteil unterschreibt — gedruckt am Ende des Formulars oder danach.
  */
-const APPROVAL = 'Zgoda rodzica / opiekuna prawnego na udział.\n'
-  + 'Jako rodzic albo opiekun prawny wyrażam zgodę na udział mojego dziecka w tym wydarzeniu na warunkach '
-  + 'podanych przez organizatora. Oświadczam, że znam jego stan zdrowia i nie widzę przeciwwskazań do udziału.';
-const WITH_PARENT = 'Niepełnoletni uczestnik bierze udział razem z rodzicem albo opiekunem prawnym.';
+const APPROVAL = (): string => t(`${N}approval`);
+const WITH_PARENT = (): string => t(`${N}withParent`);
 
-const C_MEDICAL: Q = {
-  id: 'consentMedical', kind: 'consent', label: 'Pomoc w nagłym wypadku', required: true,
-  help: 'W razie zagrożenia zdrowia lub życia zgadzam się na wezwanie pomocy medycznej i udzielenie niezbędnej '
-    + 'pomocy, a organizatora proszę o niezwłoczne powiadomienie mnie (albo rodzica / opiekuna).'
-};
-const C_HEALTH: Q = {
-  id: 'consentHealth', kind: 'consent', label: 'Zgoda na dane o zdrowiu',
-  help: 'Jeżeli podaję informacje o zdrowiu lub diecie, wyrażam wyraźną zgodę na ich przetwarzanie '
-    + '(art. 9 ust. 2 lit. a RODO) wyłącznie po to, żeby bezpiecznie zaopiekować się uczestnikiem. Zgodę mogę '
-    + 'wycofać w każdej chwili; wycofanie nie wpływa na zgodność z prawem wcześniejszego przetwarzania.'
-};
-const C_RULES: Q = {
-  id: 'consentRules', kind: 'consent', label: 'Zasady udziału', required: true,
-  help: 'Znam zasady udziału podane przez organizatora (regulamin) i zobowiązuję się ich przestrzegać.'
-};
-const C_IMAGE: Q = {
-  id: 'consentImage', kind: 'consent', label: 'Wizerunek (dobrowolne)',
-  help: 'Zgadzam się na nieodpłatne utrwalenie i publikację wizerunku w relacjach z wydarzenia, zgodnie z art. 81 '
-    + 'ustawy o prawie autorskim i prawach pokrewnych. Zgoda jest dobrowolna, nie warunkuje udziału i mogę ją wycofać.'
-};
-const C_INSURANCE: Q = {
-  id: 'consentInsurance', kind: 'consent', label: 'Ubezpieczenie (NNW)', required: true,
-  help: 'Przyjmuję do wiadomości, że w celu ubezpieczenia uczestnika od następstw nieszczęśliwych wypadków '
-    + 'organizator przekaże ubezpieczycielowi jego imię, nazwisko, datę urodzenia, numer PESEL i adres — tylko w tym celu '
-    + 'i tylko na czas trwania ubezpieczenia.'
-};
+const C_MEDICAL: Q = tx({ id: 'consentMedical', kind: 'consent', required: true }, { label: 'c.medical', help: 'c.medicalHelp' });
+const C_HEALTH: Q = tx({ id: 'consentHealth', kind: 'consent' }, { label: 'c.health', help: 'c.healthHelp' });
+const C_RULES: Q = tx({ id: 'consentRules', kind: 'consent', required: true }, { label: 'c.rules', help: 'c.rulesHelp' });
+const C_IMAGE: Q = tx({ id: 'consentImage', kind: 'consent' }, { label: 'c.image', help: 'c.imageHelp' });
+const C_INSURANCE: Q = tx({ id: 'consentInsurance', kind: 'consent', required: true }, { label: 'c.insurance', help: 'c.insuranceHelp' });
 
-const Q_HEALTH: Q = { id: 'health', kind: 'checkbox', label: 'Jest coś w stanie zdrowia, o czym powinniśmy wiedzieć (alergie, choroby przewlekłe, leki)' };
-const Q_HEALTH_D: Q = { id: 'healthDetail', kind: 'text', label: 'Napisz krótko, co powinniśmy wiedzieć o zdrowiu' };
-const Q_DIET: Q = { id: 'diet', kind: 'checkbox', label: 'Uczestnik stosuje dietę, której nie możemy pominąć' };
-const Q_DIET_D: Q = { id: 'dietDetail', kind: 'text', label: 'Jaka dieta' };
+const Q_HEALTH: Q = tx({ id: 'health', kind: 'checkbox' }, { label: 'q.health' });
+const Q_HEALTH_D: Q = tx({ id: 'healthDetail', kind: 'text' }, { label: 'q.healthDetail' });
+const Q_DIET: Q = tx({ id: 'diet', kind: 'checkbox' }, { label: 'q.diet' });
+const Q_DIET_D: Q = tx({ id: 'dietDetail', kind: 'text' }, { label: 'q.dietDetail' });
 
-const INFO =
-  'Informacja o danych (art. 13 RODO): dane z tego formularza widzi wyłącznie organizator — administrator danych podany '
-  + 'powyżej. Służą udziałowi w wydarzeniu, kontaktowi w sprawach organizacyjnych i bezpieczeństwu uczestników, a dane '
-  + 'o zdrowiu i diecie — tylko opiece nad uczestnikiem, na podstawie wyraźnej zgody. Przysługuje prawo dostępu do danych, '
-  + 'ich sprostowania, usunięcia i ograniczenia przetwarzania; zgody można wycofać w każdej chwili przez swój link albo u '
-  + 'organizatora. Gdzie możesz złożyć skargę, podaje informacja o administratorze danych na początku formularza.';
+const INFO = (): string => t(`${N}info`);
 
-export const NEED_SIGNER = 'czytelny podpis rodzica / opiekuna prawnego';
+/** Wer auf dem Blatt unterschreibt — in der Sprache der App. */
+export const needSigner = (): string => t(`${N}signer`);
+
+/** Steht noch der vorgeschlagene Unterzeichner da — in irgendeiner Sprache? */
+export const isNeedSigner = (text: string): boolean => LANGS.some((lang) => tIn(lang, `${N}signer`) === text);
 
 /** Der Schritt der Kanzlei, wenn Eltern auf Papier zustimmen. */
-const APPROVAL_STEP = 'Zgoda rodzica podpisana — oddana';
+const APPROVAL_STEP = (): string => t(`${N}approvalStep`);
 
 /* -- Was ein Wymaganie ist -------------------------------------------------------------- */
 
@@ -210,43 +192,41 @@ export type MinorWay = 'parent' | 'adult' | 'consent';
 const WAY_ORDER: readonly MinorWay[] = ['parent', 'adult', 'consent'];
 
 /** Wie eine Möglichkeit in der Frage „Jak … weźmie udział?" steht — daran erkennt die Logik die Antwort. */
-export const WAY_OPTION: Readonly<Record<MinorWay, string>> = {
-  parent: 'Razem z rodzicem albo opiekunem prawnym',
-  adult: 'Pod opieką pełnoletniej osoby upoważnionej przez rodzica',
-  consent: 'Samodzielnie — z pisemną zgodą rodzica'
-};
+export const WAY_OPTION: Readonly<Record<MinorWay, string>> = texts({
+  parent: `${N}way.parent`,
+  adult: `${N}way.adult`,
+  consent: `${N}way.consent`
+});
 
-const AGE: NeedSetting = {
+const AGE: NeedSetting = tx({
   key: 'age',
-  label: 'Skąd wiadomo, że uczestnik jest niepełnoletni',
   many: false,
   choices: [
-    { value: 'birth', label: 'Pyta o datę urodzenia', says: 'pytanie „Data urodzenia”; niepełnoletni jest ten, kto w dniu wypełnienia nie ma 18 lat — liczy się samo' },
-    { value: 'ask', label: 'Pyta tylko, czy jest niepełnoletni', says: 'pole do zaznaczenia „Uczestnik jest niepełnoletni”, bez daty urodzenia' }
+    tx({ value: 'birth' }, { label: 'age.birth', says: 'age.birthSays' }),
+    tx({ value: 'ask' }, { label: 'age.ask', says: 'age.askSays' })
   ],
   start: ['birth'],
   was: ['birth']
-};
+}, { label: 'age.label' });
 
-const WAYS: NeedSetting = {
+const WAYS: NeedSetting = tx({
   key: 'ways',
-  label: 'Jak może wziąć udział niepełnoletni',
   many: true,
   choices: [
-    { value: 'parent', label: 'Razem z rodzicem albo opiekunem prawnym', says: 'nic więcej nie trzeba' },
-    { value: 'adult', label: 'Pod opieką pełnoletniej osoby upoważnionej przez rodzica', says: 'wystarczy imię i nazwisko tej osoby' },
-    { value: 'consent', label: 'Samodzielnie, z pisemną zgodą rodzica', says: 'imię i nazwisko rodzica, jego telefon i zgoda do podpisu na wydruku; koordynator odhacza oddaną zgodę' }
+    tx({ value: 'parent' }, { label: 'ways.parent', says: 'ways.parentSays' }),
+    tx({ value: 'adult' }, { label: 'ways.adult', says: 'ways.adultSays' }),
+    tx({ value: 'consent' }, { label: 'ways.consent', says: 'ways.consentSays' })
   ],
   start: ['parent', 'adult', 'consent'],
   was: ['consent']
-};
+}, { label: 'ways.label' });
 
 const waysOf = (choice: NeedChoice): MinorWay[] => {
   const ways = WAY_ORDER.filter((w) => (choice.ways ?? []).includes(w));
   return ways.length === 0 ? ['consent'] : ways;
 };
 
-const lowerFirst = (text: string): string => text.charAt(0).toLocaleLowerCase('pl') + text.slice(1);
+const lowerFirst = (text: string): string => text.charAt(0).toLocaleLowerCase(localeOf(appLang())) + text.slice(1);
 
 function minorUse(choice: NeedChoice): string {
   const ways = waysOf(choice);
@@ -256,9 +236,9 @@ function minorUse(choice: NeedChoice): string {
   });
   return [
     (choice.age ?? [])[0] === 'ask'
-      ? 'Formularz pyta tylko, czy uczestnik jest niepełnoletni.'
-      : 'Formularz pyta o datę urodzenia — kto w dniu wypełnienia nie ma 18 lat, jest niepełnoletni.',
-    ways.length > 1 ? `Niepełnoletni wybiera, jak weźmie udział: ${how.join('; ')}.` : `Niepełnoletni bierze udział ${how[0]}.`
+      ? t(`${N}use.ask`)
+      : t(`${N}use.birth`),
+    ways.length > 1 ? t(`${N}use.ways`, { ways: how.join('; ') }) : t(`${N}use.way`, { way: how[0] })
   ].join(' ');
 }
 
@@ -286,18 +266,18 @@ function minorShape(choice: NeedChoice): NeedShape {
   const has = (w: MinorWay) => ways.includes(w);
 
   const questions: Q[] = [Q_GIVEN, Q_SURNAME, ask ? Q_MINOR : Q_BORN];
-  if (many) questions.push({ id: 'way', kind: 'choice', label: 'Jak niepełnoletni uczestnik weźmie udział?', options: ways.map((w) => WAY_OPTION[w]) });
+  if (many) questions.push({ id: 'way', kind: 'choice', label: t(`${N}q.way`), options: ways.map((w) => WAY_OPTION[w]) });
   if (has('adult')) questions.push(Q_ADULT);
   if (has('consent')) questions.push(Q_GNAME, Q_GPHONE);
 
   const participant: LayoutItem[] = [field('given'), field('surname'), field(ask ? 'minorAsk' : 'born')];
   if (many) participant.push(field('way'));
-  if (!many && has('parent')) participant.push({ type: 'text', id: 'tParent', text: WITH_PARENT });
+  if (!many && has('parent')) participant.push({ type: 'text', id: 'tParent', text: WITH_PARENT() });
   if (has('adult')) participant.push(field('adultName'));
-  const layout: LayoutItem[] = [group('gParticipant', 'Uczestnik', participant)];
+  const layout: LayoutItem[] = [group('gParticipant', t(`${N}g.participant`), participant)];
   if (has('consent')) {
-    layout.push(group('gGuardian', 'Rodzic / opiekun prawny', [
-      field('guardian'), field('guardianPhone'), { type: 'text', id: 'tApproval', text: APPROVAL, sign: true }
+    layout.push(group('gGuardian', t(`${N}g.guardian`), [
+      field('guardian'), field('guardianPhone'), { type: 'text', id: 'tApproval', text: APPROVAL(), sign: true }
     ]));
   }
 
@@ -368,7 +348,7 @@ function minorShape(choice: NeedChoice): NeedShape {
 
   return {
     questions, layout, nodes, edges,
-    ...(has('consent') ? { paper: 'sign', signer: NEED_SIGNER, step: APPROVAL_STEP } : {})
+    ...(has('consent') ? { paper: 'sign', signer: needSigner(), step: APPROVAL_STEP() } : {})
   };
 }
 
@@ -388,25 +368,25 @@ const detailLogic = (yes: string, detail: string, y: number): { nodes: LogicNode
 });
 
 /* Jedes Wymaganie zeichnet seine Logik in einem eigenen Streifen — zusammen überlappen sie nicht (die Minderjährigen reichen bis 680). */
-const HEALTH: NeedShape = (() => {
+const HEALTH = (): NeedShape => {
   const a = detailLogic('health', 'healthDetail', 760);
   const b = detailLogic('diet', 'dietDetail', 940);
   return {
     questions: [Q_HEALTH, Q_HEALTH_D, Q_DIET, Q_DIET_D, C_MEDICAL, C_HEALTH],
-    layout: [group('gHealth', 'Zdrowie i dieta', ['health', 'healthDetail', 'diet', 'dietDetail', 'consentMedical', 'consentHealth'].map(field))],
+    layout: [group('gHealth', t(`${N}g.health`), ['health', 'healthDetail', 'diet', 'dietDetail', 'consentMedical', 'consentHealth'].map(field))],
     nodes: [...a.nodes, ...b.nodes],
     edges: [...a.edges, ...b.edges]
   };
-})();
+};
 
-const INSURANCE: NeedShape = plain({
+const INSURANCE = (): NeedShape => plain({
   questions: [Q_GIVEN, Q_SURNAME, Q_BORN, Q_PESEL, Q_ADDRESS, C_INSURANCE],
-  layout: [group('gInsurance', 'Dane do ubezpieczenia', ['given', 'surname', 'born', 'pesel', 'address', 'consentInsurance'].map(field))]
+  layout: [group('gInsurance', t(`${N}g.insurance`), ['given', 'surname', 'born', 'pesel', 'address', 'consentInsurance'].map(field))]
 });
 
-const RULES: NeedShape = plain({
+const RULES = (): NeedShape => plain({
   questions: [C_RULES, C_IMAGE],
-  layout: [group('gRules', 'Oświadczenia i zgody', ['consentRules', 'consentImage'].map(field)), { type: 'text', id: 'tInfo', text: INFO }]
+  layout: [group('gRules', t(`${N}g.rules`), ['consentRules', 'consentImage'].map(field)), { type: 'text', id: 'tInfo', text: INFO() }]
 });
 
 /* -- Die Wymagania --------------------------------------------------------------------- */
@@ -426,39 +406,35 @@ const RULES: NeedShape = plain({
  * (die Antworten bleiben in den Zgłoszenia), Logik und Ausdruck gehen.
  */
 export const NEEDS: readonly FormNeed[] = [
-  {
+  tx({
     id: 'minor',
-    label: 'Udział niepełnoletnich',
     use: minorUse,
     settings: [AGE, WAYS],
     shape: minorShape,
     /* `minor` setzte die Fassung vor den Einstellungen; heute das allgemeinere `sign`. */
     papers: ['sign', 'minor']
-  },
-  {
+  }, { label: 'need.minor' }),
+  tx({
     id: 'health',
-    label: 'Zdrowie i dieta, pomoc w nagłym wypadku',
-    use: () => 'Pytania „tak / nie” o zdrowie i dietę (przy „tak” — krótkie wyjaśnienie), zgoda na pomoc w nagłym wypadku i na dane o zdrowiu (art. 9 RODO).',
+    use: () => t(`${N}need.healthUse`),
     settings: [],
-    shape: () => HEALTH,
+    shape: HEALTH,
     papers: []
-  },
-  {
+  }, { label: 'need.health' }),
+  tx({
     id: 'insurance',
-    label: 'Ubezpieczenie NNW',
-    use: () => 'Imię, nazwisko, data urodzenia, PESEL (sprawdzany) i adres — to, czego potrzebuje ubezpieczyciel — oraz informacja, że dane trafią do niego. Lista: zakładka „Zgłoszenia” → CSV.',
+    use: () => t(`${N}need.insuranceUse`),
     settings: [],
-    shape: () => INSURANCE,
+    shape: INSURANCE,
     papers: []
-  },
-  {
+  }, { label: 'need.insurance' }),
+  tx({
     id: 'rules',
-    label: 'Zasady udziału, wizerunek i informacja o danych',
-    use: () => 'Akceptacja zasad (wymagana), dobrowolna zgoda na wizerunek i informacja z art. 13 RODO pod pytaniami.',
+    use: () => t(`${N}need.rulesUse`),
     settings: [],
-    shape: () => RULES,
+    shape: RULES,
     papers: []
-  }
+  }, { label: 'need.rules' })
 ];
 
 export const needOf = (id: string): FormNeed | undefined => NEEDS.find((one) => one.id === id);
@@ -478,12 +454,12 @@ export function choiceOf(need: FormNeed, raw: unknown, fallback: 'start' | 'was'
     const given = value === undefined ? [] : (Array.isArray(value) ? value : [value]).filter((v): v is string => typeof v === 'string');
     const known = s.choices.map((c) => c.value);
     const kept = known.filter((v) => given.includes(v));
-    for (const v of given) if (!known.includes(v)) warnings?.push(`„${need.label}”: "${s.key}" nie zna „${v}” — możliwe: ${known.map((k) => `"${k}"`).join(', ')}.`);
-    if (value !== undefined && given.length === 0 && warnings !== undefined) warnings.push(`„${need.label}”: "${s.key}" bez wartości — przyjęto domyślne.`);
+    for (const v of given) if (!known.includes(v)) warnings?.push(t(`${N}warn.unknown`, { need: need.label, key: s.key, value: v, known: known.map((k) => `"${k}"`).join(', ') }));
+    if (value !== undefined && given.length === 0 && warnings !== undefined) warnings.push(t(`${N}warn.empty`, { need: need.label, key: s.key }));
     /* Bei „einer" gilt die erste genannte, die es gibt. */
     const first = given.find((v) => known.includes(v));
     const picked = s.many ? kept : first === undefined ? [] : [first];
-    if (!s.many && kept.length > 1) warnings?.push(`„${need.label}”: "${s.key}" przyjmuje jedną wartość — przyjęto „${first}”.`);
+    if (!s.many && kept.length > 1) warnings?.push(t(`${N}warn.one`, { need: need.label, key: s.key, value: first ?? '' }));
     out[s.key] = picked.length > 0 ? picked : (fallback === 'was' ? s.was : s.start);
   }
   return out;
@@ -498,5 +474,5 @@ export const sameChoice = (need: FormNeed, a: NeedChoice, b: NeedChoice): boolea
 
 /** Die Wahl in Worten — eine Zeile je Einstellung (für die Vorschau eines Imports). */
 export const choiceWords = (need: FormNeed, choice: NeedChoice): string =>
-  need.settings.map((s) => `${s.label.toLocaleLowerCase('pl')}: ${(choice[s.key] ?? [])
+  need.settings.map((s) => `${s.label.toLocaleLowerCase(localeOf(appLang()))}: ${(choice[s.key] ?? [])
     .map((v) => lowerFirst(s.choices.find((c) => c.value === v)?.label ?? v)).join(', ')}`).join('; ');

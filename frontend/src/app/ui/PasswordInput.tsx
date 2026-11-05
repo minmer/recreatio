@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../core/i18n';
 
 export function PasswordInput({ value, onChange, autoComplete, placeholder, autoFocus, disabled }: {
   value: string;
@@ -21,6 +22,7 @@ export function PasswordInput({ value, onChange, autoComplete, placeholder, auto
   autoFocus?: boolean;
   disabled?: boolean;
 }) {
+  const t = useT();
   const [shown, setShown] = useState(false);
   const field = useRef<HTMLInputElement | null>(null);
 
@@ -54,9 +56,9 @@ export function PasswordInput({ value, onChange, autoComplete, placeholder, auto
       <button
         type="button"
         className="wk-password-eye"
-        aria-label={shown ? 'Ukryj hasło' : 'Pokaż hasło'}
+        aria-label={shown ? t('ui.password.hide') : t('ui.password.show')}
         aria-pressed={shown}
-        title={shown ? 'Ukryj hasło' : 'Pokaż hasło'}
+        title={shown ? t('ui.password.hide') : t('ui.password.show')}
         disabled={disabled}
         onClick={() => setShown(!shown)}
       >

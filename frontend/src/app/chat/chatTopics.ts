@@ -14,6 +14,7 @@ import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import type { SealedField } from '../calendar/calendar';
 import { call, WorkspaceError } from '../core/session';
+import { t } from '../core/i18n';
 
 export interface TopicRow {
   readonly topicId: string;
@@ -57,9 +58,9 @@ export async function createTopic(
   endpoint: string, keys: ReadonlyMap<number, Uint8Array>, title: string, byRoleId: string | null
 ): Promise<string> {
   const newest = newestKey(keys);
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tej rozmowy.');
+  if (newest === null) throw new WorkspaceError(t('chat.err.noKey'));
   const name = title.trim();
-  if (name === '') throw new WorkspaceError('Nazwij temat.');
+  if (name === '') throw new WorkspaceError(t('chat.err.nameTopic'));
   const topicId = newId();
   await call(`${endpoint}/topics`, {
     method: 'POST',
@@ -80,9 +81,9 @@ export const closeTopic = (topicId: string, closed: boolean): Promise<{ updated:
  */
 export async function renameTopic(keys: ReadonlyMap<number, Uint8Array>, topicId: string, title: string): Promise<void> {
   const newest = newestKey(keys);
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tej rozmowy.');
+  if (newest === null) throw new WorkspaceError(t('chat.err.noKey'));
   const name = title.trim();
-  if (name === '') throw new WorkspaceError('Nazwij temat.');
+  if (name === '') throw new WorkspaceError(t('chat.err.nameTopic'));
   await call(`/workspace/chat/topic/${encodeURIComponent(topicId)}`, {
     method: 'POST',
     body: JSON.stringify({ epoch: newest.epoch, titleSealed: toBase64Url(await sealText(newest.key, topicAad(topicId), name.slice(0, 200))) })

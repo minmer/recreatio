@@ -16,6 +16,7 @@ import { createArea, loadAreas, type AreaRow } from '../areas/area';
 import { ensurePrivateArea } from '../calendar/agenda';
 import { remembered, setValue } from '../core/prefs';
 import { keysFor } from '../core/ringOf';
+import { t } from '../core/i18n';
 import { WorkspaceError, type Who } from '../core/session';
 import { selfOf } from '../roles/roles';
 import { PHONE_PREF } from './here';
@@ -81,10 +82,10 @@ export async function archiveArea(who: Who, settings?: ArchiveSettings): Promise
   if (writable(areas, s.areaId)) return { areaId: s.areaId!, settings: s };
 
   const { ring, graph } = await keysFor(who);
-  if (ring === null) throw new WorkspaceError('Klucz jest zamknięty — odblokuj go hasłem.', 'locked');
+  if (ring === null) throw new WorkspaceError(t('phone.ctx.locked'), 'locked');
   const person = selfOf(graph);
   const role = graph.roles.find((r) => r.id === s.roleId && ring.has(r.id)) ?? person;
-  if (role === null || role === undefined) throw new WorkspaceError('Konto nie prowadzi jeszcze żadnej osoby.', 'locked');
+  if (role === null || role === undefined) throw new WorkspaceError(t('phone.ctx.noPerson'), 'locked');
 
   let areaId = s.areas[role.id];
   if (!writable(areas, areaId)) {
@@ -92,8 +93,8 @@ export async function archiveArea(who: Who, settings?: ArchiveSettings): Promise
     if (person !== null && role.id === person.id) {
       areaId = await ensurePrivateArea(ring, role, areas);
     } else {
-      if (!ring.maySign(role.id)) throw new WorkspaceError('Tą rolą nie możesz założyć obszaru — wybierz inną.');
-      areaId = (await createArea(ring, role, 'Archiwum SMS')).areaId;
+      if (!ring.maySign(role.id)) throw new WorkspaceError(t('phone.ctx.roleCannot'));
+      areaId = (await createArea(ring, role, t('phone.ctx.archiveArea'))).areaId;
       ({ areas } = await loadAreas());
     }
   }

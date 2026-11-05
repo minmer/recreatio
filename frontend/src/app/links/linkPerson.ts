@@ -31,6 +31,7 @@ import { sealLink } from '../seats/seatCheck';
 import { announceSeats, heldSeats, keyTextOf, remember } from '../seats/seatKeep';
 import { call, WorkspaceError } from '../core/session';
 import type { ChatSeat, SealedMessage, SealedName } from '../chat/chat';
+import { t } from '../core/i18n';
 
 /** Eine Rozmowa, die ein Link dieses Browsers öffnet — und über welchen. */
 export interface LinkChat {
@@ -129,14 +130,14 @@ export async function createLinkPerson(
   chat: Pick<LinkChat, 'areaId' | 'invitationId' | 'linkRoleId'>, givenName: string, surname: string, under: string | null
 ): Promise<HeldPerson & { readonly seatId: string; readonly name: string; readonly via: string }> {
   const name = personName(givenName, surname);
-  if (name === null) throw new WorkspaceError('Podaj imię i nazwisko.');
+  if (name === null) throw new WorkspaceError(t('links.person.needName'));
 
   const keys = await heldLinkKeys();
   const link = keys.links.find((one) => one.info?.invitationId === chat.invitationId);
-  if (link === undefined) throw new WorkspaceError('Ten link już nie działa w tej przeglądarce.');
+  if (link === undefined) throw new WorkspaceError(t('links.person.dead'));
 
   const epochs = keys.areaKeys.get(chat.areaId);
-  if (epochs === undefined || epochs.size === 0) throw new WorkspaceError('Ten link nie otwiera kluczy tego obszaru.');
+  if (epochs === undefined || epochs.size === 0) throw new WorkspaceError(t('links.person.noKeys'));
   const epoch = Math.max(...epochs.keys());
   const areaKey = epochs.get(epoch)!;
 

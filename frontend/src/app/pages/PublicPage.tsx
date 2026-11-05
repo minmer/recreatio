@@ -41,6 +41,8 @@ import { Icon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
 import { readLook } from './slides/slideLook';
 import { PageFooter } from '../reports/PageFooter';
+import { useT } from '../core/i18n';
+import { InLang } from './pageLang';
 
 /*
  * 2026-10-17 — DIE LEISTE EINES PLATZES (Bestätigen, Rozmowy, Kroki) nur, wenn
@@ -62,6 +64,7 @@ function SeatBar({ path }: { path: string }) {
  * an, und das ist richtig so.
  */
 export function PublicPage({ path, host, local }: { path?: string; host?: string; local?: string }) {
+  const t = useT();
   const [page, setPage] = useState<PageContent | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -114,7 +117,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
         if (verdict === 'needsaccess' || verdict === 'noaccess') setDenied(verdict);
         if (verdict === 'blocked') setBlocked(true);
         if (verdict === 'later') setLater(true);
-        setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać strony.');
+        setFailed(e instanceof WorkspaceError ? e.message : t('pages.public.loadFailed'));
         setPage(null);
       });
 
@@ -143,9 +146,9 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
   if (page === null && blocked) {
     return (
       <div className="ui-empty" data-page-blocked="">
-        <h1 className="wk-h1">Strona niedostępna</h1>
-        <p className="wk-blocked">Treść zablokowana po zgłoszeniu.</p>
-        <a className="wk-btn" href="#/">Strona główna</a>
+        <h1 className="wk-h1">{t('pages.public.blocked')}</h1>
+        <p className="wk-blocked">{t('pages.public.blockedText')}</p>
+        <a className="wk-btn" href="#/">{t('pages.public.home')}</a>
       </div>
     );
   }
@@ -154,9 +157,9 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
   if (page === null && later) {
     return (
       <div className="ui-empty" data-page-later="">
-        <h1 className="wk-h1">Jeszcze nie teraz</h1>
-        <p>Ta strona pojawi się po zakończeniu wydarzenia.</p>
-        <a className="wk-btn" href="#/">Strona główna</a>
+        <h1 className="wk-h1">{t('pages.public.later')}</h1>
+        <p>{t('pages.public.laterText')}</p>
+        <a className="wk-btn" href="#/">{t('pages.public.home')}</a>
       </div>
     );
   }
@@ -165,9 +168,9 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
   if (page === null) {
     return (
       <div className="ui-empty">
-        <h1 className="wk-h1">Nic tu jeszcze nie ma</h1>
+        <h1 className="wk-h1">{t('pages.public.nothing')}</h1>
         <p>{failed}</p>
-        <a className="wk-btn" href="#/">Strona główna</a>
+        <a className="wk-btn" href="#/">{t('pages.public.home')}</a>
       </div>
     );
   }
@@ -195,14 +198,16 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
   if (page.title === null && parts.length === 0) {
     return (
       <div className="ui-empty">
-        <h1 className="wk-h1">Ta strona jest jeszcze pusta</h1>
-        <p>Pod adresem recreatio.pl/{page.path} nic jeszcze nie opublikowano.</p>
-        <a className="wk-btn" href="#/">Strona główna</a>
+        <h1 className="wk-h1">{t('pages.public.empty')}</h1>
+        <p>{t('pages.public.emptyText', { path: page.path })}</p>
+        <a className="wk-btn" href="#/">{t('pages.public.home')}</a>
       </div>
     );
   }
 
+  /* 2026-11-05 — DIE SPRACHE DER SEITE (`look.lang`): gesetzt, sieht jeder Besucher sie; sonst seine eigene. */
   return (
+    <InLang lang={readLook(page.theme).lang}>
     <WithSeat path={page.path}>
       <PageAccessContext.Provider value={page.access ?? null}>
       <PersonProvider path={page.path}>
@@ -224,7 +229,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
           {page.editable === true && (
             <a className="wk-edit-pill" href={viewPath('pages', ...pageSteps(page.aliasOf ?? page.path))} data-edit-page="">
               <Icon name="edit" />
-              Edytuj stronę
+              {t('pages.public.edit')}
             </a>
           )}
 
@@ -283,6 +288,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
       </PersonProvider>
       </PageAccessContext.Provider>
     </WithSeat>
+    </InLang>
   );
 }
 
@@ -293,6 +299,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
  * noch einmal versucht — einmal je Platz, der aufgeht.
  */
 function SealedPage({ onRetry }: { onRetry: () => void }) {
+  const t = useT();
   const states = useSeatStates();
   const tried = useRef(new Set<string>());
 
@@ -307,13 +314,9 @@ function SealedPage({ onRetry }: { onRetry: () => void }) {
 
   return (
     <div className="ui-empty">
-      <h1 className="wk-h1">Ta strona jest zaszyfrowana</h1>
-      <p>
-        Masz do niej dostęp, ale ta przeglądarka nie ma jeszcze klucza, który ją otwiera. Klucz mają osoby z dostępem
-        do obszarów strony — po zalogowaniu albo przez link dostępu. Osoba z formularza dostaje go, gdy ktoś z obsługi
-        przekaże jej dostęp.
-      </p>
-      <button type="button" className="wk-btn" onClick={onRetry}>Spróbuj ponownie</button>
+      <h1 className="wk-h1">{t('pages.sealed.title')}</h1>
+      <p>{t('pages.public.sealedText')}</p>
+      <button type="button" className="wk-btn" onClick={onRetry}>{t('common.retry')}</button>
     </div>
   );
 }

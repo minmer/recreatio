@@ -26,8 +26,8 @@ const WORDS: Record<string, number> = {
 
 /** Stämme — gebeugt steht der Tag in „we wtorki", „w środy", „piątkami". */
 const STEMS: readonly (readonly [string, number])[] = [
-  ['niedziel', 0], ['poniedzia', 1], ['wtor', 2], ['środ', 3], ['sród', 3], ['srod', 3],
-  ['czwart', 4], ['piąt', 5], ['piat', 5], ['sobot', 6]
+  ['niedziel', 0], ['poniedzia', 1], ['wtor', 2], ['środ', 3], ['sród', 3], ['srod', 3], // i18n-ignore
+  ['czwart', 4], ['piąt', 5], ['piat', 5], ['sobot', 6] // i18n-ignore
 ];
 
 function dayOf(word: string): number | null {

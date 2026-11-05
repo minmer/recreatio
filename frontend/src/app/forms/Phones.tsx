@@ -19,6 +19,8 @@
 
 import { useState } from 'react';
 
+import { rich, useT } from '../core/i18n';
+
 import { normalisePhone, splitPhones, joinPhones, withPhone } from './phone';
 
 export function Phones({ value, disabled, onChange }: {
@@ -28,6 +30,7 @@ export function Phones({ value, disabled, onChange }: {
   onChange: (next: string) => void;
 }) {
   const numbers = splitPhones(value);
+  const t = useT();
 
   const [typed, setTyped] = useState('');
   const [rejected, setRejected] = useState(false);
@@ -62,7 +65,7 @@ export function Phones({ value, disabled, onChange }: {
                 type="button"
                 className="wk-chip-x"
                 disabled={disabled}
-                aria-label={`Usuń ${one}`}
+                aria-label={t('forms.phones.remove', { number: one })}
                 onClick={() => drop(one)}
               >
                 ×
@@ -77,7 +80,7 @@ export function Phones({ value, disabled, onChange }: {
         inputMode="tel"
         value={typed}
         disabled={disabled}
-        placeholder={numbers.length === 0 ? '600 700 800' : 'dodaj kolejny…'}
+        placeholder={numbers.length === 0 ? '600 700 800' : t('forms.phones.addMore')}
         onChange={(e) => {
           const text = e.target.value;
 
@@ -132,14 +135,13 @@ export function Phones({ value, disabled, onChange }: {
 
       {rejected && (
         <span className="wk-blocker">
-          To nie wygląda na numer. Zostaje w polu — popraw go albo usuń.
+          {t('forms.phones.rejected')}
         </span>
       )}
 
       {numbers.length === 0 && !rejected && (
         <span className="wk-hint">
-          Wpisz numer i naciśnij Enter. <strong>+48 dopisze się samo</strong>;
-          numer zagraniczny zacznij od <code>+</code>.
+          {rich(t('forms.phones.hint'), { b: (s, k) => <strong key={k}>{s}</strong>, code: (s, k) => <code key={k}>{s}</code> })}
         </span>
       )}
     </>

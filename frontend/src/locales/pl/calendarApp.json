@@ -1,0 +1,409 @@
+{
+  "itemLabel": {
+    "appointment": "spotkanie",
+    "task": "zadanie",
+    "mass": "msza",
+    "confession": "spowiedź",
+    "visit": "odwiedziny",
+    "devotion": "nabożeństwo"
+  },
+  "repeatLabel": {
+    "none": "raz",
+    "daily": "codziennie",
+    "weekly": "co tydzień",
+    "monthly": "co miesiąc",
+    "yearly": "co rok"
+  },
+  "moreInfo": "Więcej informacji",
+  "calendarKind": {
+    "appointment": "spotkania",
+    "mass": "msze",
+    "confession": "spowiedzi",
+    "visit": "odwiedziny",
+    "devotion": "nabożeństwa"
+  },
+  "kindWord": {
+    "appointment": "Termin",
+    "task": "Zadanie",
+    "mass": "Msza",
+    "confession": "Spowiedź",
+    "visit": "Odwiedziny",
+    "devotion": "Nabożeństwo"
+  },
+  "noAreaKey": "Nie masz klucza tego obszaru — nie da się tu zapisać.",
+  "peopleWord": {
+    "mass": "Kto odprawia",
+    "confession": "Kto spowiada",
+    "devotion": "Kto prowadzi",
+    "other": "Kto musi być"
+  },
+  "claim": {
+    "linkPersonSince": "osoba z linku (zapisana {date})",
+    "linkPerson": "osoba z linku",
+    "noName": "bez nazwy",
+    "waiting": "czeka na potwierdzenie",
+    "asksHost": "prosi gospodarza o miejsce",
+    "hostPending": "pierwszy — decyduje, czy zaprasza",
+    "hosting": "gospodarz terminu",
+    "byOffice": "wpisany przez kancelarię",
+    "confirmed": "potwierdzony"
+  },
+  "duty": {
+    "present": "obecny",
+    "celebrant": "celebrans",
+    "lead": "prowadzi"
+  },
+  "appointmentOptions": {
+    "goesTo": "Terminy „{label}” ({count}) trafiają do kalendarza",
+    "loading": "Wczytywanie kalendarzy…",
+    "none": "— nie piszesz w żadnym kalendarzu —",
+    "choose": "— wybierz kalendarz —"
+  },
+  "linkCalendar": {
+    "title": "Kalendarz",
+    "opened": "Otwarte z linku, bez konta — {access}.",
+    "mayWrite": "Możesz tu dopisywać i zmieniać terminy.",
+    "mayRead": "Możesz tu czytać terminy.",
+    "signIn": "Masz konto? <b>Zaloguj się</b>, żeby zobaczyć swój kalendarz."
+  },
+  "people": {
+    "duty": "Rola przy terminie",
+    "remove": "Usuń z terminu",
+    "loading": "Wczytywanie osób z grupy…",
+    "empty": "W tej grupie nie ma jeszcze innych osób.",
+    "add": "Dodaj osobę",
+    "addOption": "+ dodaj osobę…"
+  },
+  "pick": {
+    "loadingCalendars": "Wczytywanie terminarzy…",
+    "allOpen": "Wszystkie jawne razem (plan zbiorczy)",
+    "unknown": "Teraz stoi tu „{value}\" — to nie jest terminarz żadnej z Twoich grup. Wybierz właściwy.",
+    "noCalendars": "Nie masz jeszcze żadnego kalendarza grupy.",
+    "goneOne": "Jeden z wybranych kalendarzy nie jest już dostępny — zaznacz właściwe.",
+    "pageNote": "Na stronie każdy zobaczy terminy, które może widzieć. W pełnym ekranie osoby prowadzące kalendarz mogą też dodawać i zmieniać terminy.",
+    "calendarFirst": "Najpierw wybierz kalendarz.",
+    "loadingItems": "Wczytywanie terminów…",
+    "noItems": "W tym kalendarzu nie ma terminów w najbliższym roku.",
+    "chooseItem": "— wybierz termin —",
+    "series": "(seria: {terms})",
+    "parts": {
+      "one": "({count} pkt. programu)",
+      "few": "({count} pkt. programu)",
+      "many": "({count} pkt. programu)",
+      "other": "({count} pkt. programu)"
+    },
+    "itemGone": "Wybrany termin nie należy do tego kalendarza (albo jest dawno) — wybierz inny.",
+    "partsHint": "Punkty programu dodasz w kalendarzu: otwórz termin i „Dodaj punkt programu\"."
+  },
+  "label": {
+    "personal": "{title} (tylko ja)"
+  },
+  "program": {
+    "event": "Wydarzenie",
+    "part": "Punkt programu"
+  },
+  "part": {
+    "noCalendar": "Tu pojawią się terminy — trzeba jeszcze wybrać kalendarz.",
+    "item": "termin",
+    "loadFailed": "Nie udało się wczytać terminów.",
+    "nothingSoon": "W najbliższym czasie nic.",
+    "next": "Najbliższy: <b>{title}</b> · {when}",
+    "joinNamed": "Link „{label}” w tej przeglądarce pozwala tu dopisywać terminy ({access}). Jesteś zalogowany — dodaj go do konta, a będziesz pisać jako Ty.",
+    "join": "Link w tej przeglądarce pozwala tu dopisywać terminy ({access}). Jesteś zalogowany — dodaj go do konta, a będziesz pisać jako Ty.",
+    "joinButton": "Dodaj do konta",
+    "add": "+ Termin",
+    "place": "<b>Miejsce:</b> {place}",
+    "cancelled": "Ten termin jest odwołany."
+  },
+  "nav": {
+    "earlier": "Wcześniej",
+    "today": "Dziś",
+    "later": "Później",
+    "view": "Widok"
+  },
+  "view": {
+    "day": "Dzień",
+    "week": "Tydzień",
+    "month": "Miesiąc",
+    "list": "Lista"
+  },
+  "minutesShort": {
+    "one": "{count} min",
+    "few": "{count} min",
+    "many": "{count} min",
+    "other": "{count} min"
+  },
+  "hoursShort": {
+    "one": "{count} godz.",
+    "few": "{count} godz.",
+    "many": "{count} godz.",
+    "other": "{count} godz."
+  },
+  "settings": {
+    "needsName": "Kalendarz potrzebuje nazwy.",
+    "saveFailed": "Nie udało się zapisać kalendarza.",
+    "onlyMe": "Tylko ja (prywatny)",
+    "newTitle": "Nowy kalendarz",
+    "title": "Ustawienia kalendarza",
+    "intro": "Ustawienia kalendarza są domyślne dla każdego nowego terminu — pojedynczy termin może je potem zmienić.",
+    "namePlaceholder": "np. Spotkania z kandydatami",
+    "description": "Jak działają terminy w tym kalendarzu",
+    "descriptionPlaceholder": "np. Rozmowa trwa 40 minut. Przyjdź 5 minut wcześniej. Potwierdzenie przychodzi z kancelarii.",
+    "descriptionHint": "Ten opis zobaczą wszyscy, którzy widzą kalendarz.",
+    "ownerLong": "Kto prowadzi (dodaje i zmienia terminy)",
+    "owner": "Kto prowadzi",
+    "sees": "Kto widzi",
+    "sameGroup": "ta sama grupa",
+    "kind": "Terminy w tym kalendarzu to",
+    "duration": "Zwykle trwają",
+    "massHint": "Intencje przyjmuje się przy mszy — w kalendarzu albo w „Msze i nabożeństwa\". Kto odprawia, wpiszesz przy terminie.",
+    "booking": "Rezerwacje",
+    "bookingMode": {
+      "none": "nikt",
+      "all": "każdy termin",
+      "marked": "tylko oznaczone"
+    },
+    "capacity": "Miejsc na termin",
+    "perPerson": "Terminów na osobę",
+    "noLimit": "0 — bez limitu",
+    "approval": "Potwierdzenie",
+    "approvalNone": "od razu",
+    "approvalOffice": "potwierdzają prowadzący",
+    "reserve": "Kto może rezerwować",
+    "reserveAnyone": "każdy, kto znajdzie termin (np. na stronie)",
+    "reserveAnyoneHint": "albo tylko osoby z wybranej grupy (i grup pod nią)",
+    "reserveHint": "Np. kandydaci do bierzmowania: tylko osoby z tej grupy — także te z osobistym linkiem.",
+    "create": "Utwórz kalendarz",
+    "archiveAsk": "Zarchiwizować ten kalendarz? Jego terminy znikną z widoku, ale nie zostaną usunięte.",
+    "archive": "Zarchiwizuj"
+  },
+  "remind": {
+    "start": "na początku",
+    "middle": "w połowie",
+    "end": "pod koniec"
+  },
+  "span": {
+    "now": "teraz",
+    "in": "za {span}",
+    "ago": "{span} temu",
+    "minutes": {
+      "one": "{count} min",
+      "few": "{count} min",
+      "many": "{count} min",
+      "other": "{count} min"
+    },
+    "hours": {
+      "one": "{count} godz.",
+      "few": "{count} godz.",
+      "many": "{count} godz.",
+      "other": "{count} godz."
+    },
+    "days": {
+      "one": "{count} dni",
+      "few": "{count} dni",
+      "many": "{count} dni",
+      "other": "{count} dni"
+    }
+  },
+  "every": {
+    "week": "co tydzień",
+    "weeks": {
+      "one": "co {count} tyg.",
+      "few": "co {count} tyg.",
+      "many": "co {count} tyg.",
+      "other": "co {count} tyg."
+    },
+    "day": "codziennie",
+    "days": {
+      "one": "co {count} dni",
+      "few": "co {count} dni",
+      "many": "co {count} dni",
+      "other": "co {count} dni"
+    },
+    "hour": "co godzinę",
+    "hours": {
+      "one": "co {count} godz.",
+      "few": "co {count} godz.",
+      "many": "co {count} godz.",
+      "other": "co {count} godz."
+    },
+    "minutes": {
+      "one": "co {count} min",
+      "few": "co {count} min",
+      "many": "co {count} min",
+      "other": "co {count} min"
+    }
+  },
+  "taskDay": {
+    "everyAt": "{every} · na {time}",
+    "doneAt": "zrobione {time}",
+    "done": "zrobione",
+    "skipped": "pominięte",
+    "openLeft": "teraz · jeszcze {span}",
+    "due": "do zrobienia",
+    "lateFor": "zaległe {span}",
+    "missed": "przegapione",
+    "behindPast": "przegapione",
+    "behindNow": "zaległe",
+    "settled": "zrobione {settled} z {total}",
+    "pressing": "{count} teraz",
+    "behindCount": "{count} {word}",
+    "words": "Zadania: {list}",
+    "title": "Zadania · {date}",
+    "thisDay": "Ten dzień ({count})",
+    "allDays": "Wszystkie dni ({count})",
+    "summary": "Zrobione {settled} z {total}",
+    "summaryPressing": " · {count} teraz",
+    "summaryBehind": " · {count} zaległe",
+    "empty": "Tego dnia nie ma zadań.",
+    "undo": "Cofnij: {title}",
+    "markDone": "Zrobione: {title}",
+    "skip": "pomiń",
+    "more": {
+      "one": "I jeszcze {count} starszych zaległych — pokażą się tu, gdy te zostaną zrobione albo pominięte.",
+      "few": "I jeszcze {count} starszych zaległych — pokażą się tu, gdy te zostaną zrobione albo pominięte.",
+      "many": "I jeszcze {count} starszych zaległych — pokażą się tu, gdy te zostaną zrobione albo pominięte.",
+      "other": "I jeszcze {count} starszych zaległych — pokażą się tu, gdy te zostaną zrobione albo pominięte."
+    },
+    "new": "+ Zadanie",
+    "all": "Wszystkie zadania"
+  },
+  "failed": "Nie udało się.",
+  "tasks": {
+    "noKey": "Bez klucza w tej karcie zadania są zamknięte — zaloguj się ponownie albo odblokuj klucz.",
+    "today": "dziś",
+    "tomorrow": "jutro",
+    "yesterday": "wczoraj",
+    "loadFailed": "Nie udało się wczytać zadań.",
+    "new": "+ Nowe zadanie",
+    "more": "Więcej: Zadania",
+    "json": "Import i eksport (JSON)",
+    "jsonTitle": "Zadania — import i eksport (JSON)",
+    "empty": "Nie masz jeszcze zadań. Zadanie ma swoją porę (np. modlitwa o 21:00 codziennie) albo wraca co pewien czas od wykonania (np. podlać kwiaty co 3 dni).",
+    "groupNow": "Teraz",
+    "groupMissed": "Przegapione",
+    "groupLater": "Dziś później",
+    "groupSoon": "W najbliższych dniach",
+    "groupAfter": "Co pewien czas",
+    "allDueAbove": "Wszystkie są teraz do zrobienia — wyżej.",
+    "groupDone": "Zrobione dziś",
+    "groupSkipped": "Pominięte dziś",
+    "left": "jeszcze {span}",
+    "overdueBy": "{span} po czasie",
+    "skippedAt": "pominięte {time}",
+    "fromChat": "z rozmowy",
+    "withReminder": "z przypomnieniem",
+    "unskipLabel": "Cofnij pominięcie: {title}",
+    "skipLabel": "Pomiń: {title}",
+    "skipOnce": "Pomiń ten raz: {title}",
+    "undo": "Cofnij",
+    "skip": "Pomiń",
+    "never": "jeszcze ani razu",
+    "last": "ostatnio {when}",
+    "next": "następne {when}"
+  },
+  "taskDialog": {
+    "unit": {
+      "u60": "godzin",
+      "u1440": "dni",
+      "u10080": "tygodni"
+    },
+    "everyUnit": {
+      "u60": {
+        "one": "co {count} godzin",
+        "few": "co {count} godzin",
+        "many": "co {count} godzin",
+        "other": "co {count} godzin"
+      },
+      "u1440": {
+        "one": "co {count} dni",
+        "few": "co {count} dni",
+        "many": "co {count} dni",
+        "other": "co {count} dni"
+      },
+      "u10080": {
+        "one": "co {count} tygodni",
+        "few": "co {count} tygodni",
+        "many": "co {count} tygodni",
+        "other": "co {count} tygodni"
+      }
+    },
+    "unitLabel": "Jednostka",
+    "repeat": {
+      "daily": "Codziennie",
+      "weekly": "W wybrane dni tygodnia",
+      "monthly": "Co miesiąc",
+      "yearly": "Co rok",
+      "none": "Raz"
+    },
+    "kind": {
+      "window": {
+        "label": "O określonej porze",
+        "says": "Ma swoją porę, która może wracać — np. modlitwa o 21:00 każdego dnia. Odhaczasz każde wystąpienie; przegapione widać.",
+        "placeholder": "np. Apel Jasnogórski"
+      },
+      "period": {
+        "label": "Przez pewien czas, regularnie",
+        "says": "Ma czas na wykonanie i wraca co jakiś czas — np. sprzątanie kościoła: 3 dni na wykonanie, co 2 tygodnie. Pojawia się na początku i staje się coraz pilniejsze aż do końca.",
+        "placeholder": "np. Posprzątać kościół"
+      },
+      "after": {
+        "label": "Co pewien czas od wykonania",
+        "says": "Liczy czas od ostatniego wykonania — np. podlać kwiaty co 3 dni. Gdy odhaczysz, licznik zaczyna od nowa.",
+        "placeholder": "np. Podlać kwiaty"
+      }
+    },
+    "saveFailed": "Nie udało się zapisać.",
+    "needsTitle": "Nazwij zadanie.",
+    "endBeforeStart": "Koniec wypada przed początkiem.",
+    "windowTooLong": "Okno dłuższe niż rok — to już nie termin, tylko postanowienie.",
+    "tooOften": "Zadanie nie może wracać częściej, niż trwa — wydłuż odstęp albo skróć czas na wykonanie.",
+    "periodTooLong": "Czas na wykonanie dłuższy niż rok — to już postanowienie, nie zadanie.",
+    "newTitle": "Nowe zadanie",
+    "fromChat": "Z rozmowy — zadanie zapamięta, z której wiadomości powstało, i pokaże się przy niej.",
+    "kindLabel": "Rodzaj zadania",
+    "what": "Co",
+    "fromDay": "Od dnia",
+    "atTime": "o godz.",
+    "toDay": "Do dnia",
+    "howOften": "Jak często",
+    "firstFrom": "Pierwszy raz od",
+    "timeToDo": "Czas na wykonanie",
+    "returnsEvery": "Wraca co",
+    "periodHint": "Pierwszy raz: od {from} do {to} — potem {every}.",
+    "every": "Co",
+    "firstWas": "Pierwszy raz był",
+    "first": "Pierwszy raz",
+    "afterHint": "Pierwszy raz: {first} — potem {every} od każdego wykonania.",
+    "remind": "Przypomnij",
+    "whenDue": "gdy przyjdzie pora",
+    "remindHint": "Przypomnienie przychodzi na urządzenia, na których masz włączone powiadomienia.",
+    "notes": "Notatka",
+    "deleteAsk": "Usunąć to zadanie? Historia wykonania zostaje w archiwum."
+  },
+  "details": {
+    "addPartFailed": "Nie udało się dodać punktu.",
+    "program": "Program",
+    "unlink": "odłącz",
+    "noParts": "Jeszcze bez punktów programu.",
+    "partName": "Nazwa punktu",
+    "partNamePlaceholder": "Nazwa punktu, np. Obiad",
+    "partStart": "Początek punktu",
+    "partEnd": "Koniec punktu",
+    "adding": "Dodawanie…",
+    "endAfterStart": "Koniec musi być po początku.",
+    "newPart": "+ Nowy punkt programu",
+    "link": "Podłącz istniejący termin",
+    "linking": "Podłączanie…",
+    "linkOption": "+ Podłącz istniejący termin…",
+    "calendar": "Kalendarz: {name}",
+    "sees": "Widzi: {who}",
+    "you": "Ty",
+    "scope": "Dla których terminów",
+    "scopeOne": "Tylko ten termin",
+    "scopeAll": "Cała seria",
+    "ownClaimConfirmed": "To Twoja rezerwacja (potwierdzona). Zmienisz ją tam, gdzie ją zrobiłeś.",
+    "ownClaimWaiting": "To Twoja rezerwacja (czeka na potwierdzenie). Zmienisz ją tam, gdzie ją zrobiłeś.",
+    "readOnly": "Ten termin możesz tylko oglądać — w jego kalendarzu nie piszesz."
+  }
+}

@@ -25,6 +25,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { rich, useT } from '../core/i18n';
 import { whoIsThere, WorkspaceError, type Who } from '../core/session';
 import { PEOPLE_TAB, formPath } from '../routes';
 import { bindSeat, seatPath } from '../seats/seat';
@@ -52,11 +53,13 @@ export function FormCard(props: FormCardProps) {
     openSeats, outcome, pageDecides, pageRole, pageSeat, person, sent, sentAt, setAnswers, setAttached, setBusy,
     setChosen, setClaim, setFailed, setForOther, setLanded, setLink, setSent, setSentAt, subject, subjects, whomRing
   } = useFormCard(props);
+  const t = useT();
+  const b = { b: (s: string, k: number) => <strong key={k}>{s}</strong> };
 
-  if (form === undefined) return <Loading label="Wczytywanie…" />;
+  if (form === undefined) return <Loading label={t('common.loading')} />;
 
   if (form === null) {
-    return <p className="wk-card-muted">{failed ?? 'Tu nie ma formularza.'}</p>;
+    return <p className="wk-card-muted">{failed ?? t('forms.card.noForm')}</p>;
   }
 
   /*
@@ -102,8 +105,7 @@ export function FormCard(props: FormCardProps) {
         <>
           {head}
           <p className="wk-card-muted">
-            To uzupełnia osoba zapisana wcześniej — przez swój link. Otwórz link, który dostałeś
-            {person !== null && openSeats.length > 1 ? ', albo wybierz u góry strony, za kogo' : ''}.
+            {person !== null && openSeats.length > 1 ? t('forms.card.extNoSeatPick') : t('forms.card.extNoSeat')}
           </p>
         </>
       );
@@ -114,7 +116,7 @@ export function FormCard(props: FormCardProps) {
         <>
           {head}
           <p className="wk-card-muted">
-            To uzupełnia zgłoszenie, którego pod tym linkiem nie ma.
+            {t('forms.card.extNoBase')}
           </p>
         </>
       );
@@ -125,7 +127,7 @@ export function FormCard(props: FormCardProps) {
         <>
           {head}
           <p className="wk-done">
-            {form.after?.title ?? (repeat === 'once' ? 'Uzupełnione — dziękujemy.' : `Uzupełnione za ${roundLabel(repeat, round)} — dziękujemy.`)}
+            {form.after?.title ?? (repeat === 'once' ? t('forms.card.extDone') : t('forms.card.extDoneRound', { round: roundLabel(repeat, round) }))}
           </p>
           {form.after?.text != null && <AfterText text={form.after.text} />}
           <OwnSubmissions seat={extSeat} formId={partId} show={null} />
@@ -182,7 +184,7 @@ export function FormCard(props: FormCardProps) {
     return (
       <>
         {title !== '' && <h2 className="wk-card-title">{title}</h2>}
-        <p className="wk-done">{form.after?.title ?? 'Zgłoszenie przyjęte.'}</p>
+        <p className="wk-done">{form.after?.title ?? t('forms.card.sent')}</p>
         {form.after?.text != null && <AfterText text={form.after.text} />}
 
         {/*
@@ -193,9 +195,7 @@ export function FormCard(props: FormCardProps) {
         {paperNeeded(form.after, (id) => (outcome.hidden.has(id) ? undefined : answers[id]), { fields, signs: signsShown(layout, outcome.hidden) }) && (
           <div className="wk-paper-note">
             <p>
-              <strong>To trzeba jeszcze podpisać odręcznie.</strong> Wydrukuj zgłoszenie, podpisz je
-              {form.after?.signer != null ? ` (${form.after.signer})` : ''} i oddaj organizatorowi — bez tego zgłoszenie nie jest kompletne.
-              Wydruk znajdziesz też później pod swoim linkiem.
+              {rich(form.after?.signer != null ? t('forms.card.paperAfterSigner', { signer: form.after.signer }) : t('forms.card.paperAfter'), b)}
             </p>
             <SignSheetButton
               formId={partId}
@@ -207,7 +207,7 @@ export function FormCard(props: FormCardProps) {
 
         {attached !== null && (
           <p className="wk-hint">
-            Dopisane do miejsca <strong>{attached}</strong> — zobaczysz je pod tym samym linkiem co dotąd.
+            {rich(t('forms.card.attached', { name: attached }), b)}
           </p>
         )}
 
@@ -215,16 +215,11 @@ export function FormCard(props: FormCardProps) {
           <>
             {forOther ? (
               <p className="wk-hint">
-                <strong>To jest adres osoby, za którą wypełniłeś formularz.</strong> Przekaż go jej —
-                pod nim zobaczy swoje zgłoszenie i to, co parafia do niej napisze.{' '}
-                <strong>Widzisz go tylko teraz</strong>, bo u nas zapisany jest wyłącznie jego odcisk.
+                {rich(t('forms.card.linkOther'), b)}
               </p>
             ) : (
               <p className="wk-hint">
-                <strong>To jest Twój adres.</strong> Pod nim zobaczysz to, co
-                wpisałeś — i to, co parafia do Ciebie napisze. Zapisz go albo dodaj
-                do zakładek: <strong>widzisz go tylko teraz</strong>, bo u nas
-                zapisany jest wyłącznie jego odcisk. Nikt Ci go nie odtworzy.
+                {rich(t('forms.card.linkOwn'), b)}
               </p>
             )}
 
@@ -238,15 +233,14 @@ export function FormCard(props: FormCardProps) {
                 className="wk-btn"
                 href={seatPath(link, landed, form.after?.at)}
               >
-                {forOther ? 'Otwórz stronę tej osoby' : 'Otwórz moją stronę'}
+                {forOther ? t('forms.card.openTheirPage') : t('forms.card.openMyPage')}
               </a>
             </div>
           </>
         ) : (
           <>
             <p className="wk-hint">
-              Zachowaj to pokwitowanie — to jedyny sposób, żeby później wrócić do
-              swojego zgłoszenia. Nikt Ci go nie odtworzy.
+              {t('forms.card.keepClaim')}
             </p>
             {claim !== null && <textarea readOnly rows={2} value={claim} className="wk-mono" />}
           </>
@@ -315,7 +309,7 @@ export function FormCard(props: FormCardProps) {
           seat: { token: pageSeat.token, key: pageSeat.seatKey }
         });
 
-        setAttached(person?.chosen?.name ?? 'wybranej osoby');
+        setAttached(person?.chosen?.name ?? t('forms.card.chosenPerson'));
         setSentAt(new Date().toISOString());
         setSent(true);
         pageSeat.reload();
@@ -383,7 +377,7 @@ export function FormCard(props: FormCardProps) {
       setSentAt(new Date().toISOString());
       setSent(true);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('forms.card.sendFailed'));
     } finally {
       setBusy(false);
     }
@@ -398,8 +392,8 @@ export function FormCard(props: FormCardProps) {
 
       {leads !== null && !extension && (
         <p className="wk-hint wk-form-leads">
-          Prowadzisz ten formularz:{' '}
-          <a className="wk-link" href={formPath(partId, PEOPLE_TAB)}>lista osób</a>
+          {t('forms.card.leads')}{' '}
+          <a className="wk-link" href={formPath(partId, PEOPLE_TAB)}>{t('forms.card.peopleList')}</a>
           {leads.map((one) => (
             <span key={one.moduleId}>
               {' · '}
@@ -408,7 +402,7 @@ export function FormCard(props: FormCardProps) {
               </a>
             </span>
           ))}
-          . Osobę bez własnego linku (np. zapisaną przez telefon) dopiszesz na liście przyciskiem „Dodaj osobę”.
+          {t('forms.card.leadsAdd')}
         </p>
       )}
 
@@ -417,13 +411,12 @@ export function FormCard(props: FormCardProps) {
         Fragen zu zeigen, deren Antworten niemand mehr annimmt.
       */}
       {form.closed && (
-        <p className="wk-note">Zapisy przez ten formularz są zamknięte.</p>
+        <p className="wk-note">{t('forms.card.closed')}</p>
       )}
 
       {nameless && (
         <p className="wk-error">
-          Nikt nie odpowiada tu za dane osobowe, więc ten formularz nic nie zbiera.
-          Administratora danych wskazuje ten, kto prowadzi obszar (Ustawienia obszaru).
+          {t('forms.card.noController')}
         </p>
       )}
 
@@ -447,22 +440,21 @@ export function FormCard(props: FormCardProps) {
         <p className="wk-hint wk-form-whom">
           {person.chosen === null ? (
             <>
-              Wypełniasz za <strong>kogoś innego</strong> — wpisz poniżej jego dane. Po wysłaniu dostaniesz link
-              dla tej osoby: przekaż go jej, żeby mogła sprawdzić swoje zgłoszenie.{' '}
+              {rich(t('forms.card.forOther'), b)}{' '}
               {(() => {
                 const back = person.options.find((one) => one.kind === 'role' && one.isMine) ?? person.options[0];
                 return back === undefined ? null : (
-                  <button type="button" className="wk-link-btn" onClick={() => person.choose(back.id)}>Wróć do: {back.name}</button>
+                  <button type="button" className="wk-link-btn" onClick={() => person.choose(back.id)}>{t('forms.card.backTo', { name: back.name })}</button>
                 );
               })()}
             </>
           ) : (
             <>
               {person.chosen.kind === 'seat'
-                ? <>Zgłoszenie zostanie dopisane do miejsca <strong>{person.chosen.name}</strong> (ten sam link).</>
-                : <>Zgłoszenie dla: <strong>{person.chosen.name}</strong> — pola wypełnią się Twoimi zapisanymi danymi.</>}
+                ? rich(t('forms.card.forSeat', { name: person.chosen.name }), b)
+                : rich(t('forms.card.forRole', { name: person.chosen.name }), b)}
               {' '}
-              <button type="button" className="wk-link-btn" onClick={() => person.choose(null)}>Wypełnij za kogoś innego</button>
+              <button type="button" className="wk-link-btn" onClick={() => person.choose(null)}>{t('forms.card.fillForOther')}</button>
             </>
           )}
         </p>
@@ -470,33 +462,29 @@ export function FormCard(props: FormCardProps) {
 
       {extension && extSeat !== null && (
         <p className="wk-hint">
-          Uzupełnienie dla: <strong>{extSeat.recipientName ?? 'Twojego zgłoszenia'}</strong> — dołączy do
-          zgłoszenia pod tym samym linkiem.
+          {rich(t('forms.card.extFor', { name: extSeat.recipientName ?? t('forms.card.yourEntry') }), b)}
         </p>
       )}
 
       {!extension && !pageDecides && subjects.length > 0 && !nameless && !form.closed && !blind && (
         <label className="wk-field">
-          <span>{form.forKind === 'person' ? 'Kogo dotyczy zgłoszenie'
-            : form.forKind === 'group' ? 'Której grupy dotyczy' : 'Której roli dotyczy'}</span>
+          <span>{form.forKind === 'person' ? t('forms.card.whomPerson')
+            : form.forKind === 'group' ? t('forms.card.whomGroup') : t('forms.card.whomRole')}</span>
 
           <select
             value={chosen ?? ''}
             onChange={(e) => setChosen(e.target.value === '' ? null : e.target.value)}
           >
-            <option value="">— wpiszę sam —</option>
+            <option value="">{t('forms.card.typeMyself')}</option>
             {subjects.map((one) => (
               <option key={one.roleId} value={one.roleId}>
-                {one.name ?? 'bez nazwy'}{one.isMine && ' (ja)'}
+                {one.name ?? t('forms.card.noName')}{one.isMine && ` ${t('forms.card.me')}`}
               </option>
             ))}
           </select>
 
           <span className="wk-hint">
-            Wybranie wypełni pola danymi, które masz już zapisane — raz
-            wpisanymi i wspólnymi dla wszystkich formularzy. Zmienisz je u
-            siebie, zmienią się wszędzie. Miejsce, które powstanie z tego
-            zgłoszenia, będzie należało właśnie do wybranego.
+            {t('forms.card.whomHint')}
           </span>
         </label>
       )}
@@ -509,15 +497,14 @@ export function FormCard(props: FormCardProps) {
       */}
       {unreadable > 0 && !form.closed && (
         <p className="wk-warn">
-          {blind ? 'Pytań tego formularza nie da się tu odczytać' : `Części pytań (${unreadable}) nie da się tu odczytać`}
-          {' '}— są zapieczętowane kluczem obszaru, którego ta przeglądarka nie czyta.{' '}
+          {blind ? t('forms.card.unreadableAll') : t('forms.card.unreadableSome', { count: unreadable })}
+          {' '}{t('forms.card.unreadableWhy')}{' '}
           {account === 'locked'
-            ? 'Jesteś zalogowany, ale w tej karcie nie ma Twoich kluczy — zaloguj się ponownie, żeby je odblokować.'
+            ? t('forms.card.unreadableLocked')
             : account === 'open'
-              ? 'Twoje konto nie ma dostępu do tego obszaru.'
-              : 'Jeśli masz do niego dostęp, zaloguj się albo otwórz swój link z dostępem.'}
-          {' '}Formularz ma być dla wszystkich? Prowadzący ustawia wtedy jego obszar jako jawny —
-          wskazówkę zobaczy, otwierając formularz w Modułach.
+              ? t('forms.card.unreadableNoAccess')
+              : t('forms.card.unreadableSignIn')}
+          {' '}{t('forms.card.unreadablePublic')}
         </p>
       )}
 
@@ -550,15 +537,11 @@ export function FormCard(props: FormCardProps) {
             <div className="wk-paper-note wk-paper-end">
               {missing.length === 0 && wrong.length === 0 ? (
                 <p>
-                  <strong>Zgoda do podpisania odręcznie.</strong> Wydrukuj ją, podpisz
-                  {form.after?.signer != null ? ` (${form.after.signer})` : ''} i oddaj organizatorowi. Wydruk będzie też po
-                  wysłaniu i pod Twoim linkiem.
+                  {rich(form.after?.signer != null ? t('forms.card.paperReadySigner', { signer: form.after.signer }) : t('forms.card.paperReady'), b)}
                 </p>
               ) : (
                 <p>
-                  <strong>Zgoda do podpisania odręcznie.</strong> Wydrukujesz ją, gdy formularz będzie wypełniony — potem
-                  podpisz ją{form.after?.signer != null ? ` (${form.after.signer})` : ''} i oddaj organizatorowi. Wydruk
-                  będzie też po wysłaniu i pod Twoim linkiem.
+                  {rich(form.after?.signer != null ? t('forms.card.paperLaterSigner', { signer: form.after.signer }) : t('forms.card.paperLater'), b)}
                 </p>
               )}
               <SignSheetButton
@@ -566,7 +549,7 @@ export function FormCard(props: FormCardProps) {
                 values={new Map(fields.filter((f) => !outcome.hidden.has(f.fieldId)).map((f) => [f.fieldId, answers[f.fieldId] ?? '']))}
                 submittedAt={null}
                 className="wk-btn wk-btn-quiet"
-                label="Drukuj zgodę do podpisu"
+                label={t('forms.card.printConsent')}
                 disabled={missing.length > 0 || wrong.length > 0}
               />
             </div>
@@ -576,25 +559,23 @@ export function FormCard(props: FormCardProps) {
 
           <div className="wk-actions">
             <button type="submit" className="wk-btn" disabled={busy || missing.length > 0 || wrong.length > 0}>
-              {busy ? 'Wysyłanie…' : 'Wyślij'}
+              {busy ? t('forms.card.sending') : t('forms.card.send')}
             </button>
 
             {missing.length > 0 && (
               <span className="wk-blocker">
-                Brakuje: {missing.map((f) => outcome.labels.get(f.fieldId) ?? f.label ?? 'zapieczętowane').join(', ')}
+                {t('forms.card.missing', { list: missing.map((f) => outcome.labels.get(f.fieldId) ?? f.label ?? t('forms.card.sealed')).join(', ') })}
               </span>
             )}
             {wrong.length > 0 && (
               <span className="wk-blocker">
-                Popraw: {wrong.map((f) => outcome.labels.get(f.fieldId) ?? f.label ?? 'PESEL').join(', ')}
+                {t('forms.card.fix', { list: wrong.map((f) => outcome.labels.get(f.fieldId) ?? f.label ?? 'PESEL').join(', ') })}
               </span>
             )}
           </div>
 
           <p className="wk-hint">
-            Odpowiedzi są pieczętowane w tej przeglądarce. Usługa zapisuje je,
-            nie mogąc ich odczytać — otworzy je dopiero ten, kto prowadzi
-            kancelarię.
+            {t('forms.card.sealedHint')}
           </p>
         </form>
       )}
@@ -618,6 +599,7 @@ export function FormCard(props: FormCardProps) {
 function OfficeOnly({ partId, baseId, title, repeat }: { partId: string; baseId: string; title: string; repeat: Repeat }) {
   const [who, setWho] = useState<Who | null | undefined>(undefined);
   const [leads, setLeads] = useState<boolean | undefined>(undefined);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -636,11 +618,11 @@ function OfficeOnly({ partId, baseId, title, repeat }: { partId: string; baseId:
     <>
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
       {who === undefined || leads === undefined ? (
-        <Loading label="Wczytywanie…" />
+        <Loading label={t('common.loading')} />
       ) : who === null ? (
-        <p className="wk-card-muted">Ten formularz wypełnia koordynator — po zalogowaniu.</p>
+        <p className="wk-card-muted">{t('forms.card.officeSignIn')}</p>
       ) : !leads ? (
-        <p className="wk-card-muted">Ten formularz wypełnia koordynator.</p>
+        <p className="wk-card-muted">{t('forms.card.office')}</p>
       ) : (
         <ExtensionSheet extensionId={partId} baseId={baseId} audience="office" who={who} repeat={repeat} name={title} />
       )}
@@ -656,12 +638,13 @@ function SubjectSubform({ subject, partId, title, writable, repeat }: {
   writable: boolean;
   repeat: Repeat;
 }) {
+  const t = useT();
   const head = title !== '' && <h2 className="wk-card-title">{title}</h2>;
   const chosen = subject.chosen;
-  if (subject.desk === null || subject.ring == null) return <>{head}<p className="wk-card-muted">Osoba pojawi się tu po wyborze u góry strony.</p></>;
-  if (chosen === null) return <>{head}<p className="wk-card-muted">Wybierz osobę u góry strony.</p></>;
+  if (subject.desk === null || subject.ring == null) return <>{head}<p className="wk-card-muted">{t('forms.card.subjectAfterPick')}</p></>;
+  if (chosen === null) return <>{head}<p className="wk-card-muted">{t('forms.card.subjectPick')}</p></>;
   const data = subject.desk.extData.get(partId);
-  if (data === undefined) return <>{head}<p className="wk-card-muted">Tego podformularza nie otworzysz tym kluczem.</p></>;
+  if (data === undefined) return <>{head}<p className="wk-card-muted">{t('forms.card.subjectNoKey')}</p></>;
   const round = roundOf(repeat);
   const entry = data.registrations.find((r) => r.baseId === chosen.s.registrationId && (r.round ?? '') === round);
 
@@ -671,7 +654,7 @@ function SubjectSubform({ subject, partId, title, writable, repeat }: {
       <p className="wk-entry-who">
         <strong>{chosen.name}</strong>
         {repeat !== 'once' && <span className="wk-row-side"> · {roundLabel(repeat, round)}</span>}
-        {!writable && <span className="wk-row-side"> · uzupełnia osoba</span>}
+        {!writable && <span className="wk-row-side"> · {t('forms.card.personFills')}</span>}
       </p>
       <ExtensionEntry key={chosen.s.registrationId} extensionId={partId} ext={data} baseRegistrationId={chosen.s.registrationId}
         entry={entry} editable={writable} round={round} onSaved={() => deskChanged(subject.formId)} />

@@ -1,0 +1,311 @@
+{
+  "keys": {
+    "doc": {
+      "format": "zawsze \"{format}\"",
+      "version": "{version} (wersja formatu)",
+      "buttons": "tempo przycisków: { \"pauseMs\" } (niżej: Tempo); pominięte — bez zmian",
+      "lamps": "urządzenia z ich sygnałami (niżej); pominięte — bez zmian",
+      "timers": "timery (niżej); pominięte — bez zmian"
+    },
+    "lamp": {
+      "id": "identyfikator z eksportu — po nim import zmienia to samo urządzenie; bez niego (albo z identyfikatorem, którego tu nie ma, np. z innego konta) powstaje nowe",
+      "key": "krótka nazwa, na którą wskazują akcje timerów w tym dokumencie (\"@klucz\"): litery, cyfry, - _ . (do 40 znaków), niepowtarzalna — nie jest zapisywana",
+      "name": "nazwa, np. „Lampa w sypialni” — nazwa albo numer są wymagane",
+      "number": "numer urządzenia jako tekst, np. \"3\" (porządkuje przyciski); null — bez numeru",
+      "room": "pomieszczenie, np. „Sypialnia”, albo null",
+      "note": "notatka o protokole (producent, adres pilota, co znaczą bajty) albo null",
+      "protocol": "\"ble-adv\" — surowa reklama BLE (legacy); jedyny protokół, można pominąć",
+      "signals": "sygnały — przyciski urządzenia (niżej)",
+      "remove": "true — usuwa urządzenie razem z jego sygnałami (tylko z \"id\"); timery, które ich używają, przestaną je wykonywać — lista zmian ostrzega"
+    },
+    "signal": {
+      "id": "identyfikator sygnału z eksportu (w obrębie urządzenia) — po nim import zmienia ten sam sygnał; bez niego powstaje nowy",
+      "key": "krótka nazwa sygnału dla akcji timerów (\"@klucz\"), niepowtarzalna w urządzeniu — nie jest zapisywana",
+      "label": "napis na przycisku, np. „Włącz” (wymagany)",
+      "note": "notatka albo null",
+      "frames": "ramki nadawane po kolei, od 1 do {max} (niżej); podane zastępują wszystkie ramki sygnału",
+      "remove": "true — usuwa sygnał (tylko z \"id\")"
+    },
+    "frame": {
+      "hex": "cały pakiet reklamy BLE szesnastkowo, jak w nRF Connect: \"1EFF0000…\"; spacje, dwukropki, przecinki i 0x import usuwa",
+      "durationMs": "jak długo nadawać, {min}–{max} ms (domyślnie {default})",
+      "gapMs": "przerwa przed następną ramką, 0–{max} ms (domyślnie 0; po ostatniej nie ma znaczenia)"
+    },
+    "timer": {
+      "id": "identyfikator z eksportu — po nim import zmienia ten sam timer; bez niego powstaje nowy",
+      "name": "nazwa, np. „Rano” (opcjonalnie; bez niej — „Timer 07:00”)",
+      "time": "godzina \"GG:MM\" według zegara telefonu, np. \"06:45\" — wymagana przy nowym timerze",
+      "days": "dni tygodnia: 1–7 (1 = poniedziałek … 7 = niedziela) albo \"pn\", \"wt\", \"śr\", \"cz\", \"pt\", \"so\", \"nd\"; [] — codziennie",
+      "enabled": "true — włączony (domyślnie), false — wyłączony",
+      "pace": "tempo tego timera: { \"pauseMs\", \"limitMs\" } (niżej); pominięte przy nowym — najszybciej",
+      "actions": "akcje wysyłane po kolei, od 1 do {max} (niżej); podane zastępują wszystkie akcje timera",
+      "remove": "true — usuwa timer (tylko z \"id\")"
+    },
+    "action": {
+      "lamp": "urządzenie: \"@klucz\" z tego dokumentu, \"id\" z eksportu albo nazwa lub numer urządzenia („Lampa w sypialni”, \"nr 3\")",
+      "signal": "sygnał TEGO urządzenia: \"@klucz\", \"id\" albo napis na przycisku („Włącz”)"
+    },
+    "pace": {
+      "pauseMs": "przerwa między nadaniami, 0–{max} ms: między pakietami w ramce (pakiet co 100 ms + przerwa), między ramkami i między akcjami; 0 — bez przerwy",
+      "limitMs": "tylko w timerze: najdłużej tyle ms nadawać każdą ramkę (co najmniej {min}); null — tak długo, jak zapisano"
+    }
+  },
+  "noName": "(bez nazwy)",
+  "at": {
+    "doc": "Dokument",
+    "frame": "ramka",
+    "frameN": "ramka {n}",
+    "signal": "{where}, sygnał {which}",
+    "lamp": "Urządzenie {which}",
+    "timer": "Timer {which}",
+    "action": "{at}, akcja {n}",
+    "buttons": "Tempo przycisków (\"buttons\")"
+  },
+  "warn": {
+    "unknownKey": "{where}: nieznany klucz „{key}” — pominięty.",
+    "unknownKeys": "{where}: nieznane klucze {keys} — pominięte.",
+    "notText": "{where} musi być tekstem — pominięte.",
+    "badId": "{where}: \"id\" musi być tekstem z eksportu — pominięte.",
+    "badKey": "{where}: \"key\" to litery, cyfry, - _ . (do 40 znaków) — {value} pominięty.",
+    "keyTaken": "{where}: klucz \"@{key}\" jest już w dokumencie — ten pominięty.",
+    "notList": "\"{name}\" musi być listą — pominięte.",
+    "framesNotList": "\"frames\" musi być listą ramek {\"hex\", \"durationMs\", \"gapMs\"}",
+    "noHex": "{at}: brak pakietu \"hex\"",
+    "signalsNotList": "{where}: \"signals\" musi być listą — sygnały bez zmian.",
+    "notObjectM": "{at}: to nie jest obiekt — pominięty.",
+    "notObjectN": "{at}: to nie jest obiekt — pominięte.",
+    "idTwiceSignal": "{at}: to samo \"id\" drugi raz — pominięty.",
+    "idTwiceN": "{at}: to samo \"id\" drugi raz w dokumencie — pominięte.",
+    "idTwiceM": "{at}: to samo \"id\" drugi raz w dokumencie — pominięty.",
+    "signalIdForeign": "{at}: \"id\" nie należy do sygnałów tego urządzenia — powstanie nowy sygnał.",
+    "removeNoSignal": "{at}: \"remove\" bez \"id\" sygnału tego urządzenia — nie ma czego usunąć.",
+    "removeOnlyTrue": "{at}: \"remove\" może być tylko true — pominięte.",
+    "signalSkipped": "{at}: {problem} — sygnał pominięty.",
+    "signalKept": "{at}: {problem} — sygnał bez zmian.",
+    "tooManySignals": {
+      "one": "{where}: najwyżej {max} sygnałów w urządzeniu — {count} nowy pominięty.",
+      "few": "{where}: najwyżej {max} sygnałów w urządzeniu — {count} nowe pominięte.",
+      "many": "{where}: najwyżej {max} sygnałów w urządzeniu — {count} nowych pominiętych.",
+      "other": "{where}: najwyżej {max} sygnałów w urządzeniu — {count} nowego pominiętego."
+    },
+    "daysNotList": "\"days\" to lista (np. [\"pn\", \"śr\"] albo [1, 3]; [] — codziennie), a jest {value}",
+    "badDays": "nieznane dni {days} (1–7 albo pn, wt, śr, cz, pt, so, nd)",
+    "paceNotObject": "{where}: \"pace\" to {\"pauseMs\", \"limitMs\"} — tempo bez zmian.",
+    "pauseNotNumber": "{where}: \"pauseMs\" musi być liczbą — bez zmian.",
+    "pauseClamped": "{where}: \"pauseMs\" od 0 do {max} ms — przycięte.",
+    "limitNotNumber": "{where}: \"limitMs\" to liczba albo null — bez zmian.",
+    "limitClamped": "{where}: \"limitMs\" co najmniej {min} ms — przycięte.",
+    "version": "Wersja {got} — import zna wersję {version}; czego nie zna, pomija.",
+    "lampIdIsTimer": "{at}: \"id\" należy do timera, nie do urządzenia — powstanie nowe urządzenie.",
+    "lampIdForeign": "{at}: \"id\" nie należy do żadnego urządzenia tutaj (np. z innego konta) — powstanie nowe, z nowym \"id\".",
+    "removeNoLamp": "{at}: \"remove\" bez \"id\" istniejącego urządzenia — nie ma czego usunąć.",
+    "protocolSkipped": "{at}: nieznany protokół {protocol} (jest tylko \"ble-adv\") — urządzenie pominięte.",
+    "protocolKept": "{at}: nieznany protokół {protocol} (jest tylko \"ble-adv\") — urządzenie bez zmian.",
+    "noNameSkipped": "{at}: bez nazwy i numeru — urządzenie pominięte.",
+    "noNameKept": "{at}: bez nazwy i numeru — urządzenie bez zmian.",
+    "lampTwin": "{at}: bez \"id\" — powstanie drugie urządzenie „{name}” obok istniejącego; żeby zmienić istniejące, podaj jego \"id\" z eksportu.",
+    "lampRef": "{where}: \"lamp\" to \"@klucz\", \"id\" albo nazwa urządzenia — akcja pominięta.",
+    "lampAmbiguous": "{where}: „{text}” pasuje do {count} urządzeń — podaj \"@klucz\" albo \"id\"; akcja pominięta.",
+    "lampRemoved": "{where}: urządzenie „{name}” jest w tym dokumencie usuwane — akcja pominięta.",
+    "lampMissing": "{where}: nie ma urządzenia {ref} — akcja pominięta.",
+    "signalRef": "{where}: \"signal\" to \"@klucz\", \"id\" albo napis na przycisku — akcja pominięta.",
+    "signalAmbiguous": "{where}: „{text}” pasuje do {count} sygnałów „{title}” — podaj \"@klucz\" albo \"id\"; akcja pominięta.",
+    "signalRemoved": "{where}: sygnał „{label}” („{title}”) jest w tym dokumencie usuwany — akcja pominięta.",
+    "signalMissing": "{where}: „{title}” nie ma sygnału {ref} — akcja pominięta.",
+    "timerIdIsLamp": "{at}: \"id\" należy do urządzenia, nie do timera — powstanie nowy timer.",
+    "timerIdForeign": "{at}: \"id\" nie należy do żadnego timera tutaj (np. z innego konta) — powstanie nowy, z nowym \"id\".",
+    "removeNoTimer": "{at}: \"remove\" bez \"id\" istniejącego timera — nie ma czego usunąć.",
+    "timerSkipped": "{at}: {why} — timer pominięty.",
+    "timerKept": "{at}: {why} — timer bez zmian.",
+    "badEnabled": "{at}: \"enabled\" to true albo false — pominięte.",
+    "actionNotObject": "{where}: akcja to {\"lamp\": …, \"signal\": …} — pominięta.",
+    "tooManyActions": {
+      "one": "{at}: najwyżej {max} akcji — {count} dalsza pominięta.",
+      "few": "{at}: najwyżej {max} akcji — {count} dalsze pominięte.",
+      "many": "{at}: najwyżej {max} akcji — {count} dalszych pominiętych.",
+      "other": "{at}: najwyżej {max} akcji — {count} dalszej pominiętej."
+    },
+    "brokenActions": {
+      "one": "{at}: {count} akcja wskazuje urządzenie albo sygnał, którego już nie ma — zostaje, ale timer jej nie wykona.",
+      "few": "{at}: {count} akcje wskazują urządzenie albo sygnał, którego już nie ma — zostają, ale timer ich nie wykona.",
+      "many": "{at}: {count} akcji wskazuje urządzenie albo sygnał, którego już nie ma — zostają, ale timer ich nie wykona.",
+      "other": "{at}: {count} akcji wskazuje urządzenie albo sygnał, którego już nie ma — zostają, ale timer ich nie wykona."
+    },
+    "timerTwin": "{at}: bez \"id\" — powstanie drugi taki sam timer obok istniejącego ({head}); żeby zmienić istniejący, podaj jego \"id\" z eksportu.",
+    "actionToRemovedLamp": "Timer {head}: akcja „{action}” wskazuje usuwane urządzenie — timer tej akcji nie wykona.",
+    "actionToRemovedSignal": "Timer {head}: akcja „{action}” wskazuje usuwany sygnał — timer tej akcji nie wykona.",
+    "buttonsNotObject": "\"buttons\" to {\"pauseMs\": …} — pominięte.",
+    "buttonsPause": "Tempo przycisków: \"pauseMs\" od 0 do {max} ms — pominięte.",
+    "tooManyRows": "Razem byłoby {rows} urządzeń i timerów — usługa przyjmie najwyżej {max}; nadmiarowe nowe się nie zapiszą."
+  },
+  "err": {
+    "notDoc": "To nie jest dokument lamp — oczekiwano obiektu {\"format\": \"{format}\", …}.",
+    "otherFormat": "Inny format: „{got}” — tu importuje się \"{format}\".",
+    "nothing": "Dokument nie ma ani \"lamps\", ani \"timers\", ani \"buttons\" — nie ma czego importować."
+  },
+  "line": {
+    "lampNoSignals": "„{name}” bez sygnałów",
+    "lampWithSignals": {
+      "one": "„{name}” z {count} sygnałem",
+      "few": "„{name}” z {count} sygnałami",
+      "many": "„{name}” z {count} sygnałami",
+      "other": "„{name}” z {count} sygnałami"
+    },
+    "newLamp": {
+      "one": "Nowe urządzenie: {head} — {count} sygnał.",
+      "few": "Nowe urządzenie: {head} — {count} sygnały.",
+      "many": "Nowe urządzenie: {head} — {count} sygnałów.",
+      "other": "Nowe urządzenie: {head} — {count} sygnału."
+    },
+    "newLampSignals": {
+      "one": "Nowe urządzenie: {head} — {count} sygnał: {labels}.",
+      "few": "Nowe urządzenie: {head} — {count} sygnały: {labels}.",
+      "many": "Nowe urządzenie: {head} — {count} sygnałów: {labels}.",
+      "other": "Nowe urządzenie: {head} — {count} sygnału: {labels}."
+    },
+    "changedLamp": "Zmienione urządzenie: „{name}” — {what}.",
+    "tempo": "; tempo: {tempo}",
+    "off": " (wyłączony)",
+    "newTimer": "Nowy timer: {head} — {actions}{extra}.",
+    "changedTimer": "Zmieniony timer: {head} — {what}.",
+    "removedLamp": "Usunięte urządzenie: {title}.",
+    "removedTimer": "Usunięty timer: {title}.",
+    "buttons": "Tempo przycisków — przerwa: {pause} (było: {was}).",
+    "nothing": "Nic się nie zmieni — dokument zgadza się z tym, co jest zapisane.",
+    "unchanged": "Bez zmian: {lamps}, {timers}."
+  },
+  "what": {
+    "name": "nazwa {from} → {to}",
+    "number": "numer {from} → {to}",
+    "room": "pomieszczenie {from} → {to}",
+    "note": "notatka",
+    "added": {
+      "one": "nowy sygnał {list}",
+      "few": "nowe sygnały {list}",
+      "many": "nowe sygnały {list}",
+      "other": "nowe sygnały {list}"
+    },
+    "changed": {
+      "one": "zmieniony sygnał {list}",
+      "few": "zmienione sygnały {list}",
+      "many": "zmienione sygnały {list}",
+      "other": "zmienione sygnały {list}"
+    },
+    "removed": {
+      "one": "usunięty sygnał {list}",
+      "few": "usunięte sygnały {list}",
+      "many": "usunięte sygnały {list}",
+      "other": "usunięte sygnały {list}"
+    },
+    "order": "kolejność sygnałów",
+    "save": "zapis",
+    "time": "godzina {from} → {to}",
+    "days": "dni {from} → {to}",
+    "on": "włączony",
+    "off": "wyłączony",
+    "tempo": "tempo: {tempo}",
+    "fastest": "najszybciej",
+    "actions": "akcje: {list}"
+  },
+  "why": {
+    "badTime": "\"time\" to godzina \"GG:MM\" (np. \"07:00\"), a jest {value}",
+    "noTime": "brak godziny \"time\"",
+    "actionsNotList": "\"actions\" to lista {\"lamp\", \"signal\"}",
+    "emptyActions": "pusta lista \"actions\" — timer musi coś wysłać",
+    "noActionHits": "żadna akcja nie wskazuje sygnału",
+    "noActions": "brak akcji \"actions\" — timer musi coś wysłać"
+  },
+  "timers": {
+    "one": "{count} timer",
+    "few": "{count} timery",
+    "many": "{count} timerów",
+    "other": "{count} timera"
+  },
+  "bytes": {
+    "one": "{count} bajt",
+    "few": "{count} bajty",
+    "many": "{count} bajtów",
+    "other": "{count} bajta"
+  },
+  "stage": {
+    "remove": "Usuwanie ({n} z {total})…",
+    "lamps": "Zapisywanie urządzeń ({n} z {total})…",
+    "timers": "Zapisywanie timerów ({n} z {total})…"
+  },
+  "sample": {
+    "bedroomLamp": "Lampa w sypialni",
+    "bedroom": "Sypialnia",
+    "bedroomNote": "Pilot z napisem HFKJ w pakiecie, identyfikator producenta 0x0000",
+    "on": "Włącz",
+    "off": "Wyłącz",
+    "livingLamp": "Lampa w salonie",
+    "living": "Salon",
+    "warm": "Ciepłe światło",
+    "night": "Tryb nocny",
+    "nightNote": "Najpierw przyciemnia, potem ciepłe światło",
+    "morning": "Rano",
+    "forNight": "Na noc",
+    "weekendMorning": "Weekend rano",
+    "dusk": "Zmierzch",
+    "lampId": "<id urządzenia z eksportu>",
+    "kidsRoom": "Pokój dzieci",
+    "signalId": "<id sygnału>",
+    "dark": "Zgaś",
+    "otherSignalId": "<id innego sygnału>",
+    "timerId": "<id timera>",
+    "otherTimerId": "<id innego timera>"
+  },
+  "node": {
+    "intro": "Lampy to urządzenia Bluetooth LE, którymi steruje telefon z aplikacją REcreatio (wydanie SMS na Androida): każde urządzenie ma przyciski — sygnały, czyli pakiety reklamy BLE wpisane ręcznie albo odczytane z pilota. Timery wysyłają sygnały o ustalonej godzinie. Dokument może zawierać wszystko (kopia zapasowa, przeniesienie na inne konto) albo tylko część — np. same timery przygotowane przez AI.\nCo robi import:\n- Najpierw pokazuje listę zmian z ostrzeżeniami; zapisuje dopiero „Importuj”. Zapis idzie tą samą drogą co zmiana ręczna: urządzenia i timery są szyfrowane w przeglądarce kluczem obszaru „Tylko ja”, a telefon, który wykonuje timery, od razu dostaje nowy plan.\n- Wpis z \"id\" z eksportu zmienia się w miejscu — tylko klucze, które dokument podaje; pozostałe zostają, jak były. Wpis bez \"id\" (albo z \"id\", którego tu nie ma — np. z innego konta) powstaje jako nowy, z nowym \"id\" — przy każdym imporcie od nowa, więc do dalszych zmian weź świeży eksport.\n- Niczego nie usuwa, chyba że wpis z \"id\" ma \"remove\": true — urządzenie, sygnał albo timer; lista zmian to pokazuje.\n- Wpis z błędem (zły pakiet, brak godziny, akcja bez urządzenia) import pomija z ostrzeżeniem, resztę zapisuje. Nieznane klucze też dają ostrzeżenie.\n- Czy TEN telefon wykonuje timery, ustawia się na telefonie (lista timerów) — dokument tego nie zawiera.\nLimity: najwyżej {rows} urządzeń i timerów razem, {signals} sygnałów w urządzeniu, {frames} ramek w sygnale, {actions} akcji w timerze.\nZwróć JEDEN obiekt JSON, bez komentarzy.",
+    "usage": {
+      "title": "Jak aplikacja używa tych danych",
+      "text": "- Urządzenia i timery leżą w Twoim obszarze „Tylko ja”, każde zapieczętowane osobno: widzisz je tylko Ty, na każdym urządzeniu, na którym się zalogujesz; usługa widzi tylko, że są.\n- Nadaje tylko telefon z aplikacją w wydaniu SMS (reklama Bluetooth LE). W przeglądarce i w zwykłej aplikacji urządzenia, sygnały i timery można ustawiać, ale nie nadawać.\n- Timer pamięta urządzenie i sygnał, nie bajty: poprawiony sygnał obowiązuje także w timerach, gdy tylko telefon odłoży nowy plan.\n- Telefon trzyma własny plan timerów, a budzik nadaje o czasie — także przy zamkniętej aplikacji; „Ostatnie uruchomienia” widać na liście timerów w telefonie.\n- Plan odkłada się na nowo po każdej zmianie zrobionej na tym telefonie (także po imporcie) i przy starcie aplikacji: import zrobiony w przeglądarce telefon przejmie przy najbliższym otwarciu aplikacji.\n- Tempo przycisków (\"buttons\") jest zapamiętane na koncie: działa od razu przy każdym naciśnięciu, na każdym telefonie; timerów nie zmienia."
+    },
+    "frame": {
+      "title": "Ramka (\"frames[]\")",
+      "lead": "Ramka to jeden pakiet i to, jak długo go nadawać; ramki sygnału idą po kolei.",
+      "text": "Pakiet to reklama BLE „legacy”: najwyżej {max} bajtów, z jedną strukturą danych producenta — długość, FF, identyfikator producenta (2 bajty, little endian), dane; np. \"1EFF0000…\" to {bytes} z identyfikatorem 0x0000. Innych struktur (flagi, nazwy, UUID, dane usług) telefon nie nadaje — sygnał z nimi import pomija. Zera na końcu (wypełnienie z nasłuchu) nie są nadawane."
+    },
+    "signal": {
+      "title": "Sygnał (\"signals[]\")",
+      "lead": "Sygnał to przycisk: napis i to, co telefon nadaje po naciśnięciu — jedna ramka albo kilka po kolei (sekwencja). Krótkie naciśnięcie wysyła cały sygnał; przytrzymanie nadaje, dopóki trzyma się przycisk.",
+      "text": "Sygnał z błędem (np. zły pakiet) import pomija z ostrzeżeniem — zmiana istniejącego sygnału wtedy nie wchodzi, reszta urządzenia się zapisuje."
+    },
+    "lamp": {
+      "title": "Urządzenie (\"lamps[]\")",
+      "lead": "Urządzenie porządkuje przyciski: nazwa, numer i pomieszczenie nie wybierają odbiornika — reklama BLE trafia do wszystkich lamp w zasięgu, a którą włączy, decydują bajty w pakiecie.",
+      "text": "Sygnały istniejącego urządzenia: z \"id\" zmieniają się w miejscu, bez \"id\" dochodzą, niewymienione zostają. Gdy dokument wymienia WSZYSTKIE sygnały urządzenia, obowiązuje jego kolejność; gdy tylko część — nowe dochodzą na końcu. Urządzenia stoją na stronie według numeru, potem nazwy."
+    },
+    "action": {
+      "title": "Akcja timera (\"actions[]\")",
+      "lead": "Akcja: który sygnał którego urządzenia wysłać.",
+      "text": "\"@klucz\" to \"key\" urządzenia albo sygnału z tego dokumentu; działa też klucz, który eksport nadaje urządzeniu i sygnałowi (np. \"@lampa-w-sypialni-nr-1\", \"@wlacz\"), gdy samego urządzenia w dokumencie nie ma. Nazwy porównuje się bez wielkości liter i polskich znaków; nazwa musi wskazywać dokładnie jedno urządzenie (jeden sygnał) — inaczej akcja jest pomijana z ostrzeżeniem. Eksport zapisuje akcje jako \"@klucz\"."
+    },
+    "pace": {
+      "title": "Tempo (\"pace\", \"buttons\")",
+      "lead": "Tempo zwalnia nadawanie, nie zmieniając zapisanych sygnałów. W timerze: { \"pauseMs\", \"limitMs\" }; w \"buttons\" (przyciski i próby nadania, zapamiętane na koncie) tylko \"pauseMs\" — jak długo nadaje przycisk, decyduje przytrzymanie."
+    },
+    "timer": {
+      "title": "Timer (\"timers[]\")",
+      "lead": "Timer wysyła o danej godzinie, w wybrane dni tygodnia, sygnały po kolei. Wykonuje go telefon z aplikacją REcreatio (wydanie SMS), na którym timery są włączone — także przy zamkniętej aplikacji.",
+      "text": "Przy zmianie istniejącego timera wystarczy \"id\" i to, co się zmienia (np. {\"id\": \"…\", \"enabled\": false}). Timer ze złą godziną, złymi dniami albo bez akcji, która coś wskazuje, import pomija (istniejący zostaje bez zmian)."
+    },
+    "root": {
+      "title": "Lampy jako JSON (\"{format}\", wersja {version})",
+      "short": "Lampy"
+    },
+    "example": {
+      "title": "Przykład: dwie lampy i dwa timery"
+    },
+    "exampleTimers": {
+      "title": "Przykład: same timery dla lamp, które już są",
+      "lead": "Bez identyfikatorów — urządzenia i sygnały po nazwie (tak napisze je AI, które nie widziało eksportu):"
+    },
+    "exampleChange": {
+      "title": "Przykład: zmiana i usunięcie",
+      "lead": "Identyfikatory z eksportu; zmienia się tylko to, co podane:"
+    },
+    "sampleFull": "dwie lampy z sygnałami i dwa timery",
+    "sampleTimers": "same timery dla lamp, które już są (np. od AI)"
+  }
+}

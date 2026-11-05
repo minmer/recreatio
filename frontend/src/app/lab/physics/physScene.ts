@@ -10,6 +10,7 @@
  * Grenzen, damit eine Seite nie ein Telefon in die Knie zwingt.
  */
 
+import { t } from '../../core/i18n';
 import { LIQUIDS } from '../fluid';
 import { drawVars, num, readVars, seeded, str, type Drawn, type LabVar } from '../labRandom';
 import { Body, MATERIALS, type Material } from './physBody';
@@ -128,7 +129,7 @@ export function readPhysScene(value: unknown): PhysScene {
       drag: allow.drag !== false
     },
     goal: typeof goal.body === 'string' && area.length === 4
-      ? { body: goal.body, area, for: clamp(finite(goal.for) ?? 0.5, 0, 30), say: line(goal.say, PHYS_LIMITS.say) || 'Udało się!' }
+      ? { body: goal.body, area, for: clamp(finite(goal.for) ?? 0.5, 0, 30), say: line(goal.say, PHYS_LIMITS.say) || t('labPhysics.scene.goalDefault') }
       : null,
     steps: list(one.steps).slice(0, PHYS_LIMITS.steps).map(readStep).filter((s): s is StepSpec => s !== null),
     controls: Array.isArray(one.controls) ? one.controls.filter((c): c is WorldControl => (WORLD_CONTROLS as readonly string[]).includes(String(c))) : [],
@@ -202,7 +203,7 @@ export function basinOf(spec: Record<string, unknown>, d: Drawn, depth: number, 
     if (p === null) return;
     const body = new Body(`${id}~${suffix}`, p.shape, glass, 'static', depth);
     body.x = cx; body.y = cy;
-    body.label = 'ścianka';
+    body.label = t('labPhysics.scene.wall');
     body.update();
     basin.walls.push(body);
   };
@@ -272,7 +273,7 @@ export function buildWorld(scene: PhysScene, drawn: Drawn): World {
     if (p !== null) {
       const floor = new Body('~ziemia', p.shape, MATERIALS.stone, 'static', scene.depth);
       floor.x = 0; floor.y = -1;
-      floor.label = 'podłoże';
+      floor.label = t('labPhysics.scene.ground');
       floor.draggable = false;
       world.add(floor);
     }

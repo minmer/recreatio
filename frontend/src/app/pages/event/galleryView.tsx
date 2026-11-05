@@ -5,6 +5,7 @@ import { Fullscreen } from './Fullscreen';
 import { FadeImg } from '../../ui/fadeImage';
 import { photoCount } from './galleryCount';
 import { FIT, clampView, zoomAbout, type View } from './galleryZoom';
+import { useT } from '../../core/i18n';
 
 /**
  * Looking at a set of pictures: the ring on the slide, and the whole thing full
@@ -90,6 +91,7 @@ export function Carousel({
   onFront: (index: number) => void;
   onOpen: (key: string) => void;
 }) {
+  const t = useT();
   const touchRef = useRef<number | null>(null);
   const count = pictures.length;
 
@@ -123,7 +125,7 @@ export function Carousel({
       <button
         type="button"
         className="ev-carousel-step is-back"
-        aria-label="Poprzednie zdjęcie"
+        aria-label={t('pagesEvent.gallery.prevPhoto')}
         onClick={() => step(-1)}
       >
         ‹
@@ -137,7 +139,7 @@ export function Carousel({
             className="ev-carousel-slot"
             data-offset={offset}
             data-fit={fit}
-            aria-label={offset === 0 ? `Otwórz: ${picture.alt || 'zdjęcie'}` : 'Pokaż to zdjęcie'}
+            aria-label={offset === 0 ? t('pagesEvent.gallery.open', { name: picture.alt || t('pagesEvent.gallery.photo') }) : t('pagesEvent.gallery.front')}
             // The front picture opens the viewer; the ones behind step forward
             // first, which is what a finger reaching for a half-hidden picture
             // means. One more tap opens it.
@@ -152,7 +154,7 @@ export function Carousel({
             one place a hint is no use at all. It takes no layout space and no
             clicks, so the picture underneath still opens on the tap aimed at it. */}
         <p className="ev-carousel-hint" data-show={hint} aria-hidden={!hint}>
-          Kliknij zdjęcie, żeby otworzyć całą galerię — {photoCount(count)}
+          {t('pagesEvent.gallery.hint', { count: photoCount(count, t) })}
         </p>
       </div>
 
@@ -160,7 +162,7 @@ export function Carousel({
       <button
         type="button"
         className="ev-carousel-step is-next"
-        aria-label="Następne zdjęcie"
+        aria-label={t('pagesEvent.gallery.nextPhoto')}
         onClick={() => step(1)}
       >
         ›
@@ -222,6 +224,7 @@ export function Viewer({
   onRemove: (photoId: string, mine: boolean) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [at, setAt] = useState(start);
   const [view, setView] = useState<View>(FIT);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -414,7 +417,7 @@ export function Viewer({
   };
 
   return (
-    <Fullscreen label="Galeria zdjęć" onClose={onClose}>
+    <Fullscreen label={t('pagesEvent.gallery.title')} onClose={onClose}>
       <div
         className="ev-viewer"
         data-chrome={chrome}
@@ -480,10 +483,10 @@ export function Viewer({
             means panning. */}
         {count > 1 && !zoomed ? (
           <>
-            <button type="button" className="ev-viewer-step is-back" aria-label="Poprzednie" onClick={() => go(at - 1)}>
+            <button type="button" className="ev-viewer-step is-back" aria-label={t('pagesEvent.gallery.prev')} onClick={() => go(at - 1)}>
               ‹
             </button>
-            <button type="button" className="ev-viewer-step is-next" aria-label="Następne" onClick={() => go(at + 1)}>
+            <button type="button" className="ev-viewer-step is-next" aria-label={t('pagesEvent.gallery.next')} onClick={() => go(at + 1)}>
               ›
             </button>
           </>
@@ -495,13 +498,13 @@ export function Viewer({
           </span>
 
           <span className="ev-viewer-zoom">
-            <button type="button" aria-label="Pomniejsz" onClick={() => zoomBy(1 / 1.4, { x: 0, y: 0 })}>
+            <button type="button" aria-label={t('pagesEvent.gallery.zoomOut')} onClick={() => zoomBy(1 / 1.4, { x: 0, y: 0 })}>
               −
             </button>
             <button type="button" onClick={() => setView(FIT)} disabled={!zoomed}>
               {Math.round(view.scale * 100)}%
             </button>
-            <button type="button" aria-label="Powiększ" onClick={() => zoomBy(1.4, { x: 0, y: 0 })}>
+            <button type="button" aria-label={t('pagesEvent.gallery.zoomIn')} onClick={() => zoomBy(1.4, { x: 0, y: 0 })}>
               +
             </button>
           </span>
@@ -512,7 +515,7 @@ export function Viewer({
               className="ev-ghost"
               onClick={() => onRemove(picture.photoId as string, picture.mine)}
             >
-              {picture.mine ? 'Usuń moje zdjęcie' : 'Usuń zdjęcie'}
+              {picture.mine ? t('pagesEvent.gallery.removeMine') : t('pagesEvent.gallery.remove')}
             </button>
           ) : null}
         </div>
@@ -521,7 +524,7 @@ export function Viewer({
           {picture.caption || picture.credit ? (
             <p className="ev-viewer-caption">
               {picture.caption}
-              {picture.credit ? <span>Zdjęcie: {picture.credit}</span> : null}
+              {picture.credit ? <span>{t('pagesEvent.gallery.credit', { name: picture.credit })}</span> : null}
             </p>
           ) : null}
 
@@ -532,7 +535,7 @@ export function Viewer({
                   type="button"
                   key={entry.key}
                   data-active={index === at}
-                  aria-label={`Zdjęcie ${index + 1}`}
+                  aria-label={t('pagesEvent.gallery.nth', { n: index + 1 })}
                   onClick={() => go(index)}
                 >
                   <FadeImg src={entry.url} alt="" loading="lazy" />

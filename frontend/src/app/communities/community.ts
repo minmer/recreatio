@@ -16,6 +16,7 @@
 
 import { keyFrom } from '../areas/areaJson';
 import type { ProfileKind } from '../areas/profile';
+import { hasKey, t, texts } from '../core/i18n';
 
 export const COMMUNITY_FORMAT = 'recreatio/community';
 
@@ -24,12 +25,15 @@ export const COMMUNITY_FORMAT = 'recreatio/community';
 export type Rights = 'lead' | 'accompany' | 'cooperate' | 'member' | 'participant';
 export type Level = 'read' | 'write' | 'admin';
 
+/** Bezeichnung und Erklärung eines Rechts — beim Lesen übersetzt. */
+const right = (value: Rights, level: Level): { readonly value: Rights; readonly label: string; readonly says: string; readonly level: Level } => ({
+  value, level,
+  get label() { return t(`communities.rights.${value}.label`); },
+  get says() { return t(`communities.rights.${value}.says`); }
+});
+
 export const RIGHTS: readonly { readonly value: Rights; readonly label: string; readonly says: string; readonly level: Level }[] = [
-  { value: 'lead', label: 'Prowadzenie', says: 'zmienia wszystko w jednostce i we wszystkich jednostkach pod nią; wpuszcza innych', level: 'admin' },
-  { value: 'accompany', label: 'Towarzyszenie', says: 'widzi wszystko w jednostce i pod nią, niczego nie zmienia (np. ksiądz moderator)', level: 'read' },
-  { value: 'cooperate', label: 'Współpraca', says: 'pisze w jednostce (terminy, materiały), np. animator z własną grupą', level: 'write' },
-  { value: 'member', label: 'Członkostwo', says: 'należy do jednostki, pisze w jej rozmowach i kalendarzu', level: 'write' },
-  { value: 'participant', label: 'Uczestnictwo', says: 'czyta, co jednostka udostępnia, i rozmawia', level: 'read' }
+  right('lead', 'admin'), right('accompany', 'read'), right('cooperate', 'write'), right('member', 'write'), right('participant', 'read')
 ];
 
 export const rightsLabel = (r: Rights): string => RIGHTS.find((x) => x.value === r)?.label ?? r;
@@ -37,7 +41,7 @@ export const levelOf = (r: Rights): Level => RIGHTS.find((x) => x.value === r)?.
 export const isRights = (v: unknown): v is Rights => RIGHTS.some((r) => r.value === v);
 
 export type Assign = 'appointed' | 'elected' | 'result';
-export const ASSIGN_WORD: Record<Assign, string> = { appointed: 'mianowana', elected: 'wybierana', result: 'wpisuje się wynik' };
+export const ASSIGN_WORD: Readonly<Record<Assign, string>> = texts({ appointed: 'communities.assign.appointed', elected: 'communities.assign.elected', result: 'communities.assign.result' });
 
 export interface Position {
   readonly key: string;
@@ -71,26 +75,22 @@ export interface FieldDef {
 
 /** Vorschläge für Felder — zur Auswahl in Schritt 4. */
 export const FIELD_PRESETS: readonly FieldDef[] = [
-  { key: 'glos', label: 'Głos', kind: 'choice', options: ['sopran', 'alt', 'tenor', 'bas'] },
-  { key: 'stopien', label: 'Stopień formacji', kind: 'choice', options: ['ODB', 'OND', 'ONŻ I°', 'ONŻ II°', 'ONŻ III°'] },
-  { key: 'dieta', label: 'Dieta', kind: 'text', leadersOnly: true },
-  { key: 'zdrowie', label: 'Zdrowie (alergie, leki)', kind: 'text', leadersOnly: true },
-  { key: 'rodzic', label: 'Rodzic / opiekun — telefon', kind: 'line', leadersOnly: true },
-  { key: 'urodzony', label: 'Data urodzenia', kind: 'date', leadersOnly: true },
-  { key: 'telefon', label: 'Telefon', kind: 'line', leadersOnly: true },
-  { key: 'zgoda-wizerunek', label: 'Zgoda na zdjęcia (wizerunek)', kind: 'checkbox' }
+  { key: 'glos', get label() { return t('communities.presets.voice'); }, kind: 'choice', options: ['sopran', 'alt', 'tenor', 'bas'] },
+  { key: 'stopien', get label() { return t('communities.presets.stage'); }, kind: 'choice', options: ['ODB', 'OND', 'ONŻ I°', 'ONŻ II°', 'ONŻ III°'] }, // i18n-ignore
+  { key: 'dieta', get label() { return t('communities.presets.diet'); }, kind: 'text', leadersOnly: true },
+  { key: 'zdrowie', get label() { return t('communities.presets.health'); }, kind: 'text', leadersOnly: true },
+  { key: 'rodzic', get label() { return t('communities.presets.parent'); }, kind: 'line', leadersOnly: true },
+  { key: 'urodzony', get label() { return t('communities.presets.born'); }, kind: 'date', leadersOnly: true },
+  { key: 'telefon', get label() { return t('communities.presets.phone'); }, kind: 'line', leadersOnly: true },
+  { key: 'zgoda-wizerunek', get label() { return t('communities.presets.photos'); }, kind: 'checkbox' }
 ];
 
 /* -- Die fünf Schritte ---------------------------------------------------------------- */
 
 export type Step = 1 | 2 | 3 | 4 | 5;
-export const STEP_TITLES: Record<Step, string> = {
-  1: 'Jak żyje wasza wspólnota?',
-  2: 'Jak jest podzielona?',
-  3: 'Kto co robi?',
-  4: 'Kto dołącza i jak?',
-  5: 'Z czego korzystacie i kto co widzi?'
-};
+export const STEP_TITLES = texts({
+  1: 'communities.steps.s1', 2: 'communities.steps.s2', 3: 'communities.steps.s3', 4: 'communities.steps.s4', 5: 'communities.steps.s5'
+}) as Readonly<Record<Step, string>>;
 
 export interface Choice { readonly value: string; readonly label: string; readonly example?: string }
 
@@ -110,95 +110,93 @@ export interface SettingDef {
   readonly hint?: string;
 }
 
-const WEEKDAYS: readonly Choice[] = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'].map((d) => ({ value: d, label: d }));
+/** Die Werte bleiben die polnischen Kürzel des Formats; die Bezeichnung kommt aus der Sprache. */
+const DAY_VALUES = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'] as const; // i18n-ignore
+const DAY_NAMES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+const WEEKDAYS: readonly Choice[] = DAY_VALUES.map((value, i) => ({ value, get label() { return t(`communities.weekday.${DAY_NAMES[i]}`); } }));
 
-export const SETTINGS: readonly SettingDef[] = [
+/** Eine Einstellung ohne Text: Bezeichnung, Hinweis und Wahl kommen beim Lesen aus `communities.settings.<pfad>`. */
+type RawSetting = Omit<SettingDef, 'label' | 'hint' | 'choices'> & { readonly choices?: readonly string[] | readonly Choice[]; readonly hint?: true };
+
+function setting(raw: RawSetting): SettingDef {
+  const { choices, hint, ...rest } = raw;
+  const path = raw.path;
+  return {
+    ...rest,
+    get label() { return t(`communities.settings.${path}.label`); },
+    get hint() { return hint === true ? t(`communities.settings.${path}.hint`) : undefined; },
+    ...(choices === undefined ? {} : {
+      choices: choices.map((c): Choice => (typeof c !== 'string' ? c : {
+        value: c,
+        get label() { return t(`communities.settings.${path}.choices.${c}.label`); },
+        get example() { return hasKey(`communities.settings.${path}.choices.${c}.example`) ? t(`communities.settings.${path}.choices.${c}.example`) : undefined; }
+      }))
+    })
+  };
+}
+
+const RAW_SETTINGS: readonly RawSetting[] = [
   /* Schritt 1 */
-  { path: 'life.duration', step: 1, label: 'Jak długo', kind: 'choice', inherit: true, fallback: 'permanent', choices: [
-    { value: 'permanent', label: 'Na stałe', example: 'chór, krąg, klasa, oaza' },
-    { value: 'limited', label: 'Na czas — z początkiem i końcem', example: 'turnus rekolekcji, wyjazd, projekt koncertowy' }] },
-  { path: 'life.from', step: 1, label: 'Od', kind: 'date', inherit: false, fallback: null, when: (g) => g('life.duration') === 'limited' },
-  { path: 'life.until', step: 1, label: 'Do', kind: 'date', inherit: false, fallback: null, when: (g) => g('life.duration') === 'limited' },
-  { path: 'life.place', step: 1, label: 'Gdzie', kind: 'choice', inherit: true, fallback: 'onsite', choices: [
-    { value: 'onsite', label: 'Na miejscu', example: 'spotkania w salce, próby, lekcje' },
-    { value: 'online', label: 'Online', example: 'grupa, która głównie rozmawia i uczy się w sieci — bez miejsc i pokoi' },
-    { value: 'both', label: 'Jedno i drugie' }] },
-  { path: 'life.rhythm', step: 1, label: 'Jak często się spotykacie', kind: 'choice', inherit: true, fallback: 'weekly', choices: [
-    { value: 'weekly', label: 'Co tydzień', example: 'próba chóru, spotkanie oazy' },
-    { value: 'monthly', label: 'Co miesiąc', example: 'spotkanie kręgu' },
-    { value: 'once', label: 'Jednorazowo', example: 'turnus, wyjazd' },
-    { value: 'asNeeded', label: 'W miarę potrzeby', example: 'grupa ucząca się w swoim tempie' }] },
-  { path: 'life.weekday', step: 1, label: 'Dzień spotkań', kind: 'day', inherit: true, fallback: null, choices: WEEKDAYS,
+  { path: 'life.duration', step: 1, kind: 'choice', inherit: true, fallback: 'permanent', choices: ['permanent', 'limited'] },
+  { path: 'life.from', step: 1, kind: 'date', inherit: false, fallback: null, when: (g) => g('life.duration') === 'limited' },
+  { path: 'life.until', step: 1, kind: 'date', inherit: false, fallback: null, when: (g) => g('life.duration') === 'limited' },
+  { path: 'life.place', step: 1, kind: 'choice', inherit: true, fallback: 'onsite', choices: ['onsite', 'online', 'both'] },
+  { path: 'life.rhythm', step: 1, kind: 'choice', inherit: true, fallback: 'weekly', choices: ['weekly', 'monthly', 'once', 'asNeeded'] },
+  { path: 'life.weekday', step: 1, kind: 'day', inherit: true, fallback: null, choices: WEEKDAYS,
     when: (g) => g('life.rhythm') === 'weekly' || g('life.rhythm') === 'monthly' },
-  { path: 'life.time', step: 1, label: 'Godzina', kind: 'time', inherit: true, fallback: null,
+  { path: 'life.time', step: 1, kind: 'time', inherit: true, fallback: null,
     when: (g) => g('life.rhythm') === 'weekly' || g('life.rhythm') === 'monthly' },
-  { path: 'life.minutes', step: 1, label: 'Ile trwa (minuty)', kind: 'number', inherit: true, fallback: 90, fine: true,
+  { path: 'life.minutes', step: 1, kind: 'number', inherit: true, fallback: 90, fine: true,
     when: (g) => g('life.rhythm') === 'weekly' || g('life.rhythm') === 'monthly' },
-  { path: 'life.location', step: 1, label: 'Miejsce spotkań', kind: 'text', inherit: true, fallback: null,
+  { path: 'life.location', step: 1, kind: 'text', inherit: true, fallback: null,
     when: (g) => g('life.place') !== 'online' },
-  { path: 'life.yearFrom', step: 1, label: 'Rok pracy od (MM-DD)', kind: 'text', inherit: true, fallback: '09-01', fine: true, hint: 'np. 09-01 — stare lata zostają jako archiwum' },
-  { path: 'life.yearUntil', step: 1, label: 'Rok pracy do (MM-DD)', kind: 'text', inherit: true, fallback: '06-30', fine: true },
-  { path: 'life.open', step: 1, label: 'Kto może dołączyć', kind: 'choice', inherit: true, fallback: 'invite', choices: [
-    { value: 'anyone', label: 'Każdy może dołączyć', example: 'chór parafialny, oaza, rekolekcje z zapisami' },
-    { value: 'invite', label: 'Tylko z zaproszenia', example: 'klasa, grupa ucząca się, krąg' }] },
+  { path: 'life.yearFrom', step: 1, kind: 'text', inherit: true, fallback: '09-01', fine: true, hint: true },
+  { path: 'life.yearUntil', step: 1, kind: 'text', inherit: true, fallback: '06-30', fine: true },
+  { path: 'life.open', step: 1, kind: 'choice', inherit: true, fallback: 'invite', choices: ['anyone', 'invite'] },
 
   /* Schritt 2 — wird nicht vererbt (betrifft nur diese eine Einheit) */
-  { path: 'structure.subgroups', step: 2, label: 'Podgrupy', kind: 'choice', inherit: false, fallback: 'manual', choices: [
-    { value: 'manual', label: 'Ręcznie (dodajesz je sam)', example: 'grupy formacyjne, kręgi, klasy' },
-    { value: 'byField', label: 'Same, według cechy osoby', example: 'wszystkie tenory, wszyscy z ONŻ I°' }] },
-  { path: 'structure.byField', step: 2, label: 'Według pola', kind: 'text', inherit: false, fallback: null,
-    when: (g) => g('structure.subgroups') === 'byField', hint: 'klucz pola z kroku 4, np. „glos”' },
-  { path: 'structure.council', step: 2, label: 'Grono prowadzących jednostek niżej', kind: 'bool', inherit: false, fallback: false,
-    hint: 'np. krąg rejonowy: para rejonowa, moderator i wszystkie pary animatorskie — skład liczy się sam z obsady' },
-  { path: 'structure.founders', step: 2, label: 'Kto zakłada nowe jednostki pod tą', kind: 'choice', inherit: true, fallback: 'admin', fine: true, choices: [
-    { value: 'admin', label: 'Tylko administrator wspólnoty' },
-    { value: 'lead', label: 'Także prowadzący tej jednostki' }] },
+  { path: 'structure.subgroups', step: 2, kind: 'choice', inherit: false, fallback: 'manual', choices: ['manual', 'byField'] },
+  { path: 'structure.byField', step: 2, kind: 'text', inherit: false, fallback: null,
+    when: (g) => g('structure.subgroups') === 'byField', hint: true },
+  { path: 'structure.council', step: 2, kind: 'bool', inherit: false, fallback: false, hint: true },
+  { path: 'structure.founders', step: 2, kind: 'choice', inherit: true, fallback: 'admin', fine: true, choices: ['admin', 'lead'] },
 
   /* Schritt 4 */
-  { path: 'intake.mode', step: 4, label: 'Jak się dołącza', kind: 'choice', inherit: true, fallback: 'leaders', choices: [
-    { value: 'leaders', label: 'Prowadzący wpisuje osoby', example: 'klasa, krąg, grupa ucząca się — każdy dostaje osobisty link' },
-    { value: 'link', label: 'Zaproszenie linkiem', example: 'jeden link dla wszystkich nowych członków chóru' },
-    { value: 'signup', label: 'Publiczne zapisy przez formularz', example: 'turnus rekolekcji, oaza z naborem' }] },
-  { path: 'intake.limit', step: 4, label: 'Liczba miejsc', kind: 'number', inherit: false, fallback: null, when: (g) => g('intake.mode') === 'signup' },
-  { path: 'intake.waitlist', step: 4, label: 'Lista rezerwowa po wyczerpaniu miejsc', kind: 'bool', inherit: true, fallback: false, when: (g) => g('intake.mode') === 'signup' },
-  { path: 'intake.requires', step: 4, label: 'Warunki (np. stopień w danym roku)', kind: 'text', inherit: true, fallback: null, when: (g) => g('intake.mode') === 'signup' },
-  { path: 'intake.confirm', step: 4, label: 'Prowadzący potwierdza przyjęcie', kind: 'bool', inherit: true, fallback: true, when: (g) => g('intake.mode') === 'signup',
-    hint: 'osobisty link dopiero po przyjęciu' },
-  { path: 'intake.minors', step: 4, label: 'Są niepełnoletni (zgody rodziców)', kind: 'bool', inherit: true, fallback: false, fine: true },
-  { path: 'intake.health', step: 4, label: 'Zbieramy dane o zdrowiu (tylko prowadzący)', kind: 'bool', inherit: true, fallback: false, fine: true },
+  { path: 'intake.mode', step: 4, kind: 'choice', inherit: true, fallback: 'leaders', choices: ['leaders', 'link', 'signup'] },
+  { path: 'intake.limit', step: 4, kind: 'number', inherit: false, fallback: null, when: (g) => g('intake.mode') === 'signup' },
+  { path: 'intake.waitlist', step: 4, kind: 'bool', inherit: true, fallback: false, when: (g) => g('intake.mode') === 'signup' },
+  { path: 'intake.requires', step: 4, kind: 'text', inherit: true, fallback: null, when: (g) => g('intake.mode') === 'signup' },
+  { path: 'intake.confirm', step: 4, kind: 'bool', inherit: true, fallback: true, when: (g) => g('intake.mode') === 'signup', hint: true },
+  { path: 'intake.minors', step: 4, kind: 'bool', inherit: true, fallback: false, fine: true },
+  { path: 'intake.health', step: 4, kind: 'bool', inherit: true, fallback: false, fine: true },
 
   /* Schritt 5 — Werkzeuge */
-  { path: 'tools.chat', step: 5, label: 'Rozmowa wszystkich', kind: 'bool', inherit: true, fallback: true },
-  { path: 'tools.announcements', step: 5, label: 'Ogłoszenia (piszą prowadzący)', kind: 'bool', inherit: true, fallback: false },
-  { path: 'tools.askLeaders', step: 5, label: 'Każdy może napisać prywatnie do prowadzących', kind: 'bool', inherit: true, fallback: true },
-  { path: 'tools.calendar', step: 5, label: 'Kalendarz (terminy wyżej widać niżej)', kind: 'bool', inherit: true, fallback: true },
-  { path: 'tools.forms', step: 5, label: 'Formularze i zaproszenia', kind: 'bool', inherit: true, fallback: true },
-  { path: 'tools.polls', step: 5, label: 'Ankiety do jednostek niżej', kind: 'bool', inherit: true, fallback: false },
-  { path: 'tools.attendance', step: 5, label: 'Obecność', kind: 'bool', inherit: true, fallback: false },
-  { path: 'tools.lessons', step: 5, label: 'Materiały i lekcje', kind: 'bool', inherit: true, fallback: false },
-  { path: 'tools.cogita', step: 5, label: 'Nauka z Cogitą', kind: 'bool', inherit: true, fallback: false },
-  { path: 'tools.notes', step: 5, label: 'Prywatne notatki prowadzących', kind: 'bool', inherit: true, fallback: false },
-  { path: 'tools.tables', step: 5, label: 'Własne kategorie i tabele (np. oceny)', kind: 'bool', inherit: true, fallback: false },
-  { path: 'tools.staffing', step: 5, label: 'Planowanie obsady (gdzie kogoś brakuje)', kind: 'bool', inherit: true, fallback: false },
-  { path: 'talk.direct', step: 5, label: 'Osoby piszą też między sobą, jedna do drugiej', kind: 'bool', inherit: true, fallback: false, fine: true },
+  { path: 'tools.chat', step: 5, kind: 'bool', inherit: true, fallback: true },
+  { path: 'tools.announcements', step: 5, kind: 'bool', inherit: true, fallback: false },
+  { path: 'tools.askLeaders', step: 5, kind: 'bool', inherit: true, fallback: true },
+  { path: 'tools.calendar', step: 5, kind: 'bool', inherit: true, fallback: true },
+  { path: 'tools.forms', step: 5, kind: 'bool', inherit: true, fallback: true },
+  { path: 'tools.polls', step: 5, kind: 'bool', inherit: true, fallback: false },
+  { path: 'tools.attendance', step: 5, kind: 'bool', inherit: true, fallback: false },
+  { path: 'tools.lessons', step: 5, kind: 'bool', inherit: true, fallback: false },
+  { path: 'tools.cogita', step: 5, kind: 'bool', inherit: true, fallback: false },
+  { path: 'tools.notes', step: 5, kind: 'bool', inherit: true, fallback: false },
+  { path: 'tools.tables', step: 5, kind: 'bool', inherit: true, fallback: false },
+  { path: 'tools.staffing', step: 5, kind: 'bool', inherit: true, fallback: false },
+  { path: 'talk.direct', step: 5, kind: 'bool', inherit: true, fallback: false, fine: true },
   /* Schritt 5 — Sichtbarkeit */
-  { path: 'visibility.default', step: 5, label: 'Kto domyślnie widzi nowe treści', kind: 'choice', inherit: true, fallback: 'unit', choices: [
-    { value: 'me', label: 'Tylko ja' },
-    { value: 'persons', label: 'Wybrane osoby' },
-    { value: 'position', label: 'Jedna pozycja (np. wszyscy animatorzy)' },
-    { value: 'unit', label: 'Ta jednostka' },
-    { value: 'subtree', label: 'Ta jednostka ze wszystkimi pod nią' },
-    { value: 'public', label: 'Publicznie' }] },
-  { path: 'visibility.subunitsSee', step: 5, label: 'Jednostki niżej widzą tę jednostkę (jej terminy, materiały)', kind: 'bool', inherit: false, fallback: false,
-    hint: 'np. terminy diecezji widzą wszystkie rejony i kręgi' },
+  { path: 'visibility.default', step: 5, kind: 'choice', inherit: true, fallback: 'unit', choices: ['me', 'persons', 'position', 'unit', 'subtree', 'public'] },
+  { path: 'visibility.subunitsSee', step: 5, kind: 'bool', inherit: false, fallback: false, hint: true },
   /* Schritt 5 — öffentliche Seite */
-  { path: 'public.page', step: 5, label: 'Strona publiczna', kind: 'bool', inherit: false, fallback: false },
-  { path: 'public.description', step: 5, label: 'Opis', kind: 'text', inherit: false, fallback: null, when: (g) => g('public.page') === true },
-  { path: 'public.meetings', step: 5, label: 'Spotkania (godziny)', kind: 'text', inherit: false, fallback: null, when: (g) => g('public.page') === true },
-  { path: 'public.contact', step: 5, label: 'Kontakt (e-mail albo telefon)', kind: 'text', inherit: false, fallback: null, when: (g) => g('public.page') === true },
-  { path: 'public.events', step: 5, label: 'Publiczne terminy na stronie', kind: 'bool', inherit: false, fallback: true, when: (g) => g('public.page') === true },
-  { path: 'public.reports', step: 5, label: 'Strona „po” (relacja po wydarzeniu)', kind: 'bool', inherit: false, fallback: false, when: (g) => g('public.page') === true && g('life.duration') === 'limited' }
+  { path: 'public.page', step: 5, kind: 'bool', inherit: false, fallback: false },
+  { path: 'public.description', step: 5, kind: 'text', inherit: false, fallback: null, when: (g) => g('public.page') === true },
+  { path: 'public.meetings', step: 5, kind: 'text', inherit: false, fallback: null, when: (g) => g('public.page') === true },
+  { path: 'public.contact', step: 5, kind: 'text', inherit: false, fallback: null, when: (g) => g('public.page') === true },
+  { path: 'public.events', step: 5, kind: 'bool', inherit: false, fallback: true, when: (g) => g('public.page') === true },
+  { path: 'public.reports', step: 5, kind: 'bool', inherit: false, fallback: false, when: (g) => g('public.page') === true && g('life.duration') === 'limited' }
 ];
+
+export const SETTINGS: readonly SettingDef[] = RAW_SETTINGS.map(setting);
 
 export const settingDef = (path: string): SettingDef | undefined => SETTINGS.find((s) => s.path === path);
 
@@ -361,10 +359,10 @@ export const valueOf = (doc: CommunityDoc, unitKey: string, path: string): unkno
 
 export function sourceWords(source: Source): string {
   switch (source.kind) {
-    case 'own': return 'ustawione tutaj';
-    case 'blueprint': return `z planu „${source.name}”`;
-    case 'unit': return `odziedziczone z „${source.name}”`;
-    default: return 'propozycja';
+    case 'own': return t('communities.source.own');
+    case 'blueprint': return t('communities.source.blueprint', { name: source.name });
+    case 'unit': return t('communities.source.unit', { name: source.name });
+    default: return t('communities.source.default');
   }
 }
 

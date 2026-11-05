@@ -29,6 +29,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { useT } from '../core/i18n';
 import { usePerson } from '../pages/pagePerson';
 import { loadOffers, type Holder, type MyClaim, type Offers, type Rules } from './resource';
 import { useSeats } from '../seats/seatContext';
@@ -74,6 +75,7 @@ export function SlotCard({ title, resource }: {
   /** Das Ding. Leer, solange die Kanzlei keines gewählt hat. */
   resource: string;
 }) {
+  const t = useT();
   const holder = useHolder();
   const id = holderId(holder);
   const person = usePerson();
@@ -99,10 +101,10 @@ export function SlotCard({ title, resource }: {
       setFailed(null);
     } catch (e) {
       setData(null);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać terminów.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('bookings.slot.loadFailed'));
     }
     // `holder` ändert sich mit `id`; ihn selbst als Abhängigkeit hiesse, bei jedem Zeichnen neu zu laden.
-  }, [named, resource, id]);
+  }, [named, resource, id, t]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -123,25 +125,25 @@ export function SlotCard({ title, resource }: {
        * noch den alten Stand. Die Meldung erst danach: `look` räumt sie weg.
        */
       await look();
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally {
       setBusy(null);
     }
   };
 
-  const heading = <h2 className="wk-card-title">{title === '' ? (data?.resource.name ?? 'Terminy') : title}</h2>;
+  const heading = <h2 className="wk-card-title">{title === '' ? (data?.resource.name ?? t('bookings.slot.title')) : title}</h2>;
 
   if (!named) {
     return (
       <>
         {heading}
-        <p className="wk-card-muted">Ten blok nie wie jeszcze, czego dotyczy — wybierz zasób w ustawieniach.</p>
+        <p className="wk-card-muted">{t('bookings.slot.noResource')}</p>
       </>
     );
   }
 
   if (data === null) {
-    return <>{heading}{failed !== null ? <p className="wk-error">{failed}</p> : <Loading label="Wczytywanie…" />}</>;
+    return <>{heading}{failed !== null ? <p className="wk-error">{failed}</p> : <Loading label={t('common.loading')} />}</>;
   }
 
   const rules = data.resource;
@@ -231,16 +233,16 @@ export function SlotCard({ title, resource }: {
       {declined.map((c) => (
         <p className="wk-note" key={c.claimId}>
           {offerOf(c) === undefined
-            ? <>Termin {span(c.startsAt, c.endsAt, rules)} został odwołany — wybierz inny.</>
-            : <>Prośba o termin {span(c.startsAt, c.endsAt, rules)} nie została przyjęta — wybierz inny.</>}
+            ? t('bookings.slot.cancelled', { when: span(c.startsAt, c.endsAt, rules, t.lang) })
+            : t('bookings.slot.declined', { when: span(c.startsAt, c.endsAt, rules, t.lang) })}
         </p>
       ))}
 
       {lastPast !== null && picking === null && (
         <article className="wk-slot is-mine is-past">
-          <p className="wk-slot-label">Twój termin</p>
-          <p className="wk-slot-when">{span(lastPast.startsAt, lastPast.endsAt, rules)}</p>
-          <p className="wk-slot-note">Ten termin już się odbył.</p>
+          <p className="wk-slot-label">{t('bookings.myTerm.yourTerm')}</p>
+          <p className="wk-slot-when">{span(lastPast.startsAt, lastPast.endsAt, rules, t.lang)}</p>
+          <p className="wk-slot-note">{t('bookings.slot.past')}</p>
         </article>
       )}
 
@@ -248,7 +250,7 @@ export function SlotCard({ title, resource }: {
         <div className="wk-actions">
           <button type="button" className="wk-link-btn" disabled={busy !== null}
             onClick={() => setPicking({ replaces: null })}>
-            Wybierz jeszcze jeden termin
+            {t('bookings.slot.pickAnother')}
           </button>
         </div>
       )}
@@ -257,12 +259,12 @@ export function SlotCard({ title, resource }: {
         <>
           {picking !== null && (
             <div className="wk-slot-pickhead">
-              <strong>{picking.replaces === null ? 'Wybierz kolejny termin' : 'Wybierz nowy termin'}</strong>
+              <strong>{picking.replaces === null ? t('bookings.slot.pickNext') : t('bookings.slot.pickNew')}</strong>
               {picking.replaces !== null && (
-                <span className="wk-row-side"> — dotychczasowy zwolnisz dopiero, gdy nowy będzie Twój.</span>
+                <span className="wk-row-side"> — {t('bookings.slot.swapNote')}</span>
               )}
               {' '}
-              <button type="button" className="wk-link-btn" onClick={() => setPicking(null)}>Anuluj</button>
+              <button type="button" className="wk-link-btn" onClick={() => setPicking(null)}>{t('common.cancel')}</button>
             </div>
           )}
 
@@ -289,25 +291,27 @@ export function SlotCard({ title, resource }: {
 
 /** Ohne Halter: wofür der Baustein da ist — oder dass oben zu wählen ist. */
 function Nobody({ person, rules }: { person: boolean; rules: Rules }) {
+  const t = useT();
   return (
     <p className="wk-card-muted">
       {person
-        ? 'Wybierz u góry strony, za kogo chcesz się zapisać.'
+        ? t('bookings.slot.nobody.choose')
         : rules.mode === 'offered'
-          ? 'Tu osoba wybierze swój termin — po otwarciu swojego linku albo po zalogowaniu.'
-          : 'Tu można zapytać o termin — po wysłaniu formularza, z własnego linku, albo po zalogowaniu.'}
+          ? t('bookings.slot.nobody.offered')
+          : t('bookings.slot.nobody.open')}
     </p>
   );
 }
 
 function RulesLine({ rules }: { rules: Rules }) {
+  const t = useT();
   const parts = [
-    `na termin: ${people(rules.capacity)}`,
-    rules.perPerson === 0 ? null : `na osobę: ${rules.perPerson === 1 ? 'jeden termin' : `do ${rules.perPerson} terminów`}`,
+    t('bookings.slot.rules.capacity', { people: people(rules.capacity, t.lang) }),
+    rules.perPerson === 0 ? null : rules.perPerson === 1 ? t('bookings.slot.rules.perPersonOne') : t('bookings.slot.rules.perPerson', { count: rules.perPerson }),
     rules.inviteHours === 0 || rules.capacity < 2 ? null
-      : `pierwszy zapisany może przez ${rules.inviteHours} h sam dobierać pozostałych`,
+      : t('bookings.slot.rules.firstPicks', { hours: rules.inviteHours }),
     rules.inviteHours === 0 || rules.capacity < 2 ? null
-      : `grupa od ${rules.minPersons} ${rules.minPersons === 1 ? 'osoby' : 'osób'} zatrzymuje termin dla siebie`
+      : t('bookings.slot.rules.groupKeeps', { count: rules.minPersons })
   ].filter((one): one is string => one !== null);
 
   return <p className="wk-row-side">{parts.join(' · ')}</p>;
@@ -315,11 +319,12 @@ function RulesLine({ rules }: { rules: Rules }) {
 
 /** Was die Farben heissen — einmal, über der Liste. */
 function Legend({ rules }: { rules: Rules }) {
+  const t = useT();
   return (
     <p className="wk-slot-legend">
-      <span className="wk-slot-dot is-free" /> wolny
-      {rules.inviteHours > 0 && rules.capacity > 1 && <><span className="wk-slot-dot is-hosted" /> z gospodarzem — nie do wybrania, tylko prośba albo kod</>}
-      <span className="wk-slot-dot is-closed" /> pełny albo zamknięty
+      <span className="wk-slot-dot is-free" /> {t('bookings.slot.legend.free')}
+      {rules.inviteHours > 0 && rules.capacity > 1 && <><span className="wk-slot-dot is-hosted" /> {t('bookings.slot.legend.hosted')}</>}
+      <span className="wk-slot-dot is-closed" /> {t('bookings.slot.legend.closed')}
     </p>
   );
 }

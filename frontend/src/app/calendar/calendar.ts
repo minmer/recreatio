@@ -23,6 +23,7 @@
 
 import { aad, Field, type FieldName } from '../core/crypto';
 import { newId } from '../core/ids';
+import { t, texts } from '../core/i18n';
 import { call } from '../core/session';
 
 /** Die Arten, die ein Eintrag haben kann — wie `ck_item_kind`. */
@@ -30,25 +31,25 @@ import { call } from '../core/session';
 export const ITEM_KINDS = ['appointment', 'task', 'mass', 'confession', 'visit', 'devotion'] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 
-export const ITEM_LABEL: Record<ItemKind, string> = {
-  appointment: 'spotkanie',
-  task: 'zadanie',
-  mass: 'msza',
-  confession: 'spowiedź',
-  visit: 'odwiedziny',
-  devotion: 'nabożeństwo'
-};
+export const ITEM_LABEL: Record<ItemKind, string> = texts({
+  appointment: 'calendarApp.itemLabel.appointment',
+  task: 'calendarApp.itemLabel.task',
+  mass: 'calendarApp.itemLabel.mass',
+  confession: 'calendarApp.itemLabel.confession',
+  visit: 'calendarApp.itemLabel.visit',
+  devotion: 'calendarApp.itemLabel.devotion'
+});
 
 export const REPEAT_KINDS = ['none', 'daily', 'weekly', 'monthly', 'yearly'] as const;
 export type RepeatKind = (typeof REPEAT_KINDS)[number];
 
-export const REPEAT_LABEL: Record<RepeatKind, string> = {
-  none: 'raz',
-  daily: 'codziennie',
-  weekly: 'co tydzień',
-  monthly: 'co miesiąc',
-  yearly: 'co rok'
-};
+export const REPEAT_LABEL: Record<RepeatKind, string> = texts({
+  none: 'calendarApp.repeatLabel.none',
+  daily: 'calendarApp.repeatLabel.daily',
+  weekly: 'calendarApp.repeatLabel.weekly',
+  monthly: 'calendarApp.repeatLabel.monthly',
+  yearly: 'calendarApp.repeatLabel.yearly'
+});
 
 export type ItemStatus = 'planned' | 'confirmed' | 'cancelled';
 
@@ -120,7 +121,7 @@ export function safeLink(text: string | null | undefined): { href: string; exter
 }
 
 /** Das Wort auf dem Knopf — eigenes oder „Więcej informacji". */
-export const linkWord = (label: string | null | undefined): string => (label ?? '').trim() || 'Więcej informacji';
+export const linkWord = (label: string | null | undefined): string => (label ?? '').trim() || t('calendarApp.moreInfo');
 
 export interface Occurrence {
   readonly itemId: string;
@@ -185,13 +186,13 @@ export interface CalendarBooking {
 
 export type CalendarKind = 'appointment' | 'mass' | 'confession' | 'visit' | 'devotion';
 
-export const CALENDAR_KIND_LABEL: Record<CalendarKind, string> = {
-  appointment: 'spotkania',
-  mass: 'msze',
-  confession: 'spowiedzi',
-  visit: 'odwiedziny',
-  devotion: 'nabożeństwa'
-};
+export const CALENDAR_KIND_LABEL: Record<CalendarKind, string> = texts({
+  appointment: 'calendarApp.calendarKind.appointment',
+  mass: 'calendarApp.calendarKind.mass',
+  confession: 'calendarApp.calendarKind.confession',
+  visit: 'calendarApp.calendarKind.visit',
+  devotion: 'calendarApp.calendarKind.devotion'
+});
 
 export interface CalendarRow {
   readonly calendarId: string;
@@ -257,7 +258,7 @@ export const saveCalendarRules = (calendarId: string, rules: CalendarRules): Pro
 /** 0058 — wer bei einem Termin da sein muss: für die Reihe (ohne `occurrenceAt`) oder ein Vorkommen. */
 export type Duty = 'present' | 'celebrant' | 'lead';
 
-export const DUTY_LABEL: Record<Duty, string> = { present: 'obecny', celebrant: 'celebrans', lead: 'prowadzi' };
+export const DUTY_LABEL: Record<Duty, string> = texts({ present: 'calendarApp.duty.present', celebrant: 'calendarApp.duty.celebrant', lead: 'calendarApp.duty.lead' });
 
 export const setPeople = (
   itemId: string, people: readonly { roleId: string; duty: Duty }[], occurrenceAt?: string

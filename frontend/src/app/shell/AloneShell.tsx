@@ -24,6 +24,7 @@
  */
 
 import { lazy, Suspense } from 'react';
+import { useT } from '../core/i18n';
 
 import { phoneHere } from '../phone/here';
 import { viewPath } from '../routes';
@@ -38,10 +39,10 @@ export type AloneState = 'checking' | 'cut' | 'none' | 'back';
 export type AloneTab = 'sms' | 'learn';
 
 const STATE_TEXT: Record<AloneState, string> = {
-  checking: 'Łączenie z kontem…',
-  cut: 'Bez internetu',
-  none: 'Bez logowania',
-  back: 'Połączono'
+  checking: 'shell.alone.state.checking',
+  cut: 'shell.alone.state.cut',
+  none: 'shell.alone.state.none',
+  back: 'shell.alone.state.back'
 };
 
 export default function AloneShell({ tab, trail, state, onSignIn, onFull, onRetry }: {
@@ -53,22 +54,23 @@ export default function AloneShell({ tab, trail, state, onSignIn, onFull, onRetr
   onFull: () => void;
   onRetry: () => void;
 }) {
+  const t = useT();
   const phone = phoneHere();
   const shown: AloneTab = phone ? tab : 'learn';
   return (
     <div className="wk-root wk-plain is-wide wk-alone">
       <header className="wk-plain-top" data-app-head="">
-        <a className="wk-brandmark" href={shown === 'sms' ? viewPath('sms') : viewPath('learn', 'bez-sieci')}><b>RE</b>creatio</a>
+        <a className="wk-brandmark" href={shown === 'sms' ? viewPath('sms') : viewPath('learn', 'bez-sieci')}><b>RE</b>creatio</a>{/* i18n-ignore: Marke */}
         {phone && (
-          <nav className="wk-alone-tabs" aria-label="Bez sieci">
-            <a href={viewPath('sms')} aria-current={shown === 'sms' ? 'page' : undefined}>SMS</a>
-            <a href={viewPath('learn', 'bez-sieci')} aria-current={shown === 'learn' ? 'page' : undefined}>Nauka</a>
+          <nav className="wk-alone-tabs" aria-label={t('shell.alone.tabs')}>
+            <a href={viewPath('sms')} aria-current={shown === 'sms' ? 'page' : undefined}>{t('app.view.sms')}</a>
+            <a href={viewPath('learn', 'bez-sieci')} aria-current={shown === 'learn' ? 'page' : undefined}>{t('app.view.learn')}</a>
           </nav>
         )}
-        <span className="wk-alone-state" role="status">{STATE_TEXT[state]}</span>
-        {state === 'cut' && <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={onRetry}>Ponów</button>}
-        {state === 'none' && <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={onSignIn}>Zaloguj się</button>}
-        {state === 'back' && <button type="button" className="wk-btn wk-btn-small" onClick={onFull}>Pełna wersja</button>}
+        <span className="wk-alone-state" role="status">{t(STATE_TEXT[state])}</span>
+        {state === 'cut' && <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={onRetry}>{t('shell.alone.retry')}</button>}
+        {state === 'none' && <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={onSignIn}>{t('common.signIn')}</button>}
+        {state === 'back' && <button type="button" className="wk-btn wk-btn-small" onClick={onFull}>{t('shell.alone.full')}</button>}
       </header>
       <main className="wk-main">
         <ViewGuard>

@@ -16,6 +16,7 @@
 
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
 import type { Ring } from '../core/keys';
+import { t } from '../core/i18n';
 import { call } from '../core/session';
 import { areaKeys, newestKey } from '../chat/chat';
 import type { AreaRow } from './area';
@@ -25,12 +26,12 @@ import type { ControllerInfo } from './controllers';
 export type ProfileKind = 'event' | 'group' | 'organisation' | 'course' | 'school' | 'class';
 
 export const PROFILE_KINDS: readonly { readonly kind: ProfileKind; readonly label: string; readonly says: string }[] = [
-  { kind: 'event', label: 'Wydarzenie', says: 'Rekolekcje, wyjazd, warsztaty, obóz — strona, zapisy, termin, rozmowy uczestników.' },
-  { kind: 'group', label: 'Grupa', says: 'Schola, oaza, rada — członkowie, rozmowa, kalendarz, link dla członków.' },
-  { kind: 'organisation', label: 'Parafia / organizacja', says: 'Administrator danych, publiczna strona, listy jej wydarzeń i grup.' },
-  { kind: 'course', label: 'Kurs', says: 'Baza wiedzy z powtórkami, uczący się z linku.' },
-  { kind: 'school', label: 'Szkoła', says: 'Klasy, programy nauczania raz dla wszystkich i ich realizacja w każdej klasie, nauczyciele.' },
-  { kind: 'class', label: 'Klasa', says: 'Uczniowie, plan lekcji, dziennik: program z realizacją i notatkami, obecność, uwagi o uczniach.' }
+  { kind: 'event', get label() { return t('areas.profileKind.event.label'); }, get says() { return t('areas.profileKind.event.says'); } },
+  { kind: 'group', get label() { return t('areas.profileKind.group.label'); }, get says() { return t('areas.profileKind.group.says'); } },
+  { kind: 'organisation', get label() { return t('areas.profileKind.organisation.label'); }, get says() { return t('areas.profileKind.organisation.says'); } },
+  { kind: 'course', get label() { return t('areas.profileKind.course.label'); }, get says() { return t('areas.profileKind.course.says'); } },
+  { kind: 'school', get label() { return t('areas.profileKind.school.label'); }, get says() { return t('areas.profileKind.school.says'); } },
+  { kind: 'class', get label() { return t('areas.profileKind.class.label'); }, get says() { return t('areas.profileKind.class.says'); } }
 ];
 
 export const kindLabel = (kind: ProfileKind | string): string => PROFILE_KINDS.find((one) => one.kind === kind)?.label ?? kind;
@@ -120,7 +121,7 @@ export const cardAad = (profileAreaId: string) => aad('area', 'profile', profile
 /** Die Wizytówka versiegeln — unter dem neuesten Schlüssel des Bereichs, in dem sie veröffentlicht wird. */
 export async function sealCard(ring: Ring, profileAreaId: string, cardAreaId: string, text: CardText): Promise<SealedCard> {
   const newest = newestKey(await areaKeys(ring, cardAreaId, true));
-  if (newest === null) throw new Error('Nie masz klucza obszaru, w którym ma być widoczna wizytówka.');
+  if (newest === null) throw new Error(t('areas.noKeyCard'));
   const body = JSON.stringify({ title: text.title.trim(), lead: text.lead.trim() });
   return { areaId: cardAreaId, epoch: newest.epoch, sealed: toBase64Url(await sealText(newest.key, cardAad(profileAreaId), body)) };
 }

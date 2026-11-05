@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { loadAreas, type AreaRow } from '../areas/area';
 import { loadCalendars, type CalendarRow } from '../calendar/calendar';
 import { useCrumbs, type Crumb } from '../shell/crumbTrail';
+import { fmtDate, useT, type T } from '../core/i18n';
 import { newId } from '../core/ids';
 import {
   createResource, KIND_LABEL, loadClaims, loadResources, minutesToTime, officeDecides,
@@ -55,6 +56,7 @@ export function viewOf(trail: readonly string[]): View {
 }
 
 export function Reservations({ trail }: { trail: readonly string[] }) {
+  const t = useT();
   const [rows, setRows] = useState<readonly ResourceRow[] | null>(null);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [calendars, setCalendars] = useState<readonly CalendarRow[]>([]);
@@ -74,9 +76,9 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
       setFailed(null);
     } catch (e) {
       setRows([]);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('bookings.view.loadFailed'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -89,21 +91,21 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
        at = all.find((r) => r.resourceId === at!.parentId)) chain.unshift(at);
 
   const crumbs: Crumb[] = view.at === NEW
-    ? [{ label: 'Nowy', href: null }]
+    ? [{ label: t('bookings.view.newCrumb'), href: null }]
     : chain.map((r) => ({ label: r.name, href: viewPath('bookings', r.resourceId) }));
 
   useCrumbs(crumbs);
 
   /* 2026-10-29 — die Liste trägt ihren Kopf selbst: rechts „Więcej" mit dem JSON aller Dinge. */
   const listHead = (
-    <PageHeader title="Rezerwacje" actions={rows === null ? undefined : (
-      <MenuButton label="Więcej: Rezerwacje" items={[
-        { label: 'Import i eksport (JSON)', icon: 'braces', onSelect: () => setJsonOpen(true) }
+    <PageHeader title={t('bookings.view.title')} actions={rows === null ? undefined : (
+      <MenuButton label={t('bookings.view.moreOf', { name: t('bookings.view.title') })} items={[
+        { label: t('bookings.view.json'), icon: 'braces', onSelect: () => setJsonOpen(true) }
       ]} />
     )} />
   );
 
-  if (rows === null) return <>{view.at === 'list' && listHead}<Loading label="Wczytywanie…" /></>;
+  if (rows === null) return <>{view.at === 'list' && listHead}<Loading label={t('common.loading')} /></>;
 
   const head = failed !== null ? <p className="wk-error">{failed}</p> : null;
 
@@ -123,7 +125,7 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
   }
 
   if (view.at === 'one') {
-    if (mine === undefined) return <p className="wk-empty">Tego zasobu nie ma — albo nie jest Twój.</p>;
+    if (mine === undefined) return <p className="wk-empty">{t('bookings.view.missing')}</p>;
 
     return (
       <>
@@ -162,12 +164,12 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
 
               <span className="wk-tags">
                 <span className="wk-tag">{KIND_LABEL[r.kind]}</span>
-                <span className="wk-tag">{r.mode === 'offered' ? 'terminy z kalendarza' : 'dowolny czas'}</span>
-                {r.pending > 0 && <span className="wk-tag wk-tag-open">{r.pending} czeka</span>}
+                <span className="wk-tag">{r.mode === 'offered' ? t('bookings.view.modeOffered') : t('bookings.view.modeOpen')}</span>
+                {r.pending > 0 && <span className="wk-tag wk-tag-open">{t('bookings.view.pending', { count: r.pending })}</span>}
               </span>
 
               <span className="wk-tree-mine">
-                {r.capacity === 1 ? '1 naraz' : `${r.capacity} naraz`}
+                {t('bookings.view.atOnce', { count: r.capacity })}
               </span>
             </a>
           </li>
@@ -175,14 +177,14 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
 
         <li>
           <a className="wk-tree-add" href={viewPath('bookings', NEW)}>
-            <span aria-hidden="true">+</span> Nowy zasób
+            <span aria-hidden="true">+</span> {t('bookings.view.newResource')}
           </a>
         </li>
       </ul>
 
       {all.length === 0 && (
         <p className="wk-empty">
-          Zasób to coś, co ktoś może zająć na czas — czas księdza, salę, dom.
+          {t('bookings.view.empty')}
         </p>
       )}
 
@@ -200,6 +202,7 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
   calendars: readonly CalendarRow[];
   onChanged: () => void;
 }) {
+  const t = useT();
   const [claims, setClaims] = useState<readonly OfficeClaim[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -213,13 +216,13 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
   useEffect(() => { void look(); }, [look]);
 
   const decide = (claimId: string, accept: boolean) => {
-    setBusy(accept ? 'Potwierdzanie…' : 'Odrzucanie…');
+    setBusy(accept ? t('bookings.view.confirming') : t('bookings.view.rejecting'));
     setFailed(null);
 
     void officeDecides(claimId, accept)
       .then(() => look())
       .then(onChanged)
-      .catch((e) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.'))
+      .catch((e) => setFailed(e instanceof WorkspaceError ? e.message : t('common.failed')))
       .finally(() => setBusy(null));
   };
 
@@ -234,20 +237,20 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
     <>
       {/* 2026-10-29 — rechts „Więcej": dieses Ding als JSON, mit seinen Terminen und Reservierungen. */}
       <PageHeader title={row.name} actions={(
-        <MenuButton label={`Więcej: ${row.name}`} items={[
-          { label: 'Import i eksport (JSON)', icon: 'braces', onSelect: () => setJsonOpen(true) }
+        <MenuButton label={t('bookings.view.moreOf', { name: row.name })} items={[
+          { label: t('bookings.view.json'), icon: 'braces', onSelect: () => setJsonOpen(true) }
         ]} />
       )} />
 
       <dl className="wk-facts">
-        <div className="wk-fact"><dt>Rodzaj</dt><dd>{KIND_LABEL[row.kind]}</dd></div>
-        <div className="wk-fact"><dt>Czas wybiera</dt><dd>{row.mode === 'offered' ? 'kancelaria' : 'pytający'}</dd></div>
-        <div className="wk-fact"><dt>Naraz</dt><dd>{row.capacity}</dd></div>
-        <div className="wk-fact"><dt>Na osobę</dt><dd>{row.perPerson === 0 ? 'bez limitu' : row.perPerson}</dd></div>
+        <div className="wk-fact"><dt>{t('bookings.view.facts.kind')}</dt><dd>{KIND_LABEL[row.kind]}</dd></div>
+        <div className="wk-fact"><dt>{t('bookings.view.facts.chooses')}</dt><dd>{row.mode === 'offered' ? t('bookings.view.facts.office') : t('bookings.view.facts.asker')}</dd></div>
+        <div className="wk-fact"><dt>{t('bookings.view.facts.atOnce')}</dt><dd>{row.capacity}</dd></div>
+        <div className="wk-fact"><dt>{t('bookings.view.facts.perPerson')}</dt><dd>{row.perPerson === 0 ? t('bookings.view.facts.noLimit') : row.perPerson}</dd></div>
         {row.mode === 'offered' && row.inviteHours > 0 && (
-          <div className="wk-fact"><dt>Grupa od</dt><dd>{row.minPersons}</dd></div>
+          <div className="wk-fact"><dt>{t('bookings.view.facts.groupFrom')}</dt><dd>{row.minPersons}</dd></div>
         )}
-        <div className="wk-fact"><dt>Potwierdza</dt><dd>{row.approval === 'office' ? 'kancelaria' : 'nikt'}</dd></div>
+        <div className="wk-fact"><dt>{t('bookings.view.facts.approves')}</dt><dd>{row.approval === 'office' ? t('bookings.view.facts.office') : t('bookings.view.facts.nobody')}</dd></div>
       </dl>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -257,25 +260,25 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
 
       {groups.size > 0 && (
         <section className="wk-panel">
-          <h2 className="wk-h2">Czeka na odpowiedź</h2>
+          <h2 className="wk-h2">{t('bookings.view.waiting')}</h2>
 
           <ul className="wk-people">
             {[...groups.values()].map((group) => (
               <li className="wk-person" key={group[0].groupId}>
                 <span className="wk-person-who">
-                  <strong>{group[0].name ?? 'bez nazwy'}</strong>
+                  <strong>{group[0].name ?? t('bookings.view.noName')}</strong>
                 </span>
 
                 <span className="wk-person-can">
                   {group.map((c) => (
-                    <span className="wk-tag" key={c.claimId}>{when(c, row)}</span>
+                    <span className="wk-tag" key={c.claimId}>{when(c, row, t)}</span>
                   ))}
                 </span>
 
                 <button type="button" className="wk-btn" disabled={busy !== null}
-                  onClick={() => decide(group[0].claimId, true)}>Potwierdź</button>
+                  onClick={() => decide(group[0].claimId, true)}>{t('bookings.dialog.confirm')}</button>
                 <button type="button" className="wk-link-btn" disabled={busy !== null}
-                  onClick={() => decide(group[0].claimId, false)}>Odrzuć</button>
+                  onClick={() => decide(group[0].claimId, false)}>{t('bookings.dialog.reject')}</button>
               </li>
             ))}
           </ul>
@@ -285,32 +288,32 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
       {/* -- Wer was hält -------------------------------------------------- */}
 
       <section className="wk-panel">
-        <h2 className="wk-h2">Zajęte</h2>
+        <h2 className="wk-h2">{t('bookings.open.busy')}</h2>
 
         {claims === null ? (
-          <Loading label="Wczytywanie…" />
+          <Loading label={t('common.loading')} />
         ) : standing.length === 0 ? (
           <p className="wk-empty">
             {row.mode === 'offered'
-              ? 'Nikt się jeszcze nie zapisał. Terminy dodajesz w kalendarzu tego zasobu.'
-              : 'Nic nie jest zajęte.'}
+              ? t('bookings.view.noneOffered')
+              : t('bookings.view.noneOpen')}
           </p>
         ) : (
           <ul className="wk-people">
             {standing.map((c) => (
               <li className="wk-person" key={c.claimId}>
                 <span className="wk-person-who">
-                  <strong>{when(c, row)}</strong>
+                  <strong>{when(c, row, t)}</strong>
                   {c.name !== null && <span>{c.name}</span>}
                 </span>
 
                 <span className="wk-person-can">
                   <span className={c.status === 'confirmed' ? 'wk-tag wk-tag-open' : 'wk-tag'}>
-                    {c.status === 'confirmed' ? 'potwierdzone'
-                      : c.status === 'declined' ? 'odrzucone'
-                      : c.awaits === 'host' ? 'prosi gospodarza' : 'czeka'}
+                    {c.status === 'confirmed' ? t('bookings.open.status.confirmed')
+                      : c.status === 'declined' ? t('bookings.open.status.declined')
+                      : c.awaits === 'host' ? t('bookings.view.asksHost') : t('bookings.myTerm.waits.any')}
                   </span>
-                  {c.hosting && <span className="wk-tag">gospodarz</span>}
+                  {c.hosting && <span className="wk-tag">{t('bookings.view.host')}</span>}
                 </span>
               </li>
             ))}
@@ -321,7 +324,7 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
       {/* -- Die Regeln ---------------------------------------------------- */}
 
       <details className="wk-fold">
-        <summary>Zasady</summary>
+        <summary>{t('bookings.view.rules')}</summary>
         <Editor was={row} all={all} areas={areas} calendars={calendars} onSaved={onChanged} />
       </details>
 
@@ -330,11 +333,11 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
   );
 }
 
-function when(c: { startsAt: string; endsAt: string }, row: ResourceRow): string {
+function when(c: { startsAt: string; endsAt: string }, row: ResourceRow, t: T): string {
   const s = new Date(c.startsAt);
   const e = new Date(c.endsAt);
-  const date = (d: Date) => d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
-  const time = (d: Date) => d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  const date = (d: Date) => fmtDate(d, { day: 'numeric', month: 'short' }, t.lang);
+  const time = (d: Date) => fmtDate(d, { hour: '2-digit', minute: '2-digit' }, t.lang);
 
   if (row.byNight) return `${date(s)} → ${date(e)}`;
   return s.toDateString() === e.toDateString()
@@ -358,11 +361,12 @@ function when(c: { startsAt: string; endsAt: string }, row: ResourceRow): string
  * Gezählt wird, was noch steht oder wartet und nicht vorbei ist.
  */
 export function PerPersonField({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const t = useT();
   return (
     <label className="wk-field">
-      <span>Ile terminów może wybrać jedna osoba</span>
+      <span>{t('bookings.editor.perPerson')}</span>
       <input type="number" min={0} value={value} onChange={(e) => onChange(e.target.value)} />
-      <span className="wk-hint">0 — bez limitu. Kto ma już tyle, może swój termin zamienić na inny.</span>
+      <span className="wk-hint">{t('bookings.editor.perPersonHint')}</span>
     </label>
   );
 }
@@ -374,6 +378,7 @@ function Editor({ was, all, areas, calendars, onSaved }: {
   calendars: readonly CalendarRow[];
   onSaved: (row: ResourceRow) => void;
 }) {
+  const t = useT();
   const [areaId, setAreaId] = useState(was?.areaId ?? '');
   const [name, setName] = useState(was?.name ?? '');
   const [kind, setKind] = useState<Kind>(was?.kind ?? 'person');
@@ -399,15 +404,15 @@ function Editor({ was, all, areas, calendars, onSaved }: {
   const ownCalendars = calendars.filter((c) => c.areaId === area);
   const parents = all.filter((r) => r.areaId === area && r.resourceId !== was?.resourceId);
 
-  const toMin = (t: string) => {
-    const [h, m] = t.split(':').map(Number);
+  const toMin = (hm: string) => {
+    const [h, m] = hm.split(':').map(Number);
     return (h || 0) * 60 + (m || 0);
   };
 
   const blocker =
-    name.trim() === '' ? 'Nazwij zasób.'
-    : area === '' ? 'Wybierz obszar.'
-    : mode === 'offered' && calendarId === '' ? 'Terminy stoją w kalendarzu — wybierz go.'
+    name.trim() === '' ? t('bookings.editor.needName')
+    : area === '' ? t('bookings.editor.needArea')
+    : mode === 'offered' && calendarId === '' ? t('bookings.editor.needCalendar')
     : null;
 
   const save = async () => {
@@ -435,7 +440,7 @@ function Editor({ was, all, areas, calendars, onSaved }: {
         : await updateResource(was.resourceId, change);
       onSaved(row);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('bookings.editor.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -443,22 +448,22 @@ function Editor({ was, all, areas, calendars, onSaved }: {
 
   return (
     <form className="wk-form" onSubmit={(e) => { e.preventDefault(); if (blocker === null) void save(); }}>
-      {was === null && <h1 className="wk-h1">Nowy zasób</h1>}
+      {was === null && <h1 className="wk-h1">{t('bookings.view.newResource')}</h1>}
 
       {was === null && (
         <label className="wk-field">
-          <span>Obszar</span>
-          <AreaPick label="Obszar" value={areaId} onChange={setAreaId} areas={areas} only={writable} />
+          <span>{t('bookings.editor.area')}</span>
+          <AreaPick label={t('bookings.editor.area')} value={areaId} onChange={setAreaId} areas={areas} only={writable} />
         </label>
       )}
 
       <label className="wk-field">
-        <span>Nazwa</span>
-        <input value={name} placeholder="np. Spotkania z księdzem · Dom św. Józefa" onChange={(e) => setName(e.target.value)} />
+        <span>{t('common.name')}</span>
+        <input value={name} placeholder={t('bookings.editor.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
       </label>
 
       <label className="wk-field">
-        <span>Rodzaj</span>
+        <span>{t('bookings.view.facts.kind')}</span>
         <select value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
           {(Object.keys(KIND_LABEL) as Kind[]).map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
         </select>
@@ -466,9 +471,9 @@ function Editor({ was, all, areas, calendars, onSaved }: {
 
       {parents.length > 0 && (
         <label className="wk-field">
-          <span>Wewnątrz</span>
+          <span>{t('bookings.editor.inside')}</span>
           <select value={parentId} onChange={(e) => setParentId(e.target.value)}>
-            <option value="">— osobno —</option>
+            <option value="">{t('bookings.editor.separate')}</option>
             {parents.map((r) => <option key={r.resourceId} value={r.resourceId}>{r.name}</option>)}
           </select>
         </label>
@@ -476,43 +481,42 @@ function Editor({ was, all, areas, calendars, onSaved }: {
 
       {/* DIE ENTSCHEIDUNG, an der alles andere hängt. */}
       <label className="wk-field">
-        <span>Kto wybiera czas</span>
+        <span>{t('bookings.editor.whoChooses')}</span>
         <select value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
-          <option value="offered">Kancelaria podaje terminy — jak spotkania z księdzem</option>
-          <option value="open">Pytający sam wybiera — jak sala albo dom</option>
+          <option value="offered">{t('bookings.editor.modeOffered')}</option>
+          <option value="open">{t('bookings.editor.modeOpen')}</option>
         </select>
       </label>
 
       {mode === 'offered' ? (
         <>
           <label className="wk-field">
-            <span>Kalendarz z terminami</span>
+            <span>{t('bookings.editor.calendar')}</span>
             <select value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
-              <option value="">— wybierz —</option>
+              <option value="">{t('bookings.editor.pick')}</option>
               {ownCalendars.map((c) => <option key={c.calendarId} value={c.calendarId}>{c.title}</option>)}
             </select>
           </label>
-          <p className="wk-hint">Każde spotkanie w tym kalendarzu jest terminem do wyboru.</p>
+          <p className="wk-hint">{t('bookings.editor.calendarHint')}</p>
 
           <label className="wk-field">
-            <span>Ile osób na jeden termin</span>
+            <span>{t('bookings.editor.capacity')}</span>
             <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
           </label>
 
           <label className="wk-field">
-            <span>Ile godzin pierwszy może dobierać osoby kodem</span>
+            <span>{t('bookings.editor.inviteHours')}</span>
             <input type="number" min={0} value={inviteHours} onChange={(e) => setInviteHours(e.target.value)} />
-            <span className="wk-hint">Tyle czasu pierwszy zapisany jest gospodarzem terminu. 0 — bez gospodarza.</span>
+            <span className="wk-hint">{t('bookings.editor.inviteHoursHint')}</span>
           </label>
 
           {/* DIE MINDESTZAHL (0049) — nur mit einem Gastgeber von Belang. */}
           {Number(inviteHours) > 0 && (
             <label className="wk-field">
-              <span>Od ilu osób grupa zatrzymuje termin</span>
+              <span>{t('bookings.editor.minPersons')}</span>
               <input type="number" min={1} value={minPersons} onChange={(e) => setMinPersons(e.target.value)} />
               <span className="wk-hint">
-                Gdy po czasie gospodarza na terminie jest co najmniej tyle osób, wolne miejsca nie otwierają się
-                dla innych — a gospodarz może sam zamknąć termin. Przy mniejszej liczbie otwierają się dla wszystkich.
+                {t('bookings.editor.minPersonsHint')}
               </span>
             </label>
           )}
@@ -522,46 +526,46 @@ function Editor({ was, all, areas, calendars, onSaved }: {
       ) : (
         <>
           <label className="wk-field">
-            <span>Czas liczony</span>
+            <span>{t('bookings.editor.counted')}</span>
             <select value={byNight ? 'night' : 'hour'} onChange={(e) => setByNight(e.target.value === 'night')}>
-              <option value="hour">w godzinach</option>
-              <option value="night">w nocach</option>
+              <option value="hour">{t('bookings.editor.byHour')}</option>
+              <option value="night">{t('bookings.editor.byNight')}</option>
             </select>
           </label>
 
           {byNight && (
             <div className="wk-actions">
-              <label className="wk-field"><span>Przyjazd od</span>
+              <label className="wk-field"><span>{t('bookings.editor.checkIn')}</span>
                 <input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} /></label>
-              <label className="wk-field"><span>Wyjazd do</span>
+              <label className="wk-field"><span>{t('bookings.editor.checkOut')}</span>
                 <input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} /></label>
             </div>
           )}
 
           <label className="wk-field">
-            <span>Ile grup naraz</span>
+            <span>{t('bookings.editor.groups')}</span>
             <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
           </label>
 
           <div className="wk-actions">
-            <label className="wk-field"><span>Przygotowanie przed (min)</span>
+            <label className="wk-field"><span>{t('bookings.editor.before')}</span>
               <input type="number" min={0} value={before} onChange={(e) => setBefore(e.target.value)} /></label>
-            <label className="wk-field"><span>Sprzątanie po (min)</span>
+            <label className="wk-field"><span>{t('bookings.editor.after')}</span>
               <input type="number" min={0} value={after} onChange={(e) => setAfter(e.target.value)} /></label>
           </div>
 
           <label className="wk-field">
-            <span>Najwcześniej na ile dni naprzód</span>
+            <span>{t('bookings.editor.lead')}</span>
             <input type="number" min={0} value={lead} onChange={(e) => setLead(e.target.value)} />
           </label>
         </>
       )}
 
       <label className="wk-field">
-        <span>Kto potwierdza</span>
+        <span>{t('bookings.editor.approval')}</span>
         <select value={approval} onChange={(e) => setApproval(e.target.value as 'none' | 'office')}>
-          <option value="none">Nikt — kto się zmieści, ma</option>
-          <option value="office">Kancelaria — każdą prośbę osobno</option>
+          <option value="none">{t('bookings.editor.approvalNone')}</option>
+          <option value="office">{t('bookings.editor.approvalOffice')}</option>
         </select>
       </label>
 
@@ -570,7 +574,7 @@ function Editor({ was, all, areas, calendars, onSaved }: {
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={busy || blocker !== null}>
-          {busy ? 'Zapisywanie…' : was === null ? 'Załóż' : 'Zapisz'}
+          {busy ? t('bookings.myTerm.saving') : was === null ? t('bookings.editor.create') : t('common.save')}
         </button>
       </div>
     </form>

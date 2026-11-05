@@ -22,6 +22,7 @@
  * schon eingestellt hat, behält sie.
  */
 
+import { t } from '../../core/i18n';
 import { definePart, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
 import { layoutOf } from '../../scriptorium/archiveLayout';
@@ -39,25 +40,25 @@ interface WritingsConfig {
 }
 
 const LAYOUT_SAYS: Record<string, string> = {
-  list: 'lista według dat',
-  table: 'tabela — pola rodzaju tekstu jako kolumny',
-  tree: 'wartości pól rodzaju tekstu z liczbami'
+  list: 'moduleContent.writings.layoutSays.list',
+  table: 'moduleContent.writings.layoutSays.table',
+  tree: 'moduleContent.writings.layoutSays.tree'
 };
 
 export const writingsPart = definePart<WritingsConfig>({
   kind: 'writings',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Kazania', scriptorium: '<id-skryptorium>', project: '<id-projektu albo puste>', layout: 'drzewo' },
-  label: 'Archiwum tekstów',
-  use: 'Kazania i teksty ze Skryptorium — z wyszukiwaniem i filtrami według pól ich rodzaju (np. tajemnica, obszar), jako lista; każdy otwiera się z planem, nagraniami i źródłami. Tabelę i macierz (np. tajemnice × obszary) daje moduł „Widok”.',
+  example: { title: 'Kazania', scriptorium: '<id-skryptorium>', project: '<id-projektu albo puste>', layout: 'drzewo' }, // i18n-ignore
+  label: 'moduleContent.writings.label',
+  use: 'moduleContent.writings.use',
   box: { colSpan: 6, rowSpan: 5 },
 
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Kazania' },
-    { key: 'scriptorium', label: 'Ze skryptorium', kind: 'scriptorium' },
-    { key: 'project', label: 'Tylko z projektu (cyklu, książki)', kind: 'libraryEntry', of: 'scriptorium', entryKinds: ['project'], optional: true },
-    { key: 'layout', label: 'Na początek', kind: 'line', hint: 'lista albo drzewo — odwiedzający może zmienić (tabela: moduł „Widok”)' }
+    { key: 'title', label: 'moduleContent.writings.title', kind: 'line', hint: 'moduleContent.writings.titleHint' },
+    { key: 'scriptorium', label: 'moduleContent.writings.scriptorium', kind: 'scriptorium' },
+    { key: 'project', label: 'moduleContent.writings.project', kind: 'libraryEntry', of: 'scriptorium', entryKinds: ['project'], optional: true },
+    { key: 'layout', label: 'moduleContent.writings.layout', kind: 'line', hint: 'moduleContent.writings.layoutHint' }
   ],
 
   read: (raw: RawConfig): WritingsConfig => ({
@@ -65,12 +66,12 @@ export const writingsPart = definePart<WritingsConfig>({
   }),
 
   hasContent: (c) => c.scriptorium !== '',
-  missing: (c) => (c.scriptorium === '' ? 'Wybierz skryptorium.' : null),
+  missing: (c) => (c.scriptorium === '' ? t('moduleContent.writings.missing') : null),
 
   fullscreen: true,
-  shows: (c, size) => size.height === 'strip' ? 'Najnowszy tekst — tytuł i data.'
-    : size.height === 'tall' ? `Całe archiwum: wyszukiwanie, filtry według pól rodzaju tekstu (np. tajemnica, obszar) i cykli; na początek ${LAYOUT_SAYS[layoutOf(c.layout)]}. Każdy tekst otwiera się z planem, nagraniami i źródłami.`
-    : 'Ostatnie teksty z datą i krótkim opisem.',
+  shows: (c, size) => size.height === 'strip' ? t('moduleContent.writings.showsStrip')
+    : size.height === 'tall' ? t('moduleContent.writings.showsTall', { layout: t(LAYOUT_SAYS[layoutOf(c.layout)]) })
+    : t('moduleContent.writings.showsBlock'),
 
   View: ({ config, ctx }) => (
     <WritingsCard

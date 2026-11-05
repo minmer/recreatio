@@ -1,0 +1,161 @@
+{
+  "choice": {
+    "backRef": "{kind}: {field}",
+    "noFields": "Diese Art hat keine Felder.",
+    "noRefField": "Diese Art hat kein Feld, das auf andere Einträge verweist.",
+    "noTarget": "Das Feld „{field}“ zeigt nicht auf eine einzelne Art mit Feldern — wähle im Schema, worauf es verweist.",
+    "noText": "Diese Art hat kein Textfeld.",
+    "noBack": "Keine Art verweist auf diese (z. B. eine Übersetzung auf ein Wort) — füge ein solches Feld im Schema hinzu."
+  },
+  "asks": {
+    "wordsField": "Feld mit den Wörtern (Verweis)",
+    "langIn": "Sprachfeld in",
+    "langField": "Sprachfeld (Verweis)",
+    "wordText": "Feld mit dem Text des Worts",
+    "backField": "Wo die Übersetzungen stehen (Art: Feld mit den Wörtern)"
+  },
+  "tpl": {
+    "thesis": {
+      "label": "These: worüber → These",
+      "says": "Vorne: worüber die Aussage ist (ihre Verweisfelder, z. B. „Lk 1,35; Apg 1,8“), hinten ihre These — der erste Satz. Du bewertest dich selbst.",
+      "pattern": "Was sagt diese Aussage über: {0}?",
+      "name": "These"
+    },
+    "table": {
+      "label": "Tabelle aus dem Inhalt: Paare zuordnen",
+      "says": "Die Zeilen der ersten Tabelle im Inhalt (Spalte 1 ↔ Spalte 2) werden zu Paaren verbunden; darüber die These.",
+      "name": "Tabelle aus dem Inhalt"
+    },
+    "ask": {
+      "label": "Frage nach einem Feld",
+      "says": "„Geburtsjahr: Mickiewicz?“ — gib den Wert des Felds ein.",
+      "pattern": "{field}: {0}?",
+      "name": "{field} (eingeben)"
+    },
+    "reverse": {
+      "label": "Umgekehrt: Wer ist das?",
+      "says": "Zeigt den Wert eines Felds und fragt nach dem Eintrag („Wer wurde 1798 geboren?“).",
+      "pattern": "Wer oder was — {field}: {0}?",
+      "name": "Wer: {field}"
+    },
+    "choose": {
+      "label": "Auswahl aus vier",
+      "says": "Der richtige Wert des Felds und drei Werte dieses Felds aus anderen Einträgen.",
+      "name": "{field} (Auswahl)"
+    },
+    "date": {
+      "label": "Datum",
+      "says": "Wann? — auf das Jahr, den Monat oder den Tag genau.",
+      "pattern": "{field}: {0} — wann?",
+      "name": "{field} (Datum)"
+    },
+    "flash": {
+      "label": "Karteikarte",
+      "says": "Vorne das erste Feld, hinten das zweite — du bewertest dich selbst.",
+      "name": "Karteikarte: {front} → {back}"
+    },
+    "vocabulary": {
+      "label": "Vokabel (jede Übersetzung einzeln)",
+      "says": "Eine Karte für jeden Wert des zweiten Felds — jede Übersetzung.",
+      "pattern": "Übersetze: {0}",
+      "name": "Vokabel: {front} → {back}"
+    },
+    "languages": {
+      "label": "Vokabeln: von Sprache zu Sprache (beide Richtungen)",
+      "says": "Der Eintrag verbindet Wörter in mehreren Sprachen (z. B. eine Übersetzung mit einem Feld „Wörter“): für jede Sprache eine eigene Karte — die Wörter dieser Sprache mit der Richtung („Englisch → Polnisch: house“), die Antwort sind die Wörter in den übrigen Sprachen.",
+      "name": "{field}: von Sprache zu Sprache"
+    },
+    "whichLanguage": {
+      "label": "Vokabeln: Welche Sprache ist das?",
+      "says": "Zeigt ein Wort und fragt, in welcher Sprache es ist — man kreuzt alle Sprachen an, in denen es ein Wort dieser Schreibung gibt (z. B. „hotel“). Wörter gleicher Schreibung ergeben eine Karte.",
+      "pattern": "Welche Sprache ist „{0}“? Kreuze alle an, in denen es existiert.",
+      "name": "Welche Sprache ist das?"
+    },
+    "pairs": {
+      "label": "Vokabeln: Paare bilden",
+      "says": "Mehrere Übersetzungen auf einmal: links Wörter in einer Sprache, rechts in der anderen — man verbindet sie zu Paaren. Nimmt diese Übersetzung und zufällig andere; die Sprachen sind die dieser Übersetzung.",
+      "pattern": "Paare bilden: {0} — {1}",
+      "name": "Paare bilden"
+    },
+    "chooseTranslations": {
+      "label": "Vokabeln: Übersetzungen ankreuzen",
+      "says": "Zeigt ein Wort; man kreuzt alle seine Übersetzungen an — in einer oder mehreren Sprachen — unter ihnen und einigen anderen Wörtern dieser Sprachen.",
+      "pattern": "Übersetzungen ankreuzen: „{0}“ ({1})",
+      "name": "Übersetzungen ankreuzen"
+    },
+    "translateWord": {
+      "label": "Vokabeln: das Wort übersetzen (jede Sprache einzeln)",
+      "says": "Zeigt ein Wort und fragt nach seiner Übersetzung — eine eigene Karte für jede Sprache, in der es Übersetzungen hat; richtig sind alle Übersetzungen in diese Sprache.",
+      "name": "Das Wort übersetzen"
+    },
+    "gaps": {
+      "label": "Lücken in einem Zitat",
+      "says": "Teilt den Text in Stücke und fragt nach jedem — erst die Stücke, dann das Ganze.",
+      "name": "Lücken: {field}"
+    }
+  },
+  "rev": {
+    "temporal": {
+      "label": "Nach dem, was ich kann",
+      "says": "Zuerst, was dran ist (das Schwächste zuerst), dann Neues und Vergessenes — von den Grundlagen zu den Details; ist nichts mehr übrig, auf Vorrat, was du am schwächsten kannst; Stapel zu 20.",
+      "name": "Tägliche Wiederholung"
+    },
+    "random": {
+      "label": "20 zufällige",
+      "says": "Zwanzig Karten, jede einmal.",
+      "name": "20 zufällige"
+    },
+    "once": {
+      "label": "Alles einmal",
+      "says": "Die ganze Menge, jede Karte einmal — ein Test.",
+      "name": "Alles einmal"
+    },
+    "levels": {
+      "label": "Stufen",
+      "says": "Eine richtige Antwort hebt die Karte eine Stufe, eine falsche schickt sie zurück auf die erste; Schluss, wenn alles oben ist.",
+      "name": "Stufen"
+    },
+    "due": {
+      "label": "Nur Fälliges",
+      "says": "Nur Karten, die dran sind, nach Kenntnis.",
+      "name": "Fällig"
+    },
+    "gated": {
+      "label": "Grundlagen zuerst",
+      "says": "Eine Karte kommt erst, wenn das, was sie voraussetzt („Vorher muss man kennen“), sitzt; fehlende Grundlagen kommen von selbst dazu. Aus gewöhnlichen Schritten gebaut: „Der Lernreihenfolge folgen“, „Kenntnisfilter“, Reihenfolge „Allgemeines zuerst“.",
+      "name": "Von den Grundlagen"
+    },
+    "general": {
+      "label": "Vom Allgemeinen zum Detail",
+      "says": "Zuerst das Allgemeinste; ein Eintrag, der in der Struktur unter einem anderen liegt (ein Jahr unter einem Abschnitt, ein Abschnitt unter dem ganzen Leben), kommt, wenn jener schon bekannt ist. Aus dem „Kenntnisfilter“ und der Reihenfolge „Allgemeines zuerst“ gebaut.",
+      "name": "Vom Allgemeinen zum Detail"
+    }
+  },
+  "flow": {
+    "story": {
+      "label": "Geschichte über eine Person (Vorlage)",
+      "says": "Eine Erinnerung, der Eintrag der Person aus dem Platz {osoba}, eine Frage, das Ende — für verschiedene Personen zu verwenden.",
+      "opening": "Zu Beginn",
+      "show": "Wer war das?",
+      "ask": "Prüfe dich",
+      "name": "Geschichte über eine Person",
+      "slot": "Person"
+    },
+    "chapters": {
+      "label": "Kurs mit Kapiteln",
+      "says": "Wahl eines Kapitels, in jedem Inhalt und eine Frage; endet, wenn alle durch sind.",
+      "pick": "Wähle ein Kapitel",
+      "chapter": "Kapitel {n}",
+      "name": "Kurs"
+    },
+    "dialogue": {
+      "label": "Gespräch mit einer Figur",
+      "says": "Eine Figur spricht, der Lernende wählt eine Antwort; die Wahl verändert die Nähe.",
+      "question": "Was antwortest du?",
+      "agree": "Ich stimme zu",
+      "dontKnow": "Ich weiß nicht",
+      "closeness": "Nähe",
+      "name": "Gespräch"
+    }
+  }
+}

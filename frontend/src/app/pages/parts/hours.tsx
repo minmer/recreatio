@@ -10,6 +10,7 @@
  * gesucht wird.
  */
 
+import { t, useT } from '../../core/i18n';
 import { definePart, lines, text, type RawConfig } from '../part';
 import { splitRow, weekdaysIn } from '../../core/weekday';
 
@@ -27,16 +28,16 @@ export const hoursPart = definePart<Config>({
   kind: 'hours',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Kancelaria', body: 'poniedziałek — 9:00–11:00\nwtorek — 16:00–18:00' },
-  label: 'Godziny',
-  use: 'Kancelaria, spowiedź — jedna pozycja w wierszu.',
+  example: { title: 'Kancelaria', body: 'poniedziałek — 9:00–11:00\nwtorek — 16:00–18:00' }, // i18n-ignore
+  label: 'moduleContent.hours.label',
+  use: 'moduleContent.hours.use',
   box: { colSpan: 2, rowSpan: 3 },
 
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Kancelaria' },
+    { key: 'title', label: 'moduleContent.hours.title', kind: 'line', hint: 'moduleContent.hours.titleHint' },
     {
-      key: 'body', label: 'Godziny', kind: 'text',
-      hint: 'Jedna pozycja w wierszu: wtorek — 16:00–18:00'
+      key: 'body', label: 'moduleContent.hours.body', kind: 'text',
+      hint: 'moduleContent.hours.bodyHint'
     }
   ],
 
@@ -51,12 +52,13 @@ export const hoursPart = definePart<Config>({
    * gilt, ist hervorgehoben — nach ihr sucht, wer die Kachel aufschlägt.
    */
   shows: (_config, size) =>
-    size.height === 'strip' ? 'Wszystkie pozycje w jednym ciągu; dzisiejsza wyróżniona.'
-    : size.width === 'wide' ? 'Tabela w dwóch kolumnach; dzisiejsza pozycja wyróżniona.'
-    : size.width === 'full' ? 'Tabela w trzech kolumnach; dzisiejsza pozycja wyróżniona.'
-    : 'Tabela: dzień i godziny; dzisiejsza pozycja wyróżniona.',
+    size.height === 'strip' ? t('moduleContent.hours.showsStrip')
+    : size.width === 'wide' ? t('moduleContent.hours.showsWide')
+    : size.width === 'full' ? t('moduleContent.hours.showsFull')
+    : t('moduleContent.hours.showsTable'),
 
-  View: ({ config }) => {
+  View: function HoursView({ config }) {
+    const t = useT();
     const today = new Date().getDay();
 
     return (
@@ -69,7 +71,7 @@ export const hoursPart = definePart<Config>({
 
             return (
               <li key={i} className={now ? 'is-today' : undefined}>
-                <span className="wk-hours-label">{label}{now && <span className="wk-hours-today"> dziś</span>}</span>
+                <span className="wk-hours-label">{label}{now && <span className="wk-hours-today">{t('moduleContent.hours.today')}</span>}</span>
                 {value !== null && <span className="wk-hours-value">{value}</span>}
               </li>
             );

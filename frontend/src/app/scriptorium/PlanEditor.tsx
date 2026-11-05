@@ -19,6 +19,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 
+import { useT } from '../core/i18n';
 import { JsonPanel } from '../ui/JsonPanel';
 import { patchFromDoc } from '../library/libraryJson';
 import { exportScriptorium, SCRIPTORIUM_SPEC } from './scriptoriumJson';
@@ -38,6 +39,7 @@ function PointText({ point, readOnly, register, onFocus, onChange, onKey }: {
   onChange: (text: string) => void;
   onKey: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
 }) {
+  const t = useT();
   const own = useRef<HTMLTextAreaElement | null>(null);
   useLayoutEffect(() => {
     const el = own.current;
@@ -54,8 +56,8 @@ function PointText({ point, readOnly, register, onFocus, onChange, onKey }: {
       readOnly={readOnly}
       spellCheck
       lang="pl"
-      aria-label="Punkt planu"
-      placeholder={point.depth === 0 ? 'Główna myśl…' : 'Co pod nią: cytat, przykład, pytanie…'}
+      aria-label={t('scriptorium.plan.point')}
+      placeholder={point.depth === 0 ? t('scriptorium.plan.mainPlaceholder') : t('scriptorium.plan.subPlaceholder')}
       onFocus={onFocus}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={onKey}
@@ -71,6 +73,7 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
   set: (patch: EntryData) => void;
   readOnly: boolean;
 }) {
+  const t = useT();
   const points = planOf(data, { keepEmpty: true });
   const numbers = pointNumbers(points);
   const areas = useRef(new Map<string, HTMLTextAreaElement>());
@@ -203,7 +206,7 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
     const el = areas.current.get(p.id);
     const from = el?.selectionStart ?? p.text.length;
     const to = el?.selectionEnd ?? p.text.length;
-    update(p.id, { text: `${p.text.slice(0, from)}${mark}${p.text.slice(to)}` });
+    update(p.id, { text: `${p.text.slice(0, from)}${mark}${p.text.slice(to)}` }); // i18n-ignore
     setCaret({ id: p.id, at: from + mark.length });
   };
 
@@ -229,18 +232,18 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
   return (
     <div className="lib-plan-edit">
       {!readOnly && (
-        <div className="lib-tools" role="toolbar" aria-label="Wstawianie do planu">
-          <button type="button" className={picker === 'cite' ? 'is-on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => setPicker(picker === 'cite' ? null : 'cite')}>Źródło…</button>
-          <button type="button" className={picker === 'embed' ? 'is-on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => setPicker(picker === 'embed' ? null : 'embed')}>Cytat z biblioteki…</button>
+        <div className="lib-tools" role="toolbar" aria-label={t('scriptorium.plan.toolbar')}>
+          <button type="button" className={picker === 'cite' ? 'is-on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => setPicker(picker === 'cite' ? null : 'cite')}>{t('scriptorium.plan.source')}</button>
+          <button type="button" className={picker === 'embed' ? 'is-on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => setPicker(picker === 'embed' ? null : 'embed')}>{t('scriptorium.plan.quote')}</button>
           {/* 2026-10-22 (Schritt 11) — ein Słowo verlinken, einen Widok als eigenen Punkt einbetten (er lebt mit der Baza). */}
-          <button type="button" className={picker === 'base' ? 'is-on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => setPicker(picker === 'base' ? null : 'base')}>Z bazy wiedzy…</button>
+          <button type="button" className={picker === 'base' ? 'is-on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => setPicker(picker === 'base' ? null : 'base')}>{t('scriptorium.plan.fromBase')}</button>
           {index >= 0 && (
             <>
-              <button type="button" title="Wyżej w hierarchii (Shift+Tab)" aria-label="Poziom wyżej" onMouseDown={(e) => e.preventDefault()} onClick={() => shift(index, -1)}>←</button>
-              <button type="button" title="Głębiej (Tab)" aria-label="Poziom głębiej" onMouseDown={(e) => e.preventDefault()} onClick={() => shift(index, 1)}>→</button>
-              <button type="button" title="Przesuń w górę (Alt+↑)" aria-label="Przesuń w górę" onMouseDown={(e) => e.preventDefault()} onClick={() => move(index, -1)}>↑</button>
-              <button type="button" title="Przesuń w dół (Alt+↓)" aria-label="Przesuń w dół" onMouseDown={(e) => e.preventDefault()} onClick={() => move(index, 1)}>↓</button>
-              <button type="button" title="Usuń punkt" aria-label="Usuń punkt" onMouseDown={(e) => e.preventDefault()} onClick={() => remove(index)}>×</button>
+              <button type="button" title={t('scriptorium.plan.upTitle')} aria-label={t('scriptorium.plan.up')} onMouseDown={(e) => e.preventDefault()} onClick={() => shift(index, -1)}>←</button>
+              <button type="button" title={t('scriptorium.plan.downTitle')} aria-label={t('scriptorium.plan.down')} onMouseDown={(e) => e.preventDefault()} onClick={() => shift(index, 1)}>→</button>
+              <button type="button" title={t('scriptorium.plan.moveUpTitle')} aria-label={t('scriptorium.plan.moveUp')} onMouseDown={(e) => e.preventDefault()} onClick={() => move(index, -1)}>↑</button>
+              <button type="button" title={t('scriptorium.plan.moveDownTitle')} aria-label={t('scriptorium.plan.moveDown')} onMouseDown={(e) => e.preventDefault()} onClick={() => move(index, 1)}>↓</button>
+              <button type="button" title={t('scriptorium.plan.remove')} aria-label={t('scriptorium.plan.remove')} onMouseDown={(e) => e.preventDefault()} onClick={() => remove(index)}>×</button>
             </>
           )}
         </div>
@@ -263,8 +266,8 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
 
       {points.length === 0 ? (
         <div className="lib-plan-empty">
-          <p>Plan to główne myśli po kolei, a pod każdą — cytaty, przykłady, pytania, zastosowania. Z niego mówisz; na stronie słuchacz widzi drogę kazania, a każde wygłoszenie pokazuje, co z niej padło.</p>
-          {!readOnly && <button type="button" className="wk-btn" onClick={() => insertAt(0, [{ text: '', depth: 0, kind: 'thought', note: '' }])}>+ Pierwsza myśl</button>}
+          <p>{t('scriptorium.plan.emptyLead')}</p>
+          {!readOnly && <button type="button" className="wk-btn" onClick={() => insertAt(0, [{ text: '', depth: 0, kind: 'thought', note: '' }])}>{t('scriptorium.plan.first')}</button>}
         </div>
       ) : (
         <ol className="lib-plan-edit-list">
@@ -274,7 +277,7 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
             return (
               <li key={p.id} className={`lib-plan-edit-row is-d${p.depth}${focused === p.id ? ' is-focus' : ''}`}>
                 <span className="lib-point-no">{numbers.get(p.id)}</span>
-                <select className="lib-plan-kind" value={p.kind} disabled={readOnly} aria-label="Rodzaj punktu" onChange={(e) => update(p.id, { kind: e.target.value as PlanPoint['kind'] })}>
+                <select className="lib-plan-kind" value={p.kind} disabled={readOnly} aria-label={t('scriptorium.plan.kind')} onChange={(e) => update(p.id, { kind: e.target.value as PlanPoint['kind'] })}>
                   {POINT_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
                 </select>
                 <div className="lib-plan-edit-body">
@@ -286,7 +289,7 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
                     onKey={(e) => onKey(e, at)}
                   />
                   {quoteEntry !== undefined && quoteEntry.kind === 'quote' && <QuoteFigure entry={quoteEntry} look={store} full={false} />}
-                  {quote !== null && quoteEntry === undefined && <p className="lib-missing">Nie ma w bibliotece cytatu „{quote}”.</p>}
+                  {quote !== null && quoteEntry === undefined && <p className="lib-missing">{t('scriptorium.plan.missingQuote', { key: quote })}</p>}
                 </div>
               </li>
             );
@@ -296,19 +299,19 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
 
       {!readOnly && points.length > 0 && (
         <div className="wk-actions">
-          <button type="button" className="wk-link-btn" onClick={() => insertAt(points.length, [{ text: '', depth: 0, kind: 'thought', note: '' }])}>+ Myśl</button>
-          <span className="lib-plan-keys">Enter — nowy punkt · Tab / Shift+Tab — głębiej / wyżej · Alt+↑↓ — przesuń · Esc — wyjdź z punktu</span>
+          <button type="button" className="wk-link-btn" onClick={() => insertAt(points.length, [{ text: '', depth: 0, kind: 'thought', note: '' }])}>{t('scriptorium.plan.add')}</button>
+          <span className="lib-plan-keys">{t('scriptorium.plan.keys')}</span>
         </div>
       )}
 
       {!readOnly && (
         <details className="wk-fold" open={points.length === 0}>
-          <summary>Wklej gotowy plan</summary>
-          <textarea className="lib-plan-paste" rows={6} value={paste} placeholder={'1. Pierwsza myśl\n   a) przykład\n   > cytat\n2. Druga myśl\n   - pytanie?'} onChange={(e) => setPaste(e.target.value)} />
+          <summary>{t('scriptorium.plan.paste')}</summary>
+          <textarea className="lib-plan-paste" rows={6} value={paste} placeholder={t('scriptorium.plan.pastePlaceholder')} onChange={(e) => setPaste(e.target.value)} />
           {pasted.length > 0 && (
             <div className="wk-actions">
               <button type="button" className="wk-btn" onClick={() => { insertAt(index < 0 ? points.length : index + 1, pasted.map((p) => ({ ...p, note: '' }))); setPaste(''); }}>
-                Dodaj {pasted.length} {pasted.length === 1 ? 'punkt' : pasted.length < 5 ? 'punkty' : 'punktów'}
+                {t('scriptorium.plan.addPasted', { count: pasted.length })}
               </button>
             </div>
           )}
@@ -317,8 +320,8 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
 
       {!readOnly && str(data, 'body').trim() !== '' && (
         <JsonPanel
-          summary="Plan z treści — przez AI we własnym czacie"
-          lead={<>Skopiuj polecenie (z treścią tekstu), wklej je w swoim czacie, a odpowiedź — JSON — wklej tutaj. Plan trafi do tego formularza{points.length > 0 ? ' i zastąpi obecny' : ''}.</>}
+          summary={t('scriptorium.plan.ai.summary')}
+          lead={points.length > 0 ? t('scriptorium.plan.ai.leadReplace') : t('scriptorium.plan.ai.lead')}
           fileName={`plan-${text.key ?? text.id.slice(0, 8)}.json`}
           exportDoc={() => exportScriptorium('plan', [{ ...text, data: { plan: points.map(pointData) } }], store)}
           description={() => planPrompt(text)}
@@ -326,14 +329,14 @@ export function PlanEditor({ store, text, data, set, readOnly }: {
             const found = patchFromDoc(doc, { id: text.id, kind: 'text' }, store, SCRIPTORIUM_SPEC);
             if ('error' in found) return found;
             const plan = planOf({ plan: found.patch.plan });
-            return plan.length === 0 ? { error: 'W odpowiedzi nie ma planu ("plan").' } : { lines: [`Plan: ${plan.length} punktów, ${plan.filter((p) => p.depth === 0).length} głównych myśli.`], warnings: found.warnings };
+            return plan.length === 0 ? { error: t('scriptorium.plan.ai.noPlan') } : { lines: [t('scriptorium.plan.ai.found', { count: plan.length, main: plan.filter((p) => p.depth === 0).length })], warnings: found.warnings };
           }}
-          importLabel="Wpisz plan do formularza"
+          importLabel={t('scriptorium.plan.ai.import')}
           onImport={async (doc) => {
             const found = patchFromDoc(doc, { id: text.id, kind: 'text' }, store, SCRIPTORIUM_SPEC);
             if ('error' in found) throw new Error(found.error);
             set({ plan: found.patch.plan ?? [] });
-            return { lines: ['Plan jest w formularzu — zapisze się sam.'], warnings: found.warnings };
+            return { lines: [t('scriptorium.plan.ai.imported')], warnings: found.warnings };
           }}
         />
       )}

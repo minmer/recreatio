@@ -1,0 +1,44 @@
+{
+  "deck": {
+    "start": "Start",
+    "personal": "Twoje sprawy",
+    "nav": "Slajdy",
+    "prev": "Poprzedni slajd",
+    "next": "Następny slajd"
+  },
+  "legacy": {
+    "instead": {
+      "form": "formularz zgłoszeń — dodaj moduł „Formularz” i ułóż w nim pytania",
+      "registration": "własne zgłoszenie — moduł „Twoje zgłoszenie” (za linkiem osobistym)",
+      "card": "karta uczestnika — pytania w module „Formularz”, zgody w jego ustawieniach",
+      "roster": "lista uczestników — zgłoszenia formularza w Warsztacie",
+      "checklist": "lista spraw — moduł „Kroki” (za linkiem osobistym)",
+      "topics": "tematy do rozmowy — moduł „Rozmowa”",
+      "meme": "memy — tego jeszcze nie ma w nowym systemie"
+    },
+    "parts": "Części",
+    "page": "Strona {n}",
+    "internal": "{name} (wewnętrzna)",
+    "unknownKind": "nieznany rodzaj „{kind}”",
+    "hidden": "„{label}” było ukryte — przeniesione, sprawdź, czy ma być widoczne.",
+    "skipped": "Część {n} „{label}” pominięta: {why}."
+  },
+  "transition": {
+    "scroll": "Przewinięcie — wjeżdża od dołu, jak kartka (zwykłe)",
+    "flow": "Przepływ — jedzie w górę razem z przewijaniem i przenika się z poprzednim",
+    "fade": "Przenikanie — poprzedni stoi, ten pojawia się na nim",
+    "cover": "Nakrycie — ten wjeżdża na poprzedni, który stoi i przygasa",
+    "reveal": "Odsłonięcie — poprzedni odjeżdża w górę i odsłania ten",
+    "zoom": "Przybliżenie — poprzedni rośnie i znika, ten wyłania się z głębi",
+    "side": "Z boku — ten wjeżdża z prawej, poprzedni odsuwa się w lewo",
+    "dissolve": "Rozmycie — poprzedni gaśnie, rozmywa się i opada, ten wyostrza się, unosząc (jak pokaz Cogita)"
+  },
+  "enter": {
+    "none": "Bez efektu",
+    "rise": "Wynurza się z dołu",
+    "fade": "Rozjaśnia się",
+    "zoom": "Przybliża się",
+    "left": "Wsuwa się z lewej",
+    "right": "Wsuwa się z prawej"
+  }
+}

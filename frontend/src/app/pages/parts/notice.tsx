@@ -7,6 +7,7 @@
  * passen — eine Ankündigung, die eine halbe Seite einnimmt, ist keine mehr.
  */
 
+import { t } from '../../core/i18n';
 import { definePart, text, type RawConfig } from '../part';
 
 interface Config {
@@ -19,13 +20,13 @@ export const noticePart = definePart<Config>({
   kind: 'notice',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { body: 'W tę niedzielę msza o 11:00 wyjątkowo w kaplicy.' },
-  label: 'Ogłoszenie',
-  use: 'Jedno zdanie, które ma rzucać się w oczy.',
+  example: { body: 'W tę niedzielę msza o 11:00 wyjątkowo w kaplicy.' }, // i18n-ignore
+  label: 'moduleContent.notice.label',
+  use: 'moduleContent.notice.use',
   box: { colSpan: 2, rowSpan: 1 },
 
   fields: [
-    { key: 'body', label: 'Treść', kind: 'text', hint: 'Krótko — to ma rzucać się w oczy' }
+    { key: 'body', label: 'moduleContent.notice.body', kind: 'text', hint: 'moduleContent.notice.bodyHint' }
   ],
 
   read,
@@ -39,9 +40,9 @@ export const noticePart = definePart<Config>({
    */
   shows: (_config, size) =>
     size.height === 'strip'
-      ? (size.width === 'full' ? 'Zdanie jako pas przez całą stronę.' : 'Zdanie w jednym wierszu, wyróżnione kreską.')
-      : size.height === 'block' ? 'Zdanie większą czcionką.'
-      : 'Zdanie jak plakat — duża czcionka, na środku.',
+      ? (size.width === 'full' ? t('moduleContent.notice.showsBand') : t('moduleContent.notice.showsLine'))
+      : size.height === 'block' ? t('moduleContent.notice.showsBlock')
+      : t('moduleContent.notice.showsTall'),
 
   View: ({ config }) => <p className="wk-card-notice">{config.body}</p>
 });

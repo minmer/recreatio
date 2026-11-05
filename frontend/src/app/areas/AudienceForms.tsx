@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 
 import { linkAudienceForm, othersWrite, type AudienceForm, type AudienceMode } from './audience';
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 import { loadModules, type ModuleRow } from '../modules/module';
 import { WorkspaceError } from '../core/session';
 import { askText } from '../ui/dialogs';
@@ -31,6 +31,7 @@ export function AudienceForms({ kind, subjectId, mode, forms, byRoleId, what, on
   what: string;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [modules, setModules] = useState<readonly ModuleRow[] | null>(null);
   const [pick, setPick] = useState('');
   const [busy, setBusy] = useState(false);
@@ -53,7 +54,7 @@ export function AudienceForms({ kind, subjectId, mode, forms, byRoleId, what, on
       setPick('');
       onChanged();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally {
       setBusy(false);
     }
@@ -61,12 +62,12 @@ export function AudienceForms({ kind, subjectId, mode, forms, byRoleId, what, on
 
   return (
     <>
-      <h2 className="wk-h2">Formularze ({forms.length})</h2>
+      <h2 className="wk-h2">{t('areas.audience.forms', { count: forms.length })}</h2>
       <p className="wk-hint">
         {mode === 'one'
-          ? <>Kto wypełnił dołączony formularz, może tu zacząć rozmowę — ze swojego linku, bez konta. Widzi ją tylko on i odpowiadający.</>
-          : <>Kto wypełnił dołączony formularz, {othersWrite(mode) ? 'czyta i pisze w' : 'czyta'} {what} — ze swojego linku, bez konta.</>}
-        {' '}Nie liczą się zgłoszenia wycofane ani ukryte na liście.
+          ? t('areas.audience.hintOne')
+          : t(othersWrite(mode) ? 'areas.audience.hintWrite' : 'areas.audience.hintRead', { what })}
+        {' '}{t('areas.audience.hintNotCounted')}
       </p>
 
       {forms.length > 0 && (
@@ -76,16 +77,16 @@ export function AudienceForms({ kind, subjectId, mode, forms, byRoleId, what, on
               <span>
                 <strong>{f.name}</strong>
                 <span className="wk-row-side">
-                  {f.areaName !== null ? ` · ${f.areaName}` : ''} · {f.people} {plural(f.people, 'osoba', 'osoby', 'osób')} z linkiem
+                  {f.areaName !== null ? ` · ${f.areaName}` : ''} · {t('areas.audience.people', { count: f.people })}
                 </span>
               </span>
               {byRoleId !== null && (
                 <button type="button" className="wk-link-btn wk-danger" disabled={busy}
                   onClick={async () => {
-                    if (!(await askText(`Odłączyć formularz „${f.name}"? Kto go wypełnił, przestanie widzieć ${what} (chyba że ma link do obszaru).`))) return;
+                    if (!(await askText(t('areas.audience.detachAsk', { name: f.name, what })))) return;
                     void act(f.moduleId, false);
                   }}>
-                  Odłącz
+                  {t('areas.audience.detach')}
                 </button>
               )}
             </li>
@@ -94,22 +95,22 @@ export function AudienceForms({ kind, subjectId, mode, forms, byRoleId, what, on
       )}
 
       {byRoleId === null
-        ? <p className="wk-hint">Formularze dołącza ktoś, kto ma w tym obszarze prawo zapisu.</p>
+        ? <p className="wk-hint">{t('areas.audience.needsWrite')}</p>
         : modules !== null && (offered.length === 0
-          ? <p className="wk-empty">{forms.length === 0 ? 'Nie widzisz żadnego formularza, który można dołączyć.' : 'Wszystkie Twoje formularze są już dołączone.'}</p>
+          ? <p className="wk-empty">{forms.length === 0 ? t('areas.audience.noneToAttach') : t('areas.audience.allAttached')}</p>
           : (
             <form className="wk-form" onSubmit={(e) => { e.preventDefault(); if (pick !== '') void act(pick, true); }}>
               <label className="wk-field">
-                <span>Dołącz formularz</span>
+                <span>{t('areas.audience.attachForm')}</span>
                 <select value={pick} onChange={(e) => setPick(e.target.value)} disabled={busy}>
-                  <option value="">— wybierz —</option>
+                  <option value="">{t('areas.chooseDash')}</option>
                   {offered.map((m) => (
                     <option key={m.moduleId} value={m.moduleId}>{m.name}{m.areaName !== null ? ` (${m.areaName})` : ''}</option>
                   ))}
                 </select>
               </label>
               <div className="wk-actions">
-                <button type="submit" className="wk-btn wk-btn-quiet" disabled={busy || pick === ''}>Dołącz</button>
+                <button type="submit" className="wk-btn wk-btn-quiet" disabled={busy || pick === ''}>{t('areas.audience.attach')}</button>
               </div>
             </form>
           ))}

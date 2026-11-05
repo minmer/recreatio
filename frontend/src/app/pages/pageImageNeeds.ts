@@ -23,6 +23,7 @@
  */
 
 import { FILE_ACCEPT, FILE_TYPES, IMAGE_TYPES, isAudioType, isImageType, isMediaType, isVideoType, MAX_FILE_BYTES, MAX_IMAGE_BYTES, MAX_MEDIA_BYTES, mediaAccept } from './pageImages';
+import { t } from '../core/i18n';
 
 /** So beginnt ein Platzhalter; dahinter steht der Schlüssel. */
 export const NEED_PREFIX = 'page-image:@';
@@ -108,29 +109,29 @@ export function readImageNeeds(doc: unknown): NeedsPlan | undefined {
   const warnings: string[] = [];
   const needs: ImageNeed[] = [];
   const seen = new Set<string>();
-  if (said !== undefined && said !== null && !Array.isArray(said)) warnings.push('"images" to nie lista — opisy plików pominięte.');
+  if (said !== undefined && said !== null && !Array.isArray(said)) warnings.push(t('pages.needs.notList'));
 
   (Array.isArray(said) ? said : []).forEach((raw, i) => {
     const one = record(raw);
     const key = text(one.key).trim();
     if (!KEY.test(key)) {
-      warnings.push(`Plik ${i + 1} w "images": "key" „${key}” — tylko litery, cyfry, - i _ (do 60 znaków); pominięty.`);
+      warnings.push(t('pages.needs.badKey', { n: i + 1, key }));
       return;
     }
     if (seen.has(key)) {
-      warnings.push(`„${key}” jest opisany w "images" dwa razy — liczy się pierwszy opis.`);
+      warnings.push(t('pages.needs.twice', { key }));
       return;
     }
     if (needs.length >= MAX_NEEDS) {
-      if (needs.length === MAX_NEEDS) warnings.push(`Więcej niż ${MAX_NEEDS} plików w "images" — dalsze pominięte.`);
+      if (needs.length === MAX_NEEDS) warnings.push(t('pages.needs.tooMany', { max: MAX_NEEDS }));
       return;
     }
     seen.add(key);
     const kindSaid = text(one.kind).trim().toLowerCase();
     const kind: NeedKind = (NEED_KINDS as readonly string[]).includes(kindSaid) ? kindSaid as NeedKind : 'image';
-    if (kindSaid !== '' && kind !== kindSaid) warnings.push(`„${key}”: "kind" „${kindSaid}” — dozwolone: ${NEED_KINDS.join(', ')}; będzie "image".`);
+    if (kindSaid !== '' && kind !== kindSaid) warnings.push(t('pages.needs.badKind', { key, kind: kindSaid, kinds: NEED_KINDS.join(', ') }));
     const count = uses.get(key) ?? 0;
-    if (count === 0) warnings.push(`„${key}” jest opisany w "images", ale nic go nie używa (brak "${NEED_PREFIX}${key}") — można go pominąć.`);
+    if (count === 0) warnings.push(t('pages.needs.unused', { key, ref: `${NEED_PREFIX}${key}` }));
     needs.push({
       key,
       label: text(one.label).trim() || key,
@@ -145,7 +146,7 @@ export function readImageNeeds(doc: unknown): NeedsPlan | undefined {
   for (const [key, count] of uses) {
     if (seen.has(key)) continue;
     seen.add(key);
-    warnings.push(`„${NEED_PREFIX}${key}” nie ma opisu w "images" — plik i tak można dodać.`);
+    warnings.push(t('pages.needs.undescribed', { ref: `${NEED_PREFIX}${key}` }));
     needs.push({ key, label: key, description: '', name: null, kind: 'any', uses: count, declared: false });
   }
 
@@ -212,16 +213,16 @@ export function fitsNeed(kind: NeedFit, type: string): boolean {
 export function fileProblem(kind: NeedFit, type: string | null, bytes: number): string | null {
   if (type === null || !fitsNeed(kind, type)) {
     switch (kind) {
-      case 'image': return 'To nie obraz — potrzebny JPEG, PNG, WebP, GIF albo AVIF.';
-      case 'video': return 'To nie film — potrzebny MP4 albo WebM.';
-      case 'sound': return 'To nie dźwięk — potrzebny MP3, M4A, OGG albo WAV.';
-      case 'file': return 'Tego pliku strona nie przyjmie — PDF, Word, Excel, PowerPoint, OpenDocument, GPX albo obraz.';
-      default: return 'Tego pliku strona nie przyjmie — obraz, film, dźwięk, PDF, dokument albo GPX.';
+      case 'image': return t('pages.needs.notImage');
+      case 'video': return t('pages.needs.notVideo');
+      case 'sound': return t('pages.needs.notSound');
+      case 'file': return t('pages.needs.notFile');
+      default: return t('pages.needs.notAny');
     }
   }
-  if (isImageType(type)) return bytes > MAX_IMAGE_BYTES ? 'Obraz może mieć najwyżej 8 MB.' : null;
-  if (isMediaType(type)) return bytes > MAX_MEDIA_BYTES ? 'Film albo dźwięk może mieć najwyżej 30 MB.' : null;
-  return bytes > MAX_FILE_BYTES ? 'Plik może mieć najwyżej 25 MB.' : null;
+  if (isImageType(type)) return bytes > MAX_IMAGE_BYTES ? t('pages.files.imageTooBig') : null;
+  if (isMediaType(type)) return bytes > MAX_MEDIA_BYTES ? t('pages.files.mediaTooBig') : null;
+  return bytes > MAX_FILE_BYTES ? t('pages.files.fileTooBig') : null;
 }
 
 /** Was der Dateidialog anbietet. */

@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 
 import { loadChats, type ChatRow } from './chat';
 import type { ChatTargetKind } from '../steps/steps';
+import { useT } from '../core/i18n';
 
 export interface ChatTargetDraft {
   readonly kind: ChatTargetKind;
@@ -32,6 +33,7 @@ export function PickChatTarget({ value, onPick }: {
   value: ChatTargetDraft | undefined;
   onPick: (target: ChatTargetDraft) => void;
 }) {
+  const t = useT();
   const [rows, setRows] = useState<readonly ChatRow[] | null>(null);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function PickChatTarget({ value, onPick }: {
   const areas = (kind: ChatRow['kind']) => {
     const seen = new Map<string, string>();
     for (const row of rows ?? []) if (row.kind === kind && !seen.has(row.areaId)) seen.set(row.areaId, row.areaName);
-    return [...seen].sort((a, b) => a[1].localeCompare(b[1], 'pl'));
+    return [...seen].sort((a, b) => a[1].localeCompare(b[1], t.locale));
   };
   const channels = areas('channel');
   const groups = areas('area');
@@ -56,24 +58,24 @@ export function PickChatTarget({ value, onPick }: {
 
   return (
     <select value={keyOf(chosen)} data-pick-chat-target="" onChange={(e) => onPick(fromKey(e.target.value))}>
-      <option value="all:">wszystkie rozmowy osoby</option>
-      <option value="seat:">rozmowy z prowadzącymi (jeden na jeden)</option>
-      <option value="area:">rozmowy grup (razem)</option>
-      <option value="channel:">kanały</option>
-      {!known && <option value={keyOf(chosen)}>wybrana wcześniej (obszar spoza Twojej listy)</option>}
+      <option value="all:">{t('chat.target.all')}</option>
+      <option value="seat:">{t('chat.target.seat')}</option>
+      <option value="area:">{t('chat.target.area')}</option>
+      <option value="channel:">{t('chat.target.channel')}</option>
+      {!known && <option value={keyOf(chosen)}>{t('chat.target.earlier')}</option>}
       {channels.length > 0 && (
-        <optgroup label="Kanał">
-          {channels.map(([areaId, name]) => <option key={areaId} value={`channel:${areaId}`}>Kanał „{name}"</option>)}
+        <optgroup label={t('chat.target.channelGroup')}>
+          {channels.map(([areaId, name]) => <option key={areaId} value={`channel:${areaId}`}>{t('chat.target.channelNamed', { name })}</option>)}
         </optgroup>
       )}
       {groups.length > 0 && (
-        <optgroup label="Rozmowa grupy">
-          {groups.map(([areaId, name]) => <option key={areaId} value={`area:${areaId}`}>Rozmowa grupy „{name}"</option>)}
+        <optgroup label={t('chat.target.areaGroup')}>
+          {groups.map(([areaId, name]) => <option key={areaId} value={`area:${areaId}`}>{t('chat.target.areaNamed', { name })}</option>)}
         </optgroup>
       )}
       {meetings.length > 0 && (
-        <optgroup label="Z prowadzącymi">
-          {meetings.map(([areaId, name]) => <option key={areaId} value={`seat:${areaId}`}>Z prowadzącymi „{name}"</option>)}
+        <optgroup label={t('chat.target.seatGroup')}>
+          {meetings.map(([areaId, name]) => <option key={areaId} value={`seat:${areaId}`}>{t('chat.target.seatNamed', { name })}</option>)}
         </optgroup>
       )}
     </select>

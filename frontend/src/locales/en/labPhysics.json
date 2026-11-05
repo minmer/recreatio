@@ -1,0 +1,295 @@
+{
+  "lab": {
+    "pause": "Pause",
+    "start": "Start",
+    "step": "Step (1/60 s)",
+    "restart": "Restart",
+    "speed": "Speed",
+    "speedValue": "Speed {x}×",
+    "newDraw": "New draw",
+    "fit": "Fit the view",
+    "titleSandbox": "Physics lab",
+    "titleExperiment": "Experiment",
+    "chipSandbox": "sandbox",
+    "chipExperiment": "experiment",
+    "canvas": "{title} — scene; drag bodies, move the background, two fingers zoom",
+    "description": "Description",
+    "graph": "Chart: {label}",
+    "graphAria": "Chart of values over time",
+    "presetsAndSave": "Experiments and saving",
+    "loadPreset": "Load an experiment",
+    "choose": "— choose —",
+    "save": "Save",
+    "saved": "Setup saved in this browser.",
+    "saveFailed": "The browser does not allow saving.",
+    "nothingSaved": "There is no saved setup.",
+    "loaded": "Saved setup loaded.",
+    "broken": "The saved setup is damaged.",
+    "load": "Load",
+    "json": "JSON",
+    "jsonNote": "This JSON is the scene — paste it in the module editor as “scene”, and the experiment stays on the page.",
+    "hintSandbox": "Add bodies from the list, drag them, join them with the tools. Start sets time running.",
+    "hintExperiment": "Tap a body or a tank to see its values. Start sets time running."
+  },
+  "panel": {
+    "add": "Add",
+    "tools": "Tools",
+    "selected": "Selected: {label}",
+    "mass": "Mass",
+    "fixedValue": "fixed",
+    "material": "Material",
+    "materialValue": "{name} · {density}",
+    "speed": "Speed",
+    "height": "Height",
+    "kinetic": "Kinetic energy",
+    "potential": "Potential energy",
+    "lift": "Buoyant force",
+    "trace": "trace",
+    "fixed": "fixed",
+    "materialOption": "{name} ({density} kg/m³)",
+    "angle": "Rotation",
+    "remove": "Delete",
+    "basin": "Tank",
+    "empty": "Empty.",
+    "level": "Level",
+    "bottomPressure": "Pressure at the bottom",
+    "holeOpen": "Open hole {n} ({at})",
+    "holeClose": "Plug hole {n} ({at})",
+    "pour": "+ {name}",
+    "drain": "Pour out",
+    "steps": "Experiment step by step",
+    "showing": "Showing…",
+    "show": "Show",
+    "next": "Next step",
+    "view": "View",
+    "values": "values",
+    "grid": "grid",
+    "pressure": "pressure",
+    "world": "World",
+    "air": "Air (air resistance)",
+    "gravity": "Gravity",
+    "gravityOption": "{name} ({g} m/s²)",
+    "gravityValue": "{g} m/s²"
+  },
+  "palette": {
+    "ball": "Ball",
+    "box": "Block",
+    "plank": "Plank",
+    "wedge": "Wedge",
+    "ramp": "Ramp",
+    "wall": "Wall",
+    "pendulum": "Pendulum",
+    "spring": "Spring",
+    "pulley": "Pulley",
+    "seesaw": "Seesaw",
+    "basin": "Tank"
+  },
+  "tool": {
+    "pin": "Pin (axle)",
+    "rope": "Rope",
+    "rod": "Rod",
+    "link": "Spring",
+    "ruler": "Ruler",
+    "probe": "Pressure probe",
+    "delete": "Delete"
+  },
+  "toolSays": {
+    "pin": "Tap a body: it gets an axle at that spot (a nail in the wall).",
+    "rope": "Drag from a body to another body or to a point in the air.",
+    "rod": "Drag from a body to another body or to a point: a rigid rod.",
+    "link": "Drag from a body to another body or to a point: a spring.",
+    "ruler": "Drag to measure a distance.",
+    "probe": "Tap or drag in a liquid: the pressure at that spot.",
+    "delete": "Tap a body to delete it."
+  },
+  "vector": {
+    "v": "velocity",
+    "g": "weight",
+    "lift": "buoyancy",
+    "net": "net force"
+  },
+  "planet": {
+    "earth": "Earth",
+    "moon": "Moon",
+    "mars": "Mars",
+    "jupiter": "Jupiter",
+    "zeroG": "weightlessness"
+  },
+  "material": {
+    "wood": "wood",
+    "oak": "oak",
+    "cork": "cork",
+    "steel": "steel",
+    "aluminium": "aluminium",
+    "lead": "lead",
+    "gold": "gold",
+    "rubber": "rubber",
+    "ice": "ice",
+    "stone": "stone",
+    "plastic": "plastic",
+    "glass": "glass",
+    "paper": "sheet of paper",
+    "foam": "polystyrene foam",
+    "ball": "ball",
+    "egg": "egg"
+  },
+  "scene": {
+    "goalDefault": "You did it!",
+    "wall": "wall",
+    "ground": "ground"
+  },
+  "draw": {
+    "probe": "p = {p}",
+    "probeDepth": "p = {p} · depth {d} m",
+    "vecWeight": "W",
+    "vecLift": "Fb"
+  },
+  "ai": {
+    "format": "Scene of the 2D physics lab (module “Physics lab”) — JSON. The engine is ready (rigid bodies, collisions, friction, bounces, hinges, ropes, rods, springs, pulleys, liquids with pressure and buoyancy); the scene only says WHAT stands in it.\nUnits: metres, kilograms, seconds; y grows upwards, the ground at y = 0. Every number may be an expression \"=…\" with values drawn in \"vars\" (e.g. \"=4*tan(rad(kat))\").\n\n\"world\": { \"gravity\": 9.81, \"air\": 1 (air resistance, 0 — vacuum), \"depth\": 0.1 (thickness of the bodies — gives their mass), \"ground\": true, \"speed\": 1 }\n\"vars\": [{ \"name\": \"kat\", \"from\": 15, \"to\": 40, \"step\": 5 }] or { \"name\": \"ciecz\", \"pick\": [\"water\", \"oil\"] } — different every time; in texts \"{kat}\"\n\"bodies\": [{ \"id\", \"label\", \"shape\": \"circle\" (r) | \"box\" (w, h) | \"poly\" (points [[x,y],…], convex), \"x\", \"y\", \"angle\" (degrees), \"material\", \"density\", \"friction\", \"bounce\", \"static\": true (fixed), \"vx\", \"vy\", \"spin\", \"drag\": false (cannot be grabbed), \"trace\": true (trace), \"color\" }]\n  materials: {materials}\n\"joints\": [{ \"type\": \"pin\" (axle at the point \"at\"; with \"torque\" and \"speed\" — a motor) | \"rod\" | \"rope\" | \"spring\" (\"k\" N/m, \"damping\") | \"pulley\" (\"a\", \"b\", wheels at \"at\" and \"at2\"), \"a\": id, \"b\": id (omitted — attached to the world), \"on\": [x, y] (point on \"a\", relative to its centre), \"at\": [x, y] (point in the world or on \"b\"), \"length\" }]\n\"fluids\": [{ \"id\", \"x\", \"y\" (lower left corner of the inside), \"w\", \"h\", \"wall\", \"layers\": [{ \"liquid\", \"height\" }] (from the bottom; lighter ones rise by themselves), \"holes\": [{ \"side\": \"left\"|\"right\"|\"bottom\", \"at\" (height above the bottom), \"size\", \"open\" }] }] — liquids: {liquids}\n\"pipes\": [{ \"a\", \"b\", \"y\", \"size\", \"open\" }] — a pipe joining two tanks (communicating vessels)\n\"show\": { \"vectors\": [{vectors}] (v — velocity, g — weight, lift — buoyancy, net — net force), \"trace\": [id], \"grid\", \"pressure\" (pressure as a colour of depth), \"values\" (masses, forces) }\n\"graph\": { \"body\": id, \"of\": [{graph}] } — a chart over time (h height, v speed, ek/ep/e energies)\n\"allow\": { \"add\": false, \"palette\": [{palette}], \"tools\": [{tools}], \"edit\", \"drag\" }\n\"controls\": [{controls}] — world switches in the panel\n\"goal\": { \"body\": id, \"area\": [x0, y0, x1, y1], \"for\": 0.5, \"say\": \"You did it!\" } — a goal (e.g. the ball in the basket)\n\"steps\": [{ \"say\": \"…\", \"do\": \"play\" | \"pause\" | { \"open\": tankId, \"hole\": 0 } | { \"push\": id, \"vx\": 2, \"vy\": 0 }, \"wait\": 3 }] — steps; “Show” performs them in order\n\"view\": [x0, y0, x1, y1] — what is visible at the start",
+    "prompt": "Prepare a JSON scene for the “Physics lab” module in REcreatio (a school physics experiment in 2D).\nTopic: [describe the experiment, e.g. “free fall on the Moon and on Earth”].\nRules: real dimensions and materials; students should do something (run, drag, measure); one phenomenon per scene; labels in English; where it makes sense — values drawn in \"vars\".\nReturn ONE JSON object (just the scene). Without comments.",
+    "example": "Example:"
+  },
+  "preset": {
+    "fall": {
+      "title": "Free fall — with air and without",
+      "summary": "A steel ball, a sheet of paper and a ball fall from the same height — what does the air change?",
+      "text": "Three bodies fall from a height of 4 m. Run it and watch the traces: which one falls slowest?\nTurn off “Air” in the world settings and repeat (Restart). Without air resistance they all fall the same way — the acceleration is g.\nThe chart shows the height and speed of the ball: the speed grows evenly (v = g·t).",
+      "label": {
+        "kulka": "steel ball",
+        "kartka": "sheet of paper",
+        "pilka": "beach ball"
+      },
+      "step1": "Let go of all three bodies at once.",
+      "step2": "Turn off “Air” and restart — compare the traces."
+    },
+    "slope": {
+      "title": "Inclined plane and friction",
+      "summary": "A wooden block and an ice cube on a slope at a random angle: which one slides down?",
+      "text": "The angle of the slope is different every time. Predict first: will the wooden block slide? And the ice?\nA block slides when tan α is larger than the coefficient of friction (wood on wood: µ ≈ 0.5, i.e. α > 27°; ice: µ ≈ 0.1).\nThe arrows show the velocity. “New draw” changes the angle.",
+      "label": {
+        "rownia": "slope",
+        "drewno": "wood",
+        "lod": "ice"
+      },
+      "step1": "Predict, then run."
+    },
+    "pendulum": {
+      "title": "Pendulum and conservation of energy",
+      "summary": "A pendulum of random length: the period T = 2π√(L/g) and energy flowing from potential into kinetic.",
+      "text": "Run it and watch the chart: potential energy (Ep) turns into kinetic energy (Ek), and the sum (E) stays.\nMeasure the period: how many seconds does one full swing take? Compare with T = 2π√(L/g) — measure the length with the ruler.\nGrab the ball and let go from another height.",
+      "label": {
+        "kulka": "ball"
+      },
+      "step1": "Let go of the ball."
+    },
+    "spring": {
+      "title": "Oscillation on a spring",
+      "summary": "A weight on a spring of random stiffness: the period T = 2π√(m/k).",
+      "text": "The spring has a different stiffness k every time. Pull the weight down and let go.\nThe height chart is a sine wave. The period depends on the mass and the stiffness: T = 2π√(m/k) — not on how hard you pull.",
+      "label": {
+        "ciezarek": "weight"
+      },
+      "step1": "Pull the weight down and let go."
+    },
+    "collisions": {
+      "title": "Collisions on an air table",
+      "summary": "Pucks without friction: the momentum before the collision equals the momentum after.",
+      "text": "A table seen from above — without gravity and without friction. The large (steel) puck hits the small one.\nPush the pucks (drag and let go). The arrows are velocities. The sum of m·v before and after the collision is the same.",
+      "label": {
+        "duzy": "steel puck",
+        "maly": "aluminium puck",
+        "trzeci": "rubber puck"
+      },
+      "step1": "Run: the steel puck will hit the aluminium one."
+    },
+    "cradle": {
+      "title": "Newton’s cradle",
+      "summary": "Five steel balls on rods: one strikes, one bounces off.",
+      "text": "Pull back the outer ball and let go. Momentum and energy pass through all the balls — the one on the other side bounces off.\nTry with two balls at once.",
+      "label": {
+        "ball": "ball {n}"
+      },
+      "step1": "Let go of the ball."
+    },
+    "throw": {
+      "title": "Throw into the basket",
+      "summary": "Throw the ball (drag and let go) so that it lands in the basket — the path is a parabola.",
+      "text": "Grab the ball, swing it with your finger and let go. The trace shows the flight path — a parabola.\nThe basket stands somewhere else every time.",
+      "label": {
+        "pilka": "ball"
+      },
+      "goal": "Basket! The ball’s path is a parabola: uniform motion horizontally and uniformly accelerated motion vertically."
+    },
+    "atwood": {
+      "title": "Atwood machine",
+      "summary": "Two weights on a rope over a pulley: a = g·(m₁ − m₂)/(m₁ + m₂).",
+      "text": "The heavier weight goes down, the lighter one goes up — with an acceleration smaller than g.\nMeasure the time of a one-metre drop (ruler) and compare with the formula.",
+      "label": {
+        "m1": "weight 10 kg",
+        "m2": "weight {m2} kg"
+      },
+      "step1": "Let go of the weights."
+    },
+    "lever": {
+      "title": "Lever — a seesaw",
+      "summary": "Balance the seesaw: mass × arm on both sides.",
+      "text": "A 2 kg and a 4 kg weight lie on the seesaw. Move them so that the seesaw stands level.\nCondition for balance: m₁·r₁ = m₂·r₂ (moment of force).",
+      "label": {
+        "deska": "plank"
+      }
+    },
+    "floating": {
+      "title": "Floating bodies",
+      "summary": "Cork, wood, ice, plastic, aluminium and steel in water — which float, and how deep do they sink?",
+      "text": "Run: the blocks fall into the water. Whatever has a lower density than water (1000 kg/m³) floats.\nA floating body sinks until it displaces as much water as it weighs itself: submerged part = density of the body / density of water (ice: 92 %).\nArrows: weight (W) and buoyant force (Fb).",
+      "label": {
+        "korek": "cork",
+        "drewno": "wood",
+        "lod": "ice",
+        "plastik": "plastic",
+        "aluminium": "aluminium",
+        "stal": "steel"
+      },
+      "step1": "Drop the blocks into the water."
+    },
+    "archimedes": {
+      "title": "Archimedes’ principle",
+      "summary": "An overflow vessel: the water displaced by the block overflows into a beaker, and the spring scale shows less.",
+      "text": "The block hangs on a spring (a spring scale). Dip it into the overflow vessel (grab it and lower it).\nThe water the block displaces flows out into the beaker next to it. The force on the spring drops by exactly the weight of that water — that is the buoyant force.",
+      "label": {
+        "klocek": "aluminium"
+      },
+      "step1": "Grab the block and dip it into the water."
+    },
+    "pressure": {
+      "title": "Hydrostatic pressure",
+      "summary": "A tall tank with three holes: the deeper, the greater the pressure and the farther the jet.",
+      "text": "Open the holes (click the tank, then “Open”). The jet from the lowest hole spurts the farthest.\nPressure grows with depth: p = p₀ + ρ·g·h. Outflow speed: v = √(2·g·h) (Torricelli). Measure the pressure with the probe.",
+      "step1": "Open the lowest hole.",
+      "step2": "Open the middle one.",
+      "step3": "Open the highest one — compare the jets."
+    },
+    "vessels": {
+      "title": "Communicating vessels",
+      "summary": "Three vessels of different widths joined by a pipe — the water levels out.",
+      "text": "There is water only in the middle vessel, and the pipes are open. Run it: the levels even out, although the vessels have different widths.\nThe pressure at the bottom depends only on the height of the water column, not on the shape of the vessel.",
+      "step1": "Run it — the water will flow through the pipes."
+    },
+    "uTube": {
+      "title": "U-tube with oil and water",
+      "summary": "Oil is lighter than water: the oil column is taller than the water on the other side.",
+      "text": "The tube holds water, and the left arm also oil. The levels are not equal!\nAt the height of the boundary the pressures are equal: ρ_oil·h_oil = ρ_water·h_water.",
+      "step1": "Run it and wait until the levels settle."
+    },
+    "egg": {
+      "title": "An egg in fresh and salt water",
+      "summary": "An egg sinks in ordinary water and floats in salt water — the density of the liquid matters.",
+      "text": "Two eggs fall into two tanks: one with tap water and one with heavily salted water.\nThe density of an egg (about 1035 kg/m³) is greater than that of water but smaller than that of brine (1100 kg/m³).",
+      "label": {
+        "jajko1": "egg",
+        "jajko2": "egg"
+      },
+      "step1": "Drop the eggs in."
+    }
+  }
+}

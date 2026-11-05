@@ -11,7 +11,8 @@
  * stellt sie in Szenen. Geladen nur im Editor.
  */
 
-import { BALANCE, GEARS } from './liveWorlds';
+import { t } from '../../core/i18n';
+import { BALANCE, GEARS, lazyExample } from './liveWorlds';
 
 export interface LiveExample {
   readonly key: string;
@@ -20,21 +21,20 @@ export interface LiveExample {
   readonly drawing: Readonly<Record<string, unknown>>;
 }
 
-const g = { name: 'g', value: 9.81, unit: 'm/s²', label: 'Grawitacja' };
+const g = () => ({ name: 'g', value: 9.81, unit: 'm/s²', label: t('pageMotionExamples.gravity') });
 
 /** Rzut ukośny — trafić do celu; kierunek ustawia się też grotem strzałki. */
-const PROJECTILE: LiveExample = {
-  key: 'rzut',
-  title: 'Rzut ukośny',
-  says: 'Kąt i prędkość, krótki celownik, ślad lotu, cel do przeciągania; trafienie to cel zadania.',
+const PROJECTILE = lazyExample('rzut', () => ({
+  title: t('pageMotionExamples.projectile.title'),
+  says: t('pageMotionExamples.projectile.says'),
   drawing: {
-    alt: 'Rzut ukośny: kąt i prędkość decydują, gdzie spadnie piłka',
+    alt: t('pageMotionExamples.projectile.alt'),
     size: [400, 250],
     vars: [
-      { name: 'kat', value: 40, min: 5, max: 85, step: 1, unit: '°', label: 'Kąt' },
-      { name: 'v0', value: 10, min: 4, max: 14, step: 0.5, unit: 'm/s', label: 'Prędkość' },
-      { name: 'cel', value: 13, min: 4, max: 19, step: 0.5, unit: 'm', label: 'Cel', random: [6, 18] },
-      g
+      { name: 'kat', value: 40, min: 5, max: 85, step: 1, unit: '°', label: t('pageMotionExamples.projectile.angle') },
+      { name: 'v0', value: 10, min: 4, max: 14, step: 0.5, unit: 'm/s', label: t('pageMotionExamples.ui.speed') },
+      { name: 'cel', value: 13, min: 4, max: 19, step: 0.5, unit: 'm', label: t('pageMotionExamples.projectile.target'), random: [6, 18] },
+      g()
     ],
     let: [
       { name: 'vx0', value: 'v0*cos(rad(kat))' },
@@ -55,13 +55,13 @@ const PROJECTILE: LiveExample = {
     controls: [
       { type: 'slider', var: 'kat' },
       { type: 'slider', var: 'v0' },
-      { type: 'button', label: 'Rzuć', do: 'run' },
-      { type: 'button', label: 'Od nowa', do: 'reset' }
+      { type: 'button', label: t('pageMotionExamples.projectile.throw'), do: 'run' },
+      { type: 'button', label: t('pageMotionExamples.ui.again'), do: 'reset' }
     ],
     rules: [
-      { when: 't > 0 && y <= 0 && abs(x - cel) <= 0.6', say: 'Trafione! {fmt(kat, 0)}° i {fmt(v0, 1)} m/s dają {fmt(zasieg, 1)} m.', mood: 'ok', goal: true },
-      { when: 't > 0 && y <= 0 && x < cel - 0.6', say: 'Za krótko o {fmt(cel - x, 1)} m. Najdalej leci się pod kątem 45°.', mood: 'miss' },
-      { when: 't > 0 && y <= 0 && x > cel + 0.6', say: 'Za daleko o {fmt(x - cel, 1)} m.', mood: 'miss' }
+      { when: 't > 0 && y <= 0 && abs(x - cel) <= 0.6', say: t('pageMotionExamples.projectile.hit'), mood: 'ok', goal: true },
+      { when: 't > 0 && y <= 0 && x < cel - 0.6', say: t('pageMotionExamples.projectile.short'), mood: 'miss' },
+      { when: 't > 0 && y <= 0 && x > cel + 0.6', say: t('pageMotionExamples.projectile.far'), mood: 'miss' }
     ],
     elements: [
       {
@@ -71,32 +71,31 @@ const PROJECTILE: LiveExample = {
           { type: 'trace', fx: 'x', fy: 'y', keep: 400, every: 0.02, stroke: 'accent', width: 2 },
           { type: 'line', x: '=cel', y: 0, x2: '=cel', y2: 1.6, stroke: 'ok', width: 1.5 },
           { type: 'poly', points: [['=cel', 1.6], ['=cel + 0.9', 1.38], ['=cel', 1.15]], closed: true, fill: 'ok' },
-          { type: 'rect', x: '=cel - 0.6', y: 0, w: 1.2, h: 0.3, fill: 'ok/70', drag: { x: 'cel', label: 'Cel — przeciągnij w bok' } },
+          { type: 'rect', x: '=cel - 0.6', y: 0, w: 1.2, h: 0.3, fill: 'ok/70', drag: { x: 'cel', label: t('pageMotionExamples.projectile.dragTarget') } },
           {
             type: 'arrow', x: 0, y: 0, x2: '=vx0*0.22', y2: '=vy0*0.22', head: 9, stroke: 'ink', width: 2, show: 't == 0',
-            drag: { set: { kat: 'deg(atan2(py, px))', v0: 'hypot(px, py)/0.22' }, label: 'Kierunek i prędkość — przeciągnij grot' }
+            drag: { set: { kat: 'deg(atan2(py, px))', v0: 'hypot(px, py)/0.22' }, label: t('pageMotionExamples.projectile.dragArrow') }
           },
           { type: 'circle', x: '=x', y: '=y', r: 6, fill: 'accent' }
         ]
       },
-      { type: 'text', x: 214, y: 244, text: 'kąt {fmt(kat, 0)}° · prędkość {fmt(v0, 1)} m/s', size: 10, fill: 'muted' }
+      { type: 'text', x: 214, y: 244, text: t('pageMotionExamples.projectile.caption'), size: 10, fill: 'muted' }
     ]
   }
-};
+}));
 
 /** Wahadło — okres zależy od długości i grawitacji, prawie nie od wychylenia. */
-const PENDULUM: LiveExample = {
-  key: 'wahadlo',
-  title: 'Wahadło',
-  says: 'Ciężarek do przeciągania (wychylenie i długość), Ziemia / Mars / Księżyc, okres ze wzoru i ślad.',
+const PENDULUM = lazyExample('wahadlo', () => ({
+  title: t('pageMotionExamples.pendulum.title'),
+  says: t('pageMotionExamples.pendulum.says'),
   drawing: {
-    alt: 'Wahadło: okres zależy od długości i grawitacji',
+    alt: t('pageMotionExamples.pendulum.alt'),
     size: [400, 260],
     vars: [
-      { name: 'L', value: 1.6, min: 0.3, max: 2.4, step: 0.05, unit: 'm', label: 'Długość' },
-      { name: 'th0', value: 30, min: -75, max: 75, step: 1, unit: '°', label: 'Wychylenie' },
-      { ...g },
-      { name: 'tl', value: 0.05, min: 0, max: 1, step: 0.05, unit: '1/s', label: 'Opór powietrza' }
+      { name: 'L', value: 1.6, min: 0.3, max: 2.4, step: 0.05, unit: 'm', label: t('pageMotionExamples.ui.length') },
+      { name: 'th0', value: 30, min: -75, max: 75, step: 1, unit: '°', label: t('pageMotionExamples.ui.deflection') },
+      { ...g() },
+      { name: 'tl', value: 0.05, min: 0, max: 1, step: 0.05, unit: '1/s', label: t('pageMotionExamples.pendulum.drag') }
     ],
     let: [
       { name: 'T', value: '2*pi*sqrt(L/g)' },
@@ -114,9 +113,9 @@ const PENDULUM: LiveExample = {
     },
     controls: [
       { type: 'slider', var: 'L' },
-      { type: 'choice', var: 'g', label: 'Gdzie', options: [{ value: 9.81, label: 'Ziemia' }, { value: 3.71, label: 'Mars' }, { value: 1.62, label: 'Księżyc' }] },
+      { type: 'choice', var: 'g', label: t('pageMotionExamples.pendulum.where'), options: [{ value: 9.81, label: t('pageMotionExamples.pendulum.earth') }, { value: 3.71, label: t('pageMotionExamples.pendulum.mars') }, { value: 1.62, label: t('pageMotionExamples.pendulum.moon') }] },
       { type: 'slider', var: 'tl' },
-      { type: 'readout', label: 'Okres T = 2π√(L/g)', value: 'T', unit: 's', digits: 2 }
+      { type: 'readout', label: t('pageMotionExamples.pendulum.period'), value: 'T', unit: 's', digits: 2 }
     ],
     elements: [
       {
@@ -125,32 +124,31 @@ const PENDULUM: LiveExample = {
           { type: 'rect', x: -0.5, y: 0, w: 1, h: 0.08, fill: 'muted/60' },
           { type: 'line', x: 0, y: 0, x2: 0, y2: -2.5, stroke: 'muted/40', width: 1 },
           { type: 'plot', fx: '0.4*sin(u)', fy: '-0.4*cos(u)', from: 0, to: '=th', samples: 24, stroke: 'accent/60', width: 1.5 },
-          { type: 'text', x: '=0.55*sin(th/2)', y: '=-0.55*cos(th/2)', text: '{fmt(deg(th), 0)}°', size: 11, fill: 'accent' },
+          { type: 'text', x: '=0.55*sin(th/2)', y: '=-0.55*cos(th/2)', text: '{fmt(deg(th), 0)}°', size: 11, fill: 'accent' }, // i18n-ignore
           { type: 'trace', fx: 'bx', fy: 'by', keep: 60, every: 0.03, stroke: 'accent/40', width: 2 },
           { type: 'line', x: 0, y: 0, x2: '=bx', y2: '=by', stroke: 'ink', width: 1.5 },
           {
             type: 'circle', x: '=bx', y: '=by', r: 12, fill: 'accent',
-            drag: { set: { th0: 'deg(atan2(px, -py))', L: 'hypot(px, py)' }, label: 'Ciężarek — przeciągnij' }
+            drag: { set: { th0: 'deg(atan2(px, -py))', L: 'hypot(px, py)' }, label: t('pageMotionExamples.pendulum.dragBob') }
           }
         ]
       }
     ]
   }
-};
+}));
 
 /** Sprężyna — drgania, tłumienie, wymiana energii. */
-const SPRING: LiveExample = {
-  key: 'sprezyna',
-  title: 'Drgania na sprężynie',
-  says: 'Klocek do odciągnięcia, sztywność, masa, tłumienie; wykres x(t) i słupki energii.',
+const SPRING = lazyExample('sprezyna', () => ({
+  title: t('pageMotionExamples.spring.title'),
+  says: t('pageMotionExamples.spring.says'),
   drawing: {
-    alt: 'Klocek na sprężynie: drgania i wymiana energii',
+    alt: t('pageMotionExamples.spring.alt'),
     size: [400, 300],
     vars: [
-      { name: 'k', value: 20, min: 2, max: 60, step: 1, unit: 'N/m', label: 'Sztywność k' },
-      { name: 'm', value: 0.8, min: 0.2, max: 3, step: 0.1, unit: 'kg', label: 'Masa m' },
-      { name: 'c', value: 0.3, min: 0, max: 4, step: 0.1, unit: 'kg/s', label: 'Tłumienie c' },
-      { name: 'x0', value: 0.3, min: -0.4, max: 0.4, step: 0.01, unit: 'm', label: 'Wychylenie' }
+      { name: 'k', value: 20, min: 2, max: 60, step: 1, unit: 'N/m', label: t('pageMotionExamples.spring.k') },
+      { name: 'm', value: 0.8, min: 0.2, max: 3, step: 0.1, unit: 'kg', label: t('pageMotionExamples.spring.m') },
+      { name: 'c', value: 0.3, min: 0, max: 4, step: 0.1, unit: 'kg/s', label: t('pageMotionExamples.spring.c') },
+      { name: 'x0', value: 0.3, min: -0.4, max: 0.4, step: 0.01, unit: 'm', label: t('pageMotionExamples.ui.deflection') }
     ],
     let: [
       { name: 'T', value: '2*pi*sqrt(m/k)' },
@@ -172,7 +170,7 @@ const SPRING: LiveExample = {
       { type: 'slider', var: 'k' },
       { type: 'slider', var: 'm' },
       { type: 'slider', var: 'c' },
-      { type: 'readout', label: 'Okres T = 2π√(m/k)', value: 'T', unit: 's', digits: 2 }
+      { type: 'readout', label: t('pageMotionExamples.spring.period'), value: 'T', unit: 's', digits: 2 }
     ],
     elements: [
       {
@@ -186,7 +184,7 @@ const SPRING: LiveExample = {
           },
           {
             type: 'rect', x: '=x - 0.15', y: -0.13, w: 0.3, h: 0.26, r: 4, fill: 'accent',
-            drag: { set: { x0: 'px' }, label: 'Klocek — odciągnij' }
+            drag: { set: { x0: 'px' }, label: t('pageMotionExamples.spring.dragBlock') }
           }
         ]
       },
@@ -194,7 +192,7 @@ const SPRING: LiveExample = {
         type: 'frame', x: 40, y: 140, w: 280, h: 140, view: [0, -0.45, 10, 0.45], axes: { x: 't [s]', y: 'x [m]' }, clip: true,
         children: [{ type: 'trace', fx: 't', fy: 'x', keep: 600, every: 0.02, stroke: 'accent', width: 1.5 }]
       },
-      { type: 'text', x: 355, y: 18, text: 'energia', size: 10, fill: 'muted' },
+      { type: 'text', x: 355, y: 18, text: t('pageMotionExamples.spring.energy'), size: 10, fill: 'muted' },
       { type: 'rect', x: 336, y: 30, w: 16, h: 70, fill: 'muted/20' },
       { type: 'rect', x: 358, y: 30, w: 16, h: 70, fill: 'muted/20' },
       { type: 'rect', x: 336, y: '=100 - 70*clamp(Ek/E0, 0, 1)', w: 16, h: '=70*clamp(Ek/E0, 0, 1)', fill: 'accent' },
@@ -203,20 +201,19 @@ const SPRING: LiveExample = {
       { type: 'text', x: 366, y: 112, text: 'Ep', size: 10, fill: 'ok' }
     ]
   }
-};
+}));
 
 /** Równia pochyła — kiedy klocek rusza (tg α > μ) i jak przyspiesza. */
-const INCLINE: LiveExample = {
-  key: 'rownia',
-  title: 'Równia pochyła z tarciem',
-  says: 'Nachylenie, tarcie, siły jako strzałki; klocek rusza dopiero, gdy tg α > μ.',
+const INCLINE = lazyExample('rownia', () => ({
+  title: t('pageMotionExamples.incline.title'),
+  says: t('pageMotionExamples.incline.says'),
   drawing: {
-    alt: 'Równia pochyła: siły działające na klocek',
+    alt: t('pageMotionExamples.incline.alt'),
     size: [400, 260],
     vars: [
-      { name: 'kat', value: 20, min: 0, max: 60, step: 1, unit: '°', label: 'Nachylenie' },
-      { name: 'mu', value: 0.3, min: 0, max: 1, step: 0.05, label: 'Tarcie μ' },
-      { name: 'sily', value: 1, min: 0, max: 1, step: 1, label: 'Pokaż siły' }
+      { name: 'kat', value: 20, min: 0, max: 60, step: 1, unit: '°', label: t('pageMotionExamples.incline.slope') },
+      { name: 'mu', value: 0.3, min: 0, max: 1, step: 0.05, label: t('pageMotionExamples.incline.mu') },
+      { name: 'sily', value: 1, min: 0, max: 1, step: 1, label: t('pageMotionExamples.incline.forces') }
     ],
     let: [
       { name: 'sa', value: 'sin(rad(kat))' },
@@ -241,13 +238,13 @@ const INCLINE: LiveExample = {
       { type: 'slider', var: 'kat' },
       { type: 'slider', var: 'mu' },
       { type: 'toggle', var: 'sily' },
-      { type: 'button', label: 'Puść', do: 'run' },
-      { type: 'button', label: 'Od nowa', do: 'reset' },
-      { type: 'readout', label: 'a = g(sin α − μ cos α)', value: 'a', unit: 'm/s²', digits: 2 }
+      { type: 'button', label: t('pageMotionExamples.incline.release'), do: 'run' },
+      { type: 'button', label: t('pageMotionExamples.ui.again'), do: 'reset' },
+      { type: 'readout', label: 'a = g(sin α − μ cos α)', value: 'a', unit: 'm/s²', digits: 2 } // i18n-ignore
     ],
     rules: [
-      { when: 'a <= 0', say: 'Klocek stoi: tarcie μ·cos α jest co najmniej sin α (tg α ≤ μ).', mood: 'info' },
-      { when: 'a > 0', say: 'Klocek zsuwa się z przyspieszeniem {fmt(a, 2)} m/s².', mood: 'ok' }
+      { when: 'a <= 0', say: t('pageMotionExamples.incline.stays'), mood: 'info' },
+      { when: 'a > 0', say: t('pageMotionExamples.incline.slides'), mood: 'ok' }
     ],
     elements: [
       {
@@ -256,7 +253,7 @@ const INCLINE: LiveExample = {
           { type: 'line', x: -0.5, y: 0, x2: 5, y2: 0, stroke: 'muted', width: 1.5 },
           { type: 'poly', points: [[0, 0], [0, '=H'], ['=4*ca', 0]], closed: true, fill: 'muted/15', stroke: 'muted', width: 1.5 },
           { type: 'plot', fx: '4*ca - 0.6*cos(u)', fy: '0.6*sin(u)', from: 0, to: '=rad(kat)', samples: 16, stroke: 'accent/70', width: 1.5 },
-          { type: 'text', x: '=4*ca - 0.9', y: 0.18, text: '{fmt(kat, 0)}°', size: 11, fill: 'accent' },
+          { type: 'text', x: '=4*ca - 0.9', y: 0.18, text: '{fmt(kat, 0)}°', size: 11, fill: 'accent' }, // i18n-ignore
           {
             type: 'group', x: '=bx', y: '=by', rotate: '=-kat',
             children: [{ type: 'rect', x: -0.25, y: 0, w: 0.5, h: 0.4, r: 3, fill: 'accent' }]
@@ -271,21 +268,20 @@ const INCLINE: LiveExample = {
       }
     ]
   }
-};
+}));
 
 /** Zderzenie dwóch wózków — pęd przed i po, sprężystość. */
-const COLLISION: LiveExample = {
-  key: 'zderzenie',
-  title: 'Zderzenie wózków',
-  says: 'Masy, prędkość, sprężystość; pęd zostaje ten sam, energia — tylko przy e = 1.',
+const COLLISION = lazyExample('zderzenie', () => ({
+  title: t('pageMotionExamples.collision.title'),
+  says: t('pageMotionExamples.collision.says'),
   drawing: {
-    alt: 'Zderzenie dwóch wózków na torze',
+    alt: t('pageMotionExamples.collision.alt'),
     size: [400, 190],
     vars: [
-      { name: 'm1', value: 1, min: 0.5, max: 4, step: 0.5, unit: 'kg', label: 'Masa 1' },
-      { name: 'm2', value: 2, min: 0.5, max: 4, step: 0.5, unit: 'kg', label: 'Masa 2' },
-      { name: 'u1', value: 2, min: 0.5, max: 4, step: 0.1, unit: 'm/s', label: 'Prędkość 1' },
-      { name: 'e', value: 1, min: 0, max: 1, step: 0.1, label: 'Sprężystość e' }
+      { name: 'm1', value: 1, min: 0.5, max: 4, step: 0.5, unit: 'kg', label: t('pageMotionExamples.collision.m1') },
+      { name: 'm2', value: 2, min: 0.5, max: 4, step: 0.5, unit: 'kg', label: t('pageMotionExamples.collision.m2') },
+      { name: 'u1', value: 2, min: 0.5, max: 4, step: 0.1, unit: 'm/s', label: t('pageMotionExamples.collision.u1') },
+      { name: 'e', value: 1, min: 0, max: 1, step: 0.1, label: t('pageMotionExamples.collision.e') }
     ],
     let: [
       { name: 'w1', value: '0.4 + 0.12*m1' },
@@ -303,7 +299,7 @@ const COLLISION: LiveExample = {
       events: [{
         when: 'x2 - x1 <= (w1 + w2)/2 && v1 > v2',
         set: { v1: '(m1*v1 + m2*v2 - m2*e*(v1 - v2))/(m1 + m2)', v2: '(m1*v1 + m2*v2 + m1*e*(v1 - v2))/(m1 + m2)' },
-        say: 'Zderzenie! Pęd przed i po: {fmt(p, 2)} kg·m/s.'
+        say: t('pageMotionExamples.collision.hit')
       }],
       until: 't > 8 || x2 > 9.6 || x1 < 0.3',
       dt: 0.002
@@ -313,10 +309,10 @@ const COLLISION: LiveExample = {
       { type: 'slider', var: 'm2' },
       { type: 'slider', var: 'u1' },
       { type: 'slider', var: 'e' },
-      { type: 'button', label: 'Start', do: 'toggle' },
-      { type: 'button', label: 'Od nowa', do: 'reset' },
-      { type: 'readout', label: 'Pęd p', value: 'p', unit: 'kg·m/s', digits: 2 },
-      { type: 'readout', label: 'Energia', value: 'Ek', unit: 'J', digits: 2 }
+      { type: 'button', label: t('pageMotionExamples.ui.start'), do: 'toggle' },
+      { type: 'button', label: t('pageMotionExamples.ui.again'), do: 'reset' },
+      { type: 'readout', label: t('pageMotionExamples.collision.p'), value: 'p', unit: 'kg·m/s', digits: 2 },
+      { type: 'readout', label: t('pageMotionExamples.ui.energy'), value: 'Ek', unit: 'J', digits: 2 }
     ],
     elements: [
       {
@@ -331,26 +327,25 @@ const COLLISION: LiveExample = {
           { type: 'circle', x: '=x2 + w2/4', y: 0.06, r: 4, fill: 'ink' },
           { type: 'arrow', x: '=x1', y: 1.2, x2: '=x1 + 0.5*v1', y2: 1.2, head: 8, stroke: 'accent', width: 2.5 },
           { type: 'arrow', x: '=x2', y: 1.2, x2: '=x2 + 0.5*v2', y2: 1.2, head: 8, stroke: 'ok', width: 2.5 },
-          { type: 'text', x: '=x1', y: 1.75, text: '{fmt(v1, 1)} m/s', size: 11, fill: 'accent' },
-          { type: 'text', x: '=x2', y: 1.75, text: '{fmt(v2, 1)} m/s', size: 11, fill: 'ok' }
+          { type: 'text', x: '=x1', y: 1.75, text: '{fmt(v1, 1)} m/s', size: 11, fill: 'accent' }, // i18n-ignore
+          { type: 'text', x: '=x2', y: 1.75, text: '{fmt(v2, 1)} m/s', size: 11, fill: 'ok' } // i18n-ignore
         ]
       }
     ]
   }
-};
+}));
 
 /** Załamanie światła — prawo Snelliusa i całkowite wewnętrzne odbicie. */
-const REFRACTION: LiveExample = {
-  key: 'zalamanie',
-  title: 'Załamanie światła',
-  says: 'Źródło do przeciągania, ośrodki do wyboru; prawo Snelliusa i całkowite odbicie.',
+const REFRACTION = lazyExample('zalamanie', () => ({
+  title: t('pageMotionExamples.refraction.title'),
+  says: t('pageMotionExamples.refraction.says'),
   drawing: {
-    alt: 'Promień światła na granicy dwóch ośrodków',
+    alt: t('pageMotionExamples.refraction.alt'),
     size: [400, 300],
     vars: [
-      { name: 'a1', value: 40, min: 0, max: 89, step: 1, unit: '°', label: 'Kąt padania' },
-      { name: 'n1', value: 1, min: 1, max: 2.5, step: 0.01, label: 'Ośrodek u góry' },
-      { name: 'n2', value: 1.5, min: 1, max: 2.5, step: 0.01, label: 'Ośrodek u dołu' }
+      { name: 'a1', value: 40, min: 0, max: 89, step: 1, unit: '°', label: t('pageMotionExamples.refraction.a1') },
+      { name: 'n1', value: 1, min: 1, max: 2.5, step: 0.01, label: t('pageMotionExamples.refraction.n1') },
+      { name: 'n2', value: 1.5, min: 1, max: 2.5, step: 0.01, label: t('pageMotionExamples.refraction.n2') }
     ],
     let: [
       { name: 's1', value: 'sin(rad(a1))' },
@@ -361,14 +356,14 @@ const REFRACTION: LiveExample = {
     ],
     controls: [
       { type: 'slider', var: 'a1' },
-      { type: 'choice', var: 'n1', options: [{ value: 1, label: 'powietrze' }, { value: 1.33, label: 'woda' }, { value: 1.5, label: 'szkło' }] },
-      { type: 'choice', var: 'n2', options: [{ value: 1, label: 'powietrze' }, { value: 1.33, label: 'woda' }, { value: 1.5, label: 'szkło' }, { value: 2.42, label: 'diament' }] },
-      { type: 'readout', label: 'n₁·sin α₁ = n₂·sin α₂ → α₂', value: "odbicie ? 'brak' : fmt(a2, 1) + '°'" }
+      { type: 'choice', var: 'n1', options: [{ value: 1, label: t('pageMotionExamples.refraction.air') }, { value: 1.33, label: t('pageMotionExamples.refraction.water') }, { value: 1.5, label: t('pageMotionExamples.refraction.glass') }] },
+      { type: 'choice', var: 'n2', options: [{ value: 1, label: t('pageMotionExamples.refraction.air') }, { value: 1.33, label: t('pageMotionExamples.refraction.water') }, { value: 1.5, label: t('pageMotionExamples.refraction.glass') }, { value: 2.42, label: t('pageMotionExamples.refraction.diamond') }] },
+      { type: 'readout', label: 'n₁·sin α₁ = n₂·sin α₂ → α₂', value: `odbicie ? '${t('pageMotionExamples.refraction.none')}' : fmt(a2, 1) + '°'` } // i18n-ignore
     ],
     rules: [
-      { when: 'odbicie', say: 'Całkowite wewnętrzne odbicie: sin α₂ wyszedłby większy niż 1, więc światło nie przechodzi.', mood: 'info' },
-      { when: '!odbicie && n2 > n1', say: 'Do gęstszego ośrodka: promień załamuje się ku normalnej.', mood: 'info' },
-      { when: '!odbicie && n2 < n1', say: 'Do rzadszego ośrodka: promień odchyla się od normalnej.', mood: 'info' }
+      { when: 'odbicie', say: t('pageMotionExamples.refraction.total'), mood: 'info' },
+      { when: '!odbicie && n2 > n1', say: t('pageMotionExamples.refraction.denser'), mood: 'info' },
+      { when: '!odbicie && n2 < n1', say: t('pageMotionExamples.refraction.thinner'), mood: 'info' }
     ],
     elements: [
       {
@@ -384,39 +379,38 @@ const REFRACTION: LiveExample = {
           { type: 'arrow', x: '=-0.9*s1', y: '=0.9*c1', x2: '=-0.6*s1', y2: '=0.6*c1', head: 11, stroke: 'accent', width: 3 },
           { type: 'line', x: 0, y: 0, x2: '=1.4*sin(rad(a2))', y2: '=-1.4*cos(rad(a2))', stroke: 'ok', width: 3, show: '!odbicie' },
           { type: 'line', x: 0, y: 0, x2: '=1.4*s1', y2: '=1.4*c1', stroke: 'accent', width: '=odbicie ? 3 : 1.2', opacity: '=odbicie ? 1 : 0.35' },
-          { type: 'text', x: '=-0.45*sin(rad(a1)/2) - 0.05', y: '=0.45*cos(rad(a1)/2)', text: 'α₁ = {fmt(a1, 0)}°', size: 11, fill: 'accent', anchor: 'end' },
-          { type: 'text', x: '=0.45*sin(rad(a2)/2) + 0.05', y: '=-0.45*cos(rad(a2)/2)', text: 'α₂ = {fmt(a2, 0)}°', size: 11, fill: 'ok', anchor: 'start', show: '!odbicie' },
+          { type: 'text', x: '=-0.45*sin(rad(a1)/2) - 0.05', y: '=0.45*cos(rad(a1)/2)', text: 'α₁ = {fmt(a1, 0)}°', size: 11, fill: 'accent', anchor: 'end' }, // i18n-ignore
+          { type: 'text', x: '=0.45*sin(rad(a2)/2) + 0.05', y: '=-0.45*cos(rad(a2)/2)', text: 'α₂ = {fmt(a2, 0)}°', size: 11, fill: 'ok', anchor: 'start', show: '!odbicie' }, // i18n-ignore
           {
             type: 'circle', x: '=-1.0*s1', y: '=1.0*c1', r: 10, fill: 'accent',
-            drag: { set: { a1: 'deg(atan2(-px, py))' }, label: 'Źródło światła — przeciągnij po łuku' }
+            drag: { set: { a1: 'deg(atan2(-px, py))' }, label: t('pageMotionExamples.refraction.dragSource') }
           }
         ]
       }
     ]
   }
-};
+}));
 
 /** Fale — dwie fale i ich suma (interferencja, dudnienia). */
-const WAVES: LiveExample = {
-  key: 'fale',
-  title: 'Nakładanie się fal',
-  says: 'Dwie fale biegnące i ich suma; długość fali i przesunięcie fazy; w prezentacji suma pojawia się w drugim kroku.',
+const WAVES = lazyExample('fale', () => ({
+  title: t('pageMotionExamples.waves.title'),
+  says: t('pageMotionExamples.waves.says'),
   drawing: {
-    alt: 'Dwie fale i ich suma',
+    alt: t('pageMotionExamples.waves.alt'),
     size: [400, 280],
     vars: [
-      { name: 'A1', value: 1, min: 0, max: 1.4, step: 0.05, label: 'Amplituda 1' },
-      { name: 'A2', value: 1, min: 0, max: 1.4, step: 0.05, label: 'Amplituda 2' },
-      { name: 'l1', value: 5, min: 1, max: 10, step: 0.1, unit: 'm', label: 'Długość fali 1' },
-      { name: 'l2', value: 5.5, min: 1, max: 10, step: 0.1, unit: 'm', label: 'Długość fali 2' },
-      { name: 'faza', value: 0, min: 0, max: 360, step: 5, unit: '°', label: 'Przesunięcie fazy' },
-      { name: 'suma', value: 0, min: 0, max: 1, step: 1, label: 'Pokaż sumę' }
+      { name: 'A1', value: 1, min: 0, max: 1.4, step: 0.05, label: t('pageMotionExamples.waves.a1') },
+      { name: 'A2', value: 1, min: 0, max: 1.4, step: 0.05, label: t('pageMotionExamples.waves.a2') },
+      { name: 'l1', value: 5, min: 1, max: 10, step: 0.1, unit: 'm', label: t('pageMotionExamples.waves.l1') },
+      { name: 'l2', value: 5.5, min: 1, max: 10, step: 0.1, unit: 'm', label: t('pageMotionExamples.waves.l2') },
+      { name: 'faza', value: 0, min: 0, max: 360, step: 5, unit: '°', label: t('pageMotionExamples.waves.phase') },
+      { name: t('pageMotionExamples.waves.sum'), value: 0, min: 0, max: 1, step: 1, label: t('pageMotionExamples.waves.showSum') }
     ],
     controls: [
       { type: 'slider', var: 'l2' },
       { type: 'slider', var: 'faza' },
       { type: 'slider', var: 'A2' },
-      { type: 'toggle', var: 'suma' }
+      { type: 'toggle', var: t('pageMotionExamples.waves.sum') }
     ],
     elements: [
       {
@@ -432,24 +426,23 @@ const WAVES: LiveExample = {
         children: [
           { type: 'line', x: 0, y: 0, x2: 30, y2: 0, stroke: 'muted/40', width: 1 },
           { type: 'plot', fn: 'A1*sin(2*pi*(u/l1 - 0.4*time)) + A2*sin(2*pi*(u/l2 - 0.4*time) + rad(faza))', from: 0, to: 30, samples: 150, stroke: 'ink', width: 2.5 },
-          { type: 'text', x: 0.3, y: 2.6, text: 'suma', size: 11, fill: 'muted', anchor: 'start' }
+          { type: 'text', x: 0.3, y: 2.6, text: t('pageMotionExamples.waves.sum'), size: 11, fill: 'muted', anchor: 'start' }
         ]
       }
     ]
   }
-};
+}));
 
 /** Umlaufbahn — grawitacja jak sprężyna do środka: koło, elipsa, ucieczka. */
-const ORBIT: LiveExample = {
-  key: 'orbita',
-  title: 'Orbita',
-  says: 'Prędkość startowa jako strzałka do przeciągania: za wolno — spada, w sam raz — koło, szybciej — elipsa, za szybko — ucieka.',
+const ORBIT = lazyExample('orbita', () => ({
+  title: t('pageMotionExamples.orbit.title'),
+  says: t('pageMotionExamples.orbit.says'),
   drawing: {
-    alt: 'Satelita na orbicie wokół planety',
+    alt: t('pageMotionExamples.orbit.alt'),
     size: [400, 300],
     vars: [
-      { name: 'vs', value: 1, min: 0.3, max: 1.6, step: 0.01, label: 'Prędkość startowa (× kołowej)' },
-      { name: 'kier', value: 90, min: 30, max: 150, step: 1, unit: '°', label: 'Kierunek' }
+      { name: 'vs', value: 1, min: 0.3, max: 1.6, step: 0.01, label: t('pageMotionExamples.orbit.vs') },
+      { name: 'kier', value: 90, min: 30, max: 150, step: 1, unit: '°', label: t('pageMotionExamples.orbit.dir') }
     ],
     let: [
       { name: 'r', value: 'hypot(x, y)' },
@@ -462,7 +455,7 @@ const ORBIT: LiveExample = {
         { name: 'vx', value: 'vs*cos(rad(kier))', rate: '-x/r^3' },
         { name: 'vy', value: 'vs*sin(rad(kier))', rate: '-y/r^3' }
       ],
-      events: [{ when: 'r < 0.22', stop: true, say: 'Za wolno — satelita spadł na planetę.', mood: 'miss' }],
+      events: [{ when: 'r < 0.22', stop: true, say: t('pageMotionExamples.orbit.fell'), mood: 'miss' }],
       until: 'r > 4.5 || t > 60',
       auto: true,
       speed: 2,
@@ -471,10 +464,10 @@ const ORBIT: LiveExample = {
     controls: [
       { type: 'slider', var: 'vs' },
       { type: 'slider', var: 'kier' },
-      { type: 'button', label: 'Od nowa', do: 'reset' },
-      { type: 'readout', label: 'Energia', value: "E < 0 ? 'związana (orbita)' : 'dodatnia (ucieka)'" }
+      { type: 'button', label: t('pageMotionExamples.ui.again'), do: 'reset' },
+      { type: 'readout', label: t('pageMotionExamples.ui.energy'), value: `E < 0 ? '${t('pageMotionExamples.orbit.bound')}' : '${t('pageMotionExamples.orbit.free')}'` }
     ],
-    rules: [{ when: 'r > 4.4', say: 'Prędkość ucieczki: √2 ≈ 1,41 prędkości kołowej — satelita odlatuje.', mood: 'info' }],
+    rules: [{ when: 'r > 4.4', say: t('pageMotionExamples.orbit.escape'), mood: 'info' }],
     elements: [
       {
         type: 'frame', x: 10, y: 10, w: 380, h: 280, view: [-2.7, -2, 2.7, 2], clip: true,
@@ -485,26 +478,25 @@ const ORBIT: LiveExample = {
           { type: 'circle', x: '=x', y: '=y', r: 5, fill: 'ok' },
           {
             type: 'arrow', x: 1, y: 0, x2: '=1 + 0.6*vs*cos(rad(kier))', y2: '=0.6*vs*sin(rad(kier))', head: 8, stroke: 'ink', width: 2, show: 't < 0.3',
-            drag: { set: { vs: 'hypot(px - 1, py)/0.6', kier: 'deg(atan2(py, px - 1))' }, label: 'Prędkość startowa — przeciągnij grot' }
+            drag: { set: { vs: 'hypot(px - 1, py)/0.6', kier: 'deg(atan2(py, px - 1))' }, label: t('pageMotionExamples.orbit.dragArrow') }
           }
         ]
       }
     ]
   }
-};
+}));
 
 /** Piłka — spada i odbija się; przeciągnij ją wyżej. Na otwarcie lekcji. */
-const BALL: LiveExample = {
-  key: 'pilka',
-  title: 'Odbijająca się piłka',
-  says: 'Ruch sam od otwarcia: piłka spada i odbija się; przeciągnij ją, żeby zmienić wysokość.',
+const BALL = lazyExample('pilka', () => ({
+  title: t('pageMotionExamples.ball.title'),
+  says: t('pageMotionExamples.ball.says'),
   drawing: {
-    alt: 'Piłka spada i odbija się od ziemi',
+    alt: t('pageMotionExamples.ball.alt'),
     size: [400, 220],
     vars: [
-      { name: 'h0', value: 3.2, min: 0.5, max: 4.4, step: 0.1, unit: 'm', label: 'Wysokość' },
-      { name: 'x0', value: 0.6, min: 0.3, max: 4, step: 0.1, unit: 'm', label: 'Start' },
-      { name: 'e', value: 0.8, min: 0.3, max: 0.95, step: 0.05, label: 'Sprężystość' }
+      { name: 'h0', value: 3.2, min: 0.5, max: 4.4, step: 0.1, unit: 'm', label: t('pageMotionExamples.ball.height') },
+      { name: 'x0', value: 0.6, min: 0.3, max: 4, step: 0.1, unit: 'm', label: t('pageMotionExamples.ui.start') },
+      { name: 'e', value: 0.8, min: 0.3, max: 0.95, step: 0.05, label: t('pageMotionExamples.ui.elasticity') }
     ],
     sim: {
       state: [
@@ -524,11 +516,11 @@ const BALL: LiveExample = {
         children: [
           { type: 'line', x: 0, y: 0, x2: 10, y2: 0, stroke: 'muted', width: 2 },
           { type: 'trace', fx: 'x', fy: 'y', keep: 500, every: 0.02, stroke: 'accent/50', width: 2 },
-          { type: 'circle', x: '=x', y: '=y + 0.12', r: 9, fill: 'accent', drag: { set: { h0: 'py', x0: 'px' }, label: 'Piłka — przeciągnij' } }
+          { type: 'circle', x: '=x', y: '=y + 0.12', r: 9, fill: 'accent', drag: { set: { h0: 'py', x0: 'px' }, label: t('pageMotionExamples.ball.drag') } }
         ]
       }
     ]
   }
-};
+}));
 
 export const LIVE_EXAMPLES: readonly LiveExample[] = [PROJECTILE, PENDULUM, SPRING, INCLINE, COLLISION, REFRACTION, WAVES, ORBIT, BALL, BALANCE, GEARS];

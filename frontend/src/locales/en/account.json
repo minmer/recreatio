@@ -1,0 +1,240 @@
+{
+  "look": {
+    "crumb": "Notifications"
+  },
+  "keeping": {
+    "loadFailed": "Could not load the settings.",
+    "removing": "Removing kept keys…",
+    "enabling": "Switching on…",
+    "memoryOnly": "From now on the key lives only in memory.",
+    "removed": "Removed kept keys ({count}). After a restart we will ask for the password.",
+    "keptHere": "The key is kept on this device.",
+    "keptNext": "Switched on. The key will be kept at the next sign-in.",
+    "changeFailed": "Could not change the setting.",
+    "removingOne": "Removing…",
+    "forgotten": "The device will ask for the password the next time it opens.",
+    "removeFailed": "Could not remove."
+  },
+  "page": {
+    "myData": "My details",
+    "noPerson": "Details belong to a <b>person</b>, and an account is not a person. Create a person in “Roles”, then there will be someone to assign them to.",
+    "loginKeys": "Sign-in and keys",
+    "accountOf": "Account {login}",
+    "keyKept": "Key kept",
+    "keyMemory": "Key only in memory",
+    "keepingDevices": "{mode} · {devices}",
+    "devices": {
+      "one": "{count} device",
+      "other": "{count} devices"
+    },
+    "transfer": "Data transfer",
+    "transferSub": "Data from before platform changes — to the current form"
+  },
+  "security": {
+    "title": "Security and keys",
+    "how": "How it works",
+    "point": {
+      "password": "<b>The password stays on the device.</b> The browser derives a key from it; only proof that you know it goes to the service.",
+      "browser": "<b>Data is encrypted in the browser.</b> Names, titles, messages and answers reach the service already encrypted.",
+      "access": "<b>Access is a key.</b> Whoever has an area's key reads its data; granting access passes on the key, revoking replaces it with a new one.",
+      "link": "<b>A link is a key too.</b> A person with a link sees only what the link leads to — and only until you revoke it.",
+      "lost": "<b>The password cannot be recovered.</b> Without it nobody, not even an administrator, can open your keys."
+    },
+    "keyHere": "The key on this device",
+    "howLong": "How long the key lives",
+    "keptTitle": "Kept — doesn't ask after a restart",
+    "keptText": "The service stores it sealed with this device's key, which the service itself doesn't know. Whoever has this device <em>and</em> your session has everything.",
+    "tabTitle": "Only in memory — asks after every restart",
+    "tabText": "The key lives only in open tabs. Choosing this <b>removes</b> the kept keys on all devices.",
+    "devices": "Devices with a kept key",
+    "noDevices": "The key is not kept anywhere.",
+    "thisDevice": "This device",
+    "otherDevice": "Another device, added {date}",
+    "unused": "not used yet",
+    "lastUsed": "last {date}",
+    "forget": "Forget",
+    "forgetHint": "A forgotten device is not signed out — it will ask for the password the next time it opens."
+  },
+  "delete": {
+    "checkFailed": "Could not check the account.",
+    "failed": "Could not delete the account.",
+    "goneTitle": "Account deleted",
+    "goneText": "The account <b>{login}</b> has been deleted. Its keys are no longer on this device.",
+    "finish": "Finish",
+    "title": "Delete account",
+    "lead": "Forever and on all devices. First you'll see what will disappear.",
+    "open": "Delete account…",
+    "ask": "Delete the account?",
+    "checking": "Checking what will be deleted…",
+    "willGo": "Will be deleted:",
+    "accountItem": "the account <b>{login}</b>, sign-in and sessions on all devices;",
+    "accountItemKeys": "the account <b>{login}</b>, sign-in and sessions on all devices (kept keys: {count});",
+    "person": "your person and their details — keys, names, personal data;",
+    "persons": "your persons ({count}) and their details — keys, names, personal data;",
+    "personal": "your personal calendar and tasks;",
+    "messages": "the content of your messages ({count}) — conversations will show “message deleted”;",
+    "bookings": "your future bookings.",
+    "stays": "<b>Stays</b>, because it belongs to communities: submissions sent in forms, past appointments.",
+    "staysPages": "<b>Stays</b>, because it belongs to communities: submissions sent in forms, past appointments, pages: {pages}.",
+    "onlyYou": "Careful — only you have the keys to this.",
+    "groups": "These groups will be <b>deleted</b> together with the account — with calendars, tasks and conversations:",
+    "orphans": "This stays, but nobody will open or run it any more:",
+    "orphanArea": "area “{name}”",
+    "orphanRole": "role “{name}”",
+    "noName": "no name",
+    "giveAccess": "If they should keep working, first give someone access.",
+    "controllers": "These data controllers will stop applying — forms, bookings and conversations of these areas will accept nothing until someone names a new one:",
+    "typeLogin": "Type the account name: <b>{login}</b>",
+    "password": "Password",
+    "go": "Delete the account forever"
+  },
+  "seats": {
+    "title": "My places",
+    "revoked": "link revoked",
+    "hint": "You get here even without the link."
+  },
+  "field": {
+    "given_name": "First name",
+    "surname": "Last name",
+    "phone": "Phone",
+    "born": "Date of birth",
+    "address": "Address",
+    "email": "E-mail",
+    "nickname": "Nickname"
+  },
+  "card": {
+    "loadFailed": "Could not load the details.",
+    "lead": "You share each field separately — whoever gets the phone doesn't also see the date of birth.",
+    "savedNotRefreshed": "Saved. Could not refresh in: {areas}",
+    "savedRefreshed": "Saved and refreshed in: {areas}",
+    "noEpochKey": "You don't have the key of this epoch — it can't be shared.",
+    "empty": "empty",
+    "shared": "shared: {count}",
+    "value": "Value",
+    "changeNote": "A change doesn't update what you have already shared. Share again with whoever should know the new value.",
+    "whoGot": "Who got it",
+    "nobody": "Nobody.",
+    "withdrawing": "Withdrawing…",
+    "withdraw": "Withdraw",
+    "shareTo": "Share with an area",
+    "sharing": "Sharing…",
+    "share": "Share",
+    "shareNote": "The value will be sealed with this area's key — in a separate envelope, only for it. Data is passed to a foreign area through its form, not here.",
+    "enter": "Enter"
+  },
+  "personsJson": {
+    "noKey": "This tab doesn't have the account key — sign in again to open your details.",
+    "summary": "My details as JSON",
+    "lead": "First name, last name, phone, date of birth, address, e-mail and nickname of every person of this account — for a copy or to be completed by an AI. The import changes only the fields of persons from this export (by their “id”), deletes nothing and shares nothing with anyone new.",
+    "fileName": "my-details.json",
+    "openFailed": "Could not open the details of this account's persons.",
+    "notReady": "The persons' details are still opening — you'll see the plan in a moment.",
+    "importLabel": "Save details"
+  },
+  "transfer": {
+    "loadFailed": "Could not load the transfer status.",
+    "rewrapped": {
+      "one": "Repacked {count} answer from an RSA envelope.",
+      "other": "Repacked {count} answers from an RSA envelope."
+    },
+    "rewrappedFailed": {
+      "one": "Repacked {count} answer from an RSA envelope; {failed}.",
+      "other": "Repacked {count} answers from an RSA envelope; {failed}."
+    },
+    "formsFailed": {
+      "one": "{count} form did not open",
+      "other": "{count} forms did not open"
+    },
+    "rewrapFailed": "Could not repack.",
+    "allCurrent": "Everything is already in the current form.",
+    "rsaTotal": "Answers in RSA envelopes in the whole database: {count}",
+    "lead": "The platform has moved to the current form of data. What remains are answers still lying in RSA envelopes under another area's key — this browser repacks them under the office key. Nothing changes who sees what.",
+    "unlockWhy": "This browser repacks the answers — the password is needed.",
+    "toMove": "To transfer",
+    "rsaTitle": "Answers in RSA envelopes",
+    "allOffice": "All answers lie under the office key.",
+    "othersForms": "The rest belong to forms you don't run.",
+    "mine": "{answers} in {forms} — will be repacked under the office key.",
+    "answers": {
+      "one": "{count} answer",
+      "other": "{count} answers"
+    },
+    "inForms": {
+      "one": "{count} form",
+      "other": "{count} forms"
+    },
+    "rewrapping": "Repacking…",
+    "rewrap": "Repack",
+    "server": "On the server side",
+    "migrations": "database scripts without an entry",
+    "migrationsRange": "database scripts without an entry ({from} … {to})",
+    "legacy": "empty schemas of the old system",
+    "legacyList": "empty schemas of the old system: {list}",
+    "unheld": "roles nobody holds any more",
+    "adminNote": "The server administrator tidies this — described in documentation/TRANSFER.md.",
+    "ready": "done"
+  },
+  "json": {
+    "key": {
+      "version": "{version} — format version",
+      "persons": "the persons of this account (below) — usually one: you",
+      "id": "person identifier from the export (required) — by it the import knows whose details it changes; only persons of this account",
+      "name": "only information from the export: the person's name (role) — the import doesn't change it",
+      "shared": "only information from the export: who was given which field, e.g. {\"phone\": [\"St. Joseph's Parish\"]} — sharing and withdrawing happen in “My details”",
+      "sharedField": "who was given the field “{label}” — names of areas"
+    },
+    "field": {
+      "given_name": "{label} (up to {max} characters)",
+      "surname": "{label} (up to {max} characters)",
+      "phone": "{label}: digits, spaces, \"+\", \"-\", \"(\", \")\" — at least 6 digits (up to {max} characters)",
+      "born": "{label}: \"YYYY-MM-DD\" (also \"DD.MM.YYYY\" — saved as \"YYYY-MM-DD\"); forms put it in a date field",
+      "address": "{label} on one line, e.g. \"ul. Długa 5/3, 31-147 Kraków\" (up to {max} characters)",
+      "email": "{label}: one address \"name@domain.com\" (up to {max} characters)",
+      "nickname": "{label} — what people call you (up to {max} characters)"
+    },
+    "usageTitle": "How the app uses this data",
+    "usage": "- The details lie with the person's role, each field separately, sealed with its key: only whoever has this person's key opens them (usually only you). The service only knows which fields are filled in.\n- First and last name (or, without them, the nickname) are the person's name in the app: your roles and lists call them that, and the messages you send in conversations are signed that way.\n- An area gets a field only when you share it (“My details”): the copy is sealed with the area's key and anyone with access to the area reads it — e.g. the area's list of people takes the first and last name from it.\n- A form filled in for this person fills in the answers to questions about first name, last name, phone, date of birth, address, e-mail and nickname by itself. The import doesn't change submissions already sent.\n- A share is withdrawn in “My details” (“Who got it”): the area loses the copy, but what someone has already read can't be undone.",
+    "title": "My details as JSON (\"{format}\", version {version})",
+    "text": "Details of the persons this account runs: first name, last name, phone, date of birth, address, e-mail, nickname (Account, #/workspace/account → under “My details” → “My details as JSON”). Each field is sealed in the browser separately — with the person's key — and shared separately.\nWhat the import does:\n- First it shows a plan of changes; it saves only after “Import”.\n- It changes only fields of this account's persons, named by \"id\" from the export. Persons without \"id\" or with someone else's \"id\" are skipped (warning) — it creates no persons or accounts and never changes someone else's details.\n- A field with a new value is saved; the same value — no change. A change also refreshes the copies in areas this field was already shared with (the plan lists them); it shares nothing with new areas.\n- Empty text (\"\") and null don't delete: the field stays as it was (it is deleted in “My details”, together with its shares).\n- A value in the wrong shape (e.g. date, e-mail, phone) — warning, field skipped.\nReturn ONE JSON object, without comments.\n\nDocument:\n{top}\n\nPerson (an item in \"persons\"):\n{person}\n\nExample:\n{sample}",
+    "sampleLabel": "My details (one person)",
+    "problem": {
+      "date": "not a date \"YYYY-MM-DD\" (from 1900 to today)",
+      "long": "longer than {max} characters",
+      "phone": "not a phone number (digits, spaces, + - ( ), at least 6 digits)",
+      "email": "not an e-mail address",
+      "control": "contains control characters"
+    },
+    "plan": {
+      "notDoc": "This is not a document with persons' details (a JSON object was expected).",
+      "otherFormat": "Another format: \"{format}\" — expected \"{expected}\".",
+      "noPersons": "The list \"persons\" is missing.",
+      "version": "Version {version} — I know version {known}; I read what I recognise.",
+      "unknownKey": "Unknown key \"{key}\" — skipped.",
+      "person": "Person {n}",
+      "notObject": "{who}: not an object — skipped.",
+      "noId": "{who}: without \"id\" — the import doesn't create persons (a person is created in “Roles”). Skipped.",
+      "notMine": "{who}: not a person of this account — skipped (the import doesn't change other people's details).",
+      "twice": "{who}: the same person a second time — skipped.",
+      "personUnknownKey": "{who}: unknown key \"{key}\" — skipped.",
+      "emptyKeeps": "{who}: “{label}” empty — an empty value doesn't delete a field (“{was}” stays; it is deleted in “My details”).",
+      "notText": "{who}: “{label}” is not text — skipped.",
+      "problem": "{who}: “{label}” — {problem}; skipped.",
+      "changeNew": "{label} (new) “{value}”",
+      "change": "{label} “{was}” → “{value}”",
+      "refreshes": "The change also refreshes the shared copies: {list}",
+      "same": {
+        "one": "Unchanged: {count} field",
+        "other": "Unchanged: {count} fields"
+      },
+      "nothing": "Nothing to change."
+    },
+    "apply": {
+      "saving": "Saving {n} of {total}…",
+      "failed": "{who}: “{label}” — {why}",
+      "saveFailed": "could not save",
+      "saved": "Saved fields: {count}",
+      "refreshed": "Refreshed copies in: {list}",
+      "notRefreshed": "Could not refresh copies in: {list} — share the field there again in “My details”."
+    }
+  }
+}

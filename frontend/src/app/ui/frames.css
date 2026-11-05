@@ -511,6 +511,17 @@ a.wk-crumb-link:hover { color: var(--wk-ink); text-decoration: underline; }
 .wk-public-foot a { color: var(--wk-muted); font-weight: 600; text-decoration: none; }
 .wk-public-foot a:hover { color: var(--wk-ink); text-decoration: underline; }
 
+/* 2026-11-05 — die Sprachwahl ohne Konto (Fuss der öffentlichen Seite, Anmeldung): klein und leise. */
+.wk-lang-pick.wk-input {
+  width: auto;
+  min-height: 0;
+  padding: 2px var(--wk-space-2);
+  font-size: var(--wk-text-sm);
+  color: var(--wk-muted);
+  background-color: transparent;
+}
+.wk-signin .wk-lang-line { margin-top: var(--wk-space-2); }
+
 /* Bearbeiten — schwebt unten, nur für den, der darf. */
 .wk-edit-pill {
   position: fixed;

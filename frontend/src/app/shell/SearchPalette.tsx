@@ -19,6 +19,7 @@ import { searchHits, type SearchEntry } from './search';
 import { areasNow, chatsNow, modulesNow } from '../workspace/viewData';
 import { chatName } from '../workspace/ViewParts';
 import { usePhoneShown } from '../phone/here';
+import { useT, type T } from '../core/i18n';
 
 /*
  * 2026-11-01 — EIN NAME MIT WZORY (ein Eintrag einer Baza wiedzy, ein Dokument): gesetzt mit `TexText` — erst geladen,
@@ -32,14 +33,18 @@ export const SEARCH_EVENT = 'recreatio:search';
 /** SMS, Kontakte und Lampy nur, wo es das Telefon gibt (`usePhoneShown`). */
 const PHONE_VIEWS: ReadonlySet<View> = new Set<View>(['sms', 'contacts', 'lamps']);
 
-const viewEntry = (v: View): SearchEntry => ({ id: `view:${v}`, label: VIEWS[v], kind: 'Część warsztatu', href: viewPath(v) });
+const viewEntry = (v: View, t: T): SearchEntry => ({ id: `view:${v}`, label: VIEWS[v], kind: t('shell.search.kind.view'), href: viewPath(v) });
 
-/** Die Teile des Arbeitsplatzes — sie stehen da, bevor etwas geladen ist. */
-const STATIC: readonly SearchEntry[] = [
-  ...(Object.keys(VIEWS) as View[]).filter((v) => v !== 'widok' && !PHONE_VIEWS.has(v)).map(viewEntry),
-  { id: 'notify', label: 'Powiadomienia', kind: 'Ustawienia', href: viewPath('account', 'widok'), hint: 'dzwonek kolejność urządzenie telefon' },
-  { id: 'security', label: 'Bezpieczeństwo i klucze', kind: 'Ustawienia', href: viewPath('account', 'bezpieczenstwo'), hint: 'hasło klucz szyfrowanie' },
-  { id: 'transfer', label: 'Przeniesienie danych', kind: 'Ustawienia', href: viewPath('account', 'przeniesienie'), hint: 'stare dane migracja przeniesienie' }
+/**
+ * Die Teile des Arbeitsplatzes — sie stehen da, bevor etwas geladen ist. 2026-11-05: beim Öffnen gebaut, in der
+ * Sprache an dieser Stelle; die Sprachwahl steht in allen drei Sprachen da, damit man sie in jeder findet.
+ */
+const staticEntries = (t: T): readonly SearchEntry[] => [
+  ...(Object.keys(VIEWS) as View[]).filter((v) => v !== 'widok' && !PHONE_VIEWS.has(v)).map((v) => viewEntry(v, t)),
+  { id: 'notify', label: t('shell.account.notifications'), kind: t('shell.nav.settings'), href: viewPath('account', 'widok'), hint: t('shell.search.hint.notify') },
+  { id: 'language', label: 'Język / Sprache / Language', kind: t('shell.nav.settings'), href: viewPath('account', 'jezyk'), hint: 'język sprache language english deutsch polski' }, // i18n-ignore
+  { id: 'security', label: t('shell.account.security'), kind: t('shell.nav.settings'), href: viewPath('account', 'bezpieczenstwo'), hint: t('shell.search.hint.security') },
+  { id: 'transfer', label: t('shell.account.transfer'), kind: t('shell.nav.settings'), href: viewPath('account', 'przeniesienie'), hint: t('shell.search.hint.transfer') }
 ];
 
 /** Hört auf Ctrl K und das Ereignis; zeigt das Fenster. Einmal im Kopf der Seite. */
@@ -60,6 +65,7 @@ export function SearchPalette() {
 }
 
 function SearchDialog({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [found, setFound] = useState<readonly SearchEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,12 +86,12 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
       if (!live) return;
       setFound([
         /* 2026-10-17 — der Bereich einer Rozmowa zu zweit heisst nur „Rozmowa"; gefunden wird sie selbst, mit dem Namen der anderen Seite. */
-        ...areas.filter((a) => a.ownChat !== 'direct').map((a) => ({ id: `area:${a.areaId}`, label: a.name, kind: 'Obszar', href: viewPath('areas', a.areaId), hint: areaPath(areas, a.areaId).full })),
+        ...areas.filter((a) => a.ownChat !== 'direct').map((a) => ({ id: `area:${a.areaId}`, label: a.name, kind: t('shell.search.kind.area'), href: viewPath('areas', a.areaId), hint: areaPath(areas, a.areaId).full })),
         ...modules.map((m) => ({ id: `module:${m.moduleId}`, label: m.name, kind: partLabel(m.kind), href: modulePath(m.kind, m.moduleId), hint: m.areaName ?? undefined })),
         ...(desk?.pages ?? []).filter((p) => p.aliasOf === null).map((p) => ({
-          id: `page:${p.path}`, label: p.path === '' ? 'recreatio.pl' : p.path, kind: 'Strona', href: viewPath('pages', ...pageSteps(p.path))
+          id: `page:${p.path}`, label: p.path === '' ? 'recreatio.pl' : p.path, kind: t('shell.search.kind.page'), href: viewPath('pages', ...pageSteps(p.path))
         })),
-        ...chats.map((c) => ({ id: `chat:${c.chatId}`, label: chatName(c), kind: 'Rozmowa', href: viewPath('chat', c.chatId) })),
+        ...chats.map((c) => ({ id: `chat:${c.chatId}`, label: chatName(c), kind: t('shell.search.kind.chat'), href: viewPath('chat', c.chatId) })),
         /* 0109 — was in den offenen Bibliotheken steht [F5, P12]: Einträge, Wissen, Wiederholungen, Abläufe. */
         ...library
       ]);
@@ -98,9 +104,10 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
 
   const phone = usePhoneShown();
   const hits = useMemo(() => {
-    const fixed = phone ? [...STATIC, ...[...PHONE_VIEWS].map(viewEntry)] : STATIC;
+    const base = staticEntries(t);
+    const fixed = phone ? [...base, ...[...PHONE_VIEWS].map((v) => viewEntry(v, t))] : base;
     return query.trim() === '' ? fixed.slice(0, 8) : searchHits(query, [...fixed, ...found]);
-  }, [query, found, phone]);
+  }, [query, found, phone, t]);
   const at = Math.min(active, Math.max(hits.length - 1, 0));
 
   const go = (entry: SearchEntry | undefined) => {
@@ -110,10 +117,10 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal title="Szukaj" onClose={onClose}>
+    <Modal title={t('common.search')} onClose={onClose}>
       <div className="wk-search">
-        <input ref={input} type="search" className="wk-search-input" value={query} placeholder="Obszar, formularz, strona, rozmowa…"
-          aria-label="Szukaj w warsztacie" aria-controls={listId} aria-activedescendant={hits.length > 0 ? `${listId}-${at}` : undefined}
+        <input ref={input} type="search" className="wk-search-input" value={query} placeholder={t('shell.search.placeholder')}
+          aria-label={t('shell.search.label')} aria-controls={listId} aria-activedescendant={hits.length > 0 ? `${listId}-${at}` : undefined}
           autoComplete="off" data-search-input=""
           onChange={(e) => { setQuery(e.target.value); setActive(0); }}
           onKeyDown={(e) => {
@@ -121,8 +128,8 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
             else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(at - 1, 0)); }
             else if (e.key === 'Enter') { e.preventDefault(); go(hits[at]); }
           }} />
-        {query.trim() === '' && <p className="wk-hint">Przejdź do:</p>}
-        <ul id={listId} className="wk-search-hits" role="listbox" aria-label="Wyniki">
+        {query.trim() === '' && <p className="wk-hint">{t('shell.search.goTo')}</p>}
+        <ul id={listId} className="wk-search-hits" role="listbox" aria-label={t('shell.search.results')}>
           {hits.map((one, i) => (
             <li key={one.id} id={`${listId}-${i}`} role="option" aria-selected={i === at} data-search-hit={one.id}>
               <a href={one.href} className={i === at ? 'is-active' : undefined} onMouseEnter={() => setActive(i)} onClick={onClose}>
@@ -137,7 +144,7 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
             </li>
           ))}
         </ul>
-        {query.trim() !== '' && hits.length === 0 && <p className="wk-empty">{loading ? 'Wczytywanie…' : 'Nic nie znaleziono.'}</p>}
+        {query.trim() !== '' && hits.length === 0 && <p className="wk-empty">{loading ? t('common.loading') : t('shell.search.nothing')}</p>}
       </div>
     </Modal>
   );

@@ -29,6 +29,8 @@
  */
 
 import { useState } from 'react';
+import { initialLang, langChosen, setAppLang, useT } from '../core/i18n';
+import { LangPick } from '../ui/LangPick';
 
 import { forgetKeys, keysFor } from '../core/ringOf';
 import { createRole } from '../roles/roles';
@@ -38,6 +40,7 @@ import { PasswordInput } from '../ui/PasswordInput';
 type Mode = 'in' | 'new';
 
 export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
+  const t = useT();
   const [mode, setMode] = useState<Mode>('in');
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
@@ -57,12 +60,12 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
    */
   const blocker =
     busy !== null ? null
-    : loginId.trim() === '' && password === '' ? 'Wpisz nazwę konta i hasło.'
-    : loginId.trim() === '' ? 'Wpisz nazwę konta.'
-    : password === '' ? 'Wpisz hasło.'
-    : mode === 'new' && loginId.trim().length < 3 ? 'Nazwa konta: co najmniej 3 znaki.'
-    : mode === 'new' && password.length < 8 ? 'Hasło: co najmniej 8 znaków.'
-    : mode === 'new' && nick.trim() === '' ? 'Podaj imię pierwszej osoby.'
+    : loginId.trim() === '' && password === '' ? t('shell.signIn.needBoth')
+    : loginId.trim() === '' ? t('shell.signIn.needLogin')
+    : password === '' ? t('shell.signIn.needPassword')
+    : mode === 'new' && loginId.trim().length < 3 ? t('shell.signIn.loginShort')
+    : mode === 'new' && password.length < 8 ? t('shell.signIn.passwordShort')
+    : mode === 'new' && nick.trim() === '' ? t('shell.signIn.needName')
     : null;
 
   /**
@@ -78,12 +81,12 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
     const { ring, graph } = await keysFor(who);
 
     if (ring === null) {
-      throw new WorkspaceError('Klucze nie są dostępne w tej karcie.');
+      throw new WorkspaceError(t('shell.signIn.noKeys'));
     }
 
     const root = graph.roles.find((r) => r.isPersonal);
     if (root === undefined) {
-      throw new WorkspaceError('Konto nie ma jeszcze roli.');
+      throw new WorkspaceError(t('shell.signIn.noRole'));
     }
 
     await createRole(ring, root, { kind: 'person', name: wanted });
@@ -94,7 +97,7 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
 
   const go = async () => {
     // „Liczenie" und nicht „Wczytywanie": es rechnet wirklich, und zwar hier.
-    setBusy(mode === 'in' ? 'Liczenie klucza…' : 'Zakładanie konta i kluczy…');
+    setBusy(mode === 'in' ? t('shell.unlock.busy') : t('shell.signIn.creating'));
     setFailed(null);
 
     try {
@@ -114,20 +117,20 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
        * AB HIER STEHT DAS KONTO. Ein Fehlschlag darunter darf die Anmeldung
        * nicht zurücknehmen — er wird gezeigt, und man ist trotzdem drin.
        */
-      setBusy('Zakładanie pierwszej osoby…');
+      setBusy(t('shell.signIn.creatingPerson'));
 
       try {
         await firstPerson(who, nick.trim());
       } catch (e) {
         setFailed(e instanceof WorkspaceError
-          ? `Konto powstało, ale nie udało się założyć osoby: ${e.message}`
-          : 'Konto powstało, ale nie udało się założyć osoby. Dokończ to w zakładce „Role" — kliknij „Konto".');
+          ? t('shell.signIn.personFailedWhy', { why: e.message })
+          : t('shell.signIn.personFailed'));
       }
 
       setNick('');
       onDone(who);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zalogować.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('shell.signIn.failed'));
       setBusy(null);
     }
   };
@@ -138,14 +141,14 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
       onSubmit={(e) => { e.preventDefault(); setTried(true); if (blocker === null) void go(); }}
       noValidate
     >
-      <h1 className="wk-h1">{mode === 'in' ? 'Zaloguj się' : 'Załóż konto'}</h1>
+      <h1 className="wk-h1">{mode === 'in' ? t('common.signIn') : t('shell.signIn.create')}</h1>
 
       <p className="wk-lede">
-        {mode === 'in' ? 'Twój warsztat: grupy, formularze, kalendarz i rozmowy.' : 'Konto jest Twoje — tylko Ty masz do niego klucz.'}
+        {mode === 'in' ? t('shell.signIn.ledeIn') : t('shell.signIn.ledeNew')}
       </p>
 
       <label className="wk-field">
-        <span>Nazwa konta</span>
+        <span>{t('shell.signIn.login')}</span>
         <input
           value={loginId}
           autoComplete="username"
@@ -155,7 +158,7 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
       </label>
 
       <label className="wk-field">
-        <span>Hasło</span>
+        <span>{t('shell.signIn.password')}</span>
         <PasswordInput
           value={password}
           autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
@@ -170,18 +173,16 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
       {mode === 'new' && (
         <>
           <label className="wk-field">
-            <span>Twoje imię</span>
+            <span>{t('shell.signIn.name')}</span>
             <input
               value={nick}
               autoComplete="nickname"
-              placeholder="np. Michał"
+              placeholder={t('shell.signIn.namePlaceholder')}
               onChange={(e) => setNick(e.target.value)}
             />
           </label>
 
-          <p className="wk-hint">
-            Imię widzą tylko ci, którym dasz dostęp. Konto usuniesz sam w każdej chwili.
-          </p>
+          <p className="wk-hint">{t('shell.signIn.nameHint')}</p>
         </>
       )}
 
@@ -190,7 +191,7 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
         Es ist die eine Eigenschaft dieser Anmeldung, die sie von jeder anderen
         unterscheidet, und niemand liest sie in einer Fussnote nach.
       */}
-      <p className="wk-hint">Hasło nie opuszcza tego urządzenia.</p>
+      <p className="wk-hint">{t('shell.signIn.passwordStays')}</p>
 
       {failed !== null && <p className="wk-error" role="alert">{failed}</p>}
       {tried && blocker !== null && busy === null && failed === null && <p className="wk-error" role="alert">{blocker}</p>}
@@ -203,31 +204,36 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
         mitten im Anlegen.
       */}
       {busy !== null && mode === 'new' && (
-        <p className="wk-hint">Powstają klucze szyfrujące — to potrwa kilkanaście sekund. Nie zamykaj strony.</p>
+        <p className="wk-hint">{t('shell.signIn.keysTakeTime')}</p>
       )}
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn wk-signin-go" disabled={busy !== null}>
-          {busy ?? (mode === 'in' ? 'Zaloguj' : 'Załóż konto')}
+          {busy ?? (mode === 'in' ? t('shell.signIn.go') : t('shell.signIn.create'))}
         </button>
       </div>
 
       <p className="wk-swap">
         {mode === 'in' ? (
           <>
-            Nie masz konta?{' '}
+            {t('shell.signIn.noAccount')}{' '}
             <button type="button" className="wk-link-btn" onClick={() => { setMode('new'); setFailed(null); setTried(false); }}>
-              Załóż je
+              {t('shell.signIn.createIt')}
             </button>
           </>
         ) : (
           <>
-            Masz już konto?{' '}
+            {t('shell.signIn.haveAccount')}{' '}
             <button type="button" className="wk-link-btn" onClick={() => { setMode('in'); setFailed(null); setTried(false); }}>
-              Zaloguj się
+              {t('common.signIn')}
             </button>
           </>
         )}
+      </p>
+
+      {/* 2026-11-05 — die Sprache vor der Anmeldung; die Wahl lädt die Seite neu. */}
+      <p className="wk-swap wk-lang-line">
+        <LangPick className="wk-input wk-lang-pick" value={langChosen() ? initialLang() : null} follow={t('shell.lang.browser')} onChange={setAppLang} />
       </p>
     </form>
   );

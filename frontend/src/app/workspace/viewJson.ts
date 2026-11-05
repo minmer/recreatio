@@ -17,6 +17,7 @@
 
 import { describe, keyLines, pretty, type JsonNode } from '../core/jsonTree';
 import { ALERT_KINDS, alertLabel, type AlertKind, type AlertSettings } from './alerts';
+import { t } from '../core/i18n';
 
 export const VIEW_FORMAT = 'recreatio/workspace-view';
 export const VIEW_VERSION = 1;
@@ -25,26 +26,33 @@ const KNOWN = new Set<string>(ALERT_KINDS.map((one) => one.kind));
 
 /* -- Die Sätze ----------------------------------------------------------------------------------------- */
 
-const TOP_KEYS: Readonly<Record<string, string>> = {
-  format: `"${VIEW_FORMAT}"`,
-  version: `${VIEW_VERSION} — wersja formatu`,
-  alerts: 'lista „Czeka na Ciebie” w Twojej kolejności — od góry (niżej); zamiast obiektu wystarczy sam "kind" jako tekst (wtedy włączenie zostaje, jakie było)'
+/** Sätze, die erst beim Lesen übersetzt werden (Sprache der Anwendung zu diesem Zeitpunkt). */
+const lazy = (entries: Readonly<Record<string, () => string>>): Readonly<Record<string, string>> => {
+  const out: Record<string, string> = {};
+  for (const [k, read] of Object.entries(entries)) Object.defineProperty(out, k, { get: read, enumerable: true });
+  return out;
 };
 
-const ALERT_KEYS: Readonly<Record<string, string>> = {
-  kind: 'rodzaj powiadomienia (niżej) — po nim import rozpoznaje pozycję; każdy rodzaj najwyżej raz',
-  on: 'true — pokazuje się w dzwonku i na stronie Teraz; false — wyłączony (nie liczy się też przy dzwonku); pominięte — zostaje, jak było',
-  label: 'tylko informacja z eksportu: nazwa rodzaju (import jej nie zmienia)'
-};
+const TOP_KEYS: Readonly<Record<string, string>> = lazy({
+  format: () => `"${VIEW_FORMAT}"`,
+  version: () => t('workspace.viewJson.key.version', { version: VIEW_VERSION }),
+  alerts: () => t('workspace.viewJson.key.alerts')
+});
+
+const ALERT_KEYS: Readonly<Record<string, string>> = lazy({
+  kind: () => t('workspace.viewJson.key.kind'),
+  on: () => t('workspace.viewJson.key.on'),
+  label: () => t('workspace.viewJson.key.label')
+});
 
 /** Jeder Schlüssel als Pfad (`alerts[].kind`) mit seinem Satz — für die Prüfung. */
-export const VIEW_KEYS: Readonly<Record<string, string>> = {
-  ...TOP_KEYS,
-  ...Object.fromEntries(Object.entries(ALERT_KEYS).map(([k, v]) => [`alerts[].${k}`, v]))
-};
+export const VIEW_KEYS: Readonly<Record<string, string>> = lazy({
+  ...Object.fromEntries(Object.keys(TOP_KEYS).map((k) => [k, () => TOP_KEYS[k]])),
+  ...Object.fromEntries(Object.keys(ALERT_KEYS).map((k) => [`alerts[].${k}`, () => ALERT_KEYS[k]]))
+});
 
 /** Ein Beispiel aus der Kanzlei: Zgłoszenia und Rezerwacje zuerst, Powtórki aus — die übrigen bleiben, wie sie sind. */
-const SAMPLE = {
+const sample = () => ({
   format: VIEW_FORMAT,
   version: VIEW_VERSION,
   alerts: [
@@ -55,7 +63,7 @@ const SAMPLE = {
     'today',
     { kind: 'learn', label: alertLabel('learn'), on: false }
   ]
-};
+});
 
 /*
  * 2026-10-30 — WER DIE EINSTELLUNG LIEST: nur die Glocke (`NotifyBell.tsx`: Liste und Zahl, ohne „dziś") und
@@ -64,39 +72,22 @@ const SAMPLE = {
  */
 export const VIEW_USAGE_JSON: JsonNode = {
   key: 'workspace-view.usage',
-  title: 'Jak aplikacja używa tych danych',
-  text: () => `- Czytają to dwa miejsca: dzwonek (lista i liczba) i lista „Czeka na Ciebie” — na stronie Teraz i w przeglądzie każdego obszaru. Oba pokazują rodzaje w tej kolejności i pomijają wyłączone.
-- Liczba przy dzwonku sumuje tylko włączone rodzaje, które się w niej liczą („Liczy się przy dzwonku”).
-- Przegląd obszaru bierze z listy tylko to, co należy do tego obszaru i obszarów w nim; zadania, dołączenia przez link i powtórki stoją tylko na stronie Teraz i w dzwonku, a „Terminy dziś” — tylko na stronach (dzwonek ich nie wczytuje).
-- Same liczby przychodzą z jednego zapytania o nowości — z tego, do czego masz dostęp. Ustawienie ich nie zmienia, niczego nie oznacza jako przejrzane i nie dotyczy innych osób.
-- Powiadomienia systemowe każde urządzenie ustawia osobno („Na tym urządzeniu”) — rodzaj wyłączony tutaj może się tam nadal zgłaszać.`
+  get title() { return t('workspace.viewJson.usageTitle'); },
+  text: () => t('workspace.viewJson.usage')
 };
 
 export const VIEW_JSON: JsonNode = {
   key: 'workspace-view',
-  title: `Widok — powiadomienia jako JSON ("${VIEW_FORMAT}", wersja ${VIEW_VERSION})`,
-  short: 'Widok (powiadomienia)',
-  text: () => `Co pokazuje dzwonek i lista „Czeka na Ciebie” na stronie Teraz (i w przeglądzie obszaru) — które rodzaje i w jakiej kolejności. Ustawienie należy do konta (zapieczętowane w przeglądarce) i działa na każdym urządzeniu. W aplikacji: „Powiadomienia” (dzwonek → „Ustawienia” albo Teraz → „Czeka na Ciebie” → „Ustaw”, #/workspace/account/widok) → „Powiadomienia jako JSON”.
-Układ strony Teraz i przeglądu obszaru jest stały (od 2026-10-16): nie ma własnych widoków, części ani sposobów wyświetlania do ustawienia — nie ma ich więc w tym formacie. Ustawienia „Na tym urządzeniu” (powiadomienia systemowe) każde urządzenie ma własne — też poza formatem.
-Co robi import:
-- Najpierw pokazuje plan (nowa kolejność, co się włączy, co wyłączy); zapisuje dopiero po „Importuj”.
-- Rodzaje z dokumentu stają na początku listy, w jego kolejności; "on" włącza albo wyłącza. Rodzaje, których w dokumencie nie ma, stoją za nimi — w dotychczasowej kolejności, włączone albo wyłączone jak dotąd. Wystarczy więc podać te, które mają być na górze.
-- Nieznany rodzaj i powtórzony rodzaj — ostrzeżenie, pominięte. Niczego nie usuwa; nowych rodzajów nie tworzy (zna je aplikacja).
-Zwróć JEDEN obiekt JSON, bez komentarzy.
-
-Dokument:
-${keyLines(TOP_KEYS)}
-
-Pozycja (wpis w "alerts"):
-${keyLines(ALERT_KEYS)}
-
-Rodzaje ("kind"), w kolejności domyślnej:
-${keyLines(Object.fromEntries(ALERT_KINDS.map((one) => [one.kind, `${one.label}: ${one.says}${one.counts ? ' Liczy się przy dzwonku.' : ''}`])))}
-
-Przykład (kancelaria: zgłoszenia i rezerwacje na górze, powtórki wyłączone):
-${pretty(SAMPLE)}`,
+  get title() { return t('workspace.viewJson.title', { format: VIEW_FORMAT, version: VIEW_VERSION }); },
+  get short() { return t('workspace.viewJson.short'); },
+  text: () => t('workspace.viewJson.text', {
+    top: keyLines(TOP_KEYS),
+    alert: keyLines(ALERT_KEYS),
+    kinds: keyLines(Object.fromEntries(ALERT_KINDS.map((one) => [one.kind, t(one.counts ? 'workspace.viewJson.kindCounts' : 'workspace.viewJson.kind', { label: one.label, says: one.says })]))),
+    sample: pretty(sample())
+  }),
   inside: () => [VIEW_USAGE_JSON],
-  samples: () => [{ label: 'Kancelaria: zgłoszenia i rezerwacje na górze', doc: () => SAMPLE }]
+  samples: () => [{ label: t('workspace.viewJson.sampleLabel'), doc: () => sample() }]
 };
 
 /** Die Beschreibung als Text — ohne Zusammenhang aufrufbar (MCP, `import-formats.mjs`). */
@@ -131,27 +122,27 @@ const merged = (named: readonly AlertKind[], now: readonly AlertKind[]): AlertKi
 const labels = (kinds: readonly AlertKind[]): string => kinds.map((kind) => alertLabel(kind)).join(', ');
 
 export function planView(doc: unknown, now: AlertSettings): ViewPlan | { error: string } {
-  if (!isObject(doc)) return { error: 'To nie jest dokument widoku (oczekiwano obiektu JSON).' };
-  if (doc.format !== undefined && doc.format !== VIEW_FORMAT) return { error: `Inny format: "${String(doc.format)}" — oczekiwano "${VIEW_FORMAT}".` };
+  if (!isObject(doc)) return { error: t('workspace.viewJson.plan.notDoc') };
+  if (doc.format !== undefined && doc.format !== VIEW_FORMAT) return { error: t('workspace.viewJson.plan.otherFormat', { format: String(doc.format), expected: VIEW_FORMAT }) };
   const warnings: string[] = [];
-  if (doc.version !== undefined && doc.version !== VIEW_VERSION) warnings.push(`Wersja ${String(doc.version)} — znam wersję ${VIEW_VERSION}; czytam to, co rozpoznaję.`);
-  for (const key of Object.keys(doc)) if (!described(TOP_KEYS, key)) warnings.push(`Nieznany klucz "${key}" — pominięty${key === 'parts' || key === 'views' ? ' (układ stron jest stały, nie ustawia się go)' : ''}.`);
-  if (doc.alerts === undefined) return { next: now, changed: false, lines: ['Nic do zmiany — brak "alerts".'], warnings };
-  if (!Array.isArray(doc.alerts)) return { error: '"alerts" musi być listą.' };
+  if (doc.version !== undefined && doc.version !== VIEW_VERSION) warnings.push(t('workspace.viewJson.plan.version', { version: String(doc.version), known: VIEW_VERSION }));
+  for (const key of Object.keys(doc)) if (!described(TOP_KEYS, key)) warnings.push(t(key === 'parts' || key === 'views' ? 'workspace.viewJson.plan.unknownKeyLayout' : 'workspace.viewJson.plan.unknownKey', { key }));
+  if (doc.alerts === undefined) return { next: now, changed: false, lines: [t('workspace.viewJson.plan.noAlerts')], warnings };
+  if (!Array.isArray(doc.alerts)) return { error: t('workspace.viewJson.plan.alertsList') };
 
   const named: AlertKind[] = [];
   const off = new Set(now.off);
   doc.alerts.forEach((raw, i) => {
-    const where = `Pozycja ${i + 1}`;
+    const n = i + 1;
     const item = typeof raw === 'string' ? { kind: raw } : raw;
-    if (!isObject(item)) { warnings.push(`${where}: to nie obiekt ani rodzaj — pominięta.`); return; }
-    for (const key of Object.keys(item)) if (!described(ALERT_KEYS, key)) warnings.push(`${where}: nieznany klucz "${key}" — pominięty.`);
-    if (typeof item.kind !== 'string' || !KNOWN.has(item.kind)) { warnings.push(`${where}: nieznany rodzaj „${String(item.kind)}” — pominięta.`); return; }
+    if (!isObject(item)) { warnings.push(t('workspace.viewJson.plan.notItem', { n })); return; }
+    for (const key of Object.keys(item)) if (!described(ALERT_KEYS, key)) warnings.push(t('workspace.viewJson.plan.itemUnknownKey', { n, key }));
+    if (typeof item.kind !== 'string' || !KNOWN.has(item.kind)) { warnings.push(t('workspace.viewJson.plan.unknownKind', { n, kind: String(item.kind) })); return; }
     const kind = item.kind as AlertKind;
-    if (named.includes(kind)) { warnings.push(`${where}: „${alertLabel(kind)}” drugi raz — liczy się pierwsza.`); return; }
+    if (named.includes(kind)) { warnings.push(t('workspace.viewJson.plan.repeated', { n, label: alertLabel(kind) })); return; }
     named.push(kind);
     if (item.on === undefined || item.on === null) return;
-    if (typeof item.on !== 'boolean') { warnings.push(`${where}: "on" to nie true/false — włączenie zostaje.`); return; }
+    if (typeof item.on !== 'boolean') { warnings.push(t('workspace.viewJson.plan.badOn', { n })); return; }
     if (item.on) off.delete(kind); else off.add(kind);
   });
 
@@ -162,12 +153,12 @@ export function planView(doc: unknown, now: AlertSettings): ViewPlan | { error: 
   const moved = order.some((kind, i) => now.order[i] !== kind);
 
   const lines: string[] = [];
-  if (moved) lines.push(`Nowa kolejność: ${labels(order)}`);
-  if (turnedOn.length > 0) lines.push(`Włączy: ${labels(turnedOn)}`);
-  if (turnedOff.length > 0) lines.push(`Wyłączy: ${labels(turnedOff)}`);
+  if (moved) lines.push(t('workspace.viewJson.plan.newOrder', { list: labels(order) }));
+  if (turnedOn.length > 0) lines.push(t('workspace.viewJson.plan.turnOn', { list: labels(turnedOn) }));
+  if (turnedOff.length > 0) lines.push(t('workspace.viewJson.plan.turnOff', { list: labels(turnedOff) }));
   const changed = moved || turnedOn.length > 0 || turnedOff.length > 0;
-  if (!changed) lines.push('Nic do zmiany — kolejność i włączenie jak teraz.');
+  if (!changed) lines.push(t('workspace.viewJson.plan.nothing'));
   const missing = now.order.filter((kind) => !named.includes(kind));
-  if (changed && missing.length > 0) lines.push(`Brak w dokumencie — za nimi, w dotychczasowej kolejności i z dotychczasowym włączeniem: ${labels(missing)}`);
+  if (changed && missing.length > 0) lines.push(t('workspace.viewJson.plan.missing', { list: labels(missing) }));
   return { next, changed, lines, warnings };
 }

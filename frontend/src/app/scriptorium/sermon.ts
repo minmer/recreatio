@@ -27,6 +27,7 @@ import {
   COVERAGE_STATES, ids, isSource, itemsOf, kindOf, num, ownTitle, POINT_KINDS, refTarget, str,
   type EntryData, type LibEntry, type Lookup
 } from '../library/libraryKinds';
+import { t } from '../core/i18n';
 import { texPlain } from '../core/tex';
 import { parseMarkup, plainText, type Inline } from '../library/libraryMarkup';
 
@@ -50,8 +51,8 @@ export interface PlanPoint {
 const POINT_KIND_SET: ReadonlySet<string> = new Set(POINT_KINDS.map((k) => k.value));
 const STATE_SET: ReadonlySet<string> = new Set(COVERAGE_STATES.map((s) => s.value));
 
-export const pointKindLabel = (kind: string): string => POINT_KINDS.find((k) => k.value === kind)?.label ?? 'Myśl';
-export const stateLabel = (state: string): string => COVERAGE_STATES.find((s) => s.value === state)?.label ?? 'Nie oznaczone';
+export const pointKindLabel = (kind: string): string => POINT_KINDS.find((k) => k.value === kind)?.label ?? t('scriptorium.sermon.pointKindDefault');
+export const stateLabel = (state: string): string => COVERAGE_STATES.find((s) => s.value === state)?.label ?? t('scriptorium.sermon.unmarked');
 
 /* -- Der Plan --------------------------------------------------------------------------------- */
 
@@ -140,14 +141,14 @@ export function pointLine(text: string, look?: Lookup, length = 400): string {
         /* 2026-10-22 — ein eigener Eintrag mit seinem Namen, Quellen in Klammern. */
         const own = one.items.filter((item) => !isSource(refTarget(look, item.key))).map((item) => ownTitle(refTarget(look, item.key)!, look));
         const sources = one.items.filter((item) => isSource(refTarget(look, item.key)));
-        return `${own.length === 0 ? '' : ` (zob. ${own.join('; ')})`}${sources.length === 0 ? '' : ` (${sources.map((item) => segText(citeSegs(refTarget(look, item.key), item.locator, look, newCiteState()))).join('; ')})`}`;
+        return `${own.length === 0 ? '' : t('scriptorium.sermon.seeAlso', { list: own.join('; ') })}${sources.length === 0 ? '' : ` (${sources.map((item) => segText(citeSegs(refTarget(look, item.key), item.locator, look, newCiteState()))).join('; ')})`}`;
       }
       default: return flat(one.c);
     }
   }).join('');
   const quoted = (key: string): string => {
     const quote = look === undefined ? undefined : refTarget(look, key);
-    if (look === undefined || quote === undefined || quote.kind !== 'quote') return look === undefined ? '' : `[cytat ${key}]`;
+    if (look === undefined || quote === undefined || quote.kind !== 'quote') return look === undefined ? '' : t('scriptorium.sermon.quoteRef', { key });
     return `„${cut(str(quote.data, 'text').replace(/\s+/g, ' ').trim(), length)}” — ${originOf(quote, look)}`;
   };
   const parts: string[] = [];
@@ -271,11 +272,11 @@ export function coverageCounts(plan: readonly PlanPoint[], coverage: readonly Co
 /** In Worten: „7 z 9 punktów · 1 krótko · 1 pominięty · 2 dodane". */
 export function countsLine(c: CoverageCounts): string {
   if (c.points === 0 && c.added === 0) return '';
-  const parts = [`powiedziane ${c.said} z ${c.points}`];
-  if (c.short > 0) parts.push(`krótko ${c.short}`);
-  if (c.skipped > 0) parts.push(`pominięte ${c.skipped}`);
-  if (c.open > 0 && c.open < c.points) parts.push(`bez oznaczenia ${c.open}`);
-  if (c.added > 0) parts.push(`dodane ${c.added}`);
+  const parts = [t('scriptorium.sermon.counts.said', { said: c.said, points: c.points })];
+  if (c.short > 0) parts.push(t('scriptorium.sermon.counts.short', { count: c.short }));
+  if (c.skipped > 0) parts.push(t('scriptorium.sermon.counts.skipped', { count: c.skipped }));
+  if (c.open > 0 && c.open < c.points) parts.push(t('scriptorium.sermon.counts.open', { count: c.open }));
+  if (c.added > 0) parts.push(t('scriptorium.sermon.counts.added', { count: c.added }));
   return c.open === c.points && c.added === 0 ? '' : parts.join(' · ');
 }
 
@@ -283,9 +284,9 @@ export function countsLine(c: CoverageCounts): string {
 
 /** „4:30", „1:02:05", „95" — Sekunden; sonst `null`. */
 export function secondsOf(at: string): number | null {
-  const t = at.trim();
-  if (/^\d+$/.test(t)) return Number(t);
-  const m = /^(\d+):(\d{1,2})(?::(\d{1,2}))?$/.exec(t);
+  const v = at.trim();
+  if (/^\d+$/.test(v)) return Number(v);
+  const m = /^(\d+):(\d{1,2})(?::(\d{1,2}))?$/.exec(v);
   if (m === null) return null;
   return m[3] === undefined ? Number(m[1]) * 60 + Number(m[2]) : Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
 }
@@ -346,7 +347,7 @@ export function deliveriesOf(text: LibEntry, look: Lookup): LibEntry[] {
 
 /** Die Texte eines Wygłoszenia, die es (noch) gibt. */
 export function textsOf(delivery: LibEntry, look: Lookup): LibEntry[] {
-  return ids(delivery.data, 'texts').map((id) => look.get(id)).filter((t): t is LibEntry => t !== undefined && t.kind === 'text');
+  return ids(delivery.data, 'texts').map((id) => look.get(id)).filter((one): one is LibEntry => one !== undefined && one.kind === 'text');
 }
 
 /** Wann ein Text zuletzt gehalten wurde — sonst sein eigenes Datum. */
@@ -395,8 +396,8 @@ export function deliveryPrompt(delivery: LibEntry, look: Lookup): string {
   const parts = deliveryPlan(delivery, look);
   const d = delivery.data;
   const when = [str(d, 'date'), str(d, 'occasion'), str(d, 'place')].filter(Boolean).join(', ');
-  const titles = parts.map((p) => `„${str(p.text.data, 'title') || 'Bez tytułu'}”`).join(' i ');
-  const plans = parts.map((p) => `Plan ${parts.length > 1 ? `tekstu „${str(p.text.data, 'title')}”` : ''}:\n${p.points.length === 0 ? '(ten tekst nie ma planu)' : planLines(p.points, look)}`).join('\n\n');
+  const titles = parts.map((p) => t('scriptorium.prompt.titleQuoted', { title: str(p.text.data, 'title') || t('common.untitled') })).join(t('scriptorium.prompt.titleJoin'));
+  const plans = parts.map((p) => `${parts.length > 1 ? t('scriptorium.prompt.planOf', { title: str(p.text.data, 'title') }) : t('scriptorium.prompt.planOne')}\n${p.points.length === 0 ? t('scriptorium.prompt.noPlan') : planLines(p.points, look)}`).join('\n\n');
   const example = {
     format: 'recreatio/scriptorium',
     version: 1,
@@ -404,34 +405,18 @@ export function deliveryPrompt(delivery: LibEntry, look: Lookup): string {
       id: delivery.id,
       kind: 'delivery',
       data: {
-        summary: 'Dwa-trzy zdania o tym wygłoszeniu.',
+        summary: t('scriptorium.prompt.example.summary'),
         duration: '14:30',
         coverage: [{ point: parts[0]?.points[0]?.id ?? 'p1', state: 'said', at: '0:40' }, { point: parts[0]?.points[1]?.id ?? 'p2', state: 'skipped' }],
-        added: [{ text: 'Co doszło, w jednym-dwóch zdaniach.', at: '12:50', after: parts[0]?.points[0]?.id ?? 'p1' }],
-        transcript: 'Pełny zapis — akapity oddzielone pustą linią.'
+        added: [{ text: t('scriptorium.prompt.example.added'), at: '12:50', after: parts[0]?.points[0]?.id ?? 'p1' }],
+        transcript: t('scriptorium.prompt.example.transcript')
       }
     }]
   };
-  return `Poniżej jest plan kazania ${titles || '(bez tytułu)'}${when === '' ? '' : `, wygłoszonego: ${when}`}. Do tej wiadomości dołączam nagranie albo zapis tego wygłoszenia.
+  const intro = when === '' ? t('scriptorium.prompt.deliveryIntro', { titles: titles || t('scriptorium.prompt.untitledParen') }) : t('scriptorium.prompt.deliveryIntroWhen', { titles: titles || t('scriptorium.prompt.untitledParen'), when });
+  return `${intro}
 
-Porównaj to, co zostało powiedziane, z planem:
-- Dla KAŻDEGO punktu planu podaj "state": "said" — powiedziany (w całości albo prawie), "short" — tylko wspomniany, krótko, "skipped" — pominięty.
-- "at": kiedy w nagraniu ten punkt się zaczyna (m:ss albo g:mm:ss) — tylko gdy był powiedziany i masz nagranie.
-- "note": jedno krótkie zdanie po polsku, co było inaczej niż w planie (np. inny przykład, inna kolejność) — tylko gdy coś było inaczej.
-- "added": to, co zostało powiedziane, a czego nie ma w planie — każda rzecz osobno: "text" (jedno-dwa zdania), "at", "after" (identyfikator punktu, po którym to padło).
-- "summary": dwa-trzy zdania — co tym razem było najważniejsze.
-- "duration": długość nagrania (m:ss).
-- "transcript": pełny zapis słowo w słowo, akapitami oddzielonymi pustą linią — tylko jeśli możesz go spisać z nagrania; inaczej pomiń.
-- Używaj DOKŁADNIE identyfikatorów punktów z nawiasów kwadratowych. Nie zmieniaj planu.
-
-${plans}
-
-Zwróć JEDEN obiekt JSON, bez komentarzy, w tym kształcie ("id" i "kind" zostaw takie, jakie są):
-${JSON.stringify(example, null, 2)}
-
-Pola:
-${fieldLines('delivery', ['summary', 'duration', 'coverage', 'added', 'transcript'])}
-`;
+${t('scriptorium.prompt.deliveryBody', { plans, example: JSON.stringify(example, null, 2), fields: fieldLines('delivery', ['summary', 'duration', 'coverage', 'added', 'transcript']) })}`;
 }
 
 /**
@@ -449,34 +434,13 @@ export function planPrompt(text: LibEntry): string {
       kind: 'text',
       data: {
         plan: [
-          { text: 'Pierwsza główna myśl.', depth: 0 },
-          { text: 'Cytat albo odwołanie, jak w tekście [@klucz, s. 12].', depth: 1, kind: 'quote' },
-          { text: 'Przykład z życia.', depth: 1, kind: 'example' },
-          { text: 'Co z tego wynika dla słuchacza?', depth: 0, kind: 'question' }
+          { text: t('scriptorium.prompt.planExample.p1'), depth: 0 },
+          { text: t('scriptorium.prompt.planExample.p2'), depth: 1, kind: 'quote' },
+          { text: t('scriptorium.prompt.planExample.p3'), depth: 1, kind: 'example' },
+          { text: t('scriptorium.prompt.planExample.p4'), depth: 0, kind: 'question' }
         ]
       }
     }]
   };
-  return `Poniżej jest tekst kazania „${str(d, 'title') || 'Bez tytułu'}”. Zrób z niego plan: główne myśli po kolei, a pod każdą — cytaty, przykłady, pytania, zastosowania.
-
-Zasady:
-- Jeden punkt — jedna myśl, jedno-dwa zdania, po polsku, w kolejności tekstu.
-- "depth": 0 — główna myśl, 1 — pod nią, 2 — jeszcze głębiej.
-- "kind": "thought" (myśl), "quote" (cytat), "example" (przykład), "question" (pytanie), "application" (zastosowanie).
-- Odwołania do źródeł przepisz dokładnie tak, jak stoją w tekście: [@klucz, miejsce] albo ![@klucz-cytatu]. Nie wymyślaj nowych kluczy.
-- Nie dodawaj niczego, czego nie ma w tekście.
-
-Jak aplikacja używa tych danych:
-- Plan trafia do formularza tego tekstu i zastępuje obecny; każdy punkt dostaje stały identyfikator.
-- Wygłoszenia oznaczają punkty po identyfikatorach: powiedziany, tylko wspomniany, pominięty — z czasem w nagraniu. Oznaczenia zapisane do poprzedniego planu zostają przy wygłoszeniu, a jego formularz ostrzega, że tych punktów nie ma już w planie (można je usunąć).
-- Plan stoi przed treścią tekstu — w Skryptorium, na stronach i w druku (także sam, jako „Plan na ambonę”); [@klucz, miejsce] w punkcie staje się przypisem.
-
-Tekst:
----
-${str(d, 'body')}
----
-
-Zwróć JEDEN obiekt JSON, bez komentarzy ("id" i "kind" zostaw takie, jakie są; obecny plan zostanie zastąpiony):
-${JSON.stringify(example, null, 2)}
-`;
+  return t('scriptorium.prompt.plan', { title: str(d, 'title') || t('common.untitled'), body: str(d, 'body'), example: JSON.stringify(example, null, 2) });
 }

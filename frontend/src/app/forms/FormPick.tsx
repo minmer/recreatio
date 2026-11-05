@@ -25,6 +25,7 @@ import { loadModules, type ModuleRow } from '../modules/module';
 import type { PartModule } from '../pages/part';
 import { keysFor } from '../core/ringOf';
 import { formPath } from '../routes';
+import { useT } from '../core/i18n';
 import { whoIsThere } from '../core/session';
 import { Loading } from '../ui/Loading';
 
@@ -49,6 +50,7 @@ export function PickForm({ value, busy, onPick }: {
   onPick: (moduleId: string) => void;
 }) {
   const [rows, setRows] = useState<readonly ModuleRow[] | null>(null);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -58,35 +60,35 @@ export function PickForm({ value, busy, onPick }: {
     return () => { alive = false; };
   }, []);
 
-  if (rows === null) return <Loading label="Wczytywanie formularzy…" />;
+  if (rows === null) return <Loading label={t('forms.pick.loadingForms')} />;
 
   const known = value === '' || rows.some((r) => r.moduleId === value);
 
   return (
     <>
       <select value={known ? value : ''} disabled={busy} onChange={(e) => onPick(e.target.value)}>
-        <option value="">— wybierz formularz —</option>
+        <option value="">{t('forms.pick.chooseForm')}</option>
         {rows.map((r) => (
           <option key={r.moduleId} value={r.moduleId}>
-            {r.name}{r.fields > 0 ? ` · ${r.fields} pyt.` : ''}
-            {r.extendsId !== null ? (r.audience === 'office' ? ' · rozszerzenie (koordynator)' : ' · rozszerzenie (osoba)') : ''}
+            {r.name}{r.fields > 0 ? ` · ${t('forms.pick.questionsShort', { count: r.fields })}` : ''}
+            {r.extendsId !== null ? ` · ${r.audience === 'office' ? t('forms.pick.extOffice') : t('forms.pick.extPerson')}` : ''}
           </option>
         ))}
       </select>
 
       {!known && (
         <span className="wk-blocker">
-          Wybrany formularz nie jest już dostępny — usunięto go albo nie masz do niego dostępu.
+          {t('forms.pick.gone')}
         </span>
       )}
 
       {value !== '' && known && (
         <a className="wk-link-btn" href={formPath(value)}>
-          Otwórz ten formularz
+          {t('forms.pick.openForm')}
         </a>
       )}
 
-      {rows.length === 0 && <span className="wk-hint">Nie ma jeszcze żadnego formularza.</span>}
+      {rows.length === 0 && <span className="wk-hint">{t('forms.pick.noForms')}</span>}
     </>
   );
 }
@@ -156,6 +158,7 @@ export function PickQuestions({ formId, value, busy, onPick, subforms = false }:
   const [fields, setFields] = useState<readonly OpenField[] | null>(null);
   const [groups, setGroups] = useState<readonly { readonly moduleId: string; readonly name: string; readonly fields: readonly OpenField[] }[]>([]);
   const [failed, setFailed] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     if (formId === '') { setFields([]); setGroups([]); return; }
@@ -170,7 +173,7 @@ export function PickQuestions({ formId, value, busy, onPick, subforms = false }:
       const modules = await loadModules().then((r) => r.modules).catch(() => [] as readonly ModuleRow[]);
       const subs = await Promise.all(modules
         .filter((m) => m.kind === 'form' && m.extendsId === formId)
-        .sort((a, b) => a.name.localeCompare(b.name, 'pl'))
+        .sort((a, b) => a.name.localeCompare(b.name, t.locale))
         .map(async (m) => ({ moduleId: m.moduleId, name: m.name, fields: await questionsOf(m.moduleId).catch(() => [] as readonly OpenField[]) })));
       return { main, subs: subs.filter((g) => g.fields.length > 0) };
     };
@@ -180,11 +183,11 @@ export function PickQuestions({ formId, value, busy, onPick, subforms = false }:
       .catch(() => { if (alive) { setFields([]); setGroups([]); setFailed(true); } });
 
     return () => { alive = false; };
-  }, [formId, subforms]);
+  }, [formId, subforms, t.locale]);
 
-  if (formId === '') return <span className="wk-hint">Najpierw wybierz formularz.</span>;
-  if (fields === null) return <Loading label="Wczytywanie pytań…" />;
-  if (failed) return <span className="wk-blocker">Nie udało się wczytać pytań tego formularza.</span>;
+  if (formId === '') return <span className="wk-hint">{t('forms.pick.formFirst')}</span>;
+  if (fields === null) return <Loading label={t('forms.pick.loadingQuestions')} />;
+  if (failed) return <span className="wk-blocker">{t('forms.pick.questionsFailed')}</span>;
 
   const every = [...fields, ...groups.flatMap((g) => g.fields)];
   const all = value.trim() === '*';
@@ -197,7 +200,7 @@ export function PickQuestions({ formId, value, busy, onPick, subforms = false }:
     onPick(next.join(','));
   };
 
-  const name = (f: OpenField, at: number) => f.label ?? `pytanie ${at + 1} (zapieczętowane)`;
+  const name = (f: OpenField, at: number) => f.label ?? t('forms.pick.sealedN', { n: at + 1 });
   const row = (f: OpenField, at: number) => (
     <li key={f.fieldId}>
       <label className="wk-check">
@@ -212,7 +215,7 @@ export function PickQuestions({ formId, value, busy, onPick, subforms = false }:
       {/* Ob er sie ändern darf, sagt die Frage (0044) — hier nur zur Auskunft (bei Spalten unwichtig). */}
       {!subforms && (
         <span className="wk-row-side">
-          {f.selfEdit ? 'może poprawić' : 'tylko do odczytu'}
+          {f.selfEdit ? t('forms.pick.selfEdit') : t('forms.pick.readOnly')}
         </span>
       )}
     </li>
@@ -220,7 +223,7 @@ export function PickQuestions({ formId, value, busy, onPick, subforms = false }:
 
   return (
     <div className="wk-pick-questions">
-      <div className="wk-seg" role="group" aria-label="Które odpowiedzi">
+      <div className="wk-seg" role="group" aria-label={t('forms.pick.which')}>
         <button
           type="button"
           aria-pressed={all}
@@ -228,7 +231,7 @@ export function PickQuestions({ formId, value, busy, onPick, subforms = false }:
           disabled={busy || all}
           onClick={() => onPick('*')}
         >
-          Wszystkie
+          {t('forms.pick.all')}
         </button>
         <button
           type="button"
@@ -237,23 +240,23 @@ export function PickQuestions({ formId, value, busy, onPick, subforms = false }:
           disabled={busy || !all}
           onClick={() => onPick(every.map((f) => f.fieldId).join(','))}
         >
-          Tylko wybrane
+          {t('forms.pick.chosen')}
         </button>
       </div>
 
       <span className="wk-hint">
         {all
-          ? subforms ? 'Także pytania podformularzy i pytania, które dopiszesz później.' : 'Także odpowiedzi na pytania, które dopiszesz później.'
-          : 'Pytanie dopisane później pojawi się tu dopiero, gdy je zaznaczysz.'}
+          ? subforms ? t('forms.pick.allSubHint') : t('forms.pick.allHint')
+          : t('forms.pick.chosenHint')}
       </span>
 
       {every.length === 0 ? (
-        <span className="wk-hint">Ten formularz nie ma jeszcze pytań.</span>
+        <span className="wk-hint">{t('forms.pick.noQuestions')}</span>
       ) : (
         <ul className="wk-pick-list">
           {fields.map(row)}
           {groups.map((g) => [
-            <li key={`g:${g.moduleId}`} className="wk-pick-group" data-pick-subform={g.moduleId}>Podformularz „{g.name}"</li>,
+            <li key={`g:${g.moduleId}`} className="wk-pick-group" data-pick-subform={g.moduleId}>{t('forms.pick.subform', { name: g.name })}</li>,
             ...g.fields.map(row)
           ])}
         </ul>
@@ -261,13 +264,13 @@ export function PickQuestions({ formId, value, busy, onPick, subforms = false }:
 
       {!all && chosen.size === 0 && (
         <span className="wk-blocker">
-          {subforms ? 'Nic nie zaznaczono — lista pokaże tylko osoby i telefony.' : 'Nic nie zaznaczono — ta osoba nie zobaczy żadnej odpowiedzi.'}
+          {subforms ? t('forms.pick.noneSub') : t('forms.pick.none')}
         </span>
       )}
 
       {!subforms && (
         <span className="wk-hint">
-          Czy odpowiedź można poprawić, ustawia się przy pytaniu w formularzu (zakładka „Pytania").
+          {t('forms.pick.editHint')}
         </span>
       )}
     </div>

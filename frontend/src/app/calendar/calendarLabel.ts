@@ -8,10 +8,11 @@
 
 import { areaPath, type AreaRow } from '../areas/area';
 import type { CalendarRow } from './calendar';
+import { t } from '../core/i18n';
 
 export function calendarLabel(areas: readonly AreaRow[], calendar: CalendarRow): string {
   const area = areas.find((a) => a.areaId === calendar.areaId);
-  if (area?.personal === true) return `${calendar.title} (tylko ja)`;
+  if (area?.personal === true) return t('calendarApp.label.personal', { title: calendar.title });
   const group = area !== undefined ? areaPath(areas, area.areaId).full : calendar.areaName;
   return calendar.title === calendar.areaName || calendar.title === group ? group : `${calendar.title} · ${group}`;
 }

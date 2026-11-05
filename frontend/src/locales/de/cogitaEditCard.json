@@ -1,0 +1,258 @@
+{
+  "kind": {
+    "field": {
+      "label": "Feld",
+      "says": "Die Werte eines Feldes — dieses Eintrags oder der Einträge, die von links kommen."
+    },
+    "statementThesis": {
+      "label": "These",
+      "says": "Der erste Satz des Inhalts in Blöcken — die These (dieses Eintrags oder der Einträge, die von links kommen; jede Art mit einem Feld „Inhalt in Blöcken“)."
+    },
+    "statementPart": {
+      "label": "Inhaltsteil",
+      "says": "Block Nummer n (1, 2, …) des Inhalts in Blöcken: ein Absatz als Text, eine Liste — jeder Punkt einzeln, eine Tabelle — jede Zeile („Lk 1,35 — Apg 1,8“). Leer: alle Absätze."
+    },
+    "statementTable": {
+      "label": "Tabelle aus dem Inhalt",
+      "says": "Tabellenzeilen aus dem Inhalt in Blöcken als zwei Seiten: Spalte A links, Spalte B rechts (dieselben Stellen bilden ein Paar) — für „Paare zuordnen“ oder Fragen zu einer Spalte."
+    },
+    "statementSubjects": {
+      "label": "Worum es geht",
+      "says": "Die Einträge, auf die die Verweisfelder der Aussage zeigen (z. B. „Worüber“) — mit der Stelle (z. B. „Lk 1,35“)."
+    },
+    "media": {
+      "label": "Bild oder Ton",
+      "says": "Eine Datei aus einem Feld — als Frage: das Bild zeigen, die Aufnahme abspielen."
+    },
+    "follow": {
+      "label": "Über Verweise",
+      "says": "Geht Verweisen Schritt für Schritt nach (z. B. Autor, dann sein Geburtsort) und gibt die Einträge am Ende des Weges."
+    },
+    "list": {
+      "label": "Liste",
+      "says": "Eine feste Liste, vom Autor eingetippt — z. B. weitere richtige Antworten oder eigene Distraktoren."
+    },
+    "entity": {
+      "label": "Dieser Eintrag",
+      "says": "Der Eintrag, für den die Karte entsteht — mit seinem Etikett."
+    },
+    "filter": {
+      "label": "Filter",
+      "says": "Teilt Einträge nach einem Feld: die, deren Feld einen Wert aus „Vergleiche mit“ hat (oder einen eingetippten), und die übrigen — z. B. Wörter in der Sprache dieser Karte und Wörter in anderen Sprachen. Ohne Feld vergleicht er die Einträge selbst."
+    },
+    "unique": {
+      "label": "Ohne Wiederholungen",
+      "says": "Jeder Eintrag (oder Text) nur einmal — z. B. die Sprachen aller Wörter einer Übersetzung, jede einmal."
+    },
+    "entries": {
+      "label": "Einträge einer Art",
+      "says": "Einträge der gewählten Art — alle oder die, deren Feld einen Wert aus „Wo das Feld hat“ hat (oder einen eingetippten): Wörter mit derselben Schreibung, Übersetzungen mit diesem Wort, Wörter in einer Sprache. Kann diesen Eintrag auslassen und ein paar zufällig nehmen."
+    },
+    "pattern": {
+      "label": "Textmuster",
+      "says": "Setzt einen Text aus den Eingängen zusammen: „Wer schrieb {0}?“. Mehrere Werte an einem Eingang werden mit Komma verbunden."
+    },
+    "mask": {
+      "label": "Maske",
+      "says": "Verdeckt einen Teil des Textes: das Ende, den Anfang oder zufällige Wörter. Gibt den Text mit Lücke, den verdeckten Teil und das Ganze."
+    },
+    "fragments": {
+      "label": "Zitatfragmente",
+      "says": "Teilt ein Zitat in Stücke (7–13 Zeichen) und ordnet sie in einem Baum: erst die Stücke, dann was sie zusammen bilden. Schließe „Für jeden Wert“ an."
+    },
+    "pick": {
+      "label": "Eines wählen",
+      "says": "Nimmt einen Wert aus einer Liste (zufällig, den ersten oder den letzten) und gibt ihn und den Rest getrennt aus."
+    },
+    "distractors": {
+      "label": "Distraktoren",
+      "says": "Falsche Antworten zur Auswahl: dasselbe Feld anderer Einträge dieser Art, nur aus der aktuellen Menge, die Liste des Autors oder die Werte, die der richtigen am nächsten sind."
+    },
+    "each": {
+      "label": "Für jeden Wert",
+      "says": "Macht für jeden Wert von links eine eigene Karte — jede Übersetzung, jedes Fragment eines Zitats."
+    },
+    "pairs": {
+      "label": "Paare",
+      "says": "Aus jedem Eintrag ein Paar: die Feldwerte, die zur linken Seite passen, und die, die zur rechten passen (ohne rechte: alle übrigen) — z. B. aus jeder Übersetzung das englische und das polnische Wort. Ein Eintrag ohne eine der Seiten fällt weg."
+    },
+    "pairsFields": {
+      "label": "Paare aus zwei Feldern",
+      "says": "Aus jedem Eintrag ein Paar: das Feld links (z. B. ein Textfragment) und das Feld rechts (leer: die These des Eintrags) — für „Paare zuordnen“, z. B. fünf Fragmente eines Werks und ihre fünf Thesen. Ein Eintrag ohne eine der Seiten fällt weg."
+    },
+    "random": {
+      "label": "Zufallswert",
+      "says": "Zieht eine Zahl aus einem Bereich (mit Schrittweite) oder eine Position aus einer Liste (hier eingetippt oder von links) — eine Vorlage gibt jedes Mal eine andere Frage (eine „zufällige“ Karte: ihr Verlauf beginnt nicht bei jeder Ziehung neu). „Wie viele“ > 1: so viele verschiedene (ohne Wiederholungen) — z. B. 4 Einträge zum Ordnen."
+    },
+    "math": {
+      "label": "Rechenart",
+      "says": "Rechnet: Addition, Subtraktion, Multiplikation, Division, Potenz, Logarithmus, Runden, Rest der Division."
+    },
+    "calc": {
+      "label": "Berechnen",
+      "says": "Rechnet Ausdrücke in der Sprache der Zeichnungen — z. B. p0 * p1, mod(p0, 7), round(p0 / 3, 2), sqrt(p0), fmt(p0, 2) — jeder in einer eigenen Zeile oder nach „;“, jeder gibt einen Wert (z. B. Distraktoren „p0 + 1; p0 - 1; p0 * 2“ für „Antwort: eine Wahl“). p0, p1, … sind die erste Zahl eines Eingangs, n0, n1, … — wie viele Werte kamen, l0, l1, … — alle Werte des Eingangs als Liste (Einträge als Einträge: sum(l0, it.masa), map(l0, it.label)). Ein Ergebnis, das eine Liste ist, gibt mehrere Werte; ein Ergebnis, das keine Zahl ist (Division durch null), fällt weg; hat ein Eingang, den ein Ausdruck nutzt, keine Zahl gegeben, oder gab kein Ausdruck etwas — misslingt der Schritt, und aus diesem Eintrag entsteht keine Karte."
+    },
+    "generate": {
+      "label": "Generator",
+      "says": "Zieht eine Aufgabe: Zahlen aus Bereichen (\"params\": [{\"name\": \"s\", \"random\": [20, 500], \"step\": 10}]), Positionen aus Listen ({\"name\": \"f\", \"values\": [\"sin\", \"cos\"]}), Einträge aus der Basis ({\"name\": \"kation\", \"entry\": {\"kind\": \"@chem/jon\", \"where\": \"it.ladunek > 0\"}}, mehrere verschiedene: \"entries\" mit \"count\"), rechnet Werte aus (\"let\": [{\"name\": \"v\", \"value\": \"s / t\"}]) und prüft Bedingungen (\"require\": [\"isint(v)\"] — zieht neu, höchstens 60-mal); \"texts\": [{\"name\": \"pytanie\", \"value\": \"Wie viel ist {a} + {b}?\"}] — Texte mit Werten. In Ausdrücken ist \"this\" der Eintrag dieser Karte (this.pole); \"only\": \"this.ladunek > 0\" — nur solche Einträge der Art bekommen eine Karte (andere ohne Warnung). Jeder Name hat seinen Ausgang. Lässt sich keine Aufgabe ziehen, entsteht aus diesem Eintrag keine Karte — mit dem Grund in der Vorschau."
+    },
+    "aggregate": {
+      "label": "Zusammenfassen",
+      "says": "Fasst viele Werte zu einem zusammen: Summe, wie viele es sind, kleinster, größter, Mittelwert — z. B. die Summe der Protonen der Bestandteile einer Verbindung (ein Zahlenfeld, über einen Verweis auf viele Einträge gelesen: derselbe Bestandteil zweimal zählt zweimal). „Anzahl“ zählt jeden Wert, auch nicht-numerische (0, wenn nichts kam); die übrigen nur Zahlen — ohne Zahl geben sie nichts, und aus diesem Eintrag entsteht keine Karte."
+    },
+    "compare": {
+      "label": "Vergleich",
+      "says": "Wahr oder falsch aus dem Vergleich zweier Zahlen oder Daten: „vor … geboren?“."
+    },
+    "when": {
+      "label": "Bedingung",
+      "says": "Die Karte entsteht nur, wenn die Bedingung erfüllt ist — z. B. wenn das Feld ausgefüllt ist."
+    },
+    "python": {
+      "label": "Python",
+      "says": "Rechnet in Python, im Browser (Pyodide): die Funktion run(*eingänge) gibt einen Wert oder eine Liste von Werten zurück."
+    },
+    "prompt": {
+      "label": "Frage",
+      "says": "Was der Lernende sieht: Texte, Bilder, Aufnahmen — in der Reihenfolge der Verbindungen von oben nach unten."
+    },
+    "answerText": {
+      "label": "Antwort: Text",
+      "says": "Der Lernende tippt einen Text. Der erste Wert ist die Musterantwort, die weiteren und „weitere richtige“ zählen auch."
+    },
+    "answerGap": {
+      "label": "Antwort: Lücke im Zitat",
+      "says": "Der Lernende füllt eine Lücke. Nimmt den Text mit Lücke und den verdeckten Teil (aus einer Maske) oder ein Zitatfragment."
+    },
+    "answerNumber": {
+      "label": "Antwort: Zahl",
+      "says": "Der Lernende tippt eine Zahl; Toleranz absolut oder in Prozent, eine Einheit daneben einzutippen; mit einer Größe (z. B. Drehmoment) zählt die Einheit der Antwort: eine andere Einheit derselben Größe wird umgerechnet, eine Einheit einer anderen Größe ist ein Fehler."
+    },
+    "answerDate": {
+      "label": "Antwort: Datum",
+      "says": "Der Lernende tippt ein Datum mit der verlangten Genauigkeit (Jahr, Monat, Tag); Toleranz in diesen Einheiten."
+    },
+    "answerOne": {
+      "label": "Antwort: eine Wahl",
+      "says": "Der Lernende wählt eine Antwort aus der richtigen und den Distraktoren, in zufälliger Reihenfolge."
+    },
+    "answerMany": {
+      "label": "Antwort: mehrere Wahlen",
+      "says": "Der Lernende markiert alle richtigen unter den richtigen und den Distraktoren."
+    },
+    "answerTruefalse": {
+      "label": "Antwort: wahr oder falsch",
+      "says": "Der Lernende sagt „wahr“ oder „falsch“; der Wert kommt z. B. aus einem Vergleich."
+    },
+    "answerOrder": {
+      "label": "Antwort: Reihenfolge",
+      "says": "Der Lernende bringt die Positionen in Reihenfolge — in die, in der sie ankommen."
+    },
+    "answerMatch": {
+      "label": "Antwort: Paare zuordnen",
+      "says": "Der Lernende verbindet Paare: Positionen links mit Positionen rechts (dieselben Stellen der Listen bilden ein Paar)."
+    },
+    "answerFlash": {
+      "label": "Antwort: Karteikarte",
+      "says": "Der Lernende dreht die Karte um und bewertet sich selbst: gewusst, teilweise, nicht gewusst."
+    },
+    "answerCode": {
+      "label": "Antwort: Code (Python)",
+      "says": "Der Lernende schreibt eine Funktion in Python; Pyodide prüft sie im Browser an zufälligen Fällen."
+    },
+    "answerPoint": {
+      "label": "Antwort: Punkt",
+      "says": "Der Lernende zeigt einen Ort auf einer Karte (aus einem Feld „Ort“) oder einen Punkt auf einem Bild."
+    },
+    "card": {
+      "label": "Karte",
+      "says": "Setzt eine Karte zusammen: Frage, Antwort und (nach der Antwort) eine Erklärung aus den verbundenen Einträgen. Für Generator-Aufgaben: „Hinweise“ (Texte, von sanft bis konkret) und „Lösung“ (ein Text mit den gezogenen Werten und Zwischenergebnissen — nach der Antwort)."
+    }
+  },
+  "group": {
+    "data": "Daten",
+    "statement": "Aussage",
+    "text": "Text",
+    "choice": "Auswahl",
+    "numbers": "Zahlen",
+    "card": "Karte",
+    "answer": "Antwort"
+  },
+  "port": {
+    "fromEntries": "Aus Einträgen",
+    "result": "Ergebnis",
+    "entries": "Einträge",
+    "values": "Werte",
+    "correctOne": "Richtig",
+    "rightSide": "Rechte Seite",
+    "leftSide": "Linke Seite",
+    "distractors": "Distraktoren",
+    "hidden": "Verdeckt",
+    "value": "Wert",
+    "text": "Text",
+    "question": "Frage",
+    "trueFalse": "Wahr / falsch",
+    "correctMany": "Richtige",
+    "answer": "Antwort",
+    "parts": "Teile",
+    "withGap": "Mit Lücke",
+    "fromList": "Aus der Liste",
+    "explanation": "Erklärung",
+    "chosen": "Gewählt",
+    "entry": "Eintrag",
+    "inOrder": "In der richtigen Reihenfolge",
+    "thesis": "These",
+    "textWithGap": "Text mit Lücke",
+    "solution": "Lösung",
+    "rest": "Rest",
+    "rightLike": "Rechts: vergleiche mit",
+    "items": "Positionen",
+    "others": "Übrige",
+    "compareWith": "Vergleiche mit",
+    "hints": "Hinweise",
+    "files": "Dateien",
+    "matching": "Passende",
+    "startEntries": "Von Einträgen",
+    "place": "Ort",
+    "list": "Liste",
+    "authorList": "Liste des Autors",
+    "numbers": "Zahlen",
+    "number": "Zahl",
+    "leftLike": "Links: vergleiche mit",
+    "columnB": "Spalte B",
+    "columnA": "Spalte A",
+    "eachOnce": "Jede einmal",
+    "card": "Karte",
+    "otherCorrect": "Weitere richtige",
+    "whereField": "Wo das Feld hat",
+    "fragments": "Fragmente",
+    "fragment": "Fragment",
+    "back": "Rückseite",
+    "onward": "Weiter",
+    "quote": "Zitat",
+    "whole": "Ganzes",
+    "inputN": "Eingang {n}"
+  },
+  "error": {
+    "filterNothing": "Der Filter hat nichts zum Vergleichen: schließe „Vergleiche mit“ an oder tippe einen Wert ein.",
+    "entriesNothing": "„Einträge einer Art“ mit einem Feld haben nichts zum Vergleichen: schließe „Wo das Feld hat“ an oder tippe einen Wert ein.",
+    "pairsFields": "Paare brauchen ein Feld mit den Werten (z. B. Wörter) und ein Feld, nach dem sie geteilt werden (z. B. Sprache).",
+    "pairsLeft": "Paare wissen nicht, was links steht: schließe „Links: vergleiche mit“ an oder tippe einen Wert ein.",
+    "randomItems": "„Zufallswert“: {count} verschiedene Positionen nötig, es gibt {have}.",
+    "randomRange": "„Zufallswert“: im Bereich gibt es nur {have} Zahlen, aber {count} verschiedene sind nötig.",
+    "cannotCompute": "Das lässt sich nicht berechnen (keine Zahl oder Division durch null).",
+    "calcEmpty": "„Berechnen“ hat keinen Ausdruck — tippe z. B. p0 + 1 ein.",
+    "inputNoNumber": "Eingang {inputs} hat keine Zahl gegeben (leeres Feld?).",
+    "tooMuch": "„{source}“: zu viele Berechnungen.",
+    "noExprNumber": "Kein Ausdruck hat eine Zahl gegeben (z. B. Division durch null).",
+    "onlyFor": "Generator, „nur für“ — „{only}“: {error}.",
+    "generatorEmpty": "Der Generator hat nichts zu ziehen — füge \"params\", \"let\" oder \"texts\" hinzu.",
+    "noTask": "Die Aufgabe ließ sich nicht ziehen.",
+    "compareNeeds": "Ein Vergleich braucht zwei Zahlen oder Daten.",
+    "noPython": "Python ist hier nicht verfügbar."
+  },
+  "value": {
+    "true": "wahr",
+    "false": "falsch"
+  }
+}

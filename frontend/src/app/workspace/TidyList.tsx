@@ -5,6 +5,8 @@
  * Kanzlei eines Formulars und im Durchgang über die ganze Datenbank.
  */
 
+import { useT } from '../core/i18n';
+
 export interface TidyItem {
   readonly key: string;
   readonly before: string;
@@ -21,6 +23,7 @@ export function TidyList({ items, skipped, busy, onToggle }: {
   busy: boolean;
   onToggle: (key: string) => void;
 }) {
+  const t = useT();
   return (
     <ul className="wk-tidy-list">
       {items.map((one) => (
@@ -32,7 +35,7 @@ export function TidyList({ items, skipped, busy, onToggle }: {
               <span className="wk-tidy-before">{one.before}</span>
               <span className="wk-tidy-arrow" aria-hidden="true">→</span>
               <span className="wk-tidy-after">{one.after}</span>
-              {one.doubt && <span className="wk-tag wk-tag-warn">sprawdź</span>}
+              {one.doubt && <span className="wk-tag wk-tag-warn">{t('workspace.tidy.check')}</span>}
             </span>
           </label>
         </li>

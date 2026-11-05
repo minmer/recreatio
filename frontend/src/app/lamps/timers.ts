@@ -13,11 +13,15 @@
  * gilt also ab dem nächsten Öffnen der App auf dem Telefon.
  */
 
+import { t } from '../core/i18n';
 import { actionOf, lampTitle, type Lamp, type LampTimer, type LampTimerData } from './lampStore';
 import type { LampNative, NativeTimer, TimerStatus } from './native';
 import { prepareSignal } from './transmit';
 
-export const DAY_SHORT = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'] as const;
+/** Die Kürzel der Tage im JSON-Format der Lampen (Daten, nicht Anzeige — dafür `dayShort`). */
+export const DAY_SHORT = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'] as const; // i18n-ignore
+/** Der Tag zum Lesen: Montag = 1 … Sonntag = 7. */
+export const dayShort = (day: number): string => t(`lamps.day.short.d${day}`);
 export const WORKDAYS: readonly number[] = [1, 2, 3, 4, 5];
 export const WEEKEND: readonly number[] = [6, 7];
 
@@ -30,10 +34,10 @@ const same = (a: readonly number[], b: readonly number[]) => a.length === b.leng
 /** „codziennie", „pn–pt", „weekend", „pn, śr, pt". */
 export function daysText(days: readonly number[]): string {
   const sorted = [...new Set(days)].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
-  if (sorted.length === 0 || sorted.length === 7) return 'codziennie';
-  if (same(sorted, WORKDAYS)) return 'pn–pt';
-  if (same(sorted, WEEKEND)) return 'weekend';
-  return sorted.map((d) => DAY_SHORT[d - 1]).join(', ');
+  if (sorted.length === 0 || sorted.length === 7) return t('lamps.day.daily');
+  if (same(sorted, WORKDAYS)) return t('lamps.day.workdays');
+  if (same(sorted, WEEKEND)) return t('lamps.day.weekend');
+  return sorted.map((d) => dayShort(d)).join(', ');
 }
 
 /** Montag = 1 … Sonntag = 7. */
@@ -62,9 +66,9 @@ export function whenText(at: number, now: number): string {
   const start = new Date(now);
   const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
     - new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()) / 86_400_000);
-  if (days === 0) return `dziś ${clock}`;
-  if (days === 1) return `jutro ${clock}`;
-  if (days > 1 && days < 7) return `${DAY_SHORT[isoDay(d) - 1]} ${clock}`;
+  if (days === 0) return t('lamps.day.todayAt', { time: clock });
+  if (days === 1) return t('lamps.day.tomorrowAt', { time: clock });
+  if (days > 1 && days < 7) return `${dayShort(isoDay(d))} ${clock}`;
   return `${two(d.getDate())}.${two(d.getMonth() + 1)} ${clock}`;
 }
 
@@ -78,7 +82,7 @@ export function stampText(at: number): string {
 export function actionsText(timer: LampTimerData, lamps: readonly Lamp[]): string {
   return timer.actions.map((a) => {
     const found = actionOf(lamps, a);
-    return found === null ? '(usunięty sygnał)' : `${lampTitle(found.lamp)}: ${found.signal.label}`;
+    return found === null ? t('lamps.timers.signalGone') : `${lampTitle(found.lamp)}: ${found.signal.label}`;
   }).join(', ');
 }
 
@@ -98,18 +102,18 @@ export interface Plan {
 export function timerPlan(lamps: readonly Lamp[], timers: readonly LampTimer[]): Plan {
   const out: NativeTimer[] = [];
   const problems: string[] = [];
-  for (const t of timers) {
-    if (!t.enabled || t.minute < 0 || t.minute >= 1440) continue;
-    const name = t.name.trim() || `Timer ${two(Math.floor(t.minute / 60))}:${two(t.minute % 60)}`;
+  for (const one of timers) {
+    if (!one.enabled || one.minute < 0 || one.minute >= 1440) continue;
+    const name = one.name.trim() || t('lamps.timers.nameAt', { time: `${two(Math.floor(one.minute / 60))}:${two(one.minute % 60)}` });
     const actions: NativeTimer['actions'][number][] = [];
-    t.actions.forEach((a, i) => {
+    one.actions.forEach((a, i) => {
       const found = actionOf(lamps, a);
-      if (found === null) { problems.push(`${name}, akcja ${i + 1}: tego urządzenia albo sygnału już nie ma.`); return; }
-      const prepared = prepareSignal(found.signal, t.pace);
+      if (found === null) { problems.push(t('lamps.timers.actionGone', { name, n: i + 1 })); return; }
+      const prepared = prepareSignal(found.signal, one.pace);
       if (prepared.problem !== null) { problems.push(`${name}, ${found.signal.label}: ${prepared.problem}`); return; }
-      actions.push({ label: `${lampTitle(found.lamp)}: ${found.signal.label}`, frames: prepared.frames });
+      actions.push({ label: `${lampTitle(found.lamp)}: ${found.signal.label}`, frames: prepared.frames }); // i18n-ignore
     });
-    if (actions.length > 0) out.push({ id: t.id, name, minute: t.minute, days: daysMask(t.days), pauseMs: t.pace.pauseMs, actions });
+    if (actions.length > 0) out.push({ id: one.id, name, minute: one.minute, days: daysMask(one.days), pauseMs: one.pace.pauseMs, actions });
   }
   return { timers: out, problems };
 }

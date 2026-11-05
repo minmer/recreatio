@@ -28,7 +28,7 @@ import { useCrumbs } from '../shell/crumbTrail';
 import { createLibrary, isUuid, libraryKindOf, loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
 import { useLibraryStore } from '../library/libraryStore';
 import { useMe, type Me } from '../core/me';
-import { plural } from '../core/plural';
+import { rich, useT } from '../core/i18n';
 import { viewPath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
 import { CogitaHome } from './CogitaHome';
@@ -48,7 +48,8 @@ import { Modal } from '../ui/Modal';
 
 export function LearnView({ who, trail, part = 'learn' }: { who: Who; trail: readonly string[]; part?: CogitaPart }) {
   const me = useMe(who);
-  if (me === undefined) return <Loading label="Wczytywanie…" />;
+  const t = useT();
+  if (me === undefined) return <Loading label={t('common.loading')} />;
   /* Ohne offenen Schlüsselbund (kein Netz, kein Passwort in dieser Karte): nur, was das Gerät hält — nach der Anmeldung ohne Netz. */
   if (me === null) return <AwayLearn who={who} me={null} trail={trail[0] === 'bez-sieci' ? trail.slice(1) : []} />;
   return <LearnHome me={me} who={who} trail={trail} part={part} />;
@@ -59,6 +60,7 @@ function LearnHome({ me, who, trail, part }: { me: Me; who: Who; trail: readonly
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const t = useT();
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -70,7 +72,7 @@ function LearnHome({ me, who, trail, part }: { me: Me; who: Who; trail: readonly
         setAreas(found.areas);
         setFailed(null);
       } catch (e) {
-        if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać baz wiedzy.');
+        if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('cogitaLearnRun.learnView.loadFailed'));
       }
     })();
     return () => { alive = false; };
@@ -96,20 +98,20 @@ function LearnHome({ me, who, trail, part }: { me: Me; who: Who; trail: readonly
   })();
   useEffect(() => { if (moved !== null) window.location.replace(moved); }, [moved]);
 
-  if (moved !== null) return <Loading label="Przekierowanie…" />;
+  if (moved !== null) return <Loading label={t('cogitaLearnRun.learnView.redirecting')} />;
   if (trail[0] === 'bez-sieci' && part === 'learn') return <AwayLearn who={who} me={me} trail={trail.slice(1)} />;
   /* 2026-10-28 — ohne Netz: der Weg zu dem, was das Gerät hält, statt nur der Meldung. */
   if (failed !== null) {
     return (
       <div className="cg">
         <p className="wk-error">{failed}</p>
-        {part === 'learn' && <p className="wk-note">Bez internetu działa <a className="wk-link" href={viewPath('learn', 'bez-sieci')}>nauka z tego urządzenia</a>.</p>}
+        {part === 'learn' && <p className="wk-note">{rich(t('cogitaLearnRun.learnView.offlineNote'), { a: (s) => <a className="wk-link" href={viewPath('learn', 'bez-sieci')}>{s}</a> })}</p>}
       </div>
     );
   }
   if (chosen !== null) {
-    if (bases === null) return <Loading label="Wczytywanie…" />;
-    if (current === null) return <p className="wk-empty">Tej bazy wiedzy nie ma albo nie masz do niej klucza. <a href={viewPath(part)}>Wszystkie bazy wiedzy</a></p>;
+    if (bases === null) return <Loading label={t('common.loading')} />;
+    if (current === null) return <p className="wk-empty">{t('cogitaLearnRun.learnView.noBase')} <a href={viewPath(part)}>{t('cogitaLearnRun.learnView.allBases')}</a></p>;
     return <KnowledgeBase me={me} who={who} base={current} trail={trail.slice(1)} part={part} />;
   }
   return part === 'knowledge'
@@ -120,14 +122,15 @@ function LearnHome({ me, who, trail, part }: { me: Me; who: Who; trail: readonly
 /** Eine Baza wiedzy: ihr Speicher, abgeglichen, und darin Cogita — der Teil Wiedza oder Nauka. */
 function KnowledgeBase({ me, who, base, trail, part }: { me: Me; who: Who; base: OpenLibrary; trail: readonly string[]; part: CogitaPart }) {
   const { store, failed } = useLibraryStore(me.ring, base);
+  const t = useT();
   if (store === null) return null;
   if (failed !== null && !store.loaded) return <p className="wk-error">{failed}</p>;
-  if (!store.loaded) return <p className="wk-lede">Otwieranie bazy wiedzy…</p>;
+  if (!store.loaded) return <p className="wk-lede">{t('cogitaLearnRun.learnView.opening')}</p>;
   /* 2026-10-17 — gezählt im Speicher, nicht aus der Liste beim Öffnen: die Zahl wächst mit, während man hinzufügt (Formularze dodawania). */
   const entries = store.all().filter((e) => !isDocKind(e.kind)).length;
   return (
     <>
-      <PageHeader title={base.name} meta={`${entries} ${plural(entries, 'wpis', 'wpisy', 'wpisów')}${base.writes ? '' : ' · uczysz się'}`} />
+      <PageHeader title={base.name} meta={base.writes ? t('cogitaLearnRun.learnView.entries', { count: entries }) : t('cogitaLearnRun.learnView.entriesLearning', { count: entries })} />
       <CogitaHome me={me} who={who} library={base} store={store} trail={trail} part={part} />
     </>
   );
@@ -139,17 +142,18 @@ function KnowledgeBase({ me, who, base, trail, part }: { me: Me; who: Who; base:
  */
 function KnowledgeOverview({ me, bases, areas, onCreated }: { me: Me; bases: readonly OpenLibrary[] | null; areas: readonly AreaRow[]; onCreated: () => void }) {
   const [adding, setAdding] = useState(false);
-  const areaName = (id: string) => areas.find((a) => a.areaId === id)?.personal === true ? 'tylko Ty' : areas.find((a) => a.areaId === id)?.name ?? 'obszar';
+  const t = useT();
+  const areaName = (id: string) => areas.find((a) => a.areaId === id)?.personal === true ? t('cogitaLearnRun.learnView.onlyYou') : areas.find((a) => a.areaId === id)?.name ?? t('cogitaLearnRun.learnView.area');
   return (
     <div className="cg cg-overview wk-narrow">
-      <PageHeader title="Wiedza" actions={<button type="button" className="wk-btn" onClick={() => setAdding(true)}><Icon name="plus" />Nowa baza wiedzy</button>} />
+      <PageHeader title={t('cogitaLearnRun.learnView.knowledge')} actions={<button type="button" className="wk-btn" onClick={() => setAdding(true)}><Icon name="plus" />{t('cogitaLearnRun.learnView.newBase')}</button>} />
       <section className="wk-box" aria-labelledby="knowledge-bases">
-        <div className="wk-box-head"><h2 className="wk-box-title" id="knowledge-bases">Bazy wiedzy</h2></div>
+        <div className="wk-box-head"><h2 className="wk-box-title" id="knowledge-bases">{t('cogitaLearnRun.learnView.bases')}</h2></div>
         {bases === null ? <div className="wk-box-body"><Loading /></div>
           : bases.length === 0 ? (
             <div className="wk-box-body">
-              <p className="wk-box-empty">Baza wiedzy zbiera, porządkuje i łączy to, co wiesz: wpisy własnych rodzajów i odwołania między nimi. Z niej możesz potem się uczyć — w Nauce.</p>
-              <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line" onClick={() => setAdding(true)}><Icon name="plus" />Nowa baza wiedzy</button></div>
+              <p className="wk-box-empty">{t('cogitaLearnRun.learnView.basesEmpty')}</p>
+              <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line" onClick={() => setAdding(true)}><Icon name="plus" />{t('cogitaLearnRun.learnView.newBase')}</button></div>
             </div>
           )
           : bases.map((l) => (
@@ -157,14 +161,14 @@ function KnowledgeOverview({ me, bases, areas, onCreated }: { me: Me; bases: rea
               <span className="wk-line-ic"><Icon name="branch" /></span>
               <span className="wk-line-text">
                 <span className="wk-line-title">{l.name}</span>
-                <span className="wk-line-sub">{l.entries} {plural(l.entries, 'wpis', 'wpisy', 'wpisów')} · {areaName(l.areaId)}{l.writes ? '' : ' · tylko do czytania'}</span>
+                <span className="wk-line-sub">{t(l.writes ? 'cogitaLearnRun.learnView.lineWrite' : 'cogitaLearnRun.learnView.lineRead', { count: l.entries, area: areaName(l.areaId) })}</span>
               </span>
               <span className="wk-line-end"><Icon name="next" /></span>
             </a>
           ))}
       </section>
       {adding && (
-        <Modal title="Nowa baza wiedzy" onClose={() => setAdding(false)}>
+        <Modal title={t('cogitaLearnRun.learnView.newBase')} onClose={() => setAdding(false)}>
           <NewBase me={me} areas={areas} onCreated={() => { setAdding(false); onCreated(); }} />
         </Modal>
       )}
@@ -176,6 +180,7 @@ function KnowledgeOverview({ me, bases, areas, onCreated }: { me: Me; bases: rea
 function Overview({ me, bases, areas }: { me: Me; bases: readonly OpenLibrary[] | null; areas: readonly AreaRow[] }) {
   const [due, setDue] = useState<readonly DueRow[] | null>(null);
   const [sessions, setSessions] = useState<readonly SessionRow[]>([]);
+  const t = useT();
   useEffect(() => {
     void loadDue().then((r) => setDue(r.due), () => setDue([]));
     void loadSessions().then((r) => setSessions(r.sessions.filter((s) => s.state === 'lobby' || s.state === 'running')), () => undefined);
@@ -184,15 +189,15 @@ function Overview({ me, bases, areas }: { me: Me; bases: readonly OpenLibrary[] 
   const now = Date.now();
   const waiting = (due ?? []).filter((d) => d.dueAt !== null && new Date(d.dueAt).getTime() <= now && d.dueCount > 0);
   const later = (due ?? []).filter((d) => d.dueAt !== null && new Date(d.dueAt).getTime() > now);
-  const areaName = (id: string) => areas.find((a) => a.areaId === id)?.personal === true ? 'tylko Ty' : areas.find((a) => a.areaId === id)?.name ?? 'obszar';
+  const areaName = (id: string) => areas.find((a) => a.areaId === id)?.personal === true ? t('cogitaLearnRun.learnView.onlyYou') : areas.find((a) => a.areaId === id)?.name ?? t('cogitaLearnRun.learnView.area');
   return (
     <div className="cg cg-overview wk-narrow">
       <PageHeader
-        title="Nauka"
+        title={t('cogitaLearnRun.learnView.learning')}
         actions={(
           <>
-            <MenuButton label="Więcej: Nauka" items={[
-              { label: 'Bez internetu na tym urządzeniu', icon: 'download', onSelect: () => { window.location.hash = viewPath('learn', 'bez-sieci').slice(1); } }
+            <MenuButton label={t('cogitaLearnRun.learnView.moreLearning')} items={[
+              { label: t('cogitaLearnRun.learnView.offlineHere'), icon: 'download', onSelect: () => { window.location.hash = viewPath('learn', 'bez-sieci').slice(1); } }
             ]} />
           </>
         )}
@@ -200,15 +205,15 @@ function Overview({ me, bases, areas }: { me: Me; bases: readonly OpenLibrary[] 
 
       {/* 2026-10-17 — wie Teraz: Kästen mit Zeilen, eine Handlung im Kopf; die Erklärung der Baza wiedzy steht im leeren Zustand. */}
       <section className="wk-box" aria-labelledby="learn-now">
-        <div className="wk-box-head"><h2 className="wk-box-title" id="learn-now">Na teraz</h2></div>
+        <div className="wk-box-head"><h2 className="wk-box-title" id="learn-now">{t('cogitaLearnRun.learnView.now')}</h2></div>
         {due === null ? <div className="wk-box-body"><Loading lines={1} /></div>
-          : waiting.length === 0 ? <p className="wk-box-empty">Nic nie czeka — wszystko powtórzone.{later.length > 0 ? ` Następne: ${later.map((d) => `${names.get(d.libraryId) ?? 'Baza wiedzy'} ${new Date(d.dueAt!).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}`).slice(0, 3).join(' · ')}.` : ''}</p>
+          : waiting.length === 0 ? <p className="wk-box-empty">{t('cogitaLearnRun.learnView.nothingDue')}{later.length > 0 ? t('cogitaLearnRun.learnView.later', { list: later.map((d) => `${names.get(d.libraryId) ?? t('cogitaLearnRun.learnView.base')} ${new Date(d.dueAt!).toLocaleString(t.locale, { dateStyle: 'short', timeStyle: 'short' })}`).slice(0, 3).join(' · ') }) : ''}</p>
           : waiting.map((d) => (
             <a key={`${d.libraryId}:${d.holderRoleId}`} className="wk-line" href={viewPath('learn', d.libraryId, 'nauka')}>
               <span className="wk-line-ic is-warn"><Icon name="cap" /></span>
               <span className="wk-line-text">
-                <span className="wk-line-title">{names.get(d.libraryId) ?? 'Baza wiedzy'}</span>
-                <span className="wk-line-sub">{d.dueCount} {d.dueCount === 1 ? 'karta' : 'kart'} do powtórki</span>
+                <span className="wk-line-title">{names.get(d.libraryId) ?? t('cogitaLearnRun.learnView.base')}</span>
+                <span className="wk-line-sub">{t('cogitaLearnRun.learnView.dueCards', { count: d.dueCount })}</span>
               </span>
               <span className="wk-line-end"><Icon name="next" /></span>
             </a>
@@ -217,13 +222,13 @@ function Overview({ me, bases, areas }: { me: Me; bases: readonly OpenLibrary[] 
 
       {sessions.length > 0 && (
         <section className="wk-box" aria-labelledby="learn-live">
-          <div className="wk-box-head"><h2 className="wk-box-title" id="learn-live">Sesje teraz</h2></div>
+          <div className="wk-box-head"><h2 className="wk-box-title" id="learn-live">{t('cogitaLearnRun.learnView.sessions')}</h2></div>
           {sessions.map((s) => (
             <a key={s.sessionId} className="wk-line" href={s.libraryId === null ? '#' : viewPath('learn', s.libraryId, 'sesje', s.sessionId)}>
               <span className="wk-line-ic is-ok"><Icon name="play" /></span>
               <span className="wk-line-text">
                 <span className="wk-line-title">{SESSION_KIND_LABEL[s.kind]}</span>
-                <span className="wk-line-sub">{[s.joinCode !== null ? `kod ${s.joinCode}` : null, s.host ? 'prowadzisz' : null].filter(Boolean).join(' · ') || 'trwa'}</span>
+                <span className="wk-line-sub">{[s.joinCode !== null ? t('cogitaLearnRun.learnView.code', { code: s.joinCode }) : null, s.host ? t('cogitaLearnRun.learnView.hosting') : null].filter(Boolean).join(' · ') || t('cogitaLearnRun.learnView.running')}</span>
               </span>
               <span className="wk-line-end"><Icon name="next" /></span>
             </a>
@@ -232,12 +237,12 @@ function Overview({ me, bases, areas }: { me: Me; bases: readonly OpenLibrary[] 
       )}
 
       <section className="wk-box" aria-labelledby="learn-bases">
-        <div className="wk-box-head"><h2 className="wk-box-title" id="learn-bases">Bazy wiedzy</h2></div>
+        <div className="wk-box-head"><h2 className="wk-box-title" id="learn-bases">{t('cogitaLearnRun.learnView.bases')}</h2></div>
         {bases === null ? <div className="wk-box-body"><Loading /></div>
           : bases.length === 0 ? (
             <div className="wk-box-body">
-              <p className="wk-box-empty">Nie uczysz się jeszcze z żadnej bazy wiedzy. Bazę zakłada się w Wiedzy — albo dołącza do kursu przez link od nauczyciela.</p>
-              <div className="wk-actions"><a className="wk-btn wk-btn-line" href={viewPath('knowledge')}><Icon name="branch" />Przejdź do Wiedzy</a></div>
+              <p className="wk-box-empty">{t('cogitaLearnRun.learnView.learnEmpty')}</p>
+              <div className="wk-actions"><a className="wk-btn wk-btn-line" href={viewPath('knowledge')}><Icon name="branch" />{t('cogitaLearnRun.learnView.toKnowledge')}</a></div>
             </div>
           )
           : bases.map((l) => (
@@ -245,7 +250,7 @@ function Overview({ me, bases, areas }: { me: Me; bases: readonly OpenLibrary[] 
               <span className="wk-line-ic"><Icon name="book" /></span>
               <span className="wk-line-text">
                 <span className="wk-line-title">{l.name}</span>
-                <span className="wk-line-sub">{l.entries} {plural(l.entries, 'wpis', 'wpisy', 'wpisów')} · {areaName(l.areaId)}{l.writes ? '' : ' · uczysz się'}</span>
+                <span className="wk-line-sub">{t(l.writes ? 'cogitaLearnRun.learnView.lineWrite' : 'cogitaLearnRun.learnView.lineLearn', { count: l.entries, area: areaName(l.areaId) })}</span>
               </span>
               <span className="wk-line-end"><Icon name="next" /></span>
             </a>
@@ -264,16 +269,17 @@ function NewBase({ me, areas, onCreated }: { me: Me; areas: readonly AreaRow[]; 
   const [areaId, setAreaId] = useState(personal?.areaId ?? '');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
   const create = async () => {
     setBusy(true);
     setFailed(null);
     try {
       const area = areaId === '' ? await ensurePrivateArea(me.ring, me.person, areas) : areaId;
-      const id = await createLibrary(me.ring, area, name.trim() === '' ? 'Moja baza wiedzy' : name, 'knowledge');
+      const id = await createLibrary(me.ring, area, name.trim() === '' ? t('cogitaLearnRun.learnView.myBase') : name, 'knowledge');
       onCreated();
       window.location.hash = viewPath('knowledge', id, 'wpisy');
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć bazy wiedzy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('cogitaLearnRun.learnView.createFailed'));
     } finally {
       setBusy(false);
     }
@@ -281,24 +287,24 @@ function NewBase({ me, areas, onCreated }: { me: Me; areas: readonly AreaRow[]; 
   return (
     <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void create(); }}>
       <label className="wk-field">
-        <span>Nazwa</span>
-        <input value={name} placeholder="np. Bierzmowanie 2027" onChange={(e) => setName(e.target.value)} autoFocus />
+        <span>{t('common.name')}</span>
+        <input value={name} placeholder={t('cogitaLearnRun.learnView.namePlaceholder')} onChange={(e) => setName(e.target.value)} autoFocus />
       </label>
       <label className="wk-field">
-        <span>Kto ją widzi</span>
+        <span>{t('cogitaLearnRun.learnView.whoSees')}</span>
         <AreaPick
-          label="Kto ją widzi" value={areaId} onChange={setAreaId} areas={areas} only={writable.filter((a) => a.personal !== true)}
-          extras={[{ value: '', label: personal === undefined ? 'Tylko ja (utworzy się prywatny obszar)' : 'Tylko ja' }]}
+          label={t('cogitaLearnRun.learnView.whoSees')} value={areaId} onChange={setAreaId} areas={areas} only={writable.filter((a) => a.personal !== true)}
+          extras={[{ value: '', label: personal === undefined ? t('cogitaLearnRun.learnView.onlyMeNew') : t('cogitaLearnRun.learnView.onlyMe') }]}
         />
       </label>
-      <p className="wk-hint">Kto czyta obszar, uczy się z tej bazy; kto w nim pisze, ją buduje.</p>
+      <p className="wk-hint">{t('cogitaLearnRun.learnView.whoHint')}</p>
       {/* 2026-10-22 (Schritt 8) — eine Baza folgt ihrem Bereich: in einem jawnym ist sie als Ganze öffentlich. */}
       {(areas.find((a) => a.areaId === areaId)?.publicLevel ?? 'none') !== 'none' && (
-        <p className="wk-warn">Ten obszar jest jawny: każdy, bez konta, przeczyta {WHOLE_BASE} tej bazy. Jeśli coś ma zostać dla wybranych, załóż bazę w obszarze zamkniętym.</p>
+        <p className="wk-warn">{t('cogitaLearnRun.learnView.publicWarn', { whole: WHOLE_BASE })}</p>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zakładanie…' : 'Załóż'}</button>
+        <button type="submit" className="wk-btn" disabled={busy}>{busy ? t('cogitaLearnRun.learnView.creating') : t('cogitaLearnRun.learnView.create')}</button>
       </div>
     </form>
   );

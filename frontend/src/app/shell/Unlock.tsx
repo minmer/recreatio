@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react';
+import { useT } from '../core/i18n';
 
 import { forgetKeys } from '../core/ringOf';
 import { keepsKey, unlock, WorkspaceError, type Who } from '../core/session';
@@ -20,6 +21,7 @@ export function Unlock({ who, onDone, why }: {
   /** Wozu die Schlüssel hier gebraucht werden — der Grund steht am Formular. */
   why: string;
 }) {
+  const t = useT();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function Unlock({ who, onDone, why }: {
       forgetKeys();
       onDone();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć kluczy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('shell.unlock.failed'));
     } finally {
       setBusy(false);
     }
@@ -52,17 +54,14 @@ export function Unlock({ who, onDone, why }: {
       <p className="wk-hint">
         {why}{' '}
         {keepsKey(who)
-          ? 'Klucz liczy się z hasła. Zostanie zachowany — zapieczętowany kluczem'
-            + ' tego urządzenia, którego usługa nie zna — więc po restarcie nie'
-            + ' zapytamy o nie ponownie.'
-          : 'Klucz liczy się z hasła i zostaje tylko w pamięci — po zamknięciu'
-            + ' wszystkich kart trzeba go policzyć jeszcze raz.'}
+          ? t('shell.unlock.kept')
+          : t('shell.unlock.memory')}
       </p>
 
       <div className="wk-actions">
-        <PasswordInput value={password} autoComplete="current-password" placeholder="Hasło" onChange={setPassword} />
+        <PasswordInput value={password} autoComplete="current-password" placeholder={t('shell.signIn.password')} onChange={setPassword} />
         <button type="submit" className="wk-btn" disabled={busy || password === ''}>
-          {busy ? 'Liczenie klucza…' : 'Otwórz klucze'}
+          {busy ? t('shell.unlock.busy') : t('shell.unlock.go')}
         </button>
       </div>
 

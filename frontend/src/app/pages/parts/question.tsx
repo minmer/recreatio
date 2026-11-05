@@ -21,15 +21,17 @@
 
 import { createElement, lazy, Suspense } from 'react';
 
-import { definePart, text, type EditorProps, type PartContext, type RawConfig } from '../part';
+import { t, useT } from '../../core/i18n';
+import { text, type EditorProps, type PartContext, type RawConfig } from '../part';
 import { Loading } from '../../ui/Loading';
+import { defineTextPart, texts, withTexts } from './partTexts';
 
 export const QUESTION_FORMS = ['one', 'many', 'truefalse', 'text', 'number', 'flash'] as const;
 export type QuestionForm = (typeof QUESTION_FORMS)[number];
 
-export const QUESTION_FORM_LABEL: Record<QuestionForm, string> = {
-  one: 'Jedna z kilku', many: 'Kilka z kilku', truefalse: 'Prawda czy fałsz', text: 'Odpowiedź słowami', number: 'Liczba', flash: 'Fiszka (sam oceniasz)'
-};
+export const QUESTION_FORM_LABEL: Readonly<Record<QuestionForm, string>> = texts({
+  one: 'moduleDataLearn.question.form.one', many: 'moduleDataLearn.question.form.many', truefalse: 'moduleDataLearn.question.form.truefalse', text: 'moduleDataLearn.question.form.text', number: 'moduleDataLearn.question.form.number', flash: 'moduleDataLearn.question.form.flash'
+});
 
 export interface QuestionConfig {
   readonly form: QuestionForm;
@@ -81,13 +83,13 @@ export function readQuestion(raw: RawConfig): QuestionConfig {
 export function questionMissing(c: QuestionConfig): string | null {
   /* 2026-11-03 (G) — eine echte Frage der Baza bringt alles mit. */
   if (c.question !== '') return null;
-  if (c.prompt === '' && c.form !== 'flash') return 'Wpisz pytanie.';
+  if (c.prompt === '' && c.form !== 'flash') return t('moduleDataLearn.question.missPrompt');
   if (c.form === 'one' || c.form === 'many') {
-    if (c.options.length < 2) return 'Dodaj co najmniej dwie możliwości.';
-    if (c.correct.length === 0) return 'Zaznacz, która możliwość jest dobra.';
+    if (c.options.length < 2) return t('moduleDataLearn.question.missOptions');
+    if (c.correct.length === 0) return t('moduleDataLearn.question.missCorrect');
   }
-  if (c.form === 'truefalse' && c.value === null) return 'Wybierz, czy zdanie jest prawdziwe.';
-  if ((c.form === 'text' || c.form === 'number' || c.form === 'flash') && c.answers.length === 0) return c.form === 'flash' ? 'Wpisz, co jest na odwrocie.' : 'Wpisz dobrą odpowiedź.';
+  if (c.form === 'truefalse' && c.value === null) return t('moduleDataLearn.question.missValue');
+  if ((c.form === 'text' || c.form === 'number' || c.form === 'flash') && c.answers.length === 0) return c.form === 'flash' ? t('moduleDataLearn.question.missBack') : t('moduleDataLearn.question.missAnswer');
   return null;
 }
 
@@ -108,6 +110,7 @@ export function questionData(c: QuestionConfig): Record<string, unknown> {
 /* -- Der Editor: die Möglichkeiten mit ihrem Häkchen, statt Nummern zu tippen ------------------ */
 
 function QuestionEditor({ raw, onSet, busy }: EditorProps) {
+  const t = useT();
   const c = readQuestion(raw);
   const options = c.options.length === 0 ? ['', ''] : c.options;
   const setOptions = (next: readonly string[], correct: readonly number[]) =>
@@ -116,47 +119,47 @@ function QuestionEditor({ raw, onSet, busy }: EditorProps) {
   return (
     <div className="pb-question">
       <label className="wk-field">
-        <span>Jak się odpowiada</span>
+        <span>{t('moduleDataLearn.question.how')}</span>
         <select value={c.form} disabled={busy} onChange={(e) => onSet({ form: e.target.value })}>
-          {QUESTION_FORMS.map((one) => <option key={one} value={one}>{QUESTION_FORM_LABEL[one]}</option>)}
+          {QUESTION_FORMS.map((one) => <option key={one} value={one}>{t(`moduleDataLearn.question.form.${one}`)}</option>)}
         </select>
       </label>
       <label className="wk-field">
-        <span>{c.form === 'flash' ? 'Przód fiszki' : c.form === 'truefalse' ? 'Zdanie' : 'Pytanie'}</span>
+        <span>{c.form === 'flash' ? t('moduleDataLearn.question.front') : c.form === 'truefalse' ? t('moduleDataLearn.question.sentence') : t('moduleDataLearn.question.label')}</span>
         <textarea rows={3} value={raw.prompt ?? ''} disabled={busy} onChange={(e) => onSet({ prompt: e.target.value })} />
       </label>
 
       {(c.form === 'one' || c.form === 'many') && (
         <fieldset className="wk-field pb-question-options">
-          <legend>Możliwości — zaznacz {c.form === 'one' ? 'dobrą' : 'dobre'}</legend>
+          <legend>{c.form === 'one' ? t('moduleDataLearn.question.optionsOne') : t('moduleDataLearn.question.optionsMany')}</legend>
           {options.map((one, i) => (
             <span key={i} className="pb-question-option">
               <input type={c.form === 'one' ? 'radio' : 'checkbox'} name={`q-${raw.prompt ?? ''}`} checked={c.correct.includes(i)} disabled={busy}
-                aria-label={`Możliwość ${i + 1} jest dobra`}
+                aria-label={t('moduleDataLearn.question.optionCorrect', { n: i + 1 })}
                 onChange={() => setOptions(options, c.form === 'one' ? [i] : c.correct.includes(i) ? c.correct.filter((x) => x !== i) : [...c.correct, i])} />
-              <input value={one} disabled={busy} placeholder={`Możliwość ${i + 1}`} aria-label={`Możliwość ${i + 1}`}
+              <input value={one} disabled={busy} placeholder={t('moduleDataLearn.question.option', { n: i + 1 })} aria-label={t('moduleDataLearn.question.option', { n: i + 1 })}
                 onChange={(e) => setOptions(options.map((o, k) => (k === i ? e.target.value : o)), c.correct)} />
               {options.length > 2 && (
-                <button type="button" className="wk-link-btn" disabled={busy} aria-label={`Usuń możliwość ${i + 1}`}
+                <button type="button" className="wk-link-btn" disabled={busy} aria-label={t('moduleDataLearn.question.optionRemove', { n: i + 1 })}
                   onClick={() => setOptions(options.filter((_, k) => k !== i), c.correct.filter((x) => x !== i).map((x) => (x > i ? x - 1 : x)))}>×</button>
               )}
             </span>
           ))}
-          <button type="button" className="wk-link-btn" disabled={busy || options.length >= 12} onClick={() => setOptions([...options, ''], c.correct)}>+ możliwość</button>
+          <button type="button" className="wk-link-btn" disabled={busy || options.length >= 12} onClick={() => setOptions([...options, ''], c.correct)}>{t('moduleDataLearn.question.optionAdd')}</button>
         </fieldset>
       )}
 
       {c.form === 'truefalse' && (
         <fieldset className="wk-field">
-          <legend>To zdanie jest</legend>
-          <label className="wk-check"><input type="radio" checked={c.value === true} disabled={busy} onChange={() => onSet({ value: 'tak' })} /><span>prawdziwe</span></label>
-          <label className="wk-check"><input type="radio" checked={c.value === false} disabled={busy} onChange={() => onSet({ value: 'nie' })} /><span>fałszywe</span></label>
+          <legend>{t('moduleDataLearn.question.sentenceIs')}</legend>
+          <label className="wk-check"><input type="radio" checked={c.value === true} disabled={busy} onChange={() => onSet({ value: 'tak' })} /><span>{t('moduleDataLearn.question.true')}</span></label>
+          <label className="wk-check"><input type="radio" checked={c.value === false} disabled={busy} onChange={() => onSet({ value: 'nie' })} /><span>{t('moduleDataLearn.question.false')}</span></label>
         </fieldset>
       )}
 
       {(c.form === 'text' || c.form === 'number' || c.form === 'flash') && (
         <label className="wk-field">
-          <span>{c.form === 'flash' ? 'Odwrotna strona' : 'Dobre odpowiedzi — każda w osobnej linii'}</span>
+          <span>{c.form === 'flash' ? t('moduleDataLearn.question.back') : t('moduleDataLearn.question.answers')}</span>
           <textarea rows={3} value={raw.answers ?? ''} disabled={busy} onChange={(e) => onSet({ answers: e.target.value })} />
         </label>
       )}
@@ -165,7 +168,7 @@ function QuestionEditor({ raw, onSet, busy }: EditorProps) {
       {c.form === 'number' && <Suspense fallback={null}><LazyNumber raw={raw} c={c} busy={busy} onSet={onSet} /></Suspense>}
 
       <label className="wk-field">
-        <span>Wyjaśnienie po odpowiedzi</span>
+        <span>{t('moduleDataLearn.question.explain')}</span>
         <textarea rows={2} value={raw.explain ?? ''} disabled={busy} onChange={(e) => onSet({ explain: e.target.value })} />
       </label>
     </div>
@@ -183,26 +186,24 @@ function QuestionView({ config, ctx }: { config: QuestionConfig; ctx: PartContex
   return createElement(Suspense, { fallback: createElement(Loading, {}) }, createElement(LazyView, { config, ctx }));
 }
 
-export const questionPart = definePart<QuestionConfig>({
+export const questionPart = defineTextPart<QuestionConfig>({
   kind: 'question',
-  example: { form: 'one', prompt: 'Ile jest sakramentów?', options: 'Pięć\nSiedem\nDwanaście', correct: '1', answers: 'siedem\n7', value: 'tak', explain: 'Chrzest, bierzmowanie, Eucharystia, pokuta, namaszczenie chorych, kapłaństwo, małżeństwo.', unit: 'szt.', quantity: 'Dimensionless', tolerance: '0', question: '<puste albo @kurs/pytanie z bazy opowieści>', about: '@kurs/sakramenty' },
-  label: 'Pytanie',
-  use: 'Pytanie z odpowiedzią do sprawdzenia. W prezentacji — krok przebiegu: po dobrej i po złej odpowiedzi może prowadzić w inne miejsce, a odpowiedzi liczą się w przeglądarce albo w Cogicie. W opowieści z bazą wiedzy może to być prawdziwe pytanie z bazy ("question": jego id albo @nazwa) — odpowiedź liczy się wtedy dla tego, o czym jest, i wspólnie z powtórkami; własne pytanie z "about" liczy się dla wymienionych wpisów.',
+  example: withTexts({ form: 'one', correct: '1', value: 'tak', quantity: 'Dimensionless', tolerance: '0', about: '@kurs/sakramenty' }, texts({ prompt: 'moduleDataLearn.question.exPrompt', options: 'moduleDataLearn.question.exOptions', answers: 'moduleDataLearn.question.exAnswers', explain: 'moduleDataLearn.question.exExplain', unit: 'moduleDataLearn.question.exUnit', question: 'moduleDataLearn.question.exQuestion' })),
   box: { colSpan: 4, rowSpan: 3 },
   fields: [],
   extra: [
-    { key: 'form', shape: 'line', says: '"one" — jedna z kilku, "many" — kilka, "truefalse", "text", "number", "flash" — fiszka' },
-    { key: 'prompt', shape: 'lines', says: 'treść pytania (przy fiszce: przód)' },
-    { key: 'options', shape: 'lines', says: 'możliwości, każda w osobnej linii (one, many)' },
-    { key: 'correct', shape: 'line', says: 'numery dobrych możliwości od 0, po przecinku, np. "1" albo "0,2"' },
-    { key: 'answers', shape: 'lines', says: 'dobre odpowiedzi, każda w osobnej linii (text, number); odwrotna strona (flash)' },
-    { key: 'value', shape: 'line', says: '"tak" albo "nie" — czy zdanie jest prawdziwe (truefalse)' },
-    { key: 'explain', shape: 'lines', says: 'wyjaśnienie pokazywane po odpowiedzi' },
-    { key: 'unit', shape: 'line', says: 'jednostka dobrych odpowiedzi, np. "N·m" (number)' },
-    { key: 'quantity', shape: 'line', says: 'wielkość (number) — np. "Torque" (moment siły), "Energy", "Mass", "Length"; wtedy odpowiedź w innej jednostce tej wielkości jest przeliczana, a jednostka innej wielkości jest błędem ("12 J" na pytanie o moment siły)' },
-    { key: 'tolerance', shape: 'line', says: 'ile wolno się pomylić, w jednostce pytania, np. "0,5" (number)' },
-    { key: 'question', shape: 'line', says: 'w opowieści z bazą wiedzy (prezentacja z "story.base"): prawdziwe pytanie z tej bazy — jego id albo @nazwa; wtedy pokazuje się ono samo (pola wyżej są zbędne), a odpowiedź leży na jego karcie: liczy się dla tego, o czym jest ("about" pytania), i wspólnie z powtórkami' },
-    { key: 'about', shape: 'lines', says: 'w opowieści z bazą wiedzy: dla jakich wpisów tej bazy liczy się odpowiedź na to (własne) pytanie — id albo @nazwa, każdy w osobnej linii; znajomość tych wpisów rośnie z dobrą odpowiedzią (krajobraz, ścieżka, warunki)' }
+    withTexts({ key: 'form', shape: 'line' } as const, texts({ says: 'moduleDataLearn.question.sForm' })),
+    withTexts({ key: 'prompt', shape: 'lines' } as const, texts({ says: 'moduleDataLearn.question.sPrompt' })),
+    withTexts({ key: 'options', shape: 'lines' } as const, texts({ says: 'moduleDataLearn.question.sOptions' })),
+    withTexts({ key: 'correct', shape: 'line' } as const, texts({ says: 'moduleDataLearn.question.sCorrect' })),
+    withTexts({ key: 'answers', shape: 'lines' } as const, texts({ says: 'moduleDataLearn.question.sAnswers' })),
+    withTexts({ key: 'value', shape: 'line' } as const, texts({ says: 'moduleDataLearn.question.sValue' })),
+    withTexts({ key: 'explain', shape: 'lines' } as const, texts({ says: 'moduleDataLearn.question.sExplain' })),
+    withTexts({ key: 'unit', shape: 'line' } as const, texts({ says: 'moduleDataLearn.question.sUnit' })),
+    withTexts({ key: 'quantity', shape: 'line' } as const, texts({ says: 'moduleDataLearn.question.sQuantity' })),
+    withTexts({ key: 'tolerance', shape: 'line' } as const, texts({ says: 'moduleDataLearn.question.sTolerance' })),
+    withTexts({ key: 'question', shape: 'line' } as const, texts({ says: 'moduleDataLearn.question.sQuestion' })),
+    withTexts({ key: 'about', shape: 'lines' } as const, texts({ says: 'moduleDataLearn.question.sAbout' }))
   ],
   read: readQuestion,
   hasContent: (c) => questionMissing(c) === null,
@@ -210,6 +211,6 @@ export const questionPart = definePart<QuestionConfig>({
   View: QuestionView,
   Editor: QuestionEditor,
   shows: (c, size) => size.height === 'strip'
-    ? `${QUESTION_FORM_LABEL[c.form]}: pytanie i odpowiedź w jednym pasku.`
-    : `${QUESTION_FORM_LABEL[c.form]} — pytanie, odpowiedź, ocena i wyjaśnienie; w prezentacji potem „Dalej" tam, dokąd prowadzi wynik.`
-});
+    ? t('moduleDataLearn.question.showsStrip', { form: QUESTION_FORM_LABEL[c.form] })
+    : t('moduleDataLearn.question.showsBlock', { form: QUESTION_FORM_LABEL[c.form] })
+}, texts({ label: 'moduleDataLearn.question.label', use: 'moduleDataLearn.question.use' }));

@@ -1,0 +1,260 @@
+{
+  "kind": {
+    "window": "at a set time",
+    "period": "for a while, regularly",
+    "after": "every so often after it is done"
+  },
+  "repeat": {
+    "none": "once",
+    "daily": "daily",
+    "weekly": "on chosen weekdays",
+    "monthly": "monthly",
+    "yearly": "yearly"
+  },
+  "remind": {
+    "start": "at the start",
+    "middle": "halfway",
+    "end": "near the end"
+  },
+  "otherGroup": "another group",
+  "onlyMe": "Only me",
+  "unknownKeys": {
+    "one": "unknown key {list} — skipped",
+    "other": "unknown keys {list} — skipped"
+  },
+  "end": {
+    "noSuchTime": "there is no such time",
+    "format": "it is \"HH:MM\", \"YYYY-MM-DDTHH:MM\" or \"YYYY-MM-DD\"",
+    "beforeStart": "end before start",
+    "tooLong": "window longer than a year"
+  },
+  "span": {
+    "bare": "a bare number ({value}) — give a unit, e.g. {\"days\": {value}}",
+    "notObject": "it is an object with a unit, e.g. {\"days\": 3}",
+    "unknownUnit": "unknown unit \"{unit}\" ({units})",
+    "negative": "\"{unit}\" is a number not less than 0",
+    "empty": "empty — give e.g. {\"days\": 3}",
+    "range": "from a minute to a year"
+  },
+  "spanWords": {
+    "weeks": {
+      "one": "{count} week",
+      "other": "{count} weeks"
+    },
+    "days": {
+      "one": "{count} day",
+      "other": "{count} days"
+    },
+    "hours": {
+      "one": "{count} h",
+      "other": "{count} h"
+    },
+    "minutes": {
+      "one": "{count} min",
+      "other": "{count} min"
+    }
+  },
+  "everyWords": {
+    "weeks": {
+      "one": "weekly",
+      "other": "every {count} weeks"
+    },
+    "days": {
+      "one": "daily",
+      "other": "every {count} days"
+    },
+    "hours": {
+      "one": "hourly",
+      "other": "every {count} h"
+    },
+    "minutes": {
+      "one": "every {count} min",
+      "other": "every {count} min"
+    }
+  },
+  "noReminders": "no reminders",
+  "weeklyOn": "weekly ({days})",
+  "when": {
+    "period": "from {from}, {span} to do it, {every}",
+    "after": "{every} after it is done, first time {from}"
+  },
+  "diff": {
+    "title": "title ({was} → {next})",
+    "kind": "kind ({was} → {next}): {when}",
+    "start": "start ({was} → {next})",
+    "end": "end ({was} → {next})",
+    "window": "window length ({was} → {next})",
+    "repeat": "repetition ({was} → {next})",
+    "lasts": "time to do it ({was} → {next})",
+    "every": "interval ({was} → {next})",
+    "remind": "reminders ({was} → {next})",
+    "who": "who sees it ({was} → {next})",
+    "notesNew": "note (new)",
+    "notesGone": "note (removed)",
+    "notes": "note"
+  },
+  "group": {
+    "noId": "there is no group with the id {id} among yours",
+    "ambiguous": "{text} matches several groups ({groups}) — write the name with its path or the id",
+    "none": "there is no group {text} among yours",
+    "notList": "\"groups\" is a list — skipped.",
+    "notObject": "Group {n}: not an object — skipped.",
+    "keyBad": "Group {n}: \"key\" is a short name (letters, digits, - and _) — skipped.",
+    "twice": "Group “{key}” a second time — the first one counts.",
+    "odd": "Group “{key}”: {odd}.",
+    "byName": "Group “{key}”: id {id} unknown — group recognised by its name as {name}.",
+    "noIdName": "without \"id\" and \"name\"",
+    "unknown": "Group “{key}”: {why} — tasks with \"@{key}\" will be skipped."
+  },
+  "who": {
+    "bad": "\"who\" is \"me\", the \"@key\" of a group or its name",
+    "noKey": "\"who\": {text} — there is no such key in \"groups\"",
+    "unknown": "\"who\": group {text} is not recognised",
+    "error": "\"who\": {error}"
+  },
+  "plan": {
+    "notDoc": "This is not a tasks document — an object with \"tasks\" was expected (format \"{format}\").",
+    "otherFormat": "Another format: {given} — accepted here is \"{format}\".",
+    "noTasks": "The list \"tasks\" is missing.",
+    "version": "\"version\": {given} — read as version {version}.",
+    "docOdd": "Document: {odd}.",
+    "tooMany": "At most {max} tasks in one document — the remaining {rest} skipped.",
+    "notObject": "Task {n}: not an object — skipped.",
+    "idUnknown": "it is not among your tasks",
+    "idBad": "\"id\" {id} is not an id from an export",
+    "named": "Task {title}",
+    "numbered": "Task {n}",
+    "idTwice": "the same \"id\" a second time in the document — skipped.",
+    "removeBad": "\"remove\" is true or false — task skipped.",
+    "removeNone": "\"remove\" works only with the \"id\" of a task that exists — nothing to remove.",
+    "removeNoneWhy": "\"remove\" works only with the \"id\" of a task that exists ({why}) — nothing to remove.",
+    "readOnlyRemove": "in group {group} you can only read — not removed.",
+    "lockedTitle": "task without a readable title",
+    "asNew": "{why} — it will be created as new.",
+    "keptNew": "skipped",
+    "keptOld": "stays as it was",
+    "kindBadNew": "\"kind\" {given} — the kinds are {kinds}; it will be \"{kind}\".",
+    "kindBadOld": "\"kind\" {given} — the kinds are {kinds}; it stays as it was.",
+    "titleEmptyNew": "\"title\" is a non-empty text — no title.",
+    "titleEmptyOld": "\"title\" is a non-empty text — the current one stays.",
+    "titleLong": "title longer than {max} characters — shortened.",
+    "notesBadNew": "\"notes\" is text — no note.",
+    "notesBadOld": "\"notes\" is text — the current one stays.",
+    "notesLong": "note longer than {max} characters — shortened.",
+    "whoSkipped": "{error} — skipped.",
+    "startBadNew": "\"start\" {given} — it is \"YYYY-MM-DDTHH:MM\" or \"YYYY-MM-DD\"; without a start the task can’t be created — skipped.",
+    "startBadOld": "\"start\" {given} — it is \"YYYY-MM-DDTHH:MM\" or \"YYYY-MM-DD\"; it stays as it was.",
+    "needsBoth": "a new task needs \"title\" and \"start\" — skipped.",
+    "needsTitle": "a new task needs \"title\" — skipped.",
+    "needsStart": "a new task needs \"start\" — skipped.",
+    "onlyKinds": "\"{key}\" applies only to {kinds} — skipped.",
+    "and": " and ",
+    "endBadNew": "\"end\" {given} — {why}; window {minutes} min.",
+    "endBadOld": "\"end\" {given} — {why}; it stays as it was.",
+    "repeatBadNew": "\"repeat\" {given} — it is {repeats}; once.",
+    "repeatBadOld": "\"repeat\" {given} — it is {repeats}; stays as it was.",
+    "weekdaysNotWeekly": "\"weekdays\" counts only with \"repeat\": \"weekly\" — skipped.",
+    "weekdaysBad": "\"weekdays\": {bad} — the days are {days}; skipped.",
+    "lastsBadNew": "\"lasts\": {why}; {span}.",
+    "lastsBadOld": "\"lasts\": {why}; stays as it was.",
+    "everyBadNew": "\"every\": {why}; the default interval.",
+    "everyBadOld": "\"every\": {why}; stays as it was.",
+    "remindBad": "\"remind\" is a list, e.g. [\"start\"] — {kept}.",
+    "remindUnknown": "\"remind\": {bad} — the reminders are {kinds}; skipped.",
+    "remindAfter": "with \"after\" only \"start\" reminds (when the time comes) — \"middle\" and \"end\" skipped.",
+    "everyShort": "returns {every} but lasts {span} — it can’t return more often than it lasts (\"every\" ≥ \"lasts\"); skipped.",
+    "locked": "the title and note of this task can’t be opened here — the import won’t change it (it can only remove it).",
+    "readOnlyChange": "in group {group} you can only read — changes skipped.",
+    "readOnly": "in group {group} you can only read — skipped.",
+    "past": "is in the past ({at}) — it will show as missed right away.",
+    "pastSeries": "starts in the past ({at}) — earlier occurrences will show as missed.",
+    "twin": "such a task already exists (same title and start) — without \"id\" a second one will be created.",
+    "total": "New: {created} · changed: {updated} · removed: {removed} · unchanged: {unchanged}",
+    "lineNew": "New — {title}: {when} · {who}",
+    "lineNewRemind": "New — {title}: {when} · {who} · reminder: {remind}",
+    "lineChange": "Change — {title}: {what}",
+    "lineRemove": "Removal — {title} (to the archive; the history of completions stays)",
+    "nothing": "Nothing to save."
+  },
+  "keys": {
+    "doc": {
+      "format": "always \"{format}\"",
+      "version": "format version: {version}",
+      "groups": "groups that tasks point to in \"who\" via \"@key\" (below); the export lists the groups where you can add tasks, and the groups of the exported tasks",
+      "tasks": "the list of tasks (at most {max} in one document)"
+    },
+    "task": {
+      "id": "task id from an export — with it the import changes this task in place; without it a new one is created. Don’t make it up: an unknown id gives a new task (with a warning)",
+      "title": "what is to be done, e.g. “Evening prayer” (required for a new one; up to {max} characters)",
+      "kind": "kind (below): {kinds}; omitted for a new one — \"period\" when there is \"lasts\", \"after\" when there is \"every\" (without \"end\", \"repeat\" and \"weekdays\"), otherwise \"window\"",
+      "who": "who sees it: \"me\" — only you (the default for a new one); \"@key\" — a group from \"groups\"; or the id or name of a group. A change moves the task to another group",
+      "start": "local time \"YYYY-MM-DDTHH:MM\" (or \"YYYY-MM-DD\" — at 00:00; a time with a zone, e.g. \"…Z\" or \"…+01:00\", is converted to local): for \"window\" the start of the first window, for \"period\" the start of the first period, for \"after\" when the task is due for the first time (required for a new one)",
+      "end": "only \"window\": the end of the first window — \"HH:MM\" the same day (a time before the start — the next day), \"YYYY-MM-DDTHH:MM\" or \"YYYY-MM-DD\" (until the end of that day); a window lasts at most a year. Omitted for a new one — {minutes} minutes; omitted on a change — the window keeps its length (moves with \"start\"). Whoever changes \"start\" in an export should also change \"end\" or remove it",
+      "repeat": "only \"window\": {repeats}; omitted for a new one — \"none\"",
+      "weekdays": "only \"window\" with \"repeat\": \"weekly\": a list of days — {days}; omitted — the weekday of \"start\"",
+      "lasts": "only \"period\": how much time to do it — a duration (below), e.g. {\"days\": 3}; from a minute to a year; omitted for a new one — 3 days",
+      "every": "\"period\": how often it returns, from start to start — not shorter than \"lasts\", at most a year (omitted for a new one — 2 weeks); \"after\": how long after completion it is due again — from a minute to a year (omitted for a new one — 3 days). A duration like \"lasts\", e.g. {\"weeks\": 2}",
+      "remind": "when to remind — a list: {kinds}; \"end\" — a quarter of an hour before the end, for a shorter window at the end; with \"after\" only \"start\" (when the time comes); [] — no reminders. They arrive on devices with notifications turned on",
+      "notes": "note (up to {max} characters); \"\" — no note",
+      "remove": "true — remove this task (only with \"id\"; like “Delete” in the task window: it disappears from the lists, the history of completions stays in the archive); the other keys then don’t count",
+      "locked": "only in an export: the title and note can’t be opened here (the task was saved with a key you don’t have) — the import won’t change such a task, it can only remove it"
+    },
+    "group": {
+      "key": "a short name (letters, digits, - and _) that \"who\": \"@key\" points to, e.g. \"schola\"",
+      "id": "group id from an export — takes precedence over the name",
+      "name": "the group name as in “Who sees”: alone (“Schola”) or with its path (“St Joseph’s Parish › Schola”); it must point to one group",
+      "readOnly": "only in an export: true — in this group you can only read, so the import won’t change its tasks"
+    },
+    "span": {
+      "minutes": "minutes",
+      "hours": "hours",
+      "days": "days",
+      "weeks": "weeks"
+    }
+  },
+  "sample": {
+    "parishSchola": "St Joseph’s Parish › Schola",
+    "schola": "Schola",
+    "apel": "Evening prayer",
+    "cleanHall": "Clean the parish room",
+    "keys": "Keys in the sacristy.",
+    "music": "Prepare the music for Sunday",
+    "flowers": "Water the flowers",
+    "prayer": "Evening prayer",
+    "examen": "Examination of conscience",
+    "silence": "A quarter of an hour of silence before bed."
+  },
+  "node": {
+    "intro": "Tasks (Calendar → tab “Tasks”) as one document: what is to be done and when, who sees it and when to remind. The export gives the tasks you see — all of them or those of one group.\nWhat the import does:\n- First it shows the list of changes — new, changed (what and how), removed, unchanged — and the warnings; it saves only after “Import tasks”.\n- A task with \"id\" from an export is changed in place, and only what is in the document — an omitted key stays as it was. A task without \"id\" is added as new; the same document imported a second time adds it once more.\n- By itself it removes nothing: a task disappears only with \"remove\": true.\n- Completions (ticks and skips) are not part of the document: the export doesn’t contain them, the import doesn’t change them. A task created from a conversation stays with its message.\n- The title and note are encrypted by the browser with the key of those who see the task (“Only me” or a group). You can add and change where you may write; tasks of groups you only read are skipped by the import with a warning.\n- Time is the device’s local time, as in the task window: \"YYYY-MM-DDTHH:MM\".\nReturn ONE JSON object, without comments.\nDocument keys:",
+    "kinds": "\"window\" — {window}: a window of time that can return (\"repeat\") — e.g. a prayer 21:00–21:15 daily. Each occurrence is ticked; one that passed unticked stays as missed until someone ticks or skips it.\n\"period\" — {period}: time to do it (\"lasts\") that returns at a fixed interval (\"every\") — e.g. cleaning the church: 3 days to do it, every 2 weeks. It shows from the start of the period, and the closer to the end, the more urgent.\n\"after\" — {after} (\"every\"): a counter from the last completion — e.g. water the flowers every 3 days; ticking starts the count anew.\nA duration (\"lasts\", \"every\") is an object with a number at a unit: {units} — e.g. {\"days\": 3}, {\"hours\": 36}, {\"weeks\": 2}; several units add up ({\"days\": 1, \"hours\": 12}). A bare number, without a unit, is not enough.\nA key of another kind (e.g. \"lasts\" with \"window\") the import skips with a warning. When \"kind\" changes, what is missing is taken as in the task window: a window of {minutes} minutes, 3 days to do it, every 2 weeks, every 3 days.\nA task that starts in the past will show earlier occurrences as missed — the import warns about it.",
+    "groupsLead": "\"who\" says who sees the task: \"me\" — only you (a private task, encrypted with your key); a group — everyone in that group (encrypted with its key). A group is pointed to by an \"@key\" from \"groups\", its id or its name.\nAn entry in \"groups\":",
+    "groupsTail": "The import creates no groups and doesn’t change who belongs to them. A task with a group that is not among yours, that matches several, or in which you only read, is skipped with a warning.",
+    "task": {
+      "title": "Task (\"tasks[]\")",
+      "short": "Task",
+      "lead": "An entry in \"tasks\":"
+    },
+    "kindsNode": {
+      "title": "Kinds of tasks and durations",
+      "short": "Kinds and time"
+    },
+    "groupsNode": {
+      "title": "Who sees it (\"who\") and groups (\"groups[]\")",
+      "short": "Who sees and groups"
+    },
+    "usage": {
+      "title": "How the app uses this data",
+      "text": "- Tasks stand in the Calendar: the tab “Tasks” (Now, Missed, Later today, In the coming days, Every so often, Done today, Skipped today) and the calendar grid (the bar and the “tasks” row at each day). The “Calendar” module on pages doesn’t show them.\n- “Now”: the part “Tasks” — what is open now and what is overdue, with “Done”; in “Waiting for you” — how many tasks are to be done now.\n- They are seen by whoever has the key of the area in \"who\": “Only me” — only you, a group — its people. Anyone who writes in the group can tick or skip; one tick counts for the whole group.\n- Reminders (\"remind\") are planned by every device that sees the task — the server doesn’t send them. A phone with the app — with the system alarm, also when the app is closed (sometimes a few minutes later; the notification has “Done”); a browser — only while the page is open. They are turned off on the device: bell → “Settings” → “reminders about tasks”.\n- A task created from a message is also visible in the conversation (“Tasks and appointments from this conversation”).\n- Tasks from form steps (the page module “A person’s tasks”) are something else — this format doesn’t cover them."
+    },
+    "example": {
+      "title": "Example",
+      "lead": "A task from an export (with \"id\"), three new ones — in a group and private — and a removal:"
+    },
+    "root": {
+      "title": "Tasks as JSON (\"{format}\", version {version})",
+      "short": "Tasks",
+      "sampleOwn": "own: a prayer daily, flowers every 3 days, a Friday examination of conscience",
+      "sampleGroup": "group: cleaning every 2 weeks, music from Thursday to Saturday"
+    }
+  }
+}

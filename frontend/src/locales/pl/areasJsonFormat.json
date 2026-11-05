@@ -1,0 +1,98 @@
+{
+  "title": "Obszar jako JSON (\"{format}\", wersja 1)",
+  "section": {
+    "keys": "Obszar",
+    "usage": "Jak aplikacja używa tych danych",
+    "refs": "Odwołania",
+    "roles": "Role i linki",
+    "appointments": "Terminy obszaru",
+    "pages": "Strony obszaru",
+    "subforms": "Podformularze",
+    "example": "Przykład: wydarzenie",
+    "group": "Przykład: grupa"
+  },
+  "sample": {
+    "event": "wydarzenie: rekolekcje z zapisami i stroną po nich",
+    "group": "grupa: schola z próbami"
+  },
+  "intro": "Jeden dokument opisuje cały obszar: wydarzenie, grupę, parafię albo kurs — jego profil i wizytówkę, role (z linkami), terminy z programem, strony (z formularzami), podformularze, rozmowy i listy, na których ma się pokazać.\nCo robi import:\n- Najpierw sprawdza i pokazuje plan, krok po kroku; zapisuje dopiero po „Importuj”, w kolejności: profil, role, terminy, formularze i strony, podformularze, rozmowy, wizytówka, listy.\n- Wszystko nazywa się krótkimi kluczami (\"key\" ról, stron, terminów, podformularzy; \"id\" modułów na stronie). Obszar pamięta, co import utworzył pod jakim kluczem: ten sam dokument zaimportowany jeszcze raz ZMIENIA to samo, zamiast dublować. Dokument z innego obszaru (np. eksport zeszłorocznego wydarzenia) zakłada tu wszystko od nowa — nigdy nie zmienia stron, formularzy ani ról tamtego obszaru.\n- Czego nie ma w dokumencie, zostaje bez zmian (rola, strona, termin, moduł). Wyjątek: program terminu — jego punkty są w dokumencie w całości, więc punkt, którego zabrakło, znika.\n- Role, które już są, zostają, jakie były (import nie zmienia ich uprawnień); nowe role i linki powstają raz.\n- Odpowiedzi formularzy zawsze trafiają do tego obszaru — za dane odpowiada jego administrator danych. Pytania, termin i wizytówka mogą być widoczne w innym obszarze (\"publish\") — zwykle w jawnym obszarze nad nim, jak „Wydarzenia” parafii.\n- Klucze i adresy stron widzi usługa — nie wpisuj w nie danych osobowych.\nZwróć JEDEN obiekt JSON, bez komentarzy.",
+  "keys": {
+    "kind": "rodzaj obszaru: {kinds}; pominięty — zostaje, jaki był (nowy profil go wymaga)",
+    "name": "nazwa obszaru — tylko informacja (import jej nie zmienia)",
+    "category": "jedno słowo do filtrów na listach, np. \"rekolekcje\" (do 40 znaków) albo null",
+    "address": "proponowany adres strony głównej, np. \"parafia/rekolekcje-2026\" — osoba importująca może go zmienić; adresy stron liczą się od niego",
+    "publish": "\"auto\" — publiczne części (wizytówka, termin, pytania formularzy) idą do najbliższego jawnego obszaru nad tym, który prowadzisz; \"area\" — zostają w tym obszarze (widzą je tylko jego osoby); albo identyfikator obszaru (z eksportu)",
+    "archive": "\"auto\" — godzinę po końcu głównego terminu formularze się zamykają, a strona „po wydarzeniu” się pokazuje; \"manual\" — ręcznie",
+    "card": "wizytówka na listach i kartach: { \"title\", \"lead\", \"image\", \"publish\" } — \"image\": \"page-image:@klucz\" (plik opisany w \"images\" strony głównej) albo \"page-image:<id>\"; null — bez wizytówki",
+    "roles": "role obszaru (najwyżej {max}) — niżej: Role i linki",
+    "appointments": "terminy w kalendarzu obszaru, z programem — niżej: Terminy obszaru",
+    "pages": "strony obszaru (najwyżej {max}), każda z dokumentem strony — niżej: Strony obszaru",
+    "subforms": "podformularze formularzy z tych stron (najwyżej {max}) — niżej: Podformularze",
+    "chats": "\"area\" — rozmowa wszystkich osób obszaru, \"channel\" — kanał ogłoszeń (piszą prowadzący); albo { \"kind\": \"area\", \"forms\": [\"@form:strona/moduł\"] } — z osobami zapisanymi przez te formularze (ich własnymi linkami)",
+    "listings": "adresy stron z listą „Wydarzenia”, na których obszar prosi o miejsce (najwyżej {max}); \"events\" — katalog recreatio.pl/events (decyduje operator, karta bez danych osobowych)"
+  },
+  "refs": {
+    "lead": "Dokument nie używa identyfikatorów usługi — wskazuje swoje części przez odwołania. Odwołanie to CAŁA wartość (albo lista po przecinku), nigdy fragment tekstu:",
+    "area": "ten obszar — np. \"area\" modułu \"event\" (wizytówka), \"areas\" modułu \"events\"",
+    "form": "formularz z tego dokumentu: \"key\" strony i \"id\" modułu (np. \"@form:main/zapisy\"); albo \"@form:klucz\" podformularza — np. \"form\" modułu \"entries\", \"formId\" w mapie logiki",
+    "page": "adres strony z tego dokumentu — np. w menu (\"kind\": \"abs\") albo w polu „Strona”",
+    "role": "rola z tego dokumentu; w \"memberRoles\" i \"virtualAreas\" formularzy wystarczy \"@klucz\"",
+    "item": "w polach kalendarza modułów (\"item\", \"calendar\", \"calendars\") — termin z \"appointments\" po \"key\" (także punkt programu z własnym \"key\"); \"{entry}\" — kalendarz obszaru",
+    "tail": "Moduł \"program\" z \"item\": \"@termin\" i pustym \"calendar\" sam dostaje kalendarz obszaru. Eksport zapisuje odwołania w tej samej postaci."
+  },
+  "roles": {
+    "lead": "Wpis w \"roles\":",
+    "key": "krótka nazwa (litery, cyfry, - i _, do 32 znaków), np. \"organizatorzy\"",
+    "name": "nazwa roli, np. \"Organizatorzy\" (widzą ją prowadzący)",
+    "level": "co rola może w obszarze: {levels}",
+    "link": "true albo { \"days\": 1–365 (domyślnie 30), \"once\": true — jednorazowy, \"lead\": true — kto go otworzy, sam może przyjmować innych do roli, \"label\" } — link zaproszenia do tej roli; otwiera widok obszaru (w wydarzeniu rola, która tylko czyta — jego stronę główną); powstaje raz i pokazuje się po imporcie",
+    "tail": "Każda nowa rola to kilkanaście sekund liczenia kluczy w przeglądarce. Uczestnicy zapisani przez formularz dostają rolę z \"memberRoles\" formularza (np. [\"@uczestnicy\"]) — dla nich link nie jest potrzebny."
+  },
+  "appointments": {
+    "lead": "Wpis w \"appointments\" ma klucze terminu ze strony (niżej: Terminy do kalendarza) — \"key\", \"title\", \"start\", \"end\", \"allDay\", \"location\", \"notes\", \"link\", \"linkLabel\", \"repeat\", \"every\", \"weekdays\", \"until\", \"points\" — oraz:",
+    "key": "wymagany — po nim ponowny import zmienia ten sam termin (bez niego dostaje „termin-1”, „termin-2”…)",
+    "main": "true — główny termin: jego koniec jest końcem wydarzenia (karty, archiwum); jeden, bez powtórzeń; pojedynczy termin wydarzenia jest główny sam",
+    "publish": "\"area\", \"auto\" albo identyfikator obszaru — gdzie termin (i jego program) jest widoczny; pominięty — jak \"publish\" obszaru",
+    "tail": "Wszystkie terminy idą do kalendarza obszaru (\"calendar\" i \"calendars\" są tu zbędne). Punkty programu (\"points\") ponowny import zmienia w miejscu po kolei; punkt, którego zabrakło w dokumencie, znika z kalendarza."
+  },
+  "pages": {
+    "lead": "Wpis w \"pages\":",
+    "key": "krótka nazwa strony (do 24 znaków), np. \"main\", \"zapisy\", \"po\"",
+    "path": "\"\" — adres strony głównej; \"zapisy\" — pod nim (\"parafia/rekolekcje-2026/zapisy\"); \"/inny/adres\" — dokładnie ten adres; pominięty — \"\" dla strony głównej, inaczej \"key\"",
+    "main": "true — strona główna obszaru (karty prowadzą na nią); bez tego — strona z \"path\": \"\"",
+    "after": "true — strona „po wydarzeniu”: przygotowana, ale ukryta do końca głównego terminu; potem pokazuje się na kartach",
+    "access": "\"public\" — każdy; \"members\" — tylko osoby obszaru; pominięty — zostaje, jak było (nowa: publiczna)",
+    "page": "dokument strony — jak niżej (Strona jako JSON), bez \"path\", \"appointments\" i \"calendars\"",
+    "modulesLead": "W modułach strony (\"modules\") dokument obszaru dodaje:",
+    "id": "nazwa modułu na tej stronie (litery, cyfry, - i _, do 32 znaków) — po niej ponowny import zmienia ten sam moduł; formularz musi ją mieć (inaczej po zmianie kolejności trafiłby w inny formularz i jego zgłoszenia)",
+    "members": "true — moduł widzą tylko osoby obszaru (z kontem, linkiem albo własnym linkiem z formularza), np. zdjęcia i materiały na stronie „po wydarzeniu”; false — wszyscy",
+    "publish": "tylko \"form\": \"area\", \"auto\" albo identyfikator obszaru — gdzie leżą pytania (formularz publiczny w prywatnym obszarze: pytania pod kluczem jawnego obszaru, odpowiedzi tutaj); pominięty — jak \"publish\" obszaru",
+    "answer": "tylko \"seat-ask\" („Napisz do nas”): kto odpowiada — role z \"roles\", np. [\"@role:organizatorzy\"]; pominięty — role z \"level\": \"admin\" (bez nich tylko osoba importująca); osoba z linkiem czyta „Napisz do: …” z ich nazwami",
+    "forms": "tylko \"seat-ask\": czyje osoby mogą zacząć rozmowę — formularze z tego dokumentu, np. [\"@form:main/zapisy\"]; pominięty — wszystkie formularze stron dokumentu",
+    "tail": "\"module\" jest w dokumencie obszaru pomijane, \"answersTo\" pytań też (odpowiedzi trafiają do tego obszaru). Strona, która już istnieje, a nie jest stroną tego obszaru, nie zostanie zmieniona, chyba że osoba importująca na to pozwoli."
+  },
+  "subforms": {
+    "lead": "Wpis w \"subforms\" — formularz, który rozszerza formularz ze strony (zgody, ankieta po wydarzeniu, karta zdrowia):",
+    "key": "krótka nazwa (do 32 znaków)",
+    "of": "formularz, który rozszerza: \"@form:strona/moduł\"",
+    "name": "nazwa podformularza",
+    "audience": "\"person\" — wypełnia osoba przez swój link; \"office\" — tylko prowadzący",
+    "repeat": "\"once\", \"day\", \"week\", \"month\", \"year\" — jak często (zwykle \"once\")",
+    "publish": "jak przy formularzu na stronie",
+    "questions": "pytania — jak w formularzu (niżej: Formularz); także \"design\", \"needs\", \"memberRoles\", \"virtualAreas\", \"group\""
+  },
+  "usage": "- Obszar dostaje pierwszą zakładkę nazwaną od rodzaju. Każdy, kto czyta obszar, widzi w niej wizytówkę, termin i miejsce, „Zapisy otwarte” oraz linki do stron i rozmów; tylko prowadzący — „Do zrobienia”, edytor wizytówki, narzędzia rodzaju i ten import.\n- Wizytówka jest szyfrowana kluczem obszaru, w którym ją opublikowano: z jawnego obszaru przeczyta ją każdy, z innego — tylko ci, którzy go czytają.\n- Karty w modułach „Wydarzenia” i „Wizytówka” prowadzą na stronę główną. Na listach obszar stoi tylko z publiczną, niezaszyfrowaną stroną główną (bez jawnej wizytówki karta bierze tytuł i tekst tej strony); datę pokazuje, gdy główny termin jest widoczny publicznie, a „Zapisy otwarte” — gdy formularz naprawdę przyjmuje (otwarty, publiczny, na publicznej stronie, z administratorem danych).\n- \"listings\" to prośby o miejsce: lista, którą prowadzisz, pokaże obszar od razu; inną zatwierdza jej właściciel, katalog \"events\" — operator serwisu.\n- Terminy stoją w kalendarzu obszaru: w kalendarzu i w module \"program\" widzi je, kto czyta obszar, w którym są widoczne (\"publish\").\n- Strona „po wydarzeniu” jest widoczna po końcu głównego terminu albo po „Zakończ teraz” (wcześniej tylko dla tych, którzy ją prowadzą); publiczną pokazują wtedy też karty. Przy \"archive\": \"auto\" wszystkie otwarte formularze obszaru zamykają się same po końcu, a „Przywróć” otwiera je znowu.\n- Bez administratora danych (własnego albo z obszaru nad nim) formularze nie przyjmą zgłoszeń, rozmowy obszaru nie powstaną, a publicznych stron nie da się zapisać. Gdy go ma, import oddaje publiczne strony z dokumentu pod odpowiedzialność tego obszaru.\n- Import nie publikuje w obszarze, którego nie prowadzisz — publiczne części zostają wtedy tutaj, z ostrzeżeniem w planie.",
+  "prompt": {
+    "kind": " (rodzaj: {kind})",
+    "fromTemplate": "Na dole jest eksport obszaru „{name}” — poprzedniego wydarzenia. Zrób na jego wzór nowe: zachowaj układ stron, moduły, pytania formularzy, role, ich \"key\" i \"id\" modułów; zmień daty, tytuły, opisy i wszystko, co dotyczy nowego. Usuń to, co dotyczyło tylko poprzedniego (np. jego zdjęcia i materiały na stronie „po wydarzeniu”). \"address\" ustaw na nowy adres.",
+    "fromCurrent": "Na dole jest obecny eksport tego obszaru. Zmień go według moich wskazówek — zachowaj wszystkie \"key\" i \"id\", żeby import zmienił to, co jest, zamiast dublować.",
+    "fromScratch": "Ułóż obszar od zera według moich wskazówek.",
+    "head": "Przygotuj jeden dokument JSON w formacie „{format}” (opis formatu jest niżej) dla obszaru „{name}”{kind}.",
+    "rules": "Zasady:\n- Zwróć JEDEN obiekt JSON — bez komentarzy, bez tekstu przed nim i po nim.\n- Nie wpisuj danych osobowych (imion i nazwisk, telefonów, adresów e-mail konkretnych osób), chyba że podam je wprost do publikacji.\n- Nie wymyślaj faktów — dat, miejsc, cen, osób, zgód ani podstaw prawnych, których nie podałem. Czego nie wiesz, zostaw puste.\n- Zdjęcia i pliki, których jeszcze nie ma, opisz w \"images\" strony i wstaw \"{need}klucz\". \"page-image:<id>\" ze wzoru możesz zostawić — to ten sam plik.\n- Formularz musi mieć \"id\"; odpowiedzi trafiają do tego obszaru, więc \"answersTo\" pomiń.",
+    "hints": "Moje wskazówki: (uzupełnij — daty, miejsce, co ma być inaczej)",
+    "short": "Opis formatu jest skrócony — bez rzadkich modułów i rozdziałów ({left}). Jeśli któregoś potrzebujesz, napisz o tym — dostaniesz pełny opis.",
+    "formatHead": "=== OPIS FORMATU ===",
+    "templateHead": "=== WZÓR: POPRZEDNIE WYDARZENIE ===",
+    "currentHead": "=== OBECNY OBSZAR ==="
+  }
+}

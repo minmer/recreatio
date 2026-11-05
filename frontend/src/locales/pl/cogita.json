@@ -1,0 +1,8 @@
+{
+  "learnerLoading": {
+    "title": "Wczytywanie Twoich postępów…",
+    "count": "{done} z {total}",
+    "countOpen": "wczytano {done}",
+    "note": "Krajobraz będzie można używać, gdy wczytają się Twoje postępy."
+  }
+}

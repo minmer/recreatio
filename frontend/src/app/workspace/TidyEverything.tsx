@@ -28,6 +28,7 @@ import { loadModules } from '../modules/module';
 import { normalizeAddressLines } from '../registry/postal';
 import { WorkspaceError } from '../core/session';
 import { TidyList, toggled, type TidyItem } from './TidyList';
+import { useT } from '../core/i18n';
 
 interface FormFound {
   readonly formId: string;
@@ -54,9 +55,10 @@ export function TidyEverything({ ring }: { ring: Ring }) {
   const [working, setWorking] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   const scan = async () => {
-    setWorking('Przeglądanie…');
+    setWorking(t('workspace.tidyAll.scanning'));
     setFailed(null);
     setSaid(null);
     try {
@@ -64,7 +66,7 @@ export function TidyEverything({ ring }: { ring: Ring }) {
       const found: FormFound[] = [];
       let unreadable = 0;
       for (const m of modules.filter((one) => one.kind === 'form')) {
-        setWorking(`Przeglądanie: ${m.name}…`);
+        setWorking(t('workspace.tidyAll.scanningOne', { name: m.name }));
         try {
           const read = await readForm(m.moduleId, ring);
           const crooked = await crookedOf(read);
@@ -88,7 +90,7 @@ export function TidyEverything({ ring }: { ring: Ring }) {
           seen.add(r.id);
           if (r.address === null || r.address.trim() === '' || r.email === null || r.authority === null) continue;
           raw.push({
-            key: `controller|${r.id}`, where: `Administrator danych: ${r.name}`, before: r.address,
+            key: `controller|${r.id}`, where: t('workspace.tidyAll.controller', { name: r.name }), before: r.address,
             apply: (address) => writeVersion(r.id, { ...fieldsOf(r), address }, false)
           });
         }
@@ -102,9 +104,9 @@ export function TidyEverything({ ring }: { ring: Ring }) {
         ...found.flatMap((f) => f.crooked.filter((c) => c.doubt).map((c) => answerKey(f.formId, c))),
         ...ctrl.filter((c) => c.doubt).map((c) => c.key)
       ]));
-      if (unreadable > 0) setSaid(`${unreadable} ${unreadable === 1 ? 'formularza' : 'formularzy'} nie da się otworzyć tym kluczem — zostają, jak są.`);
+      if (unreadable > 0) setSaid(t('workspace.tidyAll.unreadable', { count: unreadable }));
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przejrzeć bazy.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('workspace.tidyAll.scanFailed'));
     } finally {
       setWorking(null);
     }
@@ -112,7 +114,7 @@ export function TidyEverything({ ring }: { ring: Ring }) {
 
   const apply = async () => {
     if (forms === null) return;
-    setWorking('Porządkowanie…');
+    setWorking(t('workspace.tidyAll.tidying'));
     setFailed(null);
     try {
       /*
@@ -125,7 +127,7 @@ export function TidyEverything({ ring }: { ring: Ring }) {
       for (const f of forms) {
         const keys = new Set(f.crooked.filter((c) => !skipped.has(answerKey(f.formId, c))).map((c) => answerKey(f.formId, c)));
         if (keys.size === 0) continue;
-        setWorking(`Porządkowanie: ${f.name}…`);
+        setWorking(t('workspace.tidyAll.tidyingOne', { name: f.name }));
         const chosen = (await crookedOf(f.read, true)).filter((c) => keys.has(answerKey(f.formId, c)));
         values += (await straighten(ring, { registrations: f.read.registrations, areaOf: f.read.areaOf }, chosen, seats)).values;
       }
@@ -138,10 +140,11 @@ export function TidyEverything({ ring }: { ring: Ring }) {
       }
       setForms(null);
       setControllers([]);
-      setSaid(`Uporządkowano ${values} ${values === 1 ? 'odpowiedź' : 'odpowiedzi'} w formularzach`
-        + (ctrl > 0 ? ` i ${ctrl} ${ctrl === 1 ? 'adres administratora danych' : 'adresy administratorów danych'}` : '') + '.');
+      setSaid(ctrl > 0
+        ? t('workspace.tidyAll.doneWithCtrl', { count: values, ctrl: t('workspace.tidyAll.ctrlAddresses', { count: ctrl }) })
+        : t('workspace.tidyAll.done', { count: values }));
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się uporządkować wszystkiego — część mogła zostać zapisana; przejrzyj jeszcze raz.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('workspace.tidyAll.applyFailed'));
     } finally {
       setWorking(null);
     }
@@ -149,7 +152,7 @@ export function TidyEverything({ ring }: { ring: Ring }) {
 
   const items: TidyItem[] = [
     ...(forms ?? []).flatMap((f) => f.crooked.map((c) => ({
-      key: answerKey(f.formId, c), where: `${f.name} · ${c.kind === 'phone' ? 'telefon' : 'adres'}`, before: c.value, after: c.tidy, doubt: c.doubt
+      key: answerKey(f.formId, c), where: `${f.name} · ${c.kind === 'phone' ? t('workspace.tidyAll.phone') : t('workspace.tidyAll.address')}`, before: c.value, after: c.tidy, doubt: c.doubt
     }))),
     ...controllers.map((c) => ({ key: c.key, where: c.where, before: c.before, after: c.after, doubt: c.doubt }))
   ];
@@ -157,24 +160,20 @@ export function TidyEverything({ ring }: { ring: Ring }) {
 
   return (
     <section className="wk-form wk-tidy-all">
-      <h2 className="wk-h2">Porządek w całej bazie</h2>
-      <p className="wk-hint">
-        Każdy adres w bazie zapisuje się tak samo jak w kartotece — w odpowiedziach na formularze, w danych osób
-        i u administratora danych; numery telefonu jako +48 600 700 800. Nowe wpisy dostają tę postać same, przy
-        wpisywaniu. Tu uporządkujesz to, co zapisano wcześniej — wszędzie, gdzie masz klucz.
-      </p>
+      <h2 className="wk-h2">{t('workspace.tidyAll.title')}</h2>
+      <p className="wk-hint">{t('workspace.tidyAll.lead')}</p>
       <div className="wk-actions">
         <button type="button" className="wk-btn wk-btn-quiet" disabled={working !== null} onClick={() => void scan()}>
-          {forms === null ? 'Przejrzyj bazę' : 'Przejrzyj jeszcze raz'}
+          {forms === null ? t('workspace.tidyAll.scan') : t('workspace.tidyAll.scanAgain')}
         </button>
       </div>
-      {forms !== null && items.length === 0 && <p className="wk-empty">Wszystko jest już zapisane w jednej postaci.</p>}
+      {forms !== null && items.length === 0 && <p className="wk-empty">{t('workspace.tidyAll.allTidy')}</p>}
       {items.length > 0 && (
         <>
           <TidyList items={items} skipped={skipped} busy={working !== null} onToggle={(key) => setSkipped((was) => toggled(was, key))} />
           <div className="wk-actions">
             <button type="button" className="wk-btn" disabled={working !== null || chosen === 0} onClick={() => void apply()}>
-              Zapisz zaznaczone ({chosen})
+              {t('workspace.tidyAll.saveChosen', { count: chosen })}
             </button>
           </div>
         </>

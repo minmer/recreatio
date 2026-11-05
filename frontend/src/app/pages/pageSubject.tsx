@@ -25,6 +25,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type Component
 import { readEntryQuery } from '../forms/entryDesk';
 import { entrySubjectKind } from '../forms/entrySubject';
 import { entitySubjectKind } from '../cogita/entitySubject';
+import { t, useT } from '../core/i18n';
 
 /** Was gespeichert ist: `{"kind":"entry","form":"…"}` — die Art sagt, was die übrigen Schlüssel bedeuten. */
 export type SubjectDecl = { readonly kind: string } & Readonly<Record<string, unknown>>;
@@ -123,15 +124,16 @@ export function SubjectSettings({ value, busy, onChange }: {
   busy: boolean;
   onChange: (next: SubjectDecl | null) => void;
 }) {
+  const t = useT();
   const kind = value === null ? undefined : subjectKindOf(value.kind);
   const missing = value === null || kind === undefined ? null : kind.missing(value);
 
   return (
     <div className="wk-subject-settings">
-      <div className="wk-seg" role="group" aria-label="Wybór na stronie">
+      <div className="wk-seg" role="group" aria-label={t('pages.editor.subject')}>
         <button type="button" aria-pressed={value === null} disabled={busy}
           className={value === null ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} onClick={() => onChange(null)}>
-          Bez wyboru
+          {t('pages.subject.none')}
         </button>
         {SUBJECT_KINDS.map((one) => (
           <button key={one.kind} type="button" aria-pressed={value?.kind === one.kind} disabled={busy}
@@ -142,8 +144,8 @@ export function SubjectSettings({ value, busy, onChange }: {
         ))}
       </div>
       <p className="wk-hint">{kind === undefined ? (value === null
-        ? 'Strona nie dotyczy nikogo konkretnego — moduły pokazują to, co zawsze.'
-        : `Rodzaj „${value.kind}” nie jest znany tej wersji — zostaje nietknięty.`) : kind.use}</p>
+        ? t('pages.subject.noneHint')
+        : t('pages.subject.unknown', { kind: value.kind })) : kind.use}</p>
       {value !== null && kind !== undefined && <kind.Settings decl={value} busy={busy} onChange={onChange} />}
       {missing !== null && <p className="wk-blocker">{missing}</p>}
     </div>
@@ -152,5 +154,5 @@ export function SubjectSettings({ value, busy, onChange }: {
 
 /** Die Beschreibung im JSON der Seite — jede Art mit ihren Schlüsseln. */
 export const subjectDescription = (): string =>
-  `null (brak wyboru) albo obiekt; rodzaje: ${SUBJECT_KINDS.map((one) =>
-    `{ ${Object.entries(one.keys).map(([key, says]) => `"${key}": ${says}`).join('; ')} } — ${one.label}: ${one.use}`).join(' · ')}`;
+  t('pages.subject.json', { kinds: SUBJECT_KINDS.map((one) =>
+    `{ ${Object.entries(one.keys).map(([key, says]) => `"${key}": ${says}`).join('; ')} } — ${one.label}: ${one.use}`).join(' · ') });

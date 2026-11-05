@@ -23,6 +23,7 @@
  * (`LampTimerData.pace`) und im Plan des Telefons.
  */
 
+import { fmtNumber, t } from '../core/i18n';
 import { DURATION_MIN, GAP_MAX, tidyPace } from './lampStore';
 import type { NativeFrame } from './native';
 
@@ -90,13 +91,15 @@ export function pacedFrames(frames: readonly NativeFrame[], p: Pace): NativeFram
   }));
 }
 
-export const pauseText = (ms: number): string => (ms === 0 ? 'bez przerwy' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString('pl-PL')} s`);
+const msText = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${fmtNumber(ms / 1000)} s`);
+
+export const pauseText = (ms: number): string => (ms === 0 ? t('lamps.pace.noPause') : msText(ms));
 
 /** Kurz, für eine Zeile: „przerwa 300 ms · najwyżej 500 ms" — `null`, wenn so schnell wie gespeichert. */
 export function paceSummary(p: Pace): string | null {
   if (isFastest(p)) return null;
-  return [p.pauseMs > 0 ? `przerwa ${pauseText(p.pauseMs)}` : null, p.limitMs !== null ? limitText(p.limitMs) : null].filter(Boolean).join(' · ');
+  return [p.pauseMs > 0 ? t('lamps.pace.pause', { time: pauseText(p.pauseMs) }) : null, p.limitMs !== null ? limitText(p.limitMs) : null].filter(Boolean).join(' · ');
 }
 
 export const limitText = (ms: number | null): string =>
-  (ms === null ? 'jak zapisano' : `najwyżej ${ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString('pl-PL')} s`}`);
+  (ms === null ? t('lamps.pace.asSaved') : t('lamps.pace.atMost', { time: msText(ms) }));

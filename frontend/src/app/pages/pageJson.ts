@@ -28,7 +28,8 @@ import { type FormContent } from '../forms/formJson';
 import type { VirtualAreaDoc } from '../forms/virtualAreasJson';
 import { describePlan, readAppointments, referencesIn, REFERENCE_FIELDS, type AppointmentsPlan } from '../calendar/appointmentsJson';
 import { newId } from '../core/ids';
-import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Breakpoint, type Frame, type Layout } from './layout';
+import { BREAKPOINTS, COLUMNS, firstFreeCell, langOfLayout, snapColSpan, snapRowSpan, withLang, type Breakpoint, type Frame, type Layout } from './layout';
+import { isLang, LANGS, type Lang } from '../core/i18n';
 import type { MenuState } from './menu';
 import { PAGE_MODES, type DraftPart, type MenuItem, type PageMode } from './page';
 import { menuImageOf } from './menuPath';
@@ -102,6 +103,8 @@ export function exportEntry(part: DraftPart, extra: { name?: string; form?: Form
     module: part.moduleId ?? part.id,
     ...(extra.name === undefined ? {} : { name: extra.name }),
     kind: part.kind,
+    /* 2026-11-05 — eine eigene Sprache des Bausteins; fehlt: die der Seite. */
+    ...(langOfLayout(part.layout) === null ? {} : { lang: langOfLayout(part.layout) }),
     ...(plain ? {} : { slide }),
     /* 0085 — wo er in der Präsentation steht (nur, wenn er dort steht). */
     ...(part.layout.show === undefined ? {} : { show: pieceJson(readPiece(part.layout)) }),
@@ -125,6 +128,8 @@ export function exportPage(now: PageNow): Record<string, unknown> {
     title: now.title,
     lead: now.lead.trim() === '' ? null : now.lead,
     mode: now.mode,
+    /* 2026-11-05 — die Sprache der Seite; fehlt: jeder Besucher in seiner. */
+    ...(now.look.lang === undefined ? {} : { lang: now.look.lang }),
     theme: now.look.theme,
     cover: layersJson(now.look.cover),
     /* 0085 — die Szenen einer Präsentation (auch, wenn die Seite gerade anders erscheint: sie gehen nicht verloren). */
@@ -555,7 +560,11 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     const place = !keepPlace && !(complete && (replace || match !== undefined));
     const frameLayout: Layout = keepPlace ? stripSlide(match!.layout) : complete && !place ? frames : {};
     const sliding: Layout = slide === undefined ? frameLayout : { ...frameLayout, slide };
-    const layout: Layout = shown === undefined ? sliding : withPiece(sliding, shown);
+    const placedLayout: Layout = shown === undefined ? sliding : withPiece(sliding, shown);
+
+    /* 2026-11-05 — die Sprache des Bausteins: aus dem Dokument ("lang": null nimmt sie weg), sonst die bisherige. */
+    const langSaid = has(entry, 'lang') ? langIn(entry.lang, `Moduł ${index + 1}: "lang"`, warnings) : undefined;
+    const layout: Layout = withLang(placedLayout, langSaid !== undefined ? langSaid : match === undefined ? null : langOfLayout(match.layout));
 
     made.push({ part: { id, moduleId, kind: kindSaid, layout, config }, place, size });
     if (match !== undefined) updated += 1; else added += 1;
@@ -631,7 +640,8 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
         theme: theme === undefined ? now.look.theme : theme,
         cover: has(root, 'cover') ? readLayers(root.cover) : now.look.cover,
         ...(show === undefined ? {} : { show }),
-        ...(deck === undefined || deckJson(deck) === undefined ? {} : { deck })
+        ...(deck === undefined || deckJson(deck) === undefined ? {} : { deck }),
+        ...(now.look.lang === undefined ? {} : { lang: now.look.lang })
       };
       if (JSON.stringify(look) !== JSON.stringify(now.look)) plan.look = look;
       if (plan.look !== undefined) {
@@ -646,6 +656,16 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
             d.width === null ? null : `scena do ${d.width} rem`
           ].filter((one) => one !== null).join(', ')}.`);
         }
+      }
+    }
+    /* 2026-11-05 — die Sprache der Seite: "lang": null — jeder Besucher in seiner. */
+    if (has(root, 'lang')) {
+      const lang = langIn(root.lang, '"lang"', warnings);
+      const base = plan.look ?? now.look;
+      if (lang !== undefined && lang !== (base.lang ?? null)) {
+        const { lang: _was, ...rest } = base;
+        plan.look = lang === null ? rest : { ...rest, lang };
+        lines.push(lang === null ? 'Język strony: jak u odwiedzającego.' : `Język strony: ${lang}.`);
       }
     }
     if (has(root, 'menu')) {
@@ -739,6 +759,14 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
   }
 
   return { legacy: false, ...plan, parts, configs, names, forms, from, lines, warnings };
+}
+
+/** 2026-11-05 — "lang" aus dem Dokument: eine der Sprachen, `null` (keine eigene) — sonst `undefined` und eine Warnung. */
+function langIn(value: unknown, where: string, warnings: string[]): Lang | null | undefined {
+  if (value === null || value === '') return null;
+  if (isLang(value)) return value;
+  warnings.push(`${where} „${asText(value)}” — dozwolone: ${LANGS.join(', ')} albo null; zostaje jak jest.`);
+  return undefined;
 }
 
 const stripSlide = (layout: Layout): Layout => {

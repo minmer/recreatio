@@ -1,0 +1,132 @@
+{
+  "kind": {
+    "event": {
+      "label": "Veranstaltungen",
+      "none": "Hier gibt es noch keine Veranstaltungen.",
+      "noneEnded": "Hier gab es noch keine Veranstaltungen.",
+      "done": "beendet",
+      "showsStrip": "Die nächste Veranstaltung in einer Zeile.",
+      "showsGrid": "Alle Veranstaltungen als Raster von Karten mit Bildern und Beschreibung.",
+      "showsList": "Alle Veranstaltungen mit Bildern und Beschreibung, eine Karte unter der anderen.",
+      "showsRow": "Bis zu vier nächsten in einer Reihe — Datum, Ort, Kategorie.",
+      "showsShort": "Bis zu vier nächsten kurz — Datum und Ort."
+    },
+    "group": {
+      "label": "Gruppen",
+      "none": "Hier gibt es noch keine Gruppen.",
+      "noneEnded": "Hier gibt es keine Gruppen im Archiv.",
+      "done": "im Archiv",
+      "showsStrip": "Die erste Gruppe in einer Zeile.",
+      "showsGrid": "Alle Gruppen als Raster von Karten mit Bildern und Beschreibung.",
+      "showsList": "Alle Gruppen mit Bildern und Beschreibung, eine Karte unter der anderen.",
+      "showsRow": "Bis zu vier Gruppen in einer Reihe — Name, Termin, Kategorie.",
+      "showsShort": "Bis zu vier Gruppen kurz — Name und Termin."
+    },
+    "organisation": {
+      "label": "Pfarreien und Organisationen",
+      "none": "Hier gibt es noch keine Pfarreien oder Organisationen.",
+      "noneEnded": "Hier gibt es keine Pfarreien oder Organisationen im Archiv.",
+      "done": "im Archiv",
+      "showsStrip": "Die erste Pfarrei oder Organisation in einer Zeile.",
+      "showsGrid": "Alle Pfarreien und Organisationen als Raster von Karten mit Bildern und Beschreibung.",
+      "showsList": "Alle Pfarreien und Organisationen mit Bildern und Beschreibung, eine Karte unter der anderen.",
+      "showsRow": "Bis zu vier Pfarreien oder Organisationen in einer Reihe — Name, Termin, Kategorie.",
+      "showsShort": "Bis zu vier Pfarreien oder Organisationen kurz — Name und Termin."
+    },
+    "course": {
+      "label": "Kurse",
+      "none": "Hier gibt es noch keine Kurse.",
+      "noneEnded": "Hier gibt es keine Kurse im Archiv.",
+      "done": "im Archiv",
+      "showsStrip": "Der erste Kurs in einer Zeile.",
+      "showsGrid": "Alle Kurse als Raster von Karten mit Bildern und Beschreibung.",
+      "showsList": "Alle Kurse mit Bildern und Beschreibung, eine Karte unter der anderen.",
+      "showsRow": "Bis zu vier Kurse in einer Reihe — Name, Termin, Kategorie.",
+      "showsShort": "Bis zu vier Kurse kurz — Name und Termin."
+    },
+    "school": {
+      "label": "Schulen",
+      "none": "Hier gibt es noch keine Schulen.",
+      "noneEnded": "Hier gibt es keine Schulen im Archiv.",
+      "done": "im Archiv",
+      "showsStrip": "Die erste Schule in einer Zeile.",
+      "showsGrid": "Alle Schulen als Raster von Karten mit Bildern und Beschreibung.",
+      "showsList": "Alle Schulen mit Bildern und Beschreibung, eine Karte unter der anderen.",
+      "showsRow": "Bis zu vier Schulen in einer Reihe — Name, Kategorie.",
+      "showsShort": "Bis zu vier Schulen kurz — Name."
+    },
+    "class": {
+      "label": "Klassen",
+      "none": "Hier gibt es noch keine Klassen.",
+      "noneEnded": "Hier gibt es keine Klassen im Archiv.",
+      "done": "im Archiv",
+      "showsStrip": "Die erste Klasse in einer Zeile.",
+      "showsGrid": "Alle Klassen als Raster von Karten mit Bildern und Beschreibung.",
+      "showsList": "Alle Klassen mit Bildern und Beschreibung, eine Karte unter der anderen.",
+      "showsRow": "Bis zu vier Klassen in einer Reihe — Name, Kategorie.",
+      "showsShort": "Bis zu vier Klassen kurz — Name."
+    }
+  },
+  "when": {
+    "event": {
+      "coming": "Kommende und laufende",
+      "past": "Vergangene",
+      "all": "Alle"
+    },
+    "kept": {
+      "coming": "Aktiv",
+      "past": "Im Archiv",
+      "all": "Alle"
+    }
+  },
+  "cancelled": "abgesagt",
+  "open": "Anmeldung offen",
+  "after": "Nach der Veranstaltung →",
+  "failed": "Die Liste ließ sich nicht laden.",
+  "more": "Und noch {count} — ",
+  "showAll": "alle zeigen",
+  "fullList": "die ganze Liste im Vollbild",
+  "type": "Art",
+  "fromAreas": "{label} aus Bereichen",
+  "deep": "auch aus Bereichen darin",
+  "kindOnly": "Nur Kategorie (optional)",
+  "kindPh": "z. B. Exerzitien",
+  "which": "Welche",
+  "limit": "Höchstens",
+  "noAreasNote": "Ohne gewählte Bereiche zeigt die Liste nur die, die um einen Platz gebeten haben und angenommen wurden. ",
+  "askNote": "Andere Bereiche können um einen Platz auf dieser Liste bitten — die Bitten landen in „Anliegen“ der Person, die die Seite führt.",
+  "list": {
+    "use": "Veranstaltungen, Gruppen, Pfarreien oder Kurse der gewählten Bereiche als Karten (Datum, Ort, Bild, „Anmeldung offen“); andere können um einen Platz auf der Liste bitten.",
+    "exTitle": "Veranstaltungen in der Pfarrei",
+    "exAreas": "<bereich-id-1>,<bereich-id-2>",
+    "exKind": "Exerzitien",
+    "sTitle": "Überschrift der Liste; leer — der Name der Art („Veranstaltungen“, „Gruppen“ …)",
+    "sType": "was die Liste zeigt: \"event\" — Veranstaltungen (meist), \"group\" — Gruppen, \"organisation\" — Pfarreien und Organisationen, \"course\" — Kurse",
+    "sAreas": "Bereiche, aus denen die Liste Karten nimmt (Kennungen) — am einfachsten im Editor wählen; leer — nur auf Bitte angenommene Karten",
+    "sDeep": "\"yes\" — auch Bereiche darin (meist), \"no\" — nur diese Bereiche",
+    "sKind": "nur Karten dieser Kategorie (z. B. \"rekolekcje\"); leer — alle",
+    "sWhen": "\"coming\" — kommende und laufende, bei Gruppen, Pfarreien und Kursen: aktive (meist); \"past\" — vergangene oder im Archiv; \"all\" — alle",
+    "sLimit": "höchstens so viele Karten (1–200); leer — 24"
+  },
+  "one": {
+    "label": "Steckbrief",
+    "use": "Der Steckbrief eines Bereichs — einer Veranstaltung, Gruppe, Pfarrei oder eines Kurses: Bild, Name, Beschreibung, Termin, „Anmelden“, nach dem Ende „Nach der Veranstaltung“; hier gewählt oder in der Adresse der Seite angegeben (?wydarzenie=…).",
+    "exTitle": "Die nächsten Exerzitien",
+    "exArea": "<bereich-id>",
+    "sTitle": "Überschrift über der Karte; leer — ohne Überschrift",
+    "sArea": "der Bereich, dessen Steckbrief gezeigt wird (Kennung) — am einfachsten im Editor wählen; leer — der Bereich aus der Adresse der Seite (?wydarzenie=<id>)",
+    "empty": "Hier erscheint ein Steckbrief — wähle einen Bereich in den Einstellungen des Bausteins oder gib ihn in der Adresse an (?wydarzenie=…).",
+    "none": "Dieser Bereich hat keinen Steckbrief, oder er ist nicht öffentlich.",
+    "organiser": "Veranstaltet von: {name}",
+    "join": "Anmelden",
+    "heading": "Überschrift (optional)",
+    "headingPh": "z. B. Die nächsten Exerzitien",
+    "area": "Steckbrief des Bereichs",
+    "fromAddress": "— aus der Adresse der Seite (?wydarzenie=…) —",
+    "note": "Leere Wahl: die Seite zeigt den Steckbrief des Bereichs aus der Adresse, z. B. #/strona?wydarzenie=<Kennung des Bereichs> — eine Seite für viele.",
+    "showsStrip": "Name, Datum, Art und „Anmeldung offen“ in einer Zeile.",
+    "showsTall": "Ein großes Bild, Name, Datum, Ort, Beschreibung, Veranstalter, „Anmelden“ (nach dem Ende „Nach der Veranstaltung“) und wer für den Inhalt verantwortlich ist.",
+    "showsSide": "Bild daneben: Name, Datum, Ort, Beschreibung und „Anmelden“.",
+    "showsBlock": "Bild, Name, Datum, Ort und „Anmelden“."
+  }
+}

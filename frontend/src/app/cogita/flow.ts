@@ -51,6 +51,7 @@
  */
 
 import { paletteOf, readGraph, type Graph, type GraphNode, type NodeKind, type Port } from './graph';
+import { t, texts } from '../core/i18n';
 import { apply, holds, readAction, readCondition, type Action, type Condition, type Facts, type ValueLimit } from './logic';
 
 export const STEP_TYPES = [
@@ -59,35 +60,35 @@ export const STEP_TYPES = [
 ] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
-export const STEP_LABEL: Record<StepType, string> = {
-  show: 'Pokaż', question: 'Pytanie', choice: 'Wybór', condition: 'Warunek', set: 'Zmień wartość',
-  chapters: 'Rozdziały', chapterEnd: 'Koniec rozdziału', restart: 'Rozdział od nowa', subflow: 'Inny przebieg',
-  each: 'Dla każdego', expand: 'Wyjaśnij w miejscu', opening: 'Otwarcie',
-  line: 'Postać mówi', handoff: 'Przekazanie', detour: 'Zagłębienie', review: 'Przegląd', scene: 'Scena prezentacji', end: 'Koniec', return: 'Powrót'
-};
+export const STEP_LABEL: Record<StepType, string> = texts({
+  show: 'cogitaEditFlow.stepLabel.show', question: 'cogitaEditFlow.stepLabel.question', choice: 'cogitaEditFlow.stepLabel.choice', condition: 'cogitaEditFlow.stepLabel.condition', set: 'cogitaEditFlow.stepLabel.set',
+  chapters: 'cogitaEditFlow.stepLabel.chapters', chapterEnd: 'cogitaEditFlow.stepLabel.chapterEnd', restart: 'cogitaEditFlow.stepLabel.restart', subflow: 'cogitaEditFlow.stepLabel.subflow',
+  each: 'cogitaEditFlow.stepLabel.each', expand: 'cogitaEditFlow.stepLabel.expand', opening: 'cogitaEditFlow.stepLabel.opening',
+  line: 'cogitaEditFlow.stepLabel.line', handoff: 'cogitaEditFlow.stepLabel.handoff', detour: 'cogitaEditFlow.stepLabel.detour', review: 'cogitaEditFlow.stepLabel.review', scene: 'cogitaEditFlow.stepLabel.scene', end: 'cogitaEditFlow.stepLabel.end', return: 'cogitaEditFlow.stepLabel.return'
+});
 
 /** Was ein Schritt im Ablauf-Editor bedeutet — ein Satz, auch für die Beschreibung des JSON. */
-export const STEP_SAYS: Record<StepType, string> = {
-  show: 'Pokazuje wpis albo wypowiedź ("of"), albo plik ("media"); "title" — nagłówek ekranu.',
-  question: 'Zadaje pytanie ("of": pytanie albo klucz karty); wyjścia "right" i "wrong".',
-  choice: 'Daje wybór: "options" [{"label", "condition"?}]; wyjście "o0", "o1", … dla każdej możliwości.',
-  condition: 'Sprawdza warunek ("condition" — jedna logika); wyjścia "yes" i "no". Kto zna wpis, idzie dalej: {"type": "knowness", "of": "@wpis", "op": "ge", "than": 1} (dawny krok „Najpierw podstawy”, "prerequisite", czyta się jako taki warunek: "known" → "yes", "explain" → "no").',
-  set: 'Zmienia wartości ("actions": [{"type": "set"|"add", "value", "to"|"by"}]); wyjście "next".',
-  chapters: 'Rozdziały ("chapters": [{"title"}]); wyjście "c0", "c1", … — początek rozdziału; "done", gdy wszystkie przerobione.',
-  chapterEnd: 'Koniec rozdziału — wraca do wyboru rozdziałów.',
-  restart: 'Zaczyna bieżący rozdział od nowa.',
-  subflow: 'Wchodzi w inny przebieg ("flow"); po nim wyjście "next".',
-  each: 'Dla każdego wpisu zbioru ("collection") albo rodzaju ("kind") — inny przebieg ("flow") z {item}; potem "next".',
-  expand: 'Wyjaśnia pojęcie "of" na miejscu, gdy jeszcze go nie zna; potem "next".',
-  opening: 'Otwarcie ("mode": "discovery" — najpierw pytanie, "recall" — najpierw przypomnienie); "next".',
-  line: 'Postać ("character") mówi zdanie ("of": wypowiedź — wpis z polem „Treść w blokach”); "mood" — nastrój; "next".',
-  handoff: 'Przekazuje do innego przebiegu ("flow") — tamten zaczyna się od początku.',
-  detour: 'Proponuje zagłębienie w inną opowieść ("flow", "label" — „Chcesz wiedzieć więcej: …”): „Wejdź” gra ją i wraca wyjściem "done", „Dalej bez tego” idzie wyjściem "skip"; "optional": false — tylko „Wejdź”.',
-  review: 'Przegląd opowieści w jednym kroku: pyta jeszcze raz o pytania tej opowieści ("of": "story" — albo @przebieg), których uczący się jeszcze nie umie — każde raz w rundzie; gdy umie co najmniej "threshold" (np. 0.9) z nich, wyjście "passed", inaczej "notyet". Zapisuje wartość "value" (domyślnie <nazwa opowieści>.przeglad: 1 zdany, 0 nie); bez "goals" przebieg dostaje cel „Przegląd zdany” ("goal" — jego nazwa) i „Powtórz przegląd” wraca do tego kroku.',
-  scene: 'Scena prezentacji ("page" — adres strony, "scene" — klucz sceny, "title"); wyjście "next", przy pytaniu na scenie "right" i "wrong", przyciski "b0", "b1", … ("buttons": [{"exit", "label", "target"}]).',
-  end: 'Koniec przebiegu.',
-  return: 'Wraca z przebiegu wewnętrznego do miejsca, z którego wszedł.'
-};
+export const STEP_SAYS: Record<StepType, string> = texts({
+  show: 'cogitaEditFlow.stepSays.show',
+  question: 'cogitaEditFlow.stepSays.question',
+  choice: 'cogitaEditFlow.stepSays.choice',
+  condition: 'cogitaEditFlow.stepSays.condition',
+  set: 'cogitaEditFlow.stepSays.set',
+  chapters: 'cogitaEditFlow.stepSays.chapters',
+  chapterEnd: 'cogitaEditFlow.stepSays.chapterEnd',
+  restart: 'cogitaEditFlow.stepSays.restart',
+  subflow: 'cogitaEditFlow.stepSays.subflow',
+  each: 'cogitaEditFlow.stepSays.each',
+  expand: 'cogitaEditFlow.stepSays.expand',
+  opening: 'cogitaEditFlow.stepSays.opening',
+  line: 'cogitaEditFlow.stepSays.line',
+  handoff: 'cogitaEditFlow.stepSays.handoff',
+  detour: 'cogitaEditFlow.stepSays.detour',
+  review: 'cogitaEditFlow.stepSays.review',
+  scene: 'cogitaEditFlow.stepSays.scene',
+  end: 'cogitaEditFlow.stepSays.end',
+  return: 'cogitaEditFlow.stepSays.return'
+});
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -97,18 +98,18 @@ const port = (id: string, label: string, many = false): Port => ({ id, label, ty
 /** Die Ausgänge eines Schrittes — sie hängen an seiner Einstellung (eine Wahl mit drei Möglichkeiten hat drei). */
 export function exitsOf(type: string, config: Readonly<Record<string, unknown>>): Port[] {
   switch (type) {
-    case 'question': return [port('right', 'dobrze'), port('wrong', 'źle')];
-    case 'choice': return (Array.isArray(config.options) ? config.options : []).map((o, i) => port(`o${i}`, str(isObject(o) ? o.label : o) || `możliwość ${i + 1}`));
-    case 'condition': return [port('yes', 'tak'), port('no', 'nie')];
+    case 'question': return [port('right', t('cogitaEditFlow.exit.right')), port('wrong', t('cogitaEditFlow.exit.wrong'))];
+    case 'choice': return (Array.isArray(config.options) ? config.options : []).map((o, i) => port(`o${i}`, str(isObject(o) ? o.label : o) || t('cogitaEditFlow.exit.option', { n: i + 1 })));
+    case 'condition': return [port('yes', t('cogitaEditFlow.exit.yes')), port('no', t('cogitaEditFlow.exit.no'))];
     /* 2026-11-05 (Prompt 23, D4) — der Przegląd in einem Schritt: zdany oder noch nicht. */
-    case 'review': return [port('passed', 'zdany'), port('notyet', 'jeszcze nie')];
+    case 'review': return [port('passed', t('cogitaEditFlow.exit.passed')), port('notyet', t('cogitaEditFlow.exit.notYet'))];
     /* 2026-11-04 (Prompt 13) — ein Abstecher: nach der anderen Erzählung „done", ausgelassen „skip" (nur, wenn er freiwillig ist). */
-    case 'detour': return config.optional === false || config.required === true ? [port('done', 'po opowieści')] : [port('done', 'po opowieści'), port('skip', 'bez tego')];
-    case 'chapters': return [...(Array.isArray(config.chapters) ? config.chapters : []).map((c, i) => port(`c${i}`, str(isObject(c) ? c.title : c) || `rozdział ${i + 1}`)), port('done', 'wszystkie przerobione')];
+    case 'detour': return config.optional === false || config.required === true ? [port('done', t('cogitaEditFlow.exit.afterStory'))] : [port('done', t('cogitaEditFlow.exit.afterStory')), port('skip', t('cogitaEditFlow.exit.skip'))];
+    case 'chapters': return [...(Array.isArray(config.chapters) ? config.chapters : []).map((c, i) => port(`c${i}`, str(isObject(c) ? c.title : c) || t('cogitaEditFlow.exit.chapter', { n: i + 1 }))), port('done', t('cogitaEditFlow.exit.allDone'))];
     /* 2026-10-22 (Schritt 12) — eine Szene: „dalej", die Frage auf ihr, ihre Knöpfe. */
     case 'scene': return [
-      port('next', 'dalej'),
-      ...(config.question === true ? [port('right', 'dobrze'), port('wrong', 'źle')] : []),
+      port('next', t('cogitaEditFlow.exit.next')),
+      ...(config.question === true ? [port('right', t('cogitaEditFlow.exit.right')), port('wrong', t('cogitaEditFlow.exit.wrong'))] : []),
       ...(Array.isArray(config.buttons) ? config.buttons : []).flatMap((b) => (isObject(b) && str(b.exit) !== '' ? [port(str(b.exit), str(b.label) || str(b.exit))] : []))
     ];
     case 'end':
@@ -117,7 +118,7 @@ export function exitsOf(type: string, config: Readonly<Record<string, unknown>>)
     case 'restart':
     case 'handoff':
       return [];
-    default: return [port('next', 'dalej')];
+    default: return [port('next', t('cogitaEditFlow.exit.next'))];
   }
 }
 
@@ -125,13 +126,15 @@ type FlowCtx = Record<string, never>;
 
 const STEP: (type: StepType) => NodeKind<FlowCtx> = (type) => ({
   type,
-  label: STEP_LABEL[type],
-  says: STEP_SAYS[type],
-  group: type === 'show' || type === 'line' || type === 'expand' || type === 'scene' ? 'Treść'
-    : type === 'question' || type === 'choice' || type === 'opening' ? 'Rozmowa'
-    : type === 'condition' || type === 'set' ? 'Logika'
-    : 'Przebieg',
-  ports: (config) => ({ inputs: [port('in', 'wejście', true)], outputs: exitsOf(type, config) }),
+  get label() { return STEP_LABEL[type]; },
+  get says() { return STEP_SAYS[type]; },
+  get group() {
+    return type === 'show' || type === 'line' || type === 'expand' || type === 'scene' ? t('cogitaEditFlow.group.content')
+      : type === 'question' || type === 'choice' || type === 'opening' ? t('cogitaEditFlow.group.talk')
+      : type === 'condition' || type === 'set' ? t('cogitaEditFlow.group.logic')
+      : t('cogitaEditFlow.group.flow');
+  },
+  ports: (config) => ({ inputs: [port('in', t('cogitaEditFlow.exit.in'), true)], outputs: exitsOf(type, config) }),
   run: () => ({})
 });
 
@@ -143,9 +146,10 @@ export const FLOW_PALETTE = paletteOf<FlowCtx>('flow', STEP_TYPES.map(STEP));
 export const LOOK_TYPES = ['reading', 'slides', 'scenes', 'dialogue', 'flashcards', 'map'] as const;
 export type LookType = (typeof LOOK_TYPES)[number];
 
-export const LOOK_LABEL: Record<LookType, string> = {
-  reading: 'Czytanie', slides: 'Slajdy', scenes: 'Sceny', dialogue: 'Rozmowa w dymkach', flashcards: 'Fiszki', map: 'Mapa do odkrywania'
-};
+export const LOOK_LABEL: Record<LookType, string> = texts({
+  reading: 'cogitaEditFlow.look.reading', slides: 'cogitaEditFlow.look.slides', scenes: 'cogitaEditFlow.look.scenes',
+  dialogue: 'cogitaEditFlow.look.dialogue', flashcards: 'cogitaEditFlow.look.flashcards', map: 'cogitaEditFlow.look.map'
+});
 
 export interface Slot {
   readonly id: string;
@@ -231,12 +235,12 @@ export const reviewKey = (flow: Pick<Flow, 'id' | 'ref'>): string => `${(flow.re
 export function reviewOf(flow: Pick<Flow, 'id' | 'ref'>, node: Pick<GraphNode, 'type' | 'config'>): ReviewConfig | null {
   if (node.type !== 'review') return null;
   const c = node.config;
-  const t = typeof c.threshold === 'number' && Number.isFinite(c.threshold) ? c.threshold : 0.9;
+  const th = typeof c.threshold === 'number' && Number.isFinite(c.threshold) ? c.threshold : 0.9;
   return {
     of: str(c.of).trim() || 'story',
-    threshold: Math.max(0, Math.min(1, t > 1 ? t / 100 : t)),
+    threshold: Math.max(0, Math.min(1, th > 1 ? th / 100 : th)),
     value: str(c.value).trim() || reviewKey(flow),
-    goal: str(c.goal).trim() || 'Przegląd zdany'
+    goal: str(c.goal).trim() || t('cogitaEditFlow.reviewPassed')
   };
 }
 
@@ -523,7 +527,7 @@ export function advance(flow: Flow, state: FlowState, exit: string | undefined, 
 export function optionsOf(node: GraphNode, facts: Facts): { exit: string; label: string }[] {
   const list = Array.isArray(node.config.options) ? node.config.options : [];
   return list.flatMap((o, i) => {
-    const label = str(isObject(o) ? o.label : o) || `możliwość ${i + 1}`;
+    const label = str(isObject(o) ? o.label : o) || t('cogitaEditFlow.exit.option', { n: i + 1 });
     const condition = isObject(o) ? readCondition(o.condition) : null;
     return holds(condition, facts) ? [{ exit: `o${i}`, label }] : [];
   });
@@ -533,7 +537,7 @@ export function optionsOf(node: GraphNode, facts: Facts): { exit: string; label:
 export function chaptersLeft(node: GraphNode, state: FlowState): { exit: string; title: string }[] {
   const done = new Set(state.chapters[node.id] ?? []);
   return (Array.isArray(node.config.chapters) ? node.config.chapters : [])
-    .map((c, i) => ({ exit: `c${i}`, title: str(isObject(c) ? c.title : c) || `Rozdział ${i + 1}`, i }))
+    .map((c, i) => ({ exit: `c${i}`, title: str(isObject(c) ? c.title : c) || t('cogitaEditFlow.chapterN', { n: i + 1 }), i }))
     .filter((c) => !done.has(c.i))
     .map(({ exit, title }) => ({ exit, title }));
 }

@@ -25,6 +25,7 @@
  */
 
 import type { PreviewFetch } from './previewFetch';
+import { t } from '../core/i18n';
 
 export interface Rect { readonly x: number; readonly y: number; readonly w: number; readonly h: number }
 export interface Finding { readonly kind: string; readonly detail: string }
@@ -111,15 +112,15 @@ export async function settle(fetches: PreviewFetch, timeout = 15000): Promise<Se
   while (performance.now() - start < timeout) {
     eagerImages();
     waiting = [];
-    if (fetches.pending() > 0) waiting.push(`${fetches.pending()} zapytań do usługi`);
-    if (performance.now() - fetches.lastAt() < 350) waiting.push('świeża odpowiedź');
+    if (fetches.pending() > 0) waiting.push(t('preview.probe.requests', { count: fetches.pending() }));
+    if (performance.now() - fetches.lastAt() < 350) waiting.push(t('preview.probe.fresh'));
     const loading = document.querySelectorAll('.ui-loading').length;
-    if (loading > 0) waiting.push(`${loading} modułów jeszcze się wczytuje`);
+    if (loading > 0) waiting.push(t('preview.probe.modules', { count: loading }));
     const images = Array.from(document.images).filter((img) => !img.complete).length;
-    if (images > 0) waiting.push(`${images} obrazów w drodze`);
-    if (document.fonts.status !== 'loaded') waiting.push('czcionki');
+    if (images > 0) waiting.push(t('preview.probe.images', { count: images }));
+    if (document.fonts.status !== 'loaded') waiting.push(t('preview.probe.fonts'));
     const sheets = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).filter((one) => one.sheet === null).length;
-    if (sheets > 0) waiting.push(`${sheets} arkuszy stylów`);
+    if (sheets > 0) waiting.push(t('preview.probe.sheets', { count: sheets }));
     if (waiting.length === 0) {
       /* Was einblendet (ein Bild, das aufgeht), braucht seine Zeit. */
       await sleep(450);
@@ -237,7 +238,7 @@ export function inspect(el: HTMLElement, id: string, kind: string, fixed: boolea
     loading: imgs.filter((img) => !img.complete).length,
     placeholder: imgs.filter((img) => img.currentSrc.startsWith('data:image/svg+xml')).length
   };
-  if (images.broken > 0) findings.push({ kind: 'image', detail: `${images.broken} z ${images.total} obrazów nie wczytuje się` });
+  if (images.broken > 0) findings.push({ kind: 'image', detail: t('preview.probe.broken', { count: images.broken, total: images.total }) });
 
   /* Abgeschnitten, gerollt, zu klein — an den Elementen mit eigenem Text. */
   let minFont: number | null = null;
@@ -310,9 +311,9 @@ export function inspect(el: HTMLElement, id: string, kind: string, fixed: boolea
       const right = overX > 1 && (hidesX || ellipsis) ? victim('right') : null;
       const bottom = right === null && overY > 4 && hidesY ? victim('bottom') : null;
       /* Unten erst ab 5 px: darunter sind es die Unterlängen einer Zeile, kein verlorener Text. */
-      if (right !== null) cut.push(`„${snippet(right)}” ucięty z prawej o ${overX} px`);
-      else if (bottom !== null) cut.push(`„${snippet(bottom)}” ucięty u dołu o ${overY} px${clamp !== '' && clamp !== 'none' ? ' (skrót do linii)' : ''}`);
-      if ((overX > 1 && rollsX) || (overY > 1 && rollsY)) scrolls.push(`„${snippet(inner, 32)}” przewija się wewnątrz (${Math.max(overX, overY)} px ukryte)`);
+      if (right !== null) cut.push(t('preview.probe.cutRight', { text: snippet(right), px: overX }));
+      else if (bottom !== null) cut.push(clamp !== '' && clamp !== 'none' ? t('preview.probe.cutBottomClamp', { text: snippet(bottom), px: overY }) : t('preview.probe.cutBottom', { text: snippet(bottom), px: overY }));
+      if ((overX > 1 && rollsX) || (overY > 1 && rollsY)) scrolls.push(t('preview.probe.scrolls', { text: snippet(inner, 32), px: Math.max(overX, overY) }));
     }
 
     if (own === '') continue;
@@ -342,16 +343,16 @@ export function inspect(el: HTMLElement, id: string, kind: string, fixed: boolea
   for (const one of unique(cut).slice(0, 4)) findings.push({ kind: 'text-cut', detail: one });
   for (const one of unique(scrolls).slice(0, 2)) findings.push({ kind: 'scrolls', detail: one });
   const spill = Object.entries(worstSpill).filter(([, px]) => px > 2).map(([side, px]) => `${side} ${Math.round(px)} px`);
-  if (spill.length > 0) findings.push({ kind: 'spills', detail: `treść wystaje poza kartę: ${spill.join(', ')}` });
-  if (tiny > 0) findings.push({ kind: 'tiny-text', detail: `${tiny} tekstów mniejszych niż 12 px (najmniejszy ${minFont} px)` });
+  if (spill.length > 0) findings.push({ kind: 'spills', detail: t('preview.probe.spills', { list: spill.join(', ') }) });
+  if (tiny > 0) findings.push({ kind: 'tiny-text', detail: t('preview.probe.tiny', { count: tiny, min: minFont ?? 0 }) });
   /* Im Raster: eine hohe Kachel, in der der Inhalt oben endet (die Zeilen geben ihr eine Mindesthöhe). */
   const fill = box.height > 0 ? (contentBottom - box.top) / box.height : 1;
   if (!fixed && box.height >= 240 && fill < 0.5 && contentBottom > box.top) {
-    findings.push({ kind: 'sparse', detail: `treść zajmuje ${Math.round(fill * 100)}% wysokości karty (${Math.round(box.height - (contentBottom - box.top))} px pustego miejsca) — mniejsza wysokość (rowSpan) albo więcej treści` });
+    findings.push({ kind: 'sparse', detail: t('preview.probe.sparse', { share: Math.round(fill * 100), px: Math.round(box.height - (contentBottom - box.top)) }) });
   }
-  if (el.querySelector('.ui-loading') !== null) findings.push({ kind: 'loading', detail: 'w chwili zdjęcia nadal się wczytywał' });
+  if (el.querySelector('.ui-loading') !== null) findings.push({ kind: 'loading', detail: t('preview.probe.stillLoading') });
   const media = el.querySelector('img, svg, canvas, video, iframe, picture') !== null;
-  if (text === '' && !media && !paints(el)) findings.push({ kind: 'empty', detail: 'karta nic nie pokazuje' });
+  if (text === '' && !media && !paints(el)) findings.push({ kind: 'empty', detail: t('preview.probe.empty') });
 
   return {
     id, kind,
@@ -453,7 +454,7 @@ export function measureView(view: ViewKind): ViewMeasure {
     if (fixed && !backdrop && measured.visible < 0.98 && measured.opacity > 0.5) {
       const findings = [...measured.findings, {
         kind: 'off-screen',
-        detail: measured.visible <= 0.05 ? 'poza ekranem' : `ucięty przez brzeg ekranu — widać ${Math.round(measured.visible * 100)}%`
+        detail: measured.visible <= 0.05 ? t('preview.probe.offScreen') : t('preview.probe.edgeCut', { share: Math.round(measured.visible * 100) })
       }];
       items.push({ ...measured, findings });
     } else items.push(measured);

@@ -4,6 +4,8 @@
  * als Kurven gezeichnet, je Grösse eine Farbe, mit eigener Skala.
  */
 
+import { t } from '../core/i18n';
+
 export interface Series {
   readonly label: string;
   readonly unit: string;
@@ -54,7 +56,7 @@ export function drawRecorder(ctx: CanvasRenderingContext2D, rec: Recorder, w: nu
   ctx.font = font;
   if (n < 2) {
     ctx.fillStyle = muted;
-    ctx.fillText('Wykres pojawi się, gdy coś się zacznie dziać.', pad.l, pad.t + ph / 2);
+    ctx.fillText(t('lab.graph.empty'), pad.l, pad.t + ph / 2);
     return;
   }
   const t0 = rec.t[0];

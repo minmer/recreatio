@@ -13,6 +13,7 @@
 import { useMemo, useRef, useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
+import { useT } from '../core/i18n';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
@@ -22,16 +23,17 @@ import { exportCalendarRange, loadDocState, runCalendarImport, type ExportChoice
 
 type Choice = ExportChoice['kind'];
 
+/* Die Schlüssel der Bezeichnungen — übersetzt beim Zeichnen. */
 const CHOICES: readonly { readonly value: Choice; readonly label: string }[] = [
-  { value: 'year', label: 'od dziś na rok' },
-  { value: 'around', label: 'rok wstecz i rok naprzód' },
-  { value: 'days', label: 'wybrane dni…' },
-  { value: 'all', label: 'wszystko (to może potrwać)' }
+  { value: 'year', label: 'calendarData.jsonSection.choice.year' },
+  { value: 'around', label: 'calendarData.jsonSection.choice.around' },
+  { value: 'days', label: 'calendarData.jsonSection.choice.days' },
+  { value: 'all', label: 'calendarData.jsonSection.choice.all' }
 ];
 
 /** Der Name der Datei: „terminy-msze-parafialne.json". */
-const slug = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
-  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'kalendarz';
+const slug = (text: string, fallback: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l') // i18n-ignore
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
 
 const inYear = (): string => {
   const now = new Date();
@@ -48,6 +50,7 @@ export function CalendarJsonSection({ me, areas, calendar, writer, onChanged, op
   /** Gleich offen — im Fenster, das nur dafür da ist. */
   open?: boolean;
 }) {
+  const t = useT();
   const personal = areas.find((a) => a.personal === true)?.areaId ?? null;
   const info = useMemo(() => infoOf(calendar, personal), [calendar, personal]);
   const [choice, setChoice] = useState<Choice>('year');
@@ -59,7 +62,7 @@ export function CalendarJsonSection({ me, areas, calendar, writer, onChanged, op
   const asked = useRef(new Set<string>());
 
   const preview = (value: unknown): JsonPreview | { error: string } => {
-    if (!writer) return { error: 'Import jest dla prowadzących ten kalendarz — tutaj możesz pobrać eksport.' };
+    if (!writer) return { error: t('calendarData.jsonSection.readerOnly') };
     const problem = docProblem(value);
     if (problem !== null) return { error: problem };
     const key = JSON.stringify(docNeeds(value, info.calendarId));
@@ -72,12 +75,12 @@ export function CalendarJsonSection({ me, areas, calendar, writer, onChanged, op
           void loadDocState(me.ring, info, value).then(
             (got) => setStates((was) => new Map(was).set(key, got)),
             (e: unknown) => setStates((was) => new Map(was).set(key, {
-              error: e instanceof WorkspaceError ? e.message : 'Nie udało się odczytać terminów kalendarza.'
+              error: e instanceof WorkspaceError ? e.message : t('calendarData.jsonSection.loadFailed')
             }))
           );
         }, 0);
       }
-      return { error: 'Sprawdzanie terminów kalendarza…' };
+      return { error: t('calendarData.jsonSection.checking') };
     }
     if ('error' in state) return state;
     const plan = planCalendar(value, state);
@@ -85,8 +88,8 @@ export function CalendarJsonSection({ me, areas, calendar, writer, onChanged, op
   };
 
   const run = async (value: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
-    if (!writer) throw new WorkspaceError('Import jest dla prowadzących ten kalendarz.');
-    stage('Sprawdzanie kalendarza…');
+    if (!writer) throw new WorkspaceError(t('calendarData.jsonSection.writersOnly'));
+    stage(t('calendarData.jsonSection.checkingCalendar'));
     /* Mit dem FRISCHEN Stand planen — zwischen Vorschau und Knopf kann jemand etwas geändert haben. */
     const plan = planCalendar(value, await loadDocState(me.ring, info, value));
     if ('error' in plan) throw new WorkspaceError(plan.error);
@@ -106,23 +109,23 @@ export function CalendarJsonSection({ me, areas, calendar, writer, onChanged, op
   };
 
   return (
-    <section className="wk-calset-docs" aria-label="Terminy jako JSON">
-      <h3 className="wk-h3">Terminy jako JSON</h3>
+    <section className="wk-calset-docs" aria-label={t('calendarData.jsonSection.title')}>
+      <h3 className="wk-h3">{t('calendarData.jsonSection.title')}</h3>
       <div className="wk-calset-row">
         <label className="wk-field">
-          <span>Eksport — zakres</span>
+          <span>{t('calendarData.jsonSection.range')}</span>
           <select value={choice} onChange={(e) => setChoice(e.target.value as Choice)}>
-            {CHOICES.map((one) => <option key={one.value} value={one.value}>{one.label}</option>)}
+            {CHOICES.map((one) => <option key={one.value} value={one.value}>{t(one.label)}</option>)}
           </select>
         </label>
         {choice === 'days' && (
           <>
             <label className="wk-field">
-              <span>Od dnia</span>
+              <span>{t('calendarData.jsonSection.fromDay')}</span>
               <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             </label>
             <label className="wk-field">
-              <span>Do dnia</span>
+              <span>{t('calendarData.jsonSection.toDay')}</span>
               <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
             </label>
           </>
@@ -130,21 +133,18 @@ export function CalendarJsonSection({ me, areas, calendar, writer, onChanged, op
       </div>
       {notes.length > 0 && <ul className="wk-json-warn">{notes.map((one, i) => <li key={i}>{one}</li>)}</ul>}
       <JsonPanel
-        summary="JSON terminów — eksport i import"
+        summary={t('calendarData.jsonSection.summary')}
         lead={(
           <>
-            Terminy tego kalendarza („{CALENDAR_FORMAT}”): pojedyncze i serie, z programem, schematem i dniami serii — z zakresu
-            wybranego wyżej i serie, które w niego sięgają.{' '}
-            {writer
-              ? 'Import zmienia terminy z "id" na miejscu, dodaje te bez "id", a usuwa tylko oznaczone "remove". Intencje, zapisy i rezerwacje zostają, jak są.'
-              : 'Import jest dla prowadzących ten kalendarz.'}
+            {t('calendarData.jsonSection.lead', { format: CALENDAR_FORMAT })}{' '}
+            {writer ? t('calendarData.jsonSection.leadWriter') : t('calendarData.jsonSection.writersOnly')}
           </>
         )}
-        fileName={`terminy-${slug(calendar.title)}.json`}
+        fileName={t('calendarData.jsonSection.fileName', { name: slug(calendar.title, t('calendarData.jsonSection.fileFallback')) })}
         exportDoc={exportDoc}
         format={CALENDAR_JSON}
         preview={preview}
-        importLabel="Importuj terminy"
+        importLabel={t('calendarData.jsonSection.importLabel')}
         onImport={run}
         open={open}
       />

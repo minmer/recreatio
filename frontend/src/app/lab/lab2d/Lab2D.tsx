@@ -10,8 +10,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useT } from '../../core/i18n';
 import { Icon } from '../../ui/icons';
-import { t } from './i18n';
 import { LabApp } from './LabApp';
 import { createGpuWorker, createLabWorker } from './workerFactory';
 
@@ -75,7 +75,8 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
   createAccelWorker?: () => Worker;
 }) {
   const [open, setOpen] = useState(false);
-  const title = config.title || t('title');
+  const t = useT();
+  const title = config.title || t('lab2d.title');
   if (whole) return <div className="l2d-whole"><LabApp config={config} createWorker={createWorker} createAccelWorker={createAccelWorker} /></div>;
   return (
     <>
@@ -85,7 +86,7 @@ export function Lab2D({ config, whole = false, createWorker = createLabWorker, c
           <strong>{title}</strong>
           {config.text[0] !== undefined && <p>{config.text[0]}</p>}
         </div>
-        <button type="button" className="l2d-btn is-primary" onClick={() => setOpen(true)}><Icon name="fit" />{t('openLab')}</button>
+        <button type="button" className="l2d-btn is-primary" onClick={() => setOpen(true)}><Icon name="fit" />{t('lab2d.openLab')}</button>
       </div>
       {open && (
         <Layer label={title}>

@@ -10,6 +10,7 @@
  * <b>Eine kaputte Zeile fällt still heraus</b> und nimmt die übrigen nicht mit.
  */
 
+import { t } from '../../core/i18n';
 import { definePart, lines, readLink, text, type RawConfig } from '../part';
 import { pagePath } from '../../routes';
 
@@ -29,16 +30,16 @@ export const linksPart = definePart<Config>({
   kind: 'links',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Zobacz też', body: 'Zapisy — parafia/bierzmowanie\nOgłoszenia — https://example.pl/ogloszenia' },
-  label: 'Odnośniki',
-  use: 'Przejście na inne strony tego adresu.',
+  example: { title: 'Zobacz też', body: 'Zapisy — parafia/bierzmowanie\nOgłoszenia — https://example.pl/ogloszenia' }, // i18n-ignore
+  label: 'moduleContent.links.label',
+  use: 'moduleContent.links.use',
   box: { colSpan: 2, rowSpan: 3 },
 
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Zobacz też' },
+    { key: 'title', label: 'moduleContent.links.title', kind: 'line', hint: 'moduleContent.links.titleHint' },
     {
-      key: 'body', label: 'Odnośniki', kind: 'text',
-      hint: 'Jeden w wierszu: Zapisy — parafia/bierzmowanie'
+      key: 'body', label: 'moduleContent.links.body', kind: 'text',
+      hint: 'moduleContent.links.bodyHint'
     }
   ],
 
@@ -51,9 +52,9 @@ export const linksPart = definePart<Config>({
    * kurzer Zeilen links und leerer Fläche rechts sähe aus wie ein Versehen.
    */
   shows: (_config, size) =>
-    size.height === 'strip' ? 'Odnośniki w jednym wierszu.'
-    : size.width === 'wide' || size.width === 'full' ? 'Odnośniki jako przyciski obok siebie.'
-    : 'Odnośniki jeden pod drugim.',
+    size.height === 'strip' ? t('moduleContent.links.showsStrip')
+    : size.width === 'wide' || size.width === 'full' ? t('moduleContent.links.showsWide')
+    : t('moduleContent.links.showsList'),
 
   View: ({ config }) => (
     <>

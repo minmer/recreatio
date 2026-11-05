@@ -24,6 +24,7 @@
  */
 
 import { readAmount, planLibraryImport, exportLibrary, kindsDoc, LIBRARY_FORMAT, MARKUP_DOC, BIBLE_DOC, SCRIPTORIUM_FORMAT, type ExtraField, type FormatSpec, type ImportBase, type LibraryImportPlan } from '../library/libraryJson';
+import { t } from '../core/i18n';
 import { isUuid } from '../library/library';
 import { slug, WRITING_KINDS, type LibEntry, type Lookup } from '../library/libraryKinds';
 import { CORE_KEYS, TEXT_TYPE_FIELD_TYPES, typeFieldsOf, type TypeField } from './textTypes';
@@ -44,7 +45,7 @@ const FIELD_KEY = /^[A-Za-z][A-Za-z0-9_]{0,40}$/;
 /** Ziele eines Verweisfeldes, die keine Rodzaje in Nauka sind: die Quellen der Bibliothek und ein anderer Text. */
 const PLAIN_TARGETS: ReadonlySet<string> = new Set(['work', 'quote', 'person', 'text']);
 
-const SOURCES_NAMED: Readonly<Record<string, string>> = { work: 'źródła', quote: 'cytaty', person: 'osoby' };
+const SOURCES_NAMED: Readonly<Record<string, string>> = { work: 'scriptorium.json.sources.work', quote: 'scriptorium.json.sources.quote', person: 'scriptorium.json.sources.person' };
 
 /** Die Grundgestalt (ohne Rodzaje tekstów eines Dokuments) — für den Export und die Beschreibung. */
 const BASE_SPEC: FormatSpec = {
@@ -53,9 +54,9 @@ const BASE_SPEC: FormatSpec = {
   kinds: WRITING_KINDS,
   saveOrder: ['texttype', 'project', 'text', 'delivery'],
   elsewhere: (kind) => SOURCES_NAMED[kind] !== undefined
-    ? `${SOURCES_NAMED[kind]} są w Bibliotece — importuje się je tam (format "${LIBRARY_FORMAT}")`
-    : kind === 'comment' ? 'komentarze są własnym rodzajem w Wiedzy — gotowy schemat: plik templates/cogita/komentarz.json'
-    : kind === 'topic' ? 'tematów już nie ma — porządek dają własne rodzaje w Wiedzy, połączone polami-odwołaniami (np. pola rodzaju tekstu)'
+    ? t('scriptorium.json.elsewhere.sources', { what: t(SOURCES_NAMED[kind]), format: LIBRARY_FORMAT })
+    : kind === 'comment' ? t('scriptorium.json.elsewhere.comment')
+    : kind === 'topic' ? t('scriptorium.json.elsewhere.topic')
     : null
 };
 
@@ -64,13 +65,13 @@ const BASE_SPEC: FormatSpec = {
 function readTypeFields(value: unknown, where: string, warn: (line: string) => void, ctx: ScriptoriumContext): unknown {
   const out: Record<string, unknown>[] = [];
   for (const [index, raw] of (Array.isArray(value) ? value : []).entries()) {
-    if (!isObject(raw)) { warn(`${where}: pole ${index + 1} nie jest obiektem — pominięte.`); continue; }
+    if (!isObject(raw)) { warn(t('scriptorium.json.warn.notObject', { where, n: index + 1 })); continue; }
     const key = typeof raw.key === 'string' ? raw.key.trim() : '';
-    if (!FIELD_KEY.test(key)) { warn(`${where}: klucz „${key}” — litery, cyfry i _, zaczyna się literą; pole pominięte.`); continue; }
-    if (CORE_KEYS.has(key)) { warn(`${where}: klucz „${key}” należy do stałych pól tekstu — pole pominięte.`); continue; }
-    if (out.some((f) => f.key === key)) { warn(`${where}: drugie pole „${key}” — pominięte.`); continue; }
+    if (!FIELD_KEY.test(key)) { warn(t('scriptorium.json.warn.badKey', { where, key })); continue; }
+    if (CORE_KEYS.has(key)) { warn(t('scriptorium.json.warn.coreKey', { where, key })); continue; }
+    if (out.some((f) => f.key === key)) { warn(t('scriptorium.json.warn.duplicate', { where, key })); continue; }
     const type = String(raw.type ?? 'line');
-    if (!(TEXT_TYPE_FIELD_TYPES as readonly string[]).includes(type)) { warn(`${where}: pole „${key}” — typ „${type}” nie jest dostępny w rodzaju tekstu (${TEXT_TYPE_FIELD_TYPES.join(', ')}); pole pominięte.`); continue; }
+    if (!(TEXT_TYPE_FIELD_TYPES as readonly string[]).includes(type)) { warn(t('scriptorium.json.warn.badType', { where, key, type, types: TEXT_TYPE_FIELD_TYPES.join(', ') })); continue; }
     const field: Record<string, unknown> = { key, label: typeof raw.label === 'string' && raw.label.trim() !== '' ? raw.label.trim() : key, type };
     if (raw.multi === true) field.multi = true;
     if (typeof raw.says === 'string' && raw.says.trim() !== '') field.says = raw.says.trim();
@@ -86,7 +87,7 @@ function readTypeFields(value: unknown, where: string, warn: (line: string) => v
         if (token === '') continue;
         if (PLAIN_TARGETS.has(token)) { to.push(token); continue; }
         const id = ctx.kindRef?.(token) ?? (isUuid(token) ? token : null);
-        if (id === null) { warn(`${where}: pole „${key}” — nie ma w Wiedzy rodzaju „${token}”; to ograniczenie pominięte (pole wskaże dowolny wpis).`); continue; }
+        if (id === null) { warn(t('scriptorium.json.warn.noKind', { where, key, token })); continue; }
         to.push(id);
       }
       if (to.length > 0) field.to = to;
@@ -102,7 +103,7 @@ function readTypeFields(value: unknown, where: string, warn: (line: string) => v
 const yes = (v: unknown): boolean | null => {
   if (v === true || v === false) return v;
   const s = slug(String(v));
-  return ['tak', 'yes', 'true', '1'].includes(s) ? true : ['nie', 'no', 'false', '0'].includes(s) ? false : null;
+  return ['tak', 'yes', 'ja', 'true', '1'].includes(s) ? true : ['nie', 'no', 'nein', 'false', '0'].includes(s) ? false : null; // i18n-ignore — Werte aus Daten, jede Sprache
 };
 
 /** Wie ein Wert eines Feldes aus dem Dokument gelesen wird. */
@@ -111,23 +112,23 @@ function readerFor(field: TypeField, ctx: ScriptoriumContext): ExtraField['read'
     switch (field.type) {
       case 'number': {
         const n = readAmount(raw);
-        if (n === null) { x.warn(`${where}: „${String(raw)}” to nie liczba — pominięte.`); return undefined; }
+        if (n === null) { x.warn(t('scriptorium.json.warn.notNumber', { where, value: String(raw) })); return undefined; }
         return n;
       }
       case 'bool': {
         const b = yes(raw);
-        if (b === null) { x.warn(`${where}: „${String(raw)}” — tak albo nie; pominięte.`); return undefined; }
+        if (b === null) { x.warn(t('scriptorium.json.warn.notBool', { where, value: String(raw) })); return undefined; }
         return b;
       }
       case 'date': {
         const s = String(raw).trim();
-        if (!/^-?\d{1,4}(-\d{2}(-\d{2})?)?$/.test(s)) { x.warn(`${where}: „${s}” to nie data (RRRR, RRRR-MM albo RRRR-MM-DD) — pominięte.`); return undefined; }
+        if (!/^-?\d{1,4}(-\d{2}(-\d{2})?)?$/.test(s)) { x.warn(t('scriptorium.json.warn.notDate', { where, value: s })); return undefined; }
         return s;
       }
       case 'choice': {
         const s = String(raw).trim();
         const hit = field.options?.find((o) => o.value === s) ?? field.options?.find((o) => slug(o.label) === slug(s));
-        if (hit === undefined) { x.warn(`${where}: nieznana wartość „${s}”.`); return s; }
+        if (hit === undefined) { x.warn(t('scriptorium.json.warn.unknownValue', { where, value: s })); return s; }
         return hit.value;
       }
       case 'ref': {
@@ -138,7 +139,7 @@ function readerFor(field: TypeField, ctx: ScriptoriumContext): ExtraField['read'
         /* Kennung oder @schlüssel — sonst ein Eintrag in Nauka beim Namen. */
         const id = isUuid(token) || token.startsWith('@') || ctx.entryByName === undefined
           ? x.resolve(token, where)
-          : ctx.entryByName(token, (field.to ?? []).filter((t) => !PLAIN_TARGETS.has(t))) ?? x.resolve(token, where);
+          : ctx.entryByName(token, (field.to ?? []).filter((one) => !PLAIN_TARGETS.has(one))) ?? x.resolve(token, where);
         if (id === null) return undefined;
         return field.locator === true && locator !== undefined ? { value: id, locator } : id;
       }
@@ -205,83 +206,43 @@ export const SCRIPTORIUM_SPEC: FormatSpec = BASE_SPEC;
 
 /* -- Die Beschreibung --------------------------------------------------------------------------- */
 
-const TEXT_WITH_TYPE = {
+/** Das Beispiel der Beschreibung — Werte in der Sprache der Anwendung, Schlüssel wie im Format. */
+const textWithType = () => ({
   format: SCRIPTORIUM_FORMAT,
   version: SCRIPTORIUM_VERSION,
-  name: 'Kazania maryjne',
+  name: t('scriptorium.json.example.name'),
   entries: [
     {
       kind: 'texttype', key: 'kazanie-maryjne',
       data: {
-        name: 'Kazanie maryjne',
+        name: t('scriptorium.json.example.typeName'),
         fields: [
-          { key: 'tajemnica', label: 'Tajemnica', type: 'ref', to: ['Tajemnica'] },
-          { key: 'obszar', label: 'Obszar', type: 'ref', to: ['Obszar'] },
-          { key: 'fragment', label: 'Fragment Pisma', type: 'ref', to: ['work'], locator: true }
+          { key: 'tajemnica', label: t('scriptorium.json.example.mystery'), type: 'ref', to: [t('scriptorium.json.example.mystery')] },
+          { key: 'obszar', label: t('scriptorium.json.example.area'), type: 'ref', to: [t('scriptorium.json.example.area')] },
+          { key: 'fragment', label: t('scriptorium.json.example.fragment'), type: 'ref', to: ['work'], locator: true }
         ]
       }
     },
     {
       kind: 'text', key: 'zwiastowanie-modlitwa',
       data: {
-        textType: '@kazanie-maryjne', title: 'Niech mi się stanie', date: '2026-03-25', occasion: 'Uroczystość Zwiastowania Pańskiego',
-        tajemnica: 'Zwiastowanie', obszar: 'Modlitwa', fragment: { value: '@bt', locator: 'Łk 1,26-38' },
-        plan: [{ id: 'p1', text: 'Maryja słucha, zanim odpowie [@bt, Łk 1,29]' }, { id: 'p2', text: 'Gdzie dziś słucham?', kind: 'question' }],
-        body: 'Maryja „zmieszała się na te słowa i rozważała” [@bt, Łk 1,29].'
+        textType: '@kazanie-maryjne', title: t('scriptorium.json.example.title'), date: '2026-03-25', occasion: t('scriptorium.json.example.occasion'),
+        tajemnica: t('scriptorium.json.example.annunciation'), obszar: t('scriptorium.json.example.prayer'), fragment: { value: '@bt', locator: t('scriptorium.json.example.locator') },
+        plan: [{ id: 'p1', text: t('scriptorium.json.example.p1') }, { id: 'p2', text: t('scriptorium.json.example.p2'), kind: 'question' }],
+        body: t('scriptorium.json.example.body')
       }
     }
   ]
-};
+});
 
 /**
  * 2026-10-30 — am Ende „Jak aplikacja używa tych danych": Editor, Wygłoszenia am Plan, Seiten, LaTeX, Bazy
  * wiedzy, Programme der Schule, Dostęp dla AI — nur, was der Code tut.
  */
 export function scriptoriumDescription(): string {
-  return `# Skryptorium jako JSON ("${SCRIPTORIUM_FORMAT}", wersja ${SCRIPTORIUM_VERSION})
-
-Co robi import:
-Skryptorium to miejsce pisania: własne teksty ("text" — kazania, konferencje, rozważania, rozdziały), ich wygłoszenia ("delivery"), projekty ("project" — książka, cykl) i własne rodzaje tekstów ("texttype"). Tekst cytuje źródła z Biblioteki (dzieła, cytaty, osoby — format "${LIBRARY_FORMAT}") i wskazuje wpisy z Nauki (np. tajemnicę, słowo ze słownika, widok); w drugą stronę nic nie wskazuje na Skryptorium.
-- Każdy wpis to { "id", "kind", "key", "data" }. Wpis z kennung z eksportu (albo z kluczem istniejącego wpisu tego samego rodzaju) jest ZMIENIANY — tylko pola podane w "data"; pola, których nie ma, zostają. Żeby wyczyścić pole, podaj null.
-- Wpis bez kennung (albo z nieznaną) powstaje nowy. Import niczego nie usuwa.
-- Odwołania mogą być kennungami albo kluczami: "@kazanie-chleb", "@ratzinger2007". Klucze z tego samego dokumentu też działają.
-- Plik z dziełami, cytatami, osobami, komentarzami albo tematami zostanie odrzucony — z informacją, gdzie go zaimportować.
-- Kto widzi wpis, decyduje wyłącznie obszar skryptorium: członkowie obszaru, a gdy obszar jest publiczny — wszyscy. Tekst staje się publiczny, gdy przeniesie się go do skryptorium obszaru publicznego (zachowuje kennungę).
-Zwróć JEDEN obiekt JSON, bez komentarzy.
-
-{
-  "format": "${SCRIPTORIUM_FORMAT}",
-  "version": ${SCRIPTORIUM_VERSION},
-  "name": "Moje skryptorium",
-  "entries": [ { "kind": "texttype", "key": "kazanie-maryjne", "data": { … } }, { "kind": "text", "data": { … } }, … ]
-}
-
-## Rodzaje wpisów
-${kindsDoc(WRITING_KINDS)}
-
-## Rodzaj tekstu i jego pola
-Rodzaj tekstu ("texttype") to nazwa i dodatkowe pola, które ma każdy tekst tego rodzaju — obok stałych pól tekstu (tytuł, data, plan, treść …). Pola opisuje się jak pola rodzaju w Nauce: {"key", "label", "type", "multi", "options", "to", "locator", "says"}; "type": ${TEXT_TYPE_FIELD_TYPES.join(', ')}.
-- "ref" — odwołanie: "to" to nazwy rodzajów w Nauce (np. ["Tajemnica"]) albo "work", "quote", "person" (Biblioteka) i "text" (inny tekst); "locator": true — z miejscem.
-- Tekst tego rodzaju: "textType": "@klucz-rodzaju", a wartości pól jako zwykłe pola w "data" — pod kluczem pola. Odwołanie do wpisu w Nauce można podać jego kennungą albo NAZWĄ ("Zwiastowanie"); odwołanie z miejscem: {"value": "@bt", "locator": "Łk 1,26-38"}; kilka wartości ("multi": true) — lista.
-- Klucze stałych pól tekstu są zajęte: ${[...CORE_KEYS.keys()].join(', ')}.
-- Tekst bez rodzaju to zwykły tekst.
-
-Przykład — rodzaj „Kazanie maryjne” i jedno kazanie tego rodzaju (z Pismem Świętym "@bt" z Biblioteki):
-${JSON.stringify(TEXT_WITH_TYPE, null, 2)}
-
-${MARKUP_DOC}
-
-## Miejsce w źródle
-${BIBLE_DOC}
-
-## Jak aplikacja używa tych danych
-- W Skryptorium wpisy stoją w zakładkach „Teksty”, „Wygłoszenia”, „Projekty” i „Rodzaje tekstów”; tekst ma edytor (Plan · Treść · Dalsze informacje) z podglądem, a obok swoje wygłoszenia.
-- Tekst czyta się z planem, treścią, przypisami do źródeł Biblioteki i listą „Źródła” na końcu; wartości pól jego rodzaju stoją w nagłówku („Tajemnica: Zwiastowanie”).
-- Wygłoszenie wskazuje punkty planu po ich "id": wybrane przy tekście pokazuje na planie, co powiedziano, co tylko wspomniano, co pominięto (z czasem w nagraniu) i co doszło. Wygłoszenia stoją od najnowszego; w archiwum datą tekstu jest jego ostatnie wygłoszenie.
-- Na stronach: moduł „Tekst ze skryptorium” (jeden tekst — plan, wygłoszenia z nagraniem, treść, źródła) i „Archiwum tekstów” (teksty skryptorium albo jednego projektu; szukanie i filtry według pól-odwołań rodzajów tekstów i według projektów). Strona pokazuje sam wpis, nie kopię: poprawka w Skryptorium jest od razu na każdej stronie.
-- Druk przez LaTeX: tekst jako artykuł, projekt jako książka (teksty w kolejności "outline"), sam plan jako „Plan na ambonę”.
-- Baza wiedzy, która ma to skryptorium wśród źródeł, bierze jego wpisy jako materiał: rodzaj tekstu jest tam rodzajem wpisu, a szablony kart i powtórki mogą sięgać po teksty; nic się tam nie kopiuje. „Powtórka z tego tekstu” robi tam powtórkę z tego, na co tekst wskazuje (np. cytaty, komentarze, słowa ze słownika).
-- W szkole projekt z "projectType": "program" i "classes" to program nauczania: teksty z jego "outline" to lekcje, a wygłoszenie z "classArea" — lekcja w klasie (Dziennik klasy, „Realizacja w klasach”).
-- Wpisy są zapieczętowane w przeglądarce kluczem obszaru. „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje to skryptorium, daje asystentowi jego odpis do czytania: teksty, wygłoszenia, projekty i rodzaje tekstów; asystent niczego nie zmienia.
-`;
+  return t('scriptorium.json.description', {
+    format: SCRIPTORIUM_FORMAT, version: SCRIPTORIUM_VERSION, library: LIBRARY_FORMAT, kinds: kindsDoc(WRITING_KINDS),
+    types: TEXT_TYPE_FIELD_TYPES.join(', '), coreKeys: [...CORE_KEYS.keys()].join(', '),
+    example: JSON.stringify(textWithType(), null, 2), markup: MARKUP_DOC, bible: BIBLE_DOC
+  });
 }

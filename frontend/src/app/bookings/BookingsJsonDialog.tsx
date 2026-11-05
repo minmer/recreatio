@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { AreaPick } from '../areas/AreaPick';
+import { useT } from '../core/i18n';
 import { useWho } from '../core/me';
 import { keysFor } from '../core/ringOf';
 import { WorkspaceError } from '../core/session';
@@ -48,7 +49,7 @@ function useKeys(tick: number): { who: ReturnType<typeof useWho>; me: BookingKey
 }
 
 const fileName = (only: ResourceRow | null): string =>
-  `rezerwacje${only === null ? '' : `-${only.name.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '')}`}.json`;
+  `rezerwacje${only === null ? '' : `-${only.name.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '')}`}.json`; // i18n-ignore — Dateiname
 
 /** Das Fenster — `only`: auf der Seite eines Dings (der Export trägt nur es, neue Dinge gehen in seinen Bereich). */
 export function BookingsJsonDialog({ only, onClose, onImported }: {
@@ -56,14 +57,16 @@ export function BookingsJsonDialog({ only, onClose, onImported }: {
   onClose: () => void;
   onImported: () => void;
 }) {
+  const t = useT();
   return (
-    <Modal title={only === null ? 'Rezerwacje — import i eksport (JSON)' : `${only.name} — import i eksport (JSON)`} onClose={onClose} wide>
+    <Modal title={t('bookings.json.dialogTitle', { name: only === null ? t('bookings.view.title') : only.name })} onClose={onClose} wide>
       <BookingsJson only={only} onImported={onImported} />
     </Modal>
   );
 }
 
 function BookingsJson({ only, onImported }: { only: ResourceRow | null; onImported: () => void }) {
+  const t = useT();
   const [tick, setTick] = useState(0);
   const { who, me } = useKeys(tick);
   const [loaded, setLoaded] = useState<LoadedBookings | null>(null);
@@ -76,19 +79,19 @@ function BookingsJson({ only, onImported }: { only: ResourceRow | null; onImport
       setLoaded(await loadBookings(me));
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać rezerwacji.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('bookings.json.loadFailed'));
     }
-  }, [me]);
+  }, [me, t]);
 
   useEffect(() => { void look(); }, [look]);
 
   if (who === undefined || me === undefined) return <Loading />;
-  if (who === null) return <p className="wk-error">Import i eksport rezerwacji wymagają zalogowania.</p>;
+  if (who === null) return <p className="wk-error">{t('bookings.json.signIn')}</p>;
   if (me === null) {
-    return <Unlock who={who} why="Tytuły i miejsca terminów są zaszyfrowane — podaj hasło, żeby je wyeksportować albo zapisać." onDone={() => setTick((n) => n + 1)} />;
+    return <Unlock who={who} why={t('bookings.json.unlock')} onDone={() => setTick((n) => n + 1)} />;
   }
   if (failed !== null && loaded === null) return <p className="wk-error">{failed}</p>;
-  if (loaded === null) return <Loading label="Wczytywanie rezerwacji…" />;
+  if (loaded === null) return <Loading label={t('bookings.json.loading')} />;
 
   /* Wohin ein neues Ding ohne "area" geht: der Bereich dieses Dings, der einzige, in dem ich schreibe, oder die Wahl. */
   const writable = loaded.areas.filter((a) => (a.myLevel === 'write' || a.myLevel === 'admin') && a.personal !== true);
@@ -100,8 +103,8 @@ function BookingsJson({ only, onImported }: { only: ResourceRow | null; onImport
   return (
     <JsonPanel
       open
-      summary={only === null ? 'Rezerwacje jako JSON — eksport i import' : `Zasób „${only.name}” jako JSON — eksport i import`}
-      lead={<>Zasoby z zasadami i terminami do wyboru — do kopii, do poprawy ręcznie albo przez AI. Import zmienia w miejscu to, co ma „id” z eksportu, zakłada to, co go nie ma, i niczego nie usuwa. Rezerwacje są w eksporcie tylko do wglądu.</>}
+      summary={only === null ? t('bookings.json.summaryAll') : t('bookings.json.summaryOne', { name: only.name })}
+      lead={t('bookings.json.lead')}
       fileName={fileName(only)}
       exportDoc={() => exportBookings(loaded.state, only?.resourceId ?? null)}
       format={BOOKINGS_JSON}
@@ -111,13 +114,13 @@ function BookingsJson({ only, onImported }: { only: ResourceRow | null; onImport
       }}
       options={(doc) => writes && newWithoutArea(doc) > 0 && (
         <label className="wk-field">
-          <span>Obszar nowych zasobów bez „area”</span>
-          <AreaPick label="Obszar nowych zasobów" areas={loaded.areas} only={writable} value={chosen} onChange={setAreaId} />
+          <span>{t('bookings.json.newArea')}</span>
+          <AreaPick label={t('bookings.json.newAreaShort')} areas={loaded.areas} only={writable} value={chosen} onChange={setAreaId} />
         </label>
       )}
-      importLabel={writes ? 'Importuj' : 'Tylko odczyt'}
+      importLabel={writes ? t('common.import') : t('bookings.json.readOnly')}
       onImport={async (doc, stage) => {
-        if (!writes) throw new WorkspaceError('Rezerwacje możesz tu tylko czytać — nie piszesz w żadnym obszarze.');
+        if (!writes) throw new WorkspaceError(t('bookings.json.cannotWrite'));
         const done = await runBookingsImport({ doc, options, me, stage });
         await look();
         onImported();

@@ -26,6 +26,7 @@ import { accessWords, heldLinkKeys, type HeldInfo } from './linkAccess';
 import { dismissFresh, forgetLink, freshLink, heldLinks } from './linkKeep';
 import { keysFor } from '../core/ringOf';
 import { whoIsThere, type Who } from '../core/session';
+import { rich, useT } from '../core/i18n';
 
 /** Ein Stempel der Links in diesem Browser — ändert sich, sobald einer dazukommt oder geht (auch in einem anderen Tab). */
 export function useHeldLinksStamp(): string {
@@ -60,6 +61,7 @@ function laterTokens(): ReadonlySet<string> {
  * er weiter ("Linki otwarte w tej przeglądarce").
  */
 function Unjoined({ who }: { who: Who }) {
+  const t = useT();
   const stamp = useHeldLinksStamp();
   const [missing, setMissing] = useState<readonly HeldInfo[]>([]);
   const [later, setLater] = useState(laterTokens);
@@ -101,16 +103,17 @@ function Unjoined({ who }: { who: Who }) {
   return (
     <>
       {shown.map((one) => (
-        <aside key={one.token} className="wk-heldlink" role="status" aria-label="Link z dostępem, którego nie ma na koncie">
+        <aside key={one.token} className="wk-heldlink" role="status" aria-label={t('links.bar.unjoinedLabel')}>
           <p>
-            <strong>W tej przeglądarce jest link z dostępem{one.info!.label !== null ? ` „${one.info!.label}”` : ''}</strong> — {describeLink(one.info!)}.
-            {' '}Twoje konto go nie ma, a w warsztacie działa tylko to, co ma konto.
+            {rich(one.info!.label !== null
+              ? t('links.bar.unjoinedNamed', { label: one.info!.label, access: describeLink(one.info!) })
+              : t('links.bar.unjoined', { access: describeLink(one.info!) }), { b: (s) => <strong>{s}</strong> })}
           </p>
           <div className="wk-actions">
-            <a className="wk-btn wk-btn-line" href={`#/dolacz/${one.token}`}>Dodaj do konta</a>
-            <button type="button" className="wk-link-btn" onClick={() => notNow(one.token)}>Nie teraz</button>
+            <a className="wk-btn wk-btn-line" href={`#/dolacz/${one.token}`}>{t('links.held.addToAccount')}</a>
+            <button type="button" className="wk-link-btn" onClick={() => notNow(one.token)}>{t('links.bar.notNow')}</button>
           </div>
-          <button type="button" className="wk-heldlink-x" aria-label="Zamknij" onClick={() => notNow(one.token)}>×</button>
+          <button type="button" className="wk-heldlink-x" aria-label={t('common.close')} onClick={() => notNow(one.token)}>×</button>
         </aside>
       ))}
     </>
@@ -118,6 +121,7 @@ function Unjoined({ who }: { who: Who }) {
 }
 
 export function HeldLinkBar({ who }: { who?: Who }) {
+  const t = useT();
   const [arrived, setArrived] = useState(freshLink);
 
   /* Auch ein Link, der in einen schon offenen Tab kommt (die Adresse wechselt nur hinter der Raute). */
@@ -181,34 +185,34 @@ export function HeldLinkBar({ who }: { who?: Who }) {
   const writes = info !== null && info.areas.some((a) => a.capability === 'write' || a.capability === 'admin');
 
   return (
-    <aside className={`wk-heldlink${info === null ? ' is-dead' : ''}`} role="status" aria-label="Link z dostępem">
+    <aside className={`wk-heldlink${info === null ? ' is-dead' : ''}`} role="status" aria-label={t('links.bar.label')}>
       {info === null ? (
         <>
-          <p>Ten link z dostępem już nie działa — został wyłączony, wygasł albo był jednorazowy i już go użyto.</p>
+          <p>{t('links.bar.dead')}</p>
           <div className="wk-actions">
-            <button type="button" className="wk-link-btn" onClick={() => { forgetLink(arrived.token); close(); }}>Usuń go z tej przeglądarki</button>
+            <button type="button" className="wk-link-btn" onClick={() => { forgetLink(arrived.token); close(); }}>{t('links.bar.forget')}</button>
           </div>
         </>
       ) : (
         <>
           <p>
-            <strong>Otwarto z linku{info.label !== null ? ` „${info.label}”` : ''}</strong> — {describeLink(info)}.
-            {owned ? ' Ten dostęp masz też na koncie.'
-              : signedIn ? ' Działa w tej przeglądarce, razem z innymi linkami otwartymi tutaj.'
-                : ` Działa w tej przeglądarce, bez logowania${writes ? ' — w kalendarzu także dopisywanie' : ''}.`}
+            {rich(info.label !== null
+              ? t('links.bar.openedNamed', { label: info.label, access: describeLink(info) })
+              : t('links.bar.opened', { access: describeLink(info) }), { b: (s) => <strong>{s}</strong> })}
+            {' '}{owned ? t('links.bar.owned')
+              : signedIn ? t('links.bar.signedIn')
+                : writes ? t('links.bar.guestWrites') : t('links.bar.guest')}
           </p>
           {/* Dem Konto hinzufügen — nur wer angemeldet ist, bekommt es angeboten. */}
           {signedIn && !owned && (
             <div className="wk-actions">
-              <a className="wk-btn wk-btn-line" href={`#/dolacz/${arrived.token}`}>Dodaj do konta</a>
-              <span className="wk-hint">
-                Jesteś zalogowany — w warsztacie i przy dopisywaniu działa to, co ma konto. Na koncie dostęp działa też na każdym urządzeniu.
-              </span>
+              <a className="wk-btn wk-btn-line" href={`#/dolacz/${arrived.token}`}>{t('links.held.addToAccount')}</a>
+              <span className="wk-hint">{t('links.bar.signedInHint')}</span>
             </div>
           )}
         </>
       )}
-      <button type="button" className="wk-heldlink-x" aria-label="Zamknij" onClick={close}>×</button>
+      <button type="button" className="wk-heldlink-x" aria-label={t('common.close')} onClick={close}>×</button>
     </aside>
   );
 }

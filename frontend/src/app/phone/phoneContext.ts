@@ -10,6 +10,7 @@ import { loadAreas } from '../areas/area';
 import { ensurePrivateArea } from '../calendar/agenda';
 import type { Ring } from '../core/keys';
 import { keysFor } from '../core/ringOf';
+import { t } from '../core/i18n';
 import { WorkspaceError, type Who } from '../core/session';
 import { selfOf } from '../roles/roles';
 
@@ -41,14 +42,14 @@ function remember(key: string, make: () => Promise<PhoneCtx>): Promise<PhoneCtx>
 
 async function ringOf(who: Who) {
   const { ring, graph } = await keysFor(who);
-  if (ring === null) throw new WorkspaceError('Klucz jest zamknięty — odblokuj go hasłem.', LOCKED);
+  if (ring === null) throw new WorkspaceError(t('phone.ctx.locked'), LOCKED);
   return { ring, graph };
 }
 
 async function contextOf(who: Who, ring: Ring, areaId: string): Promise<PhoneCtx> {
   const keys = await areaKeys(ring, areaId, true);
   const newest = newestKey(keys);
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru.', LOCKED);
+  if (newest === null) throw new WorkspaceError(t('phone.ctx.noAreaKey'), LOCKED);
   return { who, ring, areaId, keys, newest };
 }
 
@@ -57,7 +58,7 @@ export function openPhone(who: Who): Promise<PhoneCtx> {
   return remember(`${who.accountId}:own`, async () => {
     const { ring, graph } = await ringOf(who);
     const person = selfOf(graph);
-    if (person === null) throw new WorkspaceError('Konto nie prowadzi jeszcze żadnej osoby.', LOCKED);
+    if (person === null) throw new WorkspaceError(t('phone.ctx.noPerson'), LOCKED);
     const areaId = await ensurePrivateArea(ring, person, (await loadAreas()).areas);
     return contextOf(who, ring, areaId);
   });

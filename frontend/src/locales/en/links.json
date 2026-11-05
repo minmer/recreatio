@@ -1,0 +1,218 @@
+{
+  "level": {
+    "read": {
+      "label": "Reads",
+      "says": "sees what is in the area"
+    },
+    "write": {
+      "label": "Writes",
+      "says": "sees and adds"
+    },
+    "admin": {
+      "label": "Leads",
+      "says": "can also let others in"
+    }
+  },
+  "levelWord": {
+    "read": "reads",
+    "write": "writes",
+    "admin": "leads"
+  },
+  "levelSays": {
+    "read": "reads (sees what is in the area)",
+    "write": "writes (sees and adds)",
+    "admin": "leads (can also let others in)"
+  },
+  "state": {
+    "revoked": "revoked",
+    "expired": "expired",
+    "used": "used up",
+    "active": "works"
+  },
+  "noAreas": "no areas",
+  "error": {
+    "incomplete": "This link is incomplete — copy it again in full.",
+    "pickRole": "Choose the role the link gives.",
+    "cannotAdmit": "In one of the chosen areas you can't let anyone in.",
+    "notYourRole": "A link can only give a role you have.",
+    "notLeader": "Only someone who leads a role can give leading it.",
+    "mismatch": "This link doesn't match the invitation — copy it again in full."
+  },
+  "aim": {
+    "notAddress": "That is not an address.",
+    "notOurs": "The target must be an address on recreatio.pl.",
+    "tooLong": "Target: at most {max} characters.",
+    "badChars": "The target address contains characters that are not allowed.",
+    "view": {
+      "calendar": "Calendar in the workspace",
+      "chat": "Chats in the workspace",
+      "areas": "Areas in the workspace"
+    },
+    "pageBound": "access-only page for the chosen area",
+    "pageAccess": "access-only page",
+    "page": "page",
+    "joinPage": "join page",
+    "label": "Where the link opens",
+    "placeholder": "e.g. parish/grzegorzki/oaza — or paste a page address",
+    "empty": "Empty: the link opens the join page. With a target: it opens that page and gives access on it right away — also without an account, in this browser.",
+    "willOpen": "Will open:",
+    "needsAccount": "this part of the workspace needs an account: whoever opens the link signs in and adds it to their account. Without an account, pages and the calendar work.",
+    "noAccount": "with access right away, also without an account."
+  },
+  "progress": {
+    "keys": "Computing the link keys…",
+    "areas": "Opening the areas for the link…",
+    "role": "Connecting the link with the role…",
+    "seal": "Sealing the link…"
+  },
+  "needPassword": "Enter your password first.",
+  "expiry": {
+    "day": "a day",
+    "week": "a week",
+    "month": "a month",
+    "months3": "3 months",
+    "year": "a year"
+  },
+  "list": {
+    "loadFailed": "Could not load the links.",
+    "ready": "Link ready: {label}",
+    "active": "Working links",
+    "noActive": "There are no working links.",
+    "inactive": "Inactive ({count})"
+  },
+  "busy": {
+    "create": "Creating the link…",
+    "createRole": "Creating the role and link…",
+    "aim": "Changing the link target…",
+    "revokeAll": "Withdrawing the link and access…",
+    "revoke": "Withdrawing the link…",
+    "takeAccess": "Taking access away…"
+  },
+  "new": {
+    "noPerson": "The account doesn't lead any person yet.",
+    "pickRole": "Choose the role the link gives — or create a new one.",
+    "nameRole": "Name the new role.",
+    "pickAreas": "Tick the areas the new role gives access to.",
+    "nameLink": "Name the link — e.g. „Parish council\" or the person's name.",
+    "title": "New access link",
+    "label": "For whom / what for",
+    "labelPlaceholder": "e.g. Parish council",
+    "labelHint": "Whoever opens the link sees the name — before joining.",
+    "lead": "can also invite others to this role",
+    "roleHint": "Whoever has the link has what the role gives. Change the role's areas — they change for all its links and forms.",
+    "once": "Single-use — once one person adds it to their account, the link stops working (before that it works in every browser where it was opened)",
+    "validFor": "Valid for",
+    "create": "Create link"
+  },
+  "item": {
+    "someRole": "role",
+    "roles": {
+      "one": "Role: <b>{names}</b>",
+      "other": "Roles: <b>{names}</b>"
+    },
+    "canInvite": "(can invite others)",
+    "once": "single-use",
+    "many": "reusable",
+    "upTo": "up to {count} people",
+    "used": "used {count}×",
+    "usedActive": "used {count}×, {active} with access",
+    "validUntil": "valid until {date}",
+    "opens": "Opens:",
+    "joinPage": "the join page",
+    "changeAim": "Change target",
+    "cannotShow": "This link can no longer be shown — create a new one.",
+    "show": "Show link",
+    "hide": "Hide",
+    "disable": "Turn off link…",
+    "takeAccess": "Take away access ({count})",
+    "revokeAsk": "The link will stop working — also in the browsers where it was opened. What about those who added it to their account?",
+    "revokeAskCount": "The link will stop working — also in the browsers where it was opened. What about those who added it to their account ({count})?",
+    "keep": "They stay",
+    "dropToo": "They lose access too",
+    "aimHint": "The link stays the same — one sent earlier still works and leads where it led. Addresses shown from now on have the new target.",
+    "saveAim": "Save target"
+  },
+  "held": {
+    "title": "Links opened in this browser",
+    "lede": "They work here without signing in and add up. On an account they work on every device and allow writing.",
+    "dead": "not working",
+    "onAccount": "on the account",
+    "inBrowser": "in the browser",
+    "addToAccount": "Add to account",
+    "forget": "Remove from the browser"
+  },
+  "share": {
+    "title": "Invitation to recreatio.pl",
+    "warn": "Whoever has this link has access. Send it only to those it is meant for."
+  },
+  "shareDialog": {
+    "needPassword": "Enter your password first — the keys are not open in this tab.",
+    "failed": "Could not create the link.",
+    "title": "Share: {title}",
+    "public": "This is public — this address is enough. Whoever opens it sees it without signing in.",
+    "ready": "Link ready. Whoever opens it has access right away.",
+    "lede": "The link gives a role — and the role gives access to its areas. It opens right here.",
+    "ledeAim": "The link gives a role — and the role gives access to its areas. It opens right here: {aim}.",
+    "lead": "can also invite others",
+    "more": "Name, validity, single-use",
+    "name": "Link name (seen by whoever opens it)",
+    "once": "Single-use — for one person"
+  },
+  "bar": {
+    "label": "Access link",
+    "unjoinedLabel": "Access link that is not on the account",
+    "unjoined": "<b>There is an access link in this browser</b> — {access}. Your account doesn't have it, and in the workspace only what the account has works.",
+    "unjoinedNamed": "<b>There is an access link „{label}” in this browser</b> — {access}. Your account doesn't have it, and in the workspace only what the account has works.",
+    "notNow": "Not now",
+    "dead": "This access link no longer works — it was turned off, has expired, or was single-use and already used.",
+    "forget": "Remove it from this browser",
+    "opened": "<b>Opened from a link</b> — {access}.",
+    "openedNamed": "<b>Opened from the link „{label}”</b> — {access}.",
+    "owned": "You also have this access on your account.",
+    "signedIn": "It works in this browser, together with other links opened here.",
+    "guest": "It works in this browser, without signing in.",
+    "guestWrites": "It works in this browser, without signing in — in the calendar, adding entries too.",
+    "signedInHint": "You are signed in — in the workspace and when adding entries, what the account has works. On the account, access also works on every device."
+  },
+  "join": {
+    "state": {
+      "revoked": "This link was turned off by the person who created it.",
+      "expired": "This link has expired.",
+      "used": "This link was single-use and someone has already joined through it."
+    },
+    "dead": "This link no longer works.",
+    "noInvite": "This link is missing the invitation.",
+    "noSuchInvite": "There is no such invitation.",
+    "checking": "Checking the invitation…",
+    "checkingLink": "Checking the link…",
+    "title": "Invitation",
+    "titleNamed": "Invitation: {label}",
+    "toWorkspace": "Go to the workspace",
+    "joined": "Joined",
+    "joinedLede": "You now have access: {access}. It works on every device where you sign in.",
+    "goOn": "Continue",
+    "seeAreas": "See areas",
+    "access": "Access",
+    "validUntil": "Valid until",
+    "validUntilLink": "Valid until",
+    "link": "Link",
+    "opens": "Opens",
+    "unlockWhy": "To join, enter your password — the keys open only on your side.",
+    "noPerson": "The account doesn't lead any person yet — create one in Roles, then come back to this link.",
+    "failed": "Could not join.",
+    "as": "Joining as",
+    "joining": "Joining…",
+    "join": "Join",
+    "haveAccount": "Have an account?",
+    "noSuchLink": "There is no such link — copy it again in full.",
+    "linkNamed": "Access link: {label}",
+    "guest": "It works in this browser, without signing in — on these areas' pages.",
+    "guestCalendar": "It works in this browser, without signing in — on these areas' pages and in their calendar.",
+    "guestCalendarWrites": "It works in this browser, without signing in — on these areas' pages and in their calendar, including adding appointments."
+  },
+  "person": {
+    "needName": "Enter first and last name.",
+    "dead": "This link no longer works in this browser.",
+    "noKeys": "This link doesn't open this area's keys."
+  }
+}

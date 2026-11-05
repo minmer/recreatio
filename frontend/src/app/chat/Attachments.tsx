@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { saveBlob } from '../core/platform';
+import { useT } from '../core/i18n';
 import { Modal } from '../ui/Modal';
 import type { Attachment } from './chat';
 import { downloadAttachment } from './chatFeatures';
@@ -26,6 +27,7 @@ const isVoice = (a: Attachment) => a.name.startsWith('voice-');
 
 /** Ein Anhang, im Browser entschlüsselt — auf Wunsch, oder von selbst, sobald er zu sehen ist. */
 function useOpenedFile(endpoint: string, a: Attachment, auto: boolean) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -53,12 +55,12 @@ function useOpenedFile(endpoint: string, a: Attachment, auto: boolean) {
       setUrl(made1.url);
       return blob;
     } catch (e) {
-      if (alive.current) setFailed(failure(e, 'Nie udało się pobrać.'));
+      if (alive.current) setFailed(failure(e, t('chat.file.downloadFailed')));
       return null;
     } finally {
       if (alive.current) setBusy(false);
     }
-  }, [endpoint, a]);
+  }, [endpoint, a, t]);
 
   useEffect(() => {
     const el = spot.current;
@@ -72,7 +74,7 @@ function useOpenedFile(endpoint: string, a: Attachment, auto: boolean) {
 
   const save = async () => {
     const blob = await load();
-    if (blob !== null) await saveBlob(blob, a.name).catch(() => setFailed('Nie udało się zapisać pliku.'));
+    if (blob !== null) await saveBlob(blob, a.name).catch(() => setFailed(t('chat.file.saveFailed')));
   };
 
   return { url, busy, failed, load, save, spot };
@@ -96,6 +98,7 @@ export function Attachments({ endpoint, list }: { endpoint: string; list: readon
 }
 
 function Media({ endpoint, a }: { endpoint: string; a: Attachment }) {
+  const t = useT();
   const image = kindOf(a) === 'image';
   const file = useOpenedFile(endpoint, a, image && a.size <= AUTO_BYTES);
   const [zoom, setZoom] = useState(false);
@@ -103,9 +106,9 @@ function Media({ endpoint, a }: { endpoint: string; a: Attachment }) {
   if (file.url === null) {
     return (
       <button type="button" className="ch-media-slot" ref={(el) => { file.spot.current = el; }} disabled={file.busy}
-        onClick={() => void file.load()} aria-label={`${image ? 'Pokaż zdjęcie' : 'Odtwórz film'} ${a.name}, ${sizeOf(a.size)}`}>
+        onClick={() => void file.load()} aria-label={t(image ? 'chat.file.showPhoto' : 'chat.file.playVideo', { name: a.name, size: sizeOf(a.size) })}>
         <Icon name={image ? 'image' : 'play'} />
-        <span>{file.busy ? 'Odszyfrowywanie…' : file.failed ?? `${image ? 'Zdjęcie' : 'Film'} · ${sizeOf(a.size)}`}</span>
+        <span>{file.busy ? t('chat.file.decrypting') : file.failed ?? t(image ? 'chat.file.photoSize' : 'chat.file.videoSize', { size: sizeOf(a.size) })}</span>
       </button>
     );
   }
@@ -114,14 +117,14 @@ function Media({ endpoint, a }: { endpoint: string; a: Attachment }) {
 
   return (
     <>
-      <button type="button" className="ch-photo" onClick={() => setZoom(true)} aria-label={`Powiększ: ${a.name}`}>
+      <button type="button" className="ch-photo" onClick={() => setZoom(true)} aria-label={t('chat.file.zoom', { name: a.name })}>
         <img src={file.url} alt={a.name} />
       </button>
       {zoom && (
         <Modal title={a.name} wide onClose={() => setZoom(false)}>
           <img className="ch-zoom" src={file.url} alt={a.name} />
           <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={() => void file.save()}>Zapisz zdjęcie</button>
+            <button type="button" className="wk-btn" onClick={() => void file.save()}>{t('chat.file.savePhoto')}</button>
             <span className="wk-hint">{sizeOf(a.size)}</span>
           </div>
         </Modal>
@@ -136,11 +139,12 @@ function Media({ endpoint, a }: { endpoint: string; a: Attachment }) {
  * der Kopfleiste steht dann, was spielt (`NowPlayingBar`).
  */
 function Sound({ endpoint, a }: { endpoint: string; a: Attachment }) {
+  const t = useT();
   const file = useOpenedFile(endpoint, a, a.size <= AUTO_BYTES);
   const voice = isVoice(a);
   const now = useNowPlaying();
   const mine = now?.key === a.id ? now : null;
-  const title = voice ? 'Wiadomość głosowa' : a.name;
+  const title = voice ? t('chat.file.voice') : a.name;
 
   const start = async () => {
     if (mine !== null) { toggleSound(); return; }
@@ -157,15 +161,15 @@ function Sound({ endpoint, a }: { endpoint: string; a: Attachment }) {
       </span>
       <span className="ch-sound-play">
         <button type="button" className="ch-icon-btn" disabled={file.busy} data-sound-play=""
-          aria-label={mine?.playing === true ? 'Wstrzymaj' : 'Odtwórz'} title={mine?.playing === true ? 'Wstrzymaj' : 'Odtwórz'}
+          aria-label={mine?.playing === true ? t('chat.player.pause') : t('chat.player.play')} title={mine?.playing === true ? t('chat.player.pause') : t('chat.player.play')}
           onClick={() => void start()}>
           <Icon name={mine?.playing === true ? 'pause' : 'play'} />
         </button>
-        <input type="range" min={0} max={1000} step={1} aria-label="Pozycja nagrania" disabled={mine === null || mine.duration === null}
+        <input type="range" min={0} max={1000} step={1} aria-label={t('chat.player.position')} disabled={mine === null || mine.duration === null}
           value={mine !== null && mine.duration ? Math.round((mine.time / mine.duration) * 1000) : 0}
           onChange={(e) => seekSound(Number(e.target.value) / 1000)} />
         <span className="ch-sound-time">
-          {file.busy ? 'Odszyfrowywanie…' : mine !== null ? `${playClock(mine.time)} / ${playClock(mine.duration)}` : ''}
+          {file.busy ? t('chat.file.decrypting') : mine !== null ? `${playClock(mine.time)} / ${playClock(mine.duration)}` : ''}
         </span>
       </span>
       {file.failed !== null && <span className="wk-error">{file.failed}</span>}
@@ -174,13 +178,14 @@ function Sound({ endpoint, a }: { endpoint: string; a: Attachment }) {
 }
 
 function FileRow({ endpoint, a }: { endpoint: string; a: Attachment }) {
+  const t = useT();
   const file = useOpenedFile(endpoint, a, false);
   return (
-    <button type="button" className="ch-file" disabled={file.busy} onClick={() => void file.save()} title={`Pobierz ${a.name}`}>
+    <button type="button" className="ch-file" disabled={file.busy} onClick={() => void file.save()} title={t('chat.file.downloadName', { name: a.name })}>
       <span className="ch-file-ic"><Icon name={file.busy ? 'clock' : 'download'} /></span>
       <span className="ch-file-text">
         <span className="ch-file-name">{a.name}</span>
-        <small>{file.failed ?? (file.busy ? 'Odszyfrowywanie…' : `${sizeOf(a.size)} · pobierz`)}</small>
+        <small>{file.failed ?? (file.busy ? t('chat.file.decrypting') : t('chat.file.sizeDownload', { size: sizeOf(a.size) }))}</small>
       </span>
     </button>
   );

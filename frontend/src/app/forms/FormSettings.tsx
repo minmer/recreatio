@@ -8,6 +8,7 @@ import type { AreaRow } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
+import { rich, useT } from '../core/i18n';
 import { type Who, WorkspaceError } from '../core/session';
 import { type ModuleRow, createModule } from '../modules/module';
 import { formPath } from '../routes';
@@ -41,6 +42,8 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
   const [paper, setPaper] = useState(config.paper ?? '');
   const [signer, setSigner] = useState(config.paperSigner ?? '');
   const [saving, setSaving] = useState(false);
+  const t = useT();
+  const b = { b: (s: string, k: number) => <strong key={k}>{s}</strong> };
 
   useEffect(() => {
     setTitle(config.sentTitle ?? '');
@@ -70,7 +73,7 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
       const done = await setPartConfig(partId, { sentTitle: title.trim(), sentText: text.trim(), paper, paperSigner: signer.trim() });
       onSaved(done.config);
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      onError(e instanceof WorkspaceError ? e.message : t('forms.ext.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -78,65 +81,62 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
 
   return (
     <fieldset className="wk-fieldset wk-after-settings">
-      <legend>Po wysłaniu</legend>
+      <legend>{t('forms.settings.after')}</legend>
       <label className="wk-field">
-        <span>Nagłówek po wysłaniu</span>
-        <input value={title} disabled={busy || saving} placeholder="Zgłoszenie przyjęte." onChange={(e) => setTitle(e.target.value)} />
+        <span>{t('forms.settings.afterTitle')}</span>
+        <input value={title} disabled={busy || saving} placeholder={t('forms.card.sent')} onChange={(e) => setTitle(e.target.value)} />
       </label>
       <label className="wk-field">
-        <span>Tekst po wysłaniu (nieobowiązkowo)</span>
+        <span>{t('forms.settings.afterText')}</span>
         <textarea rows={4} value={text} disabled={busy || saving} onChange={(e) => setText(e.target.value)}
-          placeholder="np. Dziękujemy! Zbiórka w sobotę o 8:00 przed kościołem. Zabierz legitymację." />
+          placeholder={t('forms.settings.afterTextPlaceholder')} />
         <span className="wk-hint">
-          Osoba widzi go zaraz po wysłaniu. Pusta linia zaczyna nowy akapit.
+          {t('forms.settings.afterTextHint')}
         </span>
       </label>
       <label className="wk-field">
-        <span>Podpis odręczny na wydruku</span>
+        <span>{t('forms.settings.paper')}</span>
         <select value={paper} disabled={busy || saving} onChange={(e) => setPaper(e.target.value)}>
-          <option value="">nie trzeba</option>
-          <option value="always">zawsze — każdy drukuje i podpisuje</option>
-          <option value={PAPER_SIGN}>gdy formularz pokazuje oświadczenie do podpisu (np. zgodę rodzica)</option>
+          <option value="">{t('forms.settings.paperNone')}</option>
+          <option value="always">{t('forms.settings.paperAlways')}</option>
+          <option value={PAPER_SIGN}>{t('forms.settings.paperSign')}</option>
           <option value={PAPER_MINOR} disabled={!knowsAge && paper !== PAPER_MINOR}>
-            niepełnoletni — wg daty urodzenia albo PESEL{knowsAge ? '' : ' (formularz o nie nie pyta)'}
+            {t('forms.settings.paperMinor')}{knowsAge ? '' : ` ${t('forms.settings.paperMinorNoAge')}`}
           </option>
           {ticks.map((f) => (
-            <option key={f.fieldId} value={f.fieldId}>gdy zaznaczono: {f.label ?? 'pytanie'}</option>
+            <option key={f.fieldId} value={f.fieldId}>{t('forms.settings.paperTick', { label: f.label ?? t('forms.sheet.question') })}</option>
           ))}
           {paper !== '' && paper !== 'always' && paper !== PAPER_MINOR && paper !== PAPER_SIGN && !ticks.some((f) => f.fieldId === paper) && (
-            <option value={paper}>(pytanie, którego już nie ma)</option>
+            <option value={paper}>{t('forms.settings.paperGone')}</option>
           )}
         </select>
         <span className="wk-hint">
-          Zgoda rodzica musi być podpisana odręcznie: po wysłaniu pojawi się „Drukuj do podpisu” (strona A4 z danymi i zgodami).
+          {t('forms.settings.paperHint')}
         </span>
         {paper === PAPER_MINOR && !knowsAge && (
-          <span className="wk-warn">Formularz nie pyta o datę urodzenia ani PESEL — nie wiadomo, kto jest niepełnoletni, więc wydruk się nie pokaże.</span>
+          <span className="wk-warn">{t('forms.settings.paperNoAge')}</span>
         )}
       </label>
       {parental !== null && (
         <div className="wk-paper-note" role="note">
           <p>
-            <strong>Ten formularz każe zaznaczyć zgodę rodzica</strong> („{parental.label ?? 'pytanie'}”)
-            {parental.isRequired ? ' — bez zaznaczenia nikt go nie wyśle' : ''}
-            {paper === '' ? ', a wydruku do podpisu nie ma' : ''}. Zaznaczenie nie jest podpisem rodzica — zaznacza je dziecko.
+            {rich(t(parental.isRequired
+              ? (paper === '' ? 'forms.settings.parentalRequiredNoPaper' : 'forms.settings.parentalRequired')
+              : (paper === '' ? 'forms.settings.parentalNoPaper' : 'forms.settings.parental'), { label: parental.label ?? t('forms.sheet.question') }), b)}
           </p>
           <p>
-            Lepiej: w zakładce „Pytania” zaznacz wymaganie <strong>„{needOf('minor')?.label}”</strong>.
-            Formularz rozpozna niepełnoletnich (po dacie urodzenia albo polu do zaznaczenia), a kto przychodzi z pisemną
-            zgodą rodzica, zobaczy jej treść bez pola do zaznaczenia i na końcu formularza (oraz po wysłaniu) wydrukuje ją
-            do podpisu. Potem to pole usuń — dotychczasowe odpowiedzi zostaną w zgłoszeniach.
+            {rich(t('forms.settings.parentalBetter', { need: needOf('minor')?.label ?? '' }), b)}
           </p>
           <div className="wk-actions">
             {onNeeds !== undefined && (
               <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || saving} onClick={onNeeds}>
-                Przejdź do wymagań
+                {t('forms.settings.toNeeds')}
               </button>
             )}
             {knowsAge && paper !== PAPER_MINOR && (
               <button type="button" className="wk-btn wk-btn-quiet" disabled={busy || saving}
-                onClick={() => { setPaper(PAPER_MINOR); if (signer.trim() === '') setSigner('czytelny podpis rodzica / opiekuna prawnego'); }}>
-                Drukuj dla niepełnoletnich
+                onClick={() => { setPaper(PAPER_MINOR); if (signer.trim() === '') setSigner(t('forms.settings.parentSigner')); }}>
+                {t('forms.settings.printMinors')}
               </button>
             )}
           </div>
@@ -144,13 +144,13 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
       )}
       {paper !== '' && (
         <label className="wk-field">
-          <span>Kto podpisuje (pod linią na wydruku)</span>
-          <input value={signer} disabled={busy || saving} placeholder="czytelny podpis" onChange={(e) => setSigner(e.target.value)} />
+          <span>{t('forms.settings.signer')}</span>
+          <input value={signer} disabled={busy || saving} placeholder={t('forms.sheet.signature')} onChange={(e) => setSigner(e.target.value)} />
         </label>
       )}
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={busy || saving || !dirty} onClick={() => void save()}>
-          {saving ? 'Zapisywanie…' : 'Zapisz'}
+          {saving ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </fieldset>
@@ -189,6 +189,7 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
   const [drafts, setDrafts] = useState<Readonly<Record<string, NeedChoice>>>({});
   const usable = areas.filter((a) => a.heldEpochs > 0);
   const on = readNeeds(config.needs);
+  const t = useT();
 
   useEffect(() => { if (answersTo !== null) setTarget(answersTo); }, [answersTo]);
 
@@ -196,14 +197,14 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
     drafts[need.id] ?? (active === undefined ? choiceOf(need, undefined) : choiceOfOn(active));
   const forget = (needId: string) => setDrafts((was) => Object.fromEntries(Object.entries(was).filter(([id]) => id !== needId)));
 
-  const turnOn = (need: FormNeed) => void onAct(`Włączanie: ${need.label}…`, async () => {
+  const turnOn = (need: FormNeed) => void onAct(t('forms.settings.turningOn', { need: need.label }), async () => {
     try {
       setSaid(null);
       const done = await applyNeed(who, module, need, choiceFor(need, undefined), target === '' ? null : target, config, setStage);
       onConfig(done.config);
       forget(need.id);
       setSaid([
-        `„${need.label}”: nowych pytań ${done.added}${done.reused > 0 ? `, wykorzystane istniejące: ${done.reused}` : ''}.`,
+        done.reused > 0 ? t('forms.settings.onDoneReused', { need: need.label, added: done.added, reused: done.reused }) : t('forms.settings.onDone', { need: need.label, added: done.added }),
         ...done.warnings
       ].join(' '));
     } finally {
@@ -211,16 +212,16 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
     }
   });
 
-  const reshape = (need: FormNeed, choice: NeedChoice) => void onAct(`Zmiana ustawień: ${need.label}…`, async () => {
+  const reshape = (need: FormNeed, choice: NeedChoice) => void onAct(t('forms.settings.reshaping', { need: need.label }), async () => {
     try {
       setSaid(null);
       const done = await reshapeNeed(who, module, need.id, choice, target === '' ? null : target, config, setStage);
       onConfig(done.config);
       forget(need.id);
       setSaid([
-        `„${need.label}”: ustawienia zmienione — nowych pytań ${done.added}`
-          + (done.removed > 0 ? `, usunięte ${done.removed}` : '')
-          + (done.kept > 0 ? `, zdjęte z formularza (mają odpowiedzi — zostają w zgłoszeniach) ${done.kept}` : '') + '.',
+        t('forms.settings.reshaped', { need: need.label, added: done.added })
+          + (done.removed > 0 ? t('forms.settings.removedPart', { count: done.removed }) : '')
+          + (done.kept > 0 ? t('forms.settings.keptPart', { count: done.kept }) : '') + '.',
         ...done.warnings
       ].join(' '));
     } finally {
@@ -228,15 +229,15 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
     }
   });
 
-  const turnOff = (need: FormNeed) => void onAct(`Wyłączanie: ${need.label}…`, async () => {
+  const turnOff = (need: FormNeed) => void onAct(t('forms.settings.turningOff', { need: need.label }), async () => {
     try {
       setSaid(null);
       setLeaving(null);
       const done = await dropNeed(who, module, need.id, config, setStage);
       onConfig(done.config);
       setSaid([
-        `„${need.label}” wyłączone: usunięte pytania ${done.removed}`
-          + (done.kept > 0 ? `, zdjęte z formularza (mają odpowiedzi — zostają w zgłoszeniach) ${done.kept}` : '') + '.',
+        t('forms.settings.offDone', { need: need.label, removed: done.removed })
+          + (done.kept > 0 ? t('forms.settings.keptPart', { count: done.kept }) : '') + '.',
         ...done.warnings
       ].join(' '));
     } finally {
@@ -245,15 +246,15 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
   });
 
   return (
-    <section className="wk-needs" aria-label="Wymagania formularza">
-      <h3 className="wk-h3">Wymagania formularza</h3>
+    <section className="wk-needs" aria-label={t('forms.settings.needs')}>
+      <h3 className="wk-h3">{t('forms.settings.needs')}</h3>
       <p className="wk-hint">
-        Zaznacz, czego wymaga wydarzenie — formularz dostanie potrzebne pytania. Dopóki wymaganie jest zaznaczone, tych pytań nie da się usunąć.
+        {t('forms.settings.needsHint')}
       </p>
       {answersTo === null && (
         <label className="wk-field">
-          <span>Odpowiedzi trafiają do obszaru</span>
-          <AreaPick label="Odpowiedzi trafiają do obszaru" value={target} disabled={busy} onChange={setTarget} areas={areas} only={usable} />
+          <span>{t('forms.settings.answersTo')}</span>
+          <AreaPick label={t('forms.settings.answersTo')} value={target} disabled={busy} onChange={setTarget} areas={areas} only={usable} />
         </label>
       )}
       <ul className="wk-need-list">
@@ -275,8 +276,8 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
                   {need.settings.length === 0 && <span className="wk-need-use">{need.use(choice)}</span>}
                   {active !== undefined && (
                     <span className="wk-need-holds">
-                      Pytania: {active.fields.length}{active.nodes.length > 0 && ` · logika: ${active.nodes.length} węzłów`}
-                      {active.paper === true && ' · wydruk zgody do podpisu'}
+                      {t('forms.settings.holdsQuestions', { count: active.fields.length })}{active.nodes.length > 0 && ` · ${t('forms.settings.holdsNodes', { count: active.nodes.length })}`}
+                      {active.paper === true && ` · ${t('forms.settings.holdsPaper')}`}
                     </span>
                   )}
                 </span>
@@ -285,24 +286,22 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
                 <NeedSettings need={need} choice={choice} disabled={busy} onChange={(next) => setDrafts((was) => ({ ...was, [need.id]: next }))} />
               )}
               {changed && (
-                <div className="wk-need-leave" role="group" aria-label={`Nowe ustawienia: ${need.label}`}>
+                <div className="wk-need-leave" role="group" aria-label={t('forms.settings.newSettings', { need: need.label })}>
                   <span className="wk-hint">
-                    Formularz dostanie pytania nowych ustawień. Pytania, których nowe ustawienia nie potrzebują, znikną; te, na które
-                    ktoś już odpowiedział, zostaną tylko zdjęte — ich odpowiedzi zostają w zgłoszeniach.
+                    {t('forms.settings.newSettingsHint')}
                   </span>
-                  <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => reshape(need, choice)}>Zastosuj ustawienia</button>
-                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => forget(need.id)}>Anuluj</button>
+                  <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => reshape(need, choice)}>{t('forms.settings.applySettings')}</button>
+                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => forget(need.id)}>{t('common.cancel')}</button>
                 </div>
               )}
               {leaving === need.id && active !== undefined && (
-                <div className="wk-need-leave" role="group" aria-label={`Wyłączyć: ${need.label}`}>
+                <div className="wk-need-leave" role="group" aria-label={t('forms.settings.offAsk', { need: need.label })}>
                   <span className="wk-hint">
-                    Pytania dodane przez to wymaganie znikną z formularza ({active.added.length}); te, na które ktoś już
-                    odpowiedział, zostaną tylko zdjęte — ich odpowiedzi zostają w zgłoszeniach.
-                    {active.paper === true && ' Wydruk do podpisu też się wyłączy.'}
+                    {t('forms.settings.offHint', { count: active.added.length })}
+                    {active.paper === true && ` ${t('forms.settings.offPaper')}`}
                   </span>
-                  <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => turnOff(need)}>Wyłącz i usuń pytania</button>
-                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setLeaving(null)}>Anuluj</button>
+                  <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => turnOff(need)}>{t('forms.settings.offButton')}</button>
+                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setLeaving(null)}>{t('common.cancel')}</button>
                 </div>
               )}
             </li>
@@ -327,6 +326,7 @@ function NeedSettings({ need, choice, disabled, onChange }: {
   onChange: (next: NeedChoice) => void;
 }) {
   const name = useId();
+  const t = useT();
   const pick = (s: NeedSetting, value: string, chosen: boolean): readonly string[] => {
     if (!s.many) return [value];
     const now = choice[s.key] ?? [];
@@ -343,7 +343,7 @@ function NeedSettings({ need, choice, disabled, onChange }: {
             const chosen = (choice[s.key] ?? []).includes(c.value);
             const last = s.many && chosen && (choice[s.key] ?? []).length === 1;
             return (
-              <label key={c.value} className="wk-need-option" title={last ? 'Jedna możliwość musi zostać.' : undefined}>
+              <label key={c.value} className="wk-need-option" title={last ? t('forms.settings.oneStays') : undefined}>
                 <input
                   type={s.many ? 'checkbox' : 'radio'} name={`${name}-${s.key}`} checked={chosen} disabled={last}
                   data-need-setting={`${need.id}.${s.key}.${c.value}`}
@@ -382,6 +382,7 @@ export function Extensions({ base, extensions, busy, onCreated, onError }: {
   const [repeat, setRepeat] = useState<Repeat>('once');
   const [saving, setSaving] = useState(false);
   const [made, setMade] = useState<string | null>(null);
+  const t = useT();
 
   const create = async () => {
     setSaving(true);
@@ -395,7 +396,7 @@ export function Extensions({ base, extensions, busy, onCreated, onError }: {
       setName('');
       await onCreated();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć rozszerzenia.');
+      onError(e instanceof WorkspaceError ? e.message : t('forms.settings.extFailed'));
     } finally {
       setSaving(false);
     }
@@ -403,12 +404,12 @@ export function Extensions({ base, extensions, busy, onCreated, onError }: {
 
   return (
     <div className="wk-field">
-      <span>Rozszerzenia formularza</span>
+      <span>{t('forms.settings.extensions')}</span>
       <p className="wk-hint">
-        Podformularze: osoba uzupełnia je później przez swój link albo wypełnia je tylko koordynator.
+        {t('forms.settings.extHint')}
       </p>
       <p className="wk-hint">
-        Podformularz może się <strong>powtarzać</strong> (co dzień, tydzień, miesiąc, rok) — wtedy każda osoba ma osobny wpis na każdy okres.
+        {rich(t('forms.settings.extRepeatHint'), { b: (s, k) => <strong key={k}>{s}</strong> })}
       </p>
 
       {extensions.length > 0 && (
@@ -417,9 +418,9 @@ export function Extensions({ base, extensions, busy, onCreated, onError }: {
             <li className="wk-row" key={e.moduleId}>
               <span>
                 <strong>{e.name}</strong>
-                <span className="wk-row-side"> · {AUDIENCE_LABEL[e.audience]}{repeatOf(e.repeat) !== 'once' ? ` · ${REPEAT_LABEL[repeatOf(e.repeat)]}` : ''}{e.closed ? ' · zamknięte' : ''}</span>
+                <span className="wk-row-side"> · {AUDIENCE_LABEL[e.audience]}{repeatOf(e.repeat) !== 'once' ? ` · ${REPEAT_LABEL[repeatOf(e.repeat)]}` : ''}{e.closed ? ` · ${t('forms.settings.closed')}` : ''}</span>
               </span>
-              <a className="wk-link-btn" href={formPath(e.moduleId)}>Otwórz</a>
+              <a className="wk-link-btn" href={formPath(e.moduleId)}>{t('common.open')}</a>
             </li>
           ))}
         </ul>
@@ -428,36 +429,36 @@ export function Extensions({ base, extensions, busy, onCreated, onError }: {
       <form className="wk-inline" onSubmit={(e) => { e.preventDefault(); if (name.trim() !== '') void create(); }}>
         <input
           value={name}
-          placeholder="np. Dane do bierzmowania albo Notatki koordynatora"
-          aria-label="Nazwa rozszerzenia"
+          placeholder={t('forms.settings.extNamePlaceholder')}
+          aria-label={t('forms.settings.extName')}
           disabled={busy || saving}
           onChange={(e) => setName(e.target.value)}
         />
         <select
           value={audience}
-          aria-label="Kto wypełnia"
+          aria-label={t('forms.settings.whoFills')}
           disabled={busy || saving}
           onChange={(e) => setAudience(e.target.value === 'office' ? 'office' : 'person')}
         >
-          <option value="person">wypełnia osoba</option>
-          <option value="office">tylko koordynator</option>
+          <option value="person">{t('forms.settings.fillsPerson')}</option>
+          <option value="office">{t('forms.settings.fillsOffice')}</option>
         </select>
         <select
           value={repeat}
-          aria-label="Jak często"
+          aria-label={t('forms.settings.howOften')}
           disabled={busy || saving}
           onChange={(e) => setRepeat(repeatOf(e.target.value))}
         >
           {REPEATS.map((r) => <option key={r} value={r}>{REPEAT_LABEL[r]}</option>)}
         </select>
         <button type="submit" className="wk-btn" disabled={busy || saving || name.trim() === ''}>
-          {saving ? 'Zakładanie…' : 'Dodaj rozszerzenie'}
+          {saving ? t('forms.settings.creating') : t('forms.settings.addExt')}
         </button>
       </form>
 
       {made !== null && (
         <p className="wk-done">
-          Założone. <a className="wk-link" href={formPath(made)}>Dodaj mu pytania</a>.
+          {t('forms.settings.created')} <a className="wk-link" href={formPath(made)}>{t('forms.settings.addQuestions')}</a>.
         </p>
       )}
     </div>
@@ -471,31 +472,32 @@ export function Extensions({ base, extensions, busy, onCreated, onError }: {
  */
 export function ExtensionOf({ row, busy, onRepeat }: { row: ModuleRow; busy: boolean; onRepeat: (repeat: Repeat) => void }) {
   const repeat = repeatOf(row.repeat);
+  const t = useT();
 
   return (
     <div className="wk-note">
       <p>
-        <strong>To jest rozszerzenie formularza</strong>{' '}
-        <a className="wk-link" href={formPath(row.extendsId ?? '')}>otwórz formularz główny</a>.
-        {' '}Wypełnia: <strong>{row.audience === 'public' ? AUDIENCE_LABEL.public : AUDIENCE_LABEL[row.audience]}</strong>.
+        <strong>{t('forms.settings.isExt')}</strong>{' '}
+        <a className="wk-link" href={formPath(row.extendsId ?? '')}>{t('forms.settings.openMain')}</a>.
+        {' '}{rich(t('forms.settings.fills', { who: row.audience === 'public' ? AUDIENCE_LABEL.public : AUDIENCE_LABEL[row.audience] }), { b: (s, k) => <strong key={k}>{s}</strong> })}
       </p>
       <label className="wk-inline">
-        <span>Powtarza się:</span>
+        <span>{t('forms.settings.repeats')}</span>
         <select value={repeat} disabled={busy || row.entries > 0} onChange={(e) => onRepeat(repeatOf(e.target.value))}>
           {REPEATS.map((r) => <option key={r} value={r}>{REPEAT_LABEL[r]}</option>)}
         </select>
         <span className="wk-hint">
           {row.entries > 0
-            ? 'Są już wpisy — powtarzania nie da się zmienić.'
+            ? t('forms.settings.repeatLocked')
             : repeat === 'once'
-              ? 'Jeden wpis na osobę.'
-              : 'Osobny wpis na każdy okres — w zakładce „Zgłoszenia” przełączasz okres u góry.'}
+              ? t('forms.settings.repeatOnce')
+              : t('forms.settings.repeatEach')}
         </span>
       </label>
       <p className="wk-hint">
         {row.audience === 'office'
-          ? 'Odpowiedzi widzi tylko kancelaria. W zakładce „Osoby" wpisujesz je przy każdej osobie; możesz też postawić ten formularz na swojej stronie koordynatora — pokaże tam tę samą listę.'
-          : 'Osoba zobaczy to w swoich krokach jako „Uzupełnij" i wypełni przez swój link. Klauzula i link są te same co w formularzu głównym.'}
+          ? t('forms.settings.extOfficeHint')
+          : t('forms.settings.extPersonHint')}
       </p>
     </div>
   );
@@ -519,18 +521,18 @@ export function IntakeMissing({ areaId, areaName, ring, officeRoleId, busy, onAc
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   return (
     <div className="wk-warn">
       <p>
-        Obszar „{areaName}" nie przyjmuje jeszcze odpowiedzi — brakuje mu klucza,
-        którym odpowiedzi zamyka się tak, żeby otworzył je tylko ten, kto prowadzi zgłoszenia.
+        {t('forms.settings.intakeMissing', { area: areaName })}
       </p>
       <button
         type="button" className="wk-link-btn" disabled={busy}
-        onClick={() => void onAct('Tworzenie klucza przyjmowania — kilka sekund…',
+        onClick={() => void onAct(t('forms.settings.intakeCreating'),
           () => createIntake(ring, areaId, officeRoleId))}
       >
-        Utwórz klucz przyjmowania
+        {t('forms.settings.intakeCreate')}
       </button>
     </div>
   );
@@ -554,6 +556,7 @@ export function Naming({ partId, value, busy, onSaved, onError }: {
 }) {
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
+  const t = useT();
 
   useEffect(() => { setDraft(value); }, [value]);
 
@@ -565,7 +568,7 @@ export function Naming({ partId, value, busy, onSaved, onError }: {
       const done = await setPartConfig(partId, { title: draft.trim() });
       onSaved(done.config);
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      onError(e instanceof WorkspaceError ? e.message : t('forms.ext.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -573,10 +576,10 @@ export function Naming({ partId, value, busy, onSaved, onError }: {
 
   return (
     <label className="wk-field">
-      <span>Nagłówek na stronie</span>
+      <span>{t('forms.settings.heading')}</span>
       <input
         value={draft}
-        placeholder="np. Zgłoszenie"
+        placeholder={t('forms.settings.headingPlaceholder')}
         disabled={busy || saving}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => { if (draft.trim() !== value.trim()) void save(); }}

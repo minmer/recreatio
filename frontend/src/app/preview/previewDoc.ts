@@ -31,6 +31,7 @@ import { zonesOf } from '../pages/presentation/presentationMotion';
 import { deckParts, slideLabelOf } from '../pages/slides/PageSlides';
 import { COVER_KEY, readSlide } from '../pages/slides/slides';
 import { deckOf, NO_LOOK, readLook, writeLook, type Look } from '../pages/slides/slideLook';
+import { t } from '../core/i18n';
 
 /** Wo eine Seite ohne eigene Adresse in der Vorschau steht. */
 export const PREVIEW_PATH = 'podglad';
@@ -73,12 +74,12 @@ export interface PreviewPlan {
 
 /** Ein Dokument als Text oder schon gelesen. */
 export function readDoc(doc: unknown): { value: unknown } | { error: string } {
-  if (typeof doc !== 'string') return doc === undefined || doc === null ? { error: 'Brak dokumentu JSON.' } : { value: doc };
-  if (doc.trim() === '') return { error: 'Brak dokumentu JSON.' };
+  if (typeof doc !== 'string') return doc === undefined || doc === null ? { error: t('preview.doc.none') } : { value: doc };
+  if (doc.trim() === '') return { error: t('preview.doc.none') };
   try {
     return { value: JSON.parse(doc) as unknown };
   } catch (e) {
-    return { error: `Nieprawidłowy JSON: ${e instanceof Error ? e.message : 'nie da się odczytać'}` };
+    return { error: t('preview.doc.invalid', { why: e instanceof Error ? e.message : t('preview.doc.unreadable') }) };
   }
 }
 
@@ -173,22 +174,22 @@ export function planPreview(input: PreviewInput): PreviewPlan | { error: string 
   const notes: string[] = [];
   const title = (plan.title ?? now.title).trim();
   if ((plan.title !== undefined || plan.lead !== undefined || kind === 'page') && title === '' && base?.title == null) {
-    notes.push('Strona nie ma tytułu — import nie zapisze tytułu ani tekstu strony ("title" jest potrzebny, żeby zapisać "lead").');
+    notes.push(t('preview.doc.noTitle'));
   }
   if (needs.length > 0) {
-    notes.push(`Pliki z "images" (${needs.length}): w podglądzie stoją pliki podane przez asystenta albo zastępcze obrazy z opisem — prawdziwe dołączy osoba importująca.`);
+    notes.push(t('preview.doc.images', { count: needs.length }));
   }
   if (plan.appointments !== undefined) {
-    notes.push(`Terminy z "appointments" (${plan.appointments.items.length}) powstaną dopiero przy imporcie, w kalendarzu wybranym przez osobę importującą — moduły, które na nie wskazują ("@klucz"), pokażą je dopiero po imporcie.`);
+    notes.push(t('preview.doc.appointments', { count: plan.appointments.items.length }));
   }
   for (const [id, wish] of plan.forms) {
     const part = plan.parts.find((p) => p.id === id);
     if (part === undefined || (wish.questions === undefined && wish.design === undefined)) continue;
     const at = plan.from?.get(id);
     const count = Array.isArray(wish.questions) ? wish.questions.length : 0;
-    notes.push(`Formularz${at === undefined ? '' : ` (modules[${at}])`}: pytania z dokumentu (${count}) powstaną przy imporcie — podgląd rysuje je z dokumentu (układ i logika działają; bez klauzuli administratora danych, która przyjdzie z obszaru odpowiedzi; wysyłanie wyłączone).`);
+    notes.push(t('preview.doc.form', { form: at === undefined ? t('preview.doc.formWord') : t('preview.doc.formAt', { at }), count }));
   }
-  if (menuFrom !== null) notes.push(`Menu jak na stronie „${menuFrom}” — podgląd bierze je z tej strony, jeśli jest publiczna.`);
+  if (menuFrom !== null) notes.push(t('preview.doc.menu', { page: menuFrom }));
 
   const warnings = [...plan.warnings, ...(asked?.warnings ?? [])];
   return { path, kind, plan, now, needs, files, content, menuFrom, lines: plan.lines, warnings, notes };

@@ -1,6 +1,7 @@
 # Architecture
 
-How REcreatio is built today (2026-10-23). The domain documents — [LIBRARY.md](LIBRARY.md), [SCRIPTORIUM.md](SCRIPTORIUM.md),
+How REcreatio is built today (2026-10-23). Every visible text is localized (English default, German, Polish —
+[LOCALIZATION.md](LOCALIZATION.md), 2026-11-05). The domain documents — [LIBRARY.md](LIBRARY.md), [SCRIPTORIUM.md](SCRIPTORIUM.md),
 [COGITA.md](COGITA.md), [CHAT.md](CHAT.md), [INTERACTIVE.md](INTERACTIVE.md), [MCP.md](MCP.md), [PREVIEW-MCP.md](PREVIEW-MCP.md) — go deeper into their parts; [JSON.md](JSON.md) lists the JSON export/import of every part (2026-10-29), the formats an assistant reads over MCP; [TRANSFER.md](TRANSFER.md) records how the old data forms were removed and what is left.
 
 ## The idea in one paragraph

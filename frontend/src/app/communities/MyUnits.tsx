@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 
 import { LinkChatsSection } from '../chat/LinkChatJoin';
+import { useT } from '../core/i18n';
 import { heldLinkKeys, type HeldKeys } from '../links/linkAccess';
 import { linkChats, loadLinkMessages } from '../links/linkPerson';
 import { linkMe } from '../links/linkMe';
@@ -25,7 +26,7 @@ import { loadSetup } from './communityStore';
 const SEEN = 'recreatio:moje:seen:v1';
 const readSeen = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(SEEN) ?? '{}') as Record<string, string>; } catch { return {}; } };
 const markSeen = (areaId: string) => { try { localStorage.setItem(SEEN, JSON.stringify({ ...readSeen(), [areaId]: new Date().toISOString() })); } catch { /* ohne Gedächtnis */ } };
-const LEVEL: Record<string, string> = { read: 'czyta', write: 'pisze', admin: 'prowadzi' };
+const LEVEL: Record<string, string> = { read: 'communities.mine.level.read', write: 'communities.mine.level.write', admin: 'communities.mine.level.admin' };
 
 interface Place {
   readonly areaId: string;
@@ -37,6 +38,7 @@ interface Place {
 }
 
 export function MyUnits() {
+  const t = useT();
   const [keys, setKeys] = useState<HeldKeys | null>(null);
   const [places, setPlaces] = useState<readonly Place[] | null>(null);
   const [me, setMe] = useState<string | null>(null);
@@ -74,27 +76,27 @@ export function MyUnits() {
           }
           if (view !== null && view.updatedAt > since) fresh += 1;
         }
-        out.push({ areaId, name: view?.unit.name ?? info.name ?? 'Obszar', view, roles: [...new Set([...holding, ...(mine?.positions ?? [])])], capability: info.capability, fresh });
+        out.push({ areaId, name: view?.unit.name ?? info.name ?? t('communities.mine.area'), view, roles: [...new Set([...holding, ...(mine?.positions ?? [])])], capability: info.capability, fresh });
       }
       /* Nur Einheiten einer Wspólnota — Hilfsbereiche (z. B. die Antwortenden von „Napisz do nas") zeigen sich nicht. */
       const shown = out.filter((p) => p.view !== null);
       out.splice(0, out.length, ...(shown.length > 0 ? shown : out));
-      out.sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+      out.sort((a, b) => a.name.localeCompare(b.name, t.locale));
       if (alive) { setPlaces(out); setMe(name); }
       /* Dieser Besuch ist der letzte — beim nächsten zählt, was danach kam. */
       for (const p of out) markSeen(p.areaId);
     })();
     return () => { alive = false; };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (keys === null || places === null) return <Loading label="Otwieranie Twoich wspólnot…" />;
-  if (keys.links.length === 0) return <p className="wk-empty">Ta przeglądarka nie ma osobistego linku. Otwórz link, który dostałeś od prowadzących.</p>;
+  if (keys === null || places === null) return <Loading label={t('communities.mine.loading')} />;
+  if (keys.links.length === 0) return <p className="wk-empty">{t('communities.mine.noLink')}</p>;
   const communities = [...new Map(places.filter((p) => p.view !== null).map((p) => [p.view!.community.areaId, p.view!.community.name])).values()];
 
   return (
     <div className="wk-narrow ui-page wk-cm-mine" data-my-units="">
-      <PageHeader title={me === null ? 'Witaj!' : `Witaj, ${me}!`} meta={communities.length > 0 ? communities.join(' · ') : 'Twoje miejsca z tego linku'} />
-      {places.length === 0 ? <p className="wk-note">Ten link nie daje jeszcze dostępu do żadnej jednostki.</p> : (
+      <PageHeader title={me === null ? t('communities.mine.hello') : t('communities.mine.helloName', { name: me })} meta={communities.length > 0 ? communities.join(' · ') : t('communities.mine.placesMeta')} />
+      {places.length === 0 ? <p className="wk-note">{t('communities.mine.noUnits')}</p> : (
         <ul className="wk-cm-mine-list">
           {places.map((p) => {
             const words = p.roles.map((key) => {
@@ -105,19 +107,19 @@ export function MyUnits() {
               <li key={p.areaId} data-my-unit={p.areaId}>
                 <div className="wk-cm-mine-head">
                   <strong>{p.name}</strong>
-                  {p.fresh > 0 && <span className="wk-tag wk-cm-new">nowe: {p.fresh}</span>}
+                  {p.fresh > 0 && <span className="wk-tag wk-cm-new">{t('communities.mine.fresh', { count: p.fresh })}</span>}
                 </div>
-                <span className="wk-cm-meta">{words.length > 0 ? words.join(', ') : `tu ${LEVEL[p.capability] ?? 'czytasz'}`}</span>
+                <span className="wk-cm-meta">{words.length > 0 ? words.join(', ') : t(LEVEL[p.capability] ?? 'communities.mine.level.reads')}</span>
                 <div className="wk-actions">
-                  {p.view?.home && <a className="wk-btn wk-btn-small" href={pagePath(p.view.home)} onClick={() => markSeen(p.areaId)}>Otwórz</a>}
-                  <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('calendar')} onClick={() => markSeen(p.areaId)}>Kalendarz</a>
+                  {p.view?.home && <a className="wk-btn wk-btn-small" href={pagePath(p.view.home)} onClick={() => markSeen(p.areaId)}>{t('common.open')}</a>}
+                  <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('calendar')} onClick={() => markSeen(p.areaId)}>{t('communities.mine.calendar')}</a>
                 </div>
               </li>
             );
           })}
         </ul>
       )}
-      <h2 className="wk-h3">Rozmowy</h2>
+      <h2 className="wk-h3">{t('communities.mine.chats')}</h2>
       {keys.links.filter((l) => l.info !== null).map((l) => <LinkChatsSection key={l.token} invitationId={l.info!.invitationId} />)}
     </div>
   );

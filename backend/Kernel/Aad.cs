@@ -358,6 +358,15 @@ public enum Field
     AiOAuthCode,
 
     /// <summary>
+    /// 0138 — eine MCP-Verbindung, die Bereiche dazubekommt, ohne neu anzumelden: ihr privater
+    /// RSA-Schlüssel, versiegelt unter einem Schlüssel aus ihrem Zugangstoken (AiMcpConnection),
+    /// und je hinzugefügtem Link dessen Geheimnis, RSA-verpackt an ihren öffentlichen Schlüssel
+    /// (AiMcpLink). Nur der Dienst siegelt und öffnet; der Browser kennt diese Etiketten nicht.
+    /// </summary>
+    AiMcpConnection,
+    AiMcpLink,
+
+    /// <summary>
     /// 0071 — ein Haushalt (Familie, Personen, Kontakt, Notizen, die Besuche
     /// der Kolęda) als EIN Dokument unter dem Schlüssel des Bereichs, dem das
     /// Adressverzeichnis gehört. Die Adresse selbst liegt offen daneben.
@@ -664,6 +673,8 @@ public readonly record struct Aad
         Field.AiAccessLink            => "ai_access_link",
         Field.AiSnapshot              => "ai_snapshot",
         Field.AiOAuthCode             => "ai_oauth_code",
+        Field.AiMcpConnection         => "ai_mcp_connection",
+        Field.AiMcpLink               => "ai_mcp_link",
         Field.Household               => "household",
         Field.SeatRoleKey             => "seat_role_key",
         Field.ModuleName              => "module_name",

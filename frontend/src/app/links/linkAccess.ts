@@ -44,14 +44,17 @@ import type { Ring, SealedRole } from '../core/keys';
 import { addHolder, createRoleWithKeys, signEdge } from '../roles/roles';
 import { call, WorkspaceError } from '../core/session';
 import type { Controller } from '../forms/intake';
+import { t, texts, tIn, type Lang } from '../core/i18n';
 
 export type LinkLevel = 'read' | 'write' | 'admin';
 
-export const LINK_LEVELS: readonly { value: LinkLevel; label: string; says: string }[] = [
-  { value: 'read', label: 'Czyta', says: 'widzi, co jest w obszarze' },
-  { value: 'write', label: 'Pisze', says: 'widzi i dopisuje' },
-  { value: 'admin', label: 'Prowadzi', says: 'może też wpuszczać innych' }
-];
+const level = (value: LinkLevel): { value: LinkLevel; label: string; says: string } => ({
+  value,
+  get label() { return t(`links.level.${value}.label`); },
+  get says() { return t(`links.level.${value}.says`); }
+});
+
+export const LINK_LEVELS: readonly { value: LinkLevel; label: string; says: string }[] = [level('read'), level('write'), level('admin')];
 
 export interface LinkArea {
   readonly areaId: string;
@@ -105,8 +108,8 @@ const SEAL_INFO = 'recreatio:v1:invite:seal';
 /** Was aus dem Geheimnis im Link folgt. */
 export async function linkSecrets(token: string): Promise<{ proof: Uint8Array; lookup: string; sealKey: Uint8Array }> {
   let raw: Uint8Array;
-  try { raw = fromBase64Url(token); } catch { throw new WorkspaceError('Ten link jest niepełny — skopiuj go jeszcze raz w całości.'); }
-  if (raw.length !== KEY_SIZE) throw new WorkspaceError('Ten link jest niepełny — skopiuj go jeszcze raz w całości.');
+  try { raw = fromBase64Url(token); } catch { throw new WorkspaceError(t('links.error.incomplete')); }
+  if (raw.length !== KEY_SIZE) throw new WorkspaceError(t('links.error.incomplete'));
 
   const proof = await derive(raw, PROOF_INFO, 32);
   const sealKey = await derive(raw, SEAL_INFO, 32);
@@ -139,23 +142,23 @@ export function linkUrl(token: string, aim: string | null = null): string {
  * oder die ganze Adresse. Dieselbe Regel wie `HeldLinks.NormaliseAim`.
  */
 export function aimOf(text: string, here: string = typeof window === 'undefined' ? '' : window.location.hostname): { aim: string | null } | { error: string } {
-  let t = text.trim();
-  if (t === '') return { aim: null };
-  const hash = t.indexOf('#');
-  if (t.includes('://')) {
+  let typed = text.trim();
+  if (typed === '') return { aim: null };
+  const hash = typed.indexOf('#');
+  if (typed.includes('://')) {
     let host = '';
-    try { host = new URL(t).hostname.toLowerCase(); } catch { return { error: 'To nie jest adres.' }; }
+    try { host = new URL(typed).hostname.toLowerCase(); } catch { return { error: t('links.aim.notAddress') }; }
     if (!['recreatio.pl', 'www.recreatio.pl', 'localhost', '127.0.0.1', here].includes(host)) {
-      return { error: 'Cel musi być adresem na recreatio.pl.' };
+      return { error: t('links.aim.notOurs') };
     }
     if (hash < 0) return { aim: null };
   }
-  if (hash >= 0) t = t.slice(hash + 1);
-  t = t.replace(/^\/+/, '');
-  if (t === '' || t === 'dolacz' || t.startsWith('dolacz/')) return { aim: null };
-  if (t.length > 400) return { error: 'Cel: najwyżej 400 znaków.' };
-  if (/[\s#<>"\\`]/.test(t)) return { error: 'W adresie celu są niedozwolone znaki.' };
-  return { aim: t };
+  if (hash >= 0) typed = typed.slice(hash + 1);
+  typed = typed.replace(/^\/+/, '');
+  if (typed === '' || typed === 'dolacz' || typed.startsWith('dolacz/')) return { aim: null };
+  if (typed.length > 400) return { error: t('links.aim.tooLong', { max: 400 }) };
+  if (/[\s#<>"\\`]/.test(typed)) return { error: t('links.aim.badChars') };
+  return { aim: typed };
 }
 
 export const setLinkAim = (invitationId: string, aim: string | null): Promise<{ aim: string | null }> =>
@@ -208,7 +211,7 @@ export async function createLink(
 ): Promise<{ url: string; invitationId: string; token: string }> {
   const areas = what.areas ?? [];
   const roles = what.roles ?? [];
-  if (areas.length === 0 && roles.length === 0) throw new WorkspaceError('Wybierz rolę, którą daje link.');
+  if (areas.length === 0 && roles.length === 0) throw new WorkspaceError(t('links.error.pickRole'));
   /*
    * Die stärkste Stufe steht am Link selbst — sie entscheidet, ob der
    * Signierschlüssel der Linkrolle mitgeht. Bei Rollen: „prowadzi", wenn er
@@ -223,20 +226,20 @@ export async function createLink(
   const issuers = new Map<string, string>();
   for (const { areaId } of areas) {
     const issuer = await issuerIn(ring, areaId);
-    if (issuer === null) throw new WorkspaceError('W jednym z wybranych obszarów nie możesz nikogo wpuścić.');
+    if (issuer === null) throw new WorkspaceError(t('links.error.cannotAdmit'));
     issuers.set(areaId, issuer);
   }
   for (const { roleId, lead } of roles) {
-    if (!ring.has(roleId)) throw new WorkspaceError('Link może dawać tylko rolę, którą masz.');
-    if (lead && !ring.maySign(roleId)) throw new WorkspaceError('Prowadzenie roli może dać tylko ten, kto ją prowadzi.');
+    if (!ring.has(roleId)) throw new WorkspaceError(t('links.error.notYourRole'));
+    if (lead && !ring.maySign(roleId)) throw new WorkspaceError(t('links.error.notLeader'));
   }
 
-  progress('Liczenie kluczy linku…');
+  progress(t('links.progress.keys'));
   const label = what.label.trim() === '' ? 'Link' : what.label.trim();
   const role = await createRoleWithKeys(ring, holder, { kind: 'role', name: `Link: ${label}` });
 
   for (const { areaId, capability } of areas) {
-    progress('Otwieranie obszarów dla linku…');
+    progress(t('links.progress.areas'));
     await joinArea(ring, areaId, { id: role.id, kind: 'role', wrapPublicKey: role.wrapPublicKey },
       issuers.get(areaId)!, capability);
   }
@@ -245,12 +248,12 @@ export async function createLink(
   if (roles.length > 0) {
     const withLink = ring.withRole(role.role, role.roleKey, role.signKey);
     for (const { roleId, lead } of roles) {
-      progress('Łączenie linku z rolą…');
+      progress(t('links.progress.role'));
       await addHolder(withLink, roleId, role.role, 'holds', lead);
     }
   }
 
-  progress('Pieczętowanie linku…');
+  progress(t('links.progress.seal'));
   const token = toBase64Url(crypto.getRandomValues(new Uint8Array(KEY_SIZE)));
   const { lookup, sealKey } = await linkSecrets(token);
   const invitationId = newId();
@@ -292,7 +295,7 @@ export async function redeemLink(ring: Ring, person: SealedRole, token: string, 
   try {
     keys = JSON.parse(new TextDecoder().decode(await open(sealKey, keysAad(info.invitationId), fromBase64Url(info.sealedRoleKey))));
   } catch {
-    throw new WorkspaceError('Ten link nie pasuje do zaproszenia — skopiuj go jeszcze raz w całości.');
+    throw new WorkspaceError(t('links.error.mismatch'));
   }
 
   const holderKey = fromBase64Url(person.wrapPublicKey);
@@ -313,15 +316,20 @@ export async function redeemLink(ring: Ring, person: SealedRole, token: string, 
   });
 }
 
-/** Wie der Zustand eines Links in einem Wort heisst. */
-export function linkState(row: Pick<LinkRow, 'revokedAt' | 'expiresAt' | 'maxUses' | 'used'>, now: number = Date.now()): string {
-  if (row.revokedAt !== null) return 'wycofany';
-  if (Date.parse(row.expiresAt) <= now) return 'wygasł';
-  if (row.maxUses !== null && row.used >= row.maxUses) return 'wykorzystany';
-  return 'działa';
+/** Der Zustand eines Links (2026-11-05: als Kennung; das Wort dazu gibt `linkStateWord`). */
+export type LinkStateCode = 'revoked' | 'expired' | 'used' | 'active';
+
+export function linkState(row: Pick<LinkRow, 'revokedAt' | 'expiresAt' | 'maxUses' | 'used'>, now: number = Date.now()): LinkStateCode {
+  if (row.revokedAt !== null) return 'revoked';
+  if (Date.parse(row.expiresAt) <= now) return 'expired';
+  if (row.maxUses !== null && row.used >= row.maxUses) return 'used';
+  return 'active';
 }
 
-export const LEVEL_WORD: Record<string, string> = { read: 'czyta', write: 'pisze', admin: 'prowadzi' };
+/** Wie der Zustand in einem Wort heisst. */
+export const linkStateWord = (state: LinkStateCode, lang?: Lang): string => (lang === undefined ? t(`links.state.${state}`) : tIn(lang, `links.state.${state}`));
+
+export const LEVEL_WORD: Record<string, string> = texts({ read: 'links.levelWord.read', write: 'links.levelWord.write', admin: 'links.levelWord.admin' });
 
 const RANK: Record<LinkLevel, number> = { read: 1, write: 2, admin: 3 };
 
@@ -330,7 +338,7 @@ export const highestLevel = (levels: readonly LinkLevel[]): LinkLevel =>
 
 /** 0074 — was ein Link gibt, je Bereich: „Oaza — pisze · Rada — czyta". */
 export const accessWords = (areas: readonly LinkArea[]): string =>
-  areas.length === 0 ? 'bez obszarów' : areas.map((a) => `${a.name} — ${LEVEL_WORD[a.capability] ?? a.capability}`).join(' · ');
+  areas.length === 0 ? t('links.noAreas') : areas.map((a) => `${a.name} — ${LEVEL_WORD[a.capability] ?? a.capability}`).join(' · ');
 
 /* -- Links in diesem Browser (0073) ------------------------------------------------------- */
 

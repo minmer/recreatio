@@ -17,8 +17,10 @@
  * Einträge; hoch und im Vollbild das Ganze.
  */
 
-import { definePart, flag, text, type RawConfig } from '../part';
+import { t } from '../../core/i18n';
+import { flag, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
+import { defineTextPart, field, texts, withTexts } from './partTexts';
 
 export interface ViewConfig {
   readonly title: string;
@@ -39,28 +41,26 @@ export interface ViewConfig {
 
 const ViewView = later(() => import('./viewViews').then((m) => m.ViewView));
 
-export const viewPart = definePart<ViewConfig>({
+export const viewPart = defineTextPart<ViewConfig>({
   kind: 'view',
-  example: { title: 'Tajemnice i okresy', library: '<id-bazy-wiedzy>', view: '<id-widoku>', mode: 'macierz', answers: '<id-obszaru-kursu>', rewards: '<id-nagród albo puste>', switch: 'nie' },
-  label: 'Widok',
-  use: 'Zapisany widok bazy wiedzy (Nauka → baza → Wpisy → „Zapisz jako widok"): wybrane wpisy — także kazania i komentarze z bibliotek, z których baza korzysta — jako tabela, drzewo z grupami, macierz (np. 20 tajemnic × 12 okresów; pole otwiera swoje wpisy), mapa nauki, mapa postępów (kafelki w kolorze tego, jak dobrze odwiedzający zna każdy wpis — klik pokazuje tekst, pytania i „Ćwicz to") albo krajobraz (przed odwiedzającym pierścień tego, czego może się uczyć teraz, dalej góry — tym wyższe, im więcej kroków brakuje, za nim dolina tego, co umie; klik: czytać, uczyć się, powtórzyć, ustawić cel); kliknięty wpis otwiera się pod spodem (komentarz, całe kazanie), droga zostaje w adresie. „Ucz się tego" pyta o pokazane wpisy. Widzi go ten, kto może czytać bazę.',
+  example: withTexts({ mode: 'macierz', switch: 'nie' }, texts({ title: 'moduleDataLearn.viewPart.exTitle', library: 'moduleDataCogita.ex.base', view: 'moduleDataLearn.viewPart.exView', answers: 'moduleDataCogita.ex.area', rewards: 'moduleDataCogita.ex.rewardsOrEmpty' })),
   box: { colSpan: 6, rowSpan: 4 },
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa widoku' },
-    { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
-    { key: 'view', label: 'Który widok', kind: 'libraryEntry', of: 'library', entryKinds: ['view'] },
-    { key: 'mode', label: 'Jak pokazać', kind: 'line', hint: 'tabela, drzewo, macierz, mapa, postępy albo krajobraz — puste: jak zapisano' },
+    field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleDataLearn.viewPart.titleHint' })),
+    field({ key: 'library', kind: 'knowledge' }, texts({ label: 'moduleDataCogita.f.fromBase' })),
+    field({ key: 'view', kind: 'libraryEntry', of: 'library', entryKinds: ['view'] }, texts({ label: 'moduleDataLearn.viewPart.which' })),
+    field({ key: 'mode', kind: 'line' }, texts({ label: 'moduleDataLearn.viewPart.mode', hint: 'moduleDataLearn.viewPart.modeHint' })),
     /* 2026-11-03 — wie in „Powtórka": wohin die Antworten gehen, und Punkte beim Lernen (Krajobraz, Mapa postępów). */
-    { key: 'answers', label: 'Odpowiedzi uczących się do', kind: 'area', hint: 'puste: jak w bazie wiedzy; bez tego zostają u uczącego się' },
-    { key: 'rewards', label: 'Punkty i seria w trakcie nauki', kind: 'libraryEntry', of: 'library', entryKinds: ['reward'], optional: true, none: 'jak moduł „Punkty i seria” na tej stronie' },
-    { key: 'switch', label: 'Przełączanie i szukanie', kind: 'line', hint: '„tak” — odwiedzający może zmienić sposób pokazania i szukać w widoku; puste albo „nie” — widzi tylko to, co tu wybrano' }
+    field({ key: 'answers', kind: 'area' }, texts({ label: 'moduleDataCogita.f.answers', hint: 'moduleDataCogita.f.answersHint' })),
+    field({ key: 'rewards', kind: 'libraryEntry', of: 'library', entryKinds: ['reward'], optional: true }, texts({ label: 'moduleDataCogita.f.rewardsInRun', none: 'moduleDataCogita.f.rewardsInRunNone' })),
+    field({ key: 'switch', kind: 'line' }, texts({ label: 'moduleDataLearn.viewPart.switch', hint: 'moduleDataLearn.viewPart.switchHint' }))
   ],
   read: (raw: RawConfig): ViewConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), view: text(raw, 'view'), mode: text(raw, 'mode'), answers: text(raw, 'answers'), rewards: text(raw, 'rewards'), switching: flag(raw, 'switch', false) }),
   hasContent: (c) => c.library !== '' && c.view !== '',
-  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.view === '' ? 'Wybierz widok (zapisany w „Wpisach” tej bazy).' : null),
+  missing: (c) => (c.library === '' ? t('moduleDataCogita.m.pickBase') : c.view === '' ? t('moduleDataLearn.viewPart.missingView') : null),
   fullscreen: true,
-  shows: (_c, size) => size.height === 'strip' ? 'Jedna linia: nazwa, ile wpisów, przycisk „Zobacz".'
-    : size.height === 'tall' ? 'Cały widok: wyszukiwanie, tabela, drzewo, macierz, mapa, mapa postępów albo krajobraz; pole macierzy, kafelek i kliknięty wpis otwierają się pod spodem.'
-    : 'Pierwsze wpisy widoku — reszta w pełnym ekranie; mapa postępów — do 60 kafelków; krajobraz — do 24 pól.',
+  shows: (_c, size) => size.height === 'strip' ? t('moduleDataLearn.viewPart.showsStrip')
+    : size.height === 'tall' ? t('moduleDataLearn.viewPart.showsTall')
+    : t('moduleDataLearn.viewPart.showsBlock'),
   View: ViewView
-});
+}, texts({ label: 'moduleDataLearn.view', use: 'moduleDataLearn.viewPart.use' }));

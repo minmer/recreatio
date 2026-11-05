@@ -28,6 +28,7 @@ import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import type { RepeatKind } from './agenda';
 import { call, WorkspaceError } from '../core/session';
+import { t, texts } from '../core/i18n';
 import { levelOf, urgency, type UrgencyLevel } from '../core/urgency';
 
 export type TaskKind = 'window' | 'after' | 'period';
@@ -36,11 +37,11 @@ export type TaskKind = 'window' | 'after' | 'period';
 export const REMIND = { start: 1, middle: 2, end: 4 } as const;
 export type ReminderKind = keyof typeof REMIND;
 
-export const REMIND_WORD: Record<ReminderKind, string> = {
-  start: 'na początku',
-  middle: 'w połowie',
-  end: 'pod koniec'
-};
+export const REMIND_WORD: Record<ReminderKind, string> = texts({
+  start: 'calendarApp.remind.start',
+  middle: 'calendarApp.remind.middle',
+  end: 'calendarApp.remind.end'
+});
 
 export interface TaskOccurrence {
   readonly at: string;
@@ -118,7 +119,7 @@ const notesAad = (taskId: string) => aad('task', 'task', taskId, Field.TaskNotes
 export async function openTasks(ring: Ring, rows: readonly TaskRow[]): Promise<OpenTask[]> {
   const out: OpenTask[] = [];
   for (const row of rows) {
-    let title = 'Zadanie';
+    let title = t('calendarApp.kindWord.task');
     let notes: string | null = null;
     let locked = false;
     try {
@@ -177,7 +178,7 @@ export const tasksChanged = (): void => { window.dispatchEvent(new Event('recrea
 export async function saveTask(ring: Ring, draft: TaskDraft, taskId?: string, options?: { readonly quiet?: boolean }): Promise<string> {
   const id = taskId ?? newId();
   const newest = newestKey(await areaKeys(ring, draft.areaId, true));
-  if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
+  if (newest === null) throw new WorkspaceError(t('calendarApp.noAreaKey'));
 
   const body = {
     taskId: id,
@@ -194,7 +195,7 @@ export async function saveTask(ring: Ring, draft: TaskDraft, taskId?: string, op
     until: draft.until,
     count: null,
     epoch: newest.epoch,
-    titleSealed: toBase64Url(await sealText(newest.key, titleAad(id), draft.title.trim() || 'Zadanie')),
+    titleSealed: toBase64Url(await sealText(newest.key, titleAad(id), draft.title.trim() || t('calendarApp.kindWord.task'))),
     notesSealed: draft.notes.trim() === '' ? null : toBase64Url(await sealText(newest.key, notesAad(id), draft.notes.trim())),
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     remind: draft.remind ?? 0,
@@ -302,12 +303,17 @@ export function afterState(task: TaskRow, now: Date): { due: Date; progress: num
 /** „za 25 min", „za 3 godz.", „za 2 dni", „2 dni temu" — grob, wie man es sagt. */
 export function howLong(target: Date, now: Date): string {
   const minutes = Math.round((target.getTime() - now.getTime()) / 60_000);
-  const size = Math.abs(minutes);
-  const word = size < 60 ? `${size} min`
-    : size < 36 * 60 ? `${Math.round(size / 60)} godz.`
-    : `${Math.round(size / 1440)} dni`;
-  if (size < 1) return 'teraz';
-  return minutes > 0 ? `za ${word}` : `${word} temu`;
+  if (Math.abs(minutes) < 1) return t('calendarApp.span.now');
+  const word = spanWord(target, now);
+  return minutes > 0 ? t('calendarApp.span.in', { span: word }) : t('calendarApp.span.ago', { span: word });
+}
+
+/** Nur der Abstand, ohne „za" und „temu": „25 min", „3 godz.", „2 dni". */
+export function spanWord(target: Date, now: Date): string {
+  const size = Math.abs(Math.round((target.getTime() - now.getTime()) / 60_000));
+  return size < 60 ? t('calendarApp.span.minutes', { count: size })
+    : size < 36 * 60 ? t('calendarApp.span.hours', { count: Math.round(size / 60) })
+    : t('calendarApp.span.days', { count: Math.round(size / 1440) });
 }
 
 /**
@@ -374,8 +380,8 @@ export function periodStarts(first: Date, everyMinutes: number, from: Date, to: 
 
 /** Ein Abstand in Worten — „co 3 dni", „co 2 godz.", „co tydzień". */
 export function everyWords(minutes: number): string {
-  if (minutes % 10080 === 0) return minutes === 10080 ? 'co tydzień' : `co ${minutes / 10080} tyg.`;
-  if (minutes % 1440 === 0) return minutes === 1440 ? 'codziennie' : `co ${minutes / 1440} dni`;
-  if (minutes % 60 === 0) return minutes === 60 ? 'co godzinę' : `co ${minutes / 60} godz.`;
-  return `co ${minutes} min`;
+  if (minutes % 10080 === 0) return minutes === 10080 ? t('calendarApp.every.week') : t('calendarApp.every.weeks', { count: minutes / 10080 });
+  if (minutes % 1440 === 0) return minutes === 1440 ? t('calendarApp.every.day') : t('calendarApp.every.days', { count: minutes / 1440 });
+  if (minutes % 60 === 0) return minutes === 60 ? t('calendarApp.every.hour') : t('calendarApp.every.hours', { count: minutes / 60 });
+  return t('calendarApp.every.minutes', { count: minutes });
 }

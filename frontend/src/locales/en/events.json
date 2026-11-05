@@ -1,0 +1,22 @@
+{
+  "listing": {
+    "asked": "waiting for a decision",
+    "shown": "shown",
+    "refused": "refused"
+  },
+  "listings": {
+    "giveAddress": "Enter the address of the page with the list.",
+    "already": "Already on this list.",
+    "sentOperator": "Request sent — the service operator will decide.",
+    "sentOwner": "Request sent — whoever runs this list will decide.",
+    "sendFailed": "Could not send the request.",
+    "title": "On other lists",
+    "loadFailed": "Could not load the lists.",
+    "none": "Not on any other list yet.",
+    "noPage": "list without a page",
+    "showAlso": "Show also on…",
+    "placeholder": "address of the page with the list, e.g. recreatio.pl/#/parish/events",
+    "ask": "Ask",
+    "askCatalogue": "Ask for a place in the catalogue recreatio.pl/{path} — the service operator decides"
+  }
+}

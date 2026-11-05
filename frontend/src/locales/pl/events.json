@@ -1,0 +1,22 @@
+{
+  "listing": {
+    "asked": "czeka na decyzję",
+    "shown": "pokazane",
+    "refused": "odmówiono"
+  },
+  "listings": {
+    "giveAddress": "Podaj adres strony z listą.",
+    "already": "Już jest na tej liście.",
+    "sentOperator": "Prośba wysłana — zdecyduje operator serwisu.",
+    "sentOwner": "Prośba wysłana — zdecyduje ten, kto prowadzi tę listę.",
+    "sendFailed": "Nie udało się wysłać prośby.",
+    "title": "Na innych listach",
+    "loadFailed": "Nie udało się wczytać list.",
+    "none": "Nie stoi jeszcze na żadnej obcej liście.",
+    "noPage": "lista bez strony",
+    "showAlso": "Pokaż też na…",
+    "placeholder": "adres strony z listą, np. recreatio.pl/#/parafia/wydarzenia",
+    "ask": "Poproś",
+    "askCatalogue": "Poproś o miejsce w katalogu recreatio.pl/{path} — decyduje operator serwisu"
+  }
+}

@@ -10,6 +10,8 @@
 
 import type { ReactNode } from 'react';
 
+import { useT } from '../core/i18n';
+
 /** `2026-10-26` → Mitternacht dieses Tages (Ortszeit), ms — `null`, wenn es kein Tag ist. */
 export function dayStart(value: string): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -29,10 +31,11 @@ export const SEEK_PAGES = 40;
 
 /** Das Datum eines Tages als Knopf — `onPick` bekommt den Beginn des gewählten Tages. */
 export function DayChip({ at, children, onPick }: { at: number; children: ReactNode; onPick: (start: number) => void }) {
+  const t = useT();
   return (
-    <label className="ch-day-pick" title="Przejdź do innego dnia">
+    <label className="ch-day-pick" title={t('chat.dayJump.title')}>
       <span>{children}</span>
-      <input type="date" className="ch-day-input" aria-label="Przejdź do dnia" value={dayValue(at)} max={dayValue(Date.now())}
+      <input type="date" className="ch-day-input" aria-label={t('chat.dayJump.label')} value={dayValue(at)} max={dayValue(Date.now())}
         onClick={(e) => {
           const input = e.currentTarget as HTMLInputElement & { showPicker?: () => void };
           if (typeof input.showPicker !== 'function') return;

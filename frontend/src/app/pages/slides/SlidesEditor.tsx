@@ -21,7 +21,7 @@
 import { useRef, useState } from 'react';
 
 import { newId } from '../../core/ids';
-import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Layout } from '../layout';
+import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, withLang, type Layout } from '../layout';
 import { type DraftPart } from '../page';
 import { PartSettings } from '../PageBuilder';
 import { deckParts, PageSlides, slideLabelOf } from './PageSlides';
@@ -188,6 +188,7 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
                         busy={busy}
                         path={path}
                         onSet={(patch) => replace(part.id, { ...part, config: { ...part.config, ...patch } })}
+                        onLang={(lang) => replace(part.id, { ...part, layout: withLang(part.layout, lang) })}
                         onPickModule={(moduleId) => replace(part.id, { ...part, moduleId })}
                         onMadeModule={(moduleId) => {
                           const next = parts.map((p) => (p.id === part.id ? { ...p, moduleId } : p));

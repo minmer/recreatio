@@ -42,6 +42,7 @@
  * erst, wenn eine Seite ein solches Bild zeigt.
  */
 
+import { t, texts } from '../../core/i18n';
 import type { Shape } from './drawing';
 
 /** Ein Name, wie er in einem Ausdruck stehen darf: Buchstaben (auch ą, ę…), Ziffern, Unterstrich — nicht vorn eine Ziffer. */
@@ -89,7 +90,7 @@ export const LIVE_LIMITS = {
 export const ACTIONS = ['run', 'pause', 'toggle', 'reset'] as const;
 export type Action = (typeof ACTIONS)[number];
 
-export const ACTION_LABEL: Record<Action, string> = { run: 'Start', pause: 'Pauza', toggle: 'Start / pauza', reset: 'Od nowa' };
+export const ACTION_LABEL: Record<Action, string> = texts({ run: 'pageMotion.action.run', pause: 'pageMotion.action.pause', toggle: 'pageMotion.action.toggle', reset: 'pageMotion.action.reset' });
 
 export const MOODS = ['ok', 'miss', 'info'] as const;
 export type Mood = (typeof MOODS)[number];
@@ -261,7 +262,7 @@ function readTask(value: unknown): TaskSpec | null {
   return {
     require,
     solve: readAssignText(value.solve),
-    again: value.new === false ? '' : line(value.new, LIVE_LIMITS.label) || 'Nowe zadanie',
+    again: value.new === false ? '' : line(value.new, LIVE_LIMITS.label) || t('pageMotion.model.newTask'),
     tries: Math.round(clamp(finite(value.tries) ?? 200, 1, LIVE_LIMITS.tries))
   };
 }
@@ -284,7 +285,6 @@ export interface PredictSpec {
   readonly hold: string;
 }
 
-const PREDICT_SAY = 'Najpierw przewiduj: ustaw wszystko tak, jak myślisz — potem kliknij „Sprawdź” i zobacz, co się stanie.';
 
 /** `true` oder `{ "start", "say", "check", "again", "hold" }` — `null`: kein Vermuten. */
 function readPredict(value: unknown): PredictSpec | null {
@@ -292,10 +292,10 @@ function readPredict(value: unknown): PredictSpec | null {
   const one = record(value);
   return {
     start: one.start !== false,
-    say: line(one.say, LIVE_LIMITS.say) || PREDICT_SAY,
-    check: line(one.check, LIVE_LIMITS.label) || 'Sprawdź',
-    again: line(one.again, LIVE_LIMITS.label) || 'Popraw',
-    hold: line(one.hold, LIVE_LIMITS.label) || 'Przewiduj'
+    say: line(one.say, LIVE_LIMITS.say) || t('pageMotion.model.predictSay'),
+    check: line(one.check, LIVE_LIMITS.label) || t('pageMotion.model.check'),
+    again: line(one.again, LIVE_LIMITS.label) || t('pageMotion.model.again'),
+    hold: line(one.hold, LIVE_LIMITS.label) || t('pageMotion.model.hold')
   };
 }
 

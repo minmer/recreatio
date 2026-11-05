@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import type { MapTrack } from './gpx';
 import { type LatLon, MAX_ZOOM, type MapPoint, type Size, TILE_SIZE, type View, anchorAt, boundsOf, centerForAnchor, centreOf, clampCenter, clampNumber, easeOut, fitZoom, minZoomFor, originOf, project, unproject } from './mapGeometry';
 import { googleMapsHref, trackColor } from './mapLinks';
+import { useT } from '../../core/i18n';
 
 const DOUBLE_TAP_MS = 300;
 const DOUBLE_TAP_SLOP_PX = 32;
@@ -63,6 +64,7 @@ const OVERLAY_EXIT_MS = 180;
  * centre from a ref, and the second one anchored against the wrong origin.
  */
 export function OsmMap(props: SurfaceProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [theme, setTheme] = useState<CSSProperties>({});
@@ -140,7 +142,7 @@ export function OsmMap(props: SurfaceProps) {
               style={theme}
               role="dialog"
               aria-modal="true"
-              aria-label="Mapa na pełnym ekranie"
+              aria-label={t('pagesEvent.map.fullscreen')}
             >
               <MapSurface {...props} interactive onClose={requestClose} />
             </div>,
@@ -166,6 +168,7 @@ function MapSurface({
   onOpen?: () => void;
   onClose?: () => void;
 }) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const touchedRef = useRef(false);
   const hintTimerRef = useRef<number | null>(null);
@@ -406,7 +409,7 @@ function MapSurface({
       event.stopPropagation();
       const anchor = zoomStep(event.shiftKey ? -1 : 1, event.clientX, event.clientY);
       showHint(
-        `${event.shiftKey ? 'Oddalono' : 'Przybliżono'}: ${describePlace(event.clientX, event.clientY, anchor)}`
+        t(event.shiftKey ? 'pagesEvent.map.zoomedOut' : 'pagesEvent.map.zoomedIn', { place: describePlace(event.clientX, event.clientY, anchor) })
       );
     };
 
@@ -505,7 +508,7 @@ function MapSurface({
         event.preventDefault();
         lastTapAt = 0;
         const anchor = zoomStep(1, finished.clientX, finished.clientY);
-        showHint(`Przybliżono: ${describePlace(finished.clientX, finished.clientY, anchor)}`);
+        showHint(t('pagesEvent.map.zoomedIn', { place: describePlace(finished.clientX, finished.clientY, anchor) }));
         return;
       }
 
@@ -631,7 +634,7 @@ function MapSurface({
       className={`ev-map-canvas ${interactive ? 'is-full' : 'is-preview'}`}
       ref={containerRef}
       role={interactive ? 'application' : undefined}
-      aria-label={interactive ? 'Mapa punktów trasy' : undefined}
+      aria-label={interactive ? t('pagesEvent.map.label') : undefined}
     >
       <div className="ev-map-tiles">
         {tiles.map((tile) =>
@@ -729,7 +732,7 @@ function MapSurface({
               target="_blank"
               rel="noreferrer noopener"
             >
-              Otwórz w Google Maps ↗
+              {t('pagesEvent.map.google')}
             </a>
           </div>
         ) : null}
@@ -738,14 +741,14 @@ function MapSurface({
       {interactive ? (
         <>
           <div className="ev-map-controls">
-            <button type="button" onClick={() => zoomAtCentre(1)} disabled={view.zoom >= MAX_ZOOM} aria-label="Przybliż">
+            <button type="button" onClick={() => zoomAtCentre(1)} disabled={view.zoom >= MAX_ZOOM} aria-label={t('pagesEvent.map.zoomIn')}>
               +
             </button>
             <button
               type="button"
               onClick={() => zoomAtCentre(-1)}
               disabled={view.zoom <= minZoomFor(size) + 0.01}
-              aria-label="Oddal"
+              aria-label={t('pagesEvent.map.zoomOut')}
             >
               −
             </button>
@@ -755,14 +758,14 @@ function MapSurface({
                 touchedRef.current = false;
                 fitToData();
               }}
-              aria-label="Pokaż całą trasę"
-              title="Pokaż całą trasę"
+              aria-label={t('pagesEvent.map.fit')}
+              title={t('pagesEvent.map.fit')}
             >
               ⤢
             </button>
           </div>
 
-          <button type="button" className="ev-map-close" onClick={onClose} aria-label="Zamknij mapę">
+          <button type="button" className="ev-map-close" onClick={onClose} aria-label={t('pagesEvent.map.close')}>
             ✕
           </button>
 
@@ -772,7 +775,7 @@ function MapSurface({
         // One button covering the preview: any click or tap opens the map, and
         // it is reachable from the keyboard for free.
         <button type="button" className="ev-map-open" onClick={onOpen}>
-          <span>Otwórz mapę</span>
+          <span>{t('pagesEvent.map.open')}</span>
         </button>
       )}
 
@@ -783,7 +786,7 @@ function MapSurface({
         target="_blank"
         rel="noreferrer noopener"
       >
-        © OpenStreetMap contributors
+        {t('pagesEvent.map.attribution')}
       </a>
     </div>
   );

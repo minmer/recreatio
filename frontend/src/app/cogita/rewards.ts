@@ -32,6 +32,7 @@
  * (`DEFAULT_REWARDS`); was die Seite daraus zeigt, rechnet `badgeCategories`.
  */
 
+import { t, texts } from '../core/i18n';
 import { DEFAULT_SPACING, gradeOf, step, type CardState, type Spacing } from './knowness';
 import { dayAdd, dayStart } from './lessons';
 
@@ -40,29 +41,40 @@ import { dayAdd, dayStart } from './lessons';
 export const POINT_KINDS = ['correct', 'partial', 'wrong', 'first', 'known', 'fast', 'combo', 'goal', 'streak'] as const;
 export type PointKind = (typeof POINT_KINDS)[number];
 
-export const POINT_LABEL: Readonly<Record<PointKind, string>> = {
-  correct: 'dobra odpowiedź',
-  partial: 'częściowo dobra',
-  wrong: 'za próbę (zła odpowiedź)',
-  first: 'nowa karta',
-  known: 'utrwalona karta',
-  fast: 'szybka dobra odpowiedź',
-  combo: 'dobre odpowiedzi z rzędu',
-  goal: 'cel dnia osiągnięty',
-  streak: 'kolejny dzień serii (razy dzień serii)'
-};
+export const POINT_LABEL: Readonly<Record<PointKind, string>> = texts({
+  correct: 'cogitaViewsRewards.point.correct',
+  partial: 'cogitaViewsRewards.point.partial',
+  wrong: 'cogitaViewsRewards.point.wrong',
+  first: 'cogitaViewsRewards.point.first',
+  known: 'cogitaViewsRewards.point.known',
+  fast: 'cogitaViewsRewards.point.fast',
+  combo: 'cogitaViewsRewards.point.combo',
+  goal: 'cogitaViewsRewards.point.goal',
+  streak: 'cogitaViewsRewards.point.streak'
+});
 
 export const GOAL_UNITS = ['cards', 'answers', 'points', 'minutes'] as const;
 export type GoalUnit = (typeof GOAL_UNITS)[number];
-export const GOAL_UNIT_LABEL: Readonly<Record<GoalUnit, string>> = { cards: 'różnych kart', answers: 'odpowiedzi', points: 'punktów', minutes: 'minut nauki' };
+export const GOAL_UNIT_LABEL: Readonly<Record<GoalUnit, string>> = texts({ cards: 'cogitaViewsRewards.unit.cards', answers: 'cogitaViewsRewards.unit.answers', points: 'cogitaViewsRewards.unit.points', minutes: 'cogitaViewsRewards.unit.minutes' });
 
 export const REWARD_MEASURES = ['points', 'streak', 'best', 'known', 'cards', 'answers', 'correct', 'days', 'combo', 'goals', 'level', 'regions', 'map', 'clean'] as const;
 export type RewardMeasure = (typeof REWARD_MEASURES)[number];
-export const MEASURE_LABEL: Readonly<Record<RewardMeasure, string>> = {
-  points: 'punkty', streak: 'dni serii', best: 'najdłuższa seria (dni)', known: 'utrwalone karty', cards: 'różne karty',
-  answers: 'odpowiedzi', correct: 'dobre odpowiedzi', days: 'dni nauki', combo: 'dobre z rzędu (najwięcej)', goals: 'dni z celem', level: 'poziom',
-  regions: 'zdobyte obszary mapy', map: 'poznana mapa (%)', clean: 'dni z rzędu bez zaległości'
-};
+export const MEASURE_LABEL: Readonly<Record<RewardMeasure, string>> = texts({
+  points: 'cogitaViewsRewards.measure.points',
+  streak: 'cogitaViewsRewards.measure.streak',
+  best: 'cogitaViewsRewards.measure.best',
+  known: 'cogitaViewsRewards.measure.known',
+  cards: 'cogitaViewsRewards.measure.cards',
+  answers: 'cogitaViewsRewards.measure.answers',
+  correct: 'cogitaViewsRewards.measure.correct',
+  days: 'cogitaViewsRewards.measure.days',
+  combo: 'cogitaViewsRewards.measure.combo',
+  goals: 'cogitaViewsRewards.measure.goals',
+  level: 'cogitaViewsRewards.measure.level',
+  regions: 'cogitaViewsRewards.measure.regions',
+  map: 'cogitaViewsRewards.measure.map',
+  clean: 'cogitaViewsRewards.measure.clean'
+});
 
 /**
  * 2026-11-05 (Prompt 17) — DIE MASSE DER KARTE: nicht aus den Antworten allein, sondern vom Krajobraz gemessen (er kennt die
@@ -87,8 +99,8 @@ export type BadgeKind = (typeof BADGE_KINDS)[number];
  */
 export const BADGE_MATERIALS = ['wood', 'bronze', 'silver', 'gold', 'diamond'] as const;
 export type BadgeMaterial = 0 | 1 | 2 | 3 | 4;
-/** Die Stoffe auf Polnisch (`eventText`; die Oberfläche hat ihre Worte in `lang.ts`). */
-export const MATERIAL_LABEL: readonly string[] = ['drewno', 'brąz', 'srebro', 'złoto', 'diament'];
+/** Die Stoffe in Worten (`eventText`; die Lernoberfläche hat ihre Worte in `lang.ts`) — übersetzt beim Lesen. */
+export const MATERIAL_LABEL: readonly string[] = Object.defineProperties([] as string[], Object.fromEntries(BADGE_MATERIALS.map((m, i) => [i, { get: () => t(`cogitaViewsRewards.material.${m}`), enumerable: true }])));
 
 /** 2026-11-05 (Odznaki) — das Zeichen einer Kategorie (auf ihrer Kachel; jede Stufe trägt ihr eigenes). */
 export const KIND_ICON: Readonly<Record<BadgeKind, BadgeIcon>> = { start: 'star', consistency: 'flame', accuracy: 'bolt', volume: 'book', goals: 'target', exploration: 'rocket' };
@@ -157,21 +169,28 @@ const int = (v: unknown, fallback: number, min: number, max: number): number => 
 
 /** Eine Kennung aus einem Namen: klein, ohne Zeichen. */
 export const slugOf = (text: string): string =>
-  text.toLocaleLowerCase('pl-PL').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  text.toLocaleLowerCase('pl-PL').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40); // i18n-ignore
 
 /*
   2026-11-05 (Odznaki, vom Nutzer) — ZWÖLF STUFEN, JE STUFE ETWA DOPPELT SO WEIT: die ersten kommen schnell, die oberen erst nach
   Wochen (zwei Tage viel Nauka brachten 22 000 Punkte — vorher die oberste von acht).
 */
+/* Eine Stufe der eingebauten Regel: ihr Name wird beim Lesen übersetzt (Getter — `readRewards` liest ihn zurück wie Daten). */
+const lv = (at: number, name: () => string): RewardLevel => Object.defineProperty({ at } as { at: number; name: string }, 'name', { get: name, enumerable: true });
 const DEFAULT_LEVELS: readonly RewardLevel[] = [
-  { at: 0, name: 'Początkujący' }, { at: 100, name: 'Uczeń' }, { at: 300, name: 'Odkrywca' }, { at: 700, name: 'Badacz' },
-  { at: 1500, name: 'Znawca' }, { at: 3000, name: 'Mistrz' }, { at: 6000, name: 'Mędrzec' }, { at: 12000, name: 'Uczony' },
-  { at: 25000, name: 'Erudyta' }, { at: 50000, name: 'Arcymistrz' }, { at: 100000, name: 'Legenda' }, { at: 200000, name: 'Mistrz wszech czasów' }
+  lv(0, () => t('cogitaViewsRewards.level.beginner')), lv(100, () => t('cogitaViewsRewards.level.pupil')), lv(300, () => t('cogitaViewsRewards.level.explorer')), lv(700, () => t('cogitaViewsRewards.level.researcher')),
+  lv(1500, () => t('cogitaViewsRewards.level.connoisseur')), lv(3000, () => t('cogitaViewsRewards.level.master')), lv(6000, () => t('cogitaViewsRewards.level.sage')), lv(12000, () => t('cogitaViewsRewards.level.scholar')),
+  lv(25000, () => t('cogitaViewsRewards.level.erudite')), lv(50000, () => t('cogitaViewsRewards.level.grandmaster')), lv(100000, () => t('cogitaViewsRewards.level.legend')), lv(200000, () => t('cogitaViewsRewards.level.allTime'))
 ];
 
 /* Die Folge der Schlüssel wie in `readRewards` — die eingebaute Regel liest sich unverändert zurück. */
-const b = (id: string, name: string, icon: BadgeIcon, measure: RewardMeasure, atLeast: number, kind: BadgeKind, says?: string): RewardBadge =>
-  ({ id, name, icon, measure, atLeast, points: 0, ...(says === undefined ? {} : { says }), kind });
+const b = (id: string, name: () => string, icon: BadgeIcon, measure: RewardMeasure, atLeast: number, kind: BadgeKind, says?: string): RewardBadge => {
+  /* Der Name wird beim Lesen übersetzt; die Folge der Schlüssel bleibt (id, name, icon, …). */
+  const out = { id } as Record<string, unknown>;
+  Object.defineProperty(out, 'name', { get: name, enumerable: true });
+  Object.assign(out, { icon, measure, atLeast, points: 0, ...(says === undefined ? {} : { says }), kind });
+  return out as unknown as RewardBadge;
+};
 
 /**
  * Die Regel, wenn nichts anderes gewählt ist — „Punkty, seria i poziomy". 2026-11-05 (Odznaki): fünf Kategorien, je eine
@@ -181,7 +200,7 @@ const b = (id: string, name: string, icon: BadgeIcon, measure: RewardMeasure, at
  * `cel-piec`, `pol-mapy`, `cala-mapa`): die gemerkten Daten der Karte (`~award.`) gelten weiter.
  */
 export const DEFAULT_REWARDS: RewardRules = {
-  name: 'Punkty, seria i poziomy',
+  get name() { return t('cogitaViewsRewards.rules.classic'); },
   points: { correct: 10, partial: 5, wrong: 1, first: 5, known: 20, fast: 0, combo: 15, goal: 50, streak: 5 },
   known: { days: 1 },
   fast: { seconds: 8 },
@@ -191,70 +210,70 @@ export const DEFAULT_REWARDS: RewardRules = {
   levels: DEFAULT_LEVELS,
   badges: [
     /* Seria: dni z rzędu (2026-11-05, vom Nutzer: zwölf Stufen, die ersten schnell, dann immer weiter) */
-    b('dwa-dni', 'Dwa dni z rzędu', 'flame', 'streak', 2, 'consistency'),
-    b('trzy-dni', 'Trzy dni z rzędu', 'flame', 'streak', 3, 'consistency'),
-    b('piec-dni', 'Pięć dni z rzędu', 'flame', 'streak', 5, 'consistency'),
-    b('tydzien', 'Tydzień z rzędu', 'flame', 'streak', 7, 'consistency'),
-    b('dziesiec-dni', 'Dziesięć dni z rzędu', 'flame', 'streak', 10, 'consistency'),
-    b('dwa-tygodnie', 'Dwa tygodnie z rzędu', 'flame', 'streak', 14, 'consistency'),
-    b('trzy-tygodnie', 'Trzy tygodnie z rzędu', 'flame', 'streak', 21, 'consistency'),
-    b('miesiac', 'Miesiąc z rzędu', 'flame', 'streak', 30, 'consistency'),
-    b('piecdziesiat-dni', 'Pięćdziesiąt dni z rzędu', 'flame', 'streak', 50, 'consistency'),
-    b('sto-dni', 'Sto dni z rzędu', 'flame', 'streak', 100, 'consistency'),
-    b('dwiescie-dni', 'Dwieście dni z rzędu', 'flame', 'streak', 200, 'consistency'),
-    b('rok', 'Rok z rzędu', 'flame', 'streak', 365, 'consistency'),
+    b('dwa-dni', () => t('cogitaViewsRewards.badge.dwaDni'), 'flame', 'streak', 2, 'consistency'),
+    b('trzy-dni', () => t('cogitaViewsRewards.badge.trzyDni'), 'flame', 'streak', 3, 'consistency'),
+    b('piec-dni', () => t('cogitaViewsRewards.badge.piecDni'), 'flame', 'streak', 5, 'consistency'),
+    b('tydzien', () => t('cogitaViewsRewards.badge.tydzien'), 'flame', 'streak', 7, 'consistency'),
+    b('dziesiec-dni', () => t('cogitaViewsRewards.badge.dziesiecDni'), 'flame', 'streak', 10, 'consistency'),
+    b('dwa-tygodnie', () => t('cogitaViewsRewards.badge.dwaTygodnie'), 'flame', 'streak', 14, 'consistency'),
+    b('trzy-tygodnie', () => t('cogitaViewsRewards.badge.trzyTygodnie'), 'flame', 'streak', 21, 'consistency'),
+    b('miesiac', () => t('cogitaViewsRewards.badge.miesiac'), 'flame', 'streak', 30, 'consistency'),
+    b('piecdziesiat-dni', () => t('cogitaViewsRewards.badge.piecdziesiatDni'), 'flame', 'streak', 50, 'consistency'),
+    b('sto-dni', () => t('cogitaViewsRewards.badge.stoDni'), 'flame', 'streak', 100, 'consistency'),
+    b('dwiescie-dni', () => t('cogitaViewsRewards.badge.dwiescieDni'), 'flame', 'streak', 200, 'consistency'),
+    b('rok', () => t('cogitaViewsRewards.badge.rok'), 'flame', 'streak', 365, 'consistency'),
     /* Celność: najwięcej dobrych z rzędu */
-    b('trzy-z-rzedu', 'Trzy z rzędu', 'bolt', 'combo', 3, 'accuracy'),
-    b('piec-z-rzedu', 'Pięć z rzędu', 'bolt', 'combo', 5, 'accuracy'),
-    b('osiem-z-rzedu', 'Osiem z rzędu', 'bolt', 'combo', 8, 'accuracy'),
-    b('celny', 'Dziesięć z rzędu', 'bolt', 'combo', 10, 'accuracy'),
-    b('pietnascie-z-rzedu', 'Piętnaście z rzędu', 'bolt', 'combo', 15, 'accuracy'),
-    b('dwadziescia-piec-z-rzedu', 'Dwadzieścia pięć z rzędu', 'bolt', 'combo', 25, 'accuracy'),
-    b('trzydziesci-piec-z-rzedu', 'Trzydzieści pięć z rzędu', 'bolt', 'combo', 35, 'accuracy'),
-    b('piecdziesiat-z-rzedu', 'Pięćdziesiąt z rzędu', 'bolt', 'combo', 50, 'accuracy'),
-    b('siedemdziesiat-piec-z-rzedu', 'Siedemdziesiąt pięć z rzędu', 'bolt', 'combo', 75, 'accuracy'),
-    b('sto-z-rzedu', 'Sto z rzędu', 'bolt', 'combo', 100, 'accuracy'),
-    b('sto-piecdziesiat-z-rzedu', 'Sto pięćdziesiąt z rzędu', 'bolt', 'combo', 150, 'accuracy'),
-    b('dwiescie-z-rzedu', 'Dwieście z rzędu', 'bolt', 'combo', 200, 'accuracy'),
+    b('trzy-z-rzedu', () => t('cogitaViewsRewards.badge.trzyZRzedu'), 'bolt', 'combo', 3, 'accuracy'),
+    b('piec-z-rzedu', () => t('cogitaViewsRewards.badge.piecZRzedu'), 'bolt', 'combo', 5, 'accuracy'),
+    b('osiem-z-rzedu', () => t('cogitaViewsRewards.badge.osiemZRzedu'), 'bolt', 'combo', 8, 'accuracy'),
+    b('celny', () => t('cogitaViewsRewards.badge.celny'), 'bolt', 'combo', 10, 'accuracy'),
+    b('pietnascie-z-rzedu', () => t('cogitaViewsRewards.badge.pietnascieZRzedu'), 'bolt', 'combo', 15, 'accuracy'),
+    b('dwadziescia-piec-z-rzedu', () => t('cogitaViewsRewards.badge.dwadziesciaPiecZRzedu'), 'bolt', 'combo', 25, 'accuracy'),
+    b('trzydziesci-piec-z-rzedu', () => t('cogitaViewsRewards.badge.trzydziesciPiecZRzedu'), 'bolt', 'combo', 35, 'accuracy'),
+    b('piecdziesiat-z-rzedu', () => t('cogitaViewsRewards.badge.piecdziesiatZRzedu'), 'bolt', 'combo', 50, 'accuracy'),
+    b('siedemdziesiat-piec-z-rzedu', () => t('cogitaViewsRewards.badge.siedemdziesiatPiecZRzedu'), 'bolt', 'combo', 75, 'accuracy'),
+    b('sto-z-rzedu', () => t('cogitaViewsRewards.badge.stoZRzedu'), 'bolt', 'combo', 100, 'accuracy'),
+    b('sto-piecdziesiat-z-rzedu', () => t('cogitaViewsRewards.badge.stoPiecdziesiatZRzedu'), 'bolt', 'combo', 150, 'accuracy'),
+    b('dwiescie-z-rzedu', () => t('cogitaViewsRewards.badge.dwiescieZRzedu'), 'bolt', 'combo', 200, 'accuracy'),
     /* Wiedza: utrwalone karty */
-    b('pierwsza-utrwalona', 'Pierwsza utrwalona', 'book', 'known', 1, 'volume'),
-    b('utrwalone-5', '5 utrwalonych', 'book', 'known', 5, 'volume'),
-    b('utrwalone-10', '10 utrwalonych', 'book', 'known', 10, 'volume'),
-    b('utrwalone-25', '25 utrwalonych', 'book', 'known', 25, 'volume'),
-    b('utrwalone-50', '50 utrwalonych', 'book', 'known', 50, 'volume'),
-    b('utrwalone-100', '100 utrwalonych', 'book', 'known', 100, 'volume'),
-    b('utrwalone-200', '200 utrwalonych', 'book', 'known', 200, 'volume'),
-    b('utrwalone-500', '500 utrwalonych', 'book', 'known', 500, 'volume'),
-    b('utrwalone-1000', '1000 utrwalonych', 'book', 'known', 1000, 'volume'),
-    b('utrwalone-2000', '2000 utrwalonych', 'book', 'known', 2000, 'volume'),
-    b('utrwalone-3500', '3500 utrwalonych', 'book', 'known', 3500, 'volume'),
-    b('utrwalone-5000', '5000 utrwalonych', 'book', 'known', 5000, 'volume'),
+    b('pierwsza-utrwalona', () => t('cogitaViewsRewards.badge.pierwszaUtrwalona'), 'book', 'known', 1, 'volume'),
+    b('utrwalone-5', () => t('cogitaViewsRewards.badge.utrwalone5'), 'book', 'known', 5, 'volume'),
+    b('utrwalone-10', () => t('cogitaViewsRewards.badge.utrwalone10'), 'book', 'known', 10, 'volume'),
+    b('utrwalone-25', () => t('cogitaViewsRewards.badge.utrwalone25'), 'book', 'known', 25, 'volume'),
+    b('utrwalone-50', () => t('cogitaViewsRewards.badge.utrwalone50'), 'book', 'known', 50, 'volume'),
+    b('utrwalone-100', () => t('cogitaViewsRewards.badge.utrwalone100'), 'book', 'known', 100, 'volume'),
+    b('utrwalone-200', () => t('cogitaViewsRewards.badge.utrwalone200'), 'book', 'known', 200, 'volume'),
+    b('utrwalone-500', () => t('cogitaViewsRewards.badge.utrwalone500'), 'book', 'known', 500, 'volume'),
+    b('utrwalone-1000', () => t('cogitaViewsRewards.badge.utrwalone1000'), 'book', 'known', 1000, 'volume'),
+    b('utrwalone-2000', () => t('cogitaViewsRewards.badge.utrwalone2000'), 'book', 'known', 2000, 'volume'),
+    b('utrwalone-3500', () => t('cogitaViewsRewards.badge.utrwalone3500'), 'book', 'known', 3500, 'volume'),
+    b('utrwalone-5000', () => t('cogitaViewsRewards.badge.utrwalone5000'), 'book', 'known', 5000, 'volume'),
     /* Cele: dni z osiągniętym celem dnia */
-    b('pierwszy-cel', 'Pierwszy cel dnia', 'target', 'goals', 1, 'goals'),
-    b('cele-2', 'Dwa cele', 'target', 'goals', 2, 'goals'),
-    b('cele-3', 'Trzy cele', 'target', 'goals', 3, 'goals'),
-    b('cel-piec', 'Pięć celów', 'target', 'goals', 5, 'goals'),
-    b('cele-10', 'Dziesięć celów', 'target', 'goals', 10, 'goals'),
-    b('cele-20', 'Dwadzieścia celów', 'target', 'goals', 20, 'goals'),
-    b('cele-35', 'Trzydzieści pięć celów', 'target', 'goals', 35, 'goals'),
-    b('cele-50', 'Pięćdziesiąt celów', 'target', 'goals', 50, 'goals'),
-    b('cele-75', 'Siedemdziesiąt pięć celów', 'target', 'goals', 75, 'goals'),
-    b('cele-100', 'Sto celów', 'target', 'goals', 100, 'goals'),
-    b('cele-150', 'Sto pięćdziesiąt celów', 'target', 'goals', 150, 'goals'),
-    b('cele-250', 'Dwieście pięćdziesiąt celów', 'target', 'goals', 250, 'goals'),
+    b('pierwszy-cel', () => t('cogitaViewsRewards.badge.pierwszyCel'), 'target', 'goals', 1, 'goals'),
+    b('cele-2', () => t('cogitaViewsRewards.badge.cele2'), 'target', 'goals', 2, 'goals'),
+    b('cele-3', () => t('cogitaViewsRewards.badge.cele3'), 'target', 'goals', 3, 'goals'),
+    b('cel-piec', () => t('cogitaViewsRewards.badge.celPiec'), 'target', 'goals', 5, 'goals'),
+    b('cele-10', () => t('cogitaViewsRewards.badge.cele10'), 'target', 'goals', 10, 'goals'),
+    b('cele-20', () => t('cogitaViewsRewards.badge.cele20'), 'target', 'goals', 20, 'goals'),
+    b('cele-35', () => t('cogitaViewsRewards.badge.cele35'), 'target', 'goals', 35, 'goals'),
+    b('cele-50', () => t('cogitaViewsRewards.badge.cele50'), 'target', 'goals', 50, 'goals'),
+    b('cele-75', () => t('cogitaViewsRewards.badge.cele75'), 'target', 'goals', 75, 'goals'),
+    b('cele-100', () => t('cogitaViewsRewards.badge.cele100'), 'target', 'goals', 100, 'goals'),
+    b('cele-150', () => t('cogitaViewsRewards.badge.cele150'), 'target', 'goals', 150, 'goals'),
+    b('cele-250', () => t('cogitaViewsRewards.badge.cele250'), 'target', 'goals', 250, 'goals'),
     /* Mapa: procent tematów mapy — liczy krajobraz (`extra`), data zostaje zapisana (`~award.`) */
-    b('mapa-3', 'Pierwsze kroki na mapie', 'rocket', 'map', 3, 'exploration'),
-    b('mapa-5', '5 % mapy', 'rocket', 'map', 5, 'exploration'),
-    b('mapa-10', 'Dziesiąta część mapy', 'rocket', 'map', 10, 'exploration'),
-    b('mapa-15', '15 % mapy', 'rocket', 'map', 15, 'exploration'),
-    b('mapa-20', 'Piąta część mapy', 'rocket', 'map', 20, 'exploration'),
-    b('cwierc-mapy', 'Ćwierć mapy', 'rocket', 'map', 25, 'exploration'),
-    b('mapa-35', '35 % mapy', 'rocket', 'map', 35, 'exploration'),
-    b('pol-mapy', 'Pół mapy', 'rocket', 'map', 50, 'exploration'),
-    b('mapa-60', '60 % mapy', 'rocket', 'map', 60, 'exploration'),
-    b('trzy-czwarte-mapy', 'Trzy czwarte mapy', 'rocket', 'map', 75, 'exploration'),
-    b('mapa-90', '90 % mapy', 'rocket', 'map', 90, 'exploration'),
-    b('cala-mapa', 'Cała mapa', 'rocket', 'map', 100, 'exploration')
+    b('mapa-3', () => t('cogitaViewsRewards.badge.mapa3'), 'rocket', 'map', 3, 'exploration'),
+    b('mapa-5', () => t('cogitaViewsRewards.badge.mapa5'), 'rocket', 'map', 5, 'exploration'),
+    b('mapa-10', () => t('cogitaViewsRewards.badge.mapa10'), 'rocket', 'map', 10, 'exploration'),
+    b('mapa-15', () => t('cogitaViewsRewards.badge.mapa15'), 'rocket', 'map', 15, 'exploration'),
+    b('mapa-20', () => t('cogitaViewsRewards.badge.mapa20'), 'rocket', 'map', 20, 'exploration'),
+    b('cwierc-mapy', () => t('cogitaViewsRewards.badge.cwiercMapy'), 'rocket', 'map', 25, 'exploration'),
+    b('mapa-35', () => t('cogitaViewsRewards.badge.mapa35'), 'rocket', 'map', 35, 'exploration'),
+    b('pol-mapy', () => t('cogitaViewsRewards.badge.polMapy'), 'rocket', 'map', 50, 'exploration'),
+    b('mapa-60', () => t('cogitaViewsRewards.badge.mapa60'), 'rocket', 'map', 60, 'exploration'),
+    b('trzy-czwarte-mapy', () => t('cogitaViewsRewards.badge.trzyCzwarteMapy'), 'rocket', 'map', 75, 'exploration'),
+    b('mapa-90', () => t('cogitaViewsRewards.badge.mapa90'), 'rocket', 'map', 90, 'exploration'),
+    b('cala-mapa', () => t('cogitaViewsRewards.badge.calaMapa'), 'rocket', 'map', 100, 'exploration')
   ]
 };
 
@@ -267,36 +286,36 @@ export interface RewardPreset {
 
 /** Gotowe początki — każdy da się potem zmienić liczbami. */
 export const REWARD_PRESETS: readonly RewardPreset[] = [
-  { id: 'classic', label: 'Punkty, seria i poziomy', says: 'Punkty za każdą odpowiedź i nowe karty, bonus za utrwalone, za serię dobrych odpowiedzi, za cel dnia i za każdy dzień serii; poziomy i odznaki.', rules: DEFAULT_REWARDS },
+  { id: 'classic', get label() { return t('cogitaViewsRewards.rules.classic'); }, get says() { return t('cogitaViewsRewards.rules.classicSays'); }, rules: DEFAULT_REWARDS },
   {
-    id: 'streak', label: 'Tylko seria dni', says: 'Bez punktów za odpowiedzi: liczy się cel dnia (10 kart) i dni z rzędu, jeden dzień przerwy nie przerywa serii.',
+    id: 'streak', get label() { return t('cogitaViewsRewards.rules.streak'); }, get says() { return t('cogitaViewsRewards.rules.streakSays'); },
     rules: {
-      ...DEFAULT_REWARDS, name: 'Seria dni',
+      ...DEFAULT_REWARDS, get name() { return t('cogitaViewsRewards.rules.streakName'); },
       points: { correct: 0, partial: 0, wrong: 0, first: 0, known: 0, fast: 0, combo: 0, goal: 10, streak: 10 },
       goal: { amount: 10, unit: 'cards' }, streak: { counts: 'goal', grace: 1, max: 30 }, levels: [],
       badges: DEFAULT_REWARDS.badges.filter((x) => x.measure === 'streak' || x.measure === 'goals')
     }
   },
   {
-    id: 'effort', label: 'Za wysiłek', says: 'Każda odpowiedź daje tyle samo — dobra czy zła; cel to 10 minut nauki dziennie.',
+    id: 'effort', get label() { return t('cogitaViewsRewards.rules.effort'); }, get says() { return t('cogitaViewsRewards.rules.effortSays'); },
     rules: {
-      ...DEFAULT_REWARDS, name: 'Za wysiłek',
+      ...DEFAULT_REWARDS, get name() { return t('cogitaViewsRewards.rules.effort'); },
       points: { correct: 10, partial: 10, wrong: 10, first: 0, known: 30, fast: 0, combo: 0, goal: 50, streak: 5 },
       goal: { amount: 10, unit: 'minutes' }, streak: { counts: 'any', grace: 0, max: 10 }
     }
   },
   {
-    id: 'mastery', label: 'Za opanowanie', says: 'Punkty przede wszystkim za utrwalone karty (pamiętane co najmniej 2 dni); cel to 15 kart dziennie.',
+    id: 'mastery', get label() { return t('cogitaViewsRewards.rules.mastery'); }, get says() { return t('cogitaViewsRewards.rules.masterySays'); },
     rules: {
-      ...DEFAULT_REWARDS, name: 'Za opanowanie',
+      ...DEFAULT_REWARDS, get name() { return t('cogitaViewsRewards.rules.mastery'); },
       points: { correct: 2, partial: 1, wrong: 0, first: 5, known: 50, fast: 0, combo: 0, goal: 30, streak: 5 },
       known: { days: 2 }, goal: { amount: 15, unit: 'cards' }
     }
   },
   {
-    id: 'sprint', label: 'Szybkość i trafność', says: 'Bonus za odpowiedź w 6 sekund i za każde 3 dobre z rzędu; cel to 200 punktów dziennie.',
+    id: 'sprint', get label() { return t('cogitaViewsRewards.rules.sprint'); }, get says() { return t('cogitaViewsRewards.rules.sprintSays'); },
     rules: {
-      ...DEFAULT_REWARDS, name: 'Szybkość i trafność',
+      ...DEFAULT_REWARDS, get name() { return t('cogitaViewsRewards.rules.sprint'); },
       points: { correct: 10, partial: 3, wrong: 0, first: 0, known: 10, fast: 5, combo: 10, goal: 50, streak: 5 },
       fast: { seconds: 6 }, combo: { every: 3 }, goal: { amount: 200, unit: 'points' }
     }
@@ -377,12 +396,12 @@ export function rewardsData(rules: RewardRules): Record<string, unknown> {
 export function describeRewards(rules: RewardRules): string {
   const p = rules.points;
   const parts: string[] = [];
-  if (p.correct > 0) parts.push(`${p.correct} pkt za dobrą odpowiedź`);
-  if (p.known > 0) parts.push(`${p.known} za utrwaloną kartę`);
-  parts.push(`cel dnia: ${rules.goal.amount} ${GOAL_UNIT_LABEL[rules.goal.unit]}`);
-  parts.push(rules.streak.counts === 'goal' ? 'seria: dni z celem' : 'seria: dni nauki');
-  if (rules.levels.length > 0) parts.push(`${rules.levels.length} poziomów`);
-  if (rules.badges.length > 0) parts.push(`${rules.badges.length} odznak`);
+  if (p.correct > 0) parts.push(t('cogitaViewsRewards.describe.correct', { count: p.correct }));
+  if (p.known > 0) parts.push(t('cogitaViewsRewards.describe.known', { count: p.known }));
+  parts.push(t('cogitaViewsRewards.describe.goal', { amount: rules.goal.amount, unit: GOAL_UNIT_LABEL[rules.goal.unit] }));
+  parts.push(rules.streak.counts === 'goal' ? t('cogitaViewsRewards.describe.streakGoal') : t('cogitaViewsRewards.describe.streakAny'));
+  if (rules.levels.length > 0) parts.push(t('cogitaViewsRewards.describe.levels', { count: rules.levels.length }));
+  if (rules.badges.length > 0) parts.push(t('cogitaViewsRewards.describe.badges', { count: rules.badges.length }));
   return parts.join(' · ');
 }
 
@@ -974,18 +993,19 @@ export function freshEvents(known: ReadonlySet<string>, state: RewardState): Rew
 /** Was ein Ereignis in Worten ist (ohne Punkte). */
 export function eventText(e: RewardEvent, rules: RewardRules): string {
   switch (e.kind) {
-    case 'answer': return (e.value ?? 0) >= 0.9 ? 'dobra odpowiedź' : (e.value ?? 0) >= 0.25 ? 'częściowo dobra' : 'za próbę';
-    case 'first': return 'nowa karta';
-    case 'fast': return 'szybko!';
-    case 'combo': return `${e.value ?? rules.combo.every} dobrych z rzędu`;
-    case 'known': return 'utrwalona karta';
-    case 'goal': return 'cel dnia osiągnięty';
-    case 'streak': return e.value === 1 ? 'pierwszy dzień serii' : `seria: ${e.value ?? 0}. dzień z rzędu`;
-    case 'level': return `nowy poziom: ${rules.levels[(e.value ?? 1) - 1]?.name ?? e.value ?? ''}`;
+    case 'answer': return (e.value ?? 0) >= 0.9 ? t('cogitaViewsRewards.event.correct') : (e.value ?? 0) >= 0.25 ? t('cogitaViewsRewards.event.partial') : t('cogitaViewsRewards.event.tried');
+    case 'first': return t('cogitaViewsRewards.event.first');
+    case 'fast': return t('cogitaViewsRewards.event.fast');
+    case 'combo': return t('cogitaViewsRewards.event.combo', { count: e.value ?? rules.combo.every });
+    case 'known': return t('cogitaViewsRewards.event.known');
+    case 'goal': return t('cogitaViewsRewards.event.goal');
+    case 'streak': return e.value === 1 ? t('cogitaViewsRewards.event.streakFirst') : t('cogitaViewsRewards.event.streak', { count: e.value ?? 0 });
+    case 'level': return t('cogitaViewsRewards.event.level', { name: rules.levels[(e.value ?? 1) - 1]?.name ?? e.value ?? '' });
     case 'badge': {
       /* 2026-11-05 (Odznaki) — mit dem Stoff der Stufe. */
       const m = materialsOf(rules.badges).get(e.badge ?? '');
-      return `odznaka: ${rules.badges.find((x) => x.id === e.badge)?.name ?? e.badge ?? ''}${m === undefined ? '' : ` · ${MATERIAL_LABEL[m]}`}`;
+      const name = rules.badges.find((x) => x.id === e.badge)?.name ?? e.badge ?? '';
+      return m === undefined ? t('cogitaViewsRewards.event.badge', { name }) : t('cogitaViewsRewards.event.badgeMaterial', { name, material: MATERIAL_LABEL[m] ?? '' });
     }
   }
 }

@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { originOf } from '../library/libraryCite';
 import { kindOf, str } from '../library/libraryKinds';
@@ -23,6 +24,7 @@ export function WritingArea({ store, value, readOnly, placeholder, onChange }: {
   placeholder: string;
   onChange: (next: string) => void;
 }) {
+  const t = useT();
   const area = useRef<HTMLTextAreaElement | null>(null);
   const [picker, setPicker] = useState<'cite' | 'embed' | 'base' | null>(null);
 
@@ -47,7 +49,7 @@ export function WritingArea({ store, value, readOnly, placeholder, onChange }: {
     });
   };
 
-  const wrap = (mark: string) => edit((b, s, a) => ({ text: `${b}${mark}${s || 'tekst'}${mark}${a}`, caret: [b.length + mark.length, b.length + mark.length + (s || 'tekst').length] }));
+  const wrap = (mark: string) => edit((b, s, a) => ({ text: `${b}${mark}${s || t('scriptorium.tools.sample')}${mark}${a}`, caret: [b.length + mark.length, b.length + mark.length + (s || t('scriptorium.tools.sample')).length] }));
   const line = (prefix: string) => edit((b, s, a) => {
     const start = b.lastIndexOf('\n') + 1;
     const text = `${b.slice(0, start)}${prefix}${b.slice(start)}${s}${a}`;
@@ -70,17 +72,17 @@ export function WritingArea({ store, value, readOnly, placeholder, onChange }: {
   return (
     <div className="lib-writing">
       {!readOnly && (
-        <div className="lib-tools" role="toolbar" aria-label="Wstawianie">
-          <button type="button" title="Pogrubienie" onClick={() => wrap('**')}><b>B</b></button>
-          <button type="button" title="Kursywa" onClick={() => wrap('*')}><i>I</i></button>
-          <button type="button" title="Śródtytuł" onClick={() => line('## ')}>Śródtytuł</button>
-          <button type="button" title="Wcięty cytat" onClick={() => line('> ')}>„ ”</button>
-          <button type="button" title="Lista" onClick={() => line('- ')}>• Lista</button>
-          <button type="button" title="Własny przypis" onClick={() => edit((b, s, a) => ({ text: `${b}^[${s}]${a}`, caret: [b.length + 2, b.length + 2 + s.length] }))}>Przypis</button>
-          <button type="button" className={picker === 'cite' ? 'is-on' : ''} onClick={() => setPicker(picker === 'cite' ? null : 'cite')}>Źródło…</button>
-          <button type="button" className={picker === 'embed' ? 'is-on' : ''} onClick={() => setPicker(picker === 'embed' ? null : 'embed')}>Cytat z biblioteki…</button>
+        <div className="lib-tools" role="toolbar" aria-label={t('scriptorium.tools.toolbar')}>
+          <button type="button" title={t('scriptorium.tools.bold')} onClick={() => wrap('**')}><b>B</b></button>
+          <button type="button" title={t('scriptorium.tools.italic')} onClick={() => wrap('*')}><i>I</i></button>
+          <button type="button" title={t('scriptorium.tools.heading')} onClick={() => line('## ')}>{t('scriptorium.tools.heading')}</button>
+          <button type="button" title={t('scriptorium.tools.blockquote')} onClick={() => line('> ')}>„ ”</button>
+          <button type="button" title={t('scriptorium.tools.list')} onClick={() => line('- ')}>{t('scriptorium.tools.listButton')}</button>
+          <button type="button" title={t('scriptorium.tools.footnoteTitle')} onClick={() => edit((b, s, a) => ({ text: `${b}^[${s}]${a}`, caret: [b.length + 2, b.length + 2 + s.length] }))}>{t('scriptorium.tools.footnote')}</button>
+          <button type="button" className={picker === 'cite' ? 'is-on' : ''} onClick={() => setPicker(picker === 'cite' ? null : 'cite')}>{t('scriptorium.plan.source')}</button>
+          <button type="button" className={picker === 'embed' ? 'is-on' : ''} onClick={() => setPicker(picker === 'embed' ? null : 'embed')}>{t('scriptorium.plan.quote')}</button>
           {/* 2026-10-22 (Schritt 11) — ein Słowo eines Słownik verlinken, einen Widok einbetten. */}
-          <button type="button" className={picker === 'base' ? 'is-on' : ''} onClick={() => setPicker(picker === 'base' ? null : 'base')}>Z bazy wiedzy…</button>
+          <button type="button" className={picker === 'base' ? 'is-on' : ''} onClick={() => setPicker(picker === 'base' ? null : 'base')}>{t('scriptorium.plan.fromBase')}</button>
         </div>
       )}
       {picker === 'base' && (
@@ -131,6 +133,7 @@ export function CitePicker({ store, mode, selection, onClose, onCite, onEmbed }:
   onCite: (key: string, locator: string) => void;
   onEmbed: (key: string, replaceSelection: boolean) => void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [chosen, setChosen] = useState<Entry | null>(null);
   const [locator, setLocator] = useState('');
@@ -154,34 +157,34 @@ export function CitePicker({ store, mode, selection, onClose, onCite, onEmbed }:
       const saved = await store.save({ kind: 'quote', data: { text: selection.trim(), work: work[0] ?? '', locator: quoteLocator } });
       onEmbed(tokenOf(saved), true);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać cytatu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('scriptorium.tools.quoteFailed'));
     }
   };
 
   return (
-    <div className="lib-cite-picker" role="dialog" aria-label={mode === 'cite' ? 'Wstaw źródło' : 'Wstaw cytat'}>
+    <div className="lib-cite-picker" role="dialog" aria-label={mode === 'cite' ? t('scriptorium.tools.insertSource') : t('scriptorium.tools.insertQuote')}>
       <div className="lib-cite-head">
-        <strong>{mode === 'cite' ? 'Wstaw odwołanie do źródła' : 'Wstaw cytat z biblioteki'}</strong>
-        <button type="button" className="wk-link-btn" onClick={onClose}>Zamknij</button>
+        <strong>{mode === 'cite' ? t('scriptorium.tools.insertSourceTitle') : t('scriptorium.tools.insertQuoteTitle')}</strong>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.close')}</button>
       </div>
 
       {mode === 'embed' && selection.trim().length > 10 && !making && (
-        <button type="button" className="wk-link-btn" onClick={() => setMaking(true)}>Zapisz zaznaczony fragment jako nowy cytat…</button>
+        <button type="button" className="wk-link-btn" onClick={() => setMaking(true)}>{t('scriptorium.tools.saveSelection')}</button>
       )}
       {making ? (
         <div className="lib-cite-make">
           <blockquote className="lib-blockquote">{selection.trim().slice(0, 400)}{selection.trim().length > 400 ? '…' : ''}</blockquote>
-          <div className="wk-field"><span>Źródło</span><RefPicker store={store} kinds={['work']} value={work} multiple={false} onChange={setWork} /></div>
-          <label className="wk-field"><span>Miejsce</span><input value={quoteLocator} placeholder="s. 23 · J 3,16" onChange={(e) => setQuoteLocator(e.target.value)} /></label>
+          <div className="wk-field"><span>{t('scriptorium.tools.source')}</span><RefPicker store={store} kinds={['work']} value={work} multiple={false} onChange={setWork} /></div>
+          <label className="wk-field"><span>{t('scriptorium.tools.place')}</span><input value={quoteLocator} placeholder={t('scriptorium.tools.placePlaceholder')} onChange={(e) => setQuoteLocator(e.target.value)} /></label>
           {failed !== null && <p className="wk-error">{failed}</p>}
           <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={() => void makeQuote()}>Zapisz cytat i wstaw</button>
-            <button type="button" className="wk-link-btn" onClick={() => setMaking(false)}>Anuluj</button>
+            <button type="button" className="wk-btn" onClick={() => void makeQuote()}>{t('scriptorium.tools.saveQuote')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => setMaking(false)}>{t('common.cancel')}</button>
           </div>
         </div>
       ) : chosen === null ? (
         <>
-          <input autoFocus type="search" value={query} placeholder={mode === 'cite' ? 'Szukaj źródła, cytatu, tekstu…' : 'Szukaj cytatu…'} onChange={(e) => setQuery(e.target.value)} />
+          <input autoFocus type="search" value={query} placeholder={mode === 'cite' ? t('scriptorium.tools.searchSource') : t('scriptorium.tools.searchQuote')} onChange={(e) => setQuery(e.target.value)} />
           <ul className="lib-cite-list">
             {found.map((entry) => (
               <li key={entry.id}>
@@ -190,22 +193,22 @@ export function CitePicker({ store, mode, selection, onClose, onCite, onEmbed }:
                   else if (entry.kind === 'work') setChosen(entry);
                   else onCite(tokenOf(entry), '');
                 }}>
-                  <span className="lib-option-kind">{kindOf(entry.kind)?.label}</span> {entry.kind === 'quote' ? `„${store.title(entry)}” — ${originOf(entry, store)}` : entryLine(entry, store)}
+                  <span className="lib-option-kind">{kindOf(entry.kind)?.label}</span> {entry.kind === 'quote' ? t('scriptorium.tools.quoteLine', { text: store.title(entry), origin: originOf(entry, store) }) : entryLine(entry, store)}
                 </button>
               </li>
             ))}
-            {found.length === 0 && <li className="wk-hint">Nic nie znaleziono — dodaj źródło w zakładce „Źródła”.</li>}
+            {found.length === 0 && <li className="wk-hint">{t('scriptorium.tools.nothingFound')}</li>}
           </ul>
         </>
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); onCite(tokenOf(chosen), locator.trim()); }}>
           <p>{entryLine(chosen, store)}</p>
-          <label className="wk-field"><span>Miejsce (strona, werset, numer) — można pominąć</span>
-            <input autoFocus value={locator} placeholder={str(chosen.data, 'workType') === 'bible' ? 'J 3,16' : 's. 23'} onChange={(e) => setLocator(e.target.value)} />
+          <label className="wk-field"><span>{t('scriptorium.tools.locator')}</span>
+            <input autoFocus value={locator} placeholder={str(chosen.data, 'workType') === 'bible' ? t('scriptorium.tools.locatorBible') : t('scriptorium.tools.locatorPage')} onChange={(e) => setLocator(e.target.value)} />
           </label>
           <div className="wk-actions">
-            <button type="submit" className="wk-btn">Wstaw [@{tokenOf(chosen)}{locator.trim() === '' ? '' : `, ${locator.trim()}`}]</button>
-            <button type="button" className="wk-link-btn" onClick={() => setChosen(null)}>Inne źródło</button>
+            <button type="submit" className="wk-btn">{t('scriptorium.tools.insert', { mark: `[@${tokenOf(chosen)}${locator.trim() === '' ? '' : `, ${locator.trim()}`}]` })}</button>
+            <button type="button" className="wk-link-btn" onClick={() => setChosen(null)}>{t('scriptorium.tools.otherSource')}</button>
           </div>
         </form>
       )}

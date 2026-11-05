@@ -26,26 +26,27 @@
  * Rein — ohne Dienst, ohne Seite; geprüft in `app-platform-check.mjs`.
  */
 
+import { fmtDate, t, texts } from '../core/i18n';
+
 export type Repeat = 'once' | 'day' | 'week' | 'month' | 'year';
 
 export const REPEATS: readonly Repeat[] = ['once', 'day', 'week', 'month', 'year'];
 
-export const REPEAT_LABEL: Record<Repeat, string> = {
-  once: 'jednorazowo',
-  day: 'co dzień',
-  week: 'co tydzień',
-  month: 'co miesiąc',
-  year: 'co rok'
-};
+export const REPEAT_LABEL: Readonly<Record<Repeat, string>> = texts({
+  once: 'forms.repeat.once',
+  day: 'forms.repeat.day',
+  week: 'forms.repeat.week',
+  month: 'forms.repeat.month',
+  year: 'forms.repeat.year'
+});
 
 /** Was fehlt oder unbekannt ist, heisst „einmal" — so stand es vor 0077 überall. */
 export const repeatOf = (value: unknown): Repeat =>
   (typeof value === 'string' && (REPEATS as readonly string[]).includes(value) ? value as Repeat : 'once');
 
-const MONTHS = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
-const MONTHS_OF = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
-const MONTHS_SHORT = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
-const WEEKDAYS = ['nd', 'pn', 'wt', 'śr', 'cz', 'pt', 'sb'];
+/* Namen der Monate und Tage aus `Intl`, in der Sprache der App — die Tage sind UTC-Mitternacht. */
+const utc = (d: Date, opts: Intl.DateTimeFormatOptions): string => fmtDate(d, { timeZone: 'UTC', ...opts });
+const monthYear = (d: Date): string => utc(d, { month: 'long', year: 'numeric' });
 
 const pad = (n: number, width = 2): string => String(n).padStart(width, '0');
 
@@ -170,11 +171,11 @@ export function roundLabel(repeat: Repeat, key: string): string {
 
   switch (repeat) {
     case 'day':
-      return `${at.first.getUTCDate()} ${MONTHS_OF[at.first.getUTCMonth()]} ${at.first.getUTCFullYear()} (${WEEKDAYS[at.first.getUTCDay()]})`;
+      return `${utc(at.first, { day: 'numeric', month: 'long', year: 'numeric' })} (${utc(at.first, { weekday: 'short' }).replace(/\.$/, '')})`;
     case 'week':
-      return `tydzień ${Number(key.slice(6))} (${dotted(at.first, at.first.getUTCFullYear() !== at.last.getUTCFullYear())}–${dotted(at.last, true)})`;
+      return t('forms.round.week', { n: Number(key.slice(6)), range: `${dotted(at.first, at.first.getUTCFullYear() !== at.last.getUTCFullYear())}–${dotted(at.last, true)}` });
     case 'month':
-      return `${MONTHS[at.first.getUTCMonth()]} ${at.first.getUTCFullYear()}`;
+      return monthYear(at.first);
     default:
       return key;
   }
@@ -187,8 +188,8 @@ export function roundShort(repeat: Repeat, key: string): string {
 
   switch (repeat) {
     case 'day': return dotted(at.first, false);
-    case 'week': return `T${Number(key.slice(6))}`;
-    case 'month': return MONTHS_SHORT[at.first.getUTCMonth()];
+    case 'week': return t('forms.round.weekShort', { n: Number(key.slice(6)) });
+    case 'month': return utc(at.first, { month: 'short' }).replace(/\.$/, '');
     default: return key;
   }
 }
@@ -210,7 +211,7 @@ export function roundRange(repeat: Repeat, key: string): { from: string; to: str
       const month = at.first.getUTCMonth();
       return {
         from: dayKey(dayOf(y, month, 1)), to: dayKey(dayOf(y, month + 1, 0)),
-        label: `${MONTHS[month]} ${y}`
+        label: monthYear(at.first)
       };
     }
     case 'week': {

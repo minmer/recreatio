@@ -14,6 +14,7 @@
 import { attachmentCanon, nowSeconds, type AttachmentFacts } from '../core/dutyRecords';
 import { signCanonical, toBase64Url } from '../core/crypto';
 import type { Ring } from '../core/keys';
+import { texts } from '../core/i18n';
 import { call } from '../core/session';
 
 /** Die heutige Fassung der Bedingungen der Auftragsverarbeitung — dieselbe wie `Controllers.TermsVersion`. */
@@ -25,16 +26,16 @@ export const controllerChanged = (areaId: string): void => { window.dispatchEven
 
 export type Authority = 'uodo' | 'kiod';
 
-export const AUTHORITY_NAME: Record<Authority, string> = {
-  uodo: 'Prezes Urzędu Ochrony Danych Osobowych',
-  kiod: 'Kościelny Inspektor Ochrony Danych'
-};
+export const AUTHORITY_NAME: Readonly<Record<Authority, string>> = texts({
+  uodo: 'areas.authority.uodo',
+  kiod: 'areas.authority.kiod'
+});
 
 /** „do kogo" — für den Satz über die Beschwerde. */
-export const AUTHORITY_TO: Record<Authority, string> = {
-  uodo: 'Prezesa Urzędu Ochrony Danych Osobowych',
-  kiod: 'Kościelnego Inspektora Ochrony Danych'
-};
+export const AUTHORITY_TO: Readonly<Record<Authority, string>> = texts({
+  uodo: 'areas.authorityTo.uodo',
+  kiod: 'areas.authorityTo.kiod'
+});
 
 /** Was für einen Bereich gilt — der Datensatz in seiner Fassung, und aus welchem Bereich. */
 export interface ControllerInfo {

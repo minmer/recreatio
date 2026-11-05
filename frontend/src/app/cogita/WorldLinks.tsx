@@ -324,7 +324,7 @@ export function CrossRun({ world, name, flowId, holder, crumbs, onBack, player }
   const W = wordsOf(outer);
   const flowName = (() => { const d = world.docs('flow').find((x) => x.id === flowId); return typeof d?.data.name === 'string' ? d.data.name : flowId; })();
   const ctx = useMemo<CogitaCtx | null>(() => (outer === null ? null : {
-    ...outer, lib: world, name, writes: false, learner, sources: undefined,
+    ...outer, lib: world, name, writes: false, learner, learnerLoading: null, sources: undefined,
     keyOf: (epoch: number) => outer.keyIn(world.areaId, epoch),
     href: (...tail: readonly string[]) => cogitaPath(world.libraryId, ...tail)
   }), [outer, world, name, learner]);

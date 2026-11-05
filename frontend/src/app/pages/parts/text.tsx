@@ -28,6 +28,7 @@
 
 import { useState } from 'react';
 
+import { t, useT } from '../../core/i18n';
 import { definePart, lines, text, type RawConfig } from '../part';
 import { RichLine } from '../../ui/richText';
 import { later } from '../../ui/later';
@@ -61,6 +62,7 @@ function Line({ line }: { line: string }) {
 }
 
 function TextView({ config, strip, prefix }: { config: Config; strip: boolean; prefix: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   /* Der Anriss: der erste Absatz, der keine Überschrift ist. */
@@ -76,7 +78,7 @@ function TextView({ config, strip, prefix }: { config: Config; strip: boolean; p
         : shown.map((line, i) => <Line key={i} line={line} />)}
       {teaser && (
         <button type="button" className="wk-link-btn wk-card-more" onClick={() => setOpen(true)}>
-          Czytaj dalej
+          {t('moduleContent.text.more')}
         </button>
       )}
     </>
@@ -88,19 +90,19 @@ export const textPart = definePart<Config>({
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
   example: {
-    title: 'O wspólnocie',
-    body: 'Spotykamy się w każdy czwartek o 19:30 w salce przy kościele.\n## Kto może przyjść\nKażdy — nie trzeba się zapisywać. **Wspólnota** rośnie ze słuchania słowa [@ratzinger2007, s. 183]; więcej w [[kazaniu o chlebie|@kazanie-chleb]].',
+    title: 'O wspólnocie', // i18n-ignore
+    body: 'Spotykamy się w każdy czwartek o 19:30 w salce przy kościele.\n## Kto może przyjść\nKażdy — nie trzeba się zapisywać. **Wspólnota** rośnie ze słuchania słowa [@ratzinger2007, s. 183]; więcej w [[kazaniu o chlebie|@kazanie-chleb]].', // i18n-ignore
     /* 2026-10-22 — woraus \`[@…]\` und \`[[…|@…]]\` zitieren; ohne Verweise im Text bleibt es leer. */
     library: '<id-biblioteki>'
   },
-  label: 'Tekst',
-  use: 'Akapity — to, co strona ma powiedzieć.',
+  label: 'moduleContent.text.label',
+  use: 'moduleContent.text.use',
   box: { colSpan: 6, rowSpan: 3 },
 
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line' },
-    { key: 'body', label: 'Treść', kind: 'text', hint: 'Akapit w wierszu; „## " — śródtytuł, „# " — duża linia, „> " — mała; **pogrubienie**, *kursywa*; link: [napis](https://… albo #/strona); z wybranej biblioteki: [@klucz, s. 12] — przypis do źródła, [[słowo|@klucz]] — link do wpisu, ^[…] — przypis' },
-    { key: 'library', label: 'Odwołania z biblioteki', kind: 'library', optional: true, hint: 'Opcjonalnie: biblioteka, z której tekst cytuje ([@klucz]). Kto jej nie może czytać, zobaczy „[odwołanie niedostępne]”.' }
+    { key: 'title', label: 'moduleContent.text.title', kind: 'line' },
+    { key: 'body', label: 'moduleContent.text.body', kind: 'text', hint: 'moduleContent.text.bodyHint' },
+    { key: 'library', label: 'moduleContent.text.library', kind: 'library', optional: true, hint: 'moduleContent.text.libraryHint' }
   ],
 
   read,
@@ -109,9 +111,9 @@ export const textPart = definePart<Config>({
   hasContent: (c) => c.body.length > 0,
 
   shows: (_config, size) =>
-    size.height === 'strip' ? 'Nagłówek i pierwszy akapit; reszta po „Czytaj dalej".'
-    : size.width === 'full' && size.height === 'tall' ? 'Cały tekst w dwóch szpaltach, jak w gazecie.'
-    : 'Cały tekst.',
+    size.height === 'strip' ? t('moduleContent.text.showsStrip')
+    : size.width === 'full' && size.height === 'tall' ? t('moduleContent.text.showsColumns')
+    : t('moduleContent.text.showsAll'),
 
   /* Ein langer Text liest sich im ganzen Fenster besser — in zwei Spalten, ohne Seite drumherum. Ein kurzer nicht (2026-10-17). */
   fullscreen: (c) => c.body.length > 4 || c.body.join(' ').length > 480,

@@ -1,0 +1,133 @@
+{
+  "run": {
+    "noRevision": "Nie ma takiej powtórki.",
+    "keyNotKept": "Ta powtórka jest do nauki bez internetu, ale na tym urządzeniu klucz nie jest zachowany — ustaw „Klucz zachowany na tym urządzeniu” (Konto → Bezpieczeństwo i klucze) i otwórz ją jeszcze raz.",
+    "revision": "Powtórka",
+    "keepFailed": "Nie udało się zapisać tej powtórki na tym urządzeniu do nauki bez internetu.",
+    "keptHere": "Zapisano na tym urządzeniu — tę powtórkę przejdziesz też bez internetu (Nauka → Bez internetu na tym urządzeniu).",
+    "noPlan": "Powtórka nie dała planu.",
+    "nothing": "Nie ma czego powtarzać.",
+    "noCards": "W tej powtórce nie ma jeszcze żadnej karty.",
+    "prepareFailed": "Nie udało się przygotować powtórki.",
+    "back": "Wróć",
+    "preparing": "Przygotowywanie kart…",
+    "answers": "Odpowiedzi: {answered}, dobrze: {correct}.",
+    "answersPct": "Odpowiedzi: {answered}, dobrze: {correct} ({pct}%).",
+    "nothingWaits": "Nic nie czeka.",
+    "nextReview": "Następna powtórka: {date}.",
+    "heldCards": {
+      "one": "{count} karta czeka",
+      "few": "{count} karty czekają",
+      "many": "{count} kart czeka",
+      "other": "{count} karty czeka"
+    },
+    "heldNeeds": " na to, co trzeba znać wcześniej",
+    "heldFirst": " — najpierw: ",
+    "heldCondition": "warunek: ",
+    "heldEnd": ". Wejdą same, gdy warunek zacznie obowiązywać.",
+    "packetsWaiting": {
+      "one": "{count} pakiet odpowiedzi czeka na internet — wyśle się sam.",
+      "few": "{count} pakiety odpowiedzi czekają na internet — wyślą się same.",
+      "many": "{count} pakietów odpowiedzi czeka na internet — wyślą się same.",
+      "other": "{count} pakietu odpowiedzi czeka na internet — wyślą się same."
+    },
+    "keptSaved": "Ta powtórka jest na tym urządzeniu także bez internetu — w stanie z teraz.",
+    "keptNoKey": "Bez internetu jej tu nie ma: klucz nie jest zachowany na tym urządzeniu (Konto → Bezpieczeństwo i klucze).",
+    "noAccount": "Bez konta postępy zostają w tej przeglądarce.",
+    "practiceTitle": "Ćwiczenie: {name}",
+    "nextLesson": "Następna lekcja",
+    "again": "Jeszcze raz",
+    "stats": "Statystyki — co umiem w tej powtórce",
+    "flagThanks": "Dziękujemy — autorzy dostaną zgłoszenie z tą kartą i Twoją odpowiedzią (bez Twojego imienia).",
+    "flagClosed": "Ta baza wiedzy nie przyjmuje jeszcze zgłoszeń.",
+    "flagFailed": "Nie udało się wysłać zgłoszenia.",
+    "progress": "Postęp powtórki",
+    "answered": {
+      "one": "{count} odpowiedź",
+      "few": "{count} odpowiedzi",
+      "many": "{count} odpowiedzi",
+      "other": "{count} odpowiedzi"
+    },
+    "stop": "Zakończ",
+    "newTopic": "Nowy temat",
+    "newTopics": "Nowe tematy",
+    "rateYourself": "Oceń się sam. ",
+    "suspended": "Ta karta nie będzie już pytana (możesz to cofnąć w Postępach).",
+    "suspend": "Nie pytaj o to",
+    "flag": "Zgłoś problem",
+    "flagAsk": "Co jest nie tak z tą kartą? Autorzy zobaczą kartę, pytanie i Twoją odpowiedź — bez Twojego imienia."
+  },
+  "learnView": {
+    "loadFailed": "Nie udało się wczytać baz wiedzy.",
+    "redirecting": "Przekierowanie…",
+    "offlineNote": "Bez internetu działa <a>nauka z tego urządzenia</a>.",
+    "noBase": "Tej bazy wiedzy nie ma albo nie masz do niej klucza.",
+    "allBases": "Wszystkie bazy wiedzy",
+    "opening": "Otwieranie bazy wiedzy…",
+    "entries": {
+      "one": "{count} wpis",
+      "few": "{count} wpisy",
+      "many": "{count} wpisów",
+      "other": "{count} wpisu"
+    },
+    "entriesLearning": {
+      "one": "{count} wpis · uczysz się",
+      "few": "{count} wpisy · uczysz się",
+      "many": "{count} wpisów · uczysz się",
+      "other": "{count} wpisu · uczysz się"
+    },
+    "onlyYou": "tylko Ty",
+    "area": "obszar",
+    "knowledge": "Wiedza",
+    "newBase": "Nowa baza wiedzy",
+    "bases": "Bazy wiedzy",
+    "basesEmpty": "Baza wiedzy zbiera, porządkuje i łączy to, co wiesz: wpisy własnych rodzajów i odwołania między nimi. Z niej możesz potem się uczyć — w Nauce.",
+    "lineWrite": {
+      "one": "{count} wpis · {area}",
+      "few": "{count} wpisy · {area}",
+      "many": "{count} wpisów · {area}",
+      "other": "{count} wpisu · {area}"
+    },
+    "lineRead": {
+      "one": "{count} wpis · {area} · tylko do czytania",
+      "few": "{count} wpisy · {area} · tylko do czytania",
+      "many": "{count} wpisów · {area} · tylko do czytania",
+      "other": "{count} wpisu · {area} · tylko do czytania"
+    },
+    "lineLearn": {
+      "one": "{count} wpis · {area} · uczysz się",
+      "few": "{count} wpisy · {area} · uczysz się",
+      "many": "{count} wpisów · {area} · uczysz się",
+      "other": "{count} wpisu · {area} · uczysz się"
+    },
+    "learning": "Nauka",
+    "moreLearning": "Więcej: Nauka",
+    "offlineHere": "Bez internetu na tym urządzeniu",
+    "now": "Na teraz",
+    "nothingDue": "Nic nie czeka — wszystko powtórzone.",
+    "later": " Następne: {list}.",
+    "base": "Baza wiedzy",
+    "dueCards": {
+      "one": "{count} karta do powtórki",
+      "few": "{count} karty do powtórki",
+      "many": "{count} kart do powtórki",
+      "other": "{count} karty do powtórki"
+    },
+    "sessions": "Sesje teraz",
+    "code": "kod {code}",
+    "hosting": "prowadzisz",
+    "running": "trwa",
+    "learnEmpty": "Nie uczysz się jeszcze z żadnej bazy wiedzy. Bazę zakłada się w Wiedzy — albo dołącza do kursu przez link od nauczyciela.",
+    "toKnowledge": "Przejdź do Wiedzy",
+    "myBase": "Moja baza wiedzy",
+    "createFailed": "Nie udało się założyć bazy wiedzy.",
+    "namePlaceholder": "np. Bierzmowanie 2027",
+    "whoSees": "Kto ją widzi",
+    "onlyMeNew": "Tylko ja (utworzy się prywatny obszar)",
+    "onlyMe": "Tylko ja",
+    "whoHint": "Kto czyta obszar, uczy się z tej bazy; kto w nim pisze, ją buduje.",
+    "publicWarn": "Ten obszar jest jawny: każdy, bez konta, przeczyta {whole} tej bazy. Jeśli coś ma zostać dla wybranych, załóż bazę w obszarze zamkniętym.",
+    "creating": "Zakładanie…",
+    "create": "Załóż"
+  }
+}

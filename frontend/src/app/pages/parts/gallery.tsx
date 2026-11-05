@@ -17,6 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { t, useT } from '../../core/i18n';
 import { asRecord, asText, asOptionalText, CheckRow, defineEventPart, ImageRow, ListEditor, mapEntries, TextRow } from '../event/kit';
 import { Carousel, shuffled, Viewer, type Picture } from '../event/galleryView';
 import { photoCount } from '../event/galleryCount';
@@ -90,6 +91,7 @@ function Gallery({ config }: { config: GalleryConfig }) {
 
 /** Mehrere Bilder auf einmal — verkleinert, an die Seite gelegt, hinten angefügt. */
 function BulkUpload({ path, busy, onAdded }: { path: string; busy: boolean; onAdded: (shots: Shot[]) => void }) {
+  const t = useT();
   const [working, setWorking] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const input = useRef<HTMLInputElement | null>(null);
@@ -98,13 +100,13 @@ function BulkUpload({ path, busy, onAdded }: { path: string; busy: boolean; onAd
     setFailed(null);
     const added: Shot[] = [];
     for (const [index, file] of files.entries()) {
-      setWorking(`Wysyłanie ${index + 1} z ${files.length}…`);
+      setWorking(t('moduleContent.gallery.sending', { n: index + 1, total: files.length }));
       try {
         const shrunk = await downscaleImage(file);
         const made = await uploadPageFile(path, shrunk.blob, shrunk.fileName, shrunk.blob.type || 'image/jpeg');
         added.push({ url: imageRef(made.id), caption: null, alt: '' });
       } catch (e) {
-        setFailed(e instanceof WorkspaceError || e instanceof Error ? e.message : 'Nie udało się wysłać zdjęcia.');
+        setFailed(e instanceof WorkspaceError || e instanceof Error ? e.message : t('moduleContent.gallery.sendFailed'));
         break;
       }
     }
@@ -115,11 +117,11 @@ function BulkUpload({ path, busy, onAdded }: { path: string; busy: boolean; onAd
   return (
     <div className="pe-bulk">
       <button type="button" className="wk-btn" disabled={busy || working !== null} onClick={() => input.current?.click()}>
-        {working ?? 'Dodaj zdjęcia z dysku'}
+        {working ?? t('moduleContent.gallery.addFromDisk')}
       </button>
       <input ref={input} type="file" accept="image/*" multiple hidden
         onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ''; if (files.length > 0) void send(files); }} />
-      <span className="wk-hint">Zdjęcia są zmniejszane przed wysłaniem (dłuższy bok do 2048 px), a dane EXIF — w tym miejsce zrobienia — nie są wysyłane.</span>
+      <span className="wk-hint">{t('moduleContent.gallery.privacy')}</span>
       {failed !== null && <span className="wk-error">{failed}</span>}
     </div>
   );
@@ -127,21 +129,21 @@ function BulkUpload({ path, busy, onAdded }: { path: string; busy: boolean; onAd
 
 export const galleryPart = defineEventPart<GalleryConfig>({
   kind: 'gallery',
-  label: 'Galeria',
-  use: 'Karuzela zdjęć; kliknięcie otwiera całą galerię na pełnym ekranie, z powiększaniem.',
+  label: 'moduleContent.gallery.label',
+  use: 'moduleContent.gallery.use',
   box: { colSpan: 6, rowSpan: 5 },
-  strip: { title: 'Galeria', open: 'Pokaż zdjęcia' },
+  strip: { title: 'moduleContent.gallery.stripTitle', open: 'moduleContent.gallery.stripOpen' },
 
   blank: () => ({ shots: [], shuffle: true }),
-  example: () => ({ shots: [{ url: 'https://…/zdjecie.jpg', caption: 'Wyjazd z Krakowa', alt: 'Grupa rowerzystów o świcie' }], shuffle: true }),
+  example: () => ({ shots: [{ url: 'https://…/zdjecie.jpg', caption: 'Wyjazd z Krakowa', alt: 'Grupa rowerzystów o świcie' }], shuffle: true }), // i18n-ignore
 
   /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
   keys: {
-    shots: 'Zdjęcia — lista',
-    'shots[].url': 'Adres https://… albo plik strony "page-image:<id>" (wgrywa się w edytorze)',
-    'shots[].caption': 'Podpis (albo null)',
-    'shots[].alt': 'Opis zdjęcia dla czytników ekranu',
-    shuffle: 'true — kolejność losowa przy każdym wejściu, false — jak na liście'
+    shots: 'moduleContent.gallery.key.shots',
+    'shots[].url': 'moduleContent.gallery.key.url',
+    'shots[].caption': 'moduleContent.gallery.key.caption',
+    'shots[].alt': 'moduleContent.gallery.key.alt',
+    shuffle: 'moduleContent.gallery.key.shuffle'
   },
 
   parse: (raw) => {
@@ -158,32 +160,35 @@ export const galleryPart = defineEventPart<GalleryConfig>({
 
   hasContent: (c) => c.shots.some((shot) => shot.url !== ''),
 
-  shows: (c, size) => size.height === 'strip' ? 'Przycisk, który rozwija galerię.'
-    : `Karuzela — ${photoCount(c.shots.filter((s) => s.url !== '').length)}; kliknięcie otwiera całą galerię.`,
+  shows: (c, size) => size.height === 'strip' ? t('moduleContent.gallery.showsStrip')
+    : t('moduleContent.gallery.showsCarousel', { photos: photoCount(c.shots.filter((s) => s.url !== '').length) }),
 
   Body: ({ config }) => <Gallery config={config} />,
 
-  Edit: ({ config, onChange, ctx, busy }) => (
+  Edit: function GalleryEdit({ config, onChange, ctx, busy }) {
+    const t = useT();
+    return (
     <>
       {ctx.path !== null && (
         <BulkUpload path={ctx.path} busy={busy} onAdded={(shots) => onChange({ ...config, shots: [...config.shots, ...shots] })} />
       )}
-      <CheckRow label="Losowa kolejność przy każdym wejściu" checked={config.shuffle} onChange={(shuffle) => onChange({ ...config, shuffle })} />
+      <CheckRow label={t('moduleContent.gallery.shuffle')} checked={config.shuffle} onChange={(shuffle) => onChange({ ...config, shuffle })} />
       <ListEditor<Shot>
-        legend={`Zdjęcia (${config.shots.length})`}
+        legend={t('moduleContent.gallery.legend', { count: config.shots.length })}
         items={config.shots}
-        addLabel="Dodaj zdjęcie"
+        addLabel={t('moduleContent.gallery.add')}
         blank={() => ({ url: '', caption: null, alt: '' })}
-        titleOf={(item, index) => item.caption || `Zdjęcie ${index + 1}`}
+        titleOf={(item, index) => item.caption || t('moduleContent.gallery.nth', { n: index + 1 })}
         onChange={(shots) => onChange({ ...config, shots })}
         renderItem={(item, update) => (
           <>
-            <ImageRow label="Zdjęcie" value={item.url} ctx={ctx} busy={busy} onChange={(url) => update({ ...item, url })} />
-            <TextRow label="Podpis" value={item.caption ?? ''} onChange={(caption) => update({ ...item, caption: caption || null })} />
-            <TextRow label="Opis alternatywny" value={item.alt} hint="Dla osób korzystających z czytnika ekranu." onChange={(alt) => update({ ...item, alt })} />
+            <ImageRow label={t('moduleContent.gallery.photo')} value={item.url} ctx={ctx} busy={busy} onChange={(url) => update({ ...item, url })} />
+            <TextRow label={t('moduleContent.gallery.caption')} value={item.caption ?? ''} onChange={(caption) => update({ ...item, caption: caption || null })} />
+            <TextRow label={t('moduleContent.gallery.alt')} value={item.alt} hint={t('moduleContent.gallery.altHint')} onChange={(alt) => update({ ...item, alt })} />
           </>
         )}
       />
     </>
-  )
+    );
+  }
 });

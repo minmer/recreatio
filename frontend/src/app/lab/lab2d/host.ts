@@ -7,6 +7,7 @@
  * des Arbeiters in Meter um.
  */
 
+import { t } from '../../core/i18n';
 import type { ClipEngine, ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
 import type { ObjectPatch } from './engine/objects';
@@ -55,7 +56,7 @@ export class LabHost {
     this.events = events;
     this.worker = createWorker();
     this.worker.addEventListener('message', (e: MessageEvent<WorkerMessage>) => this.receive(e.data));
-    this.worker.addEventListener('error', (e) => events.onError(e.message || 'Silnik przestał działać.'));
+    this.worker.addEventListener('error', (e) => events.onError(e.message || t('lab2d.engineStopped')));
   }
 
   /** paused: ruhend beginnen (das Labor startet nie von selbst); resume: ein Schlüsselbild, ab dem es weitergeht (eine Kopie geht hin, die Seite behält ihres). */
@@ -71,7 +72,7 @@ export class LabHost {
       return;
     }
     const gl = this.canvas.getContext('webgl2', { antialias: true, premultipliedAlpha: true, alpha: false });
-    if (gl === null) this.events.onError('Ta przeglądarka nie obsługuje WebGL2 — laboratorium liczy, ale nie rysuje.');
+    if (gl === null) this.events.onError(t('lab2d.noWebgl2'));
     else {
       this.renderer = new LabRenderer(gl);
       this.theme(dark);

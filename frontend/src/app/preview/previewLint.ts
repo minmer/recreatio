@@ -28,6 +28,7 @@ import { partOf } from '../pages/parts/registry';
 import { pieceJson, readPieceValue, readShow, showJson } from '../pages/presentation/presentation';
 import { readSlideValue, slideJson } from '../pages/slides/slides';
 import { deckJson, layersJson, readDeck, readLayers } from '../pages/slides/slideLook';
+import { t } from '../core/i18n';
 
 export interface LintItem {
   /** Wo im Dokument: `modules[2].config.subtitle`, `show.scenes[1].change`. */
@@ -95,7 +96,7 @@ function compare(input: unknown, output: unknown, path: string, out: LintItem[],
     for (const [key, value] of Object.entries(input)) {
       const at = `${path}.${key}`;
       if (!has(after, key)) {
-        if (!blank(value)) out.push({ path: at, kind: 'dropped', detail: `pominięty przy imporcie (nieznany, nieprawidłowy albo równy domyślnemu): ${shown(value)}` });
+        if (!blank(value)) out.push({ path: at, kind: 'dropped', detail: t('preview.lint.droppedKey', { value: shown(value) }) });
         continue;
       }
       compare(value, after[key], at, out, depth + 1);
@@ -107,16 +108,16 @@ function compare(input: unknown, output: unknown, path: string, out: LintItem[],
       /* Zeilen oder Kennungen: als Liste geschrieben, als Text gespeichert. */
       const joined = output.split(output.includes('\n') ? '\n' : ',').map((one) => one.trim());
       if (input.map((one) => String(one).trim()).filter((one) => one !== '').join('|') !== joined.filter((one) => one !== '').join('|')) {
-        out.push({ path, kind: 'changed', detail: `import czyta ${shown(input)} jako ${shown(output)}` });
+        out.push({ path, kind: 'changed', detail: t('preview.lint.readsAs', { input: shown(input), output: shown(output) }) });
       }
       return;
     }
     if (!Array.isArray(output)) {
-      if (!blank(input)) out.push({ path, kind: 'dropped', detail: `pominięte przy imporcie: ${shown(input)}` });
+      if (!blank(input)) out.push({ path, kind: 'dropped', detail: t('preview.lint.dropped', { value: shown(input) }) });
       return;
     }
     if (output.length !== input.length) {
-      out.push({ path, kind: 'dropped', detail: `z ${input.length} wpisów import bierze ${output.length} — pozostałe są nieprawidłowe albo nieznane` });
+      out.push({ path, kind: 'dropped', detail: t('preview.lint.listShort', { count: input.length, kept: output.length }) });
       return;
     }
     input.forEach((one, i) => compare(one, output[i], `${path}[${i}]`, out, depth + 1));
@@ -126,11 +127,11 @@ function compare(input: unknown, output: unknown, path: string, out: LintItem[],
     /* Ein Text mit "\n", gespeichert als Zeilen: gleich, wenn die Zeilen gleich sind. */
     if (input.split('\n').map((one) => one.trim()).join('|') !== output.map((one) => String(one).trim()).join('|')
       && input.split(',').map((one) => one.trim()).join('|') !== output.map((one) => String(one).trim()).join('|')) {
-      out.push({ path, kind: 'changed', detail: `import czyta ${shown(input)} jako ${shown(output)}` });
+      out.push({ path, kind: 'changed', detail: t('preview.lint.readsAs', { input: shown(input), output: shown(output) }) });
     }
     return;
   }
-  if (!same(input, output)) out.push({ path, kind: 'changed', detail: `import czyta ${shown(input)} jako ${shown(output)}` });
+  if (!same(input, output)) out.push({ path, kind: 'changed', detail: t('preview.lint.readsAs', { input: shown(input), output: shown(output) }) });
 }
 
 /** Jeder Pfad eines Werts, Listen als `[]`: `groups`, `groups[].rows[].time`. */
@@ -178,7 +179,7 @@ function undocumented(kind: string, config: Record<string, unknown>, at: string,
     const parent = parentOf(path);
     /* Unter einem Behälter, dessen Einträge niemand aufzählt, lässt sich nichts sagen (ein freies Objekt). */
     if (parent !== '' && !listed(parent)) continue;
-    out.push({ path: real, kind: 'unknown', detail: `nieznany klucz modułu „${def.label}” (${kind}) — nic go nie czyta` });
+    out.push({ path: real, kind: 'unknown', detail: t('preview.lint.unknownPartKey', { label: def.label, kind }) });
   }
 }
 
@@ -187,25 +188,25 @@ function frameNotes(entry: Record<string, unknown>, name: (key: string) => strin
   const layout = asRecord(entry.layout);
   for (const key of Object.keys(layout)) {
     if (!(BREAKPOINTS as readonly string[]).includes(key)) {
-      out.push({ path: name(`layout.${key}`), kind: 'unknown', detail: `nieznany rozmiar ekranu — dozwolone: ${BREAKPOINTS.join(', ')}` });
+      out.push({ path: name(`layout.${key}`), kind: 'unknown', detail: t('preview.lint.unknownScreen', { list: BREAKPOINTS.join(', ') }) });
     }
   }
   for (const bp of BREAKPOINTS) {
     if (!has(layout, bp)) continue;
     const frame = asRecord(layout[bp]);
-    for (const key of Object.keys(frame)) if (!FRAME_KEYS.has(key)) out.push({ path: name(`layout.${bp}.${key}`), kind: 'unknown', detail: 'nieznany klucz — miejsce to "position" { row, col } i "size" { colSpan, rowSpan }' });
+    for (const key of Object.keys(frame)) if (!FRAME_KEYS.has(key)) out.push({ path: name(`layout.${bp}.${key}`), kind: 'unknown', detail: t('preview.lint.unknownFrameKey') });
     const size = asRecord(frame.size);
     const position = asRecord(frame.position);
     if (typeof size.colSpan !== 'number' || typeof size.rowSpan !== 'number') {
-      out.push({ path: name(`layout.${bp}`), kind: 'dropped', detail: 'bez liczb "size.colSpan" i "size.rowSpan" — import pomija to miejsce (moduł stanie w pierwszym wolnym)' });
+      out.push({ path: name(`layout.${bp}`), kind: 'dropped', detail: t('preview.lint.noSize') });
       continue;
     }
     const colSpan = snapColSpan(size.colSpan, COLUMNS[bp]);
     const rowSpan = snapRowSpan(size.rowSpan);
-    if (colSpan !== size.colSpan) out.push({ path: name(`layout.${bp}.size.colSpan`), kind: 'changed', detail: `${size.colSpan} → ${colSpan} (szerokości 2, 3, 4, 6; na tym ekranie najwyżej ${COLUMNS[bp]})` });
-    if (rowSpan !== size.rowSpan) out.push({ path: name(`layout.${bp}.size.rowSpan`), kind: 'changed', detail: `${size.rowSpan} → ${rowSpan} (wysokości 1 pasek, 3 blok, 5 wysoki)` });
+    if (colSpan !== size.colSpan) out.push({ path: name(`layout.${bp}.size.colSpan`), kind: 'changed', detail: t('preview.lint.colSpanScreen', { from: size.colSpan, to: colSpan, max: COLUMNS[bp] }) });
+    if (rowSpan !== size.rowSpan) out.push({ path: name(`layout.${bp}.size.rowSpan`), kind: 'changed', detail: t('preview.lint.rowSpanWords', { from: size.rowSpan, to: rowSpan }) });
     if (typeof position.col === 'number' && position.col + colSpan - 1 > COLUMNS[bp]) {
-      out.push({ path: name(`layout.${bp}.position.col`), kind: 'changed', detail: `${position.col} → ${COLUMNS[bp] - colSpan + 1} (moduł nie mieści się w ${COLUMNS[bp]} kolumnach)` });
+      out.push({ path: name(`layout.${bp}.position.col`), kind: 'changed', detail: t('preview.lint.colMoved', { from: position.col, to: COLUMNS[bp] - colSpan + 1, count: COLUMNS[bp] }) });
     }
   }
 }
@@ -213,14 +214,14 @@ function frameNotes(entry: Record<string, unknown>, name: (key: string) => strin
 function themeNotes(value: unknown, out: LintItem[]): void {
   if (value === null || !isPlain(value)) return;
   for (const [key, one] of Object.entries(value)) {
-    if (!THEME_KEYS.has(key)) { out.push({ path: `theme.${key}`, kind: 'unknown', detail: `nieznany klucz — dozwolone: ${[...THEME_KEYS].join(', ')}` }); continue; }
+    if (!THEME_KEYS.has(key)) { out.push({ path: `theme.${key}`, kind: 'unknown', detail: t('preview.lint.unknownAllowed', { list: [...THEME_KEYS].join(', ') }) }); continue; }
     if (key === 'mode' || key === 'night') continue;
-    if (!/^#[0-9a-f]{6}$/i.test(asText(one))) out.push({ path: `theme.${key}`, kind: 'changed', detail: `${shown(one)} to nie kolor #rrggbb — import weźmie kolor domyślny` });
+    if (!/^#[0-9a-f]{6}$/i.test(asText(one))) out.push({ path: `theme.${key}`, kind: 'changed', detail: t('preview.lint.notColour', { value: shown(one) }) });
   }
   if (isPlain(value.night)) {
     for (const [key, one] of Object.entries(value.night)) {
-      if (!PALETTE_KEYS.has(key)) out.push({ path: `theme.night.${key}`, kind: 'unknown', detail: 'nieznany klucz — dozwolone: accent, ink, ground, muted' });
-      else if (!/^#[0-9a-f]{6}$/i.test(asText(one))) out.push({ path: `theme.night.${key}`, kind: 'dropped', detail: `${shown(one)} to nie kolor #rrggbb — bez nocnych kolorów (muszą być wszystkie cztery)` });
+      if (!PALETTE_KEYS.has(key)) out.push({ path: `theme.night.${key}`, kind: 'unknown', detail: t('preview.lint.unknownAllowed', { list: 'accent, ink, ground, muted' }) });
+      else if (!/^#[0-9a-f]{6}$/i.test(asText(one))) out.push({ path: `theme.night.${key}`, kind: 'dropped', detail: t('preview.lint.notNightColour', { value: shown(one) }) });
     }
   }
 }
@@ -229,12 +230,12 @@ function menuNotes(value: unknown, at: string, out: LintItem[], depth = 0): void
   asArray(value).forEach((raw, i) => {
     const one = asRecord(raw);
     const here = `${at}[${i}]`;
-    for (const key of Object.keys(one)) if (!MENU_KEYS.has(key)) out.push({ path: `${here}.${key}`, kind: 'unknown', detail: `nieznany klucz pozycji menu — dozwolone: ${[...MENU_KEYS].join(', ')}` });
-    if (asText(one.label).trim() === '') out.push({ path: here, kind: 'dropped', detail: 'pozycja bez "label" — import ją pomija' });
+    for (const key of Object.keys(one)) if (!MENU_KEYS.has(key)) out.push({ path: `${here}.${key}`, kind: 'unknown', detail: t('preview.lint.unknownMenuKey', { list: [...MENU_KEYS].join(', ') }) });
+    if (asText(one.label).trim() === '') out.push({ path: here, kind: 'dropped', detail: t('preview.lint.menuNoLabel') });
     if (has(one, 'image') && asText(one.image).trim() !== '' && menuImageOf(one.image) === null) {
-      out.push({ path: `${here}.image`, kind: 'dropped', detail: 'to nie obraz (page-image:<id>, https://… albo /plik.svg) — zostaje sama nazwa' });
+      out.push({ path: `${here}.image`, kind: 'dropped', detail: t('preview.lint.menuNoImage') });
     }
-    if (depth >= 4 && asArray(one.children).length > 0) out.push({ path: `${here}.children`, kind: 'dropped', detail: 'menu ma najwyżej 5 poziomów — głębsze pozycje są pomijane' });
+    if (depth >= 4 && asArray(one.children).length > 0) out.push({ path: `${here}.children`, kind: 'dropped', detail: t('preview.lint.menuDepth') });
     else menuNotes(one.children, `${here}.children`, out, depth + 1);
   });
 }
@@ -247,7 +248,7 @@ export function lintDocument(doc: unknown): LintItem[] {
   const root = asRecord(doc);
 
   if (kind === 'page') {
-    for (const key of Object.keys(root)) if (!ROOT_KEYS.has(key)) out.push({ path: key, kind: 'unknown', detail: `nieznany klucz strony — dozwolone: ${[...ROOT_KEYS].join(', ')}` });
+    for (const key of Object.keys(root)) if (!ROOT_KEYS.has(key)) out.push({ path: key, kind: 'unknown', detail: t('preview.lint.unknownPageKey', { list: [...ROOT_KEYS].join(', ') }) });
     if (has(root, 'theme')) themeNotes(root.theme, out);
     if (has(root, 'show') && root.show !== null) compare(root.show, showJson(readShow(root.show)), 'show', out);
     if (has(root, 'deck') && root.deck !== null) compare(root.deck, deckJson(readDeck(root.deck)) ?? {}, 'deck', out);
@@ -263,15 +264,15 @@ export function lintDocument(doc: unknown): LintItem[] {
     const name = (key: string) => (at === '' ? key : `${at}.${key}`);
     const kindSaid = asText(entry.kind).trim();
     const def = partOf(kindSaid);
-    for (const key of Object.keys(entry)) if (!ENTRY_KEYS.has(key)) out.push({ path: name(key), kind: 'unknown', detail: `nieznany klucz modułu — dozwolone: ${[...ENTRY_KEYS].join(', ')}` });
+    for (const key of Object.keys(entry)) if (!ENTRY_KEYS.has(key)) out.push({ path: name(key), kind: 'unknown', detail: t('preview.lint.unknownEntryKey', { list: [...ENTRY_KEYS].join(', ') }) });
 
     if (def !== undefined && has(entry, 'config')) {
       const config = entry.config;
       if (!isPlain(config)) {
-        if (!blank(config)) out.push({ path: name('config'), kind: 'dropped', detail: '"config" to nie obiekt — moduł zostaje pusty' });
+        if (!blank(config)) out.push({ path: name('config'), kind: 'dropped', detail: t('preview.lint.configNotObject') });
       } else {
         for (const own of def.json.own) {
-          if (has(config, own)) out.push({ path: name(`config.${own}`), kind: 'dropped', detail: `„${own}” prowadzi sam moduł — import go nie ustawia${own === 'needs' ? ' (wymagania formularza: "needs" obok "questions")' : ''}` });
+          if (has(config, own)) out.push({ path: name(`config.${own}`), kind: 'dropped', detail: own === 'needs' ? t('preview.lint.ownedNeeds', { key: own }) : t('preview.lint.owned', { key: own }) });
         }
         const mine = Object.fromEntries(Object.entries(config).filter(([key]) => !def.json.own.includes(key)));
         compare(mine, def.json.toJson(def.json.fromJson(mine)), name('config'), out);
@@ -283,8 +284,8 @@ export function lintDocument(doc: unknown): LintItem[] {
     if (has(entry, 'layout')) frameNotes(entry, name, out);
     if (has(entry, 'size')) {
       const size = asRecord(entry.size);
-      if (typeof size.colSpan === 'number' && snapColSpan(size.colSpan, 6) !== size.colSpan) out.push({ path: name('size.colSpan'), kind: 'changed', detail: `${size.colSpan} → ${snapColSpan(size.colSpan, 6)} (szerokości 2, 3, 4, 6)` });
-      if (typeof size.rowSpan === 'number' && snapRowSpan(size.rowSpan) !== size.rowSpan) out.push({ path: name('size.rowSpan'), kind: 'changed', detail: `${size.rowSpan} → ${snapRowSpan(size.rowSpan)} (wysokości 1, 3, 5)` });
+      if (typeof size.colSpan === 'number' && snapColSpan(size.colSpan, 6) !== size.colSpan) out.push({ path: name('size.colSpan'), kind: 'changed', detail: t('preview.lint.colSpan', { from: size.colSpan, to: snapColSpan(size.colSpan, 6) }) });
+      if (typeof size.rowSpan === 'number' && snapRowSpan(size.rowSpan) !== size.rowSpan) out.push({ path: name('size.rowSpan'), kind: 'changed', detail: t('preview.lint.rowSpan', { from: size.rowSpan, to: snapRowSpan(size.rowSpan) }) });
     }
   });
 

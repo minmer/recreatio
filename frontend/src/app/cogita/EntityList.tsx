@@ -19,6 +19,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, typ
 import ReactFlow, { Background, Controls, type Edge, type Node, type NodeChange } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+import { rich, useT } from '../core/i18n';
 import { MenuButton } from '../ui/Menu';
 import { TexText } from '../ui/tex/Tex';
 import { fieldsOf, fieldText, valuesOf, type Entity } from './schema';
@@ -97,12 +98,13 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   onSaved?: (id: string) => void;
   onRemoved?: () => void;
 }) {
+  const t = useT();
   const { lib, writes, href, learner } = useCtx();
   const saved = viewId === null ? undefined : lib.docs('view').find((e) => e.id === viewId);
   /* 2026-11-03 — ein nicht gespeicherter Stand dieses Widoku kommt wieder (`drafts`). */
   const dKey = draftKey(lib.libraryId, viewId, design);
   const dBase = saved === undefined ? '' : `${saved.id}:${saved.version}`;
-  const [view, setView] = useState<ViewDoc>(() => readDraft(dKey, dBase) ?? readView(saved?.data ?? { mode: 'table', ...(design ? { name: 'Nowy sposób wyświetlania' } : {}) }));
+  const [view, setView] = useState<ViewDoc>(() => readDraft(dKey, dBase) ?? readView(saved?.data ?? { mode: 'table', ...(design ? { name: t('cogitaViews.list.newViewName') } : {}) }));
   const [shownFor, setShownFor] = useState(viewId);
   if (shownFor !== viewId) { setShownFor(viewId); setView(readDraft(dKey, dBase) ?? readView(saved?.data ?? { mode: 'table' })); }
   const first = useRef(true);
@@ -170,7 +172,10 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
     /* 2026-10-30 — wie gut der Betrachter den Eintrag kann, wann er wieder dran ist, auf welchem Poziom nauki. */
     ...KNOWING_COLUMNS
   ];
-  const label = (key: string) => (key.startsWith(AXIS_COLUMN) ? chooserFields.find((f) => f.key === key)?.label.replace(/ \(oś\)$/, '') ?? key
+  /* Die Achse als Spalte heisst „<Name> (oś)“ — im Kopf der Tabelle ohne den Zusatz. */
+  const axisTail = t('cogitaViews.steps.axisColumn', { name: '' });
+  const stripAxis = (s: string) => (s.endsWith(axisTail) ? s.slice(0, -axisTail.length) : s);
+  const label = (key: string) => (key.startsWith(AXIS_COLUMN) ? stripAxis(chooserFields.find((f) => f.key === key)?.label ?? key)
     : KNOWING_COLUMNS.find((c) => c.key === key)?.label);
 
   /* Die Taten (Schritt 10) — nur, wer schreiben darf. */
@@ -181,18 +186,18 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
     if (r === undefined || c === undefined) return;
     const context = contextOf([{ grouping: view.matrix.rows, group: r }, { grouping: view.matrix.cols, group: c }]);
     const made = await createHere(lib, view, context);
-    toast(`Nowy wpis: ${context.words.join(' × ')}`);
+    toast(t('cogitaViews.list.newEntryToast', { where: context.words.join(' × ') }));
     if (made.inLibrary) window.location.hash = containerPath(made.libraryId, made.id);
     else onOpen(made.id);
   });
   /* Do planu kazania: die Texte der Bibliotheken, aus denen die Baza schöpft. */
-  const texts = useMemo(() => [...lib.material('text')].sort((a, b) => lib.label(a).localeCompare(lib.label(b), 'pl')), [lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  const texts = useMemo(() => [...lib.material('text')].sort((a, b) => lib.label(a).localeCompare(lib.label(b), t.locale)), [lib, lib.revision, t.locale]); // eslint-disable-line react-hooks/exhaustive-deps
   const [planText, setPlanText] = useState('');
   const toPlan = (ids: readonly string[]) => run(async () => {
-    const text = texts.find((t) => t.id === planText);
+    const text = texts.find((x) => x.id === planText);
     if (text === undefined) return;
     const n = await addToPlan(lib, text.id, ids);
-    toast(`Dodano ${n} punktów do planu „${lib.label(text)}”.`);
+    toast(t('cogitaViews.list.addedToPlan', { count: n, name: lib.label(text) }));
   });
   const toRevision = (ids?: readonly string[], name?: string) => run(async () => {
     /* 2026-10-25 — geöffnet an einem Eintrag: gelernt wird, was da steht (sein Teil der Struktur), nicht der ganze Widok. */
@@ -204,8 +209,8 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
 
   const saveView = (asNew: boolean) => run(async () => {
     /* Ein neuer aus „Wpisy": gespeichert mit einem Namen aus dem Rodzaj — benannt und weiter gebaut wird er in den Schematy. */
-    const name = design || !asNew ? view.name : view.name === 'Widok' ? `${kind?.name ?? 'Wpisy'} — widok` : view.name;
-    const doc = viewJson({ ...view, name: name.trim() || 'Widok' });
+    const name = design || !asNew ? view.name : view.name === 'Widok' || view.name === t('cogitaViews.list.viewDefault') ? t('cogitaViews.list.kindView', { kind: kind?.name ?? t('cogitaViews.list.entries') }) : view.name; // i18n-ignore
+    const doc = viewJson({ ...view, name: name.trim() || t('cogitaViews.list.viewDefault') });
     /*
       2026-11-05 (Durchsicht) — die Gebiete des Krajobraz (umbenannt, verschoben) schreibt die Landschaft selbst in den
       gespeicherten Widok; dieser Zustand hier kennt sie nur vom Öffnen. Beim Speichern gelten die gespeicherten.
@@ -218,18 +223,18 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
     }
     const done = await lib.saveDoc('view', doc, asNew ? undefined : viewId ?? undefined);
     keepDraft(dKey, dBase, null);
-    if (design) { toast('Zapisano sposób wyświetlania.'); onSaved?.(done.id); return; }
-    if (asNew && onDesign !== undefined) { toast(`Zapisano „${name}” — tu możesz zmienić nazwę i ustawienia.`); onDesign(done.id); return; }
+    if (design) { toast(t('cogitaViews.list.savedDisplay')); onSaved?.(done.id); return; }
+    if (asNew && onDesign !== undefined) { toast(t('cogitaViews.list.savedNamed', { name })); onDesign(done.id); return; }
     onView(done.id);
   });
   const removeView = () => run(async () => {
     if (viewId === null) return;
-    if (!(await ask({ title: `Usunąć sposób wyświetlania „${view.name}”?`, body: 'Wpisy zostają; znika tylko ten sposób pokazywania ich (także z modułów „Widok" na stronach).', confirm: 'Usuń', danger: true }))) return;
+    if (!(await ask({ title: t('cogitaViews.list.removeTitle', { name: view.name }), body: t('cogitaViews.list.removeBody'), confirm: t('common.delete'), danger: true }))) return;
     await lib.remove(viewId);
     onRemoved?.();
   });
   const layout = (
-    <span className="cg-subtabs" role="group" aria-label="Układ">
+    <span className="cg-subtabs" role="group" aria-label={t('cogitaViews.list.layout')}>
       {(['table', 'tree', 'outline', 'matrix', 'canvas', 'quilt', 'landscape'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} aria-pressed={view.mode === m} data-mode={m} onClick={() => setV({ mode: m, ...(m === 'matrix' && view.matrix === null ? { matrix: { rows: view.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : {}) })}>{LIST_MODE_LABEL[m]}</button>)}
     </span>
   );
@@ -237,34 +242,34 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   const adjust = (
     <>
       <div className="cg-adjust-part">
-        <h4 className="cg-adjust-h">Co pokazać</h4>
+        <h4 className="cg-adjust-h">{t('cogitaViews.list.whatToShow')}</h4>
         {/* 2026-10-25 — geöffnet an einem Eintrag: Filtr und Wybór vor dem ersten „Idź po…" ersetzt dieser Eintrag; geändert werden sie im ganzen Widok. */}
         {start !== undefined && viewId !== null ? (
-          <p className="cg-muted" data-view-start-note="">Widok otwarty od jednego wpisu — filtr, wybór, wyszukiwanie i rodzaj działają w całym sposobie wyświetlania. <a className="wk-link-btn" href={href('wpisy', 'widok', viewId)}>Pokaż cały</a></p>
+          <p className="cg-muted" data-view-start-note="">{t('cogitaViews.list.startNote')} <a className="wk-link-btn" href={href('wpisy', 'widok', viewId)}>{t('cogitaViews.list.showWhole')}</a></p>
         ) : (
           <>
             <details open={design || undefined}>
-              <summary>Filtr {rule !== null && rule.items.length > 0 ? `(${rule.items.length})` : ''}</summary>
+              <summary>{rule !== null && rule.items.length > 0 ? t('cogitaViews.list.filterCount', { count: rule.items.length }) : t('cogitaViews.list.filter')}</summary>
               <RuleEditor rule={rule ?? { op: 'and', items: [] }} onChange={(next) => setView(withRule(view, next))} />
             </details>
             <details open={design || undefined}>
-              <summary>Wybór — także po odwołaniach — i grupy {view.steps.length > 1 || quickKind === null ? `(${view.steps.length} ${view.steps.length === 1 ? 'krok' : 'kroki'})` : ''}</summary>
+              <summary>{view.steps.length > 1 || quickKind === null ? t('cogitaViews.list.selectionSteps', { count: view.steps.length }) : t('cogitaViews.list.selection')}</summary>
               <ViewSteps view={view} onChange={setView} />
             </details>
           </>
         )}
       </div>
       <div className="cg-adjust-part">
-        <h4 className="cg-adjust-h">Jak pokazać</h4>
+        <h4 className="cg-adjust-h">{t('cogitaViews.list.howToShow')}</h4>
         {layout}
         {view.mode === 'outline' && <OutlineSettings value={view.outline} fields={chooserFields.filter((f) => !f.key.startsWith(AXIS_COLUMN))} onChange={(outline) => setV({ outline })} />}
         {landscape && (
           <div className="cg-row" data-landscape-settings="">
             {/* 2026-11-04 (Prompt 11) — die Gebiete kommen aus den Verbindungen; Namen und Verschiebungen ändert der Besitzer auf der Karte selbst. */}
-            <p className="cg-muted">Krajobraz to świat obszarów: obszary tworzą się same z tego, co od czego zależy („Najpierw trzeba znać”) — tematy, które wiele łączy, leżą razem. Na każdym poziomie widać kilka do kilkunastu pól; dotknięcie obszaru otwiera jego mapę. Wysokość to liczba stopni do pokonania: dolina — umiesz, jeden stopień — możesz zacząć teraz. Nazwę obszaru zmienisz na mapie („Zmień nazwę”), a temat przeniesiesz do innego obszaru w jego okienku.</p>
+            <p className="cg-muted">{t('cogitaViews.list.landscapeHint')}</p>
           </div>
         )}
-        {quilt && <p className="cg-muted" data-quilt-hint="">Mapa postępów: każdy wpis to kafelek w kolorze tego, jak dobrze go znasz — pogrupowany jak w „Wybór i grupy” (np. idee według lekcji, lekcje pod rozdziałami). Uczący się widzą ją w Postępach i w module „Widok” na stronie.</p>}
+        {quilt && <p className="cg-muted" data-quilt-hint="">{t('cogitaViews.list.quiltHint')}</p>}
       </div>
     </>
   );
@@ -274,64 +279,64 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
       {design && (
         <div className="cg-row" data-view-design="">
           <label className="wk-field cg-grow">
-            <span>Nazwa sposobu wyświetlania</span>
+            <span>{t('cogitaViews.list.displayName')}</span>
             <input value={view.name} disabled={!writes} onChange={(e) => setV({ name: e.target.value })} />
           </label>
-          {writes && <button type="button" className="wk-btn" disabled={busy} onClick={() => void saveView(viewId === null)}>{viewId === null ? 'Utwórz' : 'Zapisz'}</button>}
-          {viewId !== null && <a className="wk-link-btn" href={href('wpisy', 'widok', viewId)}>Zobacz we Wpisach</a>}
-          {writes && viewId !== null && <button type="button" className="wk-link-btn wk-danger-link" disabled={busy} onClick={() => void removeView()}>Usuń</button>}
+          {writes && <button type="button" className="wk-btn" disabled={busy} onClick={() => void saveView(viewId === null)}>{viewId === null ? t('common.create') : t('common.save')}</button>}
+          {viewId !== null && <a className="wk-link-btn" href={href('wpisy', 'widok', viewId)}>{t('cogitaViews.list.seeInEntries')}</a>}
+          {writes && viewId !== null && <button type="button" className="wk-link-btn wk-danger-link" disabled={busy} onClick={() => void removeView()}>{t('common.delete')}</button>}
         </div>
       )}
       <div className="cg-row">
         {/* 2026-10-25 — geöffnet an einem Eintrag gilt dieser eine Anfang: Suche und Rodzaj fänden nichts anderes (zurück über „Pokaż cały sposób wyświetlania”). */}
-        <input type="search" value={view.query} placeholder="Szukaj we wpisach…" onChange={(e) => setV({ query: e.target.value })} aria-label="Szukaj"
-          disabled={start !== undefined} title={start !== undefined ? 'Widok otwarty od jednego wpisu — szukać można w całym sposobie wyświetlania' : undefined} />
-        <select value={quickKind ?? '#inne'} onChange={(e) => { if (e.target.value !== '#inne') setView(withSourceKind(view, e.target.value)); }} aria-label="Rodzaj" disabled={start !== undefined}>
-          <option value="">wszystkie rodzaje</option>
+        <input type="search" value={view.query} placeholder={t('cogitaViews.list.searchEntries')} onChange={(e) => setV({ query: e.target.value })} aria-label={t('common.search')}
+          disabled={start !== undefined} title={start !== undefined ? t('cogitaViews.list.searchStartTitle') : undefined} />
+        <select value={quickKind ?? '#inne'} onChange={(e) => { if (e.target.value !== '#inne') setView(withSourceKind(view, e.target.value)); }} aria-label={t('cogitaViews.list.kind')} disabled={start !== undefined}>
+          <option value="">{t('cogitaViews.list.allKinds')}</option>
           {lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name} ({lib.ofKind(k.id).length})</option>)}
-          {quickKind === null && <option value="#inne">inne źródło (zob. „Wybór")</option>}
+          {quickKind === null && <option value="#inne">{t('cogitaViews.list.otherSource')}</option>}
         </select>
         {!design && (
-          <select value={viewId ?? ''} onChange={(e) => onView(e.target.value === '' ? null : e.target.value)} aria-label="Sposób wyświetlania">
-            <option value="">— wszystkie wpisy —</option>
-            {lib.docs('view').map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : 'Widok'}</option>)}
+          <select value={viewId ?? ''} onChange={(e) => onView(e.target.value === '' ? null : e.target.value)} aria-label={t('cogitaViews.list.display')}>
+            <option value="">{t('cogitaViews.list.allEntries')}</option>
+            {lib.docs('view').map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : t('cogitaViews.list.viewDefault')}</option>)}
           </select>
         )}
         {/* 2026-10-25 — in der Struktura zählt der Baum (er nennt seine Schritte selbst), nicht das Ende der Auswahl. */}
-        {view.mode !== 'outline' && <span className="cg-muted">{list.length} {list.length === 1 ? 'wpis' : 'wpisów'}</span>}
-        {!design && writes && onAdd !== undefined && <button type="button" className="wk-btn" onClick={onAdd}><Icon name="plus" />Dodaj</button>}
+        {view.mode !== 'outline' && <span className="cg-muted">{t('cogitaViews.list.count', { count: list.length })}</span>}
+        {!design && writes && onAdd !== undefined && <button type="button" className="wk-btn" onClick={onAdd}><Icon name="plus" />{t('common.add')}</button>}
         {!design && (writes || viewId !== null) && (
-          <MenuButton label="Więcej: ten widok" items={[
-            ...(writes ? [{ label: 'Zapisz jako nowy sposób wyświetlania…', icon: 'plus' as const, onSelect: () => void saveView(true) }] : []),
-            ...(writes && viewId !== null ? [{ label: 'Zapisz zmiany tego sposobu', icon: 'check' as const, onSelect: () => void saveView(false) }] : []),
-            ...(writes && onDesign !== undefined ? [{ label: viewId === null ? 'Sposoby wyświetlania (Schematy)…' : 'Ustaw ten sposób w Schematach…', icon: 'settings' as const, onSelect: () => onDesign(viewId) }] : []),
-            ...(viewId !== null ? [{ label: 'Kopiuj link do tego widoku', icon: 'link' as const, onSelect: () => { void navigator.clipboard?.writeText(window.location.href); } }] : []),
-            ...(writes && list.length > 0 ? [{ label: 'Ucz się tego — powtórka w Nauce', icon: 'cap' as const, onSelect: () => void toRevision() }] : []),
+          <MenuButton label={t('cogitaViews.list.moreMenu')} items={[
+            ...(writes ? [{ label: t('cogitaViews.list.saveAsNew'), icon: 'plus' as const, onSelect: () => void saveView(true) }] : []),
+            ...(writes && viewId !== null ? [{ label: t('cogitaViews.list.saveChanges'), icon: 'check' as const, onSelect: () => void saveView(false) }] : []),
+            ...(writes && onDesign !== undefined ? [{ label: viewId === null ? t('cogitaViews.list.displaysInSchemes') : t('cogitaViews.list.setInSchemes'), icon: 'settings' as const, onSelect: () => onDesign(viewId) }] : []),
+            ...(viewId !== null ? [{ label: t('cogitaViews.list.copyLink'), icon: 'link' as const, onSelect: () => { void navigator.clipboard?.writeText(window.location.href); } }] : []),
+            ...(writes && list.length > 0 ? [{ label: t('cogitaViews.list.learnThis'), icon: 'cap' as const, onSelect: () => void toRevision() }] : []),
             /* 2026-10-30 — eine Powtórka, die diesen Widok als Quelle nimmt (keine Kopie): ändert er sich, ändert sie sich mit. */
-            ...(writes && viewId !== null && start === undefined ? [{ label: 'Powtórka z tego widoku (zawsze aktualna)', icon: 'cap' as const, onSelect: () => void run(async () => { const id = await learnFromView(lib, viewId, view.name); window.location.hash = href('powtorki', id); }) }] : [])
+            ...(writes && viewId !== null && start === undefined ? [{ label: t('cogitaViews.list.reviewFromView'), icon: 'cap' as const, onSelect: () => void run(async () => { const id = await learnFromView(lib, viewId, view.name); window.location.hash = href('powtorki', id); }) }] : [])
           ]} />
         )}
       </div>
       {design ? adjust : (
         <details className="cg-adjust" open={adjustOpen.get(dKey) === true || undefined} onToggle={(e) => { adjustOpen.set(dKey, e.currentTarget.open); }}>
-          <summary>Dostosuj — co i jak pokazać</summary>
+          <summary>{t('cogitaViews.list.adjust')}</summary>
           {adjust}
         </details>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
       {start !== undefined && viewId !== null && (
         <p className="wk-note cg-start-banner" data-view-start={start.id}>
-          <span>Od wpisu: <strong><TexText text={lib.labelTex(start)} /></strong> <span className="cg-muted">(wyszukiwanie, rodzaj i filtr — w całym sposobie wyświetlania)</span></span>
-          <a className="wk-link-btn" href={href('wpisy', 'widok', viewId)}>Pokaż cały sposób wyświetlania</a>
-          <button type="button" className="wk-link-btn" onClick={() => onOpen(start.id)}>Otwórz wpis</button>
+          <span>{rich(t('cogitaViews.list.fromEntry', { name: lib.label(start) }), { b: () => <strong><TexText text={lib.labelTex(start)} /></strong> })} <span className="cg-muted">{t('cogitaViews.list.fromEntryNote')}</span></span>
+          <a className="wk-link-btn" href={href('wpisy', 'widok', viewId)}>{t('cogitaViews.list.showWholeDisplay')}</a>
+          <button type="button" className="wk-link-btn" onClick={() => onOpen(start.id)}>{t('cogitaViews.list.openEntry')}</button>
         </p>
       )}
       {picked.size > 0 && <SelectionBar ids={picked} total={list.length} onAll={() => setPicked(new Set(list.map((e) => e.id)))} onClear={() => setPicked(new Set())} onKept={setPicked} />}
-      {wants && knowing === null && <p className="cg-muted" data-knowing-wait="">Liczenie znajomości…</p>}
+      {wants && knowing === null && <p className="cg-muted" data-knowing-wait="">{t('cogitaViews.list.countingKnowing')}</p>}
       {view.mode === 'table' && <Table list={list} picked={picked} onPick={setPicked} columns={columns} sort={view.sort} onSort={(key) => setV({ sort: view.sort?.key === key ? { key, dir: view.sort.dir === 1 ? -1 : 1 } : { key, dir: 1 } })} onOpen={onOpen}
         onColumns={(cols) => setV({ columns: cols })} kindFields={chooserFields} label={label} vlib={vlib} />}
       {view.retired.map((line) => <p key={line} className="wk-warn">{line}</p>)}
-      {view.mode === 'matrix' && matrix === null && <p className="cg-muted">Wybierz wiersze i kolumny macierzy w „Wybór i grupy".</p>}
+      {view.mode === 'matrix' && matrix === null && <p className="cg-muted">{t('cogitaViews.list.matrixHint')}</p>}
       {view.mode === 'matrix' && matrix !== null && (
         <>
           <MatrixGrid matrix={matrix} chosen={cell === null ? null : cellKey(cell.row, cell.col)}
@@ -345,17 +350,17 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
               </ul>
               {writes && (
                 <span className="cg-row">
-                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void here(cell.row, cell.col)}>+ Nowy wpis tutaj</button>
+                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void here(cell.row, cell.col)}>{t('cogitaViews.list.newHere')}</button>
                   {cellIds.length > 0 && texts.length > 0 && (
                     <span className="cg-row">
-                      <select value={planText} aria-label="Do planu którego tekstu" onChange={(e) => setPlanText(e.target.value)}>
-                        <option value="">— do planu kazania —</option>
-                        {texts.map((t) => <option key={t.id} value={t.id}>{lib.label(t).slice(0, 70)}</option>)}
+                      <select value={planText} aria-label={t('cogitaViews.list.planOf')} onChange={(e) => setPlanText(e.target.value)}>
+                        <option value="">{t('cogitaViews.list.planNone')}</option>
+                        {texts.map((x) => <option key={x.id} value={x.id}>{lib.label(x).slice(0, 70)}</option>)}
                       </select>
-                      <button type="button" className="wk-link-btn" disabled={busy || planText === ''} onClick={() => void toPlan(cellIds)}>Dodaj do planu</button>
+                      <button type="button" className="wk-link-btn" disabled={busy || planText === ''} onClick={() => void toPlan(cellIds)}>{t('cogitaViews.list.addToPlan')}</button>
                     </span>
                   )}
-                  {cellIds.length > 0 && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void toRevision(cellIds, `${view.name}: ${matrix.rows.find((g) => g.key === cell.row)?.label ?? ''} × ${matrix.cols.find((g) => g.key === cell.col)?.label ?? ''}`)}>Powtórka z tego pola</button>}
+                  {cellIds.length > 0 && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void toRevision(cellIds, `${view.name}: ${matrix.rows.find((g) => g.key === cell.row)?.label ?? ''} × ${matrix.cols.find((g) => g.key === cell.col)?.label ?? ''}`)}>{t('cogitaViews.list.reviewCell')}</button>}
                 </span>
               )}
             </section>
@@ -365,9 +370,9 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
       {view.mode === 'tree' && (groups === null ? <Tree list={list} onOpen={onOpen} /> : <GroupTree groups={groups} onOpen={onOpen} vlib={vlib} />)}
       {/* 2026-11-01 — die Mapa postępów: wie gut der Betrachter (sein Lernender) jeden Eintrag kann. */}
       {/* 2026-11-03 — der Krajobraz: die Suche oben zeigt Treffer (zum Zeigen, als Ziel), sie schneidet ihn nicht zu. */}
-      {landscape && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">Liczenie kart…</p>
+      {landscape && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">{t('cogitaViews.list.countingCards')}</p>
         : <LandscapeView view={shown} cards={knowCards} learner={learner ?? null} onOpen={onOpen} query={view.query} viewKey={viewId ?? 'wpisy'} rewards={runRewards} urlScope="" busy={knowBusy} />)}
-      {quilt && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">Liczenie kart…</p>
+      {quilt && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">{t('cogitaViews.list.countingCards')}</p>
         : <QuiltView view={shown} list={list} cards={knowCards} answers={ownAnswers} learner={learner ?? null} onOpen={onOpen} />)}
       {view.mode === 'outline' && <Outline view={shown} onOpen={onOpen} vlib={vlib} />}
       {view.mode === 'canvas' && <Canvas list={list} positions={view.positions} onOpen={onOpen}
@@ -376,7 +381,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
           setView(next);
           if (writes && viewId !== null) void lib.saveDoc('view', viewJson(next), viewId).catch(() => undefined);
         }} />}
-      {view.mode === 'canvas' && viewId === null && writes && <p className="wk-hint">Zapisz widok, żeby miejsca na płótnie zostały — widzą je wszyscy autorzy.</p>}
+      {view.mode === 'canvas' && viewId === null && writes && <p className="wk-hint">{t('cogitaViews.list.canvasHint')}</p>}
       {picked.size > 0 && <div className="cg-select-room" aria-hidden />}
     </div>
   );
@@ -397,6 +402,7 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
   /** 2026-10-30 — die Baza mit der Kenntnis des Betrachters (Spalten „Znajomość", „Kiedy powtórzyć"). */
   vlib: ViewLib;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const look = lib.look;
   const [page, setPage] = useState(0);
@@ -446,10 +452,10 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
 
   return (
     <div className="cg">
-      <p className="cg-muted cg-select-hint">Zaznaczanie: pole wyboru, Ctrl+klik, Shift+klik albo przeciągnięcie po polach wyboru; na telefonie przytrzymaj wpis.</p>
+      <p className="cg-muted cg-select-hint">{t('cogitaViews.list.selectHint')}</p>
       {onColumns !== undefined && (
         <details>
-          <summary>Kolumny</summary>
+          <summary>{t('cogitaViews.list.columns')}</summary>
           <div className="cg-row">
             {kindFields.map((f) => (
               <label key={f.key} className="pe-check">
@@ -464,9 +470,9 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
         <table className="cg-table">
           <thead>
             <tr>
-              <th className="cg-pick-cell"><input type="checkbox" checked={allOnPage} aria-label="Zaznacz wszystkie na tej stronie" onChange={() => mark(pageIds, !allOnPage)} /></th>
-              <th><button type="button" onClick={() => onSort('_label')}>Wpis{arrow('_label')}</button></th>
-              <th>Rodzaj</th>
+              <th className="cg-pick-cell"><input type="checkbox" checked={allOnPage} aria-label={t('cogitaViews.list.selectPage')} onChange={() => mark(pageIds, !allOnPage)} /></th>
+              <th><button type="button" onClick={() => onSort('_label')}>{t('cogitaViews.list.entry')}{arrow('_label')}</button></th>
+              <th>{t('cogitaViews.list.kind')}</th>
               {columns.map((c) => <th key={c}><button type="button" onClick={() => onSort(c)}>{label?.(c) ?? kindFields.find((f) => f.key === c)?.label ?? c}{arrow(c)}</button></th>)}
             </tr>
           </thead>
@@ -486,7 +492,7 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
                 <td className="cg-pick-cell"
                   onMouseDown={(ev) => { ev.preventDefault(); const on = !picked.has(e.id); painting.current = on; mark([e.id], on); setAnchor(e.id); }}
                   onClick={(ev) => ev.stopPropagation()}>
-                  <input type="checkbox" checked={picked.has(e.id)} tabIndex={-1} aria-label={`Zaznacz: ${lib.label(e)}`}
+                  <input type="checkbox" checked={picked.has(e.id)} tabIndex={-1} aria-label={t('cogitaViews.list.selectOne', { name: lib.label(e) })}
                     onClick={(ev) => ev.preventDefault()} onChange={() => undefined} />
                 </td>
                 <td><TexText text={lib.labelTex(e)} />{lib.tell(e) !== '' && <span className="cg-muted"> · {lib.tell(e)}</span>} <OriginTag id={e.id} /></td>
@@ -504,9 +510,9 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
       </div>
       {list.length > per && (
         <div className="cg-row">
-          <button type="button" className="wk-link-btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>← wcześniejsze</button>
-          <span className="cg-muted">{page * per + 1}–{Math.min(list.length, page * per + per)} z {list.length}</span>
-          <button type="button" className="wk-link-btn" disabled={(page + 1) * per >= list.length} onClick={() => setPage((p) => p + 1)}>dalsze →</button>
+          <button type="button" className="wk-link-btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>{t('cogitaViews.list.earlier')}</button>
+          <span className="cg-muted">{t('cogitaViews.list.range', { from: page * per + 1, to: Math.min(list.length, page * per + per), total: list.length })}</span>
+          <button type="button" className="wk-link-btn" disabled={(page + 1) * per >= list.length} onClick={() => setPage((p) => p + 1)}>{t('cogitaViews.list.later')}</button>
         </div>
       )}
     </div>
@@ -620,13 +626,14 @@ function Canvas({ list, positions, onOpen, onMoved }: {
  * „Pytanie wiodące"), die Schritte als Baum oder in der Reihenfolge des Textes.
  */
 function Outline({ view, onOpen, vlib }: { view: ViewDoc; onOpen: (id: string) => void; vlib: ViewLib }) {
+  const t = useT();
   const { lib } = useCtx();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const shape = useMemo(() => viewOutline(vlib, view), [vlib, lib.revision, view.query, JSON.stringify(view.steps), JSON.stringify(view.sort), JSON.stringify(view.outline)]);
   const leads = view.steps.some((x) => x.type === 'follow' || x.type === 'structure');
   return (
     <div className="cg-outline">
-      {!leads && <p className="cg-muted">Struktura pokazuje też to, co leży pod wpisami — dodaj w „Wybór” krok „Idź po strukturze” (po polach, które rodzaj oznacza jako połączenie w strukturze) albo „Idź po odwołaniu”.</p>}
+      {!leads && <p className="cg-muted">{t('cogitaViews.list.outlineHint')}</p>}
       <StructureView roots={shape.roots} display={view.outline} onOpen={onOpen} more={shape.more} capped={shape.capped} />
     </div>
   );
@@ -634,32 +641,33 @@ function Outline({ view, onOpen, vlib }: { view: ViewDoc; onOpen: (id: string) =
 
 /** 2026-10-25 (Wywód) — wie die Struktura zeigt: das Feld über jedem Knoten, Baum oder Text, das Feld für Gleichstand. */
 function OutlineSettings({ value, fields, onChange }: { value: OutlineDisplay | null; fields: readonly { key: string; label: string }[]; onChange: (next: OutlineDisplay) => void }) {
+  const t = useT();
   const now: OutlineDisplay = value ?? { chip: '', tie: '' };
   return (
     <div className="cg-row" data-outline-settings="">
-      <label className="wk-field"><span>Nad każdym krokiem</span>
+      <label className="wk-field"><span>{t('cogitaViews.list.aboveStep')}</span>
         <select value={now.chip} onChange={(e) => onChange({ ...now, chip: e.target.value })}>
-          <option value="">— nic —</option>
+          <option value="">{t('cogitaViews.list.nothing')}</option>
           {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
         </select>
       </label>
-      <label className="wk-field"><span>Na początek</span>
+      <label className="wk-field"><span>{t('cogitaViews.list.firstShow')}</span>
         <select value={now.order ?? ''} onChange={(e) => { const { order: _o, ...rest } = now; onChange(e.target.value === 'text' || e.target.value === 'tree' ? { ...rest, order: e.target.value } : rest); }}>
-          <option value="">jak wybierze czytelnik (artykuł Tomasza: tekst)</option>
-          <option value="tree">wywód (drzewo)</option>
-          <option value="text">kolejność tekstu</option>
+          <option value="">{t('cogitaViews.list.readerChooses')}</option>
+          <option value="tree">{t('cogitaViews.list.orderTree')}</option>
+          <option value="text">{t('cogitaViews.list.orderText')}</option>
         </select>
       </label>
       {/* 2026-10-25 — z. B. „czas" (die Zeit der Erzählung): eine Rückblende vom Ende des Buches steht dann vorn. */}
-      <label className="wk-field"><span>Kroki na jednym poziomie — według</span>
+      <label className="wk-field"><span>{t('cogitaViews.list.sameLevelBy')}</span>
         <select value={now.by ?? ''} onChange={(e) => { const { by: _b, ...rest } = now; onChange(e.target.value === '' ? rest : { ...rest, by: e.target.value }); }}>
-          <option value="">miejsca w dziele</option>
-          {fields.map((f) => <option key={f.key} value={f.key}>pola „{f.label}” (np. czas opowieści)</option>)}
+          <option value="">{t('cogitaViews.list.placeInWork')}</option>
+          {fields.map((f) => <option key={f.key} value={f.key}>{t('cogitaViews.list.byField', { name: f.label })}</option>)}
         </select>
       </label>
-      <label className="wk-field"><span>Przy tym samym miejscu w dziele — według</span>
+      <label className="wk-field"><span>{t('cogitaViews.list.samePlaceBy')}</span>
         <select value={now.tie} onChange={(e) => onChange({ ...now, tie: e.target.value })}>
-          <option value="">— nazwy —</option>
+          <option value="">{t('cogitaViews.list.byName')}</option>
           {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
         </select>
       </label>

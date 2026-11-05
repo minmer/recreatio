@@ -39,6 +39,7 @@
  * „Nowe zadanie" (`newTask`).
  */
 
+import { appLang, tIn } from '../../core/i18n';
 import { compile, compileText, isExprError, newEnv, toNum, truth, type Env, type Expr } from './expr';
 import { BUILTINS, THING_BUILTINS, type Action, type ControlSpec, type Live, type Mood, type PredictSpec, type RuleSpec, type SimSpec, type TaskSpec, type VarSpec } from './liveModel';
 import { World } from './liveWorld';
@@ -203,7 +204,7 @@ export class Program {
     const sim = live?.sim ?? null;
     const stateNames: string[] = [];
     for (const s of sim?.state ?? []) {
-      if (this.known.has(s.name)) { this.report({ where: `sim.state „${s.name}"`, error: 'ta nazwa jest już zmienną albo wartością liczoną', source: s.name, at: 0 }); continue; }
+      if (this.known.has(s.name)) { this.report({ where: `sim.state „${s.name}"`, error: tIn(appLang(), 'pageMotion.run.nameTaken'), source: s.name, at: 0 }); continue; }
       this.known.add(s.name);
       stateNames.push(s.name);
     }
@@ -284,7 +285,7 @@ export class Program {
     }
 
     for (const c of this.controls) {
-      if ('var' in c && !this.varBy.has(c.var)) this.report({ where: `controls (${c.type})`, error: `nie ma zmiennej „${c.var}" w "vars"`, source: c.var, at: 0 });
+      if ('var' in c && !this.varBy.has(c.var)) this.report({ where: `controls (${c.type})`, error: tIn(appLang(), 'pageMotion.run.noVar', { name: c.var }), source: c.var, at: 0 });
     }
     this.controlValues = this.controls.map((c) => (c.type === 'readout' ? this.compile(c.value, `controls (readout „${c.label}")`) : null));
     this.controlSets = this.controls.map((c) => (c.type === 'button' ? this.assigns(c.set, `controls (button „${c.label}")`) : []));
@@ -358,7 +359,7 @@ export class Program {
     const out: Assign[] = [];
     for (const [name, source] of Object.entries(set)) {
       if (!this.varBy.has(name) && !this.grows.some((g) => g.name === name) && !(this.sim?.state.some((s) => s.name === name) ?? false)) {
-        this.report({ where, error: `„${name}" nie jest zmienną ani stanem symulacji — nie da się go ustawić`, source: name, at: 0 });
+        this.report({ where, error: tIn(appLang(), 'pageMotion.run.notSettable', { name }), source: name, at: 0 });
         continue;
       }
       const expr = this.compile(source, `${where} „${name}"`, extra);
@@ -722,7 +723,7 @@ export class Program {
       this.status = 'ended';
       if (!this.exploded) {
         this.exploded = true;
-        this.report({ where: 'sim', error: 'symulacja dała nieskończoność albo NaN — sprawdź „rate" (dzielenie przez 0?)', source: '', at: 0 });
+        this.report({ where: 'sim', error: tIn(appLang(), 'pageMotion.run.infinite'), source: '', at: 0 });
       }
       return;
     }
@@ -829,7 +830,7 @@ export class Program {
 
   /** Gilt noch alles, was immer gelten muss? Sonst: was dazu gesagt wird. */
   broken(): string | null {
-    for (const k of this.keeps) if (!truth(k.when.run(this.env))) return k.say || 'Tego nie wolno w tym zadaniu.';
+    for (const k of this.keeps) if (!truth(k.when.run(this.env))) return k.say || tIn(appLang(), 'pageMotion.run.notAllowed');
     return null;
   }
 

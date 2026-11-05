@@ -15,6 +15,7 @@
 
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
 import { newId } from '../core/ids';
+import { t } from '../core/i18n';
 import { call, WorkspaceError } from '../core/session';
 import type { PhoneBookContact, PhoneSource, WrittenContact } from './native';
 import { phoneKey, phoneShown } from './numbers';
@@ -61,7 +62,14 @@ interface ContactRow {
 const contactAad = (id: string) => aad('phone', 'contact', id, Field.PhoneContact, 1);
 const base = (ctx: PhoneCtx) => `/workspace/phone/${encodeURIComponent(ctx.areaId)}`;
 
-export const PHONE_LABELS = ['komórka', 'dom', 'praca', 'główny'] as const;
+/** Die Arten einer Nummer — gespeicherte Werte (wie in vCard), nicht Anzeige; dafür `phoneLabelText`. */
+export const PHONE_LABELS = ['komórka', 'dom', 'praca', 'główny'] as const; // i18n-ignore
+
+/** Eine Art zum Lesen: die bekannten übersetzt, eigene Wörter, wie sie sind. */
+export const phoneLabelText = (label: string): string => {
+  const at = (PHONE_LABELS as readonly string[]).indexOf(label);
+  return at < 0 ? label : t(`phoneContacts.label.l${at}`);
+};
 
 const text = (v: unknown): string | null => {
   if (typeof v !== 'string') return null;
@@ -332,11 +340,11 @@ export function nameIndex(contacts: readonly Contact[]): Map<string, Contact> {
 }
 
 export function emptyContact(): ContactData {
-  return { name: '', given: null, family: null, org: null, title: null, phones: [{ number: '', label: 'komórka' }], emails: [], note: null, birthday: null, groups: [], source: { kind: 'web', key: null } };
+  return { name: '', given: null, family: null, org: null, title: null, phones: [{ number: '', label: PHONE_LABELS[0] }], emails: [], note: null, birthday: null, groups: [], source: { kind: 'web', key: null } };
 }
 
 /** Ein verständlicher Fehler beim Speichern („stale": jemand anderes war schneller). */
 export function saveProblem(e: unknown): string {
-  if (e instanceof WorkspaceError) return e.verdict === 'stale' ? 'Ktoś zmienił ten kontakt w międzyczasie — wczytaj go ponownie.' : e.message;
-  return 'Nie udało się zapisać kontaktu.';
+  if (e instanceof WorkspaceError) return e.verdict === 'stale' ? t('phoneContacts.store.stale') : e.message;
+  return t('phoneContacts.store.saveFailed');
 }

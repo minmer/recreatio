@@ -33,6 +33,9 @@ import { SlideDeck, type DeckActor, type DeckSlide } from './SlideDeck';
 import { COVER_KEY, readSlide, type SlideCompanion, type StageFrame } from './slides';
 import { deckOf, type Look } from './slideLook';
 import { BLOCKED_KIND, BLOCKED_PART_TEXT } from '../../reports/reportPath';
+import { useT } from '../../core/i18n';
+import { InLang } from '../pageLang';
+import { langOfLayout } from '../layout';
 
 /** Diese Arten brauchen Breite — ein Kalender in 52 rem ist ein gequetschter Kalender. */
 const WIDE = new Set(['calendar', 'masses', 'slots', 'chat', 'form', 'hero', 'shortinfos', 'plan', 'map', 'costs', 'people', 'gallery', 'writing', 'writings', 'quotes']);
@@ -77,6 +80,7 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
   embedded?: boolean;
   control?: Parameters<typeof SlideDeck>[0]['control'];
 }) {
+  const t = useT();
   const logic = usePageLogic();
   /* 2026-10-27 — in der Vorschau für Assistenten hält sie die Bahn (`previewControl.ts`); sonst null. */
   const preview = useContext(PreviewControlContext);
@@ -102,7 +106,7 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
   if (hasCover) {
     slides.push({
       key: COVER_KEY,
-      label: (title ?? '').trim() || 'Start',
+      label: (title ?? '').trim() || t('pagesSlides.deck.start'),
       layers: look.cover,
       content: (
         <div className="wk-deck-cover">
@@ -120,6 +124,8 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
     const slide = readSlide(part.layout);
     const canFull = def !== undefined && def.fullFor(part.config) && !hidden.has(part.id);
     return (
+      /* 2026-11-05 — ein Baustein mit eigener Sprache (`layout.lang`) spricht sie. */
+      <InLang lang={langOfLayout(part.layout)}>
       <MotionBox motions={slide.motion} bare className="wk-deck-move">
         <article className={`wk-card wk-card-${part.kind} wk-deck-card${canFull ? ' has-full' : ''}`} data-w={size.width} data-h={size.height} data-part={part.id}>
           {hidden.has(part.id) ? (
@@ -128,12 +134,12 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
             /* 0130 — nach einer Meldung gesperrt. */
             <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>
           ) : def === undefined ? (
-            <p className="wk-card-unknown">Moduł „{part.kind}" nie jest znany tej wersji strony.</p>
+            <p className="wk-card-unknown">{t('pages.parts.unknownKind', { kind: part.kind })}</p>
           ) : (
             <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size }} />
           )}
           {canFull && (
-            <button type="button" className="wk-card-full" aria-label="Pokaż na całym ekranie" title="Pełny ekran"
+            <button type="button" className="wk-card-full" aria-label={t('pages.parts.fullAria')} title={t('pages.parts.full')}
               onClick={() => setWhole(part.id)}>
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
                 <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
@@ -142,6 +148,7 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
           )}
         </article>
       </MotionBox>
+      </InLang>
     );
   };
 
@@ -180,11 +187,11 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
   });
 
   if (after !== undefined && after !== null) {
-    slides.push({ key: 'personal', label: 'Twoje sprawy', layers: [], content: <div className="wk-deck-card">{after}</div> });
+    slides.push({ key: 'personal', label: t('pagesSlides.deck.personal'), layers: [], content: <div className="wk-deck-card">{after}</div> });
   }
 
   if (!hasCover && ownSlides.length === 0 && extra !== undefined) {
-    slides.push({ key: 'extra', label: 'Start', layers: look.cover, content: <div className="wk-deck-extra">{extra}</div> });
+    slides.push({ key: 'extra', label: t('pagesSlides.deck.start'), layers: look.cover, content: <div className="wk-deck-extra">{extra}</div> });
   }
 
   /*
@@ -211,11 +218,13 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
       frames,
       bare: stage.bare,
       content: (
+        <InLang lang={langOfLayout(part.layout)}>
         <MotionBox motions={look.motion} bare className="wk-deck-move">
           {stage.bare
             ? <div className={`wk-deck-actor-bare wk-card-${part.kind}`}>{view}</div>
             : <article className={`wk-card wk-card-${part.kind} wk-deck-card`} data-w={size.width} data-h={size.height}>{view}</article>}
         </MotionBox>
+        </InLang>
       )
     }];
   });
@@ -223,18 +232,21 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
   const opened = whole === null ? undefined : shown.find((one) => one.id === whole);
   const openedDef = opened === undefined ? undefined : partOf(opened.kind);
 
+  /* 2026-11-05 — die Sprache der Seite (`look.lang`) — auch in der Vorschau des Editors. */
   return (
-    <>
+    <InLang lang={look.lang}>
       <SlideDeck slides={slides} actors={actors} theme={look.theme} deck={deck} title={title} embedded={embedded} control={control ?? preview?.deck} />
 
       {opened !== undefined && openedDef !== undefined && (
+        <InLang lang={langOfLayout(opened.layout)}>
         <Fullscreen title={text(opened.config, 'title') || openedDef.label} onClose={() => setWhole(null)}>
           <article className={`wk-card wk-card-${opened.kind} is-whole`} data-w={full.width} data-h={full.height}>
             <openedDef.View raw={opened.config} ctx={{ moduleId: opened.moduleId ?? opened.id, size: full, whole: true }} />
           </article>
         </Fullscreen>
+        </InLang>
       )}
-    </>
+    </InLang>
   );
 }
 

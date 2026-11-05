@@ -1,0 +1,111 @@
+{
+  "alone": {
+    "state": {
+      "checking": "Łączenie z kontem…",
+      "cut": "Bez internetu",
+      "none": "Bez logowania",
+      "back": "Połączono"
+    },
+    "tabs": "Bez sieci",
+    "full": "Pełna wersja",
+    "retry": "Ponów"
+  },
+  "crumbs": {
+    "label": "Gdzie jesteś",
+    "back": "Wróć",
+    "beside": "Obok „{label}\""
+  },
+  "lang": {
+    "browser": "Język: jak w przeglądarce"
+  },
+  "nav": {
+    "home": "Teraz",
+    "parish": "Parafia",
+    "studium": "Studium",
+    "settings": "Ustawienia",
+    "newCount": {
+      "one": "{count} nowy",
+      "few": "{count} nowe",
+      "many": "{count} nowych",
+      "other": "{count} nowych"
+    }
+  },
+  "phone": {
+    "label": "Na skróty"
+  },
+  "account": {
+    "named": "Konto · {login}",
+    "menu": "Konto: {login}",
+    "account": "Konto i hasło",
+    "notifications": "Powiadomienia",
+    "security": "Bezpieczeństwo i klucze",
+    "transfer": "Przeniesienie danych",
+    "workspace": "Warsztat",
+    "signOut": "Wyloguj"
+  },
+  "guard": {
+    "title": "Ten widok się zatrzymał",
+    "lede": "Coś poszło nie tak przy wyświetlaniu tej części. Spróbuj ponownie — a jeśli błąd wraca, przekaż komunikat poniżej.",
+    "reload": "Załaduj stronę od nowa"
+  },
+  "unlock": {
+    "failed": "Nie udało się otworzyć kluczy.",
+    "kept": "Klucz liczy się z hasła. Zostanie zachowany — zapieczętowany kluczem tego urządzenia, którego usługa nie zna — więc po restarcie nie zapytamy o nie ponownie.",
+    "memory": "Klucz liczy się z hasła i zostaje tylko w pamięci — po zamknięciu wszystkich kart trzeba go policzyć jeszcze raz.",
+    "busy": "Liczenie klucza…",
+    "go": "Otwórz klucze"
+  },
+  "signIn": {
+    "needBoth": "Wpisz nazwę konta i hasło.",
+    "needLogin": "Wpisz nazwę konta.",
+    "needPassword": "Wpisz hasło.",
+    "loginShort": "Nazwa konta: co najmniej 3 znaki.",
+    "passwordShort": "Hasło: co najmniej 8 znaków.",
+    "needName": "Podaj imię pierwszej osoby.",
+    "noKeys": "Klucze nie są dostępne w tej karcie.",
+    "noRole": "Konto nie ma jeszcze roli.",
+    "creating": "Zakładanie konta i kluczy…",
+    "creatingPerson": "Zakładanie pierwszej osoby…",
+    "personFailedWhy": "Konto powstało, ale nie udało się założyć osoby: {why}",
+    "personFailed": "Konto powstało, ale nie udało się założyć osoby. Dokończ to w zakładce „Role\" — kliknij „Konto\".",
+    "failed": "Nie udało się zalogować.",
+    "create": "Załóż konto",
+    "ledeIn": "Twój warsztat: grupy, formularze, kalendarz i rozmowy.",
+    "ledeNew": "Konto jest Twoje — tylko Ty masz do niego klucz.",
+    "login": "Nazwa konta",
+    "password": "Hasło",
+    "name": "Twoje imię",
+    "namePlaceholder": "np. Michał",
+    "nameHint": "Imię widzą tylko ci, którym dasz dostęp. Konto usuniesz sam w każdej chwili.",
+    "passwordStays": "Hasło nie opuszcza tego urządzenia.",
+    "keysTakeTime": "Powstają klucze szyfrujące — to potrwa kilkanaście sekund. Nie zamykaj strony.",
+    "go": "Zaloguj",
+    "noAccount": "Nie masz konta?",
+    "createIt": "Załóż je",
+    "haveAccount": "Masz już konto?"
+  },
+  "frame": {
+    "menu": "Menu",
+    "find": "Szukaj osób, formularzy, stron…",
+    "findKey": "Ctrl K",
+    "cutTitle": "Usługa nie odpowiada. Bez internetu działa nauka z tego urządzenia."
+  },
+  "search": {
+    "kind": {
+      "view": "Część warsztatu",
+      "area": "Obszar",
+      "page": "Strona",
+      "chat": "Rozmowa"
+    },
+    "hint": {
+      "notify": "dzwonek kolejność urządzenie telefon",
+      "security": "hasło klucz szyfrowanie",
+      "transfer": "stare dane migracja przeniesienie"
+    },
+    "placeholder": "Obszar, formularz, strona, rozmowa…",
+    "label": "Szukaj w warsztacie",
+    "goTo": "Przejdź do:",
+    "results": "Wyniki",
+    "nothing": "Nic nie znaleziono."
+  }
+}

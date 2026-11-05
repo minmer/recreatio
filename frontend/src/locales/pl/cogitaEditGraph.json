@@ -1,0 +1,63 @@
+{
+  "retired": {
+    "sourceTopic": "Źródło „Temat” już nie istnieje — tematów nie ma. Wybierz rodzaj, zbiór albo listę."
+  },
+  "error": {
+    "upstream": "Poprzedni krok się nie udał.",
+    "noStep": "Nie ma takiego kroku.",
+    "noPort": "Nie ma takiego wejścia albo wyjścia.",
+    "mismatch": "To nie pasuje: „{out}\" nie daje tego, czego potrzebuje „{into}\".",
+    "wouldCycle": "Tak powstałoby koło — krok zależałby od samego siebie.",
+    "selfLoop": "Krok nie może prowadzić do samego siebie.",
+    "unknownKind": "Nieznany rodzaj kroku: „{type}\".",
+    "edgeNoInput": "Połączenie prowadzi do wejścia, którego nie ma.",
+    "edgeMismatch": "Połączenie „{out}\" → „{into}\" nie pasuje.",
+    "oneEdge": "Wejście „{into}\" przyjmuje jedno połączenie.",
+    "cycle": "Graf ma koło.",
+    "stepFailed": "Ten krok się nie udał."
+  },
+  "json": {
+    "notJson": "to nie jest JSON",
+    "invalid": "To jeszcze nie jest poprawny JSON: {error}"
+  },
+  "thisBase": "ta baza",
+  "paletteHint": "Kliknij, żeby dodać krok; połącz wyjście (z prawej) z wejściem (z lewej). Usuń zaznaczone klawiszem Delete.",
+  "removeStep": "usuń krok",
+  "flowStart": "początek przebiegu",
+  "startHere": "Zacznij tutaj",
+  "linksNoDrag": "Połączenia bez przeciągania",
+  "cyclesAllowed": "W przebiegu wolno wracać (np. do wyboru rozdziałów).",
+  "settingsJson": "Ustawienia jako JSON",
+  "source": {
+    "anywhere": "— zewsząd",
+    "thisBase": "ta baza wiedzy",
+    "libraryMark": " (biblioteka)"
+  },
+  "flowFallback": "Przebieg",
+  "viewFallback": "Widok",
+  "rule": {
+    "compare": "Porównanie",
+    "anchors": "dopasowanie (literówki)",
+    "bidirectional": "z obu stron",
+    "prefix": "od początku",
+    "threshold": "Próg zaliczenia (0–1)",
+    "similar": "podobne litery (ą/a, ł/l) liczą się w połowie",
+    "punctuation": "bez interpunkcji",
+    "caseSensitive": "wielkość liter ma znaczenie",
+    "spaces": "spacje się nie liczą",
+    "scripts": "indeksy (₂, ²) jak zwykłe cyfry"
+  },
+  "options": {
+    "legend": "Możliwości (każda ma swoje wyjście)",
+    "placeholder": "możliwość {n}",
+    "onlyWhen": "Tylko gdy:",
+    "afterChoice": "Po wyborze:",
+    "add": "+ możliwość"
+  },
+  "media": {
+    "noKey": "Nie masz klucza tego obszaru.",
+    "uploadFailed": "Nie udało się wgrać pliku.",
+    "remove": "usuń plik",
+    "uploading": "Wgrywanie…"
+  }
+}

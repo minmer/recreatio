@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { FlowContent } from '../../cogita/FlowPlayer';
+import { useT } from '../../core/i18n';
 import { answeredCards, type Learner } from '../../cogita/learn';
 import { gaugeFromMarks } from '../../cogita/knowing';
 import { words } from '../../cogita/lang';
@@ -54,6 +55,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
   startAt?: { readonly scene: string; readonly at: number } | null;
 }) {
   /* 2026-11-03 (G) — welche Szene gerade steht, und ein Griff, um zu einer zu fahren (die Ścieżka führt dorthin). */
+  const t = useT();
   const [active, setActive] = useState(0);
   const control = useRef<DriveControl | null>(null);
   const [pathOpen, setPathOpen] = useState(() => { try { return sessionStorage.getItem(`cg-show-path-open:${path}`) !== '0'; } catch { return true; } });
@@ -69,7 +71,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
     setFailed(null);
     loadStory(path).then(
       (found) => { if (alive) setLoaded(found); },
-      (e: unknown) => { if (alive) { setFailed(e instanceof Error ? e.message : 'Nie udało się wczytać prezentacji.'); setLoaded(null); } });
+      (e: unknown) => { if (alive) { setFailed(e instanceof Error ? e.message : t('pagePresentation.storyPage.loadFailed')); setLoaded(null); } });
     return () => { alive = false; };
   }, [path]);
 
@@ -115,7 +117,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
         <div className="cg-flow-step">
           <h2>{name}</h2>
           <p className="cg-muted">{failed}</p>
-          {onClose !== undefined && <div className="wk-actions"><button type="button" className="wk-btn" onClick={onClose}>Wróć</button></div>}
+          {onClose !== undefined && <div className="wk-actions"><button type="button" className="wk-btn" onClick={onClose}>{t('common.back')}</button></div>}
         </div>
       </section>
     );
@@ -163,7 +165,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
       <div className="cg-row-between">
         <strong>{name}</strong>
         <span className="cg-row">
-          {page.editable && <a className="wk-link-btn" href={viewPath('pages', ...pageSteps(loaded.path))}>edytuj w prezentacji</a>}
+          {page.editable && <a className="wk-link-btn" href={viewPath('pages', ...pageSteps(loaded.path))}>{t('pagePresentation.nauka.edit')}</a>}
           {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>{W.close}</button>}
         </span>
       </div>

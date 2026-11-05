@@ -157,6 +157,7 @@ const ENTRY_KEYS: Readonly<Record<string, string>> = {
   module: 'Moduł, który to miejsce pokazuje (ten sam moduł może stać na kilku stronach). Przy nowym miejscu pominięty — powstaje nowy moduł; przy miejscu z "id" — zostaje dotychczasowy',
   name: 'Nazwa modułu na liście modułów (opcjonalnie)',
   kind: 'Rodzaj modułu — lista niżej',
+  lang: 'Język modułu: "en", "de" albo "pl" — napisy aplikacji w module (przyciski, podpowiedzi) są w tym języku. Pominięty albo null — język strony',
   slide: 'Jak wygląda jako slajd: { "label": nazwa w menu slajdów (z niej kotwica "#nazwa"), "layers": [warstwy tła], "transition", "enter", "colors", "stage" } — szczegóły niżej (Slajd modułu)',
   show: 'Gdzie stoi w prezentacji ("mode": "presentation"): { "places": { "<klucz sceny>": miejsce }, "skin", "type", … } — szczegóły niżej (Prezentacja). null — zdejmuje moduł z prezentacji',
   size: 'Rozmiar, gdy nie podajesz "layout": { "colSpan": 2|3|4|6, "rowSpan": 1|3|5 } — 1 pasek, 3 blok, 5 wysoki. Miejsce: pierwsze wolne',
@@ -284,6 +285,7 @@ const PAGE_KEYS = (): string => `  "format" — "${PAGE_FORMAT}"
   "title" — tytuł strony
   "lead" — tekst pod tytułem (albo null)
   "mode" — "page": moduły na siatce; "slides": każdy moduł to osobny slajd; "presentation": sceny z modułami w dowolnym miejscu (niżej: Prezentacja)
+  "lang" — język strony: "en", "de" albo "pl" — każdy odwiedzający widzi napisy aplikacji na tej stronie w tym języku; pominięty albo null — każdy w swoim języku (treść pisze autor, nie jest tłumaczona)
   "theme" — kolory: null (automatyczne — jak w aplikacji) albo { "mode": "dark"|"light", "accent", "ink", "ground", "muted" } (kolory "#rrggbb"); z "night": { "accent", "ink", "ground", "muted" } strona idzie za urządzeniem — jasne kolory w dzień, te w nocy
   "cover" — tło slajdu tytułowego: lista warstw (niżej)
   "show" — sceny prezentacji (niżej: Prezentacja)

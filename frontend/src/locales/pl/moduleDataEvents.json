@@ -1,0 +1,132 @@
+{
+  "kind": {
+    "event": {
+      "label": "Wydarzenia",
+      "none": "Na razie nie ma tu wydarzeń.",
+      "noneEnded": "Nie było tu jeszcze wydarzeń.",
+      "done": "zakończone",
+      "showsStrip": "Najbliższe wydarzenie w jednym wierszu.",
+      "showsGrid": "Wszystkie wydarzenia jako siatka kart ze zdjęciami i opisem.",
+      "showsList": "Wszystkie wydarzenia ze zdjęciami i opisem, jedna karta pod drugą.",
+      "showsRow": "Do czterech najbliższych w rzędzie — data, miejsce, kategoria.",
+      "showsShort": "Do czterech najbliższych krótko — data i miejsce."
+    },
+    "group": {
+      "label": "Grupy",
+      "none": "Na razie nie ma tu grup.",
+      "noneEnded": "Nie ma tu grup w archiwum.",
+      "done": "w archiwum",
+      "showsStrip": "Pierwsza grupa w jednym wierszu.",
+      "showsGrid": "Wszystkie grupy jako siatka kart ze zdjęciami i opisem.",
+      "showsList": "Wszystkie grupy ze zdjęciami i opisem, jedna karta pod drugą.",
+      "showsRow": "Do czterech grup w rzędzie — nazwa, termin, kategoria.",
+      "showsShort": "Do czterech grup krótko — nazwa i termin."
+    },
+    "organisation": {
+      "label": "Parafie i organizacje",
+      "none": "Na razie nie ma tu parafii ani organizacji.",
+      "noneEnded": "Nie ma tu parafii ani organizacji w archiwum.",
+      "done": "w archiwum",
+      "showsStrip": "Pierwsza parafia lub organizacja w jednym wierszu.",
+      "showsGrid": "Wszystkie parafie i organizacje jako siatka kart ze zdjęciami i opisem.",
+      "showsList": "Wszystkie parafie i organizacje ze zdjęciami i opisem, jedna karta pod drugą.",
+      "showsRow": "Do czterech parafii lub organizacji w rzędzie — nazwa, termin, kategoria.",
+      "showsShort": "Do czterech parafii lub organizacji krótko — nazwa i termin."
+    },
+    "course": {
+      "label": "Kursy",
+      "none": "Na razie nie ma tu kursów.",
+      "noneEnded": "Nie ma tu kursów w archiwum.",
+      "done": "w archiwum",
+      "showsStrip": "Pierwszy kurs w jednym wierszu.",
+      "showsGrid": "Wszystkie kursy jako siatka kart ze zdjęciami i opisem.",
+      "showsList": "Wszystkie kursy ze zdjęciami i opisem, jedna karta pod drugą.",
+      "showsRow": "Do czterech kursów w rzędzie — nazwa, termin, kategoria.",
+      "showsShort": "Do czterech kursów krótko — nazwa i termin."
+    },
+    "school": {
+      "label": "Szkoły",
+      "none": "Na razie nie ma tu szkół.",
+      "noneEnded": "Nie ma tu szkół w archiwum.",
+      "done": "w archiwum",
+      "showsStrip": "Pierwsza szkoła w jednym wierszu.",
+      "showsGrid": "Wszystkie szkoły jako siatka kart ze zdjęciami i opisem.",
+      "showsList": "Wszystkie szkoły ze zdjęciami i opisem, jedna karta pod drugą.",
+      "showsRow": "Do czterech szkół w rzędzie — nazwa, kategoria.",
+      "showsShort": "Do czterech szkół krótko — nazwa."
+    },
+    "class": {
+      "label": "Klasy",
+      "none": "Na razie nie ma tu klas.",
+      "noneEnded": "Nie ma tu klas w archiwum.",
+      "done": "w archiwum",
+      "showsStrip": "Pierwsza klasa w jednym wierszu.",
+      "showsGrid": "Wszystkie klasy jako siatka kart ze zdjęciami i opisem.",
+      "showsList": "Wszystkie klasy ze zdjęciami i opisem, jedna karta pod drugą.",
+      "showsRow": "Do czterech klas w rzędzie — nazwa, kategoria.",
+      "showsShort": "Do czterech klas krótko — nazwa."
+    }
+  },
+  "when": {
+    "event": {
+      "coming": "Nadchodzące i trwające",
+      "past": "Minione",
+      "all": "Wszystkie"
+    },
+    "kept": {
+      "coming": "Aktywne",
+      "past": "W archiwum",
+      "all": "Wszystkie"
+    }
+  },
+  "cancelled": "odwołane",
+  "open": "Zapisy otwarte",
+  "after": "Po wydarzeniu →",
+  "failed": "Nie udało się wczytać listy.",
+  "more": "I jeszcze {count} — ",
+  "showAll": "pokaż wszystkie",
+  "fullList": "pełna lista w pełnym ekranie",
+  "type": "Rodzaj",
+  "fromAreas": "{label} z obszarów",
+  "deep": "także z obszarów w nich",
+  "kindOnly": "Tylko kategoria (opcjonalnie)",
+  "kindPh": "np. rekolekcje",
+  "which": "Które",
+  "limit": "Najwyżej",
+  "noAreasNote": "Bez wybranych obszarów lista pokaże tylko te, które poprosiły o miejsce i zostały przyjęte. ",
+  "askNote": "Inne obszary mogą poprosić o miejsce na tej liście — prośby trafiają do „Sprawy” osoby, która prowadzi stronę.",
+  "list": {
+    "use": "Wydarzenia, grupy, parafie albo kursy wybranych obszarów jako karty (data, miejsce, zdjęcie, „Zapisy otwarte”); inne mogą poprosić o miejsce na liście.",
+    "exTitle": "Wydarzenia w parafii",
+    "exAreas": "<id-obszaru-1>,<id-obszaru-2>",
+    "exKind": "rekolekcje",
+    "sTitle": "nagłówek listy; puste — nazwa rodzaju („Wydarzenia”, „Grupy” …)",
+    "sType": "co lista pokazuje: \"event\" — wydarzenia (zwykle), \"group\" — grupy, \"organisation\" — parafie i organizacje, \"course\" — kursy",
+    "sAreas": "obszary, z których lista bierze karty (identyfikatory) — najprościej wybrać w edytorze; puste — tylko karty przyjęte na prośbę",
+    "sDeep": "\"yes\" — także obszary w nich (zwykle), \"no\" — tylko te obszary",
+    "sKind": "tylko karty tej kategorii (np. \"rekolekcje\"); puste — wszystkie",
+    "sWhen": "\"coming\" — nadchodzące i trwające, u grup, parafii i kursów: aktywne (zwykle); \"past\" — minione albo w archiwum; \"all\" — wszystkie",
+    "sLimit": "najwyżej tyle kart (1–200); puste — 24"
+  },
+  "one": {
+    "label": "Wizytówka",
+    "use": "Wizytówka jednego obszaru — wydarzenia, grupy, parafii albo kursu: zdjęcie, nazwa, opis, termin, „Zapisz się”, po zakończeniu „Po wydarzeniu”; wybrana tutaj albo podana w adresie strony (?wydarzenie=…).",
+    "exTitle": "Najbliższe rekolekcje",
+    "exArea": "<id-obszaru>",
+    "sTitle": "nagłówek nad kartą; puste — bez nagłówka",
+    "sArea": "obszar, którego wizytówkę pokazać (identyfikator) — najprościej wybrać w edytorze; puste — obszar z adresu strony (?wydarzenie=<id>)",
+    "empty": "Tu pojawi się wizytówka — wybierz obszar w ustawieniach modułu albo podaj go w adresie (?wydarzenie=…).",
+    "none": "Ten obszar nie ma wizytówki albo nie jest ona publiczna.",
+    "organiser": "Organizuje: {name}",
+    "join": "Zapisz się",
+    "heading": "Nagłówek (opcjonalnie)",
+    "headingPh": "np. Najbliższe rekolekcje",
+    "area": "Wizytówka obszaru",
+    "fromAddress": "— z adresu strony (?wydarzenie=…) —",
+    "note": "Pusty wybór: strona pokaże wizytówkę obszaru podanego w adresie, np. #/strona?wydarzenie=<identyfikator obszaru> — jedna strona dla wielu.",
+    "showsStrip": "Nazwa, data, rodzaj i „Zapisy otwarte” w jednym wierszu.",
+    "showsTall": "Duże zdjęcie, nazwa, data, miejsce, opis, organizator, „Zapisz się” (po zakończeniu „Po wydarzeniu”) i kto odpowiada za treść.",
+    "showsSide": "Zdjęcie obok: nazwa, data, miejsce, opis i „Zapisz się”.",
+    "showsBlock": "Zdjęcie, nazwa, data, miejsce i „Zapisz się”."
+  }
+}

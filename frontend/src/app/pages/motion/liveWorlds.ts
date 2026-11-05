@@ -29,19 +29,25 @@
  * alles zu ändern).
  */
 
+import { t } from '../../core/i18n';
 import type { LiveExample } from './liveExamples';
 
+/** Ein Beispiel, dessen Texte erst beim Lesen geholt werden — in der Sprache der Anwendung zu diesem Zeitpunkt. */
+export function lazyExample(key: string, make: () => Omit<LiveExample, 'key'>): LiveExample {
+  return { key, get title() { return make().title; }, get says() { return make().says; }, get drawing() { return make().drawing; } };
+}
+
 /** Die Belke: Länge, Drehpunkt, eigene Masse; wo sie an der oberen hängt (Leine) — ganz oben: wo ihr Ständer steht. */
-const BEAM = {
+const beam = () => ({
   name: 'belka',
-  label: 'Belka',
+  label: t('pageMotionExamples.balance.beam.label'),
   props: [
-    { name: 'length', label: 'Długość', value: 4, min: 1, max: 10, step: 0.5, unit: 'm' },
-    { name: 'pivot', label: 'Oś obrotu (od lewego końca)', value: 2, min: 0, max: '=length', step: 0.25, unit: 'm' },
-    { name: 'bm', label: 'Masa belki', value: 0, min: 0, max: 50, step: 1, unit: 'kg' },
-    { name: 'pos', label: 'Miejsce na belce wyżej', value: 1, min: 0, max: '=parent.length', step: 0.25, unit: 'm', apart: 0.25, when: '!isroot', new: 'parent.pivot + 1' },
-    { name: 'drop', label: 'Długość linki', value: 1.2, min: 0.3, max: 3, step: 0.1, unit: 'm', when: '!isroot', quiet: true },
-    { name: 'sx', label: 'Położenie zawieszenia', value: 0, min: -40, max: 40, step: 0.5, unit: 'm', when: 'isroot', new: 'max(things, bx1) + pivot + 0.5', quiet: true }
+    { name: 'length', label: t('pageMotionExamples.balance.beam.length'), value: 4, min: 1, max: 10, step: 0.5, unit: 'm' },
+    { name: 'pivot', label: t('pageMotionExamples.balance.beam.pivot'), value: 2, min: 0, max: '=length', step: 0.25, unit: 'm' },
+    { name: 'bm', label: t('pageMotionExamples.balance.beam.mass'), value: 0, min: 0, max: 50, step: 1, unit: 'kg' },
+    { name: 'pos', label: t('pageMotionExamples.balance.beam.pos'), value: 1, min: 0, max: '=parent.length', step: 0.25, unit: 'm', apart: 0.25, when: '!isroot', new: 'parent.pivot + 1' },
+    { name: 'drop', label: t('pageMotionExamples.balance.drop'), value: 1.2, min: 0.3, max: 3, step: 0.1, unit: 'm', when: '!isroot', quiet: true },
+    { name: 'sx', label: t('pageMotionExamples.balance.beam.sx'), value: 0, min: -40, max: 40, step: 0.5, unit: 'm', when: 'isroot', new: 'max(things, bx1) + pivot + 0.5', quiet: true }
   ],
   let: [
     { name: 'total', value: 'bm + sum(children, total)' },
@@ -91,9 +97,9 @@ const BEAM = {
   can: { edit: ['length', 'pivot', 'bm', 'pos', 'drop', 'sx'], add: ['ciezarek', 'belka'], remove: true, copy: true },
   brief: "{length} m{bm > 0 ? ', ' + bm + ' kg' : ''}",
   readouts: [
-    { label: 'Suma momentów', value: 'mom', unit: 'kg·m', digits: 2, show: '!held' },
-    { label: 'Masa z tym, co wisi', value: 'total', unit: 'kg', digits: 1 },
-    { label: 'Pochylenie', value: 'deg(angle)', unit: '°', digits: 1 }
+    { label: t('pageMotionExamples.balance.beam.moments'), value: 'mom', unit: 'kg·m', digits: 2, show: '!held' },
+    { label: t('pageMotionExamples.balance.beam.total'), value: 'total', unit: 'kg', digits: 1 },
+    { label: t('pageMotionExamples.balance.beam.tilt'), value: 'deg(angle)', unit: '°', digits: 1 }
   ],
   children: 8,
   shapes: [
@@ -120,18 +126,18 @@ const BEAM = {
     /* Die Achse lässt sich verschieben: Pfeile unter ihr, entlang der Belke. */
     { type: 'arrow', x: '=x + 0.34*sa - 0.08*ca', y: '=y - 0.34*ca - 0.08*sa', x2: '=x + 0.34*sa - 0.42*ca', y2: '=y - 0.34*ca - 0.42*sa', head: 5, stroke: 'accent', width: 1.6, show: 'mixed && can.pivot' },
     { type: 'arrow', x: '=x + 0.34*sa + 0.08*ca', y: '=y - 0.34*ca + 0.08*sa', x2: '=x + 0.34*sa + 0.42*ca', y2: '=y - 0.34*ca + 0.42*sa', head: 5, stroke: 'accent', width: 1.6, show: 'mixed && can.pivot' },
-    { type: 'text', x: '=x', y: '=y + 0.34', text: 'ΣM = {fmt(mom, 2)} kg·m', size: 11, weight: 600, fill: "=ok ? 'ok' : 'danger'", stroke: 'ground', width: 3.5, show: 'edu && !held' }
+    { type: 'text', x: '=x', y: '=y + 0.34', text: 'ΣM = {fmt(mom, 2)} kg·m', size: 11, weight: 600, fill: "=ok ? 'ok' : 'danger'", stroke: 'ground', width: 3.5, show: 'edu && !held' } // i18n-ignore
   ]
-};
+});
 
 /** Ein Gewicht: Masse, wo es an der Belke hängt, wie lang seine Leine ist. */
-const WEIGHT = {
+const weight = () => ({
   name: 'ciezarek',
-  label: 'Ciężarek',
+  label: t('pageMotionExamples.balance.weight.label'),
   props: [
-    { name: 'm', label: 'Masa', value: 5, min: 1, max: 100, step: 1, unit: 'kg' },
-    { name: 'pos', label: 'Miejsce na belce', value: 1, min: 0, max: '=parent.length', step: 0.25, unit: 'm', apart: 0.25, new: 'parent.pivot - 1' },
-    { name: 'drop', label: 'Długość linki', value: 0.6, min: 0.2, max: 3, step: 0.1, unit: 'm', quiet: true }
+    { name: 'm', label: t('pageMotionExamples.balance.weight.mass'), value: 5, min: 1, max: 100, step: 1, unit: 'kg' },
+    { name: 'pos', label: t('pageMotionExamples.balance.weight.pos'), value: 1, min: 0, max: '=parent.length', step: 0.25, unit: 'm', apart: 0.25, new: 'parent.pivot - 1' },
+    { name: 'drop', label: t('pageMotionExamples.balance.drop'), value: 0.6, min: 0.2, max: 3, step: 0.1, unit: 'm', quiet: true }
   ],
   let: [
     { name: 'total', value: 'm' },
@@ -152,8 +158,8 @@ const WEIGHT = {
   can: { edit: ['m', 'pos', 'drop'], remove: true, copy: true },
   brief: '{m} kg',
   readouts: [
-    { label: 'Moment względem osi', value: 'total*arm', unit: 'kg·m', digits: 2, show: '!held' },
-    { label: 'Ramię', value: 'abs(arm)', unit: 'm', digits: 2 }
+    { label: t('pageMotionExamples.balance.weight.moment'), value: 'total*arm', unit: 'kg·m', digits: 2, show: '!held' },
+    { label: t('pageMotionExamples.balance.weight.arm'), value: 'abs(arm)', unit: 'm', digits: 2 }
   ],
   children: 0,
   shapes: [
@@ -165,9 +171,9 @@ const WEIGHT = {
     { type: 'arrow', x: '=x - (r + 0.06)*parent.ca', y: '=y - (r + 0.06)*parent.sa', x2: '=x - (r + 0.36)*parent.ca', y2: '=y - (r + 0.36)*parent.sa', head: 5, stroke: 'accent', width: 1.6, show: 'mixed && can.pos' },
     { type: 'arrow', x: '=x + (r + 0.06)*parent.ca', y: '=y + (r + 0.06)*parent.sa', x2: '=x + (r + 0.36)*parent.ca', y2: '=y + (r + 0.36)*parent.sa', head: 5, stroke: 'accent', width: 1.6, show: 'mixed && can.pos' },
     { type: 'text', x: '=x', y: '=y - r - 0.18', text: "{mixed && can.m ? '± ' : ''}{fmt(m, 0)} kg", size: 11, weight: 600, fill: "=mixed && can.m ? 'accent' : 'ink'", stroke: 'ground', width: 3 },
-    { type: 'text', x: '=x', y: '=y - r - 0.4', text: 'M = {fmt(total*arm, 1)}', size: 9.5, fill: 'muted', stroke: 'ground', width: 3, show: 'edu && !held' }
+    { type: 'text', x: '=x', y: '=y - r - 0.4', text: 'M = {fmt(total*arm, 1)}', size: 9.5, fill: 'muted', stroke: 'ground', width: 3, show: 'edu && !held' } // i18n-ignore
   ]
-};
+});
 
 export interface BalanceLevel {
   readonly alt: string;
@@ -196,15 +202,15 @@ export function balanceDrawing(level: BalanceLevel): Record<string, unknown> {
     alt: level.alt,
     size: [420, 280],
     vars: [
-      { name: 'g', value: 9.81, unit: 'm/s²', label: 'Grawitacja' },
-      { name: 'tol', value: 0.05, unit: 'kg·m', label: 'Tolerancja momentu' },
-      { name: 'h', value: 0.2, unit: 'm', label: 'Drążek pod osią' },
-      { name: 'zeta', value: 0.5, label: 'Tłumienie' },
-      { name: 'tilt', value: 0.35, unit: 'rad', label: 'Największe pochylenie' },
-      { name: 'edu', value: 1, min: 0, max: 1, step: 1, label: 'Momenty' },
-      { name: 'ruler', value: 1, min: 0, max: 1, step: 1, label: 'Linijka' },
+      { name: 'g', value: 9.81, unit: 'm/s²', label: t('pageMotionExamples.gravity') },
+      { name: 'tol', value: 0.05, unit: 'kg·m', label: t('pageMotionExamples.balance.tol') },
+      { name: 'h', value: 0.2, unit: 'm', label: t('pageMotionExamples.balance.h') },
+      { name: 'zeta', value: 0.5, label: t('pageMotionExamples.balance.zeta') },
+      { name: 'tilt', value: 0.35, unit: 'rad', label: t('pageMotionExamples.balance.maxTilt') },
+      { name: 'edu', value: 1, min: 0, max: 1, step: 1, label: t('pageMotionExamples.balance.moments') },
+      { name: 'ruler', value: 1, min: 0, max: 1, step: 1, label: t('pageMotionExamples.balance.ruler') },
       { name: 'solved', value: 0, min: 0, max: 1, step: 1 },
-      { name: 'hang', value: 1, unit: 'm', label: 'Linka do sufitu' },
+      { name: 'hang', value: 1, unit: 'm', label: t('pageMotionExamples.balance.hang') },
       ...(level.vars ?? [])
     ],
     let: [
@@ -226,28 +232,28 @@ export function balanceDrawing(level: BalanceLevel): Record<string, unknown> {
     ...(level.predict === undefined ? {} : { predict: level.predict }),
     ...(level.task === undefined ? {} : { task: level.task }),
     controls: [
-      { type: 'toggle', var: 'edu', label: 'Momenty' },
-      { type: 'toggle', var: 'ruler', label: 'Linijka' },
-      { type: 'readout', label: 'Przeważa belek', value: 'bad', digits: 0, show: '!held' },
+      { type: 'toggle', var: 'edu', label: t('pageMotionExamples.balance.moments') },
+      { type: 'toggle', var: 'ruler', label: t('pageMotionExamples.balance.ruler') },
+      { type: 'readout', label: t('pageMotionExamples.balance.bad'), value: 'bad', digits: 0, show: '!held' },
       ...(level.controls ?? [])
     ],
     rules: [
       {
         when: 'nthings > 0 && all(belka, ok && still)', for: 1, goal: true, set: { solved: 1 },
-        say: `${level.solved ?? 'Równowaga! Na każdej belce masa × ramię po lewej równa się masie × ramię po prawej.'}{tries == 1 ? ' Przewidziane za pierwszym razem!' : ''}`
+        say: `${level.solved ?? t('pageMotionExamples.balance.solved')}{tries == 1 ? ' ${t('pageMotionExamples.balance.firstTry')}' : ''}`
       },
       /* Nach einer Prüfung (oder einer Änderung) — erst, wenn man eine Weile zugesehen hat. */
-      { when: '(edits > 0 || tries > 0) && bad > 0', for: 1.5, say: 'Przeważa jeszcze belek: {bad}. Porównaj masa × ramię po obu stronach osi.', mood: 'miss' },
+      { when: '(edits > 0 || tries > 0) && bad > 0', for: 1.5, say: t('pageMotionExamples.balance.stillBad'), mood: 'miss' },
       ...(level.rules ?? [])
     ],
     world: {
-      kinds: [BEAM, WEIGHT],
+      kinds: [beam(), weight()],
       things: level.things,
       allow: level.allow ?? { roots: ['belka'] },
       limits: { things: 40, depth: 6 },
       keep: level.keep ?? [],
       save: level.save ?? false,
-      hint: level.hint ?? 'Dotknij belki albo ciężarka, żeby go wybrać; przeciągnij, żeby przesunąć.'
+      hint: level.hint ?? t('pageMotionExamples.balance.hint')
     },
     elements: [
       {
@@ -265,36 +271,34 @@ export function balanceDrawing(level: BalanceLevel): Record<string, unknown> {
 }
 
 /** Die Werkstatt: alles erlaubt — Belken und Gewichte anhängen, verschieben, ändern, kopieren, speichern. */
-export const BALANCE: LiveExample = {
-  key: 'waga',
-  title: 'Waga — warsztat',
-  says: 'Świat rzeczy: belki i ciężarki, które się dowiesza, przesuwa i zmienia; każda belka liczy swój moment i przechyla się, póki nie zrównoważysz.',
+export const BALANCE: LiveExample = lazyExample('waga', () => ({
+  title: t('pageMotionExamples.balance.title'),
+  says: t('pageMotionExamples.balance.says'),
   drawing: balanceDrawing({
-    alt: 'Waga z belek i ciężarków — warsztat',
+    alt: t('pageMotionExamples.balance.alt'),
     save: true,
     /* Swobodnie — a kto chce najpierw przewidzieć, zatrzymuje świat przyciskiem „Przewiduj”. */
-    predict: { start: false, say: 'Świat stoi: zbuduj albo zmień, co chcesz, i przewiduj, co się stanie — potem „Sprawdź”.' },
+    predict: { start: false, say: t('pageMotionExamples.balance.predict') },
     allow: { roots: ['belka'] },
-    hint: 'Dotknij belki, żeby dowiesić ciężarek albo kolejną belkę; ciężarek przeciągnij wzdłuż belki. Cofnij: Ctrl+Z.',
+    hint: t('pageMotionExamples.balance.workshopHint'),
     things: [
       { id: 'b1', kind: 'belka', length: 6, pivot: 3, sx: 0 },
       { id: 'w1', kind: 'ciezarek', parent: 'b1', m: 4, pos: 1.5 },
       { id: 'w2', kind: 'ciezarek', parent: 'b1', m: 2, pos: 5 }
     ]
   })
-};
+}));
 
 /** Zahnräder: dasselbe Wort `world` — jedes Rad greift in sein Elternrad, dreht sich andersherum und um so schneller, je kleiner es ist. */
-export const GEARS: LiveExample = {
-  key: 'przekladnia',
-  title: 'Przekładnia zębata',
-  says: 'Koła zębate jako świat rzeczy: każde koło zazębia się z kołem, na którym wisi; liczba zębów decyduje o obrotach. Dowieś koło, zmień zęby, przeciągnij je wokół sąsiada.',
+export const GEARS: LiveExample = lazyExample('przekladnia', () => ({
+  title: t('pageMotionExamples.gears.title'),
+  says: t('pageMotionExamples.gears.says'),
   drawing: {
-    alt: 'Przekładnia zębata: koło napędowe i koła, które się z nim zazębiają',
+    alt: t('pageMotionExamples.gears.alt'),
     size: [480, 320],
     vars: [
-      { name: 'motor', value: 20, min: -60, max: 60, step: 5, unit: 'obr/min', label: 'Silnik' },
-      { name: 'mod', value: 0.1, unit: 'm', label: 'Moduł (m na ząb)' }
+      { name: 'motor', value: 20, min: -60, max: 60, step: 5, unit: t('pageMotionExamples.gears.rpm'), label: t('pageMotionExamples.gears.motor') },
+      { name: 'mod', value: 0.1, unit: 'm', label: t('pageMotionExamples.gears.mod') }
     ],
     let: [
       { name: 'vx0', value: 'min(things, x - r) - 0.4' },
@@ -308,15 +312,15 @@ export const GEARS: LiveExample = {
     sim: { dt: 0.01, auto: true, max: 3600 },
     controls: [
       { type: 'slider', var: 'motor' },
-      { type: 'readout', label: 'Najszybsze koło', value: 'max(kolo, abs(rpm))', unit: 'obr/min', digits: 1 }
+      { type: 'readout', label: t('pageMotionExamples.gears.fastest'), value: 'max(kolo, abs(rpm))', unit: t('pageMotionExamples.gears.rpm'), digits: 1 }
     ],
     world: {
       kinds: [{
         name: 'kolo',
-        label: 'Koło',
+        label: t('pageMotionExamples.gears.gear'),
         props: [
-          { name: 'teeth', label: 'Zęby', value: 20, min: 8, max: 48, step: 1 },
-          { name: 'dir', label: 'Kierunek od sąsiada', value: 0, min: -180, max: 180, step: 5, unit: '°', when: '!isroot' },
+          { name: 'teeth', label: t('pageMotionExamples.gears.teeth'), value: 20, min: 8, max: 48, step: 1 },
+          { name: 'dir', label: t('pageMotionExamples.gears.dir'), value: 0, min: -180, max: 180, step: 5, unit: '°', when: '!isroot' },
           { name: 'cx', label: 'x', value: 0, min: -10, max: 10, step: 0.1, unit: 'm', when: 'isroot' },
           { name: 'cy', label: 'y', value: 0, min: -10, max: 10, step: 0.1, unit: 'm', when: 'isroot' }
         ],
@@ -333,8 +337,8 @@ export const GEARS: LiveExample = {
         drag: { dir: 'deg(atan2(py - parent.y, px - parent.x))', cx: 'px', cy: 'py' },
         can: { edit: ['teeth', 'dir'], add: ['kolo'], remove: true },
         readouts: [
-          { label: 'Obroty', value: 'rpm', unit: 'obr/min', digits: 1 },
-          { label: 'Przełożenie względem silnika', value: 'omega/root.omega', digits: 3 }
+          { label: t('pageMotionExamples.gears.speed'), value: 'rpm', unit: t('pageMotionExamples.gears.rpm'), digits: 1 },
+          { label: t('pageMotionExamples.gears.ratio'), value: 'omega/root.omega', digits: 3 }
         ],
         children: 4,
         shapes: [
@@ -351,7 +355,7 @@ export const GEARS: LiveExample = {
             ]
           },
           { type: 'circle', x: '=x', y: '=y', r: 4, fill: 'ink' },
-          { type: 'text', x: '=x', y: '=y + r + 0.25', text: '{teeth} z · {fmt(rpm, 1)} obr/min', size: 10, fill: 'muted' }
+          { type: 'text', x: '=x', y: '=y + r + 0.25', text: t('pageMotionExamples.gears.teethText'), size: 10, fill: 'muted' }
         ]
       }],
       things: [
@@ -360,7 +364,7 @@ export const GEARS: LiveExample = {
         { id: 'k3', kind: 'kolo', parent: 'k2', teeth: 36, dir: -50 }
       ],
       allow: { copy: false },
-      hint: 'Dotknij koła: zmień liczbę zębów albo dowieś następne. Koło przeciągnij wokół sąsiada.'
+      hint: t('pageMotionExamples.gears.hint')
     },
     elements: [
       {
@@ -370,4 +374,4 @@ export const GEARS: LiveExample = {
       }
     ]
   }
-};
+}));

@@ -24,12 +24,14 @@ import { Calendar } from './CalendarApp';
 import { accessWords, heldLinkKeys, type HeldInfo } from '../links/linkAccess';
 import { useLinkMe } from '../links/linkMe';
 import { Loading } from '../ui/Loading';
+import { rich, useT } from '../core/i18n';
 
 export function LinkCalendar({ fallback, onSignIn }: {
   /** Was dasteht, wenn dieser Browser keinen Link hält, der einen Kalender sieht — die Anmeldung. */
   fallback: ReactNode;
   onSignIn: () => void;
 }) {
+  const t = useT();
   const me = useLinkMe(true);
   const [found, setFound] = useState<{ ids: readonly string[]; writes: boolean; links: readonly HeldInfo[] } | null>(null);
 
@@ -44,16 +46,16 @@ export function LinkCalendar({ fallback, onSignIn }: {
     return () => { alive = false; };
   }, [me]);
 
-  if (me === undefined || (me !== null && found === null)) return <Loading label="Wczytywanie…" />;
+  if (me === undefined || (me !== null && found === null)) return <Loading label={t('common.loading')} />;
   if (me === null || found === null || found.ids.length === 0) return <>{fallback}</>;
 
   return (
     <>
-      <h1 className="wk-h1">Kalendarz</h1>
+      <h1 className="wk-h1">{t('calendarApp.linkCalendar.title')}</h1>
       <p className="wk-note wk-link-calendar-note">
-        Otwarte z linku, bez konta — {found.links.map((one) => accessWords(one.info!.areas)).join(' · ')}.
-        {' '}{found.writes ? 'Możesz tu dopisywać i zmieniać terminy.' : 'Możesz tu czytać terminy.'}
-        {' '}Masz konto? <button type="button" className="wk-link-btn" onClick={onSignIn}>Zaloguj się</button>, żeby zobaczyć swój kalendarz.
+        {t('calendarApp.linkCalendar.opened', { access: found.links.map((one) => accessWords(one.info!.areas)).join(' · ') })}
+        {' '}{found.writes ? t('calendarApp.linkCalendar.mayWrite') : t('calendarApp.linkCalendar.mayRead')}
+        {' '}{rich(t('calendarApp.linkCalendar.signIn'), { b: (s) => <button type="button" className="wk-link-btn" onClick={onSignIn}>{s}</button> })}
       </p>
       <Calendar me={me} scope={found.ids} />
     </>

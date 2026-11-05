@@ -1,0 +1,256 @@
+{
+  "f": {
+    "heading": "Heading",
+    "fromBase": "From which knowledge base",
+    "answers": "Learners’ answers go to",
+    "answersHint": "empty: as in the knowledge base; otherwise they stay with the learner",
+    "rewardsInRun": "Points and streak while learning",
+    "rewardsInRunNone": "like the “Points and streak” module on this page",
+    "rewardsRules": "Reward rules",
+    "rewardsRulesNone": "chosen in the knowledge base (or built in)",
+    "scope": "Counts only the cards of the revision",
+    "scopeNone": "the whole knowledge base",
+    "whatShows": "What it shows"
+  },
+  "m": {
+    "pickBase": "Choose a knowledge base.",
+    "pickBaseSame": "Choose a knowledge base — the same one the learning module on the page uses."
+  },
+  "s": {
+    "start": "Start",
+    "open": "Open"
+  },
+  "ex": {
+    "library": "<library-id>",
+    "base": "<knowledge-base-id>",
+    "revision": "<revision-id>",
+    "revisionOrEmpty": "<revision-id or empty>",
+    "area": "<course-area-id>",
+    "rewardsOrEmpty": "<rewards-id or empty>",
+    "flow": "<flow-id>",
+    "entry": "<entry-id>",
+    "views": "<view-id>,<second-view-id> (or empty)"
+  },
+  "revision": {
+    "label": "Revision",
+    "use": "A revision from a knowledge base (Cogita). Visible to those who can read the base — in a public area (open base) to everyone, without an account; progress without an account stays in the browser. Answers go to the area you choose (e.g. a course) — its leader sees the progress.",
+    "exTitle": "Revision before confirmation",
+    "titleHint": "empty: name of the revision",
+    "which": "Which revision",
+    "missingRevision": "Choose a revision from this knowledge base.",
+    "showsTall": "The whole revision at once — card by card.",
+    "showsStrip": "Heading and button — the revision opens on click.",
+    "showsBlock": "How many cards and how many you already know — a “Start” button."
+  },
+  "flow": {
+    "label": "Course / story",
+    "use": "A flow from a knowledge base (Cogita): a course, a story, a conversation in bubbles, a map to explore. Visible to those who can read the base — in a public area to everyone, without an account.",
+    "exTitle": "A journey through the Gospel of Mark",
+    "titleHint": "empty: name of the flow",
+    "which": "Which flow",
+    "missingFlow": "Choose a flow from this knowledge base.",
+    "stripTitle": "Course",
+    "showsTall": "The whole flow at once, step by step.",
+    "showsStrip": "Heading and button — the flow opens on click.",
+    "showsBlock": "What kind of flow it is, how many steps and goals — a “Start” button (or “Back to where you left off”)."
+  },
+  "live": {
+    "label": "Join a session",
+    "use": "A field for a Cogita session code (live quiz, group revision, game) — a link with a QR code opens the session on this page right away.",
+    "exTitle": "Join the quiz",
+    "titleHint": "e.g. Join the quiz",
+    "showsStrip": "One line: a code field and “Join”.",
+    "showsTall": "A code field with an explanation — after joining, the whole session in the tile.",
+    "showsBlock": "A code field and “Join” — after joining, questions and answers in the tile."
+  },
+  "card": {
+    "label": "Entry card",
+    "use": "One entry of a knowledge base — a person, a place, a concept, a piece of knowledge — with fields and a picture. Visible to those who can read the base.",
+    "exTitle": "St Joseph",
+    "titleHint": "empty: name of the entry",
+    "which": "Which entry",
+    "showsStrip": "One line: the entry’s name and its kind.",
+    "showsTall": "The whole entry: all fields and files.",
+    "showsBlock": "Name, picture and the first four fields."
+  },
+  "table": {
+    "label": "Table of entries",
+    "use": "Entries of a knowledge base as a table — with search; a small tile shows a list. Visible to those who can read the base.",
+    "retired": "replaced by the “View” module (table). add a “View” module to the page and remove this one",
+    "exTitle": "Old Testament figures",
+    "exKind": "Person",
+    "exColumns": "When lived, Book",
+    "titleHint": "e.g. Figures",
+    "kind": "Only kind",
+    "kindHint": "name of the kind, e.g. Person — empty: all",
+    "columns": "Columns",
+    "columnsHint": "field names separated by commas — empty: the first four",
+    "showsStrip": "One line: how many entries, a “See” button.",
+    "showsTall": "The whole table with search; a clicked entry opens below it.",
+    "showsBlock": "The first eight names — the rest in full screen."
+  },
+  "topics": {
+    "label": "Topics",
+    "use": "Formerly: topics of a knowledge base. Topics no longer exist — the module only shows a notice; order comes from the “View” module with axes (kinds).",
+    "retired": "topics no longer exist — replaced by the “View” module (tree or matrix by axes: your own kinds, e.g. Mystery × Area). add a “View” module to the page and remove this one",
+    "exTitle": "Catechesis topics",
+    "titleHint": "e.g. Topics",
+    "showsStrip": "One line: how many topics, a “Browse” button.",
+    "showsTall": "Topics to go deeper into and the entries of the chosen topic.",
+    "showsBlock": "Topics as buttons — deeper on click."
+  },
+  "map": {
+    "label": "Knowledge map",
+    "use": "The entries of a revision as a map: what you already know is bright; the border to discover; the rest in the fog. Visible to those who can read the base (public area: everyone, without an account).",
+    "retired": "replaced by the “View” module (map). add a “View” module to the page and remove this one",
+    "exTitle": "Map: Acts of the Apostles",
+    "titleHint": "e.g. Knowledge map",
+    "which": "From which revision",
+    "missingRevision": "Choose a revision.",
+    "showsStrip": "One line: how much you already know, a “Map” button.",
+    "showsTall": "The whole map with names; a clicked entry and “Learn this”.",
+    "showsBlock": "A small map — names on hover; a clicked entry in short."
+  },
+  "seat": {
+    "label": "Learning (person with a link)",
+    "use": "Revisions from the course’s knowledge base for a person with a link — their progress goes to the course (leaders see it in Progress).",
+    "exTitle": "Your learning",
+    "titleHint": "e.g. Your learning",
+    "revision": "Only revision",
+    "revisionHint": "revision id — empty: all revisions of the knowledge base",
+    "missingBase": "Choose the course’s knowledge base — the person with the link must be able to read its area (a form role or sharing).",
+    "showsStrip": "Heading and button — learning opens on click.",
+    "showsTall": "How many are waiting, how many they already know, and revisions to choose from.",
+    "showsBlock": "How many are waiting now and revisions to choose from."
+  },
+  "rewards": {
+    "label": "Points and streak",
+    "use": "Points, streak of learning days, daily goal, level and badges of the person learning here — live: every answer in a learning module on this page adds points right away (“+10”), lights the streak flame, fills the daily goal. The rules (how many points for what, the goal, levels, badges) are the “Rewards” in the knowledge base (Learning → Rewards) — each page chooses its own.",
+    "exTitle": "Your points",
+    "titleHint": "e.g. Your points",
+    "bitPoints": "Points",
+    "bitLevel": "Level",
+    "bitStreak": "Day streak",
+    "bitGoal": "Daily goal",
+    "bitBadges": "Badges",
+    "bitFeed": "Latest rewards",
+    "showsStrip": "One line: points, level, streak, daily goal, badges — after each answer “+10” above it.",
+    "showsTall": "Everything: points with level, the streak flame with the last 28 days, the daily-goal ring, all badges and the latest rewards.",
+    "showsBlock": "Points with level, the streak flame with the week, the daily-goal ring (whatever is ticked); a single chosen element — large."
+  },
+  "stats": {
+    "label": "Live statistics",
+    "use": "Charts and numbers of the person learning here — they grow with every answer in a learning module on this page: points today answer by answer, points and the daily goal day by day, accuracy, streak; in the full view also where the cards are (what they know, what is fading).",
+    "exTitle": "Live",
+    "titleHint": "e.g. Live",
+    "bitTiles": "Numbers of the day",
+    "bitToday": "Points today — chart",
+    "bitDays": "Points day by day",
+    "bitGoal": "Daily goal day by day",
+    "bitKnowledge": "Where the cards are (in the full view)",
+    "showsStrip": "One line: today’s points, answers, accuracy and daily goal — live.",
+    "showsTall": "Numbers of the day, chart of today’s points, points and the daily goal day by day (7/14/30 days), where the cards are.",
+    "showsBlock": "Numbers of the day and the chart of today’s points — it grows with every answer."
+  },
+  "landscape": {
+    "label": "Knowledge landscape",
+    "use": "The knowledge landscape of a base (Cogita): “You” in the middle, around it fields of what you can learn now, further out mountains — the higher, the more is missing; what you know becomes land. Click a field: read, learn, revise, set a goal. Here the learner chooses how often questions come back — more often, standard, less often or “Once and done” (right once and finished) — unless the leader has set it for everyone in the base settings. Without a view — the whole base; with a view — only its entries; with several views the learner chooses above the map which landscape to look at. Clicking the house in the middle shows statistics and rewards, a double click — all at once. Visible to whoever can read the base.",
+    "titleHint": "empty: name of the view or “Knowledge landscape”",
+    "views": "Which views (to choose from)",
+    "viewsHint": "empty: the whole base; several — the learner chooses",
+    "bitSpacing": "Choice of “How often to ask” and “How many cards at once” (when the learner may change them)",
+    "bitLearner": "Who is learning and where progress is kept",
+    "bitSearch": "Search (in the full view)",
+    "showsAsk": " Above it the choice of how often to ask (if allowed).",
+    "showsStrip": "Heading and button — the landscape opens on click.",
+    "showsTall": "The whole landscape: zoom, rotate, fields with “Learn”, goal and paths.{ask}",
+    "showsTallSearch": "The whole landscape: zoom, rotate, fields with “Learn”, goal and paths, search.{ask}",
+    "showsBlock": "A small landscape — up to 24 fields; the rest in full screen.{ask}"
+  },
+  "settings": {
+    "label": "Learning settings",
+    "use": "Settings of the person learning here: how often questions come back — more often, standard, less often, “Once and done” (right once and finished) or your own intervals. Applies to all learning from this base (landscape, revisions, courses) — on other pages too. If the leader has set intervals for everyone (base settings), the module only shows what applies. Choose the same answers area as in the learning module on the page.",
+    "exTitle": "How often to ask",
+    "titleHint": "empty: “Learning settings”",
+    "answersHint": "the same as in the learning module on this page — empty: as in the knowledge base",
+    "showsStrip": "One line: how often to ask now and “Change”.",
+    "showsBlock": "How often to ask — choose with one click, with a description; “Other…” sets the intervals exactly."
+  },
+  "v": {
+    "myStats": "My statistics",
+    "closed": "You can’t read this knowledge base here — it is not public or you have no access to it.",
+    "teacherAnswers": "Learners’ answers →",
+    "revision": "Revision",
+    "noRevision": "This revision is not in the knowledge base.",
+    "counting": "Counting cards…",
+    "cards": {
+      "one": "{count} card",
+      "other": "{count} cards"
+    },
+    "levels": " · {known}: {nKnown} · {learning}: {nLearning}",
+    "howMuchKnown": "How much you already know",
+    "repeat": "Revise",
+    "flow": "Flow",
+    "noFlow": "This flow is not in the knowledge base.",
+    "page": "Page",
+    "steps": {
+      "one": "{count} step",
+      "other": "{count} steps"
+    },
+    "questions": {
+      "one": "{count} question",
+      "other": "{count} questions"
+    },
+    "goals": "Goals: {goals}",
+    "resume": "Back to where you left off",
+    "session": "Session",
+    "sessionCode": "Session {code}",
+    "openSession": "Open session",
+    "sessionOver": "This session has already ended.",
+    "sessionOpening": "Opening the session…",
+    "codeLabel": "Session code (from the leader’s screen)",
+    "code": "Session code",
+    "codePlaceholder": "e.g. K7M2QX",
+    "join": "Join",
+    "liveNote": "No account needed: you introduce yourself by name, answers go to the leader. A link or QR code from the screen opens the session right away.",
+    "entry": "Entry",
+    "pickEntryTop": "Choose an entry at the top of the page.",
+    "pickEntry": "Choose an entry in the module settings — or set “Choice: entry from a knowledge base” on the page.",
+    "noEntry": "This entry is not in the knowledge base.",
+    "entries": "Entries",
+    "entriesCount": {
+      "one": "{count} entry",
+      "other": "{count} entries"
+    },
+    "see": "See",
+    "andMore": "and {count} more",
+    "wholeTable": "the whole table",
+    "searchTablePh": "Search the table…",
+    "searchTable": "Search the table",
+    "noMatch": "Nothing matches.",
+    "topicsGone": "Topics no longer exist — order now comes from your own kinds (e.g. “Mystery”, “Area”). This module is replaced by the “View” module: a tree or a matrix by axes.",
+    "xOfY": "{x} of {y}",
+    "map": "Map",
+    "mapLegend": "You know {x} of {y} · dashed outline — you can go there; fog — not discovered yet.",
+    "inFog": "Still in the fog",
+    "learnThis": {
+      "one": "Learn this ({count} card)",
+      "other": "Learn this ({count} cards)"
+    },
+    "baseOpening": "Opening the knowledge base…",
+    "baseNotFromLink": "This knowledge base is not available from this link.",
+    "dueNow": {
+      "one": " · due now: {count} card",
+      "other": " · due now: {count} cards"
+    },
+    "noRevisions": "There is no revision in this knowledge base yet.",
+    "waiting": {
+      "one": "{count} batch of answers is waiting for the internet.",
+      "other": "{count} batches of answers are waiting for the internet."
+    },
+    "seatEmpty": "Learning will appear here — for the person who opens their link.",
+    "pointsLater": "Points will appear here once you start learning.",
+    "pointsLocal": "Without an account, points are counted in this browser.",
+    "statsLater": "Statistics will appear here once you start learning."
+  }
+}

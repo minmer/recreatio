@@ -12,7 +12,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { LinkShare } from './AccessLinks';
+import { EXPIRY as ALL_EXPIRY, LinkShare } from './AccessLinks';
+import { useT } from '../core/i18n';
 import type { AreaRow } from '../areas/area';
 import { createCommonRole, type NewRoleDraft } from '../roles/commonRole';
 import { CommonRoleChoice, EMPTY_DRAFT, NEW_ROLE, useGivableRoles } from '../roles/CommonRoleField';
@@ -36,31 +37,29 @@ export interface ShareTarget {
   readonly open?: boolean;
 }
 
-const EXPIRY = [
-  { days: 7, label: 'tydzień' },
-  { days: 30, label: 'miesiąc' },
-  { days: 90, label: '3 miesiące' },
-  { days: 365, label: 'rok' }
-];
+/* Wie im Formular der Links, ohne den einen Tag. */
+const EXPIRY = ALL_EXPIRY.filter((x) => x.days >= 7);
 
 const addressOf = (aim: string | null) => `${window.location.origin}${window.location.pathname}#/${aim ?? ''}`;
 
-export function ShareButton({ who, target, label = 'Udostępnij', className = 'wk-btn wk-btn-quiet' }: {
+export function ShareButton({ who, target, label, className = 'wk-btn wk-btn-quiet' }: {
   who: Who;
   target: ShareTarget;
   label?: string;
   className?: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={className} data-share="" onClick={() => setOpen(true)}>{className.includes('wk-btn') && <Icon name="share" />}{label}</button>
+      <button type="button" className={className} data-share="" onClick={() => setOpen(true)}>{className.includes('wk-btn') && <Icon name="share" />}{label ?? t('common.share')}</button>
       {open && <ShareDialog who={who} target={target} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
 export function ShareDialog({ who, target, onClose }: { who: Who; target: ShareTarget; onClose: () => void }) {
+  const t = useT();
   const [keys, setKeys] = useState<{ ring: Ring | null; self: SealedRole | null } | null>(null);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [picked, setPicked] = useState<ReadonlyMap<string, boolean>>(new Map());
@@ -105,8 +104,8 @@ export function ShareDialog({ who, target, onClose }: { who: Who; target: ShareT
   }, [rolesReady, fitting]);
 
   const create = async () => {
-    if (keys?.ring == null || keys.self === null) { setFailed('Najpierw podaj hasło — klucze nie są otwarte w tej karcie.'); return; }
-    setBusy(picked.has(NEW_ROLE) ? 'Tworzenie roli i linku…' : 'Tworzenie linku…');
+    if (keys?.ring == null || keys.self === null) { setFailed(t('links.shareDialog.needPassword')); return; }
+    setBusy(picked.has(NEW_ROLE) ? t('links.busy.createRole') : t('links.busy.create'));
     setFailed(null);
     try {
       let ring = keys.ring;
@@ -116,58 +115,58 @@ export function ShareDialog({ who, target, onClose }: { who: Who; target: ShareT
         ring = role.ring;
         chosen.push({ roleId: role.roleId, lead: picked.get(NEW_ROLE) === true });
       }
-      if (chosen.length === 0) throw new WorkspaceError('Wybierz rolę, którą daje link.');
+      if (chosen.length === 0) throw new WorkspaceError(t('links.error.pickRole'));
       const out = await createLink(ring, keys.self, { label: label.trim() || target.title, roles: chosen, once, expiresDays: days, aim: target.aim });
       invalidate();
       setMade(out.url);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się utworzyć linku.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('links.shareDialog.failed'));
     } finally {
       setBusy(null);
     }
   };
 
   return (
-    <Modal title={`Udostępnij: ${target.title}`} onClose={onClose}>
+    <Modal title={t('links.shareDialog.title', { title: target.title })} onClose={onClose}>
       {open ? (
         <>
-          <p className="wk-hint">To jest publiczne — wystarczy ten adres. Kto go otworzy, zobaczy to bez logowania.</p>
+          <p className="wk-hint">{t('links.shareDialog.public')}</p>
           <LinkShare url={addressOf(target.aim)} />
         </>
       ) : made !== null ? (
         <>
-          <p className="wk-done" role="status">Link gotowy. Kto go otworzy, ma dostęp od razu.</p>
+          <p className="wk-done" role="status">{t('links.shareDialog.ready')}</p>
           <LinkShare url={made} />
         </>
       ) : (
         <form className="wk-form wk-share" onSubmit={(e) => { e.preventDefault(); void create(); }}>
           <p className="wk-hint">
-            Link daje rolę — a rola dostęp do swoich obszarów. Otworzy się od razu tutaj{target.aim === null ? '' : `: recreatio.pl/#/${target.aim}`}.
+            {target.aim === null ? t('links.shareDialog.lede') : t('links.shareDialog.ledeAim', { aim: `recreatio.pl/#/${target.aim}` })}
           </p>
           <CommonRoleChoice roles={roles} failed={rolesFailed} areas={areas} focusAreaId={target.areaIds[0]} many busy={busy !== null}
-            picked={picked} onPicked={setPicked} draft={draft} onDraft={setDraft} leadLabel="może też zapraszać innych" />
+            picked={picked} onPicked={setPicked} draft={draft} onDraft={setDraft} leadLabel={t('links.shareDialog.lead')} />
           <details className="wk-fold">
-            <summary>Nazwa, ważność, jednorazowy</summary>
+            <summary>{t('links.shareDialog.more')}</summary>
             <label className="wk-field">
-              <span>Nazwa linku (widzi ją ten, kto go otworzy)</span>
+              <span>{t('links.shareDialog.name')}</span>
               <input value={label} onChange={(e) => setLabel(e.target.value)} />
             </label>
             <label className="wk-field">
-              <span>Ważny przez</span>
+              <span>{t('links.new.validFor')}</span>
               <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-                {EXPIRY.map((x) => <option key={x.days} value={x.days}>{x.label}</option>)}
+                {EXPIRY.map((x) => <option key={x.days} value={x.days}>{t(x.label)}</option>)}
               </select>
             </label>
             <label className="wk-check">
               <input type="checkbox" checked={once} onChange={(e) => setOnce(e.target.checked)} />
-              <span>Jednorazowy — dla jednej osoby</span>
+              <span>{t('links.shareDialog.once')}</span>
             </label>
           </details>
           {failed !== null && <p className="wk-error">{failed}</p>}
           {busy !== null && <p className="wk-working" role="status">{busy}</p>}
           <div className="wk-actions">
-            <button type="submit" className="wk-btn" disabled={busy !== null || picked.size === 0 || keys === null}>Utwórz link</button>
-            <button type="button" className="wk-link-btn" onClick={onClose}>Anuluj</button>
+            <button type="submit" className="wk-btn" disabled={busy !== null || picked.size === 0 || keys === null}>{t('links.new.create')}</button>
+            <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.cancel')}</button>
           </div>
         </form>
       )}

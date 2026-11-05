@@ -7,6 +7,7 @@
  * einem Fehler mittendrin, damit die Seite und der Plan der Timer im Telefon es kennen.
  */
 
+import { useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import type { PhoneCtx } from '../phone/phoneContext';
 import { JsonPanel } from '../ui/JsonPanel';
@@ -25,21 +26,22 @@ export default function LampsJsonDialog({ ctx, now, onPace, onImported, onClose 
   onImported: (done: LampsApplied) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const today = new Date();
   return (
-    <Modal title="Lampy — import i eksport (JSON)" wide onClose={onClose}>
+    <Modal title={t('lamps.json.title')} wide onClose={onClose}>
       <JsonPanel
         open
-        summary="Lampy jako JSON"
-        lead={<>Urządzenia z sygnałami, timery i tempo przycisków — kopia zapasowa, przeniesienie na inne konto albo timery przygotowane przez AI. Co ma „id” z eksportu, zmienia się w miejscu; co go nie ma, powstaje. Usuwa tylko „remove”: true.</>}
-        fileName={`lampy-${today.getFullYear()}-${two(today.getMonth() + 1)}-${two(today.getDate())}.json`}
+        summary={t('lamps.json.summary')}
+        lead={<>{t('lamps.json.lead')}</>}
+        fileName={t('lamps.json.fileName', { date: `${today.getFullYear()}-${two(today.getMonth() + 1)}-${two(today.getDate())}` })}
         exportDoc={() => exportLamps(now)}
         format={LAMPS_JSON}
         preview={(doc) => {
           const plan = planLampsImport(doc, now);
           return 'error' in plan ? plan : { lines: plan.lines, warnings: plan.warnings };
         }}
-        importLabel="Importuj do lamp"
+        importLabel={t('lamps.json.importLabel')}
         onImport={async (doc, stage) => {
           const plan = planLampsImport(doc, now);
           if ('error' in plan) throw new WorkspaceError(plan.error);
@@ -53,8 +55,8 @@ export default function LampsJsonDialog({ ctx, now, onPace, onImported, onClose 
           if (done.error !== null) {
             /* Was ohne "id" schon angelegt ist, entstünde beim nächsten Versuch mit demselben Text ein zweites Mal. */
             const made = plan.lamps.filter((l) => l.existing === null && done.lamps.some((x) => x.id === l.id)).length
-              + plan.timers.filter((t) => t.existing === null && done.timers.some((x) => x.id === t.id)).length;
-            throw new WorkspaceError(`Zapisano ${done.done} z ${done.total} zmian, potem: ${lampSaveProblem(done.error)}${made > 0 ? ' Nowe wpisy, które już powstały, przy ponownym imporcie tego samego tekstu powstałyby drugi raz — najpierw pobierz świeży eksport.' : ''}`);
+              + plan.timers.filter((one) => one.existing === null && done.timers.some((x) => x.id === one.id)).length;
+            throw new WorkspaceError(t(made === 0 ? 'lamps.json.partial' : 'lamps.json.partialMade', { done: done.done, total: done.total, problem: lampSaveProblem(done.error) }));
           }
           return { lines: plan.lines, warnings: plan.warnings };
         }}

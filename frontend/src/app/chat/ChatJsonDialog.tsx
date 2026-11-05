@@ -25,7 +25,7 @@ import { type ChatDetail, type Opened, type SealedMessage, loadMessages, openMes
 import type { Speaker } from './chatAuthor';
 import { chatEndpoint, type Features } from './chatFeatures';
 import {
-  CHAT_JSON, MAX_EXPORT, READ_ONLY_IMPORT, exportChat, importContext, neededFrom, planChatImport,
+  CHAT_JSON, MAX_EXPORT, readOnlyImport, exportChat, importContext, neededFrom, planChatImport,
   type ChatImportPlan, type ExportItem, type LinkedEntry, type TopicTarget
 } from './chatJson';
 import { type Topic, closeTopic, collectToTopic, createTopic, loadLinked, loadTopics, openLinked, openTopics, renameTopic } from './chatTopics';
@@ -203,7 +203,7 @@ export function ChatJsonDialog(props: ChatJsonDialogProps) {
   }, [loaded, chat.chatId, chat.kind, props.topics, props.features, props.scheduled, props.speaker, props.writes, props.moderates]);
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
-    if (!canImport) return { error: READ_ONLY_IMPORT };
+    if (!canImport) return { error: readOnlyImport() };
     if (failed !== null) return { error: failed };
     if (loaded === null || context === null) return { error: 'Pobieram wiadomości tej rozmowy — chwilę…' };
     const needed = neededFrom(doc, chat.chatId);
@@ -360,7 +360,7 @@ export function ChatJsonDialog(props: ChatJsonDialogProps) {
   };
 
   const onImport = async (doc: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
-    if (!canImport) throw new WorkspaceError(READ_ONLY_IMPORT);
+    if (!canImport) throw new WorkspaceError(readOnlyImport());
     if (loaded === null || context === null) throw new WorkspaceError('Wiadomości tej rozmowy jeszcze się pobierają — spróbuj za chwilę.');
     if (!covers(loaded, neededFrom(doc, chat.chatId))) throw new WorkspaceError('Starsze wiadomości jeszcze się pobierają — spróbuj za chwilę.');
     const plan = planChatImport(doc, { ...context, now: new Date() });

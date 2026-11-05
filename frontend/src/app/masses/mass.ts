@@ -29,9 +29,9 @@
  * ausgehängte.
  */
 
+import { fmtDate, isLang, t, texts, tIn, type Lang } from '../core/i18n';
 import { call } from '../core/session';
 import type { SealedField } from '../calendar/calendar';
-import { plural } from '../core/plural';
 
 export const MASS = 'mass';
 export const CONFESSION = 'confession';
@@ -41,17 +41,25 @@ export const DEVOTION = 'devotion';
 
 /** Was der Plan unter einem Gottesdienst versteht — und wie es heisst. */
 export const SERVICE_KINDS = [MASS, CONFESSION, DEVOTION] as const;
-export const SERVICE_LABEL: Record<string, string> = { mass: 'Msza', confession: 'Spowiedź', devotion: 'Nabożeństwo' };
+export const SERVICE_LABEL: Readonly<Record<string, string>> = texts({ mass: 'masses.service.mass', confession: 'masses.service.confession', devotion: 'masses.service.devotion' });
 
 /**
  * Was man als Namen eines Nabożeństwo meistens schreibt — vorgeschlagen, nicht
  * vorgeschrieben. Der Name hängt im Schaukasten, wie er hier steht.
  */
-export const DEVOTION_NAMES: readonly string[] = [
-  'Różaniec', 'Droga Krzyżowa', 'Gorzkie Żale', 'Nabożeństwo majowe', 'Nabożeństwo czerwcowe',
-  'Nabożeństwo różańcowe', 'Adoracja Najświętszego Sakramentu', 'Koronka do Miłosierdzia Bożego',
-  'Nowenna do Matki Bożej Nieustającej Pomocy', 'Godzina Święta', 'Apel Jasnogórski', 'Nieszpory'
-];
+const DEVOTION_KEYS = [
+  'rosary', 'wayOfCross', 'bitterLaments', 'may', 'june', 'october', 'adoration', 'chaplet', 'novena', 'holyHour', 'jasnaGora', 'vespers'
+] as const;
+
+export const devotionNames = (): readonly string[] => DEVOTION_KEYS.map((k) => t(`masses.devotionNames.${k}`));
+
+/** Dieselben Vorschläge als Liste wie früher — beim Lesen in der Sprache der App neu gefüllt. */
+export const DEVOTION_NAMES: readonly string[] = new Proxy([] as string[], {
+  get: (target, prop, receiver) => {
+    if (prop === 'length' || typeof prop === 'string') target.splice(0, target.length, ...devotionNames());
+    return Reflect.get(target, prop, receiver);
+  }
+});
 
 /**
  * Zwei Arten von Intentionen — und das ist keine Beschriftung.
@@ -69,20 +77,20 @@ export const INTENTION_KINDS = ['single', 'collective'] as const;
 export type IntentionKind = (typeof INTENTION_KINDS)[number];
 
 /** „1 intencja", „3 intencje", „5 intencji". */
-export const intentionsWord = (n: number): string =>
-  `${n} ${plural(n, 'intencja', 'intencje', 'intencji')}`;
+export const intentionsWord = (n: number, lang?: unknown): string =>
+  (isLang(lang) ? tIn(lang, 'masses.intentions', { count: n }) : t('masses.intentions', { count: n }));
 
-export const KIND_LABEL: Record<IntentionKind, string> = {
-  single: 'pojedyncza',
-  collective: 'zbiorowa'
-};
+export const KIND_LABEL: Readonly<Record<IntentionKind, string>> = texts({
+  single: 'masses.kind.single',
+  collective: 'masses.kind.collective'
+});
 
 /** Der Stand einer Intention — wie `ck_mass_intention_status`. */
-export const INTENTION_STATUS_LABEL: Record<string, string> = {
-  accepted: 'przyjęta',
-  celebrated: 'odprawiona',
-  cancelled: 'wycofana'
-};
+export const INTENTION_STATUS_LABEL: Readonly<Record<string, string>> = texts({
+  accepted: 'masses.status.accepted',
+  celebrated: 'masses.status.celebrated',
+  cancelled: 'masses.status.cancelled'
+});
 
 /**
  * Die Tage einer Woche als Bits.
@@ -92,14 +100,11 @@ export const INTENTION_STATUS_LABEL: Record<string, string> = {
  * sähe man beim Anlegen nicht, sondern eine Woche später, in einer leeren
  * Kirche.
  */
+const dayBit = (bit: number, name: string): { readonly bit: number; readonly label: string } =>
+  ({ bit, get label() { return t(`masses.weekdayBit.${name}`); } });
+
 export const WEEKDAY_BITS: readonly { readonly bit: number; readonly label: string }[] = [
-  { bit: 1, label: 'pn' },
-  { bit: 2, label: 'wt' },
-  { bit: 4, label: 'śr' },
-  { bit: 8, label: 'cz' },
-  { bit: 16, label: 'pt' },
-  { bit: 32, label: 'sb' },
-  { bit: 64, label: 'nd' }
+  dayBit(1, 'mon'), dayBit(2, 'tue'), dayBit(4, 'wed'), dayBit(8, 'thu'), dayBit(16, 'fri'), dayBit(32, 'sat'), dayBit(64, 'sun')
 ];
 
 export interface PublicIntention {
@@ -297,13 +302,16 @@ export function dayKey(iso: string): string {
     + `-${String(at.getDate()).padStart(2, '0')}`;
 }
 
-const WEEKDAYS = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
+/** Heute, morgen — oder keins von beiden. */
+function nearDay(iso: string, today: Date): 'today' | 'tomorrow' | null {
+  if (dayKey(iso) === dayKey(today.toISOString())) return 'today';
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return dayKey(iso) === dayKey(tomorrow.toISOString()) ? 'tomorrow' : null;
+}
 
-/** Genitiv — „31 sierpnia", nicht „31 sierpień". */
-const MONTHS = [
-  'stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca',
-  'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'
-];
+/** „wtorek, 8 września" — Wochentag und Monat aus `Intl` (im Polnischen schon im Genitiv). */
+const longDay = (at: Date, lang?: Lang): string => fmtDate(at, { weekday: 'long', day: 'numeric', month: 'long' }, lang);
 
 /**
  * Die Überschrift eines Tages: „wtorek, 8 września".
@@ -312,44 +320,37 @@ const MONTHS = [
  * ist Rauschen. Bei heute und morgen weicht der Wochentag dem Wort, das man
  * sucht.
  */
-export function dayLabel(iso: string, today: Date = new Date()): string {
+export function dayLabel(iso: string, today: Date = new Date(), lang?: Lang): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '';
 
-  if (dayKey(iso) === dayKey(today.toISOString())) return 'dziś';
+  const near = nearDay(iso, today);
+  if (near !== null) return lang === undefined ? t(`masses.day.${near}`) : tIn(lang, `masses.day.${near}`);
 
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  if (dayKey(iso) === dayKey(tomorrow.toISOString())) return 'jutro';
-
-  return `${WEEKDAYS[at.getDay()]}, ${at.getDate()} ${MONTHS[at.getMonth()]}`;
+  return longDay(at, lang);
 }
 
-const WEEKDAYS_SHORT = ['nd', 'pn', 'wt', 'śr', 'czw', 'pt', 'sob'];
-
 /**
- * Kurz, für eine Zeile Uhrzeiten: „dziś", „jutro", „śr 1.10". In eine
+ * Kurz, für eine Zeile Uhrzeiten: „dziś", „jutro", „śr. 1.10". In eine
  * schmale Kachel passt „środa, 1 października" nicht neben drei Uhrzeiten.
  */
-export function shortDayLabel(iso: string, today: Date = new Date()): string {
-  const near = dayLabel(iso, today);
-  if (near === 'dziś' || near === 'jutro' || near === '') return near;
-
+export function shortDayLabel(iso: string, today: Date = new Date(), lang?: Lang): string {
   const at = new Date(iso);
-  return `${WEEKDAYS_SHORT[at.getDay()]} ${at.getDate()}.${at.getMonth() + 1}`;
+  if (Number.isNaN(at.getTime()) || nearDay(iso, today) !== null) return dayLabel(iso, today, lang);
+  return `${fmtDate(at, { weekday: 'short' }, lang)} ${fmtDate(at, { day: 'numeric', month: 'numeric' }, lang)}`;
 }
 
 /**
- * Mit Wochentag und Datum auch bei heute und morgen: „dziś, wtorek 29
+ * Mit Wochentag und Datum auch bei heute und morgen: „dziś, wtorek, 29
  * września". Über einer ganzen Tagesspalte ist Platz dafür, und wer am
  * Aushang eine Intention sucht, sucht sie nach dem Datum.
  */
-export function fullDayLabel(iso: string, today: Date = new Date()): string {
-  const near = dayLabel(iso, today);
-  if (near !== 'dziś' && near !== 'jutro') return near;
-
+export function fullDayLabel(iso: string, today: Date = new Date(), lang?: Lang): string {
   const at = new Date(iso);
-  return `${near}, ${WEEKDAYS[at.getDay()]} ${at.getDate()} ${MONTHS[at.getMonth()]}`;
+  const near = Number.isNaN(at.getTime()) ? null : nearDay(iso, today);
+  if (near === null) return dayLabel(iso, today, lang);
+  const params = { date: longDay(at, lang) };
+  return lang === undefined ? t(`masses.day.${near}Full`, params) : tIn(lang, `masses.day.${near}Full`, params);
 }
 
 /** Die Messen nach Tagen gruppiert, in der Reihenfolge, in der sie kommen. */

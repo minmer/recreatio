@@ -7,6 +7,7 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { Me } from '../core/me';
+import { t, useT } from '../core/i18n';
 import { Icon } from '../ui/icons';
 import type { LibraryStore } from '../library/libraryStore';
 import type { LibEntry, Lookup as MarkupLookup } from '../library/libraryKinds';
@@ -17,6 +18,7 @@ import type { Who } from '../core/session';
 import { fileUrl } from './files';
 import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, FLOW_CHECK_LABEL, FLOW_CHECKS, KNOWNESS_BAND_LABEL, KNOWNESS_BANDS, readCondition, RELATION_LABEL, RELATIONS, type Action, type CompareOp, type Condition, type ConditionType, type FlowCheck, type KnownessBand } from './logic';
 import type { Learner } from './learn';
+import type { LearnerLoading } from './holders';
 import { runPython } from './python';
 import { viewPath } from '../routes';
 import { cogitaPath } from './parts';
@@ -45,6 +47,8 @@ export interface CogitaCtx {
   readonly who: Who | null;
   /** 2026-10-30 — wer hier lernt (das eigene Konto): seine Kenntnis sehen Widoki mit „Filtr znajomości" und Spalten der Kenntnis. */
   readonly learner?: Learner | null;
+  /** 2026-11-05 — solange dessen Fortschritte laden: wie weit (der Krajobraz zeigt einen Kreis und wartet). */
+  readonly learnerLoading?: LearnerLoading | null;
   /** Der Weg zu einer Ansicht dieser Bibliothek (`#/workspace/library/<id>/cogita/...`). */
   readonly href: (...tail: readonly string[]) => string;
 }
@@ -53,7 +57,7 @@ export const CogitaContext = createContext<CogitaCtx | null>(null);
 
 export function useCtx(): CogitaCtx {
   const ctx = useContext(CogitaContext);
-  if (ctx === null) throw new Error('Cogita poza swoją biblioteką.');
+  if (ctx === null) throw new Error(t('cogitaViews.ui.noContext'));
   return ctx;
 }
 
@@ -109,12 +113,13 @@ export function useAsyncKeep<T>(make: (() => Promise<T>) | null, deps: readonly 
 
 /** Ein Knopf, der etwas tut und solange wartet. */
 export function useBusy(): { busy: boolean; failed: string | null; run: (todo: () => Promise<unknown>) => Promise<void>; setFailed: (s: string | null) => void } {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const run = async (todo: () => Promise<unknown>) => {
     setBusy(true);
     setFailed(null);
-    try { await todo(); } catch (e) { setFailed(e instanceof Error && e.message !== '' ? e.message : 'Nie udało się.'); } finally { setBusy(false); }
+    try { await todo(); } catch (e) { setFailed(e instanceof Error && e.message !== '' ? e.message : t('cogitaViews.ui.failed')); } finally { setBusy(false); }
   };
   return { busy, failed, run, setFailed };
 }
@@ -142,6 +147,7 @@ export function EntityPicker({ lib, kinds, value, onPick, placeholder, allowClea
   /** Wie der Rodzaj heisst, der angelegt würde. */
   createLabel?: string;
 }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState(0);
@@ -179,20 +185,20 @@ export function EntityPicker({ lib, kinds, value, onPick, placeholder, allowClea
   if (chosen !== undefined && !open) {
     return (
       <span className="cg-pick-chosen">
-        <button type="button" className="cg-pick-value" aria-haspopup="listbox" title="Zmień" onClick={reopen}>
+        <button type="button" className="cg-pick-value" aria-haspopup="listbox" title={t('cogitaViews.ui.change')} onClick={reopen}>
           <span>{lineOf(lib, chosen)}</span>
           <Icon name="chevron" />
         </button>
-        {allowClear && <button type="button" className="wk-link-btn" aria-label="Usuń wybór" onClick={() => onPick(null)}>×</button>}
+        {allowClear && <button type="button" className="wk-link-btn" aria-label={t('cogitaViews.ui.clearChoice')} onClick={() => onPick(null)}>×</button>}
       </span>
     );
   }
   return (
     <span className="cg-pick" ref={box} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) close(); }}>
       <span className="cg-pick-field">
-        <input ref={field} value={query} placeholder={placeholder ?? 'Szukaj wpisu…'} role="combobox" aria-expanded={open} aria-autocomplete="list"
+        <input ref={field} value={query} placeholder={placeholder ?? t('cogitaViews.ui.searchEntry')} role="combobox" aria-expanded={open} aria-autocomplete="list"
           onFocus={() => setOpen(true)} onKeyDown={onKey} onChange={(e) => { setQuery(e.target.value); setOpen(true); setAt(0); }} />
-        <button type="button" className="cg-pick-arrow" tabIndex={-1} aria-label={open ? 'Zamknij listę' : 'Pokaż listę'}
+        <button type="button" className="cg-pick-arrow" tabIndex={-1} aria-label={open ? t('cogitaViews.ui.closeList') : t('cogitaViews.ui.showList')}
           onMouseDown={(e) => e.preventDefault()} onClick={() => { if (open) close(); else reopen(); }}>
           <Icon name="chevron" />
         </button>
@@ -205,11 +211,11 @@ export function EntityPicker({ lib, kinds, value, onPick, placeholder, allowClea
               <span className="cg-kind-tag">{lib.kind(e.kinds[0] ?? '')?.name ?? ''}</span> {lineOf(lib, e)}{!lib.isOwn(e.id) && <span className="cg-muted"> · {lib.origin(e.id)?.name}</span>}
             </button>
           ))}
-          {found.length === 0 && !creatable && <span className="cg-muted cg-pick-none">{onCreate === undefined || wanted !== '' ? 'Nic nie pasuje.' : 'Nic tu jeszcze nie ma — wpisz nazwę, żeby utworzyć.'}</span>}
+          {found.length === 0 && !creatable && <span className="cg-muted cg-pick-none">{onCreate === undefined || wanted !== '' ? t('cogitaViews.ui.noMatch') : t('cogitaViews.ui.emptyCreate')}</span>}
           {creatable && (
             <button type="button" role="option" aria-selected={at === found.length} className={`cg-pick-new${at === found.length ? ' is-on' : ''}`} disabled={busy}
               onMouseDown={(ev) => ev.preventDefault()} onMouseEnter={() => setAt(found.length)} onClick={() => void create()}>
-              {busy ? 'Tworzenie…' : <>+ Utwórz „{wanted}”{createLabel === undefined ? '' : ` — ${createLabel}`}</>}
+              {busy ? t('cogitaViews.ui.creating') : createLabel === undefined ? t('cogitaViews.ui.createNamed', { name: wanted }) : t('cogitaViews.ui.createNamedKind', { name: wanted, kind: createLabel })}
             </button>
           )}
         </span>
@@ -246,10 +252,11 @@ export const originPath = (origin: Origin, id: string, tab: string): string =>
 
 /** Ein Schildchen, woher ein Eintrag kommt — nichts, wenn er hierher gehört. */
 export function OriginTag({ id }: { id: string }) {
+  const t = useT();
   const { lib } = useCtx();
   const from = lib.origin(id);
   if (from === undefined || from.own) return null;
-  return <span className="cg-tag" title={from.kind === 'books' ? 'z biblioteki — tylko do odwołań' : from.kind === 'writing' ? 'ze skryptorium — tylko do odwołań' : 'z innej bazy wiedzy — tu tylko do odczytu'}>{from.name}</span>;
+  return <span className="cg-tag" title={from.kind === 'books' ? t('cogitaViews.ui.fromLibrary') : from.kind === 'writing' ? t('cogitaViews.ui.fromScriptorium') : t('cogitaViews.ui.fromOtherBase')}>{from.name}</span>;
 }
 
 /**
@@ -258,12 +265,13 @@ export function OriginTag({ id }: { id: string }) {
  * Weg dorthin.
  */
 export function ForeignOnly({ id, tab, children }: { id: string | null; tab: string; children: ReactNode }) {
+  const t = useT();
   const ctx = useCtx();
   const from = id === null ? undefined : ctx.lib.origin(id);
   if (id === null || from === undefined || from.own) return <>{children}</>;
   return (
     <CogitaContext.Provider value={{ ...ctx, writes: false }}>
-      <p className="wk-note">Z „{from.name}” — tu tylko do odczytu. <a href={originPath(from, id, tab)}>Zmień tam</a></p>
+      <p className="wk-note">{t('cogitaViews.ui.foreignOnly', { name: from.name })} <a href={originPath(from, id, tab)}>{t('cogitaViews.ui.changeThere')}</a></p>
       {children}
     </CogitaContext.Provider>
   );
@@ -280,7 +288,7 @@ export function KindSelect({ lib, value, onChange, empty, material = false }: { 
 }
 
 /** Wie eine Art in einer Auswahl heisst — eine der Bibliotheken mit „(z biblioteki)". */
-export const kindLabel = (k: { readonly id: string; readonly name: string }): string => (BOOK_KINDS.has(k.id) ? `${k.name} (z biblioteki)` : k.name);
+export const kindLabel = (k: { readonly id: string; readonly name: string }): string => (BOOK_KINDS.has(k.id) ? t('cogitaViews.ui.kindFromLibrary', { name: k.name }) : k.name);
 
 /* -- Auszeichnung des Wissens ------------------------------------------------------------- */
 
@@ -329,6 +337,7 @@ export function Markup({ text, onEntity, lib }: { text: string; onEntity?: (id: 
  * Datei); offene Kopien gibt es nicht mehr.
  */
 export function MediaView({ media }: { media: MediaRef }) {
+  const t = useT();
   const ctx = useContext(CogitaContext);
   /* 0110 — die Datei liegt dort, woher ihr Eintrag kommt, unter dem Schlüssel jenes Bereichs. */
   const owner = media.library ?? ctx?.lib.libraryId ?? '';
@@ -336,12 +345,12 @@ export function MediaView({ media }: { media: MediaRef }) {
     const area = ctx.lib.areaOf(owner) ?? ctx.lib.areaId;
     return fileUrl(owner, media, area === ctx.lib.areaId ? ctx.keyOf : (epoch) => ctx.keyIn(area, epoch), ctx.seat);
   }, [media.file, owner]);
-  if (url === undefined) return <span className="wk-hint">Otwieranie pliku…</span>;
-  if (url === null) return <span className="wk-hint">Pliku nie da się otworzyć.</span>;
+  if (url === undefined) return <span className="wk-hint">{t('cogitaViews.ui.fileOpening')}</span>;
+  if (url === null) return <span className="wk-hint">{t('cogitaViews.ui.fileFailed')}</span>;
   if (media.type === 'image') return <img className="cg-media" src={url} alt={media.name ?? ''} />;
   if (media.type === 'audio') return <audio className="cg-media" src={url} controls preload="metadata" />;
   if (media.type === 'video') return <video className="cg-media" src={url} controls preload="metadata" />;
-  return <a className="wk-link-btn" href={url} download={media.name ?? 'plik'}>Pobierz: {media.name ?? 'plik'}</a>;
+  return <a className="wk-link-btn" href={url} download={media.name ?? t('cogitaViews.ui.fileName')}>{t('cogitaViews.ui.download', { name: media.name ?? t('cogitaViews.ui.fileName') })}</a>;
 }
 
 /* -- Bedingungen und Aktionen der einen Logik ------------------------------------------------ */
@@ -366,18 +375,19 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
   /** Was „+ warunek" und „+ część" anlegen. */
   fresh?: Condition;
 }) {
+  const t = useT();
   const c = value;
   const start: Condition = fresh ?? { type: 'value', value: '', op: 'ge', than: 1 };
   /* 2026-11-03 (G) — „Przebieg": die Abläufe der Baza zur Wahl (ausserhalb einer Baza: eine Kennung von Hand). */
   const cogita = useContext(CogitaContext);
-  const flows = cogita === null ? [] : cogita.lib.docs('flow').map((d) => ({ id: d.id, name: String(d.data.name ?? 'Przebieg') }));
+  const flows = cogita === null ? [] : cogita.lib.docs('flow').map((d) => ({ id: d.id, name: String(d.data.name ?? t('cogitaViews.ui.cond.flowName')) }));
   const set = (patch: Partial<Condition>) => onChange(readCondition({ ...(c ?? { type: 'value' }), ...patch }));
   const fields = relations === undefined ? [] : [...new Map(relations.map((f) => [f.key, f])).values()];
   const fieldName = (key: string) => fields.find((f) => f.key === key)?.label ?? key;
   if (c === null) {
     return (
       <div className="cg-cond">
-        <button type="button" className="wk-link-btn" onClick={() => onChange(start)}>+ warunek</button>
+        <button type="button" className="wk-link-btn" onClick={() => onChange(start)}>{t('cogitaViews.ui.cond.add')}</button>
       </div>
     );
   }
@@ -389,37 +399,37 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
           const type = e.target.value as ConditionType;
           onChange(readCondition(type === 'and' || type === 'or' || type === 'xor' || type === 'not' ? { type, items: c.items ?? (gate ? [] : [c]) } : { type }));
         }}>
-          {CONDITION_TYPES.map((t) => <option key={t} value={t}>{CONDITION_LABEL[t]}</option>)}
+          {CONDITION_TYPES.map((ct) => <option key={ct} value={ct}>{CONDITION_LABEL[ct]}</option>)}
         </select>
         {c.type === 'knowness' && relations !== undefined && (
-          <select value={c.rel ?? ''} aria-label="Czyja znajomość" onChange={(e) => set(e.target.value === '' ? { rel: undefined, each: undefined } : { rel: e.target.value, of: undefined })}>
-            <option value="">konkretnego wpisu albo karty</option>
+          <select value={c.rel ?? ''} aria-label={t('cogitaViews.ui.cond.whose')} onChange={(e) => set(e.target.value === '' ? { rel: undefined, each: undefined } : { rel: e.target.value, of: undefined })}>
+            <option value="">{t('cogitaViews.ui.cond.specific')}</option>
             {RELATIONS.map((r) => <option key={r} value={r}>{RELATION_LABEL[r]}</option>)}
             {fields.length > 0 && (
-              <optgroup label="to, na co wskazuje pole">
+              <optgroup label={t('cogitaViews.ui.cond.pointedField')}>
                 {fields.map((f) => <option key={f.key} value={f.key}>{f.label}{f.group === undefined ? '' : ` (${f.group})`}</option>)}
               </optgroup>
             )}
           </select>
         )}
         {c.type === 'knowness' && c.rel !== undefined && c.rel !== 'self' && (
-          <select value={c.each ?? 'all'} aria-label="Wszystkie czy jeden" onChange={(e) => set({ each: e.target.value === 'any' ? 'any' : undefined })}>
-            <option value="all">każdy z nich</option>
-            <option value="any">choć jeden</option>
+          <select value={c.each ?? 'all'} aria-label={t('cogitaViews.ui.cond.allOrOne')} onChange={(e) => set({ each: e.target.value === 'any' ? 'any' : undefined })}>
+            <option value="all">{t('cogitaViews.ui.cond.each')}</option>
+            <option value="any">{t('cogitaViews.ui.cond.any')}</option>
           </select>
         )}
         {(c.type === 'value' || c.type === 'knowness') && (
           <>
             {c.type === 'value'
-              ? <input value={c.value ?? ''} placeholder="nazwa wartości" onChange={(e) => set({ value: e.target.value })} />
-              : c.rel === undefined && <input value={c.of ?? ''} placeholder="wpis albo karta" onChange={(e) => set({ of: e.target.value })} />}
+              ? <input value={c.value ?? ''} placeholder={t('cogitaViews.ui.cond.valueName')} onChange={(e) => set({ value: e.target.value })} />
+              : c.rel === undefined && <input value={c.of ?? ''} placeholder={t('cogitaViews.ui.cond.entryOrCard')} onChange={(e) => set({ of: e.target.value })} />}
             {/* 2026-11-01 — die Kenntnis als Band (poznane, znane, do powtórki, nieznane) oder als Zahl. */}
             {c.type === 'knowness' && (
-              <select value={c.band ?? ''} aria-label="Jaka znajomość" data-cond-band="" onChange={(e) => set(e.target.value === ''
+              <select value={c.band ?? ''} aria-label={t('cogitaViews.ui.cond.whichKnowness')} data-cond-band="" onChange={(e) => set(e.target.value === ''
                 ? { band: undefined, op: 'ge', than: 0.5 }
                 : { band: e.target.value as KnownessBand, op: undefined, than: undefined })}>
                 {KNOWNESS_BANDS.map((b) => <option key={b} value={b}>{KNOWNESS_BAND_LABEL[b]}</option>)}
-                <option value="">liczba…</option>
+                <option value="">{t('cogitaViews.ui.cond.number')}</option>
               </select>
             )}
             {(c.type === 'value' || c.band === undefined) && (
@@ -436,44 +446,44 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
           <>
             {flows.length > 0
               ? (
-                <select value={c.flow ?? ''} aria-label="Który przebieg" data-cond-flow="" onChange={(e) => set({ flow: e.target.value || undefined })}>
-                  <option value="">— przebieg —</option>
+                <select value={c.flow ?? ''} aria-label={t('cogitaViews.ui.cond.whichFlow')} data-cond-flow="" onChange={(e) => set({ flow: e.target.value || undefined })}>
+                  <option value="">{t('cogitaViews.ui.cond.flowNone')}</option>
                   {flows.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
                 </select>
               )
-              : <input value={c.flow ?? ''} placeholder="przebieg" onChange={(e) => set({ flow: e.target.value })} />}
-            <select value={c.state ?? 'done'} aria-label="Co ma być" onChange={(e) => set({ state: e.target.value as FlowCheck })}>
+              : <input value={c.flow ?? ''} placeholder={t('cogitaViews.ui.cond.flow')} onChange={(e) => set({ flow: e.target.value })} />}
+            <select value={c.state ?? 'done'} aria-label={t('cogitaViews.ui.cond.whatState')} onChange={(e) => set({ state: e.target.value as FlowCheck })}>
               {FLOW_CHECKS.map((s) => <option key={s} value={s}>{FLOW_CHECK_LABEL[s]}</option>)}
             </select>
-            {c.state === 'goal' && <input value={c.goal ?? ''} placeholder="cel (puste: którykolwiek)" onChange={(e) => set({ goal: e.target.value || undefined })} />}
+            {c.state === 'goal' && <input value={c.goal ?? ''} placeholder={t('cogitaViews.ui.cond.goal')} onChange={(e) => set({ goal: e.target.value || undefined })} />}
           </>
         )}
         {(c.type === 'answered' || c.type === 'visited' || c.type === 'zone') && (
           <>
-            <input value={c.of ?? ''} placeholder={c.type === 'answered' ? 'pytanie' : c.type === 'visited' ? 'krok' : 'strefa'} onChange={(e) => set({ of: e.target.value })} />
+            <input value={c.of ?? ''} placeholder={c.type === 'answered' ? t('cogitaViews.ui.cond.question') : c.type === 'visited' ? t('cogitaViews.ui.cond.step') : t('cogitaViews.ui.cond.zone')} onChange={(e) => set({ of: e.target.value })} />
             {c.type === 'answered' && (
               <select value={c.correct === undefined ? '' : c.correct ? 'yes' : 'no'} onChange={(e) => set({ correct: e.target.value === '' ? undefined : e.target.value === 'yes' })}>
-                <option value="">jakkolwiek</option><option value="yes">dobrze</option><option value="no">źle</option>
+                <option value="">{t('cogitaViews.ui.cond.anyhow')}</option><option value="yes">{t('cogitaViews.ui.cond.right')}</option><option value="no">{t('cogitaViews.ui.cond.wrong')}</option>
               </select>
             )}
           </>
         )}
         {c.type === 'time' && (
           <>
-            <input type="date" value={c.after ?? ''} onChange={(e) => set({ after: e.target.value || undefined })} aria-label="od dnia" />
-            <input type="date" value={c.before ?? ''} onChange={(e) => set({ before: e.target.value || undefined })} aria-label="do dnia" />
-            <input type="time" value={c.from ?? ''} onChange={(e) => set({ from: e.target.value || undefined })} aria-label="od godziny" />
-            <input type="time" value={c.to ?? ''} onChange={(e) => set({ to: e.target.value || undefined })} aria-label="do godziny" />
+            <input type="date" value={c.after ?? ''} onChange={(e) => set({ after: e.target.value || undefined })} aria-label={t('cogitaViews.ui.cond.fromDay')} />
+            <input type="date" value={c.before ?? ''} onChange={(e) => set({ before: e.target.value || undefined })} aria-label={t('cogitaViews.ui.cond.toDay')} />
+            <input type="time" value={c.from ?? ''} onChange={(e) => set({ from: e.target.value || undefined })} aria-label={t('cogitaViews.ui.cond.fromHour')} />
+            <input type="time" value={c.to ?? ''} onChange={(e) => set({ to: e.target.value || undefined })} aria-label={t('cogitaViews.ui.cond.toHour')} />
           </>
         )}
         {c.type === 'place' && (
           <>
-            <input type="number" step="any" placeholder="szer." value={c.lat ?? ''} onChange={(e) => set({ lat: Number(e.target.value) })} />
-            <input type="number" step="any" placeholder="dł." value={c.lon ?? ''} onChange={(e) => set({ lon: Number(e.target.value) })} />
+            <input type="number" step="any" placeholder={t('cogitaViews.ui.cond.lat')} value={c.lat ?? ''} onChange={(e) => set({ lat: Number(e.target.value) })} />
+            <input type="number" step="any" placeholder={t('cogitaViews.ui.cond.lon')} value={c.lon ?? ''} onChange={(e) => set({ lon: Number(e.target.value) })} />
             <input type="number" placeholder="m" value={c.radius ?? 50} onChange={(e) => set({ radius: Number(e.target.value) })} />
           </>
         )}
-        {depth === 0 && <button type="button" className="wk-link-btn" onClick={() => onChange(null)}>usuń</button>}
+        {depth === 0 && <button type="button" className="wk-link-btn" onClick={() => onChange(null)}>{t('cogitaViews.ui.cond.remove')}</button>}
       </div>
       {gate && (
         <div className="cg-cond-items">
@@ -488,7 +498,7 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
             </div>
           ))}
           {(c.type !== 'not' || (c.items ?? []).length === 0) && (
-            <button type="button" className="wk-link-btn" onClick={() => onChange({ ...c, items: [...(c.items ?? []), start] })}>+ część</button>
+            <button type="button" className="wk-link-btn" onClick={() => onChange({ ...c, items: [...(c.items ?? []), start] })}>{t('cogitaViews.ui.cond.addPart')}</button>
           )}
         </div>
       )}
@@ -498,26 +508,27 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
 }
 
 export function ActionsEditor({ value, onChange, steps }: { value: readonly Action[]; onChange: (next: Action[]) => void; steps?: readonly { id: string; label: string }[] }) {
+  const t = useT();
   const set = (i: number, patch: Partial<Action>) => onChange(value.map((a, j) => (j === i ? { ...a, ...patch } : a)));
   return (
     <div className="cg-actions">
       {value.map((a, i) => (
         <div key={i} className="cg-cond-row">
           <select value={a.type} onChange={(e) => set(i, { type: e.target.value as Action['type'] })}>
-            <option value="add">dodaj do wartości</option>
-            <option value="set">ustaw wartość</option>
-            <option value="go">przejdź do kroku</option>
+            <option value="add">{t('cogitaViews.ui.act.add')}</option>
+            <option value="set">{t('cogitaViews.ui.act.set')}</option>
+            <option value="go">{t('cogitaViews.ui.act.go')}</option>
           </select>
-          {a.type !== 'go' && <input value={a.value ?? ''} placeholder="nazwa wartości" onChange={(e) => set(i, { value: e.target.value })} />}
+          {a.type !== 'go' && <input value={a.value ?? ''} placeholder={t('cogitaViews.ui.cond.valueName')} onChange={(e) => set(i, { value: e.target.value })} />}
           {a.type === 'add' && <input type="number" step="any" value={a.by ?? 1} onChange={(e) => set(i, { by: Number(e.target.value) })} />}
           {a.type === 'set' && <input type="number" step="any" value={a.to ?? 0} onChange={(e) => set(i, { to: Number(e.target.value) })} />}
           {a.type === 'go' && (steps === undefined
-            ? <input value={a.step ?? ''} placeholder="krok" onChange={(e) => set(i, { step: e.target.value })} />
+            ? <input value={a.step ?? ''} placeholder={t('cogitaViews.ui.cond.step')} onChange={(e) => set(i, { step: e.target.value })} />
             : <select value={a.step ?? ''} onChange={(e) => set(i, { step: e.target.value })}><option value="">—</option>{steps.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>)}
           <button type="button" className="wk-link-btn" onClick={() => onChange(value.filter((_, j) => j !== i))}>×</button>
         </div>
       ))}
-      <button type="button" className="wk-link-btn" onClick={() => onChange([...value, { type: 'add', value: '', by: 1 }])}>+ działanie</button>
+      <button type="button" className="wk-link-btn" onClick={() => onChange([...value, { type: 'add', value: '', by: 1 }])}>{t('cogitaViews.ui.act.new')}</button>
     </div>
   );
 }

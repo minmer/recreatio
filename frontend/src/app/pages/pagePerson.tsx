@@ -31,6 +31,7 @@ import { keysFor } from '../core/ringOf';
 import { seatName, useSeats, type SeatView } from '../seats/seatContext';
 import { freshSeat, seatsExactly } from '../seats/seatKeep';
 import { whoIsThere } from '../core/session';
+import { rich, t, useT } from '../core/i18n';
 import { subjectsFor } from '../forms/subject';
 
 export type PagePerson =
@@ -87,7 +88,7 @@ async function ownPersons(): Promise<readonly Own[]> {
       // Keine eigenen Angaben — dann der Name der Rolle.
     }
 
-    out.push({ roleId: one.roleId, name: name ?? 'Osoba bez nazwy', isMine: one.isMine, ring });
+    out.push({ roleId: one.roleId, name: name ?? t('pages.person.unnamed'), isMine: one.isMine, ring });
   }
 
   return out;
@@ -175,6 +176,7 @@ export function PersonProvider({ path, children }: { path: string; children: Rea
  * dass es ihn braucht. Die Auswahl oben bleibt stehen: man kann umschalten.
  */
 export function PersonAccessGate({ children }: { children: ReactNode }) {
+  const t = useT();
   const access = usePageAccess();
   const chosen = usePerson()?.chosen ?? null;
 
@@ -191,14 +193,11 @@ export function PersonAccessGate({ children }: { children: ReactNode }) {
 
   return (
     <section className="wk-note wk-access-note" role="status">
-      <p>
-        <strong>{chosen.name} nie ma dostępu do tej strony.</strong> Ta strona jest tylko dla osób,
-        które mają do niej dostęp — przez swój link do tej strony albo przez konto, któremu go nadano.
-      </p>
+      <p>{rich(t('pages.person.noAccess', { name: chosen.name }), { b: (s, k) => <strong key={k}>{s}</strong> })}</p>
       <p>
         {chosen.kind === 'seat'
-          ? 'Ten link należy do innej strony albo do innego formularza. Wybierz u góry osobę, która ma dostęp, albo otwórz link, który dostałeś do tej strony.'
-          : 'Wybierz u góry osobę, która ma dostęp. Jeśli ta osoba powinna go mieć, poproś o niego tych, którzy prowadzą tę stronę.'}
+          ? t('pages.person.otherLink')
+          : t('pages.person.chooseOther')}
       </p>
     </section>
   );
@@ -212,9 +211,10 @@ export function PersonAccessGate({ children }: { children: ReactNode }) {
  * einem Eintrag.
  */
 export function PersonPicker() {
+  const t = useT();
   const choice = usePerson();
   const access = usePageAccess();
-  const mark = (one: PagePerson) => (allows(access, one) ? '' : ' — brak dostępu');
+  const mark = (one: PagePerson) => (allows(access, one) ? '' : t('pages.person.noAccessMark'));
   /* Eine Liste mit EINEM Eintrag nur dann, wenn er nicht schon gewählt ist. */
   if (choice === null || choice.options.length === 0) return null;
   if (choice.options.length === 1 && choice.chosen?.id === choice.options[0].id) return null;
@@ -224,21 +224,21 @@ export function PersonPicker() {
 
   return (
     <label className="wk-person-pick">
-      <span>Za kogo</span>
+      <span>{t('pages.person.forWhom')}</span>
       <select
         value={choice.chosen?.id ?? ''}
         onChange={(e) => choice.choose(e.target.value === '' ? null : e.target.value)}
       >
-        <option value="">— nikt z listy —</option>
+        <option value="">{t('pages.person.nobody')}</option>
         {seats.length > 0 && (
-          <optgroup label="Z linku">
+          <optgroup label={t('pages.person.fromLink')}>
             {seats.map((one) => <option key={one.id} value={one.id}>{one.name}{mark(one)}</option>)}
           </optgroup>
         )}
         {roles.length > 0 && (
-          <optgroup label="Z konta">
+          <optgroup label={t('pages.person.fromAccount')}>
             {roles.map((one) => (
-              <option key={one.id} value={one.id}>{one.name}{one.kind === 'role' && one.isMine ? ' (ja)' : ''}{mark(one)}</option>
+              <option key={one.id} value={one.id}>{one.name}{one.kind === 'role' && one.isMine ? t('pages.person.me') : ''}{mark(one)}</option>
             ))}
           </optgroup>
         )}

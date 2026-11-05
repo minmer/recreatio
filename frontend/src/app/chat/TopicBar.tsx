@@ -19,6 +19,7 @@ import { viewPath } from '../routes';
 import { WorkspaceError } from '../core/session';
 import { loadTasks, openTasks, windowState, type OpenTask } from '../calendar/tasks';
 import { Loading } from '../ui/Loading';
+import { fmtDate, t as tApp, useT } from '../core/i18n';
 
 export function TopicBar({ topics, current, canCreate, canManage, onPick, onCreate, onChanged }: {
   topics: readonly Topic[];
@@ -30,15 +31,16 @@ export function TopicBar({ topics, current, canCreate, canManage, onPick, onCrea
   onCreate: (title: string) => Promise<void>;
   onChanged?: () => void;
 }) {
+  const t = useT();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [showClosed, setShowClosed] = useState(false);
 
-  const open = topics.filter((t) => t.closedAt === null);
-  const closed = topics.filter((t) => t.closedAt !== null);
-  const chosen = topics.find((t) => t.topicId === current) ?? null;
+  const open = topics.filter((tp) => tp.closedAt === null);
+  const closed = topics.filter((tp) => tp.closedAt !== null);
+  const chosen = topics.find((tp) => tp.topicId === current) ?? null;
 
   if (topics.length === 0 && !canCreate) return null;
 
@@ -51,40 +53,40 @@ export function TopicBar({ topics, current, canCreate, canManage, onPick, onCrea
       setTitle('');
       setAdding(false);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć tematu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('chat.topic.createFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="ch-topics" role="toolbar" aria-label="Tematy">
+    <div className="ch-topics" role="toolbar" aria-label={t('chat.topic.label')}>
       <div className="ch-topics-row">
-        <button type="button" className={current === null ? 'ch-topic is-on' : 'ch-topic'} onClick={() => onPick(null)}>Wszystko</button>
-        {[...open, ...(showClosed ? closed : [])].map((t) => (
-          <button key={t.topicId} type="button" className={`ch-topic${current === t.topicId ? ' is-on' : ''}${t.closedAt !== null ? ' is-closed' : ''}`}
-            title={`${t.messages} wiad.${t.tasks > 0 ? ` · ${t.tasks} zad.` : ''}${t.items > 0 ? ` · ${t.items} term.` : ''}`}
-            onClick={() => onPick(current === t.topicId ? null : t.topicId)}>
-            # {t.title}
-            {(t.tasks > 0 || t.items > 0) && <span className="ch-topic-n">{t.tasks + t.items}</span>}
+        <button type="button" className={current === null ? 'ch-topic is-on' : 'ch-topic'} onClick={() => onPick(null)}>{t('chat.topic.all')}</button>
+        {[...open, ...(showClosed ? closed : [])].map((tp) => (
+          <button key={tp.topicId} type="button" className={`ch-topic${current === tp.topicId ? ' is-on' : ''}${tp.closedAt !== null ? ' is-closed' : ''}`}
+            title={`${t('chat.topic.nMessages', { count: tp.messages })}${tp.tasks > 0 ? ` · ${t('chat.topic.nTasks', { count: tp.tasks })}` : ''}${tp.items > 0 ? ` · ${t('chat.topic.nItems', { count: tp.items })}` : ''}`}
+            onClick={() => onPick(current === tp.topicId ? null : tp.topicId)}>
+            # {tp.title}
+            {(tp.tasks > 0 || tp.items > 0) && <span className="ch-topic-n">{tp.tasks + tp.items}</span>}
           </button>
         ))}
         {closed.length > 0 && (
           <button type="button" className="ch-topic is-quiet" onClick={() => setShowClosed((was) => !was)}>
-            {showClosed ? 'Ukryj zamknięte' : `Zamknięte (${closed.length})`}
+            {showClosed ? t('chat.topic.hideClosed') : t('chat.topic.closed', { count: closed.length })}
           </button>
         )}
         {canCreate && !adding && (
-          <button type="button" className="ch-topic is-add" onClick={() => setAdding(true)}>+ Temat</button>
+          <button type="button" className="ch-topic is-add" onClick={() => setAdding(true)}>{t('chat.topic.add')}</button>
         )}
       </div>
 
       {adding && (
         <form className="ch-topic-new" onSubmit={(e) => { e.preventDefault(); void make(); }}>
-          <input autoFocus value={title} maxLength={200} placeholder="np. Pielgrzymka — transport" disabled={busy}
+          <input autoFocus value={title} maxLength={200} placeholder={t('chat.topic.newHint')} disabled={busy}
             onChange={(e) => setTitle(e.target.value)} />
-          <button type="submit" className="wk-btn" disabled={busy || title.trim() === ''}>Załóż</button>
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { setAdding(false); setTitle(''); }}>Anuluj</button>
+          <button type="submit" className="wk-btn" disabled={busy || title.trim() === ''}>{t('chat.topic.create')}</button>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => { setAdding(false); setTitle(''); }}>{t('common.cancel')}</button>
         </form>
       )}
 
@@ -97,13 +99,14 @@ export function TopicBar({ topics, current, canCreate, canManage, onPick, onCrea
 }
 
 function TopicTools({ topic, onChanged }: { topic: Topic; onChanged?: () => void }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   return (
     <div className="ch-topic-tools">
-      <span className="wk-hint">Piszesz w temacie „{topic.title}"</span>
+      <span className="wk-hint">{t('chat.topic.writingIn', { title: topic.title })}</span>
       <button type="button" className="wk-link-btn" disabled={busy}
         onClick={() => { setBusy(true); void closeTopic(topic.topicId, topic.closedAt === null).then(() => onChanged?.()).finally(() => setBusy(false)); }}>
-        {topic.closedAt === null ? 'Zamknij temat' : 'Otwórz ponownie'}
+        {topic.closedAt === null ? t('chat.topic.close') : t('chat.topic.reopen')}
       </button>
     </div>
   );
@@ -122,10 +125,11 @@ export function CollectToTopic({ count, topics, canCreate, onCollect, onClose }:
   onCollect: (target: { readonly topicId: string | null } | { readonly title: string }) => Promise<void>;
   onClose: () => void;
 }) {
+  const t = useT();
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  const open = topics.filter((t) => t.closedAt === null);
+  const open = topics.filter((tp) => tp.closedAt === null);
 
   const go = async (target: { readonly topicId: string | null } | { readonly title: string }) => {
     setBusy(true);
@@ -133,35 +137,33 @@ export function CollectToTopic({ count, topics, canCreate, onCollect, onClose }:
     try {
       await onCollect(target);
     } catch (e) {
-      setFailed(e instanceof Error && e.message !== '' ? e.message : 'Nie udało się przenieść.');
+      setFailed(e instanceof Error && e.message !== '' ? e.message : t('chat.topic.moveFailed'));
       setBusy(false);
     }
   };
 
-  const what = count === 1 ? 'wiadomość' : count < 5 ? `${count} wiadomości` : `${count} wiadomości`;
-
   return (
-    <Modal title={count === 1 ? 'Przenieś do tematu' : `Zbierz w temat: ${what}`} onClose={onClose}>
+    <Modal title={count === 1 ? t('chat.topic.moveTitle') : t('chat.topic.collectTitle', { count })} onClose={onClose}>
       {canCreate && (
         <form className="ch-collect-new" onSubmit={(e) => { e.preventDefault(); if (title.trim() !== '') void go({ title: title.trim() }); }}>
           <label className="wk-field">
-            <span>Nowy temat</span>
-            <input value={title} autoFocus maxLength={200} placeholder="np. Muzyka na rekolekcje" disabled={busy} data-collect-title=""
+            <span>{t('chat.topic.new')}</span>
+            <input value={title} autoFocus maxLength={200} placeholder={t('chat.topic.collectHint')} disabled={busy} data-collect-title=""
               onChange={(e) => setTitle(e.target.value)} />
           </label>
           <button type="submit" className="wk-btn" disabled={busy || title.trim() === ''} data-collect-new="">
-            {busy ? 'Przenoszenie…' : count === 1 ? 'Utwórz temat i przenieś' : 'Utwórz temat i zbierz'}
+            {busy ? t('chat.topic.moving') : count === 1 ? t('chat.topic.createMove') : t('chat.topic.createCollect')}
           </button>
         </form>
       )}
-      {open.length > 0 && <p className="wk-hint">{canCreate ? 'Albo do istniejącego tematu:' : 'Do tematu:'}</p>}
+      {open.length > 0 && <p className="wk-hint">{canCreate ? t('chat.topic.orExisting') : t('chat.topic.toTopic')}</p>}
       <ul className="ch-move-list">
-        {open.map((t) => (
-          <li key={t.topicId}>
-            <button type="button" className="ch-topic" disabled={busy} data-collect-topic={t.topicId} onClick={() => void go({ topicId: t.topicId })}># {t.title}</button>
+        {open.map((tp) => (
+          <li key={tp.topicId}>
+            <button type="button" className="ch-topic" disabled={busy} data-collect-topic={tp.topicId} onClick={() => void go({ topicId: tp.topicId })}># {tp.title}</button>
           </li>
         ))}
-        <li><button type="button" className="ch-topic" disabled={busy} data-collect-topic="" onClick={() => void go({ topicId: null })}>Bez tematu</button></li>
+        <li><button type="button" className="ch-topic" disabled={busy} data-collect-topic="" onClick={() => void go({ topicId: null })}>{t('chat.topic.none')}</button></li>
       </ul>
       {failed !== null && <p className="wk-error">{failed}</p>}
     </Modal>
@@ -172,10 +174,11 @@ export function CollectToTopic({ count, topics, canCreate, onCollect, onClose }:
  * Wie es um eine Aufgabe aus der Rozmowa steht — in Worten.
  * 2026-10-29 — auch im Export der Rozmowa (`ChatJsonDialog`), dieselben Worte.
  */
-export function taskState(t: OpenTask, now: Date): string {
-  const next = t.occurrences.find((o) => windowState(o, now) !== 'done' && windowState(o, now) !== 'skipped');
-  return t.kind === 'after' ? (t.dueAt !== null && new Date(t.dueAt) < now ? 'zaległe' : 'co pewien czas')
-    : next === undefined ? 'zrobione' : windowState(next, now) === 'open' ? 'teraz' : windowState(next, now) === 'missed' ? 'przegapione' : 'zaplanowane';
+export function taskState(task: OpenTask, now: Date): string {
+  const t = tApp;
+  const next = task.occurrences.find((o) => windowState(o, now) !== 'done' && windowState(o, now) !== 'skipped');
+  return task.kind === 'after' ? (task.dueAt !== null && new Date(task.dueAt) < now ? t('chat.taskState.overdue') : t('chat.taskState.recurring'))
+    : next === undefined ? t('chat.taskState.done') : windowState(next, now) === 'open' ? t('chat.taskState.now') : windowState(next, now) === 'missed' ? t('chat.taskState.missed') : t('chat.taskState.planned');
 }
 
 /**
@@ -185,6 +188,7 @@ export function taskState(t: OpenTask, now: Date): string {
 export function LinkedDialog({ ring, chatId, topics, onClose }: {
   ring: Ring; chatId: string; topics: readonly Topic[]; onClose: () => void;
 }) {
+  const t = useT();
   const [tasks, setTasks] = useState<readonly OpenTask[] | null>(null);
   const [items, setItems] = useState<readonly (LinkedItem & { title: string })[] | null>(null);
 
@@ -203,36 +207,36 @@ export function LinkedDialog({ ring, chatId, topics, onClose }: {
   }, [ring, chatId]);
 
   const groups: { topicId: string | null; title: string }[] = [
-    ...topics.map((t) => ({ topicId: t.topicId as string | null, title: `# ${t.title}` })),
-    { topicId: null, title: 'Bez tematu' }
+    ...topics.map((tp) => ({ topicId: tp.topicId as string | null, title: `# ${tp.title}` })),  // i18n-ignore
+    { topicId: null, title: t('chat.topic.none') }
   ];
   const now = new Date();
 
   return (
-    <Modal title="Zadania i terminy z tej rozmowy" wide onClose={onClose}>
-      {tasks === null || items === null ? <Loading label="Wczytywanie…" />
+    <Modal title={t('chat.linked.title')} wide onClose={onClose}>
+      {tasks === null || items === null ? <Loading label={t('common.loading')} />
         : tasks.length === 0 && items.length === 0 ? (
-          <p className="wk-empty">Nic jeszcze nie powstało z tej rozmowy. W menu wiadomości wybierz „Utwórz zadanie" albo „Dodaj do kalendarza".</p>
+          <p className="wk-empty">{t('chat.linked.empty')}</p>
         ) : (
           <div className="ch-linked">
             {groups.map((g) => {
-              const ts = tasks.filter((t) => (t.topicId ?? null) === g.topicId);
+              const ts = tasks.filter((task) => (task.topicId ?? null) === g.topicId);
               const is = items.filter((i) => i.topicId === g.topicId);
               if (ts.length === 0 && is.length === 0) return null;
               return (
                 <section key={g.topicId ?? 'none'} className="ch-linked-group">
                   <h3 className="wk-h3">{g.title}</h3>
                   <ul>
-                    {ts.map((t) => (
-                      <li key={t.taskId}>
-                        <a href={viewPath('tasks')}>Zadanie: {t.title}</a> <span className="wk-tag">{taskState(t, now)}</span>
+                    {ts.map((task) => (
+                      <li key={task.taskId}>
+                        <a href={viewPath('tasks')}>{t('chat.linked.task', { title: task.title })}</a> <span className="wk-tag">{taskState(task, now)}</span>
                       </li>
                     ))}
                     {is.map((i) => (
                       <li key={i.itemId}>
-                        <a href={viewPath('calendar')}>Termin: {i.title}</a>{' '}
-                        <span className="wk-hint">{new Date(i.startsAt).toLocaleString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                        {i.status === 'cancelled' && <span className="wk-tag">odwołany</span>}
+                        <a href={viewPath('calendar')}>{t('chat.linked.item', { title: i.title })}</a>{' '}
+                        <span className="wk-hint">{fmtDate(new Date(i.startsAt), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }, t.lang)}</span>
+                        {i.status === 'cancelled' && <span className="wk-tag">{t('chat.linked.cancelled')}</span>}
                       </li>
                     ))}
                   </ul>

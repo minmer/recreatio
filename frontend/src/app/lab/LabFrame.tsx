@@ -12,8 +12,9 @@
 
 import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { Icon } from '../ui/icons';
+import { useT } from '../core/i18n';
 import { fromSI, unitById } from '../core/quantities';
+import { Icon } from '../ui/icons';
 
 import './lab.css';
 
@@ -33,6 +34,7 @@ export function LabFrame({ title, chips, bar, stage, side, note, whole = false }
   /** Steht schon im ganzen Fenster der Seite (der Baustein im Vollbild). */
   whole?: boolean;
 }) {
+  const t = useT();
   const root = useRef<HTMLDivElement | null>(null);
   const [full, setFull] = useState(false);
 
@@ -68,8 +70,8 @@ export function LabFrame({ title, chips, bar, stage, side, note, whole = false }
         <header className="lab-bar">
           <strong className="lab-title">{title}</strong>
           {chips}
-          <span className="lab-bar-tools" role="toolbar" aria-label="Sterowanie">{bar}</span>
-          <button type="button" className="lab-tool" aria-label={full ? 'Zamknij pełny ekran' : 'Pełny ekran'} title={full ? 'Zamknij pełny ekran (Esc)' : 'Pełny ekran'} onClick={toggle}>
+          <span className="lab-bar-tools" role="toolbar" aria-label={t('lab.frame.controls')}>{bar}</span>
+          <button type="button" className="lab-tool" aria-label={full ? t('lab.frame.exitFullscreen') : t('lab.frame.fullscreen')} title={full ? t('lab.frame.exitFullscreenEsc') : t('lab.frame.fullscreen')} onClick={toggle}>
             <Icon name={full ? 'x' : 'fit'} />
           </button>
         </header>

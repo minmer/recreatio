@@ -25,6 +25,7 @@
 
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
+import { t, useT } from '../../core/i18n';
 import { MediaPicker, ImagePicker } from '../PageFiles';
 import { definePart, lines, text, type EditorProps, type RawConfig } from '../part';
 import { mediaUrl, textLink } from '../presentation/presentation';
@@ -124,6 +125,7 @@ function ImageView({ config }: { config: Config }) {
 
 /** Ein Bild der Seite wählen oder hochladen — dazu, wie es seinen Platz füllt. */
 function ImageEditor({ raw, onSet, ctx, busy }: EditorProps) {
+  const t = useT();
   const config = read(raw);
   return (
     <div className="wk-image-edit">
@@ -131,27 +133,27 @@ function ImageEditor({ raw, onSet, ctx, busy }: EditorProps) {
         <ImagePicker path={ctx.path} value={raw.url ?? ''} busy={busy} onPick={(url) => onSet({ url })} />
       )}
       <label className="se-inline">
-        <span>Wypełnienie</span>
+        <span>{t('moduleContent.image.fit')}</span>
         <select value={config.fit} disabled={busy} onChange={(e) => onSet({ fit: e.target.value })}>
-          <option value="contain">Całe — mieści się w miejscu</option>
-          <option value="cover">Kadr — wypełnia miejsce, przycina brzegi</option>
+          <option value="contain">{t('moduleContent.image.fitContain')}</option>
+          <option value="cover">{t('moduleContent.image.fitCover')}</option>
         </select>
       </label>
       {config.fit === 'cover' && (
         <label className="se-inline">
-          <span>Środek kadru</span>
+          <span>{t('moduleContent.image.at')}</span>
           <input value={raw.at ?? ''} disabled={busy} placeholder="center, top, 57% 50%" maxLength={40} onChange={(e) => onSet({ at: e.target.value })} />
         </label>
       )}
       {/* 2026-10-19 — ein kurzer Film ohne Ton in Schleife; das Bild oben ist sein Plakat. */}
       <details className="wk-fold" open={config.video !== ''}>
-        <summary>Film zamiast zdjęcia — kilka sekund bez dźwięku, w kółko; zdjęcie jest jego plakatem (opcjonalnie)</summary>
+        <summary>{t('moduleContent.image.video')}</summary>
         {ctx.path !== null && (
           <MediaPicker path={ctx.path} kind="video" value={raw.video ?? ''} busy={busy} onPick={(video) => onSet({ video })} />
         )}
         <label className="se-inline">
-          <span>Adres filmu (MP4, WebM)</span>
-          <input value={raw.video ?? ''} disabled={busy} placeholder="page-image:… albo https://…/ognisko.mp4" maxLength={500} onChange={(e) => onSet({ video: e.target.value })} />
+          <span>{t('moduleContent.image.videoUrl')}</span>
+          <input value={raw.video ?? ''} disabled={busy} placeholder={t('moduleContent.image.videoPlaceholder')} maxLength={500} onChange={(e) => onSet({ video: e.target.value })} />
         </label>
       </details>
     </div>
@@ -161,29 +163,29 @@ function ImageEditor({ raw, onSet, ctx, busy }: EditorProps) {
 export const imagePart = definePart<Config>({
   kind: 'image',
   example: {
-    url: '/Hortus.jpg', alt: 'Ośrodek Hortus Dei nocą, z ogniskiem', caption: 'Hortus Dei — dom w Limanowej', link: '#/rc/osrodek', fit: 'cover', at: '57% 50%',
+    url: '/Hortus.jpg', alt: 'Ośrodek Hortus Dei nocą, z ogniskiem', caption: 'Hortus Dei — dom w Limanowej', link: '#/rc/osrodek', fit: 'cover', at: '57% 50%', // i18n-ignore
     video: 'https://example.org/ognisko.mp4'
   },
-  label: 'Obraz',
-  use: 'Jedno zdjęcie, logo albo grafika — z podpisem i linkiem; na życzenie krótki film bez dźwięku w miejscu zdjęcia.',
+  label: 'moduleContent.image.label',
+  use: 'moduleContent.image.use',
   box: { colSpan: 3, rowSpan: 3 },
 
   fields: [
-    { key: 'url', label: 'Obraz', kind: 'line', hint: 'wybierz powyżej albo adres: https://… lub /logo.svg' },
-    { key: 'alt', label: 'Co przedstawia (dla czytników ekranu)', kind: 'line' },
-    { key: 'caption', label: 'Podpis', kind: 'text', hint: 'może zostać pusty' },
-    { key: 'link', label: 'Link po kliknięciu', kind: 'line', hint: 'https://…, #/strona albo pusty' }
+    { key: 'url', label: 'moduleContent.image.url', kind: 'line', hint: 'moduleContent.image.urlHint' },
+    { key: 'alt', label: 'moduleContent.image.alt', kind: 'line' },
+    { key: 'caption', label: 'moduleContent.image.caption', kind: 'text', hint: 'moduleContent.image.captionHint' },
+    { key: 'link', label: 'moduleContent.image.link', kind: 'line', hint: 'moduleContent.image.linkHint' }
   ],
   extra: [
-    { key: 'fit', shape: 'line', says: '"contain" — cały obraz mieści się w miejscu (zwykle), "cover" — wypełnia miejsce i przycina brzegi' },
-    { key: 'at', shape: 'line', says: 'Przy "cover": gdzie jest środek kadru, np. "center", "top", "57% 50%". W prezentacji miejsce na scenie może mieć własny "crop" (także w klatkach i na telefonie) — wtedy liczy się on' },
-    { key: 'video', shape: 'line', says: 'Krótki film bez dźwięku w kółko zamiast zdjęcia (MP4 albo WebM): plik strony "page-image:<id>" albo "https://…". "url" jest jego plakatem — stoi, dopóki film się nie wczyta, przy „mniej ruchu” i przy oszczędzaniu danych; film gra tylko, gdy go widać' }
+    { key: 'fit', shape: 'line', says: 'moduleContent.image.key.fit' },
+    { key: 'at', shape: 'line', says: 'moduleContent.image.key.at' },
+    { key: 'video', shape: 'line', says: 'moduleContent.image.key.video' }
   ],
 
   read,
   hasContent: (c) => c.url !== '' || c.video !== '',
-  missing: (c) => (c.url === '' && c.video === '' ? 'Wybierz obraz albo wpisz jego adres.' : null),
-  shows: (c) => (c.video !== '' ? 'Film w miejscu zdjęcia.' : c.caption.length > 0 ? 'Obraz z podpisem.' : 'Obraz.'),
+  missing: (c) => (c.url === '' && c.video === '' ? t('moduleContent.image.missing') : null),
+  shows: (c) => (c.video !== '' ? t('moduleContent.image.showsFilm') : c.caption.length > 0 ? t('moduleContent.image.showsCaption') : t('moduleContent.image.showsImage')),
   Editor: ImageEditor,
   View: ({ config }) => <ImageView config={config} />
 });

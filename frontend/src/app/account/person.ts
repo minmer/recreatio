@@ -19,21 +19,22 @@ import { loadPublicKey, myEpochKeys } from '../areas/area';
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url, type FieldName } from '../core/crypto';
 import type { Ring } from '../core/keys';
 import { call } from '../core/session';
+import { texts } from '../core/i18n';
 
 /** Dieselben sieben wie `ck_person_value_field` und `Person.Fields`. */
 export const PERSON_FIELDS =
   ['given_name', 'surname', 'phone', 'born', 'address', 'email', 'nickname'] as const;
 export type PersonField = (typeof PERSON_FIELDS)[number];
 
-export const FIELD_LABEL: Record<PersonField, string> = {
-  given_name: 'Imię',
-  surname: 'Nazwisko',
-  phone: 'Telefon',
-  born: 'Data urodzenia',
-  address: 'Adres',
-  email: 'E-mail',
-  nickname: 'Przezwisko'
-};
+export const FIELD_LABEL: Record<PersonField, string> = texts({
+  given_name: 'account.field.given_name',
+  surname: 'account.field.surname',
+  phone: 'account.field.phone',
+  born: 'account.field.born',
+  address: 'account.field.address',
+  email: 'account.field.email',
+  nickname: 'account.field.nickname'
+});
 
 /**
  * Die Zuordnung Spaltenname → Etikett.

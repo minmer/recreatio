@@ -1,0 +1,115 @@
+{
+  "run": {
+    "noRevision": "Diese Wiederholung gibt es nicht.",
+    "keyNotKept": "Diese Wiederholung ist zum Lernen ohne Internet gedacht, aber auf diesem Gerät ist der Schlüssel nicht gespeichert — schalte „Schlüssel auf diesem Gerät behalten“ ein (Konto → Sicherheit und Schlüssel) und öffne sie noch einmal.",
+    "revision": "Wiederholung",
+    "keepFailed": "Diese Wiederholung konnte auf diesem Gerät nicht zum Lernen ohne Internet gespeichert werden.",
+    "keptHere": "Auf diesem Gerät gespeichert — diese Wiederholung geht auch ohne Internet (Lernen → Ohne Internet auf diesem Gerät).",
+    "noPlan": "Die Wiederholung hat keinen Plan ergeben.",
+    "nothing": "Es gibt nichts zu wiederholen.",
+    "noCards": "Diese Wiederholung hat noch keine Karte.",
+    "prepareFailed": "Die Wiederholung konnte nicht vorbereitet werden.",
+    "back": "Zurück",
+    "preparing": "Karten werden vorbereitet…",
+    "answers": "Antworten: {answered}, richtig: {correct}.",
+    "answersPct": "Antworten: {answered}, richtig: {correct} ({pct} %).",
+    "nothingWaits": "Nichts wartet.",
+    "nextReview": "Nächste Wiederholung: {date}.",
+    "heldCards": {
+      "one": "{count} Karte wartet",
+      "other": "{count} Karten warten"
+    },
+    "heldNeeds": " auf das, was man vorher können muss",
+    "heldFirst": " — zuerst: ",
+    "heldCondition": "Bedingung: ",
+    "heldEnd": ". Sie kommen von selbst, sobald die Bedingung gilt.",
+    "packetsWaiting": {
+      "one": "{count} Antwortpaket wartet auf das Internet — es wird von selbst gesendet.",
+      "other": "{count} Antwortpakete warten auf das Internet — sie werden von selbst gesendet."
+    },
+    "keptSaved": "Diese Wiederholung ist auf diesem Gerät auch ohne Internet da — im Stand von jetzt.",
+    "keptNoKey": "Ohne Internet ist sie hier nicht da: der Schlüssel ist auf diesem Gerät nicht gespeichert (Konto → Sicherheit und Schlüssel).",
+    "noAccount": "Ohne Konto bleibt der Fortschritt in diesem Browser.",
+    "practiceTitle": "Übung: {name}",
+    "nextLesson": "Nächste Lektion",
+    "again": "Noch einmal",
+    "stats": "Statistik — was ich in dieser Wiederholung kann",
+    "flagThanks": "Danke — die Autoren bekommen eine Meldung mit dieser Karte und deiner Antwort (ohne deinen Namen).",
+    "flagClosed": "Diese Wissensbasis nimmt noch keine Meldungen an.",
+    "flagFailed": "Die Meldung konnte nicht gesendet werden.",
+    "progress": "Fortschritt der Wiederholung",
+    "answered": {
+      "one": "{count} Antwort",
+      "other": "{count} Antworten"
+    },
+    "stop": "Beenden",
+    "newTopic": "Neues Thema",
+    "newTopics": "Neue Themen",
+    "rateYourself": "Bewerte dich selbst. ",
+    "suspended": "Diese Karte wird nicht mehr gefragt (du kannst das im Fortschritt rückgängig machen).",
+    "suspend": "Nicht mehr fragen",
+    "flag": "Problem melden",
+    "flagAsk": "Was stimmt mit dieser Karte nicht? Die Autoren sehen die Karte, die Frage und deine Antwort — ohne deinen Namen."
+  },
+  "learnView": {
+    "loadFailed": "Die Wissensbasen konnten nicht geladen werden.",
+    "redirecting": "Weiterleitung…",
+    "offlineNote": "Ohne Internet funktioniert <a>das Lernen von diesem Gerät</a>.",
+    "noBase": "Diese Wissensbasis gibt es nicht, oder du hast keinen Schlüssel dazu.",
+    "allBases": "Alle Wissensbasen",
+    "opening": "Wissensbasis wird geöffnet…",
+    "entries": {
+      "one": "{count} Eintrag",
+      "other": "{count} Einträge"
+    },
+    "entriesLearning": {
+      "one": "{count} Eintrag · du lernst",
+      "other": "{count} Einträge · du lernst"
+    },
+    "onlyYou": "nur du",
+    "area": "Bereich",
+    "knowledge": "Wissen",
+    "newBase": "Neue Wissensbasis",
+    "bases": "Wissensbasen",
+    "basesEmpty": "Eine Wissensbasis sammelt, ordnet und verbindet, was du weißt: Einträge eigener Arten und Verweise zwischen ihnen. Danach kannst du daraus lernen — im Lernen.",
+    "lineWrite": {
+      "one": "{count} Eintrag · {area}",
+      "other": "{count} Einträge · {area}"
+    },
+    "lineRead": {
+      "one": "{count} Eintrag · {area} · nur lesen",
+      "other": "{count} Einträge · {area} · nur lesen"
+    },
+    "lineLearn": {
+      "one": "{count} Eintrag · {area} · du lernst",
+      "other": "{count} Einträge · {area} · du lernst"
+    },
+    "learning": "Lernen",
+    "moreLearning": "Mehr: Lernen",
+    "offlineHere": "Ohne Internet auf diesem Gerät",
+    "now": "Jetzt dran",
+    "nothingDue": "Nichts wartet — alles wiederholt.",
+    "later": " Als Nächstes: {list}.",
+    "base": "Wissensbasis",
+    "dueCards": {
+      "one": "{count} Karte zu wiederholen",
+      "other": "{count} Karten zu wiederholen"
+    },
+    "sessions": "Sitzungen jetzt",
+    "code": "Code {code}",
+    "hosting": "du leitest",
+    "running": "läuft",
+    "learnEmpty": "Du lernst noch mit keiner Wissensbasis. Eine Basis legt man im Wissen an — oder man tritt einem Kurs über einen Link der Lehrkraft bei.",
+    "toKnowledge": "Zum Wissen",
+    "myBase": "Meine Wissensbasis",
+    "createFailed": "Die Wissensbasis konnte nicht angelegt werden.",
+    "namePlaceholder": "z. B. Firmung 2027",
+    "whoSees": "Wer sie sieht",
+    "onlyMeNew": "Nur ich (ein privater Bereich wird angelegt)",
+    "onlyMe": "Nur ich",
+    "whoHint": "Wer den Bereich liest, lernt mit dieser Basis; wer darin schreibt, baut sie.",
+    "publicWarn": "Dieser Bereich ist öffentlich: jeder, auch ohne Konto, liest {whole} dieser Basis. Soll etwas nur für Ausgewählte bleiben, lege die Basis in einem geschlossenen Bereich an.",
+    "creating": "Wird angelegt…",
+    "create": "Anlegen"
+  }
+}

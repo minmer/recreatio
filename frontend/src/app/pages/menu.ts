@@ -22,6 +22,7 @@ import { registryPath } from './menuPath';
 import { loadPage, pageKeyOf, type MenuItem } from './page';
 import { pagePath } from '../routes';
 import { call, WorkspaceError } from '../core/session';
+import { t } from '../core/i18n';
 
 /** Die Adresse, auf die ein Eintrag verweist — `null`, wenn er nur Untereinträge trägt. */
 export function hrefOf(item: MenuItem, from: string): string | null {
@@ -66,14 +67,14 @@ export async function loadMenu(path: string): Promise<MenuState> {
   const key = await keyFor(path);
   const seal = await import('./pageSeal');
   const text = key === null ? null : await seal.openPiece(key, seal.sealAad.menu(key.id, key.v), state.items as unknown as string);
-  if (text === null) throw new WorkspaceError('Menu tej strony jest zaszyfrowane, a ta przeglądarka nie ma jej klucza.');
+  if (text === null) throw new WorkspaceError(t('pages.sealed.menuNoKey'));
   return { ...state, items: seal.readMenuItems(text) };
 }
 
 export async function saveMenu(path: string, items: readonly MenuItem[]): Promise<{ items: number }> {
   const send = async (sealed: boolean): Promise<{ items: number }> => {
     const key = sealed ? await keyFor(path) : null;
-    if (sealed && key === null) throw new WorkspaceError('Ta strona jest zaszyfrowana, a ta przeglądarka nie ma do niej klucza.');
+    if (sealed && key === null) throw new WorkspaceError(t('pages.sealed.noKey'));
     if (key === null || items.length === 0) return call('/workspace/menu', { method: 'POST', body: JSON.stringify({ path, items }) });
     const seal = await import('./pageSeal');
     await call('/workspace/menu', {

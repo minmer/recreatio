@@ -11,8 +11,10 @@
  * im Vollbild die grosse mit Namen.
  */
 
-import { definePart, text, type RawConfig } from '../part';
+import { t } from '../../core/i18n';
+import { text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
+import { defineTextPart, field, texts, withTexts } from './partTexts';
 
 export interface PathConfig {
   readonly title: string;
@@ -27,26 +29,24 @@ export interface PathConfig {
   readonly answers: string;
 }
 
-export const pathPart = definePart<PathConfig>({
+export const pathPart = defineTextPart<PathConfig>({
   kind: 'path',
-  example: { title: 'Twoja droga przez kurs', library: '<id-bazy-wiedzy>', flow: '<id-przebiegu albo puste>', entry: '<id albo @nazwa jednostki albo puste>', view: '<id-widoku albo puste>', answers: '<id-obszaru-kursu albo puste>' },
-  label: 'Ścieżka',
-  use: 'Ścieżka nauki jako mapa (jak ścieżka kursu): od dołu — od podstaw — w górę, z rozwidleniami i miejscami, gdzie drogi się schodzą („2 z 3 ścieżek”); każdy krok to sześciokąt: umiem (zapadnięty, ✓), teraz (wyróżniony), gotowe do nauki (uniesiony, świeci), zablokowane (blade, kłódka), do powtórki (znacznik). Z kolejności nauki bazy („Najpierw trzeba znać”) — dla opowieści (jej wpisy; „teraz” to miejsce w opowieści), jednej jednostki (jej części), widoku albo całej bazy. Klik w krok: „Ucz się” z tym, co trzeba znać wcześniej. Obok opowieści stoi sama — w module „Kurs / opowieść” jest już wbudowana.',
+  example: withTexts({}, texts({ title: 'moduleDataLearn.path.exTitle', library: 'moduleDataCogita.ex.base', flow: 'moduleDataLearn.path.exFlow', entry: 'moduleDataLearn.path.exEntry', view: 'moduleDataLearn.path.exView', answers: 'moduleDataLearn.path.exAnswers' })),
   box: { colSpan: 3, rowSpan: 4 },
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: „Ścieżka”' },
-    { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
-    { key: 'flow', label: 'Dla opowieści (przebiegu)', kind: 'libraryEntry', of: 'library', entryKinds: ['flow'], optional: true, none: 'bez opowieści' },
-    { key: 'entry', label: 'Albo dla jednej jednostki (wpis)', kind: 'line', hint: 'id albo @nazwa wpisu — jego części; puste: nic' },
-    { key: 'view', label: 'Albo dla widoku', kind: 'libraryEntry', of: 'library', entryKinds: ['view'], optional: true, none: 'cała baza' },
-    { key: 'answers', label: 'Odpowiedzi uczących się do', kind: 'area', hint: 'puste: jak w bazie wiedzy; bez tego zostają u uczącego się' }
+    field({ key: 'title', kind: 'line' }, texts({ label: 'moduleDataCogita.f.heading', hint: 'moduleDataLearn.path.titleHint' })),
+    field({ key: 'library', kind: 'knowledge' }, texts({ label: 'moduleDataCogita.f.fromBase' })),
+    field({ key: 'flow', kind: 'libraryEntry', of: 'library', entryKinds: ['flow'], optional: true }, texts({ label: 'moduleDataLearn.path.flow', none: 'moduleDataLearn.path.flowNone' })),
+    field({ key: 'entry', kind: 'line' }, texts({ label: 'moduleDataLearn.path.entry', hint: 'moduleDataLearn.path.entryHint' })),
+    field({ key: 'view', kind: 'libraryEntry', of: 'library', entryKinds: ['view'], optional: true }, texts({ label: 'moduleDataLearn.path.view', none: 'moduleDataLearn.path.viewNone' })),
+    field({ key: 'answers', kind: 'area' }, texts({ label: 'moduleDataCogita.f.answers', hint: 'moduleDataCogita.f.answersHint' }))
   ],
   read: (raw: RawConfig): PathConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), flow: text(raw, 'flow'), entry: text(raw, 'entry'), view: text(raw, 'view'), answers: text(raw, 'answers') }),
   hasContent: (c) => c.library !== '',
-  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : null),
+  missing: (c) => (c.library === '' ? t('moduleDataCogita.m.pickBase') : null),
   fullscreen: true,
-  shows: (_c, size) => size.height === 'strip' ? 'Jedna linia: ile kroków przerobione i co teraz — przycisk „Zobacz”.'
-    : size.height === 'tall' ? 'Cała mapa z nazwami kroków; klik w krok: stan i „Ucz się”.'
-    : 'Mała mapa (zwijana) — idzie za miejscem, w którym jest uczący się; klik w krok: stan i „Ucz się”.',
+  shows: (_c, size) => size.height === 'strip' ? t('moduleDataLearn.path.showsStrip')
+    : size.height === 'tall' ? t('moduleDataLearn.path.showsTall')
+    : t('moduleDataLearn.path.showsBlock'),
   View: later(() => import('./pathViews').then((m) => m.PathView))
-});
+}, texts({ label: 'moduleDataLearn.path.label', use: 'moduleDataLearn.path.use' }));

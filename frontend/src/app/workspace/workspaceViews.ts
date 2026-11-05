@@ -12,6 +12,8 @@
  * werden nicht mehr gelesen — nichts muss umgezogen werden.
  */
 
+import { t } from '../core/i18n';
+
 export type PartKind = 'mypages' | 'alerts' | 'agenda' | 'tasks' | 'chats' | 'forms' | 'pages' | 'access' | 'people' | 'learn';
 
 export interface PartDef {
@@ -22,18 +24,25 @@ export interface PartDef {
   readonly areaOnly?: boolean;
 }
 
+/** Bezeichnung und Erklärung werden erst beim Lesen übersetzt. */
+const partOf = (kind: PartKind, areaOnly?: true): PartDef => ({
+  kind, ...(areaOnly ? { areaOnly } : {}),
+  get label() { return t(`workspace.part.${kind}.label`); },
+  get says() { return t(`workspace.part.${kind}.says`); }
+});
+
 export const PART_DEFS: readonly PartDef[] = [
-  { kind: 'mypages', label: 'Twoje strony', says: 'Strony, na których pracujesz — także przygotowane przez kogoś innego (np. strona Twojej grupy).' },
-  { kind: 'alerts', label: 'Czeka na Ciebie', says: 'Nowe zgłoszenia, wiadomości, rezerwacje, zaległe kroki — w Twojej kolejności.' },
-  { kind: 'agenda', label: 'Najbliższe terminy', says: 'Spotkania, msze i inne terminy z kalendarza.' },
-  { kind: 'tasks', label: 'Zadania', says: 'Co jest do zrobienia teraz i co zalega.' },
-  { kind: 'chats', label: 'Rozmowy', says: 'Rozmowy obszarów i osób.' },
-  { kind: 'forms', label: 'Formularze', says: 'Formularze z liczbą zgłoszeń i nowymi.' },
-  { kind: 'pages', label: 'Strony', says: 'Strony — otwórz, edytuj, udostępnij.' },
-  { kind: 'access', label: 'Dostęp', says: 'Linki, przez które inni mają dostęp — i nowy link.' },
-  { kind: 'people', label: 'Osoby', says: 'Kto należy do obszaru.', areaOnly: true },
+  partOf('mypages'),
+  partOf('alerts'),
+  partOf('agenda'),
+  partOf('tasks'),
+  partOf('chats'),
+  partOf('forms'),
+  partOf('pages'),
+  partOf('access'),
+  partOf('people', true),
   /* 0109 — Nauka: was jetzt dran ist. */
-  { kind: 'learn', label: 'Nauka', says: 'Powtórki na teraz, bazy wiedzy i trwające sesje.' }
+  partOf('learn')
 ];
 
 const KNOWN_PART = new Map(PART_DEFS.map((one) => [one.kind, one]));

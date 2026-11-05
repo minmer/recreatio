@@ -12,6 +12,7 @@ import { nameOf } from '../roles/RolePicker';
 import { myRoleNames } from '../roles/roleNames';
 import { areaKeys, openNames, type ChatRow } from './chat';
 import type { GraphLike } from './chatAuthor';
+import { t } from '../core/i18n';
 
 /* -- Gemeinsam ----------------------------------------------------------------- */
 
@@ -75,14 +76,14 @@ export async function chatTitles(
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   for (const chat of chats) {
-    if (chat.kind === 'self') { out.set(chat.chatId, 'Notatki'); continue; }
+    if (chat.kind === 'self') { out.set(chat.chatId, t('chat.title.notes')); continue; }
     /* 0069 — mit einem Menschen vom Formular: sein Name, wie die Kanzlei ihn am Platz führt. */
-    if (chat.kind === 'seat') { out.set(chat.chatId, `Rozmowa z: ${chat.seatName ?? 'osobą z formularza'}`); continue; }
+    if (chat.kind === 'seat') { out.set(chat.chatId, t('chat.title.seat', { name: chat.seatName ?? t('chat.title.formPerson') })); continue; }
     /* 0080 — der Kanał steht neben der Rozmowa desselben Bereichs: am Namen unterscheidbar. */
-    if (chat.kind === 'channel') { out.set(chat.chatId, `Kanał: ${titleOfArea(areas, chat.areaId, chat.areaName)}`); continue; }
+    if (chat.kind === 'channel') { out.set(chat.chatId, t('chat.title.channel', { name: titleOfArea(areas, chat.areaId, chat.areaName) })); continue; }
     if (chat.kind !== 'direct') { out.set(chat.chatId, titleOfArea(areas, chat.areaId, chat.areaName)); continue; }
     const other = chat.members.find((m) => !me.ring.has(m.roleId)) ?? chat.members.find((m) => !me.roles.some((r) => r.id === m.roleId));
-    if (other === undefined) { out.set(chat.chatId, 'Rozmowa'); continue; }
+    if (other === undefined) { out.set(chat.chatId, t('chat.title.direct')); continue; }
     try {
       const names = await openNames(await areaKeys(me.ring, chat.areaId), chat.areaId, chat.names);
       out.set(chat.chatId, nameOf(other.roleId, other.kind, names, me.names));

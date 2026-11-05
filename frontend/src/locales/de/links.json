@@ -1,0 +1,218 @@
+{
+  "level": {
+    "read": {
+      "label": "Liest",
+      "says": "sieht, was im Bereich ist"
+    },
+    "write": {
+      "label": "Schreibt",
+      "says": "sieht und trägt ein"
+    },
+    "admin": {
+      "label": "Leitet",
+      "says": "kann auch andere hineinlassen"
+    }
+  },
+  "levelWord": {
+    "read": "liest",
+    "write": "schreibt",
+    "admin": "leitet"
+  },
+  "levelSays": {
+    "read": "liest (sieht, was im Bereich ist)",
+    "write": "schreibt (sieht und trägt ein)",
+    "admin": "leitet (kann auch andere hineinlassen)"
+  },
+  "state": {
+    "revoked": "zurückgezogen",
+    "expired": "abgelaufen",
+    "used": "aufgebraucht",
+    "active": "gilt"
+  },
+  "noAreas": "keine Bereiche",
+  "error": {
+    "incomplete": "Dieser Link ist unvollständig — kopier ihn noch einmal ganz.",
+    "pickRole": "Wähle die Rolle, die der Link gibt.",
+    "cannotAdmit": "In einem der gewählten Bereiche kannst du niemanden hineinlassen.",
+    "notYourRole": "Ein Link kann nur eine Rolle geben, die du hast.",
+    "notLeader": "Die Leitung einer Rolle kann nur geben, wer sie leitet.",
+    "mismatch": "Dieser Link passt nicht zur Einladung — kopier ihn noch einmal ganz."
+  },
+  "aim": {
+    "notAddress": "Das ist keine Adresse.",
+    "notOurs": "Das Ziel muss eine Adresse auf recreatio.pl sein.",
+    "tooLong": "Ziel: höchstens {max} Zeichen.",
+    "badChars": "In der Zieladresse stehen unerlaubte Zeichen.",
+    "view": {
+      "calendar": "Kalender im Arbeitsplatz",
+      "chat": "Gespräche im Arbeitsplatz",
+      "areas": "Bereiche im Arbeitsplatz"
+    },
+    "pageBound": "Seite nur mit Zugang für den gewählten Bereich",
+    "pageAccess": "Seite nur mit Zugang",
+    "page": "Seite",
+    "joinPage": "Beitrittsseite",
+    "label": "Wo der Link aufgeht",
+    "placeholder": "z. B. parish/grzegorzki/oaza — oder füge eine Seitenadresse ein",
+    "empty": "Leer: Der Link öffnet die Beitrittsseite. Mit Ziel: Er öffnet diese Seite und gibt dort sofort Zugang — auch ohne Konto, in diesem Browser.",
+    "willOpen": "Öffnet:",
+    "needsAccount": "dieser Teil des Arbeitsplatzes braucht ein Konto: Wer den Link öffnet, meldet sich an und fügt ihn seinem Konto hinzu. Ohne Konto funktionieren Seiten und Kalender.",
+    "noAccount": "mit Zugang sofort, auch ohne Konto."
+  },
+  "progress": {
+    "keys": "Schlüssel des Links werden berechnet…",
+    "areas": "Bereiche werden für den Link geöffnet…",
+    "role": "Link wird mit der Rolle verbunden…",
+    "seal": "Link wird versiegelt…"
+  },
+  "needPassword": "Gib zuerst dein Passwort ein.",
+  "expiry": {
+    "day": "ein Tag",
+    "week": "eine Woche",
+    "month": "ein Monat",
+    "months3": "3 Monate",
+    "year": "ein Jahr"
+  },
+  "list": {
+    "loadFailed": "Die Links ließen sich nicht laden.",
+    "ready": "Link bereit: {label}",
+    "active": "Gültige Links",
+    "noActive": "Es gibt keine gültigen Links.",
+    "inactive": "Inaktiv ({count})"
+  },
+  "busy": {
+    "create": "Link wird erstellt…",
+    "createRole": "Rolle und Link werden erstellt…",
+    "aim": "Ziel des Links wird geändert…",
+    "revokeAll": "Link und Zugang werden zurückgezogen…",
+    "revoke": "Link wird zurückgezogen…",
+    "takeAccess": "Zugang wird entzogen…"
+  },
+  "new": {
+    "noPerson": "Das Konto führt noch keine Person.",
+    "pickRole": "Wähle die Rolle, die der Link gibt — oder leg eine neue an.",
+    "nameRole": "Benenne die neue Rolle.",
+    "pickAreas": "Markiere die Bereiche, zu denen die neue Rolle Zugang gibt.",
+    "nameLink": "Benenne den Link — z. B. „Pfarrgemeinderat\" oder den Namen der Person.",
+    "title": "Neuer Zugangslink",
+    "label": "Für wen / wozu",
+    "labelPlaceholder": "z. B. Pfarrgemeinderat",
+    "labelHint": "Den Namen sieht, wer den Link öffnet — bevor er beitritt.",
+    "lead": "kann auch andere in diese Rolle einladen",
+    "roleHint": "Wer den Link hat, hat, was die Rolle gibt. Änderst du die Bereiche der Rolle, ändern sie sich für alle ihre Links und Formulare.",
+    "once": "Einmalig — sobald eine Person ihn ihrem Konto hinzufügt, hört der Link auf zu gelten (vorher gilt er in jedem Browser, in dem er geöffnet wurde)",
+    "validFor": "Gültig für",
+    "create": "Link erstellen"
+  },
+  "item": {
+    "someRole": "Rolle",
+    "roles": {
+      "one": "Rolle: <b>{names}</b>",
+      "other": "Rollen: <b>{names}</b>"
+    },
+    "canInvite": "(kann andere einladen)",
+    "once": "einmalig",
+    "many": "mehrfach",
+    "upTo": "bis zu {count} Personen",
+    "used": "{count}× benutzt",
+    "usedActive": "{count}× benutzt, {active} mit Zugang",
+    "validUntil": "gültig bis {date}",
+    "opens": "Öffnet:",
+    "joinPage": "die Beitrittsseite",
+    "changeAim": "Ziel ändern",
+    "cannotShow": "Dieser Link lässt sich nicht mehr zeigen — erstell einen neuen.",
+    "show": "Link zeigen",
+    "hide": "Verbergen",
+    "disable": "Link abschalten…",
+    "takeAccess": "Zugang entziehen ({count})",
+    "revokeAsk": "Der Link hört auf zu gelten — auch in den Browsern, in denen er geöffnet wurde. Was ist mit denen, die ihn ihrem Konto hinzugefügt haben?",
+    "revokeAskCount": "Der Link hört auf zu gelten — auch in den Browsern, in denen er geöffnet wurde. Was ist mit denen, die ihn ihrem Konto hinzugefügt haben ({count})?",
+    "keep": "Sie bleiben",
+    "dropToo": "Sie verlieren auch den Zugang",
+    "aimHint": "Der Link bleibt derselbe — ein früher verschickter gilt weiter und führt dorthin, wohin er führte. Ab jetzt gezeigte Adressen haben das neue Ziel.",
+    "saveAim": "Ziel speichern"
+  },
+  "held": {
+    "title": "In diesem Browser geöffnete Links",
+    "lede": "Sie gelten hier ohne Anmeldung und summieren sich. Im Konto gelten sie auf jedem Gerät und erlauben Schreiben.",
+    "dead": "gilt nicht",
+    "onAccount": "im Konto",
+    "inBrowser": "im Browser",
+    "addToAccount": "Zum Konto hinzufügen",
+    "forget": "Aus dem Browser entfernen"
+  },
+  "share": {
+    "title": "Einladung zu recreatio.pl",
+    "warn": "Wer diesen Link hat, hat Zugang. Schick ihn nur denen, für die er gedacht ist."
+  },
+  "shareDialog": {
+    "needPassword": "Gib zuerst dein Passwort ein — die Schlüssel sind in diesem Tab nicht offen.",
+    "failed": "Der Link ließ sich nicht erstellen.",
+    "title": "Teilen: {title}",
+    "public": "Das ist öffentlich — diese Adresse genügt. Wer sie öffnet, sieht es ohne Anmeldung.",
+    "ready": "Link bereit. Wer ihn öffnet, hat sofort Zugang.",
+    "lede": "Der Link gibt eine Rolle — und die Rolle Zugang zu ihren Bereichen. Er öffnet sich gleich hier.",
+    "ledeAim": "Der Link gibt eine Rolle — und die Rolle Zugang zu ihren Bereichen. Er öffnet sich gleich hier: {aim}.",
+    "lead": "kann auch andere einladen",
+    "more": "Name, Gültigkeit, einmalig",
+    "name": "Name des Links (sieht, wer ihn öffnet)",
+    "once": "Einmalig — für eine Person"
+  },
+  "bar": {
+    "label": "Link mit Zugang",
+    "unjoinedLabel": "Link mit Zugang, der nicht im Konto ist",
+    "unjoined": "<b>In diesem Browser ist ein Link mit Zugang</b> — {access}. Dein Konto hat ihn nicht, und im Arbeitsplatz gilt nur, was das Konto hat.",
+    "unjoinedNamed": "<b>In diesem Browser ist ein Link mit Zugang „{label}”</b> — {access}. Dein Konto hat ihn nicht, und im Arbeitsplatz gilt nur, was das Konto hat.",
+    "notNow": "Nicht jetzt",
+    "dead": "Dieser Link mit Zugang gilt nicht mehr — er wurde abgeschaltet, ist abgelaufen oder war einmalig und schon benutzt.",
+    "forget": "Aus diesem Browser entfernen",
+    "opened": "<b>Über einen Link geöffnet</b> — {access}.",
+    "openedNamed": "<b>Über den Link „{label}” geöffnet</b> — {access}.",
+    "owned": "Diesen Zugang hast du auch im Konto.",
+    "signedIn": "Er gilt in diesem Browser, zusammen mit anderen hier geöffneten Links.",
+    "guest": "Er gilt in diesem Browser, ohne Anmeldung.",
+    "guestWrites": "Er gilt in diesem Browser, ohne Anmeldung — im Kalender auch zum Eintragen.",
+    "signedInHint": "Du bist angemeldet — im Arbeitsplatz und beim Eintragen gilt, was das Konto hat. Im Konto gilt der Zugang auch auf jedem Gerät."
+  },
+  "join": {
+    "state": {
+      "revoked": "Dieser Link wurde von der Person abgeschaltet, die ihn erstellt hat.",
+      "expired": "Dieser Link ist abgelaufen.",
+      "used": "Dieser Link war einmalig, und jemand ist schon darüber beigetreten."
+    },
+    "dead": "Dieser Link gilt nicht mehr.",
+    "noInvite": "In diesem Link fehlt die Einladung.",
+    "noSuchInvite": "Eine solche Einladung gibt es nicht.",
+    "checking": "Einladung wird geprüft…",
+    "checkingLink": "Link wird geprüft…",
+    "title": "Einladung",
+    "titleNamed": "Einladung: {label}",
+    "toWorkspace": "Zum Arbeitsplatz",
+    "joined": "Beigetreten",
+    "joinedLede": "Du hast jetzt Zugang: {access}. Er gilt auf jedem Gerät, auf dem du dich anmeldest.",
+    "goOn": "Weiter",
+    "seeAreas": "Bereiche ansehen",
+    "access": "Zugang",
+    "validUntil": "Gültig bis",
+    "validUntilLink": "Gültig bis",
+    "link": "Link",
+    "opens": "Öffnet",
+    "unlockWhy": "Gib zum Beitreten dein Passwort ein — die Schlüssel öffnen sich nur bei dir.",
+    "noPerson": "Das Konto führt noch keine Person — leg sie unter Rollen an und komm dann zu diesem Link zurück.",
+    "failed": "Der Beitritt hat nicht geklappt.",
+    "as": "Ich trete bei als",
+    "joining": "Beitritt läuft…",
+    "join": "Beitreten",
+    "haveAccount": "Du hast ein Konto?",
+    "noSuchLink": "Einen solchen Link gibt es nicht — kopier ihn noch einmal ganz.",
+    "linkNamed": "Link mit Zugang: {label}",
+    "guest": "Er gilt in diesem Browser, ohne Anmeldung — auf den Seiten dieser Bereiche.",
+    "guestCalendar": "Er gilt in diesem Browser, ohne Anmeldung — auf den Seiten dieser Bereiche und in ihrem Kalender.",
+    "guestCalendarWrites": "Er gilt in diesem Browser, ohne Anmeldung — auf den Seiten dieser Bereiche und in ihrem Kalender, auch zum Eintragen von Terminen."
+  },
+  "person": {
+    "needName": "Gib Vor- und Nachnamen ein.",
+    "dead": "Dieser Link gilt in diesem Browser nicht mehr.",
+    "noKeys": "Dieser Link öffnet die Schlüssel dieses Bereichs nicht."
+  }
+}

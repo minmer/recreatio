@@ -22,21 +22,18 @@ import { Unlock } from '../shell/Unlock';
 import { LinkChatsSection } from '../chat/LinkChatJoin';
 import type { Ring } from '../core/keys';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 
-/** 0074 — was eine Stufe in einem Bereich heisst, ausführlich. */
-const LEVEL_SAYS: Record<string, string> = {
-  read: 'czyta (widzi, co jest w obszarze)',
-  write: 'pisze (widzi i dopisuje)',
-  admin: 'prowadzi (może też wpuszczać innych)'
-};
+/** 0074 — was eine Stufe in einem Bereich heisst, ausführlich (`links.levelSays.*`). */
+const LEVELS: ReadonlySet<string> = new Set(['read', 'write', 'admin']);
+const levelSays = (t: (key: string) => string, capability: string): string => (LEVELS.has(capability) ? t(`links.levelSays.${capability}`) : capability);
 
-const STATE_WORD: Record<string, string> = {
-  revoked: 'Ten link został wyłączony przez osobę, która go utworzyła.',
-  expired: 'Ten link wygasł.',
-  used: 'Ten link był jednorazowy i ktoś już przez niego dołączył.'
-};
+/** Warum ein Link nicht mehr gilt (`links.join.state.*`). */
+const STATES: ReadonlySet<string> = new Set(['revoked', 'expired', 'used']);
+const stateSays = (t: (key: string) => string, state: string): string => (STATES.has(state) ? t(`links.join.state.${state}`) : t('links.join.dead'));
 
 export function JoinLink({ token, who }: { token: string | null; who: Who }) {
+  const t = useT();
   const [info, setInfo] = useState<LinkInfo | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
   const [ring, setRing] = useState<Ring | null>(null);
@@ -51,12 +48,12 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
     let alive = true;
     void (async () => {
       try {
-        if (token === null || token === '') throw new WorkspaceError('W tym linku brakuje zaproszenia.');
+        if (token === null || token === '') throw new WorkspaceError(t('links.join.noInvite'));
         const { lookup } = await linkSecrets(token);
         const found = await showLink(lookup);
         if (alive) setInfo(found);
       } catch (e) {
-        if (alive) { setInfo(null); setFailed(e instanceof WorkspaceError ? e.message : 'Takiego zaproszenia nie ma.'); }
+        if (alive) { setInfo(null); setFailed(e instanceof WorkspaceError ? e.message : t('links.join.noSuchInvite')); }
       }
 
       try {
@@ -73,14 +70,14 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
     return () => { alive = false; };
   }, [token, who, tick]);
 
-  if (info === undefined) return <Loading label="Sprawdzanie zaproszenia…" />;
+  if (info === undefined) return <Loading label={t('links.join.checking')} />;
 
   if (info === null) {
     return (
       <>
-        <h1 className="wk-h1">Zaproszenie</h1>
+        <h1 className="wk-h1">{t('links.join.title')}</h1>
         <p className="wk-error">{failed}</p>
-        <p><a className="wk-link" href={tilesPath()}>Przejdź do warsztatu</a></p>
+        <p><a className="wk-link" href={tilesPath()}>{t('links.join.toWorkspace')}</a></p>
       </>
     );
   }
@@ -90,11 +87,11 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
   if (done) {
     return (
       <>
-        <h1 className="wk-h1">Dołączono</h1>
-        <p className="wk-lede">Masz teraz dostęp: {accessWords(info.areas)}. Działa na każdym urządzeniu, na którym się zalogujesz.</p>
+        <h1 className="wk-h1">{t('links.join.joined')}</h1>
+        <p className="wk-lede">{t('links.join.joinedLede', { access: accessWords(info.areas) })}</p>
         <div className="wk-actions">
-          {info.aim !== null && <a className="wk-btn" href={`#/${info.aim}`}>Przejdź dalej</a>}
-          <a className={info.aim !== null ? 'wk-link-btn' : 'wk-btn'} href={viewPath('areas')}>Zobacz obszary</a>
+          {info.aim !== null && <a className="wk-btn" href={`#/${info.aim}`}>{t('links.join.goOn')}</a>}
+          <a className={info.aim !== null ? 'wk-link-btn' : 'wk-btn'} href={viewPath('areas')}>{t('links.join.seeAreas')}</a>
         </div>
       </>
     );
@@ -102,23 +99,23 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
 
   return (
     <>
-      <h1 className="wk-h1">Zaproszenie{info.label !== null ? `: ${info.label}` : ''}</h1>
+      <h1 className="wk-h1">{info.label !== null ? t('links.join.titleNamed', { label: info.label }) : t('links.join.title')}</h1>
 
       <dl className="wk-facts">
-        <div className="wk-fact"><dt>Dostęp</dt><dd><ul className="wk-link-access">{info.areas.length === 0 ? <li>—</li> : info.areas.map((a) => <li key={a.areaId}><strong>{a.name}</strong> — {LEVEL_SAYS[a.capability] ?? a.capability}</li>)}</ul></dd></div>
-        <div className="wk-fact"><dt>Ważne do</dt><dd>{new Date(info.expiresAt).toLocaleDateString('pl-PL')}</dd></div>
-        {info.once && <div className="wk-fact"><dt>Link</dt><dd>jednorazowy</dd></div>}
-        {info.aim !== null && <div className="wk-fact"><dt>Otwiera</dt><dd><a href={`#/${info.aim}`}>recreatio.pl/#/{info.aim}</a></dd></div>}
+        <div className="wk-fact"><dt>{t('links.join.access')}</dt><dd><ul className="wk-link-access">{info.areas.length === 0 ? <li>—</li> : info.areas.map((a) => <li key={a.areaId}><strong>{a.name}</strong> — {levelSays(t, a.capability)}</li>)}</ul></dd></div>
+        <div className="wk-fact"><dt>{t('links.join.validUntil')}</dt><dd>{new Date(info.expiresAt).toLocaleDateString(t.locale)}</dd></div>
+        {info.once && <div className="wk-fact"><dt>{t('links.join.link')}</dt><dd>{t('links.item.once')}</dd></div>}
+        {info.aim !== null && <div className="wk-fact"><dt>{t('links.join.opens')}</dt><dd><a href={`#/${info.aim}`}>{`recreatio.pl/#/${info.aim}`}</a></dd></div>}
       </dl>
 
       <LinkClauses areas={info.areas} invitationId={info.invitationId} />
 
       {info.state !== null ? (
-        <p className="wk-warn">{STATE_WORD[info.state] ?? 'Ten link już nie działa.'}</p>
+        <p className="wk-warn">{stateSays(t, info.state)}</p>
       ) : ring === null ? (
-        <Unlock who={who} why="Żeby dołączyć, podaj hasło — klucze otwierają się tylko u Ciebie." onDone={() => { forgetKeys(); setTick((t) => t + 1); }} />
+        <Unlock who={who} why={t('links.join.unlockWhy')} onDone={() => { forgetKeys(); setTick((n) => n + 1); }} />
       ) : person === null ? (
-        <p className="wk-blocker">Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach, potem wróć do tego linku.</p>
+        <p className="wk-blocker">{t('links.join.noPerson')}</p>
       ) : (
         <form className="wk-form" onSubmit={(e) => {
           e.preventDefault();
@@ -127,12 +124,12 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
           setFailed(null);
           void redeemLink(ring, person, token!, info)
             .then(() => { forgetKeys(); setDone(true); })
-            .catch((err) => setFailed(err instanceof WorkspaceError ? err.message : 'Nie udało się dołączyć.'))
+            .catch((err) => setFailed(err instanceof WorkspaceError ? err.message : t('links.join.failed')))
             .finally(() => setBusy(false));
         }}>
           {persons.length > 1 && (
             <label className="wk-field">
-              <span>Dołączam jako</span>
+              <span>{t('links.join.as')}</span>
               <select value={person.id} onChange={(e) => setPick(e.target.value)}>
                 {persons.map((p) => <option key={p.id} value={p.id}>{names.get(p.id) ?? p.id.slice(0, 8)}</option>)}
               </select>
@@ -140,8 +137,8 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
           )}
           {failed !== null && <p className="wk-error">{failed}</p>}
           <div className="wk-actions">
-            <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Dołączanie…' : 'Dołącz'}</button>
-            <a className="wk-link-btn" href={tilesPath()}>Nie teraz</a>
+            <button type="submit" className="wk-btn" disabled={busy}>{busy ? t('links.join.joining') : t('links.join.join')}</button>
+            <a className="wk-link-btn" href={tilesPath()}>{t('links.bar.notNow')}</a>
           </div>
         </form>
       )}
@@ -161,6 +158,7 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
  * danach fragt `JoinLink`, ob der Link ins Konto soll.
  */
 export function JoinWithoutAccount({ token, onSignIn }: { token: string | null; onSignIn: () => void }) {
+  const t = useT();
   const [info, setInfo] = useState<LinkInfo | null | undefined>(undefined);
   const me = useLinkMe(true);
   const [calendar, setCalendar] = useState(false);
@@ -184,19 +182,19 @@ export function JoinWithoutAccount({ token, onSignIn }: { token: string | null; 
     return () => { alive = false; };
   }, [me, info]);
 
-  if (info === undefined) return <Loading label="Sprawdzanie linku…" />;
+  if (info === undefined) return <Loading label={t('links.join.checkingLink')} />;
 
   const signIn = (
     <p className="wk-hint">
-      Masz konto? <button type="button" className="wk-link-btn" onClick={onSignIn}>Zaloguj się</button>
+      {t('links.join.haveAccount')} <button type="button" className="wk-link-btn" onClick={onSignIn}>{t('common.signIn')}</button>
     </p>
   );
 
   if (info === null) {
     return (
       <>
-        <h1 className="wk-h1">Link z dostępem</h1>
-        <p className="wk-error">Takiego linku nie ma — skopiuj go jeszcze raz w całości.</p>
+        <h1 className="wk-h1">{t('links.bar.label')}</h1>
+        <p className="wk-error">{t('links.join.noSuchLink')}</p>
         {signIn}
       </>
     );
@@ -206,27 +204,26 @@ export function JoinWithoutAccount({ token, onSignIn }: { token: string | null; 
 
   return (
     <>
-      <h1 className="wk-h1">Link z dostępem{info.label !== null ? `: ${info.label}` : ''}</h1>
+      <h1 className="wk-h1">{info.label !== null ? t('links.join.linkNamed', { label: info.label }) : t('links.bar.label')}</h1>
 
       <dl className="wk-facts">
-        <div className="wk-fact"><dt>Dostęp</dt><dd><ul className="wk-link-access">{info.areas.length === 0 ? <li>—</li> : info.areas.map((a) => <li key={a.areaId}><strong>{a.name}</strong> — {LEVEL_SAYS[a.capability] ?? a.capability}</li>)}</ul></dd></div>
-        <div className="wk-fact"><dt>Ważny do</dt><dd>{new Date(info.expiresAt).toLocaleDateString('pl-PL')}</dd></div>
+        <div className="wk-fact"><dt>{t('links.join.access')}</dt><dd><ul className="wk-link-access">{info.areas.length === 0 ? <li>—</li> : info.areas.map((a) => <li key={a.areaId}><strong>{a.name}</strong> — {levelSays(t, a.capability)}</li>)}</ul></dd></div>
+        <div className="wk-fact"><dt>{t('links.join.validUntilLink')}</dt><dd>{new Date(info.expiresAt).toLocaleDateString(t.locale)}</dd></div>
       </dl>
 
       <LinkClauses areas={info.areas} invitationId={info.invitationId} />
 
       {info.state !== null ? (
-        <p className="wk-warn">{STATE_WORD[info.state] ?? 'Ten link już nie działa.'}</p>
+        <p className="wk-warn">{stateSays(t, info.state)}</p>
       ) : (
         <>
           <p className="wk-lede">
-            Działa w tej przeglądarce, bez logowania — na stronach tych obszarów
-            {calendar ? <> i w ich kalendarzu{writes ? ', także dopisywanie terminów' : ''}</> : null}.
+            {!calendar ? t('links.join.guest') : writes ? t('links.join.guestCalendarWrites') : t('links.join.guestCalendar')}
           </p>
           {(info.aim !== null || calendar) && (
             <div className="wk-actions">
-              {info.aim !== null && <a className="wk-btn" href={`#/${info.aim}`}>Otwórz</a>}
-              {calendar && <a className={info.aim !== null ? 'wk-btn wk-btn-line' : 'wk-btn'} href={viewPath('calendar')}>Kalendarz</a>}
+              {info.aim !== null && <a className="wk-btn" href={`#/${info.aim}`}>{t('common.open')}</a>}
+              {calendar && <a className={info.aim !== null ? 'wk-btn wk-btn-line' : 'wk-btn'} href={viewPath('calendar')}>{t('app.view.calendar')}</a>}
             </div>
           )}
 

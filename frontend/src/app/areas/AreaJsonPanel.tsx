@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { loadCalendars } from '../calendar/calendar';
+import { t, useT } from '../core/i18n';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import { WorkspaceError, type Who } from '../core/session';
@@ -32,11 +33,7 @@ import './areaJson.css';
 type Flags = Pick<AreaImportOptions, 'replaceModules' | 'replaceQuestions' | 'adoptPages'>;
 
 const STEP_ORDER: readonly PlanStep['key'][] = ['profile', 'roles', 'appointments', 'pages', 'subforms', 'chats', 'card', 'listings'];
-const STEP_WORD: Record<PlanStep['key'], string> = {
-  profile: 'Profil', roles: 'Role', appointments: 'Terminy', pages: 'Formularze i strony', subforms: 'Podformularze',
-  chats: 'Rozmowy', card: 'Wizytówka i profil', listings: 'Listy'
-};
-const STATE_WORD: Record<StepState, string> = { running: 'w toku', done: 'gotowe', failed: 'przerwane' };
+/* Die Wörter: `areasJson.step.<key>` und `areasJson.state.<state>`. */
 
 interface PageView {
   readonly planned: PlannedPage;
@@ -61,25 +58,28 @@ function dropPreviews(choices: readonly ImageChoice[]): void {
 function needsLine(needs: NeedsPlan, chosen: Readonly<Record<string, ImageChoice>>): string {
   const have = needs.needs.filter((n) => chosen[n.key] !== undefined).length;
   const lacking = needs.needs.length - have;
-  return `Pliki do dodania: ${needs.needs.length} — dodane ${have}${lacking > 0 ? `, brakuje ${lacking}` : ''} (niżej).`;
+  return lacking > 0
+    ? t('areasJson.panel.filesLacking', { all: needs.needs.length, have, lacking })
+    : t('areasJson.panel.files', { all: needs.needs.length, have });
 }
 
 function needsWarnings(label: string, needs: NeedsPlan, chosen: Readonly<Record<string, ImageChoice>>): string[] {
   const lacking = needs.needs.filter((n) => chosen[n.key] === undefined);
   return [
     ...needs.warnings.map((w) => `${label}: ${w}`),
-    ...(lacking.length === 0 ? [] : [`${label}: bez pliku zostaną puste miejsca — ${lacking.map((n) => `„${n.label}”`).join(', ')}; dodaj pliki niżej albo później w edytorze.`])
+    ...(lacking.length === 0 ? [] : [t('areasJson.panel.filesMissing', { label, names: lacking.map((n) => t('areasJson.quoted', { name: n.label })).join(', ') })])
   ];
 }
 
 /** Die Schritte des Plans mit dem der Seiten an seiner Stelle. */
 function withPages(steps: readonly PlanStep[], pageLines: readonly string[]): PlanStep[] {
-  const all = pageLines.length === 0 ? [...steps] : [...steps, { key: 'pages' as const, title: STEP_WORD.pages, lines: pageLines }];
+  const all = pageLines.length === 0 ? [...steps] : [...steps, { key: 'pages' as const, title: t('areasJson.step.pages'), lines: pageLines }];
   return all.sort((a, b) => STEP_ORDER.indexOf(a.key) - STEP_ORDER.indexOf(b.key));
 }
 
 /** `onImported`: nach einem Import (auch einem abgebrochenen) — der Reiter der Art liest das Profil neu. */
 export function AreaJsonPanel({ area, ring, who, onImported }: { area: AreaRow; ring: Ring | null; who: Who; onImported?: () => void }) {
+  const t = useT();
   const areaId = area.areaId;
   const [state, setState] = useState<AreaState | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -112,7 +112,7 @@ export function AreaJsonPanel({ area, ring, who, onImported }: { area: AreaRow; 
       setState(await loadAreaState({ areaId, areaName: area.name, ring, doc: null, base: '' }));
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się odczytać obszaru.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('areasJson.panel.readFailed'));
     }
     const calendars = await loadCalendars().then((r) => r.calendars, () => []);
     setCalendarId(calendars.find((c) => c.areaId === areaId && c.isDefault !== false)?.calendarId ?? calendars.find((c) => c.areaId === areaId)?.calendarId ?? null);
@@ -159,19 +159,19 @@ export function AreaJsonPanel({ area, ring, who, onImported }: { area: AreaRow; 
   function compute(value: unknown): Analysis | { error: string } {
     const read = readAreaDocument(value);
     if ('error' in read) return read;
-    if (state === null) return { error: failed ?? 'Sprawdzanie obszaru…' };
+    if (state === null) return { error: failed ?? t('areasJson.panel.checkingArea') };
     /* Die vorgeschlagene Adresse: vielleicht die eben dafür geholte, noch leere Seite — erst gelesen, dann geplant. */
     const address = read.doc.address ?? '';
     if (address !== '' && pathProblem(address) === null) {
       want([address]);
-      if (!pages.has(address)) return { error: 'Sprawdzanie adresu z dokumentu…' };
+      if (!pages.has(address)) return { error: t('areasJson.panel.checkingAddress') };
     }
     const suggested = suggestBase(read.doc, { ...state, pages });
     if (suggested !== suggestion) window.setTimeout(() => setSuggestion(suggested), 0);
     const base = normalisePath(baseInput) || suggested;
     const paths = pagePaths(read.doc, base);
     want(paths);
-    if (paths.some((p) => !pages.has(p))) return { error: 'Sprawdzanie stron z dokumentu…' };
+    if (paths.some((p) => !pages.has(p))) return { error: t('areasJson.panel.checkingPages') };
 
     const full: AreaState = { ...state, pages };
     const options: AreaImportOptions = { base, publishAreaId: publish === '' ? null : publish, ...flags };
@@ -187,7 +187,7 @@ export function AreaJsonPanel({ area, ring, who, onImported }: { area: AreaRow; 
         chosen: new Set(Object.keys(chosen)), newId, publishAreaId: plan.publishAreaId
       });
       const needs = view.doc === null ? undefined : readImageNeeds(view.doc);
-      const label = `Strona „${planned.doc.key}”`;
+      const label = t('areasJson.panel.pageLabel', { key: planned.doc.key });
       return {
         planned,
         lines: [...view.lines, ...(needs === undefined || needs.needs.length === 0 ? [] : [`   ${needsLine(needs, chosen)}`])],
@@ -236,7 +236,7 @@ export function AreaJsonPanel({ area, ring, who, onImported }: { area: AreaRow; 
     for (const one of Object.values(latestImages.current)) dropPreviews(Object.values(one));
     setImageFor({});
     return {
-      lines: [...result.lines, ...result.links.map((l) => `Link dla „${l.name}”: ${l.url}`)],
+      lines: [...result.lines, ...result.links.map((l) => t('areasJson.panel.linkFor', { name: l.name, url: l.url }))],
       warnings: result.warnings
     };
   };
@@ -268,13 +268,13 @@ export function AreaJsonPanel({ area, ring, who, onImported }: { area: AreaRow; 
       const text = areaPrompt({ areaName: area.name, kind: state?.profile.profile?.kind ?? null, template: shown, current, full: fullPrompt });
       try {
         await navigator.clipboard.writeText(text);
-        setPromptNote('Skopiowano — wklej do swojej rozmowy z AI, dopisz swoje wskazówki, a odpowiedź wklej niżej w „Import”.');
+        setPromptNote(t('areasJson.panel.promptCopied'));
       } catch {
         setPromptText(text);
-        setPromptNote('Schowek nie przyjął tekstu — zaznacz go niżej i skopiuj.');
+        setPromptNote(t('areasJson.panel.clipboardFailed'));
       }
     } catch (e) {
-      setPromptNote(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować promptu.');
+      setPromptNote(e instanceof WorkspaceError ? e.message : t('areasJson.panel.promptFailed'));
     } finally {
       setPromptBusy(false);
     }
@@ -290,55 +290,54 @@ export function AreaJsonPanel({ area, ring, who, onImported }: { area: AreaRow; 
 
   return (
     <div className="aj" data-area-json={areaId}>
-      <section className="aj-sec" aria-label="Prompt dla AI">
-        <h4 className="wk-json-h">Prompt dla AI</h4>
+      <section className="aj-sec" aria-label={t('areasJson.panel.prompt')}>
+        <h4 className="wk-json-h">{t('areasJson.panel.prompt')}</h4>
         <p className="wk-note">
-          Skopiuj prompt do swojej rozmowy z AI: opis formatu i — jako wzór — eksport poprzedniego wydarzenia albo tego obszaru.
-          Odpowiedź wklej niżej w „Import”: najpierw zobaczysz plan, potem import pójdzie krok po kroku.
+          {t('areasJson.panel.promptLead')}
         </p>
         <div className="aj-row">
           <label className="wk-field">
-            <span>Wzór</span>
+            <span>{t('areasJson.panel.template')}</span>
             <select value={template} disabled={promptBusy} onChange={(e) => setTemplate(e.target.value)}>
-              <option value="">bez wzoru — tylko opis formatu</option>
-              <option value="self">ten obszar, jaki jest teraz</option>
+              <option value="">{t('areasJson.panel.noTemplate')}</option>
+              <option value="self">{t('areasJson.panel.selfTemplate')}</option>
               {others.map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}
             </select>
           </label>
           <button type="button" className="wk-btn wk-btn-line" disabled={promptBusy} data-area-prompt="" onClick={() => void copyPrompt()}>
-            {promptBusy ? 'Przygotowywanie…' : 'Skopiuj prompt dla AI'}
+            {promptBusy ? t('areasJson.panel.preparing') : t('areasJson.panel.copyPrompt')}
           </button>
         </div>
         <label className="pe-check">
           <input type="checkbox" checked={fullPrompt} disabled={promptBusy} onChange={(e) => setFullPrompt(e.target.checked)} />
-          <span>Pełny opis formatu — także animacje, laboratoria i prezentacje (kilka razy dłuższy)</span>
+          <span>{t('areasJson.panel.fullPrompt')}</span>
         </label>
         {promptNote !== null && <p className="wk-note" role="status">{promptNote}</p>}
-        {promptText !== null && <textarea className="wk-json-text" readOnly rows={6} value={promptText} aria-label="Prompt dla AI" onFocus={(e) => e.currentTarget.select()} />}
+        {promptText !== null && <textarea className="wk-json-text" readOnly rows={6} value={promptText} aria-label={t('areasJson.panel.prompt')} onFocus={(e) => e.currentTarget.select()} />}
       </section>
 
-      <section className="aj-sec" aria-label="Ustawienia importu">
-        <h4 className="wk-json-h">Ustawienia importu</h4>
+      <section className="aj-sec" aria-label={t('areasJson.panel.settings')}>
+        <h4 className="wk-json-h">{t('areasJson.panel.settings')}</h4>
         <div className="aj-row">
           <label className="wk-field">
-            <span>Adres strony głównej</span>
-            <input value={baseInput} placeholder={suggestion === '' ? 'np. parafia/rekolekcje-2026' : suggestion} spellCheck={false}
+            <span>{t('areasJson.panel.base')}</span>
+            <input value={baseInput} placeholder={suggestion === '' ? t('areasJson.panel.basePlaceholder') : suggestion} spellCheck={false}
               onChange={(e) => setBaseInput(e.target.value)} />
           </label>
           <label className="wk-field">
-            <span>Gdzie publikować</span>
+            <span>{t('areasJson.panel.publish')}</span>
             <select value={publish} onChange={(e) => setPublish(e.target.value)}>
-              <option value="">jak w dokumencie</option>
+              <option value="">{t('areasJson.panel.asInDoc')}</option>
               {choices.map((a) => (
                 <option key={a.areaId} value={a.areaId}>
-                  {a.areaId === areaId ? `${a.name} — tylko jego osoby` : `${a.name}${a.publicLevel !== 'none' ? ' — jawny' : ''}`}
+                  {a.areaId === areaId ? t('areasJson.panel.onlyItsPeople', { name: a.name }) : a.publicLevel !== 'none' ? t('areasJson.panel.publicArea', { name: a.name }) : a.name}
                 </option>
               ))}
             </select>
           </label>
         </div>
-        {baseProblem !== null && <p className="wk-warn">Adres strony głównej: {baseProblem}.</p>}
-        {suggestion !== '' && baseInput.trim() === '' && <p className="wk-note">Bez wpisu: {suggestion}.</p>}
+        {baseProblem !== null && <p className="wk-warn">{t('areasJson.panel.baseProblem', { problem: baseProblem })}</p>}
+        {suggestion !== '' && baseInput.trim() === '' && <p className="wk-note">{t('areasJson.panel.withoutEntry', { base: suggestion })}</p>}
       </section>
 
       {exportWarnings.length > 0 && (
@@ -346,14 +345,14 @@ export function AreaJsonPanel({ area, ring, who, onImported }: { area: AreaRow; 
       )}
 
       {links.length > 0 && (
-        <section className="aj-sec aj-links" aria-label="Linki z importu">
-          <h4 className="wk-json-h">Linki z importu — skopiuj je teraz</h4>
+        <section className="aj-sec aj-links" aria-label={t('areasJson.panel.links')}>
+          <h4 className="wk-json-h">{t('areasJson.panel.linksTitle')}</h4>
           <ul>
             {links.map((l) => (
               <li key={l.url}>
                 <span>{l.name}</span>
                 <code>{l.url}</code>
-                <button type="button" className="wk-link-btn" onClick={() => copyLink(l.url)}>{copied === l.url ? 'Skopiowano' : 'Kopiuj'}</button>
+                <button type="button" className="wk-link-btn" onClick={() => copyLink(l.url)}>{copied === l.url ? t('common.copied') : t('common.copy')}</button>
               </li>
             ))}
           </ul>
@@ -361,18 +360,18 @@ export function AreaJsonPanel({ area, ring, who, onImported }: { area: AreaRow; 
       )}
 
       <JsonPanel
-        summary="JSON obszaru — eksport i import"
-        lead={<>Cały obszar — profil i wizytówka, role, terminy z programem, strony z formularzami, podformularze, rozmowy i listy — jako jeden dokument. Ten sam dokument zaimportowany jeszcze raz zmienia to samo, zamiast dublować.</>}
+        summary={t('areasJson.panel.summary')}
+        lead={t('areasJson.panel.lead')}
         fileName={`obszar-${area.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'obszar'}.json`}
         exportDoc={exportDoc}
         format={AREA_JSON}
         preview={preview}
-        importLabel="Importuj krok po kroku"
+        importLabel={t('areasJson.panel.importLabel')}
         onImport={run}
         note={shownSteps.length === 0 ? null : (
-          <ol className="aj-steps" aria-label="Kroki importu">
+          <ol className="aj-steps" aria-label={t('areasJson.panel.steps')}>
             {shownSteps.map((key) => (
-              <li key={key} className={`is-${steps[key]}`}>{STEP_WORD[key]} — {STATE_WORD[steps[key]!]}</li>
+              <li key={key} className={`is-${steps[key]}`}>{t('areasJson.panel.stepLine', { step: t(`areasJson.step.${key}`), state: t(`areasJson.state.${steps[key]!}`) })}</li>
             ))}
           </ol>
         )}
@@ -384,23 +383,23 @@ export function AreaJsonPanel({ area, ring, who, onImported }: { area: AreaRow; 
             <div className="wk-json-options aj-options">
               {done.views.filter((v) => v.needs !== undefined && v.needs.needs.length > 0).map((v) => (
                 <div key={v.planned.doc.key} className="aj-needs">
-                  <p className="aj-needs-title">Pliki strony „{v.planned.doc.key}” ({v.planned.path})</p>
+                  <p className="aj-needs-title">{t('areasJson.panel.pageFiles', { key: v.planned.doc.key, path: v.planned.path })}</p>
                   <ImageNeeds path={v.planned.path} needs={v.needs!.needs} chosen={imageFor[v.planned.doc.key] ?? {}} busy={uploading}
                     onChoose={(key, choice) => choose(v.planned.doc.key, key, choice)} />
                 </div>
               ))}
               <label className="pe-check">
                 <input type="checkbox" checked={flags.replaceModules} onChange={(e) => setFlags((was) => ({ ...was, replaceModules: e.target.checked }))} />
-                <span>Zastąp moduły stron — których nie ma w dokumencie, znikną ze stron</span>
+                <span>{t('areasJson.panel.replaceModules')}</span>
               </label>
               <label className="pe-check">
                 <input type="checkbox" checked={flags.replaceQuestions} onChange={(e) => setFlags((was) => ({ ...was, replaceQuestions: e.target.checked }))} />
-                <span>Usuń pytania i wymagania formularzy, których nie ma w dokumencie</span>
+                <span>{t('areasJson.panel.replaceQuestions')}</span>
               </label>
               {(foreign || flags.adoptPages) && (
                 <label className="pe-check">
                   <input type="checkbox" checked={flags.adoptPages} onChange={(e) => setFlags((was) => ({ ...was, adoptPages: e.target.checked }))} />
-                  <span>Zmień też strony, które już istnieją, a nie są jeszcze stronami tego obszaru</span>
+                  <span>{t('areasJson.panel.adoptPages')}</span>
                 </label>
               )}
             </div>

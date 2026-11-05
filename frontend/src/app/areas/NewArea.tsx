@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 
+import { useT } from '../core/i18n';
 import type { Ring, SealedRole } from '../core/keys';
 import { type AreaRow, createArea } from './area';
 import { AreaPick } from './AreaPick';
@@ -18,6 +19,7 @@ export function NewArea({ ring, person, areas, busy, onAct, onDone }: {
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
   onDone: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState('');
   const [inside, setInside] = useState('');
 
@@ -30,9 +32,9 @@ export function NewArea({ ring, person, areas, busy, onAct, onDone }: {
 
   const blocker =
     busy ? null
-    : ring === null ? 'Najpierw podaj hasło.'
-    : person === null ? 'Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.'
-    : name.trim() === '' ? 'Nazwij obszar.'
+    : ring === null ? t('areas.passwordFirst')
+    : person === null ? t('areas.noPerson')
+    : name.trim() === '' ? t('areas.newArea.nameIt')
     : null;
 
   return (
@@ -42,34 +44,34 @@ export function NewArea({ ring, person, areas, busy, onAct, onDone }: {
         e.preventDefault();
         if (blocker !== null || ring === null || person === null) return;
 
-        void onAct('Zakładanie…',
+        void onAct(t('areas.creating'),
           () => createArea(ring, person, name, inside === '' ? undefined : inside))
           .then(onDone);
       }}
     >
-      <h1 className="wk-h1">Nowy obszar</h1>
+      <h1 className="wk-h1">{t('areas.newArea.title')}</h1>
 
       <label className="wk-field">
-        <span>Nazwa</span>
+        <span>{t('common.name')}</span>
         <input
           value={name}
-          placeholder="np. Kancelaria"
+          placeholder={t('areas.newArea.namePlaceholder')}
           onChange={(e) => setName(e.target.value)}
         />
       </label>
 
       {canNest.length > 0 && (
         <label className="wk-field">
-          <span>Wewnątrz</span>
-          <AreaPick label="Wewnątrz" value={inside} onChange={setInside} areas={areas} only={canNest}
-            extras={[{ value: '', label: 'Nigdzie — osobny obszar' }]} />
+          <span>{t('areas.newArea.inside')}</span>
+          <AreaPick label={t('areas.newArea.inside')} value={inside} onChange={setInside} areas={areas} only={canNest}
+            extras={[{ value: '', label: t('areas.newArea.nowhere') }]} />
         </label>
       )}
 
       {blocker !== null && !busy && <p className="wk-blocker">{blocker}</p>}
 
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={blocker !== null}>Załóż</button>
+        <button type="submit" className="wk-btn" disabled={blocker !== null}>{t('areas.newArea.create')}</button>
       </div>
     </form>
   );

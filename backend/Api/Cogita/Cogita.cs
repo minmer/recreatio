@@ -300,7 +300,7 @@ public static partial class Cogita
     /// jünger — der Browser fragt ab ihr weiter), dann bis zu <paramref name="page"/> + 1 Stapel nach (created_at, id).
     /// 2026-11-05 (Durchsicht): ist die Seite voll, sagen <c>more</c> und <c>next</c>, wo die nächste beginnt.
     /// </summary>
-    private static async Task WriteBatchesAsync(HttpContext ctx, SqlCommand cmd, bool forArea, int page)
+    private static async Task WriteBatchesAsync(HttpContext ctx, SqlCommand cmd, bool forArea, int page, int? total = null)
     {
         var batches = new List<object>();
         var now = DateTimeOffset.UtcNow;
@@ -338,7 +338,8 @@ public static partial class Cogita
             forArea,
             batches,
             more,
-            next = more ? CursorOf(last!.Value.At, last.Value.Id) : null
+            next = more ? CursorOf(last!.Value.At, last.Value.Id) : null,
+            total
         });
     }
 
@@ -410,7 +411,25 @@ public static partial class Cogita
         if (library is not null) cmd.Parameters.AddWithValue("@library", library.Value);
         if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
         AddAfter(cmd, cursor);
-        await WriteBatchesAsync(ctx, cmd, forArea: false, OwnPage);
+        /*
+         * 2026-11-05 — WIE VIELE ES SIND (nur auf der ersten Seite): der Browser zeigt beim Laden der eigenen Fortschritte einen
+         * Kreis „120 z 480" statt eines blossen Wartens. Dieselben Bedingungen wie die Abfrage, ohne Seite.
+         */
+        int? total = null;
+        if (cursor is null)
+        {
+            await using var count = new SqlCommand($"""
+                SELECT COUNT(*) FROM app.learn_batch
+                WHERE holder_role_id IN ({names})
+                  {(library is null ? "" : "AND library_id = @library")}
+                  {(from is null ? "" : "AND created_at >= @since")};
+                """, connection);
+            for (var i = 0; i < mine.Count; i++) count.Parameters.AddWithValue($"@r{i}", mine[i]);
+            if (library is not null) count.Parameters.AddWithValue("@library", library.Value);
+            if (from is not null) count.Parameters.AddWithValue("@since", from.Value);
+            total = Convert.ToInt32(await count.ExecuteScalarAsync(ctx.RequestAborted));
+        }
+        await WriteBatchesAsync(ctx, cmd, forArea: false, OwnPage, total);
     }
 
     /// <summary>

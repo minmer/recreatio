@@ -1,0 +1,471 @@
+{
+  "alert": {
+    "forms": {
+      "label": "Nowe zgłoszenia",
+      "says": "Ktoś wysłał formularz — do przejrzenia."
+    },
+    "chats": {
+      "label": "Nieprzeczytane wiadomości",
+      "says": "Rozmowy, w których ktoś napisał."
+    },
+    "bookings": {
+      "label": "Rezerwacje do potwierdzenia",
+      "says": "Ktoś prosi o termin albo miejsce i czeka na Twoje „tak\"."
+    },
+    "steps": {
+      "label": "Kroki po terminie",
+      "says": "Rzeczy do odhaczenia przez kancelarię, których termin minął (np. zgoda na papierze)."
+    },
+    "tasks": {
+      "label": "Zadania na teraz",
+      "says": "Zadania otwarte teraz albo zaległe."
+    },
+    "today": {
+      "label": "Terminy dziś",
+      "says": "Spotkania i msze, które są dzisiaj."
+    },
+    "learn": {
+      "label": "Powtórka czeka",
+      "says": "Karty, na które przyszła pora w Twoich bazach wiedzy."
+    },
+    "links": {
+      "label": "Dołączenia przez link",
+      "says": "Ktoś dołączył przez Twój link."
+    },
+    "duties": {
+      "label": "Sprawy do decyzji",
+      "says": "Administrator danych, zgłoszenia treści, prośby o miejsce na liście wydarzeń."
+    },
+    "records": {
+      "label": "Wpisy do przyjęcia",
+      "says": "Ktoś zapisał się na termin (albo zgłosił intencję) i czeka, aż przyjmie to kancelaria."
+    },
+    "plans": {
+      "label": "Plany do przedłużenia",
+      "says": "Terminy utworzone z planu (np. msze) wkrótce się kończą — zaplanuj kolejne tygodnie."
+    }
+  },
+  "alertItem": {
+    "newCount": {
+      "one": "{count} nowe",
+      "few": "{count} nowe",
+      "many": "{count} nowych",
+      "other": "{count} nowych"
+    },
+    "muted": "{name} (wyciszona)",
+    "messages": {
+      "one": "{count} wiadomość",
+      "few": "{count} wiadomości",
+      "many": "{count} wiadomości",
+      "other": "{count} wiadomości"
+    },
+    "toConfirm": "{count} do potwierdzenia",
+    "stepsLate": {
+      "one": "{count} krok po terminie",
+      "few": "{count} kroki po terminie",
+      "many": "{count} kroków po terminie",
+      "other": "{count} kroków po terminie"
+    },
+    "recordsWait": {
+      "one": "{count} wpis czeka",
+      "few": "{count} wpisy czekają",
+      "many": "{count} wpisów czeka",
+      "other": "{count} wpisów czeka"
+    },
+    "plannedUntil": "zaplanowane do {date}",
+    "tasksNow": "Do zrobienia teraz",
+    "tasks": {
+      "one": "{count} zadanie",
+      "few": "{count} zadania",
+      "many": "{count} zadań",
+      "other": "{count} zadań"
+    },
+    "joinedByLink": "Dołączyli przez link",
+    "cards": {
+      "one": "{count} karta",
+      "few": "{count} karty",
+      "many": "{count} kart",
+      "other": "{count} kart"
+    }
+  },
+  "duty": {
+    "area": "Obszar",
+    "areaOf": "obszaru",
+    "asksController": "{area} prosi o administratora „{name}”",
+    "toSign": "do podpisu",
+    "offer": "Propozycja: „{name}” dla {area}",
+    "toAccept": "do przyjęcia",
+    "decided": "„{name}” dla {area}",
+    "accepted": "przyjęte",
+    "refused": "odmowa",
+    "nobody": "{area}: nikt nie odpowiada za dane",
+    "pickController": "wskaż administratora",
+    "acceptTerms": "zaakceptuj warunki",
+    "confirmRight": "potwierdź uprawnienie",
+    "completeData": "uzupełnij dane",
+    "pageNobody": "Strona {page}: nikt nie odpowiada za treść",
+    "pickArea": "wskaż obszar",
+    "reports": "Zgłoszenia treści",
+    "toDecide": "{count} do decyzji",
+    "blocked": "Zablokowano po zgłoszeniu: {what}",
+    "yourContent": "Twoja treść",
+    "objectUntil": "odwołanie do {date}",
+    "objectSent": "odwołanie wysłane",
+    "listing": "{name} prosi o miejsce na liście",
+    "listingAt": "{name} prosi o miejsce na liście {path}",
+    "catalogue": "katalog",
+    "list": "lista"
+  },
+  "alertList": {
+    "seenTitle": "Przejrzane — nie pokazuj już jako nowe",
+    "seenAria": "{name}: przejrzane",
+    "order": "Kolejność powiadomień",
+    "up": "{name}: wyżej",
+    "down": "{name}: niżej"
+  },
+  "part": {
+    "mypages": {
+      "label": "Twoje strony",
+      "says": "Strony, na których pracujesz — także przygotowane przez kogoś innego (np. strona Twojej grupy)."
+    },
+    "alerts": {
+      "label": "Czeka na Ciebie",
+      "says": "Nowe zgłoszenia, wiadomości, rezerwacje, zaległe kroki — w Twojej kolejności."
+    },
+    "agenda": {
+      "label": "Najbliższe terminy",
+      "says": "Spotkania, msze i inne terminy z kalendarza."
+    },
+    "tasks": {
+      "label": "Zadania",
+      "says": "Co jest do zrobienia teraz i co zalega."
+    },
+    "chats": {
+      "label": "Rozmowy",
+      "says": "Rozmowy obszarów i osób."
+    },
+    "forms": {
+      "label": "Formularze",
+      "says": "Formularze z liczbą zgłoszeń i nowymi."
+    },
+    "pages": {
+      "label": "Strony",
+      "says": "Strony — otwórz, edytuj, udostępnij."
+    },
+    "access": {
+      "label": "Dostęp",
+      "says": "Linki, przez które inni mają dostęp — i nowy link."
+    },
+    "people": {
+      "label": "Osoby",
+      "says": "Kto należy do obszaru."
+    },
+    "learn": {
+      "label": "Nauka",
+      "says": "Powtórki na teraz, bazy wiedzy i trwające sesje."
+    }
+  },
+  "home": {
+    "now": "Teraz",
+    "goodEvening": "Dobry wieczór",
+    "goodDay": "Dzień dobry",
+    "setUp": "Ustaw",
+    "all": "Wszystkie",
+    "people": "Osoby",
+    "access": "Dostęp"
+  },
+  "viewJson": {
+    "summary": "Powiadomienia jako JSON",
+    "lead": "Kolejność i włączenie listy „Czeka na Ciebie” — do kopii albo do ułożenia przez AI. Import zmienia tylko to ustawienie konta; układ strony Teraz jest stały.",
+    "fileName": "powiadomienia.json",
+    "notReady": "Ustawienia konta jeszcze się otwierają — za chwilę zobaczysz plan.",
+    "importLabel": "Zapisz kolejność",
+    "key": {
+      "version": "{version} — wersja formatu",
+      "alerts": "lista „Czeka na Ciebie” w Twojej kolejności — od góry (niżej); zamiast obiektu wystarczy sam \"kind\" jako tekst (wtedy włączenie zostaje, jakie było)",
+      "kind": "rodzaj powiadomienia (niżej) — po nim import rozpoznaje pozycję; każdy rodzaj najwyżej raz",
+      "on": "true — pokazuje się w dzwonku i na stronie Teraz; false — wyłączony (nie liczy się też przy dzwonku); pominięte — zostaje, jak było",
+      "label": "tylko informacja z eksportu: nazwa rodzaju (import jej nie zmienia)"
+    },
+    "usageTitle": "Jak aplikacja używa tych danych",
+    "usage": "- Czytają to dwa miejsca: dzwonek (lista i liczba) i lista „Czeka na Ciebie” — na stronie Teraz i w przeglądzie każdego obszaru. Oba pokazują rodzaje w tej kolejności i pomijają wyłączone.\n- Liczba przy dzwonku sumuje tylko włączone rodzaje, które się w niej liczą („Liczy się przy dzwonku”).\n- Przegląd obszaru bierze z listy tylko to, co należy do tego obszaru i obszarów w nim; zadania, dołączenia przez link i powtórki stoją tylko na stronie Teraz i w dzwonku, a „Terminy dziś” — tylko na stronach (dzwonek ich nie wczytuje).\n- Same liczby przychodzą z jednego zapytania o nowości — z tego, do czego masz dostęp. Ustawienie ich nie zmienia, niczego nie oznacza jako przejrzane i nie dotyczy innych osób.\n- Powiadomienia systemowe każde urządzenie ustawia osobno („Na tym urządzeniu”) — rodzaj wyłączony tutaj może się tam nadal zgłaszać.",
+    "title": "Widok — powiadomienia jako JSON (\"{format}\", wersja {version})",
+    "short": "Widok (powiadomienia)",
+    "text": "Co pokazuje dzwonek i lista „Czeka na Ciebie” na stronie Teraz (i w przeglądzie obszaru) — które rodzaje i w jakiej kolejności. Ustawienie należy do konta (zapieczętowane w przeglądarce) i działa na każdym urządzeniu. W aplikacji: „Powiadomienia” (dzwonek → „Ustawienia” albo Teraz → „Czeka na Ciebie” → „Ustaw”, #/workspace/account/widok) → „Powiadomienia jako JSON”.\nUkład strony Teraz i przeglądu obszaru jest stały (od 2026-10-16): nie ma własnych widoków, części ani sposobów wyświetlania do ustawienia — nie ma ich więc w tym formacie. Ustawienia „Na tym urządzeniu” (powiadomienia systemowe) każde urządzenie ma własne — też poza formatem.\nCo robi import:\n- Najpierw pokazuje plan (nowa kolejność, co się włączy, co wyłączy); zapisuje dopiero po „Importuj”.\n- Rodzaje z dokumentu stają na początku listy, w jego kolejności; \"on\" włącza albo wyłącza. Rodzaje, których w dokumencie nie ma, stoją za nimi — w dotychczasowej kolejności, włączone albo wyłączone jak dotąd. Wystarczy więc podać te, które mają być na górze.\n- Nieznany rodzaj i powtórzony rodzaj — ostrzeżenie, pominięte. Niczego nie usuwa; nowych rodzajów nie tworzy (zna je aplikacja).\nZwróć JEDEN obiekt JSON, bez komentarzy.\n\nDokument:\n{top}\n\nPozycja (wpis w \"alerts\"):\n{alert}\n\nRodzaje (\"kind\"), w kolejności domyślnej:\n{kinds}\n\nPrzykład (kancelaria: zgłoszenia i rezerwacje na górze, powtórki wyłączone):\n{sample}",
+    "kind": "{label}: {says}",
+    "kindCounts": "{label}: {says} Liczy się przy dzwonku.",
+    "sampleLabel": "Kancelaria: zgłoszenia i rezerwacje na górze",
+    "plan": {
+      "notDoc": "To nie jest dokument widoku (oczekiwano obiektu JSON).",
+      "otherFormat": "Inny format: \"{format}\" — oczekiwano \"{expected}\".",
+      "version": "Wersja {version} — znam wersję {known}; czytam to, co rozpoznaję.",
+      "unknownKey": "Nieznany klucz \"{key}\" — pominięty.",
+      "unknownKeyLayout": "Nieznany klucz \"{key}\" — pominięty (układ stron jest stały, nie ustawia się go).",
+      "noAlerts": "Nic do zmiany — brak \"alerts\".",
+      "alertsList": "\"alerts\" musi być listą.",
+      "notItem": "Pozycja {n}: to nie obiekt ani rodzaj — pominięta.",
+      "itemUnknownKey": "Pozycja {n}: nieznany klucz \"{key}\" — pominięty.",
+      "unknownKind": "Pozycja {n}: nieznany rodzaj „{kind}” — pominięta.",
+      "repeated": "Pozycja {n}: „{label}” drugi raz — liczy się pierwsza.",
+      "badOn": "Pozycja {n}: \"on\" to nie true/false — włączenie zostaje.",
+      "newOrder": "Nowa kolejność: {list}",
+      "turnOn": "Włączy: {list}",
+      "turnOff": "Wyłączy: {list}",
+      "nothing": "Nic do zmiany — kolejność i włączenie jak teraz.",
+      "missing": "Brak w dokumencie — za nimi, w dotychczasowej kolejności i z dotychczasowym włączeniem: {list}"
+    }
+  },
+  "tidy": {
+    "check": "sprawdź"
+  },
+  "tidyAll": {
+    "scanning": "Przeglądanie…",
+    "scanningOne": "Przeglądanie: {name}…",
+    "controller": "Administrator danych: {name}",
+    "unreadable": {
+      "one": "{count} formularza nie da się otworzyć tym kluczem — zostają, jak są.",
+      "few": "{count} formularzy nie da się otworzyć tym kluczem — zostają, jak są.",
+      "many": "{count} formularzy nie da się otworzyć tym kluczem — zostają, jak są.",
+      "other": "{count} formularzy nie da się otworzyć tym kluczem — zostają, jak są."
+    },
+    "scanFailed": "Nie udało się przejrzeć bazy.",
+    "tidying": "Porządkowanie…",
+    "tidyingOne": "Porządkowanie: {name}…",
+    "done": {
+      "one": "Uporządkowano {count} odpowiedź w formularzach.",
+      "few": "Uporządkowano {count} odpowiedzi w formularzach.",
+      "many": "Uporządkowano {count} odpowiedzi w formularzach.",
+      "other": "Uporządkowano {count} odpowiedzi w formularzach."
+    },
+    "doneWithCtrl": {
+      "one": "Uporządkowano {count} odpowiedź w formularzach i {ctrl}.",
+      "few": "Uporządkowano {count} odpowiedzi w formularzach i {ctrl}.",
+      "many": "Uporządkowano {count} odpowiedzi w formularzach i {ctrl}.",
+      "other": "Uporządkowano {count} odpowiedzi w formularzach i {ctrl}."
+    },
+    "ctrlAddresses": {
+      "one": "{count} adres administratora danych",
+      "few": "{count} adresy administratorów danych",
+      "many": "{count} adresy administratorów danych",
+      "other": "{count} adresy administratorów danych"
+    },
+    "applyFailed": "Nie udało się uporządkować wszystkiego — część mogła zostać zapisana; przejrzyj jeszcze raz.",
+    "phone": "telefon",
+    "address": "adres",
+    "title": "Porządek w całej bazie",
+    "lead": "Każdy adres w bazie zapisuje się tak samo jak w kartotece — w odpowiedziach na formularze, w danych osób i u administratora danych; numery telefonu jako +48 600 700 800. Nowe wpisy dostają tę postać same, przy wpisywaniu. Tu uporządkujesz to, co zapisano wcześniej — wszędzie, gdzie masz klucz.",
+    "scan": "Przejrzyj bazę",
+    "scanAgain": "Przejrzyj jeszcze raz",
+    "allTidy": "Wszystko jest już zapisane w jednej postaci.",
+    "saveChosen": "Zapisz zaznaczone ({count})"
+  },
+  "starter": {
+    "signup": {
+      "title": "Nowe wydarzenie",
+      "says": "Rekolekcje, wyjazd, warsztaty — strona, termin i formularz zgłoszeń.",
+      "makes": "Powstanie: obszar-wydarzenie z wizytówką, główny termin, formularz (imię, nazwisko, telefon, e-mail), strona z wizytówką i formularzem oraz rola uczestników. Resztę dodasz w karcie „Wydarzenie” obszaru.",
+      "nameLabel": "Nazwa wydarzenia",
+      "namePlaceholder": "np. Rekolekcje 2027"
+    },
+    "group": {
+      "title": "Nowa grupa",
+      "says": "Schola, oaza, rada — miejsce, rozmowa i link dla członków.",
+      "makes": "Powstanie: obszar-grupa, rola członków, rozmowa grupy i link, który otwiera grupę.",
+      "nameLabel": "Nazwa grupy",
+      "namePlaceholder": "np. Schola"
+    },
+    "course": {
+      "title": "Kurs do nauki",
+      "says": "Słówka, katechizm, przygotowanie do egzaminu — powtórki dla uczących się.",
+      "makes": "Powstanie: obszar-kurs, baza wiedzy z codzienną powtórką, rola uczących się (czytają), przyjęcia odpowiedzi (widzisz postępy) i link dla uczących się.",
+      "nameLabel": "Nazwa kursu",
+      "namePlaceholder": "np. Bierzmowanie 2027 — pytania"
+    },
+    "school": {
+      "title": "Nowa szkoła",
+      "says": "Klasy, programy nauczania raz dla wszystkich, dziennik każdej klasy.",
+      "makes": "Powstanie: obszar-szkoła, rola nauczycieli, skryptorium na programy i lekcje oraz klasy — każda jako obszar w szkole, z rolą nauczycieli. Plan lekcji, uczniów i dziennik ustawisz w karcie każdej klasy.",
+      "nameLabel": "Nazwa szkoły",
+      "namePlaceholder": "np. Szkoła Podstawowa nr 3"
+    },
+    "giveName": "Podaj nazwę.",
+    "openingKeys": "Otwieranie kluczy…",
+    "needPassword": "Najpierw podaj hasło — klucze nie są otwarte w tej karcie.",
+    "creatingArea": "Tworzenie obszaru…",
+    "kindLost": "Rodzaju obszaru nie udało się zapisać.",
+    "kindLostLink": "Ustaw go w ustawieniach obszaru",
+    "roleLearners": "Uczący się: {name}",
+    "linkLearners": "Tworzenie linku dla uczących się…",
+    "addFirstEntries": "Dodaj pierwsze wpisy",
+    "roleTeachers": "Nauczyciele: {name}",
+    "teachers": "Nauczyciele",
+    "scriptorium": "Skryptorium na programy…",
+    "scriptoriumFailed": "Skryptorium szkoły nie powstało ({why}).",
+    "error": "błąd",
+    "scriptoriumLink": "Utwórz je w karcie „Szkoła”",
+    "schoolTab": "Karta „Szkoła”",
+    "schoolNoController": "Listy uczniów przyjmą wpisy, gdy szkoła będzie miała administratora danych.",
+    "schoolNoControllerLink": "Wskaż go w ustawieniach szkoły",
+    "openSchool": "Otwórz szkołę",
+    "roleMembers": "Członkowie: {name}",
+    "groupChat": "Zakładanie rozmowy grupy…",
+    "groupChatFailed": "Rozmowa grupy jeszcze nie powstała: obszar nie ma administratora danych.",
+    "pickControllerLink": "Wskaż go w ustawieniach obszaru",
+    "linkMembers": "Tworzenie linku dla członków…",
+    "openGroup": "Otwórz grupę",
+    "event": "Wydarzenie…",
+    "mainTerm": "Główny termin w kalendarzu…",
+    "openForm": "Otwórz formularz",
+    "creatingPage": "Tworzenie strony…",
+    "eventTab": "Karta „Wydarzenie”",
+    "roleParticipants": "Uczestnicy: {name}",
+    "linkingRole": "Łączenie formularza z rolą uczestników…",
+    "card": "Wizytówka wydarzenia…",
+    "formNoController": "Formularz nie przyjmie zgłoszeń, dopóki obszar nie ma administratora danych.",
+    "notListed": "Na listach „Wydarzenia” pokaże się, gdy wizytówka będzie w jawnym obszarze, a strona publiczna — co jeszcze brakuje, widać w karcie „Wydarzenie”.",
+    "cardFailed": "Wizytówki nie udało się zapisać: {why}",
+    "cardFailedLink": "Spróbuj w karcie „Wydarzenie”",
+    "noDate": "Bez daty nie powstał główny termin — dodasz go w karcie „Wydarzenie”.",
+    "openEvent": "Otwórz wydarzenie",
+    "failed": "Nie udało się — część mogła już powstać; sprawdź w Obszarach.",
+    "done": "Gotowe.",
+    "classes": "Klasy (opcjonalnie — dodasz je też później)",
+    "classesPlaceholder": "np. 1a, 1b, 2a",
+    "insideOptional": "Wewnątrz obszaru (opcjonalnie)",
+    "inside": "Wewnątrz obszaru",
+    "standalone": "— samodzielny —",
+    "pageUnder": "Strona z formularzem — pod adresem",
+    "noPage": "— bez strony (dodasz formularz później) —",
+    "slugFallback": "wydarzenie",
+    "start": "Początek",
+    "time": "Godzina (puste: cały dzień)",
+    "end": "Koniec (opcjonalnie)",
+    "endTime": "Godzina końca",
+    "place": "Miejsce (opcjonalnie)",
+    "placePlaceholder": "np. Dom rekolekcyjny w Limanowej",
+    "kind": "Rodzaj (opcjonalnie)",
+    "kindPlaceholder": "np. rekolekcje",
+    "withRole": "Rola uczestników — każdy, kto się zapisze, widzi strony, kalendarz i rozmowy wydarzenia",
+    "create": "Utwórz",
+    "keysTakeTime": "Tworzenie kluczy trwa chwilę — nie zamykaj karty.",
+    "newMenu": "Nowe",
+    "menuItem": "{title}…",
+    "emptyForm": "Pusty formularz",
+    "newArea": "Nowy obszar"
+  },
+  "parts": {
+    "locked": "Klucze nie są otwarte w tej karcie — zaloguj się ponownie albo odblokuj klucz, żeby to zobaczyć.",
+    "checking": "Sprawdzanie…",
+    "nothingWaits": "Nic nie czeka — wszystko przejrzane.",
+    "loadingCalendars": "Wczytywanie kalendarzy…",
+    "noCalendar": "Ten obszar nie ma jeszcze kalendarza.",
+    "loadingAgenda": "Wczytywanie terminów…",
+    "agendaFailed": "Nie udało się wczytać terminów.",
+    "nothingWeek": "Nic w najbliższym tygodniu.",
+    "nothingTwoDays": "Nic dziś ani jutro.",
+    "today": "Dziś",
+    "tomorrow": "Jutro",
+    "allDay": "cały dzień",
+    "loadingTasks": "Wczytywanie zadań…",
+    "tasksFailed": "Nie udało się wczytać zadań.",
+    "late": "zaległe",
+    "dueBy": "do {date}",
+    "now": "teraz",
+    "nothingToDo": "Nic do zrobienia teraz.",
+    "task": "Zadanie",
+    "done": "Zrobione",
+    "chat": {
+      "seat": "Rozmowa z: {name}",
+      "self": "Notatki",
+      "channel": "Kanał: {name}",
+      "other": "Rozmowa · {name}"
+    },
+    "loadingChats": "Wczytywanie rozmów…",
+    "chatsFailed": "Nie udało się wczytać rozmów.",
+    "noChats": "Nie ma tu jeszcze rozmowy.",
+    "allRead": "Wszystko przeczytane.",
+    "loadingForms": "Wczytywanie formularzy…",
+    "formsFailed": "Nie udało się wczytać formularzy.",
+    "formsNothingNew": "W formularzach nic nowego.",
+    "noForms": "Nie ma tu formularzy.",
+    "entries": {
+      "one": "{count} zgłoszenie",
+      "few": "{count} zgłoszenia",
+      "many": "{count} zgłoszeń",
+      "other": "{count} zgłoszenia"
+    },
+    "entriesClosed": {
+      "one": "{count} zgłoszenie · zamknięty",
+      "few": "{count} zgłoszenia · zamknięty",
+      "many": "{count} zgłoszeń · zamknięty",
+      "other": "{count} zgłoszenia · zamknięty"
+    },
+    "newN": "nowe: {count}",
+    "noPages": "Nie prowadzisz jeszcze żadnej strony.",
+    "noAreaPages": "Żadna strona nie jest tylko dla tego obszaru. Ustawisz to w edytorze strony („Kto widzi\").",
+    "withAccess": "z dostępem",
+    "share": "Udostępnij",
+    "why": {
+      "own": "prowadzisz tę stronę",
+      "area": "strona Twojej grupy",
+      "seat": "Twoja strona (z Twojego linku)"
+    },
+    "noMyPages": "Nie masz jeszcze żadnej strony. Stronę Twojej grupy przygotowuje osoba, która ją prowadzi — gdy da Ci do niej dostęp, pojawi się tutaj.",
+    "shareNamed": "Udostępnij: {name}",
+    "loadingLinks": "Wczytywanie linków…",
+    "linksFailed": "Nie udało się wczytać linków.",
+    "noLinks": "Nie ma działających linków.",
+    "noAreaLinks": "Nie ma działających linków do tego obszaru.",
+    "link": "Link",
+    "linkUsed": "{access} · użyty {count}×",
+    "allLinks": "Wszystkie linki",
+    "loadFailed": "Nie udało się wczytać.",
+    "level": {
+      "read": "czyta",
+      "write": "pisze",
+      "admin": "prowadzi"
+    },
+    "loadingPeople": "Wczytywanie osób…",
+    "peopleFailed": "Nie udało się wczytać osób.",
+    "person": "osoba",
+    "group": "grupa",
+    "role": "rola",
+    "certifies": "wpuszcza",
+    "seats": "Osoby z linkiem (z formularzy): {count}.",
+    "rolesLevels": "Role i poziomy dostępu"
+  },
+  "main": {
+    "loadFailed": "Nie udało się wczytać warsztatu.",
+    "strayTitle": "Nie ma tu takiego widoku",
+    "strayText": "Warsztat nie zna części <code>{word}</code>.",
+    "title": "Warsztat",
+    "calendar": "Kalendarz",
+    "terms": "Terminy",
+    "tasks": "Zadania",
+    "noSuchPart": "Tej części warsztatu jeszcze nie ma."
+  },
+  "claim": {
+    "noRole": "Nie masz roli, która mogłaby przejąć adres.",
+    "enterAddress": "Wpisz adres.",
+    "shape": "Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.",
+    "reserved": "Adres „workspace” należy do samego warsztatu.",
+    "enterCode": "Wpisz kod adresu.",
+    "pickRole": "Wybierz rolę.",
+    "failed": "Nie udało się przejąć adresu.",
+    "noAddresses": "Nie prowadzisz jeszcze żadnego adresu. Adres się przejmuje: musi być na liście i trzeba mieć do niego kod.",
+    "shapeLabel": "Jak pokazać strony",
+    "list": "Lista",
+    "tree": "Drzewo adresów",
+    "noModule": "Tego modułu nie ma — albo nie jest Twój.",
+    "summary": "Przejmij adres",
+    "address": "Adres",
+    "addressPlaceholder": "schola",
+    "rootHint": "Sam <code>/</code> to <code>recreatio.pl</code>.",
+    "code": "Kod adresu",
+    "who": "Kto będzie odpowiadał",
+    "rootRole": "Wybrana rola odpowiada za sam adres <code>recreatio.pl</code>.",
+    "subRole": "Wybrana rola odpowiada za ten adres i za wszystko pod nim — <code>{path}/…</code> idzie razem z nim.",
+    "done": "Adres <code>recreatio.pl/{path}</code> jest Twój.",
+    "claim": "Przejmij"
+  }
+}

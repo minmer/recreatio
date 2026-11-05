@@ -29,6 +29,7 @@ import { readRule as readQuery } from './selection';
 import { areaKeys, newestKey } from '../chat/chat';
 import type { MediaRef } from './schema';
 import { resolveKinds } from './statements';
+import { useT } from '../core/i18n';
 
 interface NodeData {
   readonly label: string;
@@ -132,6 +133,7 @@ export interface GraphEditorProps<C> {
 }
 
 export function GraphEditor<C>({ graph, palette, onChange, cycles = false, fieldKeys = [], errors, start, onStart, readOnly = false }: GraphEditorProps<C>) {
+  const t = useT();
   const { lib } = useCtx();
   const [chosen, setChosen] = useState<string | null>(null);
   const [moving, setMoving] = useState<Readonly<Record<string, { x: number; y: number }>>>({});
@@ -139,7 +141,7 @@ export function GraphEditor<C>({ graph, palette, onChange, cycles = false, field
   const name = (kind: 'entity' | 'kind' | 'collection' | 'flow' | 'template' | 'source' | 'view', id: string): string => {
     if (kind === 'entity') return entityName(lib, id);
     if (kind === 'view') { const view = lib.docs('view').find((e) => e.id === id); return typeof view?.data.name === 'string' ? view.data.name : id; }
-    if (kind === 'source') return id === lib.libraryId ? 'ta baza' : lib.sourceList().find((s) => s.store.libraryId === id)?.name ?? id;
+    if (kind === 'source') return id === lib.libraryId ? t('cogitaEditGraph.thisBase') : lib.sourceList().find((s) => s.store.libraryId === id)?.name ?? id;
     if (kind === 'kind') return lib.kind(id)?.name ?? id;
     if (kind === 'collection') return lib.collections().find((c) => c.id === id)?.name ?? id;
     if (kind === 'template') return lib.templates().find((t) => t.id === id)?.name ?? id;
@@ -256,7 +258,7 @@ export function GraphEditor<C>({ graph, palette, onChange, cycles = false, field
           />
         ) : !readOnly && (
           <div className="cg-palette">
-            <p className="wk-hint">Kliknij, żeby dodać krok; połącz wyjście (z prawej) z wejściem (z lewej). Usuń zaznaczone klawiszem Delete.</p>
+            <p className="wk-hint">{t('cogitaEditGraph.paletteHint')}</p>
             {[...groups.entries()].map(([group, kinds]) => (
               <div key={group} className="cg">
                 <h4>{group}</h4>
@@ -290,6 +292,7 @@ function NodePanel<C>({ node, palette, fieldKeys, readOnly, graph, cycles, onCon
   onStart?: () => void;
   isStart: boolean;
 }) {
+  const t = useT();
   const kind = palette.kinds.get(node.type);
   const fields = configFields(palette.id, node.type);
   const [json, setJson] = useState<string | null>(null);
@@ -300,14 +303,14 @@ function NodePanel<C>({ node, palette, fieldKeys, readOnly, graph, cycles, onCon
     <div className="wk-form cg">
       <div className="cg-row-between">
         <strong>{kind?.label ?? node.type}</strong>
-        {!readOnly && <button type="button" className="wk-link-btn" onClick={onRemove}>usuń krok</button>}
+        {!readOnly && <button type="button" className="wk-link-btn" onClick={onRemove}>{t('cogitaEditGraph.removeStep')}</button>}
       </div>
       {kind !== undefined && <p className="wk-hint">{kind.says}</p>}
-      {onStart !== undefined && (isStart ? <span className="cg-tag is-ok">początek przebiegu</span> : !readOnly && <button type="button" className="wk-link-btn" onClick={onStart}>Zacznij tutaj</button>)}
+      {onStart !== undefined && (isStart ? <span className="cg-tag is-ok">{t('cogitaEditGraph.flowStart')}</span> : !readOnly && <button type="button" className="wk-link-btn" onClick={onStart}>{t('cogitaEditGraph.startHere')}</button>)}
       {fields.map((field) => <ConfigInput key={field.key} field={field} value={node.config[field.key]} fieldKeys={fieldKeys} readOnly={readOnly} onSet={(v) => onConfig({ [field.key]: v })} />)}
       {!readOnly && outputs.length > 0 && (
         <details>
-          <summary>Połączenia bez przeciągania</summary>
+          <summary>{t('cogitaEditGraph.linksNoDrag')}</summary>
           {outputs.map((out) => {
             const now = graph.edges.find((e) => e.from === node.id && e.out === out.id);
             return (
@@ -326,11 +329,11 @@ function NodePanel<C>({ node, palette, fieldKeys, readOnly, graph, cycles, onCon
               </label>
             );
           })}
-          {cycles && <p className="wk-hint">W przebiegu wolno wracać (np. do wyboru rozdziałów).</p>}
+          {cycles && <p className="wk-hint">{t('cogitaEditGraph.cyclesAllowed')}</p>}
         </details>
       )}
       <details onToggle={(e) => setJson((e.target as HTMLDetailsElement).open ? JSON.stringify(node.config, null, 2) : null)}>
-        <summary>Ustawienia jako JSON</summary>
+        <summary>{t('cogitaEditGraph.settingsJson')}</summary>
         {json !== null && (
           <>
             <textarea className="cg-code" value={json} readOnly={readOnly} onChange={(e) => setJson(e.target.value)} />
@@ -340,7 +343,7 @@ function NodePanel<C>({ node, palette, fieldKeys, readOnly, graph, cycles, onCon
                 const cleared: Record<string, unknown> = Object.fromEntries(Object.keys(node.config).map((k) => [k, undefined] as [string, unknown]));
                 onConfig({ ...cleared, ...parsed });
               } catch { /* bleibt */ }
-            }}>Zastosuj</button>}
+            }}>{t('common.apply')}</button>}
           </>
         )}
       </details>
@@ -359,6 +362,7 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
   readOnly: boolean;
   onSet: (v: unknown) => void;
 }) {
+  const t = useT();
   const { lib } = useCtx();
   const label = <span>{field.label}{field.hint === undefined ? '' : <span className="wk-hint"> — {field.hint}</span>}</span>;
   switch (field.type) {
@@ -407,9 +411,9 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
       return (
         <label className="wk-field">{label}
           <select value={typeof value === 'string' ? value : ''} disabled={readOnly} onChange={(e) => onSet(e.target.value === '' ? undefined : e.target.value)}>
-            <option value="">— zewsząd</option>
-            <option value={lib.libraryId}>ta baza wiedzy</option>
-            {lib.sourceList().map((s) => <option key={s.store.libraryId} value={s.store.libraryId}>{s.name}{s.kind === 'books' ? ' (biblioteka)' : ''}</option>)}
+            <option value="">{t('cogitaEditGraph.source.anywhere')}</option>
+            <option value={lib.libraryId}>{t('cogitaEditGraph.source.thisBase')}</option>
+            {lib.sourceList().map((s) => <option key={s.store.libraryId} value={s.store.libraryId}>{s.name}{s.kind === 'books' ? t('cogitaEditGraph.source.libraryMark') : ''}</option>)}
           </select>
         </label>
       );
@@ -464,7 +468,7 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
           <CrossRefEditor value={value} writes={!readOnly} external={field.cross === true} only="flow" onChange={(v) => onSet(v ?? '')}>
             <select value={typeof value === 'string' ? value : ''} disabled={readOnly} aria-label={field.label} onChange={(e) => onSet(e.target.value)}>
               <option value="">—</option>
-              {lib.docs('flow').map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Przebieg'}</option>)}
+              {lib.docs('flow').map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : t('cogitaEditGraph.flowFallback')}</option>)}
             </select>
           </CrossRefEditor>
         </div>
@@ -488,7 +492,7 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
         <label className="wk-field">{label}
           <select value={typeof value === 'string' ? value : ''} disabled={readOnly} onChange={(e) => onSet(e.target.value === '' ? undefined : e.target.value)}>
             <option value="">—</option>
-            {lib.docs('view').map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : 'Widok'}</option>)}
+            {lib.docs('view').map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : t('cogitaEditGraph.viewFallback')}</option>)}
           </select>
         </label>
       );
@@ -510,6 +514,7 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
 
 /** 2026-11-03 — ein JSON-Wert eines Knotens: getippt als Text, gespeichert als JSON (sonst als Text — dann mit Hinweis). */
 function JsonInput({ value, readOnly, onSet, label }: { value: unknown; readOnly: boolean; onSet: (v: unknown) => void; label: ReactNode }) {
+  const t = useT();
   const shown = value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value, null, 1);
   const [text, setText] = useState(shown);
   const [bad, setBad] = useState<string | null>(null);
@@ -517,62 +522,65 @@ function JsonInput({ value, readOnly, onSet, label }: { value: unknown; readOnly
   return (
     <label className="wk-field">{label}
       <textarea className="cg-code" spellCheck={false} rows={4} value={text} disabled={readOnly} aria-invalid={bad !== null || undefined} onChange={(e) => {
-        const t = e.target.value;
-        setText(t);
-        if (t.trim() === '') { setBad(null); onSet(undefined); return; }
-        try { onSet(JSON.parse(t) as unknown); setBad(null); } catch (err) { setBad(err instanceof Error ? err.message : 'to nie jest JSON'); onSet(t); }
+        const typed = e.target.value;
+        setText(typed);
+        if (typed.trim() === '') { setBad(null); onSet(undefined); return; }
+        try { onSet(JSON.parse(typed) as unknown); setBad(null); } catch (err) { setBad(err instanceof Error ? err.message : t('cogitaEditGraph.json.notJson')); onSet(typed); }
       }} />
-      {bad !== null && <span className="wk-warn" role="alert">To jeszcze nie jest poprawny JSON: {bad}</span>}
+      {bad !== null && <span className="wk-warn" role="alert">{t('cogitaEditGraph.json.invalid', { error: bad })}</span>}
     </label>
   );
 }
 
 function RuleInput({ value, readOnly, onSet, label }: { value: unknown; readOnly: boolean; onSet: (v: unknown) => void; label: string }) {
+  const t = useT();
   const rule: TextRule = readRule(value, TEXT_RULE);
   const set = (patch: Partial<TextRule>) => onSet({ ...rule, ...patch });
   return (
     <fieldset className="cg"><legend>{label}</legend>
-      <label className="wk-field"><span>Porównanie</span>
+      <label className="wk-field"><span>{t('cogitaEditGraph.rule.compare')}</span>
         <select value={rule.algorithm} disabled={readOnly} onChange={(e) => set({ algorithm: e.target.value as TextRule['algorithm'] })}>
-          <option value="anchors">dopasowanie (literówki)</option>
-          <option value="bidirectional">z obu stron</option>
-          <option value="prefix">od początku</option>
+          <option value="anchors">{t('cogitaEditGraph.rule.anchors')}</option>
+          <option value="bidirectional">{t('cogitaEditGraph.rule.bidirectional')}</option>
+          <option value="prefix">{t('cogitaEditGraph.rule.prefix')}</option>
         </select>
       </label>
-      <label className="wk-field"><span>Próg zaliczenia (0–1)</span><input type="number" min={0} max={1} step={0.05} value={rule.threshold} disabled={readOnly} onChange={(e) => set({ threshold: Number(e.target.value) })} /></label>
-      <label className="pe-check"><input type="checkbox" checked={rule.similar} disabled={readOnly} onChange={(e) => set({ similar: e.target.checked })} /><span>podobne litery (ą/a, ł/l) liczą się w połowie</span></label>
-      <label className="pe-check"><input type="checkbox" checked={rule.ignorePunctuation} disabled={readOnly} onChange={(e) => set({ ignorePunctuation: e.target.checked })} /><span>bez interpunkcji</span></label>
-      <label className="pe-check"><input type="checkbox" checked={rule.caseSensitive} disabled={readOnly} onChange={(e) => set({ caseSensitive: e.target.checked })} /><span>wielkość liter ma znaczenie</span></label>
+      <label className="wk-field"><span>{t('cogitaEditGraph.rule.threshold')}</span><input type="number" min={0} max={1} step={0.05} value={rule.threshold} disabled={readOnly} onChange={(e) => set({ threshold: Number(e.target.value) })} /></label>
+      <label className="pe-check"><input type="checkbox" checked={rule.similar} disabled={readOnly} onChange={(e) => set({ similar: e.target.checked })} /><span>{t('cogitaEditGraph.rule.similar')}</span></label>
+      <label className="pe-check"><input type="checkbox" checked={rule.ignorePunctuation} disabled={readOnly} onChange={(e) => set({ ignorePunctuation: e.target.checked })} /><span>{t('cogitaEditGraph.rule.punctuation')}</span></label>
+      <label className="pe-check"><input type="checkbox" checked={rule.caseSensitive} disabled={readOnly} onChange={(e) => set({ caseSensitive: e.target.checked })} /><span>{t('cogitaEditGraph.rule.caseSensitive')}</span></label>
       {/* 2026-11-03 — für Formeln und zusammengesetzte Antworten (Al2(SO4)3 = Al₂(SO₄)₃). */}
-      <label className="pe-check"><input type="checkbox" checked={rule.spaces === true} disabled={readOnly} onChange={(e) => set({ spaces: e.target.checked })} /><span>spacje się nie liczą</span></label>
-      <label className="pe-check"><input type="checkbox" checked={rule.scripts === true} disabled={readOnly} onChange={(e) => set({ scripts: e.target.checked })} /><span>indeksy (₂, ²) jak zwykłe cyfry</span></label>
+      <label className="pe-check"><input type="checkbox" checked={rule.spaces === true} disabled={readOnly} onChange={(e) => set({ spaces: e.target.checked })} /><span>{t('cogitaEditGraph.rule.spaces')}</span></label>
+      <label className="pe-check"><input type="checkbox" checked={rule.scripts === true} disabled={readOnly} onChange={(e) => set({ scripts: e.target.checked })} /><span>{t('cogitaEditGraph.rule.scripts')}</span></label>
     </fieldset>
   );
 }
 
 function OptionsInput({ value, readOnly, onSet }: { value: unknown; readOnly: boolean; onSet: (v: unknown) => void }) {
+  const t = useT();
   const list = (Array.isArray(value) ? value : []).map((o) => (typeof o === 'object' && o !== null ? o as Record<string, unknown> : { label: String(o) }));
   const set = (i: number, patch: Record<string, unknown>) => onSet(list.map((o, j) => (j === i ? { ...o, ...patch } : o)));
   return (
-    <fieldset className="cg"><legend>Możliwości (każda ma swoje wyjście)</legend>
+    <fieldset className="cg"><legend>{t('cogitaEditGraph.options.legend')}</legend>
       {list.map((o, i) => (
         <div key={i} className="cg-card">
           <div className="cg-row">
-            <input value={typeof o.label === 'string' ? o.label : ''} placeholder={`możliwość ${i + 1}`} disabled={readOnly} onChange={(e) => set(i, { label: e.target.value })} />
+            <input value={typeof o.label === 'string' ? o.label : ''} placeholder={t('cogitaEditGraph.options.placeholder', { n: i + 1 })} disabled={readOnly} onChange={(e) => set(i, { label: e.target.value })} />
             {!readOnly && <button type="button" className="wk-link-btn" onClick={() => onSet(list.filter((_, j) => j !== i))}>×</button>}
           </div>
-          <span className="wk-hint">Tylko gdy:</span>
+          <span className="wk-hint">{t('cogitaEditGraph.options.onlyWhen')}</span>
           <ConditionEditor value={readCondition(o.condition)} onChange={(c) => set(i, { condition: c ?? undefined })} />
-          <span className="wk-hint">Po wyborze:</span>
+          <span className="wk-hint">{t('cogitaEditGraph.options.afterChoice')}</span>
           <ActionsEditor value={(Array.isArray(o.actions) ? o.actions : []).map(readAction).filter((a): a is Action => a !== null)} onChange={(a) => set(i, { actions: a })} />
         </div>
       ))}
-      {!readOnly && <button type="button" className="wk-link-btn" onClick={() => onSet([...list, { label: '' }])}>+ możliwość</button>}
+      {!readOnly && <button type="button" className="wk-link-btn" onClick={() => onSet([...list, { label: '' }])}>{t('cogitaEditGraph.options.add')}</button>}
     </fieldset>
   );
 }
 
 function MediaInput({ value, readOnly, onSet, label }: { value: unknown; readOnly: boolean; onSet: (v: unknown) => void; label: string }) {
+  const t = useT();
   const { lib, me } = useCtx();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -590,18 +598,18 @@ function MediaInput({ value, readOnly, onSet, label }: { value: unknown; readOnl
           void (async () => {
             try {
               const newest = newestKey(await areaKeys(me.ring, lib.areaId, true));
-              if (newest === null) throw new Error('Nie masz klucza tego obszaru.');
+              if (newest === null) throw new Error(t('cogitaEditGraph.media.noKey'));
               onSet(await uploadFile(lib.libraryId, newest, file));
             } catch (err) {
-              setFailed(err instanceof Error ? err.message : 'Nie udało się wgrać pliku.');
+              setFailed(err instanceof Error ? err.message : t('cogitaEditGraph.media.uploadFailed'));
             } finally {
               setBusy(false);
             }
           })();
         }} />
       )}
-      {media !== null && !readOnly && <button type="button" className="wk-link-btn" onClick={() => onSet(undefined)}>usuń plik</button>}
-      {busy && <span className="wk-hint">Wgrywanie…</span>}
+      {media !== null && !readOnly && <button type="button" className="wk-link-btn" onClick={() => onSet(undefined)}>{t('cogitaEditGraph.media.remove')}</button>}
+      {busy && <span className="wk-hint">{t('cogitaEditGraph.media.uploading')}</span>}
       {failed !== null && <span className="wk-error">{failed}</span>}
     </div>
   );

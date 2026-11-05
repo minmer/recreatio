@@ -37,6 +37,7 @@ import {
   type CSSProperties, type MutableRefObject, type ReactNode
 } from 'react';
 
+import { useT } from '../../core/i18n';
 import {
   ASPECT, FONT_FACES, insideX, keepInside, ORIGIN_AT, placeFor, resolveColor, travels,
   type Place, type Piece, type Scene, type Show
@@ -167,6 +168,7 @@ export function PresentationView({
    */
   story?: StoryRun | null;
 }) {
+  const t = useT();
   const deviceDark = usePrefersDark();
   const look = resolveTheme(theme, deviceDark);
   const dark = look.mode === 'dark';
@@ -1141,7 +1143,7 @@ export function PresentationView({
         data-pz-story={story === null || story === undefined ? 'none' : story.mode}
       >
         {show.nav === 'labels' && scenes.length > 1 && (
-          <nav className="pz-nav" aria-label="Sceny">
+          <nav className="pz-nav" aria-label={t('pagePresentation.view.scenes')}>
             {scenes.map((sc, i) => (
               <button key={sc.key} type="button" className={active === i ? 'is-active' : ''} aria-current={active === i ? 'true' : undefined}
                 onClick={() => drive.current?.toScene(i)}>
@@ -1163,7 +1165,7 @@ export function PresentationView({
             }}
             onClick={onStageClick}
           >
-            {scenes.length === 0 && <p className="pz-empty">Ta prezentacja nie ma jeszcze żadnej sceny.</p>}
+            {scenes.length === 0 && <p className="pz-empty">{t('pagePresentation.view.empty')}</p>}
 
             {shared && (
               <div className="pz-backdrop" aria-hidden="true">
@@ -1259,9 +1261,9 @@ export function PresentationView({
         </div>
 
         {show.nav === 'dots' && scenes.length > 1 && (
-          <nav className="pz-dots" aria-label="Sceny">
+          <nav className="pz-dots" aria-label={t('pagePresentation.view.scenes')}>
             {scenes.map((sc, i) => (
-              <button key={sc.key} type="button" className={active === i ? 'is-active' : ''} aria-label={sc.label || `Scena ${i + 1}`}
+              <button key={sc.key} type="button" className={active === i ? 'is-active' : ''} aria-label={sc.label || t('pagePresentation.view.sceneN', { n: i + 1 })}
                 aria-current={active === i ? 'true' : undefined} title={sc.label || undefined}
                 onClick={() => drive.current?.toScene(i)} />
             ))}
@@ -1273,7 +1275,7 @@ export function PresentationView({
         {/* 0089 — am Ende eines Weges, der hinausführt: der Weg hinaus, sichtbar (das Rad führt nicht von selbst fort). */}
         {wayOut !== null && (
           <a className="pz-exit" href={wayOut.href} onClick={(event) => { if (plainClick(event)) { event.preventDefault(); openLink(wayOut.href); } }}>
-            {wayOut.label || 'Dalej'} <span aria-hidden="true">→</span>
+            {wayOut.label || t('common.next')} <span aria-hidden="true">→</span>
           </a>
         )}
 
@@ -1282,25 +1284,25 @@ export function PresentationView({
             {/* 2026-10-19 — der Klang der Umgebung: aus, bis der Zuschauer ihn will. */}
             {withSound && sound !== null && (
               <button type="button" className={`pz-sound${soundOn ? ' is-on' : ''}`} aria-pressed={soundOn}
-                title={soundOn ? 'Wyłącz dźwięk' : 'Włącz dźwięk'} onClick={() => setSoundOn((was) => !was)}>
+                title={soundOn ? t('pagePresentation.view.soundOff') : t('pagePresentation.view.soundOn')} onClick={() => setSoundOn((was) => !was)}>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" />
                   {soundOn
                     ? <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                     : <path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />}
                 </svg>
-                <span>{sound.label || 'Dźwięk'}</span>
+                <span>{sound.label || t('pagePresentation.view.sound')}</span>
               </button>
             )}
             {withTools && (
               <>
                 <span className="pz-count" aria-live="polite">{active + 1} / {scenes.length}</span>
-                <button type="button" aria-label="Wstecz" disabled={active === 0 && (drive.current?.at() ?? 0) <= 0} onClick={() => drive.current?.stepBy(-1)}>‹</button>
-                <button type="button" aria-label="Dalej" onClick={() => drive.current?.stepBy(1)}>›</button>
+                <button type="button" aria-label={t('pagePresentation.view.back')} disabled={active === 0 && (drive.current?.at() ?? 0) <= 0} onClick={() => drive.current?.stepBy(-1)}>‹</button>
+                <button type="button" aria-label={t('pagePresentation.view.next')} onClick={() => drive.current?.stepBy(1)}>›</button>
                 {mode === 'page' && onPresent !== undefined && (
-                  <button type="button" className="pz-present" onClick={onPresent} title="Pokaz na pełnym ekranie">Pokaz</button>
+                  <button type="button" className="pz-present" onClick={onPresent} title={t('pagePresentation.view.presentFull')}>{t('pagePresentation.view.present')}</button>
                 )}
-                {mode === 'present' && <button type="button" className="pz-present" onClick={onExit}>Zakończ</button>}
+                {mode === 'present' && <button type="button" className="pz-present" onClick={onExit}>{t('pagePresentation.view.end')}</button>}
               </>
             )}
           </div>

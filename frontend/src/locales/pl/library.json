@@ -1,0 +1,134 @@
+{
+  "view": {
+    "noKey": "Bez klucza w tej karcie biblioteka jest zamknięta — zaloguj się ponownie albo odblokuj klucz.",
+    "loadFailed": "Nie udało się wczytać bibliotek.",
+    "isKnowledge": "To jest baza wiedzy — jest w Wiedzy.",
+    "isScriptorium": "To jest skryptorium — teksty, wygłoszenia i projekty.",
+    "openKnowledge": "Otwórz ją",
+    "openScriptorium": "Otwórz je",
+    "missing": "Tej biblioteki nie ma albo nie masz do niej klucza.",
+    "allLibraries": "Wszystkie biblioteki"
+  },
+  "list": {
+    "defaultName": "Moja biblioteka",
+    "createFailed": "Nie udało się założyć biblioteki.",
+    "onlyYou": "tylko Ty",
+    "area": "obszar",
+    "title": "Biblioteka",
+    "lede": "Źródła, cytaty i ich autorzy — jedno miejsce dla każdego odwołania. Teksty piszesz w Skryptorium, a wiedzę (komentarze, postacie, miejsca, wydarzenia) układasz w Wiedzy; jedno i drugie cytuje stąd. Wszystko jest szyfrowane w przeglądarce. Każdy obszar ma swoją bibliotekę: widzą ją członkowie obszaru, a gdy obszar jest publiczny — wszyscy. Pracujesz ze wszystkimi naraz: odwołania i wyszukiwanie sięgają do każdej biblioteki, którą widzisz.",
+    "entries": {
+      "one": "{count} wpis",
+      "few": "{count} wpisy",
+      "many": "{count} wpisów",
+      "other": "{count} wpisu"
+    },
+    "meta": "{entries} · {area} · widzą: {who}",
+    "readOnly": " · tylko do czytania",
+    "createFirst": "Załóż bibliotekę",
+    "createNew": "Nowa biblioteka",
+    "name": "Nazwa",
+    "namePlaceholder": "np. Kazania i źródła",
+    "whoSees": "Kto ją widzi",
+    "onlyMeNew": "Tylko ja (utworzy się prywatny obszar)",
+    "onlyMe": "Tylko ja",
+    "sharedHint": "Wspólną bibliotekę czytają i uzupełniają wszyscy, którzy mają klucz obszaru. Każdy obszar ma jedną bibliotekę.",
+    "creating": "Zakładanie…",
+    "create": "Załóż"
+  },
+  "home": {
+    "opening": "Otwieranie biblioteki…",
+    "sealed": {
+      "one": "{count} wpis jest zapieczętowany kluczem, którego nie masz.",
+      "few": "{count} wpisy są zapieczętowane kluczem, którego nie masz.",
+      "many": "{count} wpisów jest zapieczętowanych kluczem, którego nie masz.",
+      "other": "{count} wpisu jest zapieczętowane kluczem, którego nie masz."
+    },
+    "sections": "Działy biblioteki",
+    "map": "Mapa",
+    "json": "Import / eksport",
+    "settings": "Ustawienia",
+    "old": "Stare wpisy",
+    "oldWhere": "Teksty, wygłoszenia i projekty są teraz w Skryptorium, komentarze to rodzaj w Wiedzy."
+  },
+  "search": {
+    "placeholder": "Szukaj w całej bibliotece — tytuł, autor, fragment cytatu, ISBN, numer…",
+    "label": "Szukaj w bibliotece",
+    "none": "Nic nie znaleziono."
+  },
+  "kindList": {
+    "search": "Szukaj: {what}",
+    "everywhere": "też z innych bibliotek ({n})",
+    "musicHint": "Utwory, nuty i nagrania — także nagrania w głosach (sopran, alt, tenor, bas, instrumenty), które brzmią razem. Rodzaj decyduje, jakie pola ma wpis; pliki są szyfrowane w przeglądarce.",
+    "empty": "Nie ma jeszcze żadnego wpisu tego rodzaju.",
+    "noMatch": "Nic nie pasuje.",
+    "otherLibrary": "inna biblioteka"
+  },
+  "meta": {
+    "tracks": {
+      "one": "{count} ścieżka",
+      "few": "{count} ścieżki",
+      "many": "{count} ścieżek",
+      "other": "{count} ścieżki"
+    },
+    "files": {
+      "one": "{count} plik",
+      "few": "{count} pliki",
+      "many": "{count} plików",
+      "other": "{count} pliku"
+    },
+    "number": "nr {number}",
+    "quotes": {
+      "one": "{count} cytat",
+      "few": "{count} cytaty",
+      "many": "{count} cytatów",
+      "other": "{count} cytatu"
+    },
+    "sources": {
+      "one": "{count} źródło",
+      "few": "{count} źródła",
+      "many": "{count} źródeł",
+      "other": "{count} źródła"
+    }
+  },
+  "settings": {
+    "failed": "Nie udało się.",
+    "area": "Obszar: {area} — kto ma jego klucz, czyta tę bibliotekę.",
+    "areaReadOnly": "Obszar: {area} — kto ma jego klucz, czyta tę bibliotekę. Ty możesz ją tylko czytać.",
+    "unknownArea": "nieznany",
+    "saveName": "Zapisz nazwę",
+    "whoSees": "Kto widzi",
+    "seenBy": "Widzą: {who}. Żeby wpis stał się publiczny (albo przestał), przenieś go do biblioteki innego obszaru — przy wpisie, w ramce „Kto widzi”.",
+    "oldCopies": {
+      "one": "{count} wpis ma jeszcze stare, osobno opublikowane kopie (sprzed 22.10.2026). Nikt ich już nie czyta; można je wycofać.",
+      "few": "{count} wpisy mają jeszcze stare, osobno opublikowane kopie (sprzed 22.10.2026). Nikt ich już nie czyta; można je wycofać.",
+      "many": "{count} wpisów ma jeszcze stare, osobno opublikowane kopie (sprzed 22.10.2026). Nikt ich już nie czyta; można je wycofać.",
+      "other": "{count} wpisu ma jeszcze stare, osobno opublikowane kopie (sprzed 22.10.2026). Nikt ich już nie czyta; można je wycofać."
+    },
+    "withdraw": "Wycofaj stare kopie",
+    "delete": "Usuń bibliotekę",
+    "deleteHint": "Usuwa wszystkie wpisy; strony, które je pokazywały, napiszą, że tekstu już nie ma. Tego nie da się cofnąć. Najpierw zrób eksport (Import / eksport).",
+    "deleteConfirm": "Wpisz nazwę biblioteki, żeby potwierdzić",
+    "deleteForever": "Usuń na zawsze"
+  },
+  "settle": {
+    "before": "Ten zbiór powstał przed zasadą „widzi go ten, kto widzi obszar”, więc dziś nikt spoza obszaru go nie czyta.",
+    "public": "Obszar jest publiczny: po potwierdzeniu wszystkie wpisy ({n}) zobaczy każdy, także bez konta.",
+    "notPublic": "Obszar nie jest publiczny: po potwierdzeniu nic się nie zmieni dla nikogo spoza obszaru.",
+    "understood": "Rozumiem, kto będzie to widział",
+    "confirm": "Potwierdź widoczność według obszaru"
+  },
+  "json": {
+    "what": "Co eksportować",
+    "summary": "JSON biblioteki — eksport i import",
+    "summaryKind": "Import / eksport JSON: {kind}",
+    "lead": "Wszystkie wpisy (albo wybrane rodzaje) jako jeden dokument — kopia zapasowa, przeniesienie, praca z AI. Import zmienia istniejące wpisy w miejscu i dodaje nowe; niczego nie usuwa.",
+    "leadKind": "{kind} jako JSON — np. kilka książek naraz przygotowanych przez AI. Import przyjmuje też osoby i źródła, na które wskazują; istniejące wpisy zmienia w miejscu, niczego nie usuwa.",
+    "fileName": "biblioteka",
+    "import": "Importuj i zapisz",
+    "readOnly": "W tej bibliotece możesz tylko czytać.",
+    "saving": "Zapisywanie {n} z {total}…",
+    "saveFailed": "{kind} „{title}”: {error}.",
+    "notSaved": "nie udało się zapisać",
+    "saved": "Zapisano {n} z {total}."
+  }
+}

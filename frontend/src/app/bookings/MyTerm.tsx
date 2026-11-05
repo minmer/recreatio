@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { rich, useT } from '../core/i18n';
 import { openAskNames } from '../core/holderNames';
 import { type Holder, type MyClaim, type Offer, type Rules, confirmHost, hostClose, hostDecides, openInvite, releaseClaim, resignHost } from './resource';
 import { type Act, type Fresh, moment, people, span } from './slotText';
@@ -11,9 +12,11 @@ import { type Act, type Fresh, moment, people, span } from './slotText';
 /* -- Mein Termin ------------------------------------------------------------ */
 
 const WAITS: Record<string, string> = {
-  office: 'czeka na potwierdzenie kancelarii',
-  host: 'czeka na zgodę gospodarza'
+  office: 'bookings.myTerm.waits.office',
+  host: 'bookings.myTerm.waits.host'
 };
+
+const STRONG = { b: (s: string, k: number) => <strong key={k}>{s}</strong> };
 
 /**
  * DER GEWÄHLTE TERMIN — und alles, was dazugehört, an einer Stelle.
@@ -33,6 +36,7 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
   onAct: Act;
   onPick: (replaces: string) => void;
 }) {
+  const t = useT();
   const [code, setCode] = useState<string | null | undefined>(fresh?.code);
   const [copied, setCopied] = useState(false);
   const [asking, setAsking] = useState<'leave' | 'unhost' | null>(null);
@@ -62,7 +66,7 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
   useEffect(() => {
     if (!deciding || until === null) return;
     const wait = new Date(until).getTime() - Date.now() + 1500;
-    const timer = window.setTimeout(() => void onAct('Odświeżanie…', async () => {}), Math.max(1000, wait));
+    const timer = window.setTimeout(() => void onAct(t('bookings.myTerm.refreshing'), async () => {}), Math.max(1000, wait));
     return () => window.clearTimeout(timer);
   }, [deciding, until]);
   const left = offer === undefined ? null : Math.max(0, offer.capacity - offer.taken);
@@ -74,14 +78,14 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
 
   return (
     <article className={`wk-slot is-mine${claim.status === 'pending' ? ' is-waiting' : ''}`}>
-      <p className="wk-slot-label">{asked ? 'Twoja prośba o dołączenie' : 'Twój termin'}</p>
+      <p className="wk-slot-label">{asked ? t('bookings.myTerm.yourRequest') : t('bookings.myTerm.yourTerm')}</p>
       <p className="wk-slot-when">{span(claim.startsAt, claim.endsAt, rules)}</p>
       <p className="wk-slot-note">
-        {!rules.byNight && `Czas: ${minutes} min`}
-        {offer !== undefined && ` · Zajętość: ${offer.taken}/${offer.capacity}`}
+        {!rules.byNight && t('bookings.myTerm.duration', { minutes })}
+        {offer !== undefined && ` · ${t('bookings.myTerm.taken', { taken: offer.taken, capacity: offer.capacity })}`}
         {' · '}
         <span className={claim.status === 'confirmed' ? 'wk-slot-ok' : 'wk-slot-wait'}>
-          {claim.status === 'confirmed' ? 'potwierdzony' : WAITS[claim.awaits ?? 'office'] ?? 'czeka'}
+          {claim.status === 'confirmed' ? t('bookings.myTerm.confirmed') : t(WAITS[claim.awaits ?? 'office'] ?? 'bookings.myTerm.waits.any')}
         </span>
       </p>
 
@@ -91,11 +95,7 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
       */}
       {asked && (
         <p className="wk-slot-explain">
-          <strong>To jeszcze nie jest Twój termin.</strong> Poprosiłeś o dołączenie — decyduje osoba,
-          która wybrała ten termin jako pierwsza
-          {offer?.inviteUntil != null && <>, najpóźniej do <strong>{moment(offer.inviteUntil)}</strong></>}.
-          Może się zgodzić albo odmówić. Jeśli nie odpowie, a grupa nie będzie jeszcze pełna, zostaniesz
-          dopisany po kolei, o ile starczy miejsc.
+          {offer?.inviteUntil != null ? rich(t('bookings.myTerm.askedUntil', { until: moment(offer.inviteUntil, t.lang) }), STRONG) : rich(t('bookings.myTerm.asked'), STRONG)}
         </p>
       )}
 
@@ -107,29 +107,27 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
       {deciding && claim.status === 'confirmed' && (
         <div className="wk-slot-host wk-slot-decide">
           <p>
-            <strong>Czy chcesz zaprosić znajomych na ten termin?</strong> Jesteś pierwszą osobą, która go
-            wybrała.
+            {rich(t('bookings.myTerm.decide'), STRONG)}
           </p>
           <ul className="wk-slot-choices">
             <li>
-              <strong>Tak</strong> — zostaniesz gospodarzem: przez {rules.inviteHours} h wolne miejsca zajmą
-              tylko osoby z Twoim kodem albo te, które przyjmiesz.
+              {rich(t('bookings.myTerm.yesHost', { hours: rules.inviteHours }), STRONG)}
             </li>
-            <li><strong>Nie</strong> — każdy będzie mógł od razu dopisać się na wolne miejsca.</li>
+            <li>{rich(t('bookings.myTerm.noHost'), STRONG)}</li>
           </ul>
           {until !== null && (
             <p className="wk-hint">
-              Jeśli nie odpowiesz do <strong>{moment(until)}</strong>, termin otworzy się dla wszystkich.
+              {rich(t('bookings.myTerm.deadline', { until: moment(until, t.lang) }), STRONG)}
             </p>
           )}
           <div className="wk-actions">
             <button type="button" className="wk-btn" disabled={busy}
-              onClick={() => void onAct('Zapisywanie…', () => confirmHost(claim.claimId, holder))}>
-              Tak, zapraszam znajomych
+              onClick={() => void onAct(t('bookings.myTerm.saving'), () => confirmHost(claim.claimId, holder))}>
+              {t('bookings.myTerm.inviteYes')}
             </button>
             <button type="button" className="wk-btn wk-btn-quiet" disabled={busy}
-              onClick={() => void onAct('Zapisywanie…', () => resignHost(claim.claimId, holder))}>
-              Nie, niech każdy może się dopisać
+              onClick={() => void onAct(t('bookings.myTerm.saving'), () => resignHost(claim.claimId, holder))}>
+              {t('bookings.myTerm.inviteNo')}
             </button>
           </div>
         </div>
@@ -139,10 +137,11 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
       {hostOpen && (
         <div className="wk-slot-host">
           <p>
-            <strong>Jesteś gospodarzem tego terminu</strong> do <strong>{moment(claim.inviteUntil!)}</strong>.
+            {rich(t('bookings.myTerm.hosting', { until: moment(claim.inviteUntil!, t.lang) }), STRONG)}
+            {' '}
             {left !== null && left > 0
-              ? ` Do tego czasu ${left === 1 ? 'wolne miejsce zajmie' : `${left} wolne miejsca zajmą`} tylko osoby z Twoim kodem albo te, które przyjmiesz. Potem — jeśli będzie Was mniej niż ${rules.minPersons} — otworzą się dla wszystkich.`
-              : ' Termin jest już pełny.'}
+              ? t('bookings.myTerm.hostLeft', { count: left, min: rules.minPersons })
+              : t('bookings.myTerm.full')}
           </p>
 
           {left !== null && left > 0 && (
@@ -150,19 +149,19 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
               {code === undefined ? (
                 <button type="button" className="wk-link-btn"
                   onClick={() => void openInvite(claim, holder).then(setCode)}>
-                  Pokaż kod zaproszenia
+                  {t('bookings.myTerm.showCode')}
                 </button>
               ) : code === null ? (
-                <span className="wk-row-side">Kod był widoczny tylko przy zapisie — nie da się go już odczytać.</span>
+                <span className="wk-row-side">{t('bookings.myTerm.codeGone')}</span>
               ) : (
                 <>
-                  <span>Kod zaproszenia:</span>
+                  <span>{t('bookings.myTerm.code')}</span>
                   <strong className="wk-code wk-code-inline">{code}</strong>
                   <button type="button" className="wk-link-btn" onClick={() => void copy()}>
-                    {copied ? 'Skopiowano' : 'Kopiuj kod'}
+                    {copied ? t('bookings.myTerm.copied') : t('bookings.myTerm.copyCode')}
                   </button>
                   {fresh !== null && !fresh.kept && (
-                    <span className="wk-row-side">Zapisz go teraz — potem nie da się go już odczytać.</span>
+                    <span className="wk-row-side">{t('bookings.myTerm.saveNow')}</span>
                   )}
                 </>
               )}
@@ -172,19 +171,19 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
           {/* Wer bittet — der Gastgeber entscheidet. */}
           {offer !== undefined && offer.asks.length > 0 && (
             <div className="wk-slot-asks">
-              <strong>Prośby o dołączenie</strong>
+              <strong>{t('bookings.myTerm.asks')}</strong>
               {offer.asks.map((ask) => (
                 <p key={ask.claimId}>
-                  {askNames.get(ask.claimId) ?? 'ktoś bez nazwy'}
+                  {askNames.get(ask.claimId) ?? t('bookings.myTerm.noName')}
                   {' — '}
                   <button type="button" className="wk-link-btn" disabled={busy}
-                    onClick={() => void onAct('Przyjmowanie…', () => hostDecides(ask.claimId, true, holder))}>
-                    Przyjmij
+                    onClick={() => void onAct(t('bookings.myTerm.accepting'), () => hostDecides(ask.claimId, true, holder))}>
+                    {t('bookings.myTerm.accept')}
                   </button>
                   {' · '}
                   <button type="button" className="wk-link-btn" disabled={busy}
-                    onClick={() => void onAct('Odmawianie…', () => hostDecides(ask.claimId, false, holder))}>
-                    Odmów
+                    onClick={() => void onAct(t('bookings.myTerm.declining'), () => hostDecides(ask.claimId, false, holder))}>
+                    {t('bookings.myTerm.decline')}
                   </button>
                 </p>
               ))}
@@ -194,22 +193,21 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
           {/* DER KLARE SATZ für den, der niemanden mitbringen will. */}
           {left !== null && left > 0 && (asking === 'unhost' ? (
             <p className="wk-slot-confirm">
-              Wolne miejsca od razu będą dostępne dla wszystkich, a Twój kod przestanie działać.
-              {offer !== undefined && offer.asks.length > 0 && ' Osoby, które prosiły o dołączenie, zostaną przyjęte po kolei, dopóki starczy miejsc.'}
+              {t('bookings.myTerm.unhostConfirm')}
+              {offer !== undefined && offer.asks.length > 0 && ` ${t('bookings.myTerm.unhostAsks')}`}
               {' '}
               <button type="button" className="wk-btn" disabled={busy}
-                onClick={() => void onAct('Rezygnowanie z uprawnień…', () => resignHost(claim.claimId, holder))}>
-                Tak, rezygnuję z uprawnień gospodarza
+                onClick={() => void onAct(t('bookings.myTerm.resigning'), () => resignHost(claim.claimId, holder))}>
+                {t('bookings.myTerm.unhostYes')}
               </button>
               {' '}
-              <button type="button" className="wk-link-btn" onClick={() => setAsking(null)}>Nie</button>
+              <button type="button" className="wk-link-btn" onClick={() => setAsking(null)}>{t('common.no')}</button>
             </p>
           ) : (
             <p className="wk-slot-resign">
-              Nie chcesz nikogo zapraszać? Zrezygnuj z uprawnień gospodarza — wolne miejsca od razu
-              otworzą się dla wszystkich.{' '}
+              {t('bookings.myTerm.resignLead')}{' '}
               <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setAsking('unhost')}>
-                Zrezygnuj z uprawnień gospodarza
+                {t('bookings.myTerm.resign')}
               </button>
             </p>
           ))}
@@ -218,10 +216,9 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
 
       {claim.hosting && !deciding && !hostOpen && claim.inviteUntil !== null && (
         <p className="wk-slot-note">
-          Czas gospodarza minął {moment(claim.inviteUntil)}
           {offer !== undefined && offer.taken >= rules.minPersons
-            ? ' — Wasza grupa jest skompletowana, termin zostaje dla Was.'
-            : ' — wolne miejsca są dostępne dla wszystkich.'}
+            ? t('bookings.myTerm.hostOverKept', { at: moment(claim.inviteUntil, t.lang) })
+            : t('bookings.myTerm.hostOverOpen', { at: moment(claim.inviteUntil, t.lang) })}
         </p>
       )}
 
@@ -237,21 +234,21 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
       {/* -- Ändern, zurückgeben ------------------------------------------ */}
       {asking === 'leave' ? (
         <p className="wk-slot-confirm">
-          Na pewno zrezygnować z tego terminu? Miejsce zwolni się dla innych.{' '}
+          {t('bookings.myTerm.leaveConfirm')}{' '}
           <button type="button" className="wk-btn" disabled={busy}
-            onClick={() => void onAct('Rezygnowanie…', () => releaseClaim(claim.claimId, holder))}>
-            Tak, rezygnuję
+            onClick={() => void onAct(t('bookings.myTerm.leaving'), () => releaseClaim(claim.claimId, holder))}>
+            {t('bookings.myTerm.leaveYes')}
           </button>
           {' '}
-          <button type="button" className="wk-link-btn" onClick={() => setAsking(null)}>Nie</button>
+          <button type="button" className="wk-link-btn" onClick={() => setAsking(null)}>{t('common.no')}</button>
         </p>
       ) : !picking && (
         <div className="wk-actions">
           <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => onPick(claim.claimId)}>
-            Zmień termin
+            {t('bookings.myTerm.change')}
           </button>
           <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setAsking('leave')}>
-            {claim.status === 'pending' ? 'Wycofaj prośbę' : 'Zrezygnuj z terminu'}
+            {claim.status === 'pending' ? t('bookings.myTerm.withdraw') : t('bookings.myTerm.leave')}
           </button>
         </div>
       )}
@@ -268,17 +265,18 @@ function HostClosing({ claim, offer, rules, holder, busy, onAct }: {
   busy: boolean;
   onAct: Act;
 }) {
+  const t = useT();
   if (offer.closedBy === 'office') {
-    return <p className="wk-slot-note">Ten termin zamknęła kancelaria — nikt więcej się nie dopisze.</p>;
+    return <p className="wk-slot-note">{t('bookings.myTerm.closedByOffice')}</p>;
   }
 
   if (offer.closedBy === 'host') {
     return (
       <p className="wk-slot-resign">
-        <strong>Zamknąłeś ten termin</strong> — nikt więcej się nie dopisze i nie otworzy się on dla innych.{' '}
+        {rich(t('bookings.myTerm.closedByYou'), STRONG)}{' '}
         <button type="button" className="wk-link-btn" disabled={busy}
-          onClick={() => void onAct('Otwieranie terminu…', () => hostClose(claim.claimId, false, holder))}>
-          Otwórz ponownie
+          onClick={() => void onAct(t('bookings.myTerm.reopening'), () => hostClose(claim.claimId, false, holder))}>
+          {t('bookings.myTerm.reopen')}
         </button>
       </p>
     );
@@ -287,11 +285,10 @@ function HostClosing({ claim, offer, rules, holder, busy, onAct }: {
   if (offer.taken >= rules.minPersons) {
     return (
       <p className="wk-slot-resign">
-        Zapisanych jest {offer.taken} (minimum to {rules.minPersons}). Możesz zamknąć termin — nikt więcej
-        się nie dopisze, a po Twoim czasie termin nie otworzy się dla innych.{' '}
+        {t('bookings.myTerm.canClose', { taken: offer.taken, min: rules.minPersons })}{' '}
         <button type="button" className="wk-btn wk-btn-quiet" disabled={busy}
-          onClick={() => void onAct('Zamykanie terminu…', () => hostClose(claim.claimId, true, holder))}>
-          Zamknij termin
+          onClick={() => void onAct(t('bookings.myTerm.closing'), () => hostClose(claim.claimId, true, holder))}>
+          {t('bookings.myTerm.close')}
         </button>
       </p>
     );
@@ -299,8 +296,7 @@ function HostClosing({ claim, offer, rules, holder, busy, onAct }: {
 
   return (
     <p className="wk-row-side">
-      Termin możesz zamknąć dla swojej grupy, gdy zapiszą się co najmniej {people(rules.minPersons)}
-      {' '}(teraz: {offer.taken}).
+      {t('bookings.myTerm.closeWhen', { people: people(rules.minPersons, t.lang), taken: offer.taken })}
     </p>
   );
 }

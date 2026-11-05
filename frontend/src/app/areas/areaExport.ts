@@ -17,6 +17,7 @@
 import { loadAgenda, type Series } from '../calendar/agenda';
 import { loadProgram, openProgram, type ProgramNode } from '../calendar/program';
 import { areaKeys, loadAreaNames, loadChats, openNames } from '../chat/chat';
+import { t } from '../core/i18n';
 import { keysFor } from '../core/ringOf';
 import type { Who } from '../core/session';
 import { loadListings } from '../events/events';
@@ -40,7 +41,7 @@ import { loadImportKeys, loadProfile, openCard, saveImportKeys, type ImportKeyKi
 const two = (n: number) => String(n).padStart(2, '0');
 const dayOf = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 const clockOf = (d: Date) => `${two(d.getHours())}:${two(d.getMinutes())}`;
-const WEEKDAY_WORDS = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'] as const;
+const WEEKDAY_WORDS = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'] as const; // i18n-ignore — Werte des Formats
 
 const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -176,7 +177,7 @@ export async function exportArea(input: {
   const pageDrafts = new Map<string, readonly DraftPart[]>();
   for (const path of paths) {
     const loaded = await loadPageState(path);
-    if (loaded.state !== 'page') { warnings.push(`Strona ${path}: nie udało się jej odczytać — pominięta.`); continue; }
+    if (loaded.state !== 'page') { warnings.push(t('areasJson.export.pageUnread', { path })); continue; }
     const now = loaded.now;
     pageDrafts.set(path, now.parts);
     const pageKey = pageKeys.get(path)!;
@@ -185,7 +186,7 @@ export async function exportArea(input: {
     const forms = new Map<string, FormContent>();
     for (const part of now.parts.filter((p) => p.kind === 'form')) {
       const moduleId = part.moduleId ?? part.id;
-      try { forms.set(moduleId, await readFormContent(who, moduleId)); } catch { warnings.push(`Strona ${path}: pytań formularza „${names.get(moduleId) ?? moduleId}” nie da się teraz odczytać — bez nich.`); }
+      try { forms.set(moduleId, await readFormContent(who, moduleId)); } catch { warnings.push(t('areasJson.export.formUnread', { path, name: names.get(moduleId) ?? moduleId })); }
     }
     /* Die Bausteine: der gemerkte Name, sonst einer nach Art und Reihenfolge. */
     const partKeys = new Map<string, string>();
@@ -396,7 +397,7 @@ export async function exportArea(input: {
     const key = known !== undefined && !known.key.includes('/') ? known.key : claim('form', keyFrom(sub.name), sub.moduleId);
     formRefs.set(sub.moduleId, key);
     let form: FormContent | undefined;
-    try { form = await readFormContent(who, sub.moduleId); } catch { warnings.push(`Podformularz „${sub.name}”: pytań nie da się teraz odczytać — bez nich.`); }
+    try { form = await readFormContent(who, sub.moduleId); } catch { warnings.push(t('areasJson.export.subformUnread', { name: sub.name })); }
     const out = exportModule({ ...sub, config: readConfig(sub.config), memberRoles: memberRolesOf(sub) }, form);
     const questions = Array.isArray(out.questions)
       ? out.questions.map((q) => {
@@ -416,7 +417,7 @@ export async function exportArea(input: {
     });
   }
   for (const form of areaForms.filter((m) => m.extendsId === null && !formRefs.has(m.moduleId))) {
-    warnings.push(`Formularz „${form.name}” nie stoi na żadnej stronie obszaru — nie ma go w eksporcie.`);
+    warnings.push(t('areasJson.export.formNoPage', { name: form.name }));
   }
 
   /* -- Rozmowy und Listen ----------------------------------------------------------------- */
@@ -435,7 +436,7 @@ export async function exportArea(input: {
   let card: Record<string, unknown> | undefined;
   if (profile?.card != null) {
     const opened = await openCard(profile.card, areaId, ring).catch(() => null);
-    if (opened === null) warnings.push('Wizytówki nie da się teraz otworzyć — nie ma jej w eksporcie.');
+    if (opened === null) warnings.push(t('areasJson.export.cardUnread'));
     else card = { title: opened.title, lead: opened.lead, ...(profile.imageId === null ? {} : { image: `page-image:${profile.imageId}` }), ...publishOf(profile.card.areaId) };
   }
 
@@ -461,7 +462,7 @@ export async function exportArea(input: {
     try {
       for (let i = 0; i < fresh.length; i += 400) await saveImportKeys(areaId, fresh.slice(i, i + 400));
     } catch {
-      warnings.push('Obszar nie zapamiętał nowych kluczy — import tego dokumentu może utworzyć części jeszcze raz.');
+      warnings.push(t('areasJson.export.keysNotSaved'));
     }
   }
   return { doc, warnings };

@@ -10,6 +10,7 @@ import { meetingAreas } from '../areas/audience';
 import { loadChats, startSeatChat } from '../chat/chat';
 import { fromBase64Url } from '../core/crypto';
 import type { Ring } from '../core/keys';
+import { fmtDate, useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { viewPath } from '../routes';
 import { type Link, type SeatRow, loadSeats, officeSeatKey, relinkSeat, revokeSeat, seatPath } from '../seats/seat';
@@ -47,6 +48,7 @@ export function WriteToSeat({ seatId, near, areas, ring, busy, onError }: {
   const [choosing, setChoosing] = useState(false);
   const [pick, setPick] = useState('');
   const [had, setHad] = useState<ReadonlyMap<string, string>>(new Map());
+  const t = useT();
   const choices = meetingAreas(areas, near);
 
   const open = async (areaId: string) => {
@@ -58,11 +60,11 @@ export function WriteToSeat({ seatId, near, areas, ring, busy, onError }: {
       const { members } = await loadMembers(areaId);
       const as = members.find((m) => ring.has(m.roleId) && m.kind !== 'account'
         && (m.capabilities.includes('read') || m.capabilities.includes('write') || m.capabilities.includes('admin')));
-      if (as === undefined) throw new WorkspaceError('Żadna z Twoich ról nie czyta tego obszaru.');
+      if (as === undefined) throw new WorkspaceError(t('forms.links.noRoleReads'));
       const chatId = await startSeatChat(areaId, as.roleId, seatId);
       window.location.hash = viewPath('chat', chatId);
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć rozmowy.');
+      onError(e instanceof WorkspaceError ? e.message : t('forms.links.chatFailed'));
     } finally {
       setWorking(false);
     }
@@ -71,7 +73,7 @@ export function WriteToSeat({ seatId, near, areas, ring, busy, onError }: {
   /* Ein Bereich zur Wahl: gleich hinein. Mehrere: wählen — einer, in dem es die Rozmowa schon gibt, steht vorn. */
   const begin = async () => {
     onError(null);
-    if (choices.length === 0) { onError('Nie czytasz żadnego obszaru, z którego można napisać do tej osoby.'); return; }
+    if (choices.length === 0) { onError(t('forms.links.noArea')); return; }
     if (choices.length === 1) { await open(choices[0].areaId); return; }
     try {
       const mine = (await loadChats()).chats.filter((c) => c.seatId === seatId);
@@ -79,7 +81,7 @@ export function WriteToSeat({ seatId, near, areas, ring, busy, onError }: {
       setPick(mine.find((c) => choices.some((a) => a.areaId === c.areaId))?.areaId ?? choices[0].areaId);
       setChoosing(true);
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć rozmowy.');
+      onError(e instanceof WorkspaceError ? e.message : t('forms.links.chatFailed'));
     }
   };
 
@@ -87,22 +89,22 @@ export function WriteToSeat({ seatId, near, areas, ring, busy, onError }: {
     return (
       <span className="wk-seat-meet">
         <label>
-          <span>Rozmowa z obszaru</span>{' '}
-          <AreaPick label="Rozmowa z obszaru" areas={areas} only={choices} value={pick} disabled={working} onChange={setPick}
-            note={(areaId) => (had.has(areaId) ? 'rozmowa już jest' : null)} />
+          <span>{t('forms.links.chatFrom')}</span>{' '}
+          <AreaPick label={t('forms.links.chatFrom')} areas={areas} only={choices} value={pick} disabled={working} onChange={setPick}
+            note={(areaId) => (had.has(areaId) ? t('forms.links.chatExists') : null)} />
         </label>
         <button type="button" className="wk-link-btn" disabled={busy || working || pick === ''} onClick={() => void open(pick)}>
-          {working ? 'Otwieranie…' : had.has(pick) ? 'Otwórz' : 'Zacznij'}
+          {working ? t('forms.ext.opening') : had.has(pick) ? t('common.open') : t('forms.links.chatStart')}
         </button>
-        <button type="button" className="wk-link-btn" disabled={working} onClick={() => setChoosing(false)}>Anuluj</button>
-        <span className="wk-hint">Czytają ją ta osoba i wszyscy, którzy mają dostęp do wybranego obszaru — inni z formularza nie.</span>
+        <button type="button" className="wk-link-btn" disabled={working} onClick={() => setChoosing(false)}>{t('common.cancel')}</button>
+        <span className="wk-hint">{t('forms.links.chatReaders')}</span>
       </span>
     );
   }
 
   return (
     <button type="button" className="wk-link-btn" disabled={busy || working} onClick={() => void begin()}>
-      {working ? 'Otwieranie…' : 'Napisz do tej osoby'}
+      {working ? t('forms.ext.opening') : t('forms.links.write')}
     </button>
   );
 }
@@ -203,6 +205,7 @@ export function useSeatLinks(
   portal: { readonly under: string; readonly at: string } | null = null
 ): SeatLinks {
   const [rows, setRows] = useState<ReadonlyMap<string, SeatRow>>(new Map());
+  const t = useT();
 
   /* Der Zusatz gilt nur an der Seite, für die er gewählt ist — ein Platz von früher hängt vielleicht anderswo. */
   const portalRef = useRef(portal);
@@ -245,8 +248,8 @@ export function useSeatLinks(
     if (known !== undefined) return known;
 
     const one = found.current.get(seatId);
-    if (one === undefined) throw new WorkspaceError('Tego miejsca nie ma wśród Twoich obszarów.');
-    if (ring === null) throw new WorkspaceError('Bez hasła nie da się otworzyć linku.');
+    if (one === undefined) throw new WorkspaceError(t('forms.links.seatUnknown'));
+    if (ring === null) throw new WorkspaceError(t('forms.links.noPassword'));
 
     let area = areaKeys.current.get(one.areaId);
 
@@ -259,11 +262,11 @@ export function useSeatLinks(
 
     const areaKey = area.epochs.get(one.row.epoch) ?? [...area.epochs.values()].pop() ?? new Uint8Array(32);
     const opened = await officeSeatKey(one.row, areaKey, area.intake);
-    if (opened === null) throw new WorkspaceError('Do tego miejsca nie ma klucza.');
+    if (opened === null) throw new WorkspaceError(t('forms.links.seatNoKey'));
 
     seatKeys.current.set(seatId, opened);
     return opened;
-  }, [ring]);
+  }, [ring, t]);
 
   const peek = useCallback(async (seatId: string): Promise<string | null> => {
     const one = found.current.get(seatId);
@@ -288,8 +291,8 @@ export function useSeatLinks(
 
   const forSms = useCallback(async (seatId: string, check: readonly CheckAnswer[]): Promise<string> => {
     const one = found.current.get(seatId);
-    if (one === undefined) throw new WorkspaceError('Tego miejsca nie ma wśród Twoich obszarów.');
-    if (one.row.revokedAt !== null) throw new WorkspaceError('Link tej osoby jest wycofany — nie ma czego wysłać.');
+    if (one === undefined) throw new WorkspaceError(t('forms.links.seatUnknown'));
+    if (one.row.revokedAt !== null) throw new WorkspaceError(t('forms.links.revokedNoSend'));
 
     /*
      * DER VORHANDENE TAUGT, wenn er lesbar und nicht gesperrt ist — und wenn
@@ -306,7 +309,7 @@ export function useSeatLinks(
     }
 
     return renew(seatId, check);
-  }, [peek, renew]);
+  }, [peek, renew, t]);
 
   const warm = useCallback((seatIds: readonly string[]) => {
     void (async () => {
@@ -356,6 +359,7 @@ export function SendPanel({
   const [url, setUrl] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const t = useT();
 
   const row = links.rows.get(seatId);
   const { peek } = links;
@@ -376,10 +380,10 @@ export function SendPanel({
 
   /** Wonach der Link beim ersten Öffnen fragt — lesbar. */
   const asked = (row?.verifyFields ?? '').split(',').filter((id) => id !== '')
-    .map((id) => fields.find((f) => f.fieldId === id)?.label ?? 'pytanie usunięte');
+    .map((id) => fields.find((f) => f.fieldId === id)?.label ?? t('forms.links.questionRemoved'));
 
   const renew = async () => {
-    if (url !== null && !(await askText('Wystawić nowy link? Obecny przestanie działać — także ten, który ta osoba już ma.'))) return;
+    if (url !== null && !(await askText(t('forms.links.renewAsk')))) return;
 
     setBusy(true);
     onError(null);
@@ -388,7 +392,7 @@ export function SendPanel({
       setUrl(await links.renew(seatId, checkOf(values, fields)));
       setCopied(false);
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się wystawić linku.');
+      onError(e instanceof WorkspaceError ? e.message : t('forms.links.renewFailed'));
     } finally {
       setBusy(false);
     }
@@ -427,7 +431,7 @@ export function SendPanel({
 
       await onChanged();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przepisać numeru.');
+      onError(e instanceof WorkspaceError ? e.message : t('forms.links.rebindFailed'));
     } finally {
       setBusy(false);
     }
@@ -439,7 +443,7 @@ export function SendPanel({
    * was aufhört, ist der Zugang über diesen Platz.
    */
   const withdraw = async () => {
-    if (!(await askText('Wycofać link? Ta osoba straci dostęp przez link; zgłoszenie zostaje.'))) return;
+    if (!(await askText(t('forms.links.withdrawAsk')))) return;
 
     setBusy(true);
     onError(null);
@@ -449,37 +453,37 @@ export function SendPanel({
       await links.reload();
       setUrl(null);
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się wycofać linku.');
+      onError(e instanceof WorkspaceError ? e.message : t('forms.links.withdrawFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   const when = (at: string) =>
-    new Date(at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+    fmtDate(new Date(at), { day: 'numeric', month: 'long', year: 'numeric' }, t.lang);
+  const dayMonth = (at: string) => fmtDate(new Date(at), { day: 'numeric', month: 'long' }, t.lang);
 
   if (row !== undefined && row.revokedAt !== null) {
     return (
       <p className="wk-hint">
-        Link tej osoby wycofano {when(row.revokedAt)} — przez link nie ma już dostępu.
-        Zgłoszenie zostaje.
+        {t('forms.links.revoked', { date: when(row.revokedAt) })}
       </p>
     );
   }
 
   return (
     <div className="wk-form">
-      <h4 className="wk-h3">Link osoby</h4>
+      <h4 className="wk-h3">{t('forms.links.title')}</h4>
 
       {url === undefined ? (
-        <p className="wk-hint">Otwieranie linku…</p>
+        <p className="wk-hint">{t('forms.links.opening')}</p>
       ) : url === null ? (
         <p className="wk-hint">
-          Ten link jest starszy i kancelaria go nie odczyta. Przy pierwszym SMS-ie powstanie nowy (stary przestanie działać).
+          {t('forms.links.old')}
         </p>
       ) : (
         <div className="wk-link-row">
-          <input readOnly className="wk-mono" value={url} aria-label="Link osoby" onFocus={(e) => e.currentTarget.select()} />
+          <input readOnly className="wk-mono" value={url} aria-label={t('forms.links.title')} onFocus={(e) => e.currentTarget.select()} />
           <button
             type="button" className="wk-link-btn"
             onClick={() => {
@@ -487,7 +491,7 @@ export function SendPanel({
                 .then(() => setCopied(true)).catch(() => setCopied(false));
             }}
           >
-            {copied ? 'Skopiowano' : 'Kopiuj'}
+            {copied ? t('common.copied') : t('common.copy')}
           </button>
         </div>
       )}
@@ -495,26 +499,26 @@ export function SendPanel({
       {row !== undefined && (
         <p className="wk-hint">
           {row.locked
-            ? 'Link zablokowany — ktoś kilka razy źle odpowiedział przy pierwszym otwarciu. Wystaw nowy.'
+            ? t('forms.links.locked')
             : row.asks && row.verifiedAt === null
-              ? `Jeszcze nieotwarty. Przy pierwszym otwarciu zapyta o: ${asked.join(', ') || '—'}.`
+              ? t('forms.links.notOpened', { list: asked.join(', ') || '—' })
               : row.asks
-                ? `Otwarty i potwierdzony ${when(row.verifiedAt!)} — więcej nie pyta.`
-                : 'Ten link nie pyta o nic przy otwarciu.'}
-          {row.viewCount > 0 && ` Otwierany ${row.viewCount}×.`}
+                ? t('forms.links.verified', { date: when(row.verifiedAt!) })
+                : t('forms.links.asksNothing')}
+          {row.viewCount > 0 && ` ${t('forms.links.views', { count: row.viewCount })}`}
         </p>
       )}
 
       <div className="wk-actions">
         <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void renew()}>
-          {busy ? 'Wystawianie…' : url === null ? 'Wystaw link' : 'Wystaw nowy link'}
+          {busy ? t('forms.links.issuing') : url === null ? t('forms.links.issue') : t('forms.links.issueNew')}
         </button>
         <button
           type="button" className="wk-link-btn wk-danger" disabled={busy}
-          title="Link przestaje działać. Zgłoszenie zostaje."
+          title={t('forms.links.withdrawTitle')}
           onClick={() => void withdraw()}
         >
-          Wycofaj link
+          {t('forms.links.withdraw')}
         </button>
       </div>
 
@@ -525,17 +529,14 @@ export function SendPanel({
       */}
       {orphans.length > 0 && (
         <p className="wk-note">
-          {orphans.length === 1
-            ? 'Ten numer należy do pytania, którego już nie ma — '
-            : 'Te numery należą do pytań, których już nie ma — '}
-          SMS wyślesz, ale linku potwierdzającego numer do nich nie da się wystawić.
+          {orphans.length === 1 ? t('forms.links.orphanOne') : t('forms.links.orphanMany')}
           {livePhone === undefined ? (
-            <> Najpierw dodaj do formularza pytanie o telefon.</>
+            <> {t('forms.links.addPhoneFirst')}</>
           ) : (
             <>
               {' '}
               <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void rebind()}>
-                Przepisz na „{livePhone.label ?? 'telefon'}"
+                {t('forms.links.rebind', { label: livePhone.label ?? t('forms.links.phone') })}
               </button>
             </>
           )}
@@ -550,22 +551,16 @@ export function SendPanel({
         const mark = checks.find((c) => c.fieldId === fieldId);
         if (mark === undefined) return null;
 
-        const label = fields.find((f) => f.fieldId === fieldId)?.label ?? 'Numer';
+        const label = fields.find((f) => f.fieldId === fieldId)?.label ?? t('forms.links.number');
 
         return mark.verifiedAt !== null ? (
           <p className="wk-hint" key={fieldId}>
-            <strong>{label} — potwierdzony</strong> {when(mark.verifiedAt)}
-            {mark.origin === 'sms'
-              ? ' — ta osoba kliknęła link, który tam wysłaliście.'
-              : ' — ta osoba potwierdziła to w swoim portalu. '
-                + 'To nie dowód, że telefon działa — jeśli tego potrzebujecie, wyślijcie link.'}
+            <strong>{t('forms.links.confirmed', { label })}</strong> {when(mark.verifiedAt)}
+            {' '}{mark.origin === 'sms' ? t('forms.links.confirmedSms') : t('forms.links.confirmedPortal')}
           </p>
         ) : (
           <p className="wk-hint" key={fieldId}>
-            Link potwierdzający numer wysłany{' '}
-            {new Date(mark.sentAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })},
-            {' '}bez odpowiedzi. Ważny do{' '}
-            {new Date(mark.expiresAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}.
+            {t('forms.links.checkSent', { sent: dayMonth(mark.sentAt), until: dayMonth(mark.expiresAt) })}
           </p>
         );
       })}
@@ -594,6 +589,7 @@ export function LinkCheckBox({ partId, fields, busy, onSaved, onError }: {
   const current = fields.filter((f) => f.linkCheck).map((f) => f.fieldId).join(',');
   const [draft, setDraft] = useState<ReadonlySet<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     setDraft(new Set(current === '' ? [] : current.split(',')));
@@ -613,7 +609,7 @@ export function LinkCheckBox({ partId, fields, busy, onSaved, onError }: {
       await setLinkCheck(partId, askable.filter((f) => draft.has(f.fieldId)).map((f) => f.fieldId));
       onSaved();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      onError(e instanceof WorkspaceError ? e.message : t('forms.ext.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -621,14 +617,14 @@ export function LinkCheckBox({ partId, fields, busy, onSaved, onError }: {
 
   return (
     <div className="wk-field">
-      <span>Pierwsze otwarcie linku — o co zapytać</span>
+      <span>{t('forms.links.checkTitle')}</span>
 
       <p className="wk-hint">
-        Kto pierwszy raz otworzy link z SMS-a, musi podać zaznaczone dane (jak w zgłoszeniu). Nic nie zaznaczone — link nie pyta.
+        {t('forms.links.checkHint')}
       </p>
 
       {askable.length === 0 ? (
-        <p className="wk-empty">W formularzu nie ma pytania, o które dałoby się zapytać.</p>
+        <p className="wk-empty">{t('forms.links.checkNone')}</p>
       ) : (
         <ul className="wk-checks">
           {askable.map((f) => (
@@ -644,7 +640,7 @@ export function LinkCheckBox({ partId, fields, busy, onSaved, onError }: {
                     setDraft(next);
                   }}
                 />
-                {' '}{f.label ?? 'zapieczętowane pytanie'}
+                {' '}{f.label ?? t('forms.ext.sealedQuestion')}
                 <span className="wk-row-side"> · {KIND_LABEL[f.kind]}</span>
               </label>
             </li>
@@ -653,19 +649,19 @@ export function LinkCheckBox({ partId, fields, busy, onSaved, onError }: {
       )}
 
       <p className="wk-hint">
-        Dotyczy linków wysyłanych od teraz.
+        {t('forms.links.checkFromNow')}
       </p>
 
       {changed && (
         <div className="wk-actions">
           <button type="button" className="wk-btn" disabled={busy || saving} onClick={() => void save()}>
-            {saving ? 'Zapisywanie…' : 'Zapisz'}
+            {saving ? t('common.saving') : t('common.save')}
           </button>
           <button
             type="button" className="wk-link-btn" disabled={saving}
             onClick={() => setDraft(new Set(current === '' ? [] : current.split(',')))}
           >
-            Cofnij
+            {t('forms.links.undo')}
           </button>
         </div>
       )}

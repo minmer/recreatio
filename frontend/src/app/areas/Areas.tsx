@@ -35,7 +35,7 @@ import { loadChats } from '../chat/chat';
 import { chatTitles } from '../chat/chatShared';
 import type { Ring, SealedRole } from '../core/keys';
 import { useMe } from '../core/me';
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
 import { keysFor, forgetKeys } from '../core/ringOf';
 import { selfOf, type RoleGraphData } from '../roles/roles';
@@ -81,6 +81,7 @@ const viewOf = (trail: readonly string[]): View =>
 
 export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]; desk: Desk }) {
   /* 0094 — einfach: der Widok obszaru; erweitert: die Einzelheiten (Schlüssel, Rollen, Stufen). */
+  const t = useT();
   const [areas, setAreas] = useState<readonly AreaRow[] | null | undefined>(undefined);
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
@@ -105,9 +106,9 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
       setFailed(null);
     } catch (e) {
       setAreas(null);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać obszarów.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('areas.list.loadFailed'));
     }
-  }, [who]);
+  }, [who, t]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -125,7 +126,7 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
   const list = areas ?? [];
 
   const crumbs: Crumb[] = view.at === NEW
-    ? [{ label: 'Nowy obszar', href: null }]
+    ? [{ label: t('areas.newArea.title'), href: null }]
     : view.at === 'area'
       ? chainTo(list, view.areaId).map((step) => ({
           label: step.name,
@@ -146,7 +147,7 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
       forgetKeys();
       await look();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('common.failed'));
     } finally {
       setBusy(null);
     }
@@ -158,7 +159,7 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
     return (
       <>
         <p className="wk-error">{failed}</p>
-        <p><button type="button" className="wk-btn" onClick={() => void look()}>Spróbuj ponownie</button></p>
+        <p><button type="button" className="wk-btn" onClick={() => void look()}>{t('common.retry')}</button></p>
       </>
     );
   }
@@ -178,7 +179,7 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
       {busy !== null && <p className="wk-working">{busy}</p>}
 
       {ring === null && (
-        <Unlock who={who} why="Bez hasła nie otworzysz klucza." onDone={() => void look()} />
+        <Unlock who={who} why={t('areas.list.unlockWhy')} onDone={() => void look()} />
       )}
     </>
   );
@@ -188,7 +189,7 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
   if (view.at === 'area') {
     if (shown === null) {
       /* Weggefallen, während er offen war. */
-      return <p className="wk-empty">Tego obszaru już nie ma.</p>;
+      return <p className="wk-empty">{t('areas.list.gone')}</p>;
     }
 
     return (
@@ -236,21 +237,21 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
         2026-10-18 — ANLEGEN STEHT IN DER LISTE, nicht als Knopf im Kopf: unter allen Bereichen
         ein neuer äusserster, an jedem, den ich prowadzę, „+" für einen darin.
       */}
-      <PageHeader title="Obszary" />
+      <PageHeader title={t('areas.list.title')} />
       {head}
 
       {areas.length === 0 && (
-        <p className="wk-empty">Obszar to klucz. Bez niego nie ma gdzie niczego zamknąć.</p>
+        <p className="wk-empty">{t('areas.list.empty')}</p>
       )}
 
       <AreaList who={who} areas={areas} create={{
         busy: busy !== null,
-        blocked: ring === null ? 'Najpierw podaj hasło.'
-          : person === null ? 'Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.' : null,
+        blocked: ring === null ? t('areas.passwordFirst')
+          : person === null ? t('areas.noPerson') : null,
         onCreate: async (name, parentId) => {
           if (ring === null || person === null) return false;
           let made = false;
-          await act('Zakładanie…', async () => { await createArea(ring, person, name, parentId); made = true; });
+          await act(t('areas.creating'), async () => { await createArea(ring, person, name, parentId); made = true; });
           return made;
         }
       }} />
@@ -261,9 +262,9 @@ export function Areas({ who, trail, desk }: { who: Who; trail: readonly string[]
       */}
       {areas.some((a) => a.mayCertify && a.personal !== true) && (
         <details className="wk-fold wk-links-all">
-          <summary>Linki dostępu</summary>
+          <summary>{t('areas.list.links')}</summary>
           <p className="wk-hint">
-            Link daje rolę, a rola — dostęp do jej obszarów: od razu w tej przeglądarce, po dodaniu do konta wszędzie.
+            {t('areas.list.linksHint')}
           </p>
           <AccessLinks ring={ring} self={person} areas={areas} busy={busy !== null} onAct={act} />
         </details>
@@ -303,6 +304,7 @@ export interface AreaCreate {
  * Namen, direkt darunter); unter allen steht „Nowy obszar" — ein äusserster.
  */
 export function AreaList({ who, areas, create }: { who: Who; areas: readonly AreaRow[]; create?: AreaCreate }) {
+  const t = useT();
   const [openText, setOpenText] = useRemembered('areas.open', '');
   const open = new Set(openText.split(',').filter((id) => id !== ''));
   const setOpen = (areaId: string, to: boolean) => {
@@ -322,7 +324,7 @@ export function AreaList({ who, areas, create }: { who: Who; areas: readonly Are
   const foldDepth = mine.length > 0 ? 1 : 0;
   const direct = chats.filter((b) => b[0].area.ownChat === 'direct').length;
   const groups = chats.length - direct;
-  const level = (area: AreaRow) => (area.myLevel !== null ? LEVEL_NAME[area.myLevel] : 'bez dostępu');
+  const level = (area: AreaRow) => (area.myLevel !== null ? LEVEL_NAME[area.myLevel] : t('areas.list.noAccess'));
 
   /* Die Zeilen eines Blocks, wie sie dastehen: was unter einem zugeklappten liegt, fällt weg; nach einem Bereich, in dem gerade angelegt wird, die Zeile dafür. */
   const lines = (rows: readonly { area: AreaRow; depth: number }[], shift: number, title: (area: AreaRow, depth: number) => string, sub: (area: AreaRow, depth: number) => string) => {
@@ -353,7 +355,7 @@ export function AreaList({ who, areas, create }: { who: Who; areas: readonly Are
 
   return (
     <ul className="wk-box wk-area-list">
-      {lines(mine.flat(), 0, () => 'Tylko Ty (prywatny)', (area) => level(area))}
+      {lines(mine.flat(), 0, () => t('areas.list.onlyYou'), (area) => level(area))}
 
       {chats.length > 0 && (
         <li>
@@ -361,10 +363,10 @@ export function AreaList({ who, areas, create }: { who: Who; areas: readonly Are
             onClick={() => setChatsText(chatsOpen ? 'closed' : 'open')}>
             <span className="wk-line-ic"><Icon name="chat" /></span>
             <span className="wk-line-text">
-              <span className="wk-line-title">Rozmowy</span>
+              <span className="wk-line-title">{t('areas.pick.chats')}</span>
               <span className="wk-line-sub">
-                {[direct > 0 && `${direct} ${plural(direct, 'rozmowa', 'rozmowy', 'rozmów')} we dwoje`,
-                  groups > 0 && `${groups} ${plural(groups, 'grupa', 'grupy', 'grup')}`].filter(Boolean).join(' · ')}
+                {[direct > 0 && t('areas.list.directCount', { count: direct }),
+                  groups > 0 && t('areas.list.groupCount', { count: groups })].filter(Boolean).join(' · ')}
               </span>
             </span>
             <span className="wk-line-end"><Icon name="next" className="wk-area-fold-twist" /></span>
@@ -374,7 +376,7 @@ export function AreaList({ who, areas, create }: { who: Who; areas: readonly Are
 
       {chatsOpen && lines(chats.flat(), foldDepth + 1,
         (area, depth) => (depth === 0 ? chatNames.get(area.areaId) ?? area.name : area.name),
-        (area, depth) => (depth === 0 ? `${area.ownChat === 'direct' ? 'rozmowa we dwoje' : 'grupa'} · ${level(area)}` : level(area)))}
+        (area, depth) => (depth === 0 ? `${area.ownChat === 'direct' ? t('areas.pick.direct') : t('areas.pick.group')} · ${level(area)}` : level(area)))}
 
       {lines(rest.flat(), 0, (area) => area.name, (area) => level(area))}
 
@@ -385,7 +387,7 @@ export function AreaList({ who, areas, create }: { who: Who; areas: readonly Are
         <li>
           <button type="button" className="wk-line wk-area-add" onClick={() => setAdding('')}>
             <span className="wk-line-ic"><Icon name="plus" /></span>
-            <span className="wk-line-text"><span className="wk-line-title">Nowy obszar</span></span>
+            <span className="wk-line-text"><span className="wk-line-title">{t('areas.newArea.title')}</span></span>
           </button>
         </li>
       ))}
@@ -405,6 +407,7 @@ function NewAreaLine({ depth, inside, parentId, create, onCancel, onMade }: {
   onCancel: () => void;
   onMade: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState('');
   const field = useRef<HTMLInputElement | null>(null);
   useEffect(() => { field.current?.focus(); }, []);
@@ -418,15 +421,15 @@ function NewAreaLine({ depth, inside, parentId, create, onCancel, onMade }: {
     <li className="wk-area-new" style={depthOf(depth)}>
       <span className="wk-line-ic"><Icon name="layers" /></span>
       <input ref={field} value={name} maxLength={120} disabled={create.busy}
-        aria-label={inside === undefined ? 'Nazwa nowego obszaru' : `Nazwa obszaru w: ${inside}`}
-        placeholder={inside === undefined ? 'Nazwa nowego obszaru, np. Kancelaria' : `Nowy obszar w: ${inside}`}
+        aria-label={inside === undefined ? t('areas.list.newName') : t('areas.list.newNameIn', { name: inside })}
+        placeholder={inside === undefined ? t('areas.list.newNamePlaceholder') : t('areas.list.newIn', { name: inside })}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') { e.preventDefault(); submit(); }
           if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
         }} />
-      <button type="button" className="wk-btn wk-btn-small" disabled={!ready} onClick={submit}>{create.busy ? 'Zakładanie…' : 'Załóż'}</button>
-      <button type="button" className="wk-link-btn" disabled={create.busy} onClick={onCancel}>Anuluj</button>
+      <button type="button" className="wk-btn wk-btn-small" disabled={!ready} onClick={submit}>{create.busy ? t('areas.creating') : t('areas.newArea.create')}</button>
+      <button type="button" className="wk-link-btn" disabled={create.busy} onClick={onCancel}>{t('common.cancel')}</button>
       {create.blocked !== null && <span className="wk-blocker">{create.blocked}</span>}
     </li>
   );
@@ -458,11 +461,12 @@ function AreaLine({ area, depth, title, sub, open, onToggle, onAdd }: {
   /** „+": einen Bereich darin anlegen (fehlt: hier nicht erlaubt). */
   onAdd?: () => void;
 }) {
+  const t = useT();
   return (
     <li className="wk-area-row" style={depthOf(depth)}>
       {onToggle !== undefined ? (
         <button type="button" className="wk-area-twist" aria-expanded={open === true}
-          aria-label={open === true ? `Zwiń: ${title}` : `Rozwiń: ${title}`} onClick={onToggle}>
+          aria-label={open === true ? t('areas.list.collapse', { name: title }) : t('areas.list.expand', { name: title })} onClick={onToggle}>
           <Icon name="next" />
         </button>
       ) : <span className="wk-area-twist is-leaf" aria-hidden="true" />}
@@ -475,7 +479,7 @@ function AreaLine({ area, depth, title, sub, open, onToggle, onAdd }: {
         <span className="wk-line-end"><Tags area={area} /><Icon name="next" /></span>
       </a>
       {onAdd !== undefined && (
-        <button type="button" className="wk-icon-btn wk-area-plus" title={`Nowy obszar w: ${title}`} aria-label={`Nowy obszar w: ${title}`} onClick={onAdd}>
+        <button type="button" className="wk-icon-btn wk-area-plus" title={t('areas.list.newIn', { name: title })} aria-label={t('areas.list.newIn', { name: title })} onClick={onAdd}>
           <Icon name="plus" />
         </button>
       )}
@@ -516,17 +520,18 @@ function useChatNames(who: Who, open: boolean, areas: readonly AreaRow[] | null)
  * soll.
  */
 function Tags({ area }: { area: AreaRow }) {
+  const t = useT();
   return (
     <span className="wk-tags">
       {area.publicLevel !== 'none' && (
-        <span className="wk-tag wk-tag-open" title="Bez konta, dla każdego">
-          {area.publicLevel === 'write' ? 'jawny · pisze' : 'jawny'}
+        <span className="wk-tag wk-tag-open" title={t('areas.tags.publicTitle')}>
+          {area.publicLevel === 'write' ? t('areas.tags.publicWrite') : t('areas.tags.public')}
         </span>
       )}
 
       {area.seatLevel !== 'own' && (
-        <span className="wk-tag" title="Co widzi osoba z formularza poza swoim">
-          formularz: {area.seatLevel === 'write' ? 'pisze' : 'czyta'}
+        <span className="wk-tag" title={t('areas.tags.seatTitle')}>
+          {area.seatLevel === 'write' ? t('areas.tags.seatWrite') : t('areas.tags.seatRead')}
         </span>
       )}
     </span>

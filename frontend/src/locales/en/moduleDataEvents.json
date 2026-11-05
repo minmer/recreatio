@@ -1,0 +1,132 @@
+{
+  "kind": {
+    "event": {
+      "label": "Events",
+      "none": "There are no events here yet.",
+      "noneEnded": "There have been no events here yet.",
+      "done": "ended",
+      "showsStrip": "The next event in one line.",
+      "showsGrid": "All events as a grid of cards with pictures and descriptions.",
+      "showsList": "All events with pictures and descriptions, one card below the other.",
+      "showsRow": "Up to four upcoming ones in a row — date, place, category.",
+      "showsShort": "Up to four upcoming ones in short — date and place."
+    },
+    "group": {
+      "label": "Groups",
+      "none": "There are no groups here yet.",
+      "noneEnded": "There are no archived groups here.",
+      "done": "archived",
+      "showsStrip": "The first group in one line.",
+      "showsGrid": "All groups as a grid of cards with pictures and descriptions.",
+      "showsList": "All groups with pictures and descriptions, one card below the other.",
+      "showsRow": "Up to four groups in a row — name, time, category.",
+      "showsShort": "Up to four groups in short — name and time."
+    },
+    "organisation": {
+      "label": "Parishes and organisations",
+      "none": "There are no parishes or organisations here yet.",
+      "noneEnded": "There are no archived parishes or organisations here.",
+      "done": "archived",
+      "showsStrip": "The first parish or organisation in one line.",
+      "showsGrid": "All parishes and organisations as a grid of cards with pictures and descriptions.",
+      "showsList": "All parishes and organisations with pictures and descriptions, one card below the other.",
+      "showsRow": "Up to four parishes or organisations in a row — name, time, category.",
+      "showsShort": "Up to four parishes or organisations in short — name and time."
+    },
+    "course": {
+      "label": "Courses",
+      "none": "There are no courses here yet.",
+      "noneEnded": "There are no archived courses here.",
+      "done": "archived",
+      "showsStrip": "The first course in one line.",
+      "showsGrid": "All courses as a grid of cards with pictures and descriptions.",
+      "showsList": "All courses with pictures and descriptions, one card below the other.",
+      "showsRow": "Up to four courses in a row — name, time, category.",
+      "showsShort": "Up to four courses in short — name and time."
+    },
+    "school": {
+      "label": "Schools",
+      "none": "There are no schools here yet.",
+      "noneEnded": "There are no archived schools here.",
+      "done": "archived",
+      "showsStrip": "The first school in one line.",
+      "showsGrid": "All schools as a grid of cards with pictures and descriptions.",
+      "showsList": "All schools with pictures and descriptions, one card below the other.",
+      "showsRow": "Up to four schools in a row — name, category.",
+      "showsShort": "Up to four schools in short — name."
+    },
+    "class": {
+      "label": "Classes",
+      "none": "There are no classes here yet.",
+      "noneEnded": "There are no archived classes here.",
+      "done": "archived",
+      "showsStrip": "The first class in one line.",
+      "showsGrid": "All classes as a grid of cards with pictures and descriptions.",
+      "showsList": "All classes with pictures and descriptions, one card below the other.",
+      "showsRow": "Up to four classes in a row — name, category.",
+      "showsShort": "Up to four classes in short — name."
+    }
+  },
+  "when": {
+    "event": {
+      "coming": "Upcoming and ongoing",
+      "past": "Past",
+      "all": "All"
+    },
+    "kept": {
+      "coming": "Active",
+      "past": "Archived",
+      "all": "All"
+    }
+  },
+  "cancelled": "cancelled",
+  "open": "Registration open",
+  "after": "After the event →",
+  "failed": "Could not load the list.",
+  "more": "And {count} more — ",
+  "showAll": "show all",
+  "fullList": "the full list in full screen",
+  "type": "Kind",
+  "fromAreas": "{label} from areas",
+  "deep": "also from areas within them",
+  "kindOnly": "Only category (optional)",
+  "kindPh": "e.g. retreat",
+  "which": "Which",
+  "limit": "At most",
+  "noAreasNote": "Without chosen areas the list shows only those that asked for a place and were accepted. ",
+  "askNote": "Other areas can ask for a place on this list — requests go to “Matters” of the person who runs the page.",
+  "list": {
+    "use": "Events, groups, parishes or courses of the chosen areas as cards (date, place, picture, “Registration open”); others can ask for a place on the list.",
+    "exTitle": "Events in the parish",
+    "exAreas": "<area-id-1>,<area-id-2>",
+    "exKind": "retreat",
+    "sTitle": "heading of the list; empty — the name of the kind (“Events”, “Groups” …)",
+    "sType": "what the list shows: \"event\" — events (usually), \"group\" — groups, \"organisation\" — parishes and organisations, \"course\" — courses",
+    "sAreas": "areas the list takes cards from (ids) — easiest to choose in the editor; empty — only cards accepted on request",
+    "sDeep": "\"yes\" — also areas within them (usually), \"no\" — only these areas",
+    "sKind": "only cards of this category (e.g. \"rekolekcje\"); empty — all",
+    "sWhen": "\"coming\" — upcoming and ongoing, for groups, parishes and courses: active (usually); \"past\" — past or archived; \"all\" — all",
+    "sLimit": "at most this many cards (1–200); empty — 24"
+  },
+  "one": {
+    "label": "Profile card",
+    "use": "The profile card of one area — an event, group, parish or course: picture, name, description, date, “Sign up”, after the end “After the event”; chosen here or given in the page address (?wydarzenie=…).",
+    "exTitle": "The next retreat",
+    "exArea": "<area-id>",
+    "sTitle": "heading above the card; empty — no heading",
+    "sArea": "the area whose profile card to show (id) — easiest to choose in the editor; empty — the area from the page address (?wydarzenie=<id>)",
+    "empty": "A profile card will appear here — choose an area in the module settings or give it in the address (?wydarzenie=…).",
+    "none": "This area has no profile card or it is not public.",
+    "organiser": "Organised by: {name}",
+    "join": "Sign up",
+    "heading": "Heading (optional)",
+    "headingPh": "e.g. The next retreat",
+    "area": "Profile card of the area",
+    "fromAddress": "— from the page address (?wydarzenie=…) —",
+    "note": "Empty choice: the page shows the profile card of the area given in the address, e.g. #/strona?wydarzenie=<area id> — one page for many.",
+    "showsStrip": "Name, date, kind and “Registration open” in one line.",
+    "showsTall": "A large picture, name, date, place, description, organiser, “Sign up” (after the end “After the event”) and who is responsible for the content.",
+    "showsSide": "Picture beside: name, date, place, description and “Sign up”.",
+    "showsBlock": "Picture, name, date, place and “Sign up”."
+  }
+}

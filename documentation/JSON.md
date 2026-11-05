@@ -54,6 +54,10 @@ backup, or prepared by an assistant. The rules are the same everywhere (2026-10-
 
 What each import may do, in short (the descriptions say it in full):
 
+- **page** — the page and its modules in place (by `id`); `"lang"` (`"en"`/`"de"`/`"pl"`, 2026-11-05) on the page
+  sets the language its visitors see, on a module the language of that module; `null` or absent follows the visitor
+  (page) or the page (module). Stored in the page look (`page_theme`) and the module layout (`layout.lang`).
+
 - **calendar** — appointments, series (a weekly timetable), program points, the scheme and its values, days of a series
   (cancel, restore, move, day values); deletes only with `"remove": true`; never intentions, entries, reservations.
 - **masses** — masses and services (single or series, celebrants, „ta i następne” with `changeFrom`) and their

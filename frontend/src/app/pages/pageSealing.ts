@@ -17,6 +17,7 @@ import { loadMenu } from './menu';
 import { newPageKey, openAreasAmong, sealAad, sealPiece, type PageKey, type SealWrap } from './pageSeal';
 import type { Ring } from '../core/keys';
 import { call, WorkspaceError } from '../core/session';
+import { t } from '../core/i18n';
 
 const encodePath = (path: string): string => path.split('/').map(encodeURIComponent).join('/');
 
@@ -31,8 +32,8 @@ export interface SealOutcome {
 /** Die Seite, wie sie jetzt ist — offen. Ohne Schlüssel einer versiegelten Seite geht es nicht weiter. */
 async function current(path: string): Promise<{ page: PageContent; menu: string | null }> {
   const page = await loadPage(path);
-  if (page.locked === true) throw new WorkspaceError('Ta strona jest zaszyfrowana, a ta przeglądarka nie ma do niej klucza.');
-  if (page.id === undefined) throw new WorkspaceError('Serwer jest starszy niż szyfrowanie stron — najpierw trzeba go zaktualizować.');
+  if (page.locked === true) throw new WorkspaceError(t('pages.sealed.noKey'));
+  if (page.id === undefined) throw new WorkspaceError(t('pages.sealed.oldServer'));
 
   const state = await loadMenu(path);
   return { page, menu: state.items === null ? null : JSON.stringify(state.items) };
@@ -43,12 +44,12 @@ async function current(path: string): Promise<{ page: PageContent; menu: string 
  * `ownerRoleId` — die Rolle, die sie führt (bekommt den Schlüssel auch).
  */
 export async function sealPage(path: string, areas: readonly string[], ownerRoleId: string | null, ring: Ring): Promise<SealOutcome> {
-  if (areas.length === 0) throw new WorkspaceError('Zaszyfrować można tylko stronę z dostępem — najpierw wybierz obszary.');
+  if (areas.length === 0) throw new WorkspaceError(t('pages.sealed.needAreas'));
 
   const { page, menu } = await current(path);
   const version = (page.seal?.v ?? 0) + 1;
   const made = await newPageKey(page.id!, version, areas, ownerRoleId, ring);
-  if (made.wraps.length === 0) throw new WorkspaceError('Nie masz klucza żadnego z obszarów tej strony — nie da się jej zaszyfrować.');
+  if (made.wraps.length === 0) throw new WorkspaceError(t('pages.sealed.noAreaKey'));
 
   const key: PageKey = made.key;
   const piece = (label: ReturnType<typeof sealAad.title>, text: string | null | undefined) =>
@@ -77,7 +78,7 @@ export async function sealPage(path: string, areas: readonly string[], ownerRole
 /** WIEDER ÖFFNEN: alles offen zurück, der Schlüssel geht. */
 export async function unsealPage(path: string): Promise<SealOutcome> {
   const { page, menu } = await current(path);
-  if (pageKeyOf(path) === null && page.seal != null) throw new WorkspaceError('Ta strona jest zaszyfrowana, a ta przeglądarka nie ma do niej klucza.');
+  if (pageKeyOf(path) === null && page.seal != null) throw new WorkspaceError(t('pages.sealed.noKey'));
 
   const body = {
     seal: null,

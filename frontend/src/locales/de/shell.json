@@ -1,0 +1,109 @@
+{
+  "alone": {
+    "state": {
+      "checking": "Verbindung zum Konto…",
+      "cut": "Ohne Internet",
+      "none": "Ohne Anmeldung",
+      "back": "Verbunden"
+    },
+    "tabs": "Ohne Netz",
+    "full": "Volle Version",
+    "retry": "Erneut versuchen"
+  },
+  "crumbs": {
+    "label": "Wo du bist",
+    "back": "Zurück",
+    "beside": "Neben „{label}\""
+  },
+  "lang": {
+    "browser": "Sprache: wie der Browser"
+  },
+  "nav": {
+    "home": "Jetzt",
+    "parish": "Pfarrei",
+    "studium": "Studium",
+    "settings": "Einstellungen",
+    "newCount": {
+      "one": "{count} neu",
+      "other": "{count} neu"
+    }
+  },
+  "phone": {
+    "label": "Schnellzugriff"
+  },
+  "account": {
+    "named": "Konto · {login}",
+    "menu": "Konto: {login}",
+    "account": "Konto und Passwort",
+    "notifications": "Benachrichtigungen",
+    "security": "Sicherheit und Schlüssel",
+    "transfer": "Datenübertragung",
+    "workspace": "Arbeitsplatz",
+    "signOut": "Abmelden"
+  },
+  "guard": {
+    "title": "Diese Ansicht ist stehen geblieben",
+    "lede": "Beim Anzeigen dieses Teils ist etwas schiefgelaufen. Versuch es noch einmal — und wenn der Fehler wiederkommt, gib die Meldung unten weiter.",
+    "reload": "Seite neu laden"
+  },
+  "unlock": {
+    "failed": "Die Schlüssel ließen sich nicht öffnen.",
+    "kept": "Der Schlüssel wird aus dem Passwort berechnet. Er wird aufbewahrt — versiegelt mit dem Schlüssel dieses Geräts, den der Dienst nicht kennt —, daher fragen wir nach einem Neustart nicht erneut danach.",
+    "memory": "Der Schlüssel wird aus dem Passwort berechnet und bleibt nur im Speicher — nach dem Schließen aller Tabs muss er neu berechnet werden.",
+    "busy": "Schlüssel wird berechnet…",
+    "go": "Schlüssel öffnen"
+  },
+  "signIn": {
+    "needBoth": "Gib Kontoname und Passwort ein.",
+    "needLogin": "Gib den Kontonamen ein.",
+    "needPassword": "Gib das Passwort ein.",
+    "loginShort": "Kontoname: mindestens 3 Zeichen.",
+    "passwordShort": "Passwort: mindestens 8 Zeichen.",
+    "needName": "Gib den Namen der ersten Person ein.",
+    "noKeys": "Die Schlüssel sind in diesem Tab nicht verfügbar.",
+    "noRole": "Das Konto hat noch keine Rolle.",
+    "creating": "Konto und Schlüssel werden angelegt…",
+    "creatingPerson": "Die erste Person wird angelegt…",
+    "personFailedWhy": "Das Konto ist angelegt, aber die Person ließ sich nicht anlegen: {why}",
+    "personFailed": "Das Konto ist angelegt, aber die Person ließ sich nicht anlegen. Mach es im Reiter „Rollen\" fertig — klick auf „Konto\".",
+    "failed": "Die Anmeldung hat nicht geklappt.",
+    "create": "Konto anlegen",
+    "ledeIn": "Dein Arbeitsplatz: Gruppen, Formulare, Kalender und Gespräche.",
+    "ledeNew": "Das Konto gehört dir — nur du hast den Schlüssel dazu.",
+    "login": "Kontoname",
+    "password": "Passwort",
+    "name": "Dein Name",
+    "namePlaceholder": "z. B. Michael",
+    "nameHint": "Den Namen sehen nur die, denen du Zugang gibst. Das Konto kannst du jederzeit selbst löschen.",
+    "passwordStays": "Das Passwort verlässt dieses Gerät nicht.",
+    "keysTakeTime": "Die Schlüssel zum Verschlüsseln entstehen — das dauert einige Sekunden. Schließ die Seite nicht.",
+    "go": "Anmelden",
+    "noAccount": "Noch kein Konto?",
+    "createIt": "Leg eins an",
+    "haveAccount": "Schon ein Konto?"
+  },
+  "frame": {
+    "menu": "Menü",
+    "find": "Personen, Formulare, Seiten suchen…",
+    "findKey": "Strg K",
+    "cutTitle": "Der Dienst antwortet nicht. Ohne Internet funktioniert das Lernen von diesem Gerät."
+  },
+  "search": {
+    "kind": {
+      "view": "Teil des Arbeitsplatzes",
+      "area": "Bereich",
+      "page": "Seite",
+      "chat": "Gespräch"
+    },
+    "hint": {
+      "notify": "Glocke Reihenfolge Gerät Telefon",
+      "security": "Passwort Schlüssel Verschlüsselung",
+      "transfer": "alte Daten Migration Übertragung"
+    },
+    "placeholder": "Bereich, Formular, Seite, Gespräch…",
+    "label": "Im Arbeitsplatz suchen",
+    "goTo": "Gehe zu:",
+    "results": "Ergebnisse",
+    "nothing": "Nichts gefunden."
+  }
+}

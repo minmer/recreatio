@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useT } from '../../core/i18n';
+
 /**
  * A full-screen layer over the reader.
  *
@@ -63,6 +65,7 @@ export function Fullscreen({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const t = useT();
   const [theme] = useState<CSSProperties>(() => readThemeTokens());
   // Mounted closed for one frame, then opened: a transition needs two states,
   // and an element that appears already at its end state simply pops.
@@ -117,7 +120,7 @@ export function Fullscreen({
       aria-modal="true"
       aria-label={label}
     >
-      <button type="button" className="ev-layer-close" onClick={requestClose} aria-label="Zamknij">
+      <button type="button" className="ev-layer-close" onClick={requestClose} aria-label={t('common.close')}>
         ✕
       </button>
       {children}

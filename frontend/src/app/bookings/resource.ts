@@ -15,6 +15,7 @@
 import { aad, Field, fromBase64Url, openText, sealText, sha256, toBase64Url } from '../core/crypto';
 import { askNameFor, holderNameFor, hostPair, openHolderNames } from '../core/holderNames';
 import { newId } from '../core/ids';
+import { t, texts } from '../core/i18n';
 import { nameText, writeKey, claimHolderAad, sealName } from '../core/names';
 import { call, WorkspaceError } from '../core/session';
 import type { Controller } from '../forms/intake';
@@ -24,13 +25,13 @@ export type Mode = 'offered' | 'open';
 
 export type Kind = 'person' | 'room' | 'house' | 'place' | 'other';
 
-export const KIND_LABEL: Record<Kind, string> = {
-  person: 'Osoba',
-  room: 'Pomieszczenie',
-  house: 'Dom',
-  place: 'Miejsce',
-  other: 'Inne'
-};
+export const KIND_LABEL: Record<Kind, string> = texts({
+  person: 'bookings.kind.person',
+  room: 'bookings.kind.room',
+  house: 'bookings.kind.house',
+  place: 'bookings.kind.place',
+  other: 'bookings.kind.other'
+});
 
 /** Die Regeln eines Dings — so, wie jeder sie sehen darf. */
 export interface Rules {
@@ -465,7 +466,7 @@ export async function officeAdd(
     const claimId = newId();
     named = { claimId, nameSealed: await sealName(key, claimHolderAad(claimId), text), nameEpoch: epoch };
   } else if (who.seatId === undefined) {
-    throw new WorkspaceError('Wybierz osobę albo wpisz imię i nazwisko.');
+    throw new WorkspaceError(t('bookings.pickPerson'));
   }
   return call(`/workspace/resource/${encodeURIComponent(resource.resourceId)}/add`, {
     method: 'POST', body: JSON.stringify({ ...term, seatId: who.seatId ?? null, ...named })

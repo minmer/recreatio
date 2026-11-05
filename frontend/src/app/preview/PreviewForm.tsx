@@ -16,6 +16,7 @@ import type { OpenField } from '../forms/form';
 import { FormFlow, isRequired } from '../forms/FormFlow';
 import { evaluate, layoutWith, readDesign } from '../forms/formDesign';
 import { readQuestions } from '../forms/formJson';
+import { useT } from '../core/i18n';
 
 /** Eine Frage des Dokuments als offenes Feld — wie es nach dem Import aufgemacht wäre. */
 function fieldOf(q: ReturnType<typeof readQuestions>[number], id: string, position: number): OpenField {
@@ -43,6 +44,7 @@ function fieldOf(q: ReturnType<typeof readQuestions>[number], id: string, positi
 }
 
 export function PreviewForm({ title, questions, design }: { title: string; questions: unknown; design: unknown }) {
+  const t = useT();
   const fields = useMemo(() => {
     const read = readQuestions(questions, []);
     return new Map(read.map((q, i) => {
@@ -61,7 +63,7 @@ export function PreviewForm({ title, questions, design }: { title: string; quest
     <>
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
       <p className="wk-note" data-preview-form="">
-        Podgląd: ten formularz powstanie przy imporcie. Nad pytaniami stanie klauzula administratora danych obszaru, do którego trafią odpowiedzi; wysyłanie jest tu wyłączone.
+        {t('preview.form.note')}
       </p>
       <form className="wk-form" onSubmit={(e) => e.preventDefault()}>
         <FormFlow
@@ -72,9 +74,9 @@ export function PreviewForm({ title, questions, design }: { title: string; quest
           onAnswer={(fieldId, value) => setAnswers((was) => ({ ...was, [fieldId]: value }))}
         />
         <div className="wk-actions">
-          <button type="submit" className="wk-btn" disabled>Wyślij</button>
+          <button type="submit" className="wk-btn" disabled>{t('common.send')}</button>
           {missing.length > 0 && (
-            <span className="wk-blocker">Brakuje: {missing.map((f) => outcome.labels.get(f.fieldId) ?? f.label ?? '').join(', ')}</span>
+            <span className="wk-blocker">{t('preview.form.missing', { list: missing.map((f) => outcome.labels.get(f.fieldId) ?? f.label ?? '').join(', ') })}</span>
           )}
         </div>
       </form>

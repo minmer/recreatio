@@ -30,6 +30,8 @@
  * zerbrechen. Was der Graph der Palette nicht recht macht, sagt `problemsOf`.
  */
 
+import { t, texts } from '../core/i18n';
+
 /* -- Das Modell -------------------------------------------------------------------- */
 
 export interface GraphNode {
@@ -239,15 +241,15 @@ function portsOf<C>(palette: Palette<C>, node: GraphNode): Ports | null {
 export function connect<C>(graph: Graph, palette: Palette<C>, edge: GraphEdge, cycles = false): { graph: Graph } | { error: string } {
   const from = graph.nodes.find((n) => n.id === edge.from);
   const to = graph.nodes.find((n) => n.id === edge.to);
-  if (from === undefined || to === undefined) return { error: 'Nie ma takiego kroku.' };
+  if (from === undefined || to === undefined) return { error: t('cogitaEditGraph.error.noStep') };
   const outs = portsOf(palette, from);
   const ins = portsOf(palette, to);
   const out = outs?.outputs.find((p) => p.id === edge.out);
   const into = ins?.inputs.find((p) => p.id === edge.in);
-  if (out === undefined || into === undefined) return { error: 'Nie ma takiego wejścia albo wyjścia.' };
-  if (!compatible(out.type, into.type)) return { error: `To nie pasuje: „${out.label}" nie daje tego, czego potrzebuje „${into.label}".` };
-  if (!cycles && wouldCycle(graph, edge.from, edge.to)) return { error: 'Tak powstałoby koło — krok zależałby od samego siebie.' };
-  if (edge.from === edge.to) return { error: 'Krok nie może prowadzić do samego siebie.' };
+  if (out === undefined || into === undefined) return { error: t('cogitaEditGraph.error.noPort') };
+  if (!compatible(out.type, into.type)) return { error: t('cogitaEditGraph.error.mismatch', { out: out.label, into: into.label }) };
+  if (!cycles && wouldCycle(graph, edge.from, edge.to)) return { error: t('cogitaEditGraph.error.wouldCycle') };
+  if (edge.from === edge.to) return { error: t('cogitaEditGraph.error.selfLoop') };
   const kept = graph.edges.filter((e) =>
     e.id !== edge.id
     && !(e.from === edge.from && e.out === edge.out && e.to === edge.to && e.in === edge.in)
@@ -257,15 +259,15 @@ export function connect<C>(graph: Graph, palette: Palette<C>, edge: GraphEdge, c
 
 /** Was am Graphen nicht stimmt — für den Editor, den Import und die Prüfung vor dem Lauf. */
 /** 2026-10-23 (Schritt 5) — Knoten, die es nicht mehr gibt, und was ein alter Graph dazu sagt. */
-export const RETIRED_NODES: Readonly<Record<string, string>> = {
-  'source.topic': 'Źródło „Temat” już nie istnieje — tematów nie ma. Wybierz rodzaj, zbiór albo listę.'
-};
+export const RETIRED_NODES: Readonly<Record<string, string>> = texts({
+  'source.topic': 'cogitaEditGraph.retired.sourceTopic'
+});
 
 export function problemsOf<C>(graph: Graph, palette: Palette<C>, cycles = false): { readonly node?: string; readonly text: string }[] {
   const out: { node?: string; text: string }[] = [];
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   for (const node of graph.nodes) {
-    if (!palette.kinds.has(node.type)) out.push({ node: node.id, text: RETIRED_NODES[node.type] ?? `Nieznany rodzaj kroku: „${node.type}".` });
+    if (!palette.kinds.has(node.type)) out.push({ node: node.id, text: RETIRED_NODES[node.type] ?? t('cogitaEditGraph.error.unknownKind', { type: node.type }) });
   }
   const taken = new Map<string, number>();
   for (const edge of graph.edges) {
@@ -274,13 +276,13 @@ export function problemsOf<C>(graph: Graph, palette: Palette<C>, cycles = false)
     if (from === undefined || to === undefined) continue;
     const out1 = portsOf(palette, from)?.outputs.find((p) => p.id === edge.out);
     const into = portsOf(palette, to)?.inputs.find((p) => p.id === edge.in);
-    if (out1 === undefined || into === undefined) { out.push({ node: to.id, text: 'Połączenie prowadzi do wejścia, którego nie ma.' }); continue; }
-    if (!compatible(out1.type, into.type)) out.push({ node: to.id, text: `Połączenie „${out1.label}" → „${into.label}" nie pasuje.` });
+    if (out1 === undefined || into === undefined) { out.push({ node: to.id, text: t('cogitaEditGraph.error.edgeNoInput') }); continue; }
+    if (!compatible(out1.type, into.type)) out.push({ node: to.id, text: t('cogitaEditGraph.error.edgeMismatch', { out: out1.label, into: into.label }) });
     const key = `${edge.to}\u0000${edge.in}`;
     taken.set(key, (taken.get(key) ?? 0) + 1);
-    if (!into.many && (taken.get(key) ?? 0) > 1) out.push({ node: to.id, text: `Wejście „${into.label}" przyjmuje jedno połączenie.` });
+    if (!into.many && (taken.get(key) ?? 0) > 1) out.push({ node: to.id, text: t('cogitaEditGraph.error.oneEdge', { into: into.label }) });
   }
-  if (!cycles && order(graph) === null) out.push({ text: 'Graf ma koło.' });
+  if (!cycles && order(graph) === null) out.push({ text: t('cogitaEditGraph.error.cycle') });
   return out;
 }
 
@@ -299,14 +301,14 @@ export interface EvaluateOptions {
 }
 
 /** Ein Knoten, dessen Vorgänger gescheitert ist, läuft nicht — sein Fehler wäre nur ein Echo. */
-export const UPSTREAM = 'Poprzedni krok się nie udał.';
+export const upstreamFailed = (): string => t('cogitaEditGraph.error.upstream');
 
 export async function evaluate<C>(graph: Graph, palette: Palette<C>, ctx: C, options: EvaluateOptions = {}): Promise<Evaluation> {
   const outputs = new Map<string, RunOutput>();
   const errors = new Map<string, string>();
   const sequence = order(graph);
   if (sequence === null) {
-    for (const node of graph.nodes) errors.set(node.id, 'Graf ma koło.');
+    for (const node of graph.nodes) errors.set(node.id, t('cogitaEditGraph.error.cycle'));
     return { outputs, errors };
   }
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -320,14 +322,14 @@ export async function evaluate<C>(graph: Graph, palette: Palette<C>, ctx: C, opt
     const fixed = options.fixed?.get(id);
     if (fixed !== undefined) { outputs.set(id, fixed); continue; }
     const kind = palette.kinds.get(node.type);
-    if (kind === undefined) { errors.set(id, `Nieznany rodzaj kroku: „${node.type}".`); continue; }
+    if (kind === undefined) { errors.set(id, t('cogitaEditGraph.error.unknownKind', { type: node.type })); continue; }
 
     const edges = (incoming.get(id) ?? []).slice().sort((a, b) => {
       const pa = place.get(a.from)!;
       const pb = place.get(b.from)!;
       return pa.y - pb.y || pa.x - pb.x || pa.i - pb.i;
     });
-    if (edges.some((e) => errors.has(e.from))) { errors.set(id, UPSTREAM); continue; }
+    if (edges.some((e) => errors.has(e.from))) { errors.set(id, upstreamFailed()); continue; }
 
     const inputs: Record<string, unknown[]> = {};
     for (const port of kind.ports(node.config).inputs) inputs[port.id] = [];
@@ -340,7 +342,7 @@ export async function evaluate<C>(graph: Graph, palette: Palette<C>, ctx: C, opt
     try {
       outputs.set(id, await kind.run({ node, config: node.config, inputs, ctx }));
     } catch (e) {
-      errors.set(id, e instanceof Error && e.message !== '' ? e.message : 'Ten krok się nie udał.');
+      errors.set(id, e instanceof Error && e.message !== '' ? e.message : t('cogitaEditGraph.error.stepFailed'));
     }
   }
   return { outputs, errors };

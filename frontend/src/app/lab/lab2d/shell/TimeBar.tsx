@@ -6,9 +6,10 @@
  * Wiedergabe die Leiste der Wiedergabe (ClipControls.tsx).
  */
 
+import { useT } from '../../../core/i18n';
 import { Icon } from '../../../ui/icons';
 import type { ClipInfo } from '../clip/clip';
-import { num, t, type TextKey } from '../i18n';
+import { num, type TextKey } from '../i18n';
 import { OVERLAYS, type Overlay } from '../render/frame';
 import type { Phase } from './TopBar';
 
@@ -40,35 +41,36 @@ export function TimeBar({ phase, paused, time, speed, onPlay, onStep, onSpeed, o
   lagging: number | null;
   onLower?: () => void;
 }) {
-  const playLabel = !paused ? t('pause') : phase === 'prepare' ? t('run') : t('resume');
+  const t = useT();
+  const playLabel = !paused ? t('lab2d.pause') : phase === 'prepare' ? t('lab2d.run') : t('lab2d.resume');
   return (
     <footer className="l2d-time">
       <div className="l2d-time-run">
         <button type="button" className={`l2d-play${paused ? '' : ' is-running'}`} onClick={onPlay} aria-label={playLabel} title={`${playLabel} (␣)`}>
           <Icon name={paused ? 'play' : 'pause'} /><span>{playLabel}</span>
         </button>
-        <button type="button" className="l2d-icon" disabled={!paused} onClick={onStep} aria-label={t('step')} title={t('step')}><Icon name="next" /></button>
-        <button type="button" className="l2d-btn is-quiet l2d-speed" onClick={onSpeed} aria-label={`${t('speed')} ${speed}×`} title={t('speed')}>{num(speed, speed < 1 ? 2 : 0)}×</button>
-        <output className="l2d-clock" aria-label={t('simTime')}>{num(time, time < 100 ? 2 : 1)} s</output>
+        <button type="button" className="l2d-icon" disabled={!paused} onClick={onStep} aria-label={t('lab2d.step')} title={t('lab2d.step')}><Icon name="next" /></button>
+        <button type="button" className="l2d-btn is-quiet l2d-speed" onClick={onSpeed} aria-label={`${t('lab2d.speed')} ${speed}×`} title={t('lab2d.speed')}>{num(speed, speed < 1 ? 2 : 0)}×</button>
+        <output className="l2d-clock" aria-label={t('lab2d.simTime')}>{num(time, time < 100 ? 2 : 1)} s</output>
         {lagging !== null && (
           onLower !== undefined
-            ? <button type="button" className="l2d-lag" onClick={onLower} title={t('slow').replace('{x}', num(lagging, 2))}><Icon name="alert" />{num(lagging, 2)}× · {t('slowLower')}</button>
-            : <span className="l2d-lag" title={t('slowLowest')}><Icon name="alert" />{num(lagging, 2)}×</span>
+            ? <button type="button" className="l2d-lag" onClick={onLower} title={t('lab2d.slow', { x: num(lagging, 2) })}><Icon name="alert" />{num(lagging, 2)}× · {t('lab2d.slowLower')}</button>
+            : <span className="l2d-lag" title={t('lab2d.slowLowest')}><Icon name="alert" />{num(lagging, 2)}×</span>
         )}
       </div>
       <div className="l2d-time-view">
-        <label className="l2d-select" title={t('overlay')}>
+        <label className="l2d-select" title={t('lab2d.overlay')}>
           <Icon name="layers" />
-          <select value={overlay} aria-label={t('overlay')} onChange={(e) => onOverlay(e.currentTarget.value as Overlay)}>
-            {OVERLAYS.map((o) => <option key={o} value={o}>{t(OVERLAY_LABEL[o])}</option>)}
+          <select value={overlay} aria-label={t('lab2d.overlay')} onChange={(e) => onOverlay(e.currentTarget.value as Overlay)}>
+            {OVERLAYS.map((o) => <option key={o} value={o}>{t(`lab2d.${OVERLAY_LABEL[o]}`)}</option>)}
           </select>
         </label>
-        <button type="button" className={`l2d-icon${chartsOn ? ' is-on' : ''}`} onClick={onCharts} aria-pressed={chartsOn} aria-label={t('charts')} title={t('charts')}><Icon name="table" /></button>
+        <button type="button" className={`l2d-icon${chartsOn ? ' is-on' : ''}`} onClick={onCharts} aria-pressed={chartsOn} aria-label={t('lab2d.charts')} title={t('lab2d.charts')}><Icon name="table" /></button>
       </div>
       <div className="l2d-time-end">
-        {phase !== 'prepare' && <button type="button" className="l2d-btn is-quiet" onClick={onRestart} title={t('restartTitle')}><Icon name="undo" /><span>{t('restart')}</span></button>}
-        {clip !== null && <button type="button" className="l2d-btn is-quiet" onClick={onPlayClip} title={t(accel ? 'clipPlayAccel' : 'clipPlay')}><Icon name="play" /><span>{t('clipShort').replace('{s}', num(clip.duration, 0))}</span></button>}
-        <button type="button" className="l2d-btn" disabled={!canBake} onClick={onBake} title={!canBake ? t('clipAccel') : t(accel ? 'bakeTitleAccel' : 'bakeTitle')}><Icon name="clock" /><span>{t('bakeOpen')}</span></button>
+        {phase !== 'prepare' && <button type="button" className="l2d-btn is-quiet" onClick={onRestart} title={t('lab2d.restartTitle')}><Icon name="undo" /><span>{t('lab2d.restart')}</span></button>}
+        {clip !== null && <button type="button" className="l2d-btn is-quiet" onClick={onPlayClip} title={t(`lab2d.${accel ? 'clipPlayAccel' : 'clipPlay'}`)}><Icon name="play" /><span>{t('lab2d.clipShort', { s: num(clip.duration, 0) })}</span></button>}
+        <button type="button" className="l2d-btn" disabled={!canBake} onClick={onBake} title={!canBake ? t('lab2d.clipAccel') : t(`lab2d.${accel ? 'bakeTitleAccel' : 'bakeTitle'}`)}><Icon name="clock" /><span>{t('lab2d.bakeOpen')}</span></button>
       </div>
     </footer>
   );

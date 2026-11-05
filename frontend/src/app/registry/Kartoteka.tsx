@@ -34,17 +34,22 @@ import { AreaPick } from '../areas/AreaPick';
 import { TidyEverything } from '../workspace/TidyEverything';
 import { askText } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
+
+/** Beispiel im leeren Feld: polnische Adressen, wie die Zerlegung sie kennt (Daten, keine Oberfläche). */
+const PASTE_SAMPLE = 'ul. Długa 5/3, 31-147 Kraków\nDługa 7, Kraków\nZawoja 1234, 34-222 Zawoja'; // i18n-ignore
 
 type Tab = 'addresses' | 'kolenda' | 'import';
 
 /** Die Kolęda eines Winters heisst nach dem Jahr, in dem sie meistens stattfindet: ab September die nächste. */
 export const kolendaYear = (now = new Date()): string => String(now.getMonth() >= 8 ? now.getFullYear() + 1 : now.getFullYear());
 
-const norm = (text: string) => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+const norm = (text: string) => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l'); // i18n-ignore
 
 export function Kartoteka({ who, trail }: { who: Who; trail: readonly string[] }) {
   const [areas, setAreas] = useState<readonly AreaRow[] | null>(null);
   const [ring, setRing] = useState<Ring | null | undefined>(undefined);
+  const t = useT();
   const areaId = trail[0] ?? null;
 
   const look = useCallback(async () => {
@@ -54,25 +59,22 @@ export function Kartoteka({ who, trail }: { who: Who; trail: readonly string[] }
   }, [who]);
   useEffect(() => { void look(); }, [look]);
 
-  if (areas === null || ring === undefined) return <Loading label="Wczytywanie…" />;
-  if (ring === null) return <Unlock who={who} why="Rodziny w kartotece są zaszyfrowane — podaj hasło." onDone={() => void look()} />;
+  if (areas === null || ring === undefined) return <Loading label={t('common.loading')} />;
+  if (ring === null) return <Unlock who={who} why={t('registry.unlockWhy')} onDone={() => void look()} />;
 
   const area = areaId === null ? null : areas.find((a) => a.areaId === areaId) ?? null;
 
   return (
     <div className="wk-registry">
       <label className="wk-field wk-registry-area">
-        <span>Kartoteka obszaru</span>
+        <span>{t('registry.areaLabel')}</span>
         <AreaPick
-          label="Kartoteka obszaru" value={areaId ?? ''} areas={areas} placeholder="— wybierz obszar (np. parafię) —"
+          label={t('registry.areaLabel')} value={areaId ?? ''} areas={areas} placeholder={t('registry.areaPlaceholder')}
           onChange={(v) => { window.location.hash = v === '' ? viewPath('registry') : viewPath('registry', v); }}
         />
       </label>
       {area === null ? (
-        <p className="wk-lede">
-          Kartoteka to adresy jednego obszaru — np. parafii — i rodziny pod nimi. Adresy są wspólne dla wszystkich,
-          którzy prowadzą obszar; dane rodzin szyfruje kluczem obszaru Twoja przeglądarka.
-        </p>
+        <p className="wk-lede">{t('registry.lead')}</p>
       ) : <Registry key={area.areaId} area={area} ring={ring} />}
 
       {/* 0082 — dieselbe eine Form für jede Adresse der Datenbank, nicht nur die der Kartoteka. */}
@@ -88,6 +90,7 @@ function Registry({ area, ring }: { area: AreaRow; ring: Ring }) {
   const [mayWrite, setMayWrite] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ place: Place | null; household: Household | null } | null>(null);
+  const t = useT();
 
   const reload = useCallback(async () => {
     try {
@@ -98,19 +101,19 @@ function Registry({ area, ring }: { area: AreaRow; ring: Ring }) {
       setFailed(null);
     } catch (e) {
       setPlaces([]);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać kartoteki.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('registry.loadFailed'));
     }
-  }, [area.areaId, ring]);
+  }, [area.areaId, ring, t]);
   useEffect(() => { void reload(); }, [reload]);
 
-  if (places === null) return <Loading label="Wczytywanie kartoteki…" />;
+  if (places === null) return <Loading label={t('registry.loading')} />;
 
   const byPlace = new Map(households.filter((h) => h.placeId !== null).map((h) => [h.placeId!, h]));
 
   return (
     <>
       <div className="wk-tabs" role="tablist">
-        {([['addresses', `Adresy (${places.length})`], ['kolenda', 'Kolęda'], ['import', 'Import i JSON']] as const).map(([value, label]) => (
+        {([['addresses', t('registry.tab.addresses', { count: places.length })], ['kolenda', t('registry.tab.kolenda')], ['import', t('registry.tab.import')]] as const).map(([value, label]) => (
           <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? 'wk-tab wk-tab-on' : 'wk-tab'}
             onClick={() => setTab(value)}>{label}</button>
         ))}
@@ -154,6 +157,7 @@ function Addresses({ places, byPlace, mayWrite, areaId, onEdit, onChanged }: {
   const [query, setQuery] = useState('');
   const [empty, setEmpty] = useState(false);
   const [bulk, setBulk] = useState(false);
+  const t = useT();
 
   const localities = useMemo(() => [...new Set(places.map((p) => p.locality).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pl')), [places]);
   const streets = useMemo(() => [...new Set(places.filter((p) => locality === '' || p.locality === locality).map((p) => p.street).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pl')), [places, locality]);
@@ -176,7 +180,7 @@ function Addresses({ places, byPlace, mayWrite, areaId, onEdit, onChanged }: {
   /* Nach Straße gruppiert — so geht man sie ab. */
   const groups = new Map<string, Place[]>();
   for (const p of shown) {
-    const g = [p.locality, p.street].filter(Boolean).join(', ') || 'bez ulicy';
+    const g = [p.locality, p.street].filter(Boolean).join(', ') || t('registry.noStreet');
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g)!.push(p);
   }
@@ -184,37 +188,37 @@ function Addresses({ places, byPlace, mayWrite, areaId, onEdit, onChanged }: {
   return (
     <div className="wk-panel">
       <div className="wk-registry-filters">
-        <label className="wk-field"><span>Miejscowość</span>
+        <label className="wk-field"><span>{t('registry.locality')}</span>
           <select value={locality} onChange={(e) => { setLocality(e.target.value); setStreet(''); }}>
-            <option value="">wszystkie</option>{localities.map((l) => <option key={l} value={l}>{l}</option>)}
+            <option value="">{t('registry.all')}</option>{localities.map((l) => <option key={l} value={l}>{l}</option>)}
           </select>
         </label>
-        <label className="wk-field"><span>Ulica</span>
+        <label className="wk-field"><span>{t('registry.street')}</span>
           <select value={street} onChange={(e) => setStreet(e.target.value)}>
-            <option value="">wszystkie</option>{streets.map((s) => <option key={s} value={s}>{s}</option>)}
+            <option value="">{t('registry.all')}</option>{streets.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
         {districts.length > 0 && (
-          <label className="wk-field"><span>Dzielnica</span>
+          <label className="wk-field"><span>{t('registry.district')}</span>
             <select value={district} onChange={(e) => setDistrict(e.target.value)}>
-              <option value="">wszystkie</option>{districts.map((d) => <option key={d} value={d}>{d}</option>)}
+              <option value="">{t('registry.all')}</option>{districts.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           </label>
         )}
-        <label className="wk-field"><span>Szukaj</span>
-          <input value={query} placeholder="adres, nazwisko, etykieta" onChange={(e) => setQuery(e.target.value)} />
+        <label className="wk-field"><span>{t('common.search')}</span>
+          <input value={query} placeholder={t('registry.searchPlaceholder')} onChange={(e) => setQuery(e.target.value)} />
         </label>
-        <label className="wk-check"><input type="checkbox" checked={empty} onChange={(e) => setEmpty(e.target.checked)} /> <span>tylko bez rodziny</span></label>
+        <label className="wk-check"><input type="checkbox" checked={empty} onChange={(e) => setEmpty(e.target.checked)} /> <span>{t('registry.onlyEmpty')}</span></label>
       </div>
 
       {mayWrite && (
         <div className="wk-actions">
-          <button type="button" className="wk-btn" onClick={() => onEdit(null)}>+ Adres</button>
-          <button type="button" className="wk-link-btn" onClick={() => setBulk(true)}>+ Wiele numerów na ulicy…</button>
+          <button type="button" className="wk-btn" onClick={() => onEdit(null)}>{t('registry.addAddress')}</button>
+          <button type="button" className="wk-link-btn" onClick={() => setBulk(true)}>{t('registry.addMany')}</button>
         </div>
       )}
 
-      <p className="wk-hint">{shown.length} z {places.length} adresów · rodzin: {[...byPlace.keys()].length}</p>
+      <p className="wk-hint">{t('registry.shownOf', { shown: shown.length, count: places.length, families: [...byPlace.keys()].length })}</p>
 
       {[...groups].map(([name, list]) => (
         <section key={name} className="wk-registry-street">
@@ -226,9 +230,9 @@ function Addresses({ places, byPlace, mayWrite, areaId, onEdit, onChanged }: {
                 <li key={p.placeId}>
                   <button type="button" className="wk-registry-row" onClick={() => onEdit(p)}>
                     <span className="wk-registry-no">{p.house}{p.unit !== '' ? `/${p.unit}` : ''}</span>
-                    <span>{h === undefined ? <em className="wk-hint">bez rodziny</em> : <strong>{h.family || h.people[0]?.name || 'rodzina'}</strong>}
-                      {h !== undefined && h.people.length > 0 && <span className="wk-hint"> · {h.people.length} os.</span>}
-                      {h?.tags.map((t) => <span key={t} className="wk-tag">{t}</span>)}
+                    <span>{h === undefined ? <em className="wk-hint">{t('registry.noFamily')}</em> : <strong>{h.family || h.people[0]?.name || t('registry.family')}</strong>}
+                      {h !== undefined && h.people.length > 0 && <span className="wk-hint"> · {t('registry.peopleShort', { count: h.people.length })}</span>}
+                      {h?.tags.map((tag) => <span key={tag} className="wk-tag">{tag}</span>)}
                     </span>
                     {p.postcode !== '' && <span className="wk-hint">{p.postcode}</span>}
                   </button>
@@ -239,7 +243,7 @@ function Addresses({ places, byPlace, mayWrite, areaId, onEdit, onChanged }: {
         </section>
       ))}
 
-      {places.length === 0 && <p className="wk-empty">Kartoteka jest pusta. Dodaj adresy pojedynczo, całą ulicę naraz albo wklej listę w „Import i JSON".</p>}
+      {places.length === 0 && <p className="wk-empty">{t('registry.empty')}</p>}
 
       {bulk && <BulkNumbers areaId={areaId} onClose={() => setBulk(false)} onDone={() => { setBulk(false); void onChanged(); }} />}
     </div>
@@ -253,6 +257,7 @@ function BulkNumbers({ areaId, onClose, onDone }: { areaId: string; onClose: () 
   const [to, setTo] = useState(20);
   const [step, setStep] = useState<'all' | 'odd' | 'even'>('all');
   const [units, setUnits] = useState(0);
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -267,31 +272,31 @@ function BulkNumbers({ areaId, onClose, onDone }: { areaId: string; onClose: () 
     : [{ ...base, house, unit: '' }]);
 
   return (
-    <Modal title="Wiele numerów na jednej ulicy" wide onClose={onClose}>
+    <Modal title={t('registry.bulk.title')} wide onClose={onClose}>
       <form className="wk-form" onSubmit={(e) => {
         e.preventDefault();
         setBusy(true);
         setFailed(null);
         void savePlaces(areaId, all).then(onDone)
-          .catch((err) => setFailed(err instanceof WorkspaceError ? err.message : 'Nie udało się.'))
+          .catch((err) => setFailed(err instanceof WorkspaceError ? err.message : t('common.failed')))
           .finally(() => setBusy(false));
       }}>
         <PostalInput compact parts={base} onParts={(p) => setBase({ ...p, house: '', unit: '' })} />
         <div className="wk-ev-when-row">
-          <label className="wk-field"><span>Od nr</span><input type="number" min={1} value={from} onChange={(e) => setFrom(Number(e.target.value) || 1)} /></label>
-          <label className="wk-field"><span>Do nr</span><input type="number" min={1} value={to} onChange={(e) => setTo(Number(e.target.value) || 1)} /></label>
-          <label className="wk-field"><span>Numery</span>
+          <label className="wk-field"><span>{t('registry.bulk.from')}</span><input type="number" min={1} value={from} onChange={(e) => setFrom(Number(e.target.value) || 1)} /></label>
+          <label className="wk-field"><span>{t('registry.bulk.to')}</span><input type="number" min={1} value={to} onChange={(e) => setTo(Number(e.target.value) || 1)} /></label>
+          <label className="wk-field"><span>{t('registry.bulk.numbers')}</span>
             <select value={step} onChange={(e) => setStep(e.target.value as typeof step)}>
-              <option value="all">wszystkie</option><option value="odd">nieparzyste</option><option value="even">parzyste</option>
+              <option value="all">{t('registry.all')}</option><option value="odd">{t('registry.bulk.odd')}</option><option value="even">{t('registry.bulk.even')}</option>
             </select>
           </label>
-          <label className="wk-field"><span>Mieszkań w domu</span><input type="number" min={0} max={200} value={units} onChange={(e) => setUnits(Math.max(0, Number(e.target.value) || 0))} /></label>
+          <label className="wk-field"><span>{t('registry.bulk.units')}</span><input type="number" min={0} max={200} value={units} onChange={(e) => setUnits(Math.max(0, Number(e.target.value) || 0))} /></label>
         </div>
-        <p className="wk-hint">Powstanie {all.length} adresów{all.length > 0 ? `, np. ${formatAddress(all[0])}` : ''}. Te, które już są, nie powstaną drugi raz.</p>
+        <p className="wk-hint">{all.length === 0 ? t('registry.bulk.willMake', { count: all.length }) : t('registry.bulk.willMakeEg', { count: all.length, example: formatAddress(all[0]) })}</p>
         {failed !== null && <p className="wk-error">{failed}</p>}
         <div className="wk-actions">
-          <button type="submit" className="wk-btn" disabled={busy || all.length === 0 || base.street === '' && base.locality === ''}>{busy ? 'Zapisywanie…' : 'Dodaj'}</button>
-          <button type="button" className="wk-link-btn" onClick={onClose}>Anuluj</button>
+          <button type="submit" className="wk-btn" disabled={busy || all.length === 0 || base.street === '' && base.locality === ''}>{busy ? t('common.saving') : t('common.add')}</button>
+          <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.cancel')}</button>
         </div>
       </form>
     </Modal>
@@ -306,6 +311,7 @@ function HouseholdDialog({ area, ring, place, household, mayWrite, onClose, onSa
 }) {
   const [address, setAddress] = useState<Address>(place ?? EMPTY_ADDRESS);
   const [doc, setDoc] = useState<HouseholdDoc>(household ?? EMPTY_HOUSEHOLD);
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const year = kolendaYear();
@@ -328,49 +334,49 @@ function HouseholdDialog({ area, ring, place, household, mayWrite, onClose, onSa
       }
       onSaved();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('registry.saveFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Modal title={place === null ? 'Nowy adres' : formatAddress(place)} wide onClose={onClose}>
+    <Modal title={place === null ? t('registry.house.newAddress') : formatAddress(place)} wide onClose={onClose}>
       <form className="wk-form" onSubmit={(e) => { e.preventDefault(); if (mayWrite) void save(); }}>
-        <fieldset className="wk-field"><legend>Adres</legend>
+        <fieldset className="wk-field"><legend>{t('registry.house.address')}</legend>
           <PostalInput compact parts={address} onParts={setAddress} />
         </fieldset>
 
-        <fieldset className="wk-field"><legend>Rodzina</legend>
-          <label className="wk-field"><span>Nazwisko rodziny</span>
-            <input value={doc.family} placeholder="np. Kowalscy" disabled={!mayWrite} onChange={(e) => set({ family: e.target.value })} />
+        <fieldset className="wk-field"><legend>{t('registry.house.family')}</legend>
+          <label className="wk-field"><span>{t('registry.house.familyName')}</span>
+            <input value={doc.family} placeholder={t('registry.house.familyPlaceholder')} disabled={!mayWrite} onChange={(e) => set({ family: e.target.value })} />
           </label>
           <ul className="wk-registry-people">
             {doc.people.map((person, i) => (
               <li key={i} className="wk-ev-when-row">
-                <input value={person.name} placeholder="Imię i nazwisko" disabled={!mayWrite}
+                <input value={person.name} placeholder={t('registry.house.personName')} disabled={!mayWrite}
                   onChange={(e) => set({ people: doc.people.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
                 <input type="date" value={person.born ?? ''} disabled={!mayWrite}
                   onChange={(e) => set({ people: doc.people.map((x, j) => (j === i ? { ...x, born: e.target.value } : x)) })} />
-                <input value={person.note ?? ''} placeholder="uwaga (np. chory, komunia)" disabled={!mayWrite}
+                <input value={person.note ?? ''} placeholder={t('registry.house.personNote')} disabled={!mayWrite}
                   onChange={(e) => set({ people: doc.people.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)) })} />
-                {mayWrite && <button type="button" className="wk-link-btn" onClick={() => set({ people: doc.people.filter((_, j) => j !== i) })}>Usuń</button>}
+                {mayWrite && <button type="button" className="wk-link-btn" onClick={() => set({ people: doc.people.filter((_, j) => j !== i) })}>{t('common.delete')}</button>}
               </li>
             ))}
           </ul>
-          {mayWrite && <button type="button" className="wk-link-btn" onClick={() => set({ people: [...doc.people, { name: '' }] })}>+ Osoba</button>}
+          {mayWrite && <button type="button" className="wk-link-btn" onClick={() => set({ people: [...doc.people, { name: '' }] })}>{t('registry.house.addPerson')}</button>}
           <div className="wk-ev-when-row">
-            <label className="wk-field"><span>Telefon</span><input value={doc.phone} disabled={!mayWrite} onChange={(e) => set({ phone: e.target.value })} /></label>
-            <label className="wk-field"><span>E-mail</span><input value={doc.email} disabled={!mayWrite} onChange={(e) => set({ email: e.target.value })} /></label>
+            <label className="wk-field"><span>{t('registry.house.phone')}</span><input value={doc.phone} disabled={!mayWrite} onChange={(e) => set({ phone: e.target.value })} /></label>
+            <label className="wk-field"><span>{t('registry.house.email')}</span><input value={doc.email} disabled={!mayWrite} onChange={(e) => set({ email: e.target.value })} /></label>
           </div>
-          <label className="wk-field"><span>Etykiety (po przecinku)</span>
-            <input value={doc.tags.join(', ')} placeholder="np. chorzy, rodzina z dziećmi" disabled={!mayWrite}
-              onChange={(e) => set({ tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean) })} />
+          <label className="wk-field"><span>{t('registry.house.tags')}</span>
+            <input value={doc.tags.join(', ')} placeholder={t('registry.house.tagsPlaceholder')} disabled={!mayWrite}
+              onChange={(e) => set({ tags: e.target.value.split(',').map((one) => one.trim()).filter(Boolean) })} />
           </label>
-          <label className="wk-field"><span>Notatki</span><textarea rows={3} value={doc.notes} disabled={!mayWrite} onChange={(e) => set({ notes: e.target.value })} /></label>
+          <label className="wk-field"><span>{t('registry.house.notes')}</span><textarea rows={3} value={doc.notes} disabled={!mayWrite} onChange={(e) => set({ notes: e.target.value })} /></label>
         </fieldset>
 
-        <fieldset className="wk-field"><legend>Kolęda</legend>
+        <fieldset className="wk-field"><legend>{t('registry.tab.kolenda')}</legend>
           {years.map((y) => {
             const visit = doc.kolenda[y];
             return (
@@ -386,9 +392,9 @@ function HouseholdDialog({ area, ring, place, household, mayWrite, onClose, onSa
                 </select>
                 <input type="date" value={visit?.date ?? ''} disabled={!mayWrite || visit === undefined}
                   onChange={(e) => set({ kolenda: { ...doc.kolenda, [y]: { ...visit!, date: e.target.value } } })} />
-                <input value={visit?.priest ?? ''} placeholder="kapłan" disabled={!mayWrite || visit === undefined}
+                <input value={visit?.priest ?? ''} placeholder={t('registry.kolenda.priestPlaceholder')} disabled={!mayWrite || visit === undefined}
                   onChange={(e) => set({ kolenda: { ...doc.kolenda, [y]: { ...visit!, priest: e.target.value } } })} />
-                <input value={visit?.note ?? ''} placeholder="uwaga" disabled={!mayWrite || visit === undefined}
+                <input value={visit?.note ?? ''} placeholder={t('registry.kolenda.notePlaceholder')} disabled={!mayWrite || visit === undefined}
                   onChange={(e) => set({ kolenda: { ...doc.kolenda, [y]: { ...visit!, note: e.target.value } } })} />
               </div>
             );
@@ -397,17 +403,17 @@ function HouseholdDialog({ area, ring, place, household, mayWrite, onClose, onSa
 
         {failed !== null && <p className="wk-error">{failed}</p>}
         <div className="wk-actions">
-          {mayWrite && <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>}
-          <button type="button" className="wk-link-btn" onClick={onClose}>Zamknij</button>
+          {mayWrite && <button type="submit" className="wk-btn" disabled={busy}>{busy ? t('common.saving') : t('common.save')}</button>}
+          <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.close')}</button>
           {mayWrite && household !== null && (
             <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={async () => {
-              if (await askText('Usunąć rodzinę spod tego adresu? Adres zostaje.')) void deleteHousehold(household.householdId).then(onSaved);
-            }}>Usuń rodzinę</button>
+              if (await askText(t('registry.house.askDeleteFamily'))) void deleteHousehold(household.householdId).then(onSaved);
+            }}>{t('registry.house.deleteFamily')}</button>
           )}
           {mayWrite && place !== null && household === null && (
             <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={async () => {
-              if (await askText('Usunąć ten adres z kartoteki?')) void deletePlace(place.placeId).then(onSaved);
-            }}>Usuń adres</button>
+              if (await askText(t('registry.house.askDeletePlace'))) void deletePlace(place.placeId).then(onSaved);
+            }}>{t('registry.house.deletePlace')}</button>
           )}
         </div>
       </form>
@@ -429,6 +435,7 @@ function Kolenda({ places, byPlace, mayWrite, ring, areaId, onChanged, onEdit }:
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [planDate, setPlanDate] = useState('');
   const [planPriest, setPlanPriest] = useState('');
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -466,7 +473,7 @@ function Kolenda({ places, byPlace, mayWrite, ring, areaId, onChanged, onEdit }:
       setPicked(new Set());
       await onChanged();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('registry.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -475,72 +482,72 @@ function Kolenda({ places, byPlace, mayWrite, ring, areaId, onChanged, onEdit }:
   return (
     <div className="wk-panel wk-kolenda">
       <div className="wk-registry-filters">
-        <label className="wk-field"><span>Rok</span>
+        <label className="wk-field"><span>{t('registry.kolenda.year')}</span>
           <input type="number" min={2000} max={2100} value={year} onChange={(e) => setYear(e.target.value)} />
         </label>
-        <label className="wk-field"><span>Stan</span>
+        <label className="wk-field"><span>{t('registry.kolenda.state')}</span>
           <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
-            <option value="">wszystkie</option><option value="none">bez wpisu</option>
+            <option value="">{t('registry.all')}</option><option value="none">{t('registry.kolenda.none')}</option>
             {(Object.keys(VISIT_LABEL) as VisitStatus[]).map((s) => <option key={s} value={s}>{VISIT_LABEL[s]}</option>)}
           </select>
         </label>
-        <label className="wk-field"><span>Ulica</span>
+        <label className="wk-field"><span>{t('registry.street')}</span>
           <select value={street} onChange={(e) => setStreet(e.target.value)}>
-            <option value="">wszystkie</option>{streets.map((s) => <option key={s} value={s}>{s}</option>)}
+            <option value="">{t('registry.all')}</option>{streets.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        <label className="wk-field"><span>Dzień</span>
+        <label className="wk-field"><span>{t('registry.kolenda.day')}</span>
           <select value={date} onChange={(e) => setDate(e.target.value)}>
-            <option value="">wszystkie</option>{dates.map((d) => <option key={d} value={d}>{new Date(d).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short' })}</option>)}
+            <option value="">{t('registry.all')}</option>{dates.map((d) => <option key={d} value={d}>{new Date(d).toLocaleDateString(t.locale, { weekday: 'short', day: 'numeric', month: 'short' })}</option>)}
           </select>
         </label>
-        <label className="wk-field"><span>Kapłan</span>
+        <label className="wk-field"><span>{t('registry.kolenda.priest')}</span>
           <select value={priest} onChange={(e) => setPriest(e.target.value)}>
-            <option value="">wszyscy</option>{priests.map((p) => <option key={p} value={p}>{p}</option>)}
+            <option value="">{t('registry.kolenda.allPriests')}</option>{priests.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
       </div>
 
       <p className="wk-kolenda-sum">
-        {[['none', 'bez wpisu'], ...Object.entries(VISIT_LABEL)].map(([s, label]) => (
+        {[['none', t('registry.kolenda.none')], ...Object.entries(VISIT_LABEL)].map(([s, label]) => (
           <span key={s} className="wk-tag">{label}: {counts.get(s) ?? 0}</span>
         ))}
       </p>
 
       {mayWrite && picked.size > 0 && (
         <div className="wk-kolenda-bulk">
-          <strong>Zaznaczone: {picked.size}</strong>
+          <strong>{t('registry.kolenda.picked', { count: picked.size })}</strong>
           <input type="date" value={planDate} onChange={(e) => setPlanDate(e.target.value)} />
-          <input value={planPriest} placeholder="kapłan" onChange={(e) => setPlanPriest(e.target.value)} />
+          <input value={planPriest} placeholder={t('registry.kolenda.priestPlaceholder')} onChange={(e) => setPlanPriest(e.target.value)} />
           <button type="button" className="wk-btn" disabled={busy || planDate === ''}
             onClick={() => void setMany([...picked], (was) => ({ ...was, status: was?.status === 'visited' ? 'visited' : 'planned', date: planDate, ...(planPriest !== '' ? { priest: planPriest } : {}) }))}>
-            Zaplanuj
+            {t('registry.kolenda.plan')}
           </button>
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setMany([...picked], () => null)}>Wyczyść wpis</button>
-          <button type="button" className="wk-link-btn" onClick={() => setPicked(new Set())}>Odznacz</button>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void setMany([...picked], () => null)}>{t('registry.kolenda.clear')}</button>
+          <button type="button" className="wk-link-btn" onClick={() => setPicked(new Set())}>{t('registry.kolenda.unpick')}</button>
         </div>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
 
       <div className="wk-actions">
-        <button type="button" className="wk-link-btn" onClick={() => window.print()}>Drukuj listę</button>
-        {mayWrite && <button type="button" className="wk-link-btn" onClick={() => setPicked(new Set(shown.map((p) => p.placeId)))}>Zaznacz widoczne ({shown.length})</button>}
+        <button type="button" className="wk-link-btn" onClick={() => window.print()}>{t('registry.kolenda.print')}</button>
+        {mayWrite && <button type="button" className="wk-link-btn" onClick={() => setPicked(new Set(shown.map((p) => p.placeId)))}>{t('registry.kolenda.pickShown', { count: shown.length })}</button>}
       </div>
 
       <table className="wk-kolenda-table">
-        <thead><tr>{mayWrite && <th />}<th>Adres</th><th>Rodzina</th><th>Dzień</th><th>Kapłan</th><th>Stan</th></tr></thead>
+        <thead><tr>{mayWrite && <th />}<th>{t('registry.house.address')}</th><th>{t('registry.house.family')}</th><th>{t('registry.kolenda.day')}</th><th>{t('registry.kolenda.priest')}</th><th>{t('registry.kolenda.state')}</th></tr></thead>
         <tbody>
           {shown.map((p) => {
             const h = byPlace.get(p.placeId);
             const v = visitOf(p);
             return (
               <tr key={p.placeId} className={v === undefined ? '' : `is-${v.status}`}>
-                {mayWrite && <td><input type="checkbox" checked={picked.has(p.placeId)} aria-label="zaznacz" onChange={(e) => setPicked((was) => {
+                {mayWrite && <td><input type="checkbox" checked={picked.has(p.placeId)} aria-label={t('registry.kolenda.pick')} onChange={(e) => setPicked((was) => {
                   const next = new Set(was); if (e.target.checked) next.add(p.placeId); else next.delete(p.placeId); return next;
                 })} /></td>}
                 <td><button type="button" className="wk-link-btn" onClick={() => onEdit(p)}>{[p.street || p.locality, `${p.house}${p.unit !== '' ? `/${p.unit}` : ''}`].filter(Boolean).join(' ')}</button></td>
-                <td>{h?.family || h?.people[0]?.name || <span className="wk-hint">—</span>}{h?.tags.map((t) => <span key={t} className="wk-tag">{t}</span>)}</td>
-                <td>{v?.date === undefined ? '' : new Date(v.date).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+                <td>{h?.family || h?.people[0]?.name || <span className="wk-hint">—</span>}{h?.tags.map((tag) => <span key={tag} className="wk-tag">{tag}</span>)}</td>
+                <td>{v?.date === undefined ? '' : new Date(v.date).toLocaleDateString(t.locale, { weekday: 'short', day: 'numeric', month: 'short' })}</td>
                 <td>{v?.priest ?? ''}</td>
                 <td>
                   {mayWrite ? (
@@ -555,7 +562,7 @@ function Kolenda({ places, byPlace, mayWrite, ring, areaId, onChanged, onEdit }:
           })}
         </tbody>
       </table>
-      {shown.length === 0 && <p className="wk-empty">Nic nie pasuje do wybranych filtrów.</p>}
+      {shown.length === 0 && <p className="wk-empty">{t('registry.kolenda.noMatch')}</p>}
     </div>
   );
 }
@@ -568,56 +575,57 @@ function ImportTab({ area, ring, places, households, mayWrite, onChanged }: {
   const [lines, setLines] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const t = useT();
   const parsed = lines.split('\n').map((l) => l.trim()).filter(Boolean).map(parseAddress);
 
   return (
     <div className="wk-panel">
       {mayWrite && (
         <section>
-          <h3 className="wk-h3">Wklej adresy — jeden w wierszu</h3>
-          <textarea rows={8} value={lines} placeholder={'ul. Długa 5/3, 31-147 Kraków\nDługa 7, Kraków\nZawoja 1234, 34-222 Zawoja'} onChange={(e) => setLines(e.target.value)} />
+          <h3 className="wk-h3">{t('registry.import.paste')}</h3>
+          <textarea rows={8} value={lines} placeholder={PASTE_SAMPLE} onChange={(e) => setLines(e.target.value)} />
           {parsed.length > 0 && (
             <ul className="wk-registry-preview">
-              {parsed.slice(0, 8).map((a, i) => <li key={i}>{formatAddress(a)} <span className="wk-hint">({[a.street && `ulica: ${a.street}`, a.house && `nr ${a.house}${a.unit ? `/${a.unit}` : ''}`, a.locality && `miejsc.: ${a.locality}`, a.postcode].filter(Boolean).join(', ')})</span></li>)}
-              {parsed.length > 8 && <li className="wk-hint">… i {parsed.length - 8} więcej</li>}
+              {parsed.slice(0, 8).map((a, i) => <li key={i}>{formatAddress(a)} <span className="wk-hint">({[a.street && t('registry.import.street', { street: a.street }), a.house && t('registry.import.house', { house: `${a.house}${a.unit ? `/${a.unit}` : ''}` }), a.locality && t('registry.import.locality', { locality: a.locality }), a.postcode].filter(Boolean).join(', ')})</span></li>)}
+              {parsed.length > 8 && <li className="wk-hint">{t('registry.import.more', { count: parsed.length - 8 })}</li>}
             </ul>
           )}
           <div className="wk-actions">
             <button type="button" className="wk-btn" disabled={busy || parsed.length === 0} onClick={() => {
               setBusy(true);
               void savePlaces(area.areaId, parsed)
-                .then((r) => { setNote(`Zapisano: ${r.places.filter((p) => !p.merged).length} nowych, ${r.places.filter((p) => p.merged).length} już było.`); setLines(''); return onChanged(); })
-                .catch((e) => setNote(e instanceof WorkspaceError ? e.message : 'Nie udało się.'))
+                .then((r) => { setNote(t('registry.import.saved', { fresh: r.places.filter((p) => !p.merged).length, merged: r.places.filter((p) => p.merged).length })); setLines(''); return onChanged(); })
+                .catch((e) => setNote(e instanceof WorkspaceError ? e.message : t('common.failed')))
                 .finally(() => setBusy(false));
-            }}>Dodaj {parsed.length} adresów</button>
+            }}>{t('registry.import.add', { count: parsed.length })}</button>
           </div>
           {note !== null && <p className="wk-note">{note}</p>}
         </section>
       )}
 
       <JsonPanel
-        summary="Kartoteka jako JSON"
-        lead={<>Adresy z rodzinami i kolędą — do kopii, do poprawy ręcznie albo przez AI. Import rozpoznaje adresy po ich częściach; rodziny uzupełnia.</>}
-        fileName={`kartoteka-${area.name.toLowerCase().replace(/[^a-z0-9]+/gi, '-')}.json`}
+        summary={t('registry.json.summary')}
+        lead={<>{t('registry.json.lead')}</>}
+        fileName={t('registry.json.fileName', { name: area.name.toLowerCase().replace(/[^a-z0-9]+/gi, '-') })}
         exportDoc={() => exportRegistry(area.name, places, households)}
         description={registryDescription}
         preview={(doc) => {
           const plan = planRegistryImport(doc, places, households);
           return 'error' in plan ? plan : { lines: plan.lines, warnings: plan.warnings };
         }}
-        importLabel={mayWrite ? 'Importuj do kartoteki' : 'Tylko odczyt'}
+        importLabel={mayWrite ? t('registry.json.import') : t('registry.json.readOnly')}
         onImport={async (doc, stage) => {
-          if (!mayWrite) throw new WorkspaceError('Tę kartotekę możesz tylko czytać.');
+          if (!mayWrite) throw new WorkspaceError(t('registry.json.readOnlyError'));
           const plan = planRegistryImport(doc, places, households);
           if ('error' in plan) throw new WorkspaceError(plan.error);
-          stage('Zapisywanie adresów…');
+          stage(t('registry.json.savingAddresses'));
           const fresh = plan.rows.filter((r) => r.placeId === null).map((r) => r.address);
           const saved = new Map<string, string>();
           for (let i = 0; i < fresh.length; i += 500) {
             const done = await savePlaces(area.areaId, fresh.slice(i, i + 500));
             done.places.forEach((p) => saved.set(p.key, p.placeId));
           }
-          stage('Zapisywanie rodzin…');
+          stage(t('registry.json.savingFamilies'));
           for (const row of plan.rows) {
             if (row.household === null) continue;
             const placeId = row.placeId ?? saved.get(keyOf(row.address)) ?? null;

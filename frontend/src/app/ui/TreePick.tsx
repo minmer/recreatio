@@ -27,6 +27,7 @@ import { createPortal } from 'react-dom';
 
 import { Icon } from './icons';
 import { usePortal } from './Modal';
+import { useT } from '../core/i18n';
 
 /* -- Was hineinkommt ------------------------------------------------------------- */
 
@@ -123,7 +124,7 @@ interface Row {
 
 /* -- Die Liste ------------------------------------------------------------------------ */
 
-export function TreeList({ nodes, selected, onPick, multiple = false, extras = [], recent = [], search, autoFocusSearch = false, onClose, label, emptyText = 'Nic tu nie ma.', inline = false }: {
+export function TreeList({ nodes, selected, onPick, multiple = false, extras = [], recent = [], search, autoFocusSearch = false, onClose, label, emptyText, inline = false }: {
   nodes: readonly TreeNode[];
   /** Was gewählt ist — bei `multiple` mehrere. */
   selected: readonly string[];
@@ -142,6 +143,7 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
   /** Eingebettet in die Seite (mit Rahmen und eigener Höhe) statt im Fenster von `TreePick`. */
   inline?: boolean;
 }) {
+  const t = useT();
   const id = useId();
   const tree = useMemo(() => shape(nodes), [nodes]);
   const visibleCount = useMemo(() => [...tree.offered.values()].filter((n) => n > 0).length, [tree]);
@@ -167,8 +169,8 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
   /* Erst im nächsten Takt: das Fenster hängt sein Portal erst nach diesem Effekt ein, und etwas Abgehängtes nimmt keinen Fokus. */
   useEffect(() => {
     if (!autoFocusSearch) return undefined;
-    const t = setTimeout(() => (withSearch ? searchRef.current : listRef.current)?.focus({ preventScroll: true }), 0);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => (withSearch ? searchRef.current : listRef.current)?.focus({ preventScroll: true }), 0);
+    return () => clearTimeout(timer);
   }, [autoFocusSearch, withSearch]);
 
   /* Die Zeilen, wie sie dastehen: gesucht (Treffer mit Weg, alles offen) oder geklappt. */
@@ -309,8 +311,8 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
             ref={searchRef}
             type="search"
             value={query}
-            placeholder="Szukaj…"
-            aria-label={`Szukaj: ${label}`}
+            placeholder={t('common.searchPlaceholder')}
+            aria-label={t('ui.tree.searchIn', { label })}
             aria-controls={`${id}-list`}
             aria-activedescendant={activeKey === null ? undefined : optionId(activeKey)}
             onChange={(e) => { setQuery(e.target.value); setActive(null); }}
@@ -344,7 +346,7 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
           );
         })}
 
-        {shownRecent.length > 0 && <div className="ui-tree-section" role="presentation">Ostatnio</div>}
+        {shownRecent.length > 0 && <div className="ui-tree-section" role="presentation">{t('ui.tree.recent')}</div>}
         {shownRecent.map((value) => {
           const key = `r:${value}`;
           const path = pathOf(tree.byId, value);
@@ -389,7 +391,7 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
                 {row.hasChildren && query.trim() === '' ? (
                   <button
                     type="button" tabIndex={-1} className={`ui-tree-twist${row.open ? ' is-open' : ''}`}
-                    aria-label={row.open ? `Zwiń: ${row.node.label}` : `Rozwiń: ${row.node.label}`}
+                    aria-label={row.open ? t('ui.tree.collapse', { label: row.node.label }) : t('ui.tree.expand', { label: row.node.label })}
                     onClick={(e) => { e.stopPropagation(); toggle(row.node.id); }}
                   ><Icon name="next" /></button>
                 ) : <span className="ui-tree-twist is-leaf" aria-hidden="true" />}
@@ -400,14 +402,14 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
                   {mark(row.node.label)}
                   {row.node.note != null && row.node.note !== '' && <small className="ui-tree-note">{row.node.note}</small>}
                 </span>
-                {row.hasChildren && !row.open && hidden > 0 && <span className="ui-tree-count" title={`${hidden} w środku`}>{hidden}</span>}
+                {row.hasChildren && !row.open && hidden > 0 && <span className="ui-tree-count" title={t('ui.tree.inside', { count: hidden })}>{hidden}</span>}
               </div>
             </div>
           );
         })}
 
         {rows.length === 0 && shownExtras.length === 0 && shownRecent.length === 0 && (
-          <p className="ui-tree-empty">{q === '' ? emptyText : 'Nic nie pasuje.'}</p>
+          <p className="ui-tree-empty">{q === '' ? emptyText ?? t('ui.tree.empty') : t('ui.tree.noMatch')}</p>
         )}
       </div>
     </div>
@@ -416,7 +418,7 @@ export function TreeList({ nodes, selected, onPick, multiple = false, extras = [
 
 /* -- Ein Wert, in einem Feld ------------------------------------------------------------ */
 
-export function TreePick({ nodes, value, onChange, extras = [], recent, placeholder = '— wybierz —', label, disabled = false, emptyText, className, id }: {
+export function TreePick({ nodes, value, onChange, extras = [], recent, placeholder, label, disabled = false, emptyText, className, id }: {
   nodes: readonly TreeNode[];
   value: string;
   onChange: (value: string) => void;
@@ -430,6 +432,7 @@ export function TreePick({ nodes, value, onChange, extras = [], recent, placehol
   className?: string;
   id?: string;
 }) {
+  const t = useT();
   const [shown, setShown] = useState<DOMRect | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
 
@@ -470,7 +473,7 @@ export function TreePick({ nodes, value, onChange, extras = [], recent, placehol
       >
         <span className="ui-pick-value">
           {extra !== undefined ? extra.label
-            : path.length === 0 ? <span className="ui-pick-placeholder">{value === '' ? placeholder : 'inny obszar'}</span>
+            : path.length === 0 ? <span className="ui-pick-placeholder">{value === '' ? placeholder ?? t('ui.tree.choose') : t('ui.tree.otherArea')}</span>
             : (
               <>
                 {path.length > 1 && (
@@ -506,6 +509,7 @@ export function TreePick({ nodes, value, onChange, extras = [], recent, placehol
 
 /** Das Fenster an der Auswahl — darunter (oder darüber, wenn unten kein Platz ist); auf dem Telefon von unten. */
 function TreePop({ anchor, from, onClose, label, children }: { anchor: DOMRect; from: Element | null; onClose: (refocus?: boolean) => void; label: string; children: ReactNode }) {
+  const t = useT();
   const host = usePortal();
   const box = useRef<HTMLDivElement | null>(null);
   const [spot, setSpot] = useState<{ left: number; top?: number; bottom?: number; width: number; maxHeight: number } | null>(null);
@@ -556,7 +560,7 @@ function TreePop({ anchor, from, onClose, label, children }: { anchor: DOMRect; 
         <div ref={box} className="ui-pick-pop is-sheet" role="dialog" aria-modal="true" aria-label={label}>
           <div className="ui-pick-sheet-head">
             <strong>{label}</strong>
-            <button type="button" className="wk-modal-x" aria-label="Zamknij" onClick={() => onClose()}>×</button>
+            <button type="button" className="wk-modal-x" aria-label={t('common.close')} onClick={() => onClose()}>×</button>
           </div>
           {children}
         </div>

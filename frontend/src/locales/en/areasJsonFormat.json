@@ -1,0 +1,98 @@
+{
+  "title": "Area as JSON (\"{format}\", version 1)",
+  "section": {
+    "keys": "Area",
+    "usage": "How the app uses this data",
+    "refs": "References",
+    "roles": "Roles and links",
+    "appointments": "Area dates",
+    "pages": "Area pages",
+    "subforms": "Sub-forms",
+    "example": "Example: event",
+    "group": "Example: group"
+  },
+  "sample": {
+    "event": "event: retreat with sign-ups and a page after it",
+    "group": "group: choir with rehearsals"
+  },
+  "intro": "One document describes the whole area: an event, a group, a parish or a course — its profile and card, roles (with links), dates with a programme, pages (with forms), sub-forms, chats and the lists it should appear on.\nWhat the import does:\n- First it checks and shows the plan, step by step; it saves only after “Import”, in this order: profile, roles, dates, forms and pages, sub-forms, chats, card, lists.\n- Everything is named with short keys (\"key\" of roles, pages, dates, sub-forms; \"id\" of modules on a page). The area remembers what the import created under which key: the same document imported again CHANGES the same things instead of duplicating them. A document from another area (e.g. the export of last year's event) creates everything here anew — it never changes pages, forms or roles of that other area.\n- Whatever is not in the document stays unchanged (role, page, date, module). Exception: a date's programme — its points are in the document in full, so a missing point disappears.\n- Roles that already exist stay as they were (the import doesn't change their permissions); new roles and links are created once.\n- Form answers always go to this area — its data controller is responsible for the data. Questions, the date and the card can be visible in another area (\"publish\") — usually in the public area above it, like a parish's “Events”.\n- The service sees keys and page addresses — don't put personal data in them.\nReturn ONE JSON object, without comments.",
+  "keys": {
+    "kind": "kind of area: {kinds}; omitted — stays as it was (a new profile requires it)",
+    "name": "area name — information only (the import doesn't change it)",
+    "category": "one word for filters on lists, e.g. \"retreat\" (up to 40 characters) or null",
+    "address": "proposed main page address, e.g. \"parish/retreat-2026\" — the person importing can change it; page addresses are counted from it",
+    "publish": "\"auto\" — public parts (card, date, form questions) go to the nearest public area above the one you lead; \"area\" — they stay in this area (only its people see them); or an area id (from an export)",
+    "archive": "\"auto\" — an hour after the end of the main date the forms close and the “after the event” page appears; \"manual\" — by hand",
+    "card": "card on lists and cards: { \"title\", \"lead\", \"image\", \"publish\" } — \"image\": \"page-image:@key\" (a file described in \"images\" of the main page) or \"page-image:<id>\"; null — no card",
+    "roles": "area roles (at most {max}) — below: Roles and links",
+    "appointments": "dates in the area's calendar, with a programme — below: Area dates",
+    "pages": "area pages (at most {max}), each with a page document — below: Area pages",
+    "subforms": "sub-forms of forms from these pages (at most {max}) — below: Sub-forms",
+    "chats": "\"area\" — chat of all the area's people, \"channel\" — announcement channel (leaders write); or { \"kind\": \"area\", \"forms\": [\"@form:page/module\"] } — with people signed up via these forms (with their own links)",
+    "listings": "addresses of pages with an “Events” list on which the area asks for a place (at most {max}); \"events\" — the recreatio.pl/events catalogue (the operator decides, a card without personal data)"
+  },
+  "refs": {
+    "lead": "The document doesn't use the service's identifiers — it points to its parts through references. A reference is the WHOLE value (or a comma-separated list), never a fragment of text:",
+    "area": "this area — e.g. \"area\" of the module \"event\" (card), \"areas\" of the module \"events\"",
+    "form": "a form from this document: the page's \"key\" and the module's \"id\" (e.g. \"@form:main/zapisy\"); or \"@form:key\" of a sub-form — e.g. \"form\" of the module \"entries\", \"formId\" in the logic map",
+    "page": "the address of a page from this document — e.g. in the menu (\"kind\": \"abs\") or in a “Page” field",
+    "role": "a role from this document; in \"memberRoles\" and \"virtualAreas\" of forms \"@key\" is enough",
+    "item": "in the calendar fields of modules (\"item\", \"calendar\", \"calendars\") — a date from \"appointments\" by \"key\" (also a programme point with its own \"key\"); \"{entry}\" — the area's calendar",
+    "tail": "The module \"program\" with \"item\": \"@date\" and an empty \"calendar\" gets the area's calendar by itself. The export writes references in the same form."
+  },
+  "roles": {
+    "lead": "An entry in \"roles\":",
+    "key": "a short name (letters, digits, - and _, up to 32 characters), e.g. \"organisers\"",
+    "name": "the role's name, e.g. \"Organisers\" (leaders see it)",
+    "level": "what the role can do in the area: {levels}",
+    "link": "true or { \"days\": 1–365 (default 30), \"once\": true — single-use, \"lead\": true — whoever opens it can admit others to the role themselves, \"label\" } — an invitation link to this role; it opens the area view (in an event a read-only role gets its main page); it is created once and shown after the import",
+    "tail": "Each new role takes a dozen or so seconds of key computing in the browser. Participants signed up via a form get the role from the form's \"memberRoles\" (e.g. [\"@participants\"]) — they don't need a link."
+  },
+  "appointments": {
+    "lead": "An entry in \"appointments\" has the keys of a date from a page (below: Dates for the calendar) — \"key\", \"title\", \"start\", \"end\", \"allDay\", \"location\", \"notes\", \"link\", \"linkLabel\", \"repeat\", \"every\", \"weekdays\", \"until\", \"points\" — and also:",
+    "key": "required — by it a repeated import changes the same date (without it the date gets “termin-1”, “termin-2”…)",
+    "main": "true — the main date: its end is the end of the event (cards, archive); one, without repetition; a single date of an event is the main one by itself",
+    "publish": "\"area\", \"auto\" or an area id — where the date (and its programme) is visible; omitted — like the area's \"publish\"",
+    "tail": "All dates go to the area's calendar (\"calendar\" and \"calendars\" are unnecessary here). A repeated import changes programme points (\"points\") in place, in order; a point missing from the document disappears from the calendar."
+  },
+  "pages": {
+    "lead": "An entry in \"pages\":",
+    "key": "a short page name (up to 24 characters), e.g. \"main\", \"zapisy\", \"po\"",
+    "path": "\"\" — the main page address; \"zapisy\" — below it (\"parafia/rekolekcje-2026/zapisy\"); \"/other/address\" — exactly this address; omitted — \"\" for the main page, otherwise \"key\"",
+    "main": "true — the area's main page (cards lead to it); without it — the page with \"path\": \"\"",
+    "after": "true — the “after the event” page: prepared but hidden until the end of the main date; then it appears on the cards",
+    "access": "\"public\" — everyone; \"members\" — only the area's people; omitted — stays as it was (new: public)",
+    "page": "the page document — as below (Page as JSON), without \"path\", \"appointments\" and \"calendars\"",
+    "modulesLead": "In the page's modules (\"modules\") the area document adds:",
+    "id": "the module's name on this page (letters, digits, - and _, up to 32 characters) — by it a repeated import changes the same module; a form must have it (otherwise after reordering it would hit another form and its submissions)",
+    "members": "true — only the area's people see the module (with an account, a link or their own link from a form), e.g. photos and materials on the “after the event” page; false — everyone",
+    "publish": "only \"form\": \"area\", \"auto\" or an area id — where the questions lie (a public form in a private area: questions under the key of a public area, answers here); omitted — like the area's \"publish\"",
+    "answer": "only \"seat-ask\" (“Write to us”): who answers — roles from \"roles\", e.g. [\"@role:organizatorzy\"]; omitted — roles with \"level\": \"admin\" (without them only the person importing); a person with a link reads “Write to: …” with their names",
+    "forms": "only \"seat-ask\": whose people can start a chat — forms from this document, e.g. [\"@form:main/zapisy\"]; omitted — all forms of the document's pages",
+    "tail": "\"module\" is ignored in an area document, and so is \"answersTo\" of questions (answers go to this area). A page that already exists but isn't a page of this area won't be changed unless the person importing allows it."
+  },
+  "subforms": {
+    "lead": "An entry in \"subforms\" — a form that extends a form from a page (consents, a post-event survey, a health card):",
+    "key": "a short name (up to 32 characters)",
+    "of": "the form it extends: \"@form:page/module\"",
+    "name": "the sub-form's name",
+    "audience": "\"person\" — filled in by the person via their link; \"office\" — only leaders",
+    "repeat": "\"once\", \"day\", \"week\", \"month\", \"year\" — how often (usually \"once\")",
+    "publish": "as for a form on a page",
+    "questions": "questions — as in a form (below: Form); also \"design\", \"needs\", \"memberRoles\", \"virtualAreas\", \"group\""
+  },
+  "usage": "- The area gets a first tab named after its kind. Everyone who reads the area sees the card, the date and place, “Sign-ups open” and links to pages and chats in it; only leaders see “To do”, the card editor, the kind's tools and this import.\n- The card is encrypted with the key of the area where it was published: from a public area anyone can read it, from another one — only those who read that area.\n- Cards in the modules “Events” and “Card” lead to the main page. On lists the area appears only with a public, unencrypted main page (without a public card the card takes the title and text of that page); it shows the date when the main date is publicly visible, and “Sign-ups open” when a form really accepts submissions (open, public, on a public page, with a data controller).\n- \"listings\" are requests for a place: a list you lead shows the area right away; another one is approved by its owner, the \"events\" catalogue — by the service operator.\n- Dates are in the area's calendar: in the calendar and in the module \"program\" they're seen by whoever reads the area in which they are visible (\"publish\").\n- The “after the event” page is visible after the end of the main date or after “End now” (before that only to those who lead it); a public one then also appears on the cards. With \"archive\": \"auto\" all open forms of the area close by themselves after the end, and “Restore” opens them again.\n- Without a data controller (its own or from an area above) forms won't accept submissions, the area's chats won't be created and public pages can't be saved. When it has one, the import puts the document's public pages under this area's responsibility.\n- The import doesn't publish in an area you don't lead — the public parts then stay here, with a warning in the plan.",
+  "prompt": {
+    "kind": " (kind: {kind})",
+    "fromTemplate": "Below is the export of the area “{name}” — the previous event. Make a new one modelled on it: keep the layout of the pages, the modules, the form questions, the roles, their \"key\" and the modules' \"id\"; change the dates, titles, descriptions and everything that concerns the new one. Remove what concerned only the previous one (e.g. its photos and materials on the “after the event” page). Set \"address\" to the new address.",
+    "fromCurrent": "Below is the current export of this area. Change it according to my instructions — keep all \"key\" and \"id\" so that the import changes what exists instead of duplicating it.",
+    "fromScratch": "Build the area from scratch according to my instructions.",
+    "head": "Prepare one JSON document in the format “{format}” (the format description is below) for the area “{name}”{kind}.",
+    "rules": "Rules:\n- Return ONE JSON object — no comments, no text before or after it.\n- Don't enter personal data (names, phone numbers, email addresses of specific people) unless I give them explicitly for publication.\n- Don't invent facts — dates, places, prices, people, consents or legal grounds I haven't given. What you don't know, leave empty.\n- Describe photos and files that don't exist yet in the page's \"images\" and insert \"{need}key\". You may keep \"page-image:<id>\" from the model — it's the same file.\n- A form must have an \"id\"; answers go to this area, so omit \"answersTo\".",
+    "hints": "My instructions: (fill in — dates, place, what should be different)",
+    "short": "The format description is shortened — without rare modules and chapters ({left}). If you need one of them, say so — you'll get the full description.",
+    "formatHead": "=== FORMAT DESCRIPTION ===",
+    "templateHead": "=== MODEL: PREVIOUS EVENT ===",
+    "currentHead": "=== CURRENT AREA ==="
+  }
+}

@@ -26,6 +26,7 @@ import {
 } from '../part';
 import { FilePicker, ImagePicker } from '../PageFiles';
 import { plural } from '../../core/plural';
+import { t, useT } from '../../core/i18n';
 
 /* -- Duldsame Leser (Altbestand: contracts.ts) ------------------------------------ */
 
@@ -268,7 +269,7 @@ export function Fieldset({ legend, children }: { legend: string; children: React
 }
 
 /** Hinzufügen, wegnehmen, umstellen — der Baustein sagt, wie eine Zeile aussieht und wie eine leere beginnt. */
-export function ListEditor<T>({ legend, items, onChange, blank, addLabel = 'Dodaj', renderItem, titleOf }: {
+export function ListEditor<T>({ legend, items, onChange, blank, addLabel, renderItem, titleOf }: {
   legend: string;
   items: readonly T[];
   onChange: (next: T[]) => void;
@@ -277,6 +278,7 @@ export function ListEditor<T>({ legend, items, onChange, blank, addLabel = 'Doda
   renderItem: (item: T, update: (next: T) => void) => ReactNode;
   titleOf: (item: T, index: number) => string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState<number | null>(items.length === 1 ? 0 : null);
 
   const replace = (index: number, next: T) => {
@@ -305,9 +307,9 @@ export function ListEditor<T>({ legend, items, onChange, blank, addLabel = 'Doda
                 <span aria-hidden="true">{open === index ? '▾' : '▸'}</span> {titleOf(item, index)}
               </button>
               <span className="pe-item-tools">
-                <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Wyżej" title="Wyżej">↑</button>
-                <button type="button" onClick={() => move(index, 1)} disabled={index === items.length - 1} aria-label="Niżej" title="Niżej">↓</button>
-                <button type="button" className="pe-remove" aria-label="Usuń" title="Usuń"
+                <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label={t('pagesEvent.list.up')} title={t('pagesEvent.list.up')}>↑</button>
+                <button type="button" onClick={() => move(index, 1)} disabled={index === items.length - 1} aria-label={t('pagesEvent.list.down')} title={t('pagesEvent.list.down')}>↓</button>
+                <button type="button" className="pe-remove" aria-label={t('common.remove')} title={t('common.remove')}
                   onClick={() => { onChange(items.filter((_, at) => at !== index)); setOpen(null); }}>×</button>
               </span>
             </header>
@@ -316,7 +318,7 @@ export function ListEditor<T>({ legend, items, onChange, blank, addLabel = 'Doda
         ))}
       </div>
       <button type="button" className="pe-add" onClick={() => { onChange([...items, blank()]); setOpen(items.length); }}>
-        + {addLabel}
+        + {addLabel ?? t('common.add')}
       </button>
     </Fieldset>
   );
@@ -331,9 +333,10 @@ export function ImageRow({ label, value, onChange, ctx, busy, hint }: {
   busy: boolean;
   hint?: string;
 }) {
+  const t = useT();
   return (
     <div className="pe-media">
-      <TextRow label={label} value={value} onChange={onChange} hint={hint ?? (ctx.path === null ? 'Adres obrazu. Wgrać obraz możesz w edytorze strony, na której stoi ten moduł.' : undefined)} />
+      <TextRow label={label} value={value} onChange={onChange} hint={hint ?? (ctx.path === null ? t('pagesEvent.media.imageHint') : undefined)} />
       {ctx.path !== null && <ImagePicker path={ctx.path} value={value} busy={busy} onPick={onChange} />}
     </div>
   );
@@ -347,10 +350,11 @@ export function FileRow({ value, onChange, onPicked, ctx, busy }: {
   ctx: EditorContext;
   busy: boolean;
 }) {
+  const t = useT();
   return (
     <div className="pe-media">
-      <TextRow label="Adres pliku" value={value} onChange={onChange}
-        hint={ctx.path === null ? 'Wgrać plik możesz w edytorze strony, na której stoi ten moduł.' : undefined} />
+      <TextRow label={t('pagesEvent.media.fileLabel')} value={value} onChange={onChange}
+        hint={ctx.path === null ? t('pagesEvent.media.fileHint') : undefined} />
       {ctx.path !== null && <FilePicker path={ctx.path} value={value} busy={busy} onPick={onPicked} />}
     </div>
   );
@@ -405,11 +409,12 @@ export function defineEventPart<C>(spec: {
   });
 
   const Editor = ({ raw, onSet, ctx, busy }: EditorProps) => {
+    const t = useT();
     const now = read(raw);
     return (
       <div className="pe">
-        <TextRow label="Nagłówek" value={raw.title ?? ''} placeholder={spec.label} onChange={(title) => onSet({ title })} />
-        <AreaRow label="Wstęp" rows={2} value={raw.intro ?? ''} onChange={(intro) => onSet({ intro })} />
+        <TextRow label={t('pagesEvent.part.title')} value={raw.title ?? ''} placeholder={spec.label} onChange={(title) => onSet({ title })} />
+        <AreaRow label={t('pagesEvent.part.intro')} rows={2} value={raw.intro ?? ''} onChange={(intro) => onSet({ intro })} />
         <spec.Edit config={now.config} ctx={ctx} busy={busy} onChange={(next) => onSet({ json: JSON.stringify(next) })} />
       </div>
     );
@@ -428,9 +433,10 @@ export function defineEventPart<C>(spec: {
   };
   const json: PartJson = {
     example: toJson({ title: spec.label, json: JSON.stringify(spec.example()) }),
+    /* Getter: der Text erst beim Lesen, in der Sprache von dann. */
     keys: {
-      title: `Nagłówek nad treścią${spec.ownHeading === true ? ' (tu: tylko nazwa w menu slajdów — moduł pokazuje własny tytuł)' : ''}`,
-      intro: 'Krótki wstęp pod nagłówkiem (może być pusty)',
+      get title() { return t(spec.ownHeading === true ? 'pagesEvent.part.titleKeyOwn' : 'pagesEvent.part.titleKey'); },
+      get intro() { return t('pagesEvent.part.introKey'); },
       ...spec.keys
     },
     toJson,

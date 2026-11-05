@@ -24,6 +24,7 @@ import { hrefOf } from './menu';
 import { hereIn, menuImageOf, under, type Spot } from './menuPath';
 import { type MenuItem } from './page';
 import { imageUrl } from './slides/slideLook';
+import { useT } from '../core/i18n';
 
 export function SiteMenu({ items, from, here }: {
   items: readonly MenuItem[];
@@ -32,6 +33,7 @@ export function SiteMenu({ items, from, here }: {
   /** Die Seite, auf der man steht. */
   here: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState<string | null>(null);
   const [mobile, setMobile] = useState(false);
   const nav = useRef<HTMLElement | null>(null);
@@ -59,10 +61,10 @@ export function SiteMenu({ items, from, here }: {
   const brand = menuImageOf(items[0].image) !== null && items[0].children.length === 0 ? items[0] : null;
 
   return (
-    <nav ref={nav} className={`wk-sitemenu${mobile ? ' is-open' : ''}${brand === null ? '' : ' has-brand'}`} aria-label="Menu strony">
+    <nav ref={nav} className={`wk-sitemenu${mobile ? ' is-open' : ''}${brand === null ? '' : ' has-brand'}`} aria-label={t('pages.editor.menu')}>
       {brand !== null && <Brand item={brand} from={from} current={spot !== null && spot.exact && spot.at === '0'} />}
       <button type="button" className="wk-sitemenu-toggle" aria-expanded={mobile} onClick={() => setMobile(!mobile)}>
-        <span aria-hidden="true">☰</span> Menu
+        <span aria-hidden="true">☰</span> {t('pages.menu.toggle')}
       </button>
 
       <ul className="wk-sitemenu-list">
@@ -97,6 +99,7 @@ function Entry({ item, from, spot, depth, path, open, onOpen }: {
   open: string | null;
   onOpen: (path: string | null) => void;
 }) {
+  const t = useT();
   const href = hrefOf(item, from);
 
   /*
@@ -132,7 +135,7 @@ function Entry({ item, from, spot, depth, path, open, onOpen }: {
         {link}
         {item.children.length > 0 && href !== null && (
           <button type="button" className="wk-sitemenu-sub" aria-expanded={expanded}
-            aria-label={`${expanded ? 'Zwiń' : 'Rozwiń'}: ${item.label}`} onClick={() => onOpen(expanded ? null : path)}>
+            aria-label={t(expanded ? 'pages.menu.foldItem' : 'pages.menu.unfoldItem', { label: item.label })} onClick={() => onOpen(expanded ? null : path)}>
             ▾
           </button>
         )}

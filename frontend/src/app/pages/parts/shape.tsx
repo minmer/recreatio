@@ -13,6 +13,7 @@
 
 import { useContext } from 'react';
 
+import { t, useT } from '../../core/i18n';
 import { definePart, text, type EditorProps, type RawConfig } from '../part';
 import { resolveColor } from '../presentation/presentation';
 import { ShowDark } from '../presentation/showContext';
@@ -22,7 +23,7 @@ const SHAPES = ['circle', 'rect', 'rounded', 'line'] as const;
 type ShapeKind = (typeof SHAPES)[number];
 
 const SHAPE_LABEL: Record<ShapeKind, string> = {
-  circle: 'Koło', rect: 'Prostokąt', rounded: 'Prostokąt zaokrąglony', line: 'Linia'
+  circle: 'moduleContent.shape.kind.circle', rect: 'moduleContent.shape.kind.rect', rounded: 'moduleContent.shape.kind.rounded', line: 'moduleContent.shape.kind.line'
 };
 
 interface Config {
@@ -53,12 +54,13 @@ function ShapeView({ config }: { config: Config }) {
 }
 
 function ShapeEditor({ raw, onSet, busy }: EditorProps) {
+  const t = useT();
   const config = read(raw);
   return (
     <label className="se-inline">
-      <span>Kształt</span>
+      <span>{t('moduleContent.shape.shape')}</span>
       <select value={config.shape} disabled={busy} onChange={(e) => onSet({ shape: e.target.value })}>
-        {SHAPES.map((one) => <option key={one} value={one}>{SHAPE_LABEL[one]}</option>)}
+        {SHAPES.map((one) => <option key={one} value={one}>{t(SHAPE_LABEL[one])}</option>)}
       </select>
     </label>
   );
@@ -67,22 +69,22 @@ function ShapeEditor({ raw, onSet, busy }: EditorProps) {
 export const shapePart = definePart<Config>({
   kind: 'shape',
   example: { shape: 'circle', fill: '#14180f|#0c0f0a', border: 'accent' },
-  label: 'Kształt',
-  use: 'Koło, prostokąt albo linia w kolorze — tło, akcent, element prezentacji.',
+  label: 'moduleContent.shape.label',
+  use: 'moduleContent.shape.use',
   box: { colSpan: 2, rowSpan: 2 },
 
   fields: [
-    { key: 'fill', label: 'Kolor', kind: 'line', hint: '#14180f, para „jasny|ciemny” albo accent, ink, ground, muted' },
-    { key: 'border', label: 'Obramowanie', kind: 'line', hint: 'kolor albo pusty' }
+    { key: 'fill', label: 'moduleContent.shape.fill', kind: 'line', hint: 'moduleContent.shape.fillHint' },
+    { key: 'border', label: 'moduleContent.shape.border', kind: 'line', hint: 'moduleContent.shape.borderHint' }
   ],
   extra: [
-    { key: 'shape', shape: 'line', says: '"circle" — koło, "rect" — prostokąt, "rounded" — zaokrąglony, "line" — linia' }
+    { key: 'shape', shape: 'line', says: 'moduleContent.shape.key.shape' }
   ],
 
   read,
   /* Ein Kształt ist immer etwas — auch ohne eigene Farbe (dann die des Akzents). */
   hasContent: () => true,
-  shows: (c) => `${SHAPE_LABEL[c.shape]} w kolorze.`,
+  shows: (c) => t('moduleContent.shape.shows', { shape: t(SHAPE_LABEL[c.shape]) }),
   Editor: ShapeEditor,
   View: ({ config }) => <ShapeView config={config} />
 });

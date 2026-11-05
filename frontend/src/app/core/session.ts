@@ -14,6 +14,7 @@
 import { fromBase64Url, toBase64Url } from './crypto';
 import { announceForget, borrow, serve, type Held } from './keyring';
 import { device, knownDevice, openKept, sealKept } from './kept';
+import { t } from './i18n';
 
 /**
  * Wo der Dienst liegt.
@@ -148,9 +149,7 @@ export class WorkspaceError extends Error {
 }
 
 /** In der Entwicklung ist die Ursache fast immer, dass der Dienst nicht läuft. */
-const UNREACHABLE = import.meta.env.DEV
-  ? 'Usługa nie odpowiada. Uruchom ją: dotnet run --project backend/Api'
-  : 'Nie udało się połączyć z usługą.';
+const unreachable = (): string => (import.meta.env.DEV ? t('core.session.unreachableDev') : t('core.session.unreachable'));
 
 /**
  * 2026-10-28 — DER DIENST ANTWORTET NICHT (kein Netz, kein Dienst) — nicht dasselbe wie ein Nein des
@@ -159,7 +158,7 @@ const UNREACHABLE = import.meta.env.DEV
  */
 export class Unreachable extends WorkspaceError {
   constructor() {
-    super(UNREACHABLE);
+    super(unreachable());
   }
 }
 
@@ -227,7 +226,7 @@ export async function call<T>(path: string, init: RequestInit = {}, extra: Reado
     // Keine Antwort des Dienstes, sondern des Weiterleiters: der Dienst läuft
     // nicht. Ein nacktes „Nie udało się." liesse raten, woran es liegt.
     if (response.status >= 500) throw new Unreachable();
-    throw new WorkspaceError('Nie udało się.');
+    throw new WorkspaceError(t('core.session.failed'));
   }
 
   return (await response.json()) as T;

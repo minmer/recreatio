@@ -9,6 +9,7 @@
  * </code>
  */
 
+import { t, useT } from '../core/i18n';
 import { areaPath, type AreaRow } from './area';
 import { AreaPick } from './AreaPick';
 
@@ -22,8 +23,8 @@ export const writableGroups = (areas: readonly AreaRow[]) =>
 /** Wie eine Gruppe heisst — „Tylko ja" für den eigenen Bereich, sonst ihr Weg. */
 export const groupName = (areas: readonly AreaRow[], areaId: string): string => {
   const found = areas.find((a) => a.areaId === areaId);
-  if (found === undefined) return 'inna grupa';
-  if (found.personal === true) return 'Tylko ja';
+  if (found === undefined) return t('areas.whoSees.otherGroup');
+  if (found.personal === true) return t('areas.whoSees.onlyMe');
   return areaPath(areas, areaId).full;
 };
 
@@ -35,22 +36,23 @@ export function WhoSees({ areas, recent, value, onChange, disabled = false }: {
   onChange: (value: string) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const groups = writableGroups(areas);
   const lately = recent.map((id) => groups.find((g) => g.areaId === id)).filter((g): g is AreaRow => g !== undefined).slice(0, 3);
   const personal = areas.find((a) => a.personal === true);
 
   return (
     <label className="wk-field">
-      <span>Kto widzi</span>
+      <span>{t('areas.whoSees.label')}</span>
       <AreaPick
-        label="Kto widzi" value={value} onChange={onChange} disabled={disabled}
+        label={t('areas.whoSees.label')} value={value} onChange={onChange} disabled={disabled}
         areas={areas} only={groups} recent={lately.map((g) => g.areaId)}
-        extras={[{ value: personal?.areaId ?? PRIVATE, label: 'Tylko ja (prywatne)' }]}
+        extras={[{ value: personal?.areaId ?? PRIVATE, label: t('areas.whoSees.onlyMePrivate') }]}
       />
       <span className="wk-hint">
         {value === PRIVATE || value === personal?.areaId
-          ? 'Nikt poza Tobą — zaszyfrowane Twoim kluczem.'
-          : 'Wszyscy z tej grupy — zaszyfrowane jej kluczem.'}
+          ? t('areas.whoSees.privateHint')
+          : t('areas.whoSees.groupHint')}
       </span>
     </label>
   );
@@ -73,15 +75,22 @@ export const fromLocal = (date: string, time: string): Date => {
 
 /** Die Tage der Woche als Knöpfe — pn=1 … nd=64, wie am Dienst. */
 export const WEEK_BITS: readonly { readonly bit: number; readonly label: string }[] = [
-  { bit: 1, label: 'pn' }, { bit: 2, label: 'wt' }, { bit: 4, label: 'śr' }, { bit: 8, label: 'czw' },
-  { bit: 16, label: 'pt' }, { bit: 32, label: 'sob' }, { bit: 64, label: 'nd' }
+  { bit: 1, get label() { return t('areas.week.mon'); } }, { bit: 2, get label() { return t('areas.week.tue'); } },
+  { bit: 4, get label() { return t('areas.week.wed'); } }, { bit: 8, get label() { return t('areas.week.thu'); } },
+  { bit: 16, get label() { return t('areas.week.fri'); } }, { bit: 32, get label() { return t('areas.week.sat'); } },
+  { bit: 64, get label() { return t('areas.week.sun'); } }
 ];
+
+const WEEK_KEY: Readonly<Record<number, string>> = {
+  1: 'areas.week.mon', 2: 'areas.week.tue', 4: 'areas.week.wed', 8: 'areas.week.thu', 16: 'areas.week.fri', 32: 'areas.week.sat', 64: 'areas.week.sun'
+};
 
 export const bitOf = (at: Date) => WEEK_BITS[(at.getDay() + 6) % 7].bit;
 
 export function Weekdays({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const t = useT();
   return (
-    <div className="wk-days" role="group" aria-label="Dni tygodnia">
+    <div className="wk-days" role="group" aria-label={t('areas.week.label')}>
       {WEEK_BITS.map((one) => (
         <button
           key={one.bit}
@@ -93,7 +102,7 @@ export function Weekdays({ value, onChange }: { value: number; onChange: (value:
             onChange(next === 0 ? value : next);
           }}
         >
-          {one.label}
+          {t(WEEK_KEY[one.bit] ?? '')}
         </button>
       ))}
     </div>

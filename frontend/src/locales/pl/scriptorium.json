@@ -1,0 +1,530 @@
+{
+  "boxes": {
+    "latexProject": "Cały projekt jako książka: części, rozdziały, przypisy, źródła na końcu.",
+    "latexText": "Tekst do druku: przypisy ze źródłami, cytaty, źródła na końcu.",
+    "author": "Autor (na stronie tytułowej)",
+    "authorPlaceholder": "np. ks. Jan Kowalski",
+    "missing": "Brakuje w bibliotece: {keys} — w przypisie stanie „[brak źródła]\".",
+    "download": "Pobierz .tex",
+    "hidePreview": "Ukryj podgląd",
+    "pulpit": "Plan na ambonę (.tex)",
+    "learnFailed": "Nie udało się utworzyć powtórki.",
+    "learn": "Nauka",
+    "learnLead": "Powtórka z tego, na co wskazuje tekst: cytaty, komentarze, słowa ze słownika, miejsca z planu — w bazie wiedzy, która korzysta z tego skryptorium.",
+    "creating": "Tworzenie…",
+    "learnButton": "Powtórka z tego tekstu"
+  },
+  "editor": {
+    "elsewhere": "Ten wpis jest gdzie indziej.",
+    "openThere": "Otwórz go tam",
+    "missing": "Tego wpisu nie ma (albo został usunięty).",
+    "back": "Wróć do skryptorium",
+    "foreignKind": "Ten wpis jest rodzaju, którego skryptorium nie prowadzi. Można go przejrzeć i usunąć w zakładce „Stare wpisy”.",
+    "loadTheirs": "Wczytaj nowszą wersję",
+    "keepMine": "Zachowaj moją (nadpisz)"
+  },
+  "noDate": "bez daty",
+  "delivery": {
+    "coverage": {
+      "label": "Co z planu",
+      "title": "Co z planu zostało powiedziane",
+      "pickFirst": "Najpierw wybierz wyżej kazanie (tekst) — jego plan pojawi się tutaj, punkt po punkcie.",
+      "noPlan": "Ten tekst nie ma jeszcze planu — <a>dopisz go w tekście</a> (zakładka „Plan”), a tu zaznaczysz, co z niego padło.",
+      "emptyPoint": "(pusty punkt)",
+      "how": "Jak",
+      "notePlaceholder": "Uwaga: co było inaczej",
+      "note": "Uwaga",
+      "restSaid": "Resztę oznacz: powiedziane",
+      "restSkipped": "Resztę oznacz: pominięte",
+      "clear": "Wyczyść oznaczenia",
+      "orphans": {
+        "one": "{count} oznaczenie dotyczy punktu, których nie ma już w planie.",
+        "few": "{count} oznaczeń dotyczy punktów, których nie ma już w planie.",
+        "many": "{count} oznaczeń dotyczy punktów, których nie ma już w planie.",
+        "other": "{count} oznaczeń dotyczy punktów, których nie ma już w planie."
+      },
+      "removeThem": "Usuń je"
+    },
+    "timePlaceholder": "m:ss",
+    "timeInRecording": "Czas w nagraniu",
+    "timeFromPlayerTitle": "Wpisz czas z odtwarzacza",
+    "timeFromPlayer": "Czas z odtwarzacza",
+    "added": {
+      "title": "Co doszło",
+      "lead": "To, co zostało powiedziane, a nie było w planie — przykład, ogłoszenie, nowa myśl.",
+      "placeholder": "Co padło (jedno-dwa zdania)",
+      "after": "Po którym punkcie",
+      "atEnd": "— na końcu —",
+      "afterPoint": "po {no} {text}",
+      "add": "+ Co doszło"
+    },
+    "lesson": {
+      "classFallback": "klasa",
+      "signIn": "Zaloguj się, żeby napisać do klasy.",
+      "passwordFirst": "Najpierw podaj hasło — klucze nie są otwarte w tej karcie.",
+      "sent": "Wysłane do klasy.",
+      "sendFailed": "Nie udało się wysłać do klasy.",
+      "title": "Lekcja w klasie",
+      "lead": "Temat lekcji to tekst z programu — wybierasz go niżej (pole „Kazanie (tekst)”). Poniżej, punkt po punkcie, zaznaczysz, co z jego planu było w tej klasie.",
+      "class": "Klasa",
+      "noClass": "— bez klasy (zwykłe wygłoszenie) —",
+      "otherClass": "inna klasa",
+      "state": "Stan lekcji",
+      "homework": "Zadanie dla klasy",
+      "homeworkPlaceholder": "np. Przeczytać Rdz 1,1-31",
+      "sending": "Wysyłanie…",
+      "send": "Wyślij klasie",
+      "sendLead": "Temat, „Krótko o tym wygłoszeniu” i zadanie — do kanału klasy (albo jej rozmowy)."
+    },
+    "recording": "Nagranie",
+    "listenHint": "Słuchając, naciśnij ⏱ przy punkcie — wpisze się czas z odtwarzacza.",
+    "transcript": "Zapis wygłoszenia (transkrypcja)",
+    "transcriptPlaceholder": "To, co zostało powiedziane, słowo w słowo — akapity oddzielone pustą linią.",
+    "ai": {
+      "summary": "Z nagrania albo zapisu — przez AI we własnym czacie",
+      "lead": "Skopiuj polecenie — jest w nim plan z identyfikatorami punktów. Wklej je w swoim czacie razem z nagraniem albo zapisem, a odpowiedź (JSON) wklej tutaj: trafi do tego formularza.",
+      "unknownPoints": {
+        "one": "{count} oznaczeń wskazuje punkty, których nie ma w planie.",
+        "few": "{count} oznaczeń wskazuje punkty, których nie ma w planie.",
+        "many": "{count} oznaczeń wskazuje punkty, których nie ma w planie.",
+        "other": "{count} oznaczeń wskazuje punkty, których nie ma w planie."
+      },
+      "import": "Wpisz do formularza",
+      "imported": "Wpisane do formularza — zapisze się samo."
+    },
+    "exportName": "wygłoszenie",
+    "box": {
+      "title": "Wygłoszenia",
+      "none": "Jeszcze nie wygłoszony. Po kazaniu dopisz, kiedy i gdzie — i co z planu padło.",
+      "add": "+ Wygłoszenie"
+    }
+  },
+  "heldTimes": {
+    "one": "wygłoszony {count}×",
+    "few": "wygłoszony {count}×",
+    "many": "wygłoszony {count}×",
+    "other": "wygłoszony {count}×"
+  },
+  "article": {
+    "readings": "Czytania:",
+    "text": "Tekst",
+    "further": "Dalsze informacje",
+    "sources": "Źródła"
+  },
+  "opened": {
+    "statement": "Wypowiedź",
+    "text": "Tekst",
+    "quote": "Cytat",
+    "entry": "Wpis",
+    "openInKnowledge": "Otwórz w Wiedzy"
+  },
+  "archive": {
+    "layout": {
+      "list": "Lista",
+      "table": "Tabela",
+      "tree": "Drzewo"
+    },
+    "order": {
+      "label": "Kolejność",
+      "newest": "najnowsze",
+      "oldest": "najstarsze",
+      "titleAz": "tytuł A–Z",
+      "titleZa": "tytuł Z–A"
+    },
+    "allTexts": "← Wszystkie teksty",
+    "notPublic": "Tego skryptorium nie widzisz — jego obszar nie jest publiczny.",
+    "project": "Projekt",
+    "recorded": "z nagraniem",
+    "noTexts": "Nie ma jeszcze tekstów.",
+    "more": {
+      "one": "Więcej ({count})",
+      "few": "Więcej ({count})",
+      "many": "Więcej ({count})",
+      "other": "Więcej ({count})"
+    },
+    "count": {
+      "one": "{count} tekst",
+      "few": "{count} teksty",
+      "many": "{count} tekstów",
+      "other": "{count} tekstu"
+    },
+    "countFor": {
+      "one": "{count} tekst — „{query}”",
+      "few": "{count} teksty — „{query}”",
+      "many": "{count} tekstów — „{query}”",
+      "other": "{count} tekstu — „{query}”"
+    },
+    "noMatch": "Nic nie pasuje — zmień filtry albo wyszukiwanie.",
+    "searchPlaceholder": "Szukaj w tekstach…",
+    "search": "Szukaj w tekstach",
+    "allValues": "wszystkie",
+    "removeFilter": "Bez filtra: {name}",
+    "clearFilters": "Wyczyść filtry",
+    "col": {
+      "title": "Tytuł",
+      "when": "Kiedy"
+    },
+    "byWhat": "Według czego",
+    "noFacets": "Teksty nie mają jeszcze pól, według których można je przeglądać (rodzaj tekstu z polem-odwołaniem).",
+    "cycle": "Cykl"
+  },
+  "json": {
+    "sources": {
+      "work": "źródła",
+      "quote": "cytaty",
+      "person": "osoby"
+    },
+    "elsewhere": {
+      "sources": "{what} są w Bibliotece — importuje się je tam (format \"{format}\")",
+      "comment": "komentarze są własnym rodzajem w Wiedzy — gotowy schemat: plik templates/cogita/komentarz.json",
+      "topic": "tematów już nie ma — porządek dają własne rodzaje w Wiedzy, połączone polami-odwołaniami (np. pola rodzaju tekstu)"
+    },
+    "warn": {
+      "notObject": "{where}: pole {n} nie jest obiektem — pominięte.",
+      "badKey": "{where}: klucz „{key}” — litery, cyfry i _, zaczyna się literą; pole pominięte.",
+      "coreKey": "{where}: klucz „{key}” należy do stałych pól tekstu — pole pominięte.",
+      "duplicate": "{where}: drugie pole „{key}” — pominięte.",
+      "badType": "{where}: pole „{key}” — typ „{type}” nie jest dostępny w rodzaju tekstu ({types}); pole pominięte.",
+      "noKind": "{where}: pole „{key}” — nie ma w Wiedzy rodzaju „{token}”; to ograniczenie pominięte (pole wskaże dowolny wpis).",
+      "notNumber": "{where}: „{value}” to nie liczba — pominięte.",
+      "notBool": "{where}: „{value}” — tak albo nie; pominięte.",
+      "notDate": "{where}: „{value}” to nie data (RRRR, RRRR-MM albo RRRR-MM-DD) — pominięte.",
+      "unknownValue": "{where}: nieznana wartość „{value}”."
+    },
+    "example": {
+      "name": "Kazania maryjne",
+      "typeName": "Kazanie maryjne",
+      "mystery": "Tajemnica",
+      "area": "Obszar",
+      "fragment": "Fragment Pisma",
+      "title": "Niech mi się stanie",
+      "occasion": "Uroczystość Zwiastowania Pańskiego",
+      "annunciation": "Zwiastowanie",
+      "prayer": "Modlitwa",
+      "locator": "Łk 1,26-38",
+      "p1": "Maryja słucha, zanim odpowie [@bt, Łk 1,29]",
+      "p2": "Gdzie dziś słucham?",
+      "body": "Maryja „zmieszała się na te słowa i rozważała” [@bt, Łk 1,29]."
+    },
+    "description": "# Skryptorium jako JSON (\"{format}\", wersja {version})\n\nCo robi import:\nSkryptorium to miejsce pisania: własne teksty (\"text\" — kazania, konferencje, rozważania, rozdziały), ich wygłoszenia (\"delivery\"), projekty (\"project\" — książka, cykl) i własne rodzaje tekstów (\"texttype\"). Tekst cytuje źródła z Biblioteki (dzieła, cytaty, osoby — format \"{library}\") i wskazuje wpisy z Nauki (np. tajemnicę, słowo ze słownika, widok); w drugą stronę nic nie wskazuje na Skryptorium.\n- Każdy wpis to { \"id\", \"kind\", \"key\", \"data\" }. Wpis z kennung z eksportu (albo z kluczem istniejącego wpisu tego samego rodzaju) jest ZMIENIANY — tylko pola podane w \"data\"; pola, których nie ma, zostają. Żeby wyczyścić pole, podaj null.\n- Wpis bez kennung (albo z nieznaną) powstaje nowy. Import niczego nie usuwa.\n- Odwołania mogą być kennungami albo kluczami: \"@kazanie-chleb\", \"@ratzinger2007\". Klucze z tego samego dokumentu też działają.\n- Plik z dziełami, cytatami, osobami, komentarzami albo tematami zostanie odrzucony — z informacją, gdzie go zaimportować.\n- Kto widzi wpis, decyduje wyłącznie obszar skryptorium: członkowie obszaru, a gdy obszar jest publiczny — wszyscy. Tekst staje się publiczny, gdy przeniesie się go do skryptorium obszaru publicznego (zachowuje kennungę).\nZwróć JEDEN obiekt JSON, bez komentarzy.\n\n{\n  \"format\": \"{format}\",\n  \"version\": {version},\n  \"name\": \"Moje skryptorium\",\n  \"entries\": [ { \"kind\": \"texttype\", \"key\": \"kazanie-maryjne\", \"data\": { … } }, { \"kind\": \"text\", \"data\": { … } }, … ]\n}\n\n## Rodzaje wpisów\n{kinds}\n\n## Rodzaj tekstu i jego pola\nRodzaj tekstu (\"texttype\") to nazwa i dodatkowe pola, które ma każdy tekst tego rodzaju — obok stałych pól tekstu (tytuł, data, plan, treść …). Pola opisuje się jak pola rodzaju w Nauce: {\"key\", \"label\", \"type\", \"multi\", \"options\", \"to\", \"locator\", \"says\"}; \"type\": {types}.\n- \"ref\" — odwołanie: \"to\" to nazwy rodzajów w Nauce (np. [\"Tajemnica\"]) albo \"work\", \"quote\", \"person\" (Biblioteka) i \"text\" (inny tekst); \"locator\": true — z miejscem.\n- Tekst tego rodzaju: \"textType\": \"@klucz-rodzaju\", a wartości pól jako zwykłe pola w \"data\" — pod kluczem pola. Odwołanie do wpisu w Nauce można podać jego kennungą albo NAZWĄ (\"Zwiastowanie\"); odwołanie z miejscem: {\"value\": \"@bt\", \"locator\": \"Łk 1,26-38\"}; kilka wartości (\"multi\": true) — lista.\n- Klucze stałych pól tekstu są zajęte: {coreKeys}.\n- Tekst bez rodzaju to zwykły tekst.\n\nPrzykład — rodzaj „Kazanie maryjne” i jedno kazanie tego rodzaju (z Pismem Świętym \"@bt\" z Biblioteki):\n{example}\n\n{markup}\n\n## Miejsce w źródle\n{bible}\n\n## Jak aplikacja używa tych danych\n- W Skryptorium wpisy stoją w zakładkach „Teksty”, „Wygłoszenia”, „Projekty” i „Rodzaje tekstów”; tekst ma edytor (Plan · Treść · Dalsze informacje) z podglądem, a obok swoje wygłoszenia.\n- Tekst czyta się z planem, treścią, przypisami do źródeł Biblioteki i listą „Źródła” na końcu; wartości pól jego rodzaju stoją w nagłówku („Tajemnica: Zwiastowanie”).\n- Wygłoszenie wskazuje punkty planu po ich \"id\": wybrane przy tekście pokazuje na planie, co powiedziano, co tylko wspomniano, co pominięto (z czasem w nagraniu) i co doszło. Wygłoszenia stoją od najnowszego; w archiwum datą tekstu jest jego ostatnie wygłoszenie.\n- Na stronach: moduł „Tekst ze skryptorium” (jeden tekst — plan, wygłoszenia z nagraniem, treść, źródła) i „Archiwum tekstów” (teksty skryptorium albo jednego projektu; szukanie i filtry według pól-odwołań rodzajów tekstów i według projektów). Strona pokazuje sam wpis, nie kopię: poprawka w Skryptorium jest od razu na każdej stronie.\n- Druk przez LaTeX: tekst jako artykuł, projekt jako książka (teksty w kolejności \"outline\"), sam plan jako „Plan na ambonę”.\n- Baza wiedzy, która ma to skryptorium wśród źródeł, bierze jego wpisy jako materiał: rodzaj tekstu jest tam rodzajem wpisu, a szablony kart i powtórki mogą sięgać po teksty; nic się tam nie kopiuje. „Powtórka z tego tekstu” robi tam powtórkę z tego, na co tekst wskazuje (np. cytaty, komentarze, słowa ze słownika).\n- W szkole projekt z \"projectType\": \"program\" i \"classes\" to program nauczania: teksty z jego \"outline\" to lekcje, a wygłoszenie z \"classArea\" — lekcja w klasie (Dziennik klasy, „Realizacja w klasach”).\n- Wpisy są zapieczętowane w przeglądarce kluczem obszaru. „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje to skryptorium, daje asystentowi jego odpis do czytania: teksty, wygłoszenia, projekty i rodzaje tekstów; asystent niczego nie zmienia.\n"
+  },
+  "latex": {
+    "missingRef": "odwołanie niedostępne"
+  },
+  "plan": {
+    "point": "Punkt planu",
+    "mainPlaceholder": "Główna myśl…",
+    "subPlaceholder": "Co pod nią: cytat, przykład, pytanie…",
+    "toolbar": "Wstawianie do planu",
+    "source": "Źródło…",
+    "quote": "Cytat z biblioteki…",
+    "fromBase": "Z bazy wiedzy…",
+    "upTitle": "Wyżej w hierarchii (Shift+Tab)",
+    "up": "Poziom wyżej",
+    "downTitle": "Głębiej (Tab)",
+    "down": "Poziom głębiej",
+    "moveUpTitle": "Przesuń w górę (Alt+↑)",
+    "moveUp": "Przesuń w górę",
+    "moveDownTitle": "Przesuń w dół (Alt+↓)",
+    "moveDown": "Przesuń w dół",
+    "remove": "Usuń punkt",
+    "emptyLead": "Plan to główne myśli po kolei, a pod każdą — cytaty, przykłady, pytania, zastosowania. Z niego mówisz; na stronie słuchacz widzi drogę kazania, a każde wygłoszenie pokazuje, co z niej padło.",
+    "first": "+ Pierwsza myśl",
+    "kind": "Rodzaj punktu",
+    "missingQuote": "Nie ma w bibliotece cytatu „{key}”.",
+    "add": "+ Myśl",
+    "keys": "Enter — nowy punkt · Tab / Shift+Tab — głębiej / wyżej · Alt+↑↓ — przesuń · Esc — wyjdź z punktu",
+    "paste": "Wklej gotowy plan",
+    "pastePlaceholder": "1. Pierwsza myśl\n   a) przykład\n   > cytat\n2. Druga myśl\n   - pytanie?",
+    "addPasted": {
+      "one": "Dodaj {count} punkt",
+      "few": "Dodaj {count} punkty",
+      "many": "Dodaj {count} punktów",
+      "other": "Dodaj {count} punktu"
+    },
+    "ai": {
+      "summary": "Plan z treści — przez AI we własnym czacie",
+      "lead": "Skopiuj polecenie (z treścią tekstu), wklej je w swoim czacie, a odpowiedź — JSON — wklej tutaj. Plan trafi do tego formularza.",
+      "leadReplace": "Skopiuj polecenie (z treścią tekstu), wklej je w swoim czacie, a odpowiedź — JSON — wklej tutaj. Plan trafi do tego formularza i zastąpi obecny.",
+      "noPlan": "W odpowiedzi nie ma planu (\"plan\").",
+      "found": {
+        "one": "Plan: {count} punktów, {main} głównych myśli.",
+        "few": "Plan: {count} punktów, {main} głównych myśli.",
+        "many": "Plan: {count} punktów, {main} głównych myśli.",
+        "other": "Plan: {count} punktów, {main} głównych myśli."
+      },
+      "import": "Wpisz plan do formularza",
+      "imported": "Plan jest w formularzu — zapisze się sam."
+    }
+  },
+  "prompt": {
+    "titleQuoted": "„{title}”",
+    "titleJoin": " i ",
+    "untitledParen": "(bez tytułu)",
+    "planOne": "Plan :",
+    "planOf": "Plan tekstu „{title}”:",
+    "noPlan": "(ten tekst nie ma planu)",
+    "example": {
+      "summary": "Dwa-trzy zdania o tym wygłoszeniu.",
+      "added": "Co doszło, w jednym-dwóch zdaniach.",
+      "transcript": "Pełny zapis — akapity oddzielone pustą linią."
+    },
+    "deliveryIntro": "Poniżej jest plan kazania {titles}. Do tej wiadomości dołączam nagranie albo zapis tego wygłoszenia.",
+    "deliveryIntroWhen": "Poniżej jest plan kazania {titles}, wygłoszonego: {when}. Do tej wiadomości dołączam nagranie albo zapis tego wygłoszenia.",
+    "deliveryBody": "Porównaj to, co zostało powiedziane, z planem:\n- Dla KAŻDEGO punktu planu podaj \"state\": \"said\" — powiedziany (w całości albo prawie), \"short\" — tylko wspomniany, krótko, \"skipped\" — pominięty.\n- \"at\": kiedy w nagraniu ten punkt się zaczyna (m:ss albo g:mm:ss) — tylko gdy był powiedziany i masz nagranie.\n- \"note\": jedno krótkie zdanie po polsku, co było inaczej niż w planie (np. inny przykład, inna kolejność) — tylko gdy coś było inaczej.\n- \"added\": to, co zostało powiedziane, a czego nie ma w planie — każda rzecz osobno: \"text\" (jedno-dwa zdania), \"at\", \"after\" (identyfikator punktu, po którym to padło).\n- \"summary\": dwa-trzy zdania — co tym razem było najważniejsze.\n- \"duration\": długość nagrania (m:ss).\n- \"transcript\": pełny zapis słowo w słowo, akapitami oddzielonymi pustą linią — tylko jeśli możesz go spisać z nagrania; inaczej pomiń.\n- Używaj DOKŁADNIE identyfikatorów punktów z nawiasów kwadratowych. Nie zmieniaj planu.\n\n{plans}\n\nZwróć JEDEN obiekt JSON, bez komentarzy, w tym kształcie (\"id\" i \"kind\" zostaw takie, jakie są):\n{example}\n\nPola:\n{fields}\n",
+    "planExample": {
+      "p1": "Pierwsza główna myśl.",
+      "p2": "Cytat albo odwołanie, jak w tekście [@klucz, s. 12].",
+      "p3": "Przykład z życia.",
+      "p4": "Co z tego wynika dla słuchacza?"
+    },
+    "plan": "Poniżej jest tekst kazania „{title}”. Zrób z niego plan: główne myśli po kolei, a pod każdą — cytaty, przykłady, pytania, zastosowania.\n\nZasady:\n- Jeden punkt — jedna myśl, jedno-dwa zdania, po polsku, w kolejności tekstu.\n- \"depth\": 0 — główna myśl, 1 — pod nią, 2 — jeszcze głębiej.\n- \"kind\": \"thought\" (myśl), \"quote\" (cytat), \"example\" (przykład), \"question\" (pytanie), \"application\" (zastosowanie).\n- Odwołania do źródeł przepisz dokładnie tak, jak stoją w tekście: [@klucz, miejsce] albo ![@klucz-cytatu]. Nie wymyślaj nowych kluczy.\n- Nie dodawaj niczego, czego nie ma w tekście.\n\nJak aplikacja używa tych danych:\n- Plan trafia do formularza tego tekstu i zastępuje obecny; każdy punkt dostaje stały identyfikator.\n- Wygłoszenia oznaczają punkty po identyfikatorach: powiedziany, tylko wspomniany, pominięty — z czasem w nagraniu. Oznaczenia zapisane do poprzedniego planu zostają przy wygłoszeniu, a jego formularz ostrzega, że tych punktów nie ma już w planie (można je usunąć).\n- Plan stoi przed treścią tekstu — w Skryptorium, na stronach i w druku (także sam, jako „Plan na ambonę”); [@klucz, miejsce] w punkcie staje się przypisem.\n\nTekst:\n---\n{body}\n---\n\nZwróć JEDEN obiekt JSON, bez komentarzy (\"id\" i \"kind\" zostaw takie, jakie są; obecny plan zostanie zastąpiony):\n{example}\n"
+  },
+  "sermon": {
+    "pointKindDefault": "Myśl",
+    "unmarked": "Nie oznaczone",
+    "seeAlso": " (zob. {list})",
+    "quoteRef": "[cytat {key}]",
+    "counts": {
+      "said": "powiedziane {said} z {points}",
+      "short": "krótko {count}",
+      "skipped": "pominięte {count}",
+      "open": "bez oznaczenia {count}",
+      "added": "dodane {count}"
+    },
+    "audio": "Nagranie",
+    "video": "Wideo",
+    "playFrom": "Odtwórz od {time}",
+    "added": "Dodane w tym wygłoszeniu",
+    "plan": "Plan",
+    "legend": "Na planie: ✓ powiedziane · ◐ krótko · ✕ pominięte",
+    "transcript": "Zapis wygłoszenia",
+    "deliveries": "Wygłoszenia",
+    "delivery": "Wygłoszenie",
+    "deliveriesCount": {
+      "one": "Wygłoszenia ({count})",
+      "few": "Wygłoszenia ({count})",
+      "many": "Wygłoszenia ({count})",
+      "other": "Wygłoszenia ({count})"
+    },
+    "noDate": "Bez daty",
+    "collapse": "Zwiń",
+    "listenOnPlan": "Posłuchaj i zobacz na planie",
+    "seeOnPlan": "Zobacz na planie"
+  },
+  "card": {
+    "loading": "Wczytywanie tekstu…",
+    "missing": "Tego tekstu nie ma albo nie możesz go zobaczyć.",
+    "latex": "Pobierz do druku (LaTeX)",
+    "latexPlan": "Sam plan (LaTeX)",
+    "openAll": "Plan, nagrania i całość",
+    "readAll": "Czytaj całość"
+  },
+  "text": {
+    "titlePlaceholder": "Tytuł tekstu",
+    "part": "Część tekstu",
+    "parts": {
+      "plan": "Plan",
+      "body": "Treść",
+      "further": "Dalsze informacje"
+    },
+    "view": "Widok",
+    "views": {
+      "write": "Pisanie",
+      "both": "Obok siebie",
+      "preview": "Podgląd"
+    },
+    "words": {
+      "one": "{count} słów",
+      "few": "{count} słów",
+      "many": "{count} słów",
+      "other": "{count} słów"
+    },
+    "wordsOf": {
+      "one": "{count} słów z {target} ({percent}%)",
+      "few": "{count} słów z {target} ({percent}%)",
+      "many": "{count} słów z {target} ({percent}%)",
+      "other": "{count} słów z {target} ({percent}%)"
+    },
+    "bodyPlaceholder": "Treść… Źródło wstawisz przyciskiem „Źródło” albo pisząc [@klucz, s. 12].",
+    "furtherPlaceholder": "Dalsze informacje — lektura, linki, kontekst.",
+    "missing": "Nie ma w bibliotece: {keys} — te przypisy będą puste.",
+    "data": "Dane tekstu — rodzaj, data, czytania, projekt, nagranie",
+    "dataWithType": "Dane tekstu — rodzaj, data, czytania, projekt, nagranie i pola rodzaju",
+    "howToWrite": "Jak pisać — zapis treści"
+  },
+  "outline": {
+    "title": "Plan",
+    "heading": "Nagłówek części",
+    "draft": "Szkic",
+    "up": "Wyżej",
+    "down": "Niżej",
+    "remove": "Usuń z planu",
+    "outside": "Teksty tego projektu spoza planu:",
+    "addToPlan": "dodaj do planu",
+    "headingPlaceholder": "Nagłówek części, np. Część I",
+    "newHeading": "Nowy nagłówek",
+    "addHeading": "+ Nagłówek",
+    "newText": "+ Nowy tekst w projekcie",
+    "bibliography": {
+      "one": "Bibliografia projektu ({count})",
+      "few": "Bibliografia projektu ({count})",
+      "many": "Bibliografia projektu ({count})",
+      "other": "Bibliografia projektu ({count})"
+    },
+    "copyBibliography": "Kopiuj bibliografię"
+  },
+  "type": {
+    "name": "Rodzaj tekstu",
+    "newName": "Nowy rodzaj tekstu",
+    "textTarget": "Tekst (Skryptorium)",
+    "saved": "Zapisano.",
+    "saveFailed": "Nie udało się zapisać.",
+    "back": "← Rodzaje tekstów",
+    "readOnly": "To skryptorium możesz tylko czytać.",
+    "lede": "Rodzaj tekstu to nazwa i pola, które ma każdy tekst tego rodzaju — obok stałych pól (tytuł, data, plan, treść …). Pole-odwołanie może wskazywać wpisy z Nauki (np. tajemnicę, obszar) albo źródła z Biblioteki. Tekst bez rodzaju to zwykły tekst.",
+    "descriptionPlaceholder": "Do czego służy ten rodzaj",
+    "loadingKinds": "Wczytywanie rodzajów z Nauki…",
+    "nameLabel": "Nazwa rodzaju tekstu",
+    "save": "Zapisz rodzaj tekstu",
+    "texts": "Teksty tego rodzaju",
+    "textsCount": {
+      "one": "Teksty tego rodzaju ({count})",
+      "few": "Teksty tego rodzaju ({count})",
+      "many": "Teksty tego rodzaju ({count})",
+      "other": "Teksty tego rodzaju ({count})"
+    },
+    "noTexts": "Nie ma jeszcze tekstów tego rodzaju.",
+    "addText": "+ Tekst tego rodzaju",
+    "noFields": "Rodzaj „{name}” nie ma jeszcze własnych pól.",
+    "coreField": "stałe pole tekstu „{label}”",
+    "yes": "tak",
+    "no": "nie"
+  },
+  "tools": {
+    "sample": "tekst",
+    "toolbar": "Wstawianie",
+    "bold": "Pogrubienie",
+    "italic": "Kursywa",
+    "heading": "Śródtytuł",
+    "blockquote": "Wcięty cytat",
+    "list": "Lista",
+    "listButton": "• Lista",
+    "footnoteTitle": "Własny przypis",
+    "footnote": "Przypis",
+    "quoteFailed": "Nie udało się zapisać cytatu.",
+    "insertSource": "Wstaw źródło",
+    "insertQuote": "Wstaw cytat",
+    "insertSourceTitle": "Wstaw odwołanie do źródła",
+    "insertQuoteTitle": "Wstaw cytat z biblioteki",
+    "saveSelection": "Zapisz zaznaczony fragment jako nowy cytat…",
+    "source": "Źródło",
+    "place": "Miejsce",
+    "placePlaceholder": "s. 23 · J 3,16",
+    "saveQuote": "Zapisz cytat i wstaw",
+    "searchSource": "Szukaj źródła, cytatu, tekstu…",
+    "searchQuote": "Szukaj cytatu…",
+    "quoteLine": "„{text}” — {origin}",
+    "nothingFound": "Nic nie znaleziono — dodaj źródło w zakładce „Źródła”.",
+    "locator": "Miejsce (strona, werset, numer) — można pominąć",
+    "locatorBible": "J 3,16",
+    "locatorPage": "s. 23",
+    "insert": "Wstaw {mark}",
+    "otherSource": "Inne źródło"
+  },
+  "lens": {
+    "noCreate": "Wpisy bazy wiedzy dodaje się w Wiedzy — tu można je tylko wskazać."
+  },
+  "count": {
+    "entries": {
+      "one": "{count} wpis",
+      "few": "{count} wpisy",
+      "many": "{count} wpisów",
+      "other": "{count} wpisu"
+    },
+    "words": {
+      "one": "{count} słowo",
+      "few": "{count} słowa",
+      "many": "{count} słów",
+      "other": "{count} słowa"
+    },
+    "wordsOf": {
+      "one": "{count} słowo z {target}",
+      "few": "{count} słowa z {target}",
+      "many": "{count} słów z {target}",
+      "other": "{count} słowa z {target}"
+    },
+    "texts": {
+      "one": "{count} tekst",
+      "few": "{count} teksty",
+      "many": "{count} tekstów",
+      "other": "{count} tekstu"
+    },
+    "fields": {
+      "one": "{count} pole",
+      "few": "{count} pola",
+      "many": "{count} pól",
+      "other": "{count} pola"
+    }
+  },
+  "view": {
+    "noKey": "Bez klucza w tej karcie skryptorium jest zamknięte — zaloguj się ponownie albo odblokuj klucz.",
+    "loadFailed": "Nie udało się wczytać skryptoriów.",
+    "isKnowledge": "To jest baza wiedzy — jest w Wiedzy.",
+    "isLibrary": "To jest biblioteka (źródła).",
+    "openIt": "Otwórz ją",
+    "missing": "Tego skryptorium nie ma albo nie masz do niego klucza.",
+    "all": "Wszystkie skryptoria",
+    "defaultName": "Skryptorium",
+    "createFailed": "Nie udało się założyć skryptorium.",
+    "onlyYou": "tylko Ty",
+    "area": "obszar",
+    "title": "Skryptorium",
+    "lede": "Miejsce pisania: kazania, konferencje, rozważania i rozdziały — z planem, treścią i przypisami — ich wygłoszenia (co powiedziano, co pominięto)\n        i projekty (książka, cykl). Teksty cytują źródła z Biblioteki i mogą wskazywać wpisy z Nauki — np. tajemnicę różańca, o której jest kazanie.\n        Własne rodzaje tekstów (np. „Kazanie maryjne”) dodają tekstom pola. Każdy obszar ma co najwyżej jedno skryptorium: czytają i uzupełniają je\n        wszyscy z kluczem obszaru, a gdy obszar jest publiczny — czyta każdy. Tekst staje się publiczny, gdy przeniesiesz go do skryptorium obszaru publicznego.",
+    "rowMeta": "{entries} · {area} · widzą: {audience}",
+    "readOnlySuffix": " · tylko do czytania",
+    "createFirst": "Załóż skryptorium",
+    "createAnother": "Nowe skryptorium",
+    "namePlaceholder": "np. Kazania i konferencje",
+    "whoSees": "Kto je widzi",
+    "onlyMeNew": "Tylko ja (utworzy się prywatny obszar)",
+    "onlyMe": "Tylko ja",
+    "publicWarn": "Obszar „{name}” jest publiczny: wszystko w tym skryptorium przeczyta każdy, także bez konta.",
+    "creating": "Zakładanie…",
+    "create": "Załóż",
+    "opening": "Otwieranie skryptorium…",
+    "unreadable": "Zapieczętowane kluczem, którego nie masz: {entries}.",
+    "tabs": "Działy skryptorium",
+    "tabJson": "Import / eksport",
+    "tabOld": "Stare wpisy",
+    "oldWhere": "Źródła (dzieła, cytaty, osoby) są w Bibliotece, komentarze to rodzaj w Nauce.",
+    "searchKind": "Szukaj: {kind}",
+    "textType": "Rodzaj tekstu",
+    "allTypes": "wszystkie rodzaje",
+    "noType": "bez rodzaju",
+    "noneOfKind": "Nie ma jeszcze żadnego wpisu tego rodzaju.",
+    "noMatch": "Nic nie pasuje.",
+    "json": {
+      "what": "Co eksportować",
+      "summary": "JSON skryptorium — eksport i import",
+      "lead": "Teksty, wygłoszenia, projekty i rodzaje tekstów jako jeden dokument — kopia zapasowa, przeniesienie, praca z AI. Import zmienia istniejące wpisy w miejscu i dodaje nowe; niczego nie usuwa.",
+      "import": "Importuj i zapisz",
+      "readOnly": "W tym skryptorium możesz tylko czytać.",
+      "saving": "Zapisywanie {n} z {total}…",
+      "saveWarning": "{kind} „{name}”: {reason}.",
+      "saveFailed": "nie udało się zapisać",
+      "saved": "Zapisano {n} z {total}."
+    },
+    "settings": {
+      "saveName": "Zapisz nazwę",
+      "whoSees": "Kto widzi",
+      "unknownArea": "nieznany",
+      "audience": "Obszar: {area}. Widzą: {audience}. Żeby tekst stał się publiczny (albo przestał), przenieś go do skryptorium innego obszaru — przy tekście, w ramce „Kto widzi”.",
+      "audienceReadOnly": "Obszar: {area}. Widzą: {audience} (Ty możesz tylko czytać). Żeby tekst stał się publiczny (albo przestał), przenieś go do skryptorium innego obszaru — przy tekście, w ramce „Kto widzi”.",
+      "delete": "Usuń skryptorium",
+      "deleteLead": "Usuwa wszystkie wpisy ({all}, w tym {texts}); strony, które je pokazywały, napiszą, że tekstu już nie ma. Tego nie da się cofnąć. Najpierw zrób eksport (Import / eksport).",
+      "deleteConfirm": "Wpisz nazwę skryptorium, żeby potwierdzić",
+      "deleteForever": "Usuń na zawsze"
+    }
+  }
+}

@@ -9,6 +9,7 @@
  * ein Feld dafür wäre eine Frage, deren Antwort schon dasteht.
  */
 
+import { t, useT } from '../../core/i18n';
 import { definePart, text, type RawConfig } from '../part';
 
 interface Config {
@@ -27,15 +28,15 @@ export const contactPart = definePart<Config>({
   kind: 'contact',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { address: 'ul. Przykładowa 1, 30-001 Kraków', phone: '+48 12 000 00 00', email: 'kancelaria@example.pl' },
-  label: 'Kontakt',
-  use: 'Adres, telefon, e-mail — numer da się kliknąć.',
+  example: { address: 'ul. Przykładowa 1, 30-001 Kraków', phone: '+48 12 000 00 00', email: 'kancelaria@example.pl' }, // i18n-ignore
+  label: 'moduleContent.contact.label',
+  use: 'moduleContent.contact.use',
   box: { colSpan: 2, rowSpan: 3 },
 
   fields: [
-    { key: 'address', label: 'Adres', kind: 'line', hint: 'ul. …, 00-000 Miasto' },
-    { key: 'phone', label: 'Telefon', kind: 'line' },
-    { key: 'email', label: 'E-mail', kind: 'line' }
+    { key: 'address', label: 'moduleContent.contact.address', kind: 'line', hint: 'moduleContent.contact.addressHint' },
+    { key: 'phone', label: 'moduleContent.contact.phone', kind: 'line' },
+    { key: 'email', label: 'moduleContent.contact.email', kind: 'line' }
   ],
 
   read,
@@ -48,18 +49,20 @@ export const contactPart = definePart<Config>({
    * hinaus.
    */
   shows: (_config, size) =>
-    size.height === 'strip' ? 'Adres, telefon i e-mail w jednym wierszu.'
+    size.height === 'strip' ? t('moduleContent.contact.showsStrip')
     : size.width === 'wide' || size.width === 'full'
-      ? `Adres, telefon i e-mail obok siebie${size.height === 'tall' ? ', z odnośnikiem do mapy' : ''}.`
-      : `Adres, telefon i e-mail jeden pod drugim${size.height === 'tall' ? ', z odnośnikiem do mapy' : ''}.`,
+      ? t(size.height === 'tall' ? 'moduleContent.contact.showsWideMap' : 'moduleContent.contact.showsWide')
+      : t(size.height === 'tall' ? 'moduleContent.contact.showsListMap' : 'moduleContent.contact.showsList'),
 
-  View: ({ config, ctx }) => (
+  View: function ContactView({ config, ctx }) {
+    const t = useT();
+    return (
     <>
-      <h2 className="wk-card-title">Kontakt</h2>
+      <h2 className="wk-card-title">{t('moduleContent.contact.title')}</h2>
       <ul className="wk-card-lines wk-contact">
         {config.address !== '' && (
           <li>
-            <span className="wk-contact-label">Adres</span>
+            <span className="wk-contact-label">{t('moduleContent.contact.address')}</span>
             <span>{config.address}</span>
             {ctx.size.height === 'tall' && (
               <a
@@ -68,7 +71,7 @@ export const contactPart = definePart<Config>({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Pokaż na mapie ↗
+                {t('moduleContent.contact.showMap')}
               </a>
             )}
           </li>
@@ -76,7 +79,7 @@ export const contactPart = definePart<Config>({
 
         {config.phone !== '' && (
           <li>
-            <span className="wk-contact-label">Telefon</span>
+            <span className="wk-contact-label">{t('moduleContent.contact.phone')}</span>
             <a className="wk-link" href={`tel:${config.phone.replace(/\s+/g, '')}`}>
               {config.phone}
             </a>
@@ -85,11 +88,12 @@ export const contactPart = definePart<Config>({
 
         {config.email !== '' && (
           <li>
-            <span className="wk-contact-label">E-mail</span>
+            <span className="wk-contact-label">{t('moduleContent.contact.email')}</span>
             <a className="wk-link" href={`mailto:${config.email}`}>{config.email}</a>
           </li>
         )}
       </ul>
     </>
-  )
+    );
+  }
 });

@@ -1,0 +1,258 @@
+{
+  "kind": {
+    "field": {
+      "label": "Field",
+      "says": "The values of one field — of this entry or of the entries coming in from the left."
+    },
+    "statementThesis": {
+      "label": "Thesis",
+      "says": "The first sentence of block content — the thesis (of this entry or of the entries coming in from the left; any kind with a “Block content” field)."
+    },
+    "statementPart": {
+      "label": "Content part",
+      "says": "Block number n (1, 2, …) of block content: a paragraph as text, a list — each point separately, a table — each row (“Lk 1:35 — Acts 1:8”). Empty: all paragraphs."
+    },
+    "statementTable": {
+      "label": "Table from content",
+      "says": "Table rows from block content as two sides: column A on the left, column B on the right (the same positions form a pair) — for “match pairs” or questions about a column."
+    },
+    "statementSubjects": {
+      "label": "What it is about",
+      "says": "The entries the statement's reference fields point to (e.g. “About”) — with the place (e.g. “Lk 1:35”)."
+    },
+    "media": {
+      "label": "Image or sound",
+      "says": "A file from a field — as a question: show the image, play the recording."
+    },
+    "follow": {
+      "label": "Through references",
+      "says": "Follows references step by step (e.g. author, then their birthplace) and gives the entries at the end of the path."
+    },
+    "list": {
+      "label": "List",
+      "says": "A fixed list typed in by the author — e.g. extra correct answers or your own distractors."
+    },
+    "entity": {
+      "label": "This entry",
+      "says": "The entry the card is made for — with its label."
+    },
+    "filter": {
+      "label": "Filter",
+      "says": "Splits entries by a field: those whose field has a value from “Compare with” (or typed in), and the others — e.g. words in this card's language and words in other languages. Without a field it compares the entries themselves."
+    },
+    "unique": {
+      "label": "No repeats",
+      "says": "Each entry (or text) only once — e.g. the languages of all words of a translation, each one once."
+    },
+    "entries": {
+      "label": "Entries of a kind",
+      "says": "Entries of the chosen kind — all of them, or those whose field has a value from “Where field has” (or typed in): words with the same spelling, translations with this word, words in a given language. Can skip this entry and take a few at random."
+    },
+    "pattern": {
+      "label": "Text pattern",
+      "says": "Builds a text from the inputs: “Who wrote {0}?”. Several values on one input are joined with a comma."
+    },
+    "mask": {
+      "label": "Mask",
+      "says": "Hides part of a text: the end, the beginning or random words. Gives the text with a gap, the hidden part and the whole."
+    },
+    "fragments": {
+      "label": "Quote fragments",
+      "says": "Splits a quote into pieces (7–13 characters) and arranges them in a tree: first the pieces, then what they make together. Connect “For each value”."
+    },
+    "pick": {
+      "label": "Pick one",
+      "says": "Takes one value from a list (random, first or last) and gives it and the rest separately."
+    },
+    "distractors": {
+      "label": "Distractors",
+      "says": "Wrong answers to choose from: the same field of other entries of this kind, only from the current set, the author's list, or the values closest to the correct one."
+    },
+    "each": {
+      "label": "For each value",
+      "says": "Makes a separate card for each value from the left — each translation, each fragment of a quote."
+    },
+    "pairs": {
+      "label": "Pairs",
+      "says": "A pair from each entry: the field values matching the left side and those matching the right (without a right side: all the others) — e.g. from each translation the English and the Polish word. An entry without one of the sides is dropped."
+    },
+    "pairsFields": {
+      "label": "Pairs from two fields",
+      "says": "A pair from each entry: the field on the left (e.g. a text fragment) and the field on the right (empty: the entry's thesis) — for “match pairs”, e.g. five fragments of one work and their five theses. An entry without one of the sides is dropped."
+    },
+    "random": {
+      "label": "Random value",
+      "says": "Draws a number from a range (with a step) or one item from a list (typed here or coming from the left) — one template gives a different question every time (a “random” card: its history does not start over with each draw). “How many” > 1: that many different ones (no repeats) — e.g. 4 entries to put in order."
+    },
+    "math": {
+      "label": "Operation",
+      "says": "Calculates: addition, subtraction, multiplication, division, power, logarithm, rounding, remainder."
+    },
+    "calc": {
+      "label": "Calculate",
+      "says": "Calculates expressions in the drawing language — e.g. p0 * p1, mod(p0, 7), round(p0 / 3, 2), sqrt(p0), fmt(p0, 2) — each on its own line or after “;”, each gives one value (e.g. distractors “p0 + 1; p0 - 1; p0 * 2” for “Answer: single choice”). p0, p1, … are the first number of an input, n0, n1, … — how many values came, l0, l1, … — all values of the input as a list (entries as entries: sum(l0, it.masa), map(l0, it.label)). A result that is a list gives several values; a result that is not a number (division by zero) is dropped; when an input an expression uses gave no number, or no expression gave anything — the step fails and no card is made from this entry."
+    },
+    "generate": {
+      "label": "Generator",
+      "says": "Draws a task: numbers from ranges (\"params\": [{\"name\": \"s\", \"random\": [20, 500], \"step\": 10}]), items from lists ({\"name\": \"f\", \"values\": [\"sin\", \"cos\"]}), entries from the base ({\"name\": \"kation\", \"entry\": {\"kind\": \"@chem/jon\", \"where\": \"it.ladunek > 0\"}}, several different ones: \"entries\" with \"count\"), calculates values (\"let\": [{\"name\": \"v\", \"value\": \"s / t\"}]) and checks conditions (\"require\": [\"isint(v)\"] — draws again, at most 60 times); \"texts\": [{\"name\": \"pytanie\", \"value\": \"What is {a} + {b}?\"}] — texts with values. In expressions \"this\" is this card's entry (this.pole); \"only\": \"this.ladunek > 0\" — only such entries of the kind get a card (others without a warning). Each name has its own output. When the task cannot be drawn, no card is made from this entry — with the reason in the preview."
+    },
+    "aggregate": {
+      "label": "Aggregate",
+      "says": "Combines many values into one: sum, how many there are, smallest, largest, average — e.g. the sum of protons of a compound's components (a number field read through a reference to many entries: the same component twice counts twice). “Count” counts every value, also non-numeric ones (0 when nothing came); the others only numbers — without any number they give nothing, and no card is made from this entry."
+    },
+    "compare": {
+      "label": "Comparison",
+      "says": "True or false from comparing two numbers or dates: “born before …?”."
+    },
+    "when": {
+      "label": "Condition",
+      "says": "The card is made only when the condition holds — e.g. when the field is filled in."
+    },
+    "python": {
+      "label": "Python",
+      "says": "Calculates in Python, in the browser (Pyodide): the function run(*inputs) returns a value or a list of values."
+    },
+    "prompt": {
+      "label": "Question",
+      "says": "What the learner sees: texts, images, recordings — in the order of the connections from top to bottom."
+    },
+    "answerText": {
+      "label": "Answer: text",
+      "says": "The learner types a text. The first value is the model answer; the next ones and “other correct” count too."
+    },
+    "answerGap": {
+      "label": "Answer: gap in a quote",
+      "says": "The learner fills in a gap. Takes the text with a gap and the hidden part (from a mask) or a quote fragment."
+    },
+    "answerNumber": {
+      "label": "Answer: number",
+      "says": "The learner types a number; tolerance absolute or in percent, a unit to type beside it; with a quantity (e.g. torque) the answer's unit counts: another unit of the same quantity is converted, a unit of another quantity is an error."
+    },
+    "answerDate": {
+      "label": "Answer: date",
+      "says": "The learner types a date with the required precision (year, month, day); tolerance in these units."
+    },
+    "answerOne": {
+      "label": "Answer: single choice",
+      "says": "The learner picks one answer from the correct one and the distractors, in random order."
+    },
+    "answerMany": {
+      "label": "Answer: multiple choice",
+      "says": "The learner marks all correct ones among the correct ones and the distractors."
+    },
+    "answerTruefalse": {
+      "label": "Answer: true or false",
+      "says": "The learner says “true” or “false”; the value comes e.g. from a comparison."
+    },
+    "answerOrder": {
+      "label": "Answer: order",
+      "says": "The learner puts the items in order — the order in which they come in."
+    },
+    "answerMatch": {
+      "label": "Answer: match pairs",
+      "says": "The learner joins pairs: items on the left with items on the right (the same positions on the lists form a pair)."
+    },
+    "answerFlash": {
+      "label": "Answer: flashcard",
+      "says": "The learner turns the card over and rates themselves: knew it, partly, didn't know."
+    },
+    "answerCode": {
+      "label": "Answer: code (Python)",
+      "says": "The learner writes a function in Python; Pyodide checks it in the browser on random cases."
+    },
+    "answerPoint": {
+      "label": "Answer: point",
+      "says": "The learner points to a place on a map (from a “place” field) or a point on an image."
+    },
+    "card": {
+      "label": "Card",
+      "says": "Assembles a card: question, answer and (after answering) an explanation from the connected entries. For generator tasks: “Hints” (texts, from gentle to specific) and “Solution” (a text with the drawn values and intermediate results — after answering)."
+    }
+  },
+  "group": {
+    "data": "Data",
+    "statement": "Statement",
+    "text": "Text",
+    "choice": "Choice",
+    "numbers": "Numbers",
+    "card": "Card",
+    "answer": "Answer"
+  },
+  "port": {
+    "fromEntries": "From entries",
+    "result": "Result",
+    "entries": "Entries",
+    "values": "Values",
+    "correctOne": "Correct",
+    "rightSide": "Right side",
+    "leftSide": "Left side",
+    "distractors": "Distractors",
+    "hidden": "Hidden",
+    "value": "Value",
+    "text": "Text",
+    "question": "Question",
+    "trueFalse": "True / false",
+    "correctMany": "Correct",
+    "answer": "Answer",
+    "parts": "Parts",
+    "withGap": "With gap",
+    "fromList": "From list",
+    "explanation": "Explanation",
+    "chosen": "Chosen",
+    "entry": "Entry",
+    "inOrder": "In the right order",
+    "thesis": "Thesis",
+    "textWithGap": "Text with gap",
+    "solution": "Solution",
+    "rest": "Rest",
+    "rightLike": "Right: compare with",
+    "items": "Items",
+    "others": "Others",
+    "compareWith": "Compare with",
+    "hints": "Hints",
+    "files": "Files",
+    "matching": "Matching",
+    "startEntries": "From entries",
+    "place": "Place",
+    "list": "List",
+    "authorList": "Author's list",
+    "numbers": "Numbers",
+    "number": "Number",
+    "leftLike": "Left: compare with",
+    "columnB": "Column B",
+    "columnA": "Column A",
+    "eachOnce": "Each once",
+    "card": "Card",
+    "otherCorrect": "Other correct",
+    "whereField": "Where field has",
+    "fragments": "Fragments",
+    "fragment": "Fragment",
+    "back": "Back",
+    "onward": "Onward",
+    "quote": "Quote",
+    "whole": "Whole",
+    "inputN": "input {n}"
+  },
+  "error": {
+    "filterNothing": "The filter has nothing to compare with: connect “Compare with” or type a value.",
+    "entriesNothing": "“Entries of a kind” with a field have nothing to compare with: connect “Where field has” or type a value.",
+    "pairsFields": "Pairs need a field with the values (e.g. words) and a field to split them by (e.g. language).",
+    "pairsLeft": "Pairs don't know what goes on the left: connect “Left: compare with” or type a value.",
+    "randomItems": "“Random value”: {count} different items needed, there are {have}.",
+    "randomRange": "“Random value”: the range has only {have} numbers, but {count} different ones are needed.",
+    "cannotCompute": "This cannot be calculated (no number or division by zero).",
+    "calcEmpty": "“Calculate” has no expression — type e.g. p0 + 1.",
+    "inputNoNumber": "Input {inputs} gave no number (empty field?).",
+    "tooMuch": "“{source}”: too many calculations.",
+    "noExprNumber": "No expression gave a number (e.g. division by zero).",
+    "onlyFor": "Generator, “only for” — “{only}”: {error}.",
+    "generatorEmpty": "The generator has nothing to draw — add \"params\", \"let\" or \"texts\".",
+    "noTask": "The task could not be drawn.",
+    "compareNeeds": "A comparison needs two numbers or dates.",
+    "noPython": "Python is not available here."
+  },
+  "value": {
+    "true": "true",
+    "false": "false"
+  }
+}

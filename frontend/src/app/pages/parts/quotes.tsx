@@ -11,6 +11,7 @@
  * Vollbild die Sammlung mit Suche und Themen.
  */
 
+import { t } from '../../core/i18n';
 import { definePart, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
 
@@ -27,26 +28,26 @@ export const quotesPart = definePart<QuotesConfig>({
   kind: 'quotes',
 
   /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
-  example: { title: 'Myśl dnia', library: '<id-biblioteki>', work: '<id-dzieła albo puste>' },
-  label: 'Zbiór cytatów',
-  use: 'Cytaty z Biblioteki — ze źródłem (widzi je ten, kto widzi obszar biblioteki); mały kafelek pokazuje „myśl dnia”, duży — zbiór z wyszukiwaniem i wyborem źródła.',
+  example: { title: 'Myśl dnia', library: '<id-biblioteki>', work: '<id-dzieła albo puste>' }, // i18n-ignore
+  label: 'moduleContent.quotes.label',
+  use: 'moduleContent.quotes.use',
   box: { colSpan: 3, rowSpan: 3 },
 
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Myśl dnia' },
-    { key: 'library', label: 'Z której biblioteki', kind: 'library' },
-    { key: 'work', label: 'Tylko ze źródła', kind: 'libraryEntry', of: 'library', entryKinds: ['work'], optional: true }
+    { key: 'title', label: 'moduleContent.quotes.title', kind: 'line', hint: 'moduleContent.quotes.titleHint' },
+    { key: 'library', label: 'moduleContent.quotes.library', kind: 'library' },
+    { key: 'work', label: 'moduleContent.quotes.work', kind: 'libraryEntry', of: 'library', entryKinds: ['work'], optional: true }
   ],
 
   read: (raw: RawConfig): QuotesConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), work: text(raw, 'work') }),
 
   hasContent: (c) => c.library !== '',
-  missing: (c) => (c.library === '' ? 'Wybierz bibliotekę.' : null),
+  missing: (c) => (c.library === '' ? t('moduleContent.quotes.missing') : null),
 
   fullscreen: true,
-  shows: (_c, size) => size.height === 'tall' ? 'Zbiór cytatów z wyszukiwaniem i wyborem źródła.'
-    : size.width === 'wide' || size.width === 'full' ? 'Dwa cytaty dnia — co dzień inne.'
-    : 'Cytat dnia — co dzień inny.',
+  shows: (_c, size) => size.height === 'tall' ? t('moduleContent.quotes.showsTall')
+    : size.width === 'wide' || size.width === 'full' ? t('moduleContent.quotes.showsWide')
+    : t('moduleContent.quotes.showsOne'),
 
   View: ({ config, ctx }) => (
     <QuotesCard library={config.library} title={config.title} work={config.work} size={ctx.size} whole={ctx.whole === true} />

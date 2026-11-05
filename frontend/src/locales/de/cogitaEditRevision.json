@@ -1,0 +1,179 @@
+{
+  "revision": "Wiederholung",
+  "listHead": "— Wiederholungen ({n}) —",
+  "fromOrigin": " · aus: {name}",
+  "intro": "Eine Wiederholung wählt Karten (alle, aus einer Art, einer Sammlung, einer Liste oder einer Ansicht), kann sie eingrenzen — auch danach, was du schon kannst (z. B. Einzelheiten erst, wenn das Allgemeine bekannt ist) — und fragt auf die gewählte Art, in der gewählten Reihenfolge.",
+  "new": "+ Neue Wiederholung",
+  "mode": "Art",
+  "from": "Woraus",
+  "fromAll": "alle Karten",
+  "fromKind": "Art",
+  "fromCollection": "Sammlung",
+  "fromView": "Ansicht (Art der Darstellung)",
+  "view": "Ansicht",
+  "kind": {
+    "sourceAll": {
+      "label": "Alle Karten",
+      "says": "Jede Karte dieser Wissensbasis (und der Basen, die sie nutzt)."
+    },
+    "sourceKind": {
+      "label": "Art",
+      "says": "Karten der Einträge einer Art — auch aus einer Bibliothek, die diese Basis nutzt (z. B. Zitate); „Woher“ grenzt auf eine Bibliothek oder Basis ein."
+    },
+    "sourceCollection": {
+      "label": "Sammlung",
+      "says": "Karten der Einträge einer gespeicherten Sammlung — eines Filters oder einer Liste."
+    },
+    "sourceList": {
+      "label": "Liste",
+      "says": "Karten ausgewählter Einträge oder Fragen."
+    },
+    "sourceView": {
+      "label": "Ansicht",
+      "says": "Karten der Einträge, die eine gespeicherte Darstellung (eine Ansicht) zeigt — sie entscheidet, was in Frage kommt, die Wiederholung wählt daraus. Ihre Kenntnisfilter am Ende werden während der Wiederholung geprüft, bei jeder Karte."
+    },
+    "filter": {
+      "label": "Filter",
+      "says": "Behält die Karten gewählter Vorlagen, Richtungen, Antwortformen, Stände (noch nicht / im Lernen / kann ich) oder nur die fälligen."
+    },
+    "sample": {
+      "label": "Stichprobe aus jedem Thema",
+      "says": "Behält aus jedem Thema ein paar zufällige Karten (\"perTopic\", standardmäßig 2) — eine Stichprobe; jeden Tag eine andere."
+    },
+    "union": {
+      "label": "Zusammen",
+      "says": "Verbindet mehrere Quellen zu einem Stapel, ohne Wiederholungen."
+    },
+    "strategy": {
+      "label": "Art des Fragens",
+      "says": "Wie fragen: eine bestimmte Zahl zufällig, den ganzen Stapel einmal, in Stufen oder nach dem, was ich schon kann — in welcher Reihenfolge (zuerst das Allgemeine, wie im Text, nach Datum, zufällig, wie sie kommen, zuerst das Überfällige) und wie aus dem Stapel wählen (streng die nächste oder zufällig, schwächere öfter)."
+    },
+    "sourceFrom": {
+      "says": "{step} Gibt die Karten dieser Einträge."
+    },
+    "through": {
+      "says": "{step} Gibt die Karten jener Einträge."
+    },
+    "learning": {
+      "says": "{step} Gibt die Karten jener Einträge; „Auch die Ausgangseinträge behalten“ fügt sie zu den Karten hinzu, von denen er ausging (z. B. beginnt eine Wiederholung über Orbitale beim Atom)."
+    },
+    "filterRule": {
+      "label": "Eintragsfilter",
+      "says": "{step} Die Karten dieser Einträge bleiben."
+    },
+    "filterWhen": {
+      "says": "{step} In der Wiederholung wird es laufend geprüft, bei jeder Karte: was vorher wartete, kommt hinzu, sobald die Bedingung gilt; eine Karte, die schon im Stapel ist, bleibt."
+    }
+  },
+  "whichLibrary": "Aus welcher Bibliothek",
+  "allSources": "aus allen Quellen",
+  "noTemplate": "Aus dieser Art entstehen noch keine Karten — füge unter „Karten“ eine Vorlage für sie hinzu (z. B. „Lücken im Zitat“).",
+  "summary": "Kurzbeschreibung",
+  "run": "Wiederholen",
+  "migrated": "Diese Wiederholung hatte einen Schritt „Zuerst die Grundlagen“ — jetzt sind das gewöhnliche Schritte: „Der Lernreihenfolge folgen“, „Kenntnisfilter“ und die Reihenfolge „zuerst das Allgemeine“. Sie wirkt genauso; speichere sie, damit sie in der neuen Form bleibt.",
+  "counting": "Karten werden gezählt…",
+  "previewFailed": "Die Vorschau ist misslungen.",
+  "cards": {
+    "one": "{count} Karte",
+    "other": "{count} Karten"
+  },
+  "withCondition": "{n} mit Kenntnisbedingung",
+  "storage": "Wo die Antworten gespeichert werden (für diese Wiederholung)",
+  "storageHint": "Ein Baustein auf einer Seite (Kurs, Gruppe) kann einen eigenen Bereich angeben — dann gehen sie dorthin. Ohne ihn: der hier gewählte Bereich, dann der aus den Einstellungen der Basis, und ohne sie bleiben sie beim Lernenden. Den Fortschritt sieht, wer den gewählten Bereich leitet; ein Lernender, der ihn nicht liest, behält die Antworten für sich.",
+  "storageArea": "Bereich für die Antworten dieser Wiederholung",
+  "asInBase": "wie in der Wissensbasis",
+  "save": "Wiederholung speichern",
+  "offlineOff": "Nicht offline behalten",
+  "offlineOn": "Auf Geräten ohne Internet behalten",
+  "askDelete": "Die Wiederholung löschen? Die Antworten bleiben.",
+  "next": "Nächste Lektion",
+  "noNext": "— keine nächste —",
+  "missingNext": "(keine solche Wiederholung: {value})",
+  "page": "Seite mit dieser Wiederholung",
+  "pageHint": "Darauf wiederholen die, die diese Wissensbasis lesen können (siehe „Wer sieht“ oben) — ohne Konto bleibt der Fortschritt in ihrem Browser.",
+  "whosePage": "Wessen Seite",
+  "role": "Rolle",
+  "pageReady": "Seite fertig: {url} (kopiert).",
+  "makePage": "Seite mit dieser Wiederholung erstellen",
+  "daily": "Tägliche Wiederholung in den Aufgaben",
+  "atTime": "Um wie viel Uhr",
+  "taskTitle": "Wiederholung: {name}",
+  "taskAdded": "Eine tägliche Aufgabe mit Link zur Wiederholung wurde hinzugefügt.",
+  "addTask": "Zu meinen Aufgaben hinzufügen",
+  "group": {
+    "sources": "Quellen",
+    "narrow": "Eingrenzung",
+    "mode": "Art"
+  },
+  "port": {
+    "cards": "Karten",
+    "plan": "Plan"
+  },
+  "error": {
+    "noCollection": "Diese Sammlung gibt es nicht.",
+    "noView": "Diese Ansicht gibt es nicht.",
+    "noStrategy": "Die Wiederholung hat keinen Schritt „Art des Fragens“.",
+    "oneStrategy": "Eine Wiederholung kann nur eine „Art des Fragens“ haben.",
+    "noPlan": "Die Wiederholung hat keinen Plan ergeben."
+  },
+  "modeLabel": {
+    "random": "Zufällig, eine bestimmte Zahl",
+    "once": "Der ganze Stapel, jede einmal",
+    "levels": "Stufen",
+    "temporal": "Nach dem, was ich kann"
+  },
+  "orderLabel": {
+    "general": "zuerst das Allgemeine, dann Einzelheiten",
+    "text": "wie im Text der Quelle",
+    "date": "nach Datum",
+    "random": "zufällig",
+    "given": "wie sie kommen",
+    "due": "zuerst das Überfällige"
+  },
+  "pickLabel": {
+    "next": "streng die nächste",
+    "weighted": "zufällig, weniger bekannte und länger wartende öfter",
+    "sample": "Stichprobe: aus jedem Thema ein paar zufällige Karten"
+  },
+  "span": {
+    "min": "{n} Min.",
+    "h": "{n} Std.",
+    "days": "{n} Tage"
+  },
+  "orderWhy": {
+    "general": "zuerst das Allgemeine, dann Einzelheiten",
+    "text": "in der Reihenfolge des Quelltextes",
+    "date": "nach Datum",
+    "random": "in zufälliger Reihenfolge",
+    "given": "in der Reihenfolge der Auswahl der Wiederholung",
+    "due": "zuerst die fälligen"
+  },
+  "why": {
+    "levelBasics": " · Stufe 1 (Grundlagen)",
+    "level": " · Stufe {n}",
+    "queue": "Nächste Karte{level}",
+    "fresh": "Neue Karte{level}",
+    "again": "Noch einmal — sie war eben falsch",
+    "missed": "Zuletzt war sie falsch — noch einmal",
+    "forgotten": "Vergessen — lange nicht wiederholt (Kenntnis {pct})",
+    "ahead": "Auf Vorrat — du kannst sie (Kenntnis {pct}), diese am schwächsten",
+    "spacer": "Eine Pause — etwas, das du kannst, bevor jene Frage zurückkommt",
+    "due": "Zeit zur Wiederholung (Kenntnis {pct})"
+  },
+  "whyDetail": {
+    "levelBasics": " (Stufe 1 — Grundlagen)",
+    "level": " (Stufe {n})",
+    "pickWeighted": " Zufällig aus {n} im Stapel gewählt — öfter das, was du schwächer kannst und was länger wartet.",
+    "pickNext": " Die nächste von {n} im Stapel.",
+    "late": "; die Wiederholung war vor {span} fällig",
+    "queue": "Nächste Karte — {order}{level}.",
+    "fresh": "Neue Karte (unbekannt) — {order}{level}. Neue kommen, wenn nichts auf Wiederholung wartet.{pick}",
+    "again": "Sie kommt zurück, weil sie eben falsch war — sie bleibt im Stapel, bis du ganz gut antwortest.{pick}",
+    "missed": "Unbekannt: beim letzten Mal war sie falsch. Sie kommt zusammen mit neuen, wenn nichts auf Wiederholung wartet.{pick}",
+    "forgotten": "Unbekannt: die Kenntnis ist auf {pct} gesunken{late}. Sie kommt zusammen mit neuen, wenn nichts auf Wiederholung wartet.{pick}",
+    "ahead": "Bekannt ({pct}) — nichts wartet auf Wiederholung und nichts ist neu, also nimmt der Stapel das, was du am schwächsten kannst.{pick}",
+    "spacer": "Eine Pause: übrig ist nur die Frage mit der falschen Antwort — bevor sie zurückkommt, eine, die du kannst. Eine gute Antwort ändert nichts, eine falsche — wie jede.",
+    "due": "Zur Wiederholung: Kenntnis {pct}{late}. Zuerst das, was du am schwächsten kannst.{pick}"
+  },
+  "kindPick": "Art"
+}

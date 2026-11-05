@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 import { askText, toast } from '../ui/dialogs';
 import { typedValue } from './addForm';
 import { fieldsOf, valuesOf, type Entity, type FieldDef } from './schema';
@@ -61,6 +61,7 @@ export function SelectionBar({ ids, total, onAll, onClear, onKept }: {
   /** Nach dem Löschen: was übrig bleibt, bleibt gewählt. */
   onKept: (kept: ReadonlySet<string>) => void;
 }) {
+  const t = useT();
   const { lib, writes, me } = useCtx();
   const { busy, failed, run } = useBusy();
   const [open, setOpen] = useState<'field' | 'collection' | null>(null);
@@ -74,13 +75,13 @@ export function SelectionBar({ ids, total, onAll, onClear, onKept }: {
     const pointing = new Set(own.flatMap((e) => lib.backlinks(e.id).map((b) => b.from)).filter((id) => !gone.has(id)));
     const foreign = n - own.length;
     /* 2026-11-05 (Prompt 24) — was andere Bazy darauf zeigen lassen ("@@…"): gesucht, solange es noch da ist; blockiert nichts. */
-    if (me !== null && own.length > 0) setProgress('Sprawdzanie linków z innych światów…');
+    if (me !== null && own.length > 0) setProgress(t('cogitaViews.sel.checkingLinks'));
     const outside = me === null || own.length === 0 ? '' : incomingText(await incomingLinksFor(me, lib, gone).catch(() => []));
     setProgress(null);
     const asked = [
-      `Usunąć ${own.length} ${plural(own.length, 'wpis', 'wpisy', 'wpisów')}?`,
-      pointing.size > 0 ? `${pointing.size} ${plural(pointing.size, 'inny wpis odwołuje', 'inne wpisy odwołują', 'innych wpisów odwołuje')} się do nich (np. tłumaczenie do słowa) — te odwołania zostaną puste.` : '',
-      foreign > 0 ? `${foreign} ${plural(foreign, 'pochodzi', 'pochodzą', 'pochodzi')} z innych baz wiedzy — te zostaną.` : '',
+      t('cogitaViews.sel.removeAsk', { count: own.length }),
+      pointing.size > 0 ? t('cogitaViews.sel.pointing', { count: pointing.size }) : '',
+      foreign > 0 ? t('cogitaViews.sel.foreign', { count: foreign }) : '',
       outside
     ].filter(Boolean).join(' ');
     if (own.length === 0 || !(await askText(asked))) return;
@@ -88,24 +89,24 @@ export function SelectionBar({ ids, total, onAll, onClear, onKept }: {
     for (const e of own) {
       await lib.remove(e.id);
       done += 1;
-      setProgress(`Usuwanie… ${done} z ${own.length}`);
+      setProgress(t('cogitaViews.sel.removing', { done, total: own.length }));
     }
     setProgress(null);
-    toast(`Usunięto ${done} ${plural(done, 'wpis', 'wpisy', 'wpisów')}.`);
+    toast(t('cogitaViews.sel.removed', { count: done }));
     onKept(new Set([...ids].filter((id) => !gone.has(id))));
   });
 
   return (
-    <div className="cg-select-bar" role="region" aria-label="Zaznaczone wpisy">
+    <div className="cg-select-bar" role="region" aria-label={t('cogitaViews.sel.region')}>
       <div className="cg-select-head">
-        <strong>Zaznaczone: {n}</strong>
-        {n < total && <button type="button" className="wk-link-btn" onClick={onAll}>Zaznacz wszystkie ({total})</button>}
-        <button type="button" className="wk-link-btn" onClick={onClear}>Odznacz</button>
+        <strong>{t('cogitaViews.sel.selected', { count: n })}</strong>
+        {n < total && <button type="button" className="wk-link-btn" onClick={onAll}>{t('cogitaViews.sel.selectAll', { count: total })}</button>}
+        <button type="button" className="wk-link-btn" onClick={onClear}>{t('cogitaViews.sel.unselect')}</button>
         {writes && (
           <span className="cg-row">
-            <button type="button" className={`wk-btn wk-btn-quiet${open === 'field' ? ' is-on' : ''}`} disabled={busy || own.length === 0} onClick={() => setOpen(open === 'field' ? null : 'field')}>Ustaw pole…</button>
-            <button type="button" className={`wk-btn wk-btn-quiet${open === 'collection' ? ' is-on' : ''}`} disabled={busy} onClick={() => setOpen(open === 'collection' ? null : 'collection')}>Do zbioru…</button>
-            <button type="button" className="wk-btn wk-btn-danger" disabled={busy || own.length === 0} onClick={() => void remove()}>Usuń ({own.length})</button>
+            <button type="button" className={`wk-btn wk-btn-quiet${open === 'field' ? ' is-on' : ''}`} disabled={busy || own.length === 0} onClick={() => setOpen(open === 'field' ? null : 'field')}>{t('cogitaViews.sel.setField')}</button>
+            <button type="button" className={`wk-btn wk-btn-quiet${open === 'collection' ? ' is-on' : ''}`} disabled={busy} onClick={() => setOpen(open === 'collection' ? null : 'collection')}>{t('cogitaViews.sel.toCollection')}</button>
+            <button type="button" className="wk-btn wk-btn-danger" disabled={busy || own.length === 0} onClick={() => void remove()}>{t('cogitaViews.sel.removeN', { count: own.length })}</button>
           </span>
         )}
       </div>
@@ -113,13 +114,14 @@ export function SelectionBar({ ids, total, onAll, onClear, onKept }: {
       {failed !== null && <p className="wk-error">{failed}</p>}
       {open === 'field' && <FieldAction own={own} onDone={() => setOpen(null)} />}
       {open === 'collection' && <CollectionAction ids={[...ids]} onDone={() => setOpen(null)} />}
-      {own.length < n && <p className="cg-muted">{n - own.length} z zaznaczonych pochodzi z innych baz wiedzy — tych nie da się tu zmienić ani usunąć.</p>}
+      {own.length < n && <p className="cg-muted">{t('cogitaViews.sel.foreignNote', { count: n - own.length })}</p>}
     </div>
   );
 }
 
 /** Ein Feld für alle Gewählten: setzen, hinzufügen, einen Wert entfernen, leeren. */
 function FieldAction({ own, onDone }: { own: readonly Entity[]; onDone: () => void }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   const { busy, failed, run } = useBusy();
   /* Die Felder, die die Gewählten haben — je Schlüssel einmal, mit der Zahl derer, die es haben. */
@@ -132,14 +134,14 @@ function FieldAction({ own, onDone }: { own: readonly Entity[]; onDone: () => vo
   const [text, setText] = useState('');
   const [ref, setRef] = useState<string | null>(null);
   const modes: [FieldMode, string][] = field?.multi === true
-    ? [['add', 'dodaj wartość'], ['set', 'zastąp wszystkie'], ['remove', 'usuń tę wartość'], ['clear', 'wyczyść pole']]
-    : [['set', 'ustaw'], ['clear', 'wyczyść pole']];
+    ? [['add', t('cogitaViews.sel.mode.add')], ['set', t('cogitaViews.sel.mode.replace')], ['remove', t('cogitaViews.sel.mode.remove')], ['clear', t('cogitaViews.sel.mode.clear')]]
+    : [['set', t('cogitaViews.sel.mode.set')], ['clear', t('cogitaViews.sel.mode.clear')]];
   const effective = modes.some(([m]) => m === mode) ? mode : modes[0][0];
 
   const valuesOfInput = (): unknown[] | string => {
-    if (field === undefined) return 'Wybierz pole.';
+    if (field === undefined) return t('cogitaViews.sel.pickField');
     if (effective === 'clear') return [];
-    if (field.type === 'ref') return ref === null ? 'Wybierz wpis.' : [ref];
+    if (field.type === 'ref') return ref === null ? t('cogitaViews.sel.pickEntry') : [ref];
     const parsed = typedValue(field, text);
     if ('error' in parsed) return parsed.error;
     return Array.isArray(parsed.value) && field.multi && field.type !== 'list' ? parsed.value : [parsed.value];
@@ -153,36 +155,36 @@ function FieldAction({ own, onDone }: { own: readonly Entity[]; onDone: () => vo
       const data = changedData(e, field!, effective, values);
       return data === null ? [] : [{ id: e.id, kinds: e.kinds, data }];
     });
-    if (changes.length === 0) { toast('Nic się nie zmienia.'); return; }
+    if (changes.length === 0) { toast(t('cogitaViews.sel.noChange')); return; }
     const done = await lib.saveMany(changes);
-    if (done.failed.length > 0) throw new Error(`Nie zapisano ${done.failed.length} z ${changes.length}: ${done.failed[0].error}`);
-    toast(`Zmieniono ${done.saved} ${plural(done.saved, 'wpis', 'wpisy', 'wpisów')}.`);
+    if (done.failed.length > 0) throw new Error(t('cogitaViews.sel.notSaved', { failed: done.failed.length, total: changes.length, error: done.failed[0].error }));
+    toast(t('cogitaViews.sel.changed', { count: done.saved }));
     onDone();
   });
 
-  if (list.length === 0) return <p className="cg-muted">Zaznaczone wpisy nie mają wspólnych pól.</p>;
+  if (list.length === 0) return <p className="cg-muted">{t('cogitaViews.sel.noCommon')}</p>;
   return (
     <div className="cg-select-action">
-      <label className="wk-field"><span>Pole</span>
+      <label className="wk-field"><span>{t('cogitaViews.sel.field')}</span>
         <select value={key} onChange={(e) => { setKey(e.target.value); setText(''); setRef(null); }}>
-          {list.map(({ field: f, count }) => <option key={f.key} value={f.key}>{f.label}{count < own.length ? ` (${count} z ${own.length})` : ''}</option>)}
+          {list.map(({ field: f, count }) => <option key={f.key} value={f.key}>{count < own.length ? t('cogitaViews.sel.fieldShare', { name: f.label, count, total: own.length }) : f.label}</option>)}
         </select>
       </label>
-      <label className="wk-field"><span>Co zrobić</span>
+      <label className="wk-field"><span>{t('cogitaViews.sel.whatToDo')}</span>
         <select value={effective} onChange={(e) => setMode(e.target.value as FieldMode)}>{modes.map(([m, label]) => <option key={m} value={m}>{label}</option>)}</select>
       </label>
       {field !== undefined && effective !== 'clear' && (field.type === 'ref'
-        ? <div className="wk-field"><span>Wartość</span><EntityPicker lib={lib} kinds={field.to} value={ref} onPick={setRef} {...creatorFor(lib, field.to, writes)} /></div>
+        ? <div className="wk-field"><span>{t('cogitaViews.sel.value')}</span><EntityPicker lib={lib} kinds={field.to} value={ref} onPick={setRef} {...creatorFor(lib, field.to, writes)} /></div>
         : field.type === 'choice'
           ? (
-            <label className="wk-field"><span>Wartość</span>
+            <label className="wk-field"><span>{t('cogitaViews.sel.value')}</span>
               <select value={text} onChange={(e) => setText(e.target.value)}><option value="">—</option>{(field.options ?? []).map((o) => <option key={o.value} value={o.label}>{o.label}</option>)}</select>
             </label>
           )
-          : <label className="wk-field"><span>Wartość</span><input value={text} onChange={(e) => setText(e.target.value)} placeholder={field.multi ? 'kilka: oddziel średnikiem' : undefined} /></label>)}
+          : <label className="wk-field"><span>{t('cogitaViews.sel.value')}</span><input value={text} onChange={(e) => setText(e.target.value)} placeholder={field.multi ? t('cogitaViews.sel.several') : undefined} /></label>)}
       <div className="cg-row">
-        <button type="button" className="wk-btn" disabled={busy} onClick={() => void apply()}>{busy ? 'Zapisywanie…' : `Zmień ${own.length} ${plural(own.length, 'wpis', 'wpisy', 'wpisów')}`}</button>
-        <button type="button" className="wk-link-btn" onClick={onDone}>Anuluj</button>
+        <button type="button" className="wk-btn" disabled={busy} onClick={() => void apply()}>{busy ? t('common.saving') : t('cogitaViews.sel.changeN', { count: own.length })}</button>
+        <button type="button" className="wk-link-btn" onClick={onDone}>{t('common.cancel')}</button>
       </div>
       {failed !== null && <p className="wk-error">{failed}</p>}
     </div>
@@ -191,6 +193,7 @@ function FieldAction({ own, onDone }: { own: readonly Entity[]; onDone: () => vo
 
 /** Die Gewählten in einen Zbiór — einen vorhandenen oder einen neuen. */
 function CollectionAction({ ids, onDone }: { ids: readonly string[]; onDone: () => void }) {
+  const t = useT();
   const { lib } = useCtx();
   const { busy, failed, run } = useBusy();
   const docs = lib.docs('collection').filter((e) => lib.isOwn(e.id));
@@ -199,27 +202,27 @@ function CollectionAction({ ids, onDone }: { ids: readonly string[]; onDone: () 
   const apply = () => run(async () => {
     const doc = docs.find((e) => e.id === target);
     if (doc === undefined) {
-      if (name.trim() === '') throw new Error('Podaj nazwę nowego zbioru.');
+      if (name.trim() === '') throw new Error(t('cogitaViews.sel.newCollectionName'));
       await lib.saveDoc('collection', { name: name.trim(), rule: null, list: [...ids] });
     } else {
       const had = Array.isArray(doc.data.list) ? doc.data.list.filter((x): x is string => typeof x === 'string') : [];
       await lib.saveDoc('collection', { ...doc.data, list: [...new Set([...had, ...ids])] }, doc.id);
     }
-    toast(`Dodano do zbioru: ${ids.length}.`);
+    toast(t('cogitaViews.sel.addedToCollection', { count: ids.length }));
     onDone();
   });
   return (
     <div className="cg-select-action">
-      <label className="wk-field"><span>Zbiór</span>
+      <label className="wk-field"><span>{t('cogitaViews.sel.collection')}</span>
         <select value={target} onChange={(e) => setTarget(e.target.value)}>
-          {docs.map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Zbiór'}</option>)}
-          <option value="">+ nowy zbiór…</option>
+          {docs.map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : t('cogitaViews.sel.collection')}</option>)}
+          <option value="">{t('cogitaViews.sel.newCollection')}</option>
         </select>
       </label>
-      {target === '' && <label className="wk-field"><span>Nazwa nowego zbioru</span><input value={name} onChange={(e) => setName(e.target.value)} /></label>}
+      {target === '' && <label className="wk-field"><span>{t('cogitaViews.sel.collectionName')}</span><input value={name} onChange={(e) => setName(e.target.value)} /></label>}
       <div className="cg-row">
-        <button type="button" className="wk-btn" disabled={busy} onClick={() => void apply()}>Dodaj {ids.length}</button>
-        <button type="button" className="wk-link-btn" onClick={onDone}>Anuluj</button>
+        <button type="button" className="wk-btn" disabled={busy} onClick={() => void apply()}>{t('cogitaViews.sel.addN', { count: ids.length })}</button>
+        <button type="button" className="wk-link-btn" onClick={onDone}>{t('common.cancel')}</button>
       </div>
       {failed !== null && <p className="wk-error">{failed}</p>}
     </div>

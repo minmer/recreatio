@@ -1,0 +1,22 @@
+{
+  "service": { "mass": "Messe", "confession": "Beichte", "devotion": "Andacht" },
+  "devotionNames": {
+    "rosary": "Rosenkranz",
+    "wayOfCross": "Kreuzweg",
+    "bitterLaments": "Bittere Klagen (Gorzkie Żale)",
+    "may": "Maiandacht",
+    "june": "Herz-Jesu-Andacht",
+    "october": "Rosenkranzandacht",
+    "adoration": "Anbetung des Allerheiligsten",
+    "chaplet": "Barmherzigkeitsrosenkranz",
+    "novena": "Novene zur Mutter von der Immerwährenden Hilfe",
+    "holyHour": "Heilige Stunde",
+    "jasnaGora": "Appell von Jasna Góra",
+    "vespers": "Vesper"
+  },
+  "intentions": { "one": "{count} Intention", "other": "{count} Intentionen" },
+  "kind": { "single": "einzeln", "collective": "gemeinsam" },
+  "status": { "accepted": "angenommen", "celebrated": "gefeiert", "cancelled": "zurückgezogen" },
+  "weekdayBit": { "mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So" },
+  "day": { "today": "heute", "tomorrow": "morgen", "todayFull": "heute, {date}", "tomorrowFull": "morgen, {date}" }
+}

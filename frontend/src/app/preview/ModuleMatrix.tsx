@@ -19,6 +19,7 @@ import { Folded } from '../pages/PageParts';
 import { partSize, SIZE_WORD } from '../pages/part';
 import { partOf } from '../pages/parts/registry';
 import { sizesFor } from './previewDoc';
+import { useT } from '../core/i18n';
 
 /** Das Raster der Seite, aber als Spalte von Zeilen: dieselbe Breite, dieselben Abstände. */
 const gridStyle = (columns: number): CSSProperties => ({ '--page-cols': columns, '--page-gap': '1rem', height: 'auto' } as CSSProperties);
@@ -36,13 +37,14 @@ function cardStyle(box: { colSpan: number; rowSpan: number }, columns: number, b
 }
 
 export function ModuleMatrix({ part, n }: { part: DraftPart; n: number }) {
+  const t = useT();
   const breakpoint = useBreakpoint();
   const columns = COLUMNS[breakpoint];
   const def = partOf(part.kind);
 
   return (
     <div className="pv-matrix" data-pv-matrix={part.kind} data-pv-breakpoint={breakpoint}>
-      <h1 className="wk-h1">M{n} · {def?.label ?? part.kind} — {breakpoint} ({columns} kolumny)</h1>
+      <h1 className="wk-h1">{t('preview.matrix.title', { n, label: def?.label ?? part.kind, breakpoint, count: columns })}</h1>
       {sizesFor(columns).map((box) => {
         const size = partSize(box);
         const folded = def !== undefined && def.strip !== null && size.height === 'strip';
@@ -51,7 +53,7 @@ export function ModuleMatrix({ part, n }: { part: DraftPart; n: number }) {
           <section key={`${box.colSpan}x${box.rowSpan}`} className="pv-cell" data-pv-cell={`${box.colSpan}x${box.rowSpan}`}>
             <p className="pv-cell-label">
               <b>{box.colSpan}×{box.rowSpan}</b> · {SIZE_WORD.width[size.width]} {SIZE_WORD.height[size.height]} ({size.width} · {size.height})
-              {folded ? ' · zwinięty' : ''} — {shows}
+              {folded ? ` · ${t('preview.matrix.folded')}` : ''} — {shows}
             </p>
             {/* Je Grösse ein eigenes Raster der Seite — die Kachel ist sein Kind, wie dort (dieselben Regeln gelten). */}
             <div className="wk-page-grid is-packed pv-cell-grid" style={gridStyle(columns)}>
@@ -63,7 +65,7 @@ export function ModuleMatrix({ part, n }: { part: DraftPart; n: number }) {
                 style={cardStyle(box, columns, breakpoint)}
               >
                 {def === undefined ? (
-                  <p className="wk-card-unknown">Moduł „{part.kind}" nie jest znany tej wersji strony.</p>
+                  <p className="wk-card-unknown">{t('preview.matrix.unknown', { kind: part.kind })}</p>
                 ) : folded ? (
                   <Folded def={def} raw={part.config} moduleId={part.moduleId ?? part.id} size={size} onOpen={() => undefined} />
                 ) : (

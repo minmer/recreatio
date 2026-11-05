@@ -1,0 +1,289 @@
+{
+  "keys": {
+    "doc": {
+      "format": "immer \"{format}\"",
+      "version": "{version} (Version des Formats)",
+      "buttons": "Tempo der Knöpfe: { \"pauseMs\" } (unten: Tempo); weggelassen — unverändert",
+      "lamps": "Geräte mit ihren Signalen (unten); weggelassen — unverändert",
+      "timers": "Timer (unten); weggelassen — unverändert"
+    },
+    "lamp": {
+      "id": "Kennung aus dem Export — mit ihr ändert der Import dasselbe Gerät; ohne sie (oder mit einer Kennung, die es hier nicht gibt, z. B. aus einem anderen Konto) entsteht ein neues",
+      "key": "ein kurzer Name, auf den die Aktionen der Timer in diesem Dokument zeigen (\"@schlüssel\"): Buchstaben, Ziffern, - _ . (bis 40 Zeichen), eindeutig — wird nicht gespeichert",
+      "name": "Name, z. B. „Lampe im Schlafzimmer” — Name oder Nummer sind Pflicht",
+      "number": "Gerätenummer als Text, z. B. \"3\" (ordnet die Knöpfe); null — ohne Nummer",
+      "room": "Raum, z. B. „Schlafzimmer”, oder null",
+      "note": "Notiz zum Protokoll (Hersteller, Adresse der Fernbedienung, was die Bytes bedeuten) oder null",
+      "protocol": "\"ble-adv\" — rohe BLE-Werbung (Legacy); das einzige Protokoll, kann weggelassen werden",
+      "signals": "Signale — die Knöpfe des Geräts (unten)",
+      "remove": "true — löscht das Gerät mit seinen Signalen (nur mit \"id\"); Timer, die sie nutzen, führen sie nicht mehr aus — die Liste der Änderungen warnt"
+    },
+    "signal": {
+      "id": "Kennung des Signals aus dem Export (innerhalb des Geräts) — mit ihr ändert der Import dasselbe Signal; ohne sie entsteht ein neues",
+      "key": "ein kurzer Name des Signals für Aktionen der Timer (\"@schlüssel\"), eindeutig im Gerät — wird nicht gespeichert",
+      "label": "Beschriftung des Knopfs, z. B. „An” (Pflicht)",
+      "note": "eine Notiz oder null",
+      "frames": "Frames, nacheinander gesendet, 1 bis {max} (unten); angegebene ersetzen alle Frames des Signals",
+      "remove": "true — löscht das Signal (nur mit \"id\")"
+    },
+    "frame": {
+      "hex": "das ganze BLE-Werbepaket hexadezimal, wie in nRF Connect: \"1EFF0000…\"; Leerzeichen, Doppelpunkte, Kommas und 0x entfernt der Import",
+      "durationMs": "wie lange senden, {min}–{max} ms (Standard {default})",
+      "gapMs": "Pause vor dem nächsten Frame, 0–{max} ms (Standard 0; nach dem letzten ohne Bedeutung)"
+    },
+    "timer": {
+      "id": "Kennung aus dem Export — mit ihr ändert der Import denselben Timer; ohne sie entsteht ein neuer",
+      "name": "Name, z. B. „Morgens” (optional; ohne ihn — „Timer 07:00”)",
+      "time": "Uhrzeit \"HH:MM\" nach der Uhr des Telefons, z. B. \"06:45\" — Pflicht bei einem neuen Timer",
+      "days": "Wochentage: 1–7 (1 = Montag … 7 = Sonntag) oder \"pn\", \"wt\", \"śr\", \"cz\", \"pt\", \"so\", \"nd\"; [] — täglich",
+      "enabled": "true — eingeschaltet (Standard), false — ausgeschaltet",
+      "pace": "Tempo dieses Timers: { \"pauseMs\", \"limitMs\" } (unten); bei einem neuen weggelassen — am schnellsten",
+      "actions": "Aktionen, nacheinander gesendet, 1 bis {max} (unten); angegebene ersetzen alle Aktionen des Timers",
+      "remove": "true — löscht den Timer (nur mit \"id\")"
+    },
+    "action": {
+      "lamp": "Gerät: \"@schlüssel\" aus diesem Dokument, \"id\" aus dem Export oder Name bzw. Nummer des Geräts („Lampe im Schlafzimmer”, \"Nr. 3\")",
+      "signal": "ein Signal DIESES Geräts: \"@schlüssel\", \"id\" oder die Beschriftung des Knopfs („An”)"
+    },
+    "pace": {
+      "pauseMs": "Pause zwischen Sendungen, 0–{max} ms: zwischen Paketen im Frame (ein Paket alle 100 ms + Pause), zwischen Frames und zwischen Aktionen; 0 — ohne Pause",
+      "limitMs": "nur im Timer: jeden Frame höchstens so viele ms senden (mindestens {min}); null — so lange wie gespeichert"
+    }
+  },
+  "noName": "(ohne Namen)",
+  "at": {
+    "doc": "Dokument",
+    "frame": "Frame",
+    "frameN": "Frame {n}",
+    "signal": "{where}, Signal {which}",
+    "lamp": "Gerät {which}",
+    "timer": "Timer {which}",
+    "action": "{at}, Aktion {n}",
+    "buttons": "Tempo der Knöpfe (\"buttons\")"
+  },
+  "warn": {
+    "unknownKey": "{where}: unbekannter Schlüssel „{key}” — übersprungen.",
+    "unknownKeys": "{where}: unbekannte Schlüssel {keys} — übersprungen.",
+    "notText": "{where} muss Text sein — übersprungen.",
+    "badId": "{where}: \"id\" muss Text aus dem Export sein — übersprungen.",
+    "badKey": "{where}: \"key\" sind Buchstaben, Ziffern, - _ . (bis 40 Zeichen) — {value} übersprungen.",
+    "keyTaken": "{where}: der Schlüssel \"@{key}\" steht schon im Dokument — dieser übersprungen.",
+    "notList": "\"{name}\" muss eine Liste sein — übersprungen.",
+    "framesNotList": "\"frames\" muss eine Liste von Frames {\"hex\", \"durationMs\", \"gapMs\"} sein",
+    "noHex": "{at}: kein Paket \"hex\"",
+    "signalsNotList": "{where}: \"signals\" muss eine Liste sein — Signale unverändert.",
+    "notObjectM": "{at}: das ist kein Objekt — übersprungen.",
+    "notObjectN": "{at}: das ist kein Objekt — übersprungen.",
+    "idTwiceSignal": "{at}: dieselbe \"id\" ein zweites Mal — übersprungen.",
+    "idTwiceN": "{at}: dieselbe \"id\" ein zweites Mal im Dokument — übersprungen.",
+    "idTwiceM": "{at}: dieselbe \"id\" ein zweites Mal im Dokument — übersprungen.",
+    "signalIdForeign": "{at}: \"id\" gehört nicht zu den Signalen dieses Geräts — ein neues Signal entsteht.",
+    "removeNoSignal": "{at}: \"remove\" ohne \"id\" eines Signals dieses Geräts — nichts zu löschen.",
+    "removeOnlyTrue": "{at}: \"remove\" kann nur true sein — übersprungen.",
+    "signalSkipped": "{at}: {problem} — Signal übersprungen.",
+    "signalKept": "{at}: {problem} — Signal unverändert.",
+    "tooManySignals": {
+      "one": "{where}: höchstens {max} Signale in einem Gerät — {count} neues übersprungen.",
+      "other": "{where}: höchstens {max} Signale in einem Gerät — {count} neue übersprungen."
+    },
+    "daysNotList": "\"days\" ist eine Liste (z. B. [\"pn\", \"śr\"] oder [1, 3]; [] — täglich), ist aber {value}",
+    "badDays": "unbekannte Tage {days} (1–7 oder pn, wt, śr, cz, pt, so, nd)",
+    "paceNotObject": "{where}: \"pace\" ist {\"pauseMs\", \"limitMs\"} — Tempo unverändert.",
+    "pauseNotNumber": "{where}: \"pauseMs\" muss eine Zahl sein — unverändert.",
+    "pauseClamped": "{where}: \"pauseMs\" von 0 bis {max} ms — begrenzt.",
+    "limitNotNumber": "{where}: \"limitMs\" ist eine Zahl oder null — unverändert.",
+    "limitClamped": "{where}: \"limitMs\" mindestens {min} ms — begrenzt.",
+    "version": "Version {got} — der Import kennt Version {version}; was er nicht kennt, überspringt er.",
+    "lampIdIsTimer": "{at}: \"id\" gehört zu einem Timer, nicht zu einem Gerät — ein neues Gerät entsteht.",
+    "lampIdForeign": "{at}: \"id\" gehört zu keinem Gerät hier (z. B. aus einem anderen Konto) — ein neues entsteht, mit neuer \"id\".",
+    "removeNoLamp": "{at}: \"remove\" ohne \"id\" eines vorhandenen Geräts — nichts zu löschen.",
+    "protocolSkipped": "{at}: unbekanntes Protokoll {protocol} (es gibt nur \"ble-adv\") — Gerät übersprungen.",
+    "protocolKept": "{at}: unbekanntes Protokoll {protocol} (es gibt nur \"ble-adv\") — Gerät unverändert.",
+    "noNameSkipped": "{at}: ohne Namen und Nummer — Gerät übersprungen.",
+    "noNameKept": "{at}: ohne Namen und Nummer — Gerät unverändert.",
+    "lampTwin": "{at}: ohne \"id\" — ein zweites Gerät „{name}” entsteht neben dem vorhandenen; um das vorhandene zu ändern, gib seine \"id\" aus dem Export an.",
+    "lampRef": "{where}: \"lamp\" ist \"@schlüssel\", \"id\" oder ein Gerätename — Aktion übersprungen.",
+    "lampAmbiguous": "{where}: „{text}” passt zu {count} Geräten — gib \"@schlüssel\" oder \"id\" an; Aktion übersprungen.",
+    "lampRemoved": "{where}: das Gerät „{name}” wird in diesem Dokument gelöscht — Aktion übersprungen.",
+    "lampMissing": "{where}: es gibt kein Gerät {ref} — Aktion übersprungen.",
+    "signalRef": "{where}: \"signal\" ist \"@schlüssel\", \"id\" oder eine Knopfbeschriftung — Aktion übersprungen.",
+    "signalAmbiguous": "{where}: „{text}” passt zu {count} Signalen von „{title}” — gib \"@schlüssel\" oder \"id\" an; Aktion übersprungen.",
+    "signalRemoved": "{where}: das Signal „{label}” („{title}”) wird in diesem Dokument gelöscht — Aktion übersprungen.",
+    "signalMissing": "{where}: „{title}” hat kein Signal {ref} — Aktion übersprungen.",
+    "timerIdIsLamp": "{at}: \"id\" gehört zu einem Gerät, nicht zu einem Timer — ein neuer Timer entsteht.",
+    "timerIdForeign": "{at}: \"id\" gehört zu keinem Timer hier (z. B. aus einem anderen Konto) — ein neuer entsteht, mit neuer \"id\".",
+    "removeNoTimer": "{at}: \"remove\" ohne \"id\" eines vorhandenen Timers — nichts zu löschen.",
+    "timerSkipped": "{at}: {why} — Timer übersprungen.",
+    "timerKept": "{at}: {why} — Timer unverändert.",
+    "badEnabled": "{at}: \"enabled\" ist true oder false — übersprungen.",
+    "actionNotObject": "{where}: eine Aktion ist {\"lamp\": …, \"signal\": …} — übersprungen.",
+    "tooManyActions": {
+      "one": "{at}: höchstens {max} Aktionen — {count} weitere übersprungen.",
+      "other": "{at}: höchstens {max} Aktionen — {count} weitere übersprungen."
+    },
+    "brokenActions": {
+      "one": "{at}: {count} Aktion zeigt auf ein Gerät oder Signal, das es nicht mehr gibt — sie bleibt, aber der Timer führt sie nicht aus.",
+      "other": "{at}: {count} Aktionen zeigen auf ein Gerät oder Signal, das es nicht mehr gibt — sie bleiben, aber der Timer führt sie nicht aus."
+    },
+    "timerTwin": "{at}: ohne \"id\" — ein zweiter gleicher Timer entsteht neben dem vorhandenen ({head}); um den vorhandenen zu ändern, gib seine \"id\" aus dem Export an.",
+    "actionToRemovedLamp": "Timer {head}: die Aktion „{action}” zeigt auf ein Gerät, das gelöscht wird — der Timer führt diese Aktion nicht aus.",
+    "actionToRemovedSignal": "Timer {head}: die Aktion „{action}” zeigt auf ein Signal, das gelöscht wird — der Timer führt diese Aktion nicht aus.",
+    "buttonsNotObject": "\"buttons\" ist {\"pauseMs\": …} — übersprungen.",
+    "buttonsPause": "Tempo der Knöpfe: \"pauseMs\" von 0 bis {max} ms — übersprungen.",
+    "tooManyRows": "Zusammen wären es {rows} Geräte und Timer — der Dienst nimmt höchstens {max} an; überzählige neue werden nicht gespeichert."
+  },
+  "err": {
+    "notDoc": "Das ist kein Lampen-Dokument — erwartet wurde ein Objekt {\"format\": \"{format}\", …}.",
+    "otherFormat": "Anderes Format: „{got}” — hier wird \"{format}\" importiert.",
+    "nothing": "Das Dokument hat weder \"lamps\" noch \"timers\" noch \"buttons\" — nichts zu importieren."
+  },
+  "line": {
+    "lampNoSignals": "„{name}” ohne Signale",
+    "lampWithSignals": {
+      "one": "„{name}” mit {count} Signal",
+      "other": "„{name}” mit {count} Signalen"
+    },
+    "newLamp": {
+      "one": "Neues Gerät: {head} — {count} Signal.",
+      "other": "Neues Gerät: {head} — {count} Signale."
+    },
+    "newLampSignals": {
+      "one": "Neues Gerät: {head} — {count} Signal: {labels}.",
+      "other": "Neues Gerät: {head} — {count} Signale: {labels}."
+    },
+    "changedLamp": "Geändertes Gerät: „{name}” — {what}.",
+    "tempo": "; Tempo: {tempo}",
+    "off": " (aus)",
+    "newTimer": "Neuer Timer: {head} — {actions}{extra}.",
+    "changedTimer": "Geänderter Timer: {head} — {what}.",
+    "removedLamp": "Gelöschtes Gerät: {title}.",
+    "removedTimer": "Gelöschter Timer: {title}.",
+    "buttons": "Tempo der Knöpfe — Pause: {pause} (war: {was}).",
+    "nothing": "Nichts ändert sich — das Dokument stimmt mit dem Gespeicherten überein.",
+    "unchanged": "Unverändert: {lamps}, {timers}."
+  },
+  "what": {
+    "name": "Name {from} → {to}",
+    "number": "Nummer {from} → {to}",
+    "room": "Raum {from} → {to}",
+    "note": "Notiz",
+    "added": {
+      "one": "neues Signal {list}",
+      "other": "neue Signale {list}"
+    },
+    "changed": {
+      "one": "geändertes Signal {list}",
+      "other": "geänderte Signale {list}"
+    },
+    "removed": {
+      "one": "gelöschtes Signal {list}",
+      "other": "gelöschte Signale {list}"
+    },
+    "order": "Reihenfolge der Signale",
+    "save": "neu gespeichert",
+    "time": "Uhrzeit {from} → {to}",
+    "days": "Tage {from} → {to}",
+    "on": "eingeschaltet",
+    "off": "ausgeschaltet",
+    "tempo": "Tempo: {tempo}",
+    "fastest": "am schnellsten",
+    "actions": "Aktionen: {list}"
+  },
+  "why": {
+    "badTime": "\"time\" ist eine Uhrzeit \"HH:MM\" (z. B. \"07:00\"), ist aber {value}",
+    "noTime": "keine Uhrzeit \"time\"",
+    "actionsNotList": "\"actions\" ist eine Liste {\"lamp\", \"signal\"}",
+    "emptyActions": "leere Liste \"actions\" — ein Timer muss etwas senden",
+    "noActionHits": "keine Aktion zeigt auf ein Signal",
+    "noActions": "keine Aktionen \"actions\" — ein Timer muss etwas senden"
+  },
+  "timers": {
+    "one": "{count} Timer",
+    "other": "{count} Timer"
+  },
+  "bytes": {
+    "one": "{count} Byte",
+    "other": "{count} Bytes"
+  },
+  "stage": {
+    "remove": "Löschen ({n} von {total})…",
+    "lamps": "Geräte werden gespeichert ({n} von {total})…",
+    "timers": "Timer werden gespeichert ({n} von {total})…"
+  },
+  "sample": {
+    "bedroomLamp": "Lampe im Schlafzimmer",
+    "bedroom": "Schlafzimmer",
+    "bedroomNote": "Fernbedienung mit HFKJ im Paket, Herstellerkennung 0x0000",
+    "on": "An",
+    "off": "Aus",
+    "livingLamp": "Lampe im Wohnzimmer",
+    "living": "Wohnzimmer",
+    "warm": "Warmes Licht",
+    "night": "Nachtmodus",
+    "nightNote": "Erst dimmen, dann warmes Licht",
+    "morning": "Morgens",
+    "forNight": "Nachts",
+    "weekendMorning": "Wochenende morgens",
+    "dusk": "Dämmerung",
+    "lampId": "<Geräte-id aus dem Export>",
+    "kidsRoom": "Kinderzimmer",
+    "signalId": "<Signal-id>",
+    "dark": "Ausmachen",
+    "otherSignalId": "<id eines anderen Signals>",
+    "timerId": "<Timer-id>",
+    "otherTimerId": "<id eines anderen Timers>"
+  },
+  "node": {
+    "intro": "Lampen sind Bluetooth-LE-Geräte, die ein Telefon mit der App REcreatio (SMS-Ausgabe für Android) steuert: Jedes Gerät hat Knöpfe — Signale, also BLE-Werbepakete, von Hand eingegeben oder von der Fernbedienung gelesen. Timer senden Signale zu einer festen Uhrzeit. Ein Dokument kann alles enthalten (eine Sicherung, ein Umzug auf ein anderes Konto) oder nur einen Teil — z. B. nur von einer KI vorbereitete Timer.\nWas der Import tut:\n- Er zeigt zuerst die Liste der Änderungen mit Warnungen; gespeichert wird erst mit „Importieren”. Gespeichert wird auf demselben Weg wie eine Änderung von Hand: Geräte und Timer werden im Browser mit dem Schlüssel des Bereichs „Nur ich” verschlüsselt, und das Telefon, das die Timer ausführt, bekommt sofort den neuen Plan.\n- Ein Eintrag mit \"id\" aus dem Export wird an Ort und Stelle geändert — nur die Schlüssel, die das Dokument nennt; der Rest bleibt, wie er war. Ein Eintrag ohne \"id\" (oder mit einer \"id\", die es hier nicht gibt — z. B. aus einem anderen Konto) entsteht neu, mit neuer \"id\" — bei jedem Import wieder, nimm also für weitere Änderungen einen frischen Export.\n- Er löscht nichts, außer ein Eintrag mit \"id\" hat \"remove\": true — ein Gerät, ein Signal oder ein Timer; die Liste der Änderungen zeigt es.\n- Einen Eintrag mit Fehler (falsches Paket, keine Uhrzeit, Aktion ohne Gerät) überspringt der Import mit einer Warnung, den Rest speichert er. Unbekannte Schlüssel geben ebenfalls eine Warnung.\n- Ob DIESES Telefon die Timer ausführt, stellt man am Telefon ein (Liste der Timer) — das Dokument enthält es nicht.\nGrenzen: höchstens {rows} Geräte und Timer zusammen, {signals} Signale in einem Gerät, {frames} Frames in einem Signal, {actions} Aktionen in einem Timer.\nGib EIN JSON-Objekt zurück, ohne Kommentare.",
+    "usage": {
+      "title": "Wie die App diese Daten nutzt",
+      "text": "- Geräte und Timer liegen in deinem Bereich „Nur ich”, jedes einzeln versiegelt: Nur du siehst sie, auf jedem Gerät, auf dem du dich anmeldest; der Dienst sieht nur, dass es sie gibt.\n- Senden kann nur ein Telefon mit der App in der SMS-Ausgabe (Bluetooth-LE-Werbung). Im Browser und in der normalen App lassen sich Geräte, Signale und Timer einrichten, aber nicht senden.\n- Ein Timer merkt sich Gerät und Signal, nicht die Bytes: Ein korrigiertes Signal gilt auch in den Timern, sobald das Telefon den neuen Plan ablegt.\n- Das Telefon hält einen eigenen Plan der Timer, und der Wecker sendet pünktlich — auch bei geschlossener App; „Letzte Läufe” stehen in der Liste der Timer im Telefon.\n- Der Plan wird nach jeder Änderung auf diesem Telefon (auch nach einem Import) und beim Start der App neu abgelegt: Einen Import im Browser übernimmt das Telefon beim nächsten Öffnen der App.\n- Das Tempo der Knöpfe (\"buttons\") ist am Konto gemerkt: Es gilt sofort bei jedem Druck, auf jedem Telefon; die Timer ändert es nicht."
+    },
+    "frame": {
+      "title": "Frame (\"frames[]\")",
+      "lead": "Ein Frame ist ein Paket und wie lange es gesendet wird; die Frames eines Signals gehen nacheinander hinaus.",
+      "text": "Ein Paket ist eine BLE-Werbung „legacy”: höchstens {max} Bytes, mit einer Struktur von Herstellerdaten — Länge, FF, Herstellerkennung (2 Bytes, little endian), Daten; z. B. ist \"1EFF0000…\" {bytes} mit der Kennung 0x0000. Andere Strukturen (Flags, Namen, UUIDs, Dienstdaten) sendet das Telefon nicht — ein Signal mit ihnen überspringt der Import. Nullen am Ende (Füllung aus dem Mitschnitt) werden nicht gesendet."
+    },
+    "signal": {
+      "title": "Signal (\"signals[]\")",
+      "lead": "Ein Signal ist ein Knopf: eine Beschriftung und was das Telefon beim Drücken sendet — ein Frame oder mehrere nacheinander (eine Folge). Ein kurzer Druck sendet das ganze Signal; Halten sendet, solange der Knopf gehalten wird.",
+      "text": "Ein Signal mit Fehler (z. B. falsches Paket) überspringt der Import mit einer Warnung — eine Änderung an einem vorhandenen Signal kommt dann nicht hinein; der Rest des Geräts wird gespeichert."
+    },
+    "lamp": {
+      "title": "Gerät (\"lamps[]\")",
+      "lead": "Ein Gerät ordnet die Knöpfe: Name, Nummer und Raum wählen keinen Empfänger — BLE-Werbung erreicht alle Lampen in Reichweite, und welche angeht, entscheiden die Bytes im Paket.",
+      "text": "Signale eines vorhandenen Geräts: mit \"id\" werden sie an Ort und Stelle geändert, ohne \"id\" kommen sie dazu, nicht genannte bleiben. Nennt das Dokument ALLE Signale des Geräts, gilt seine Reihenfolge; nennt es nur einige — kommen neue ans Ende. Geräte stehen auf der Seite nach Nummer, dann nach Name."
+    },
+    "action": {
+      "title": "Aktion eines Timers (\"actions[]\")",
+      "lead": "Aktion: welches Signal welchen Geräts gesendet wird.",
+      "text": "\"@schlüssel\" ist der \"key\" eines Geräts oder Signals aus diesem Dokument; es geht auch der Schlüssel, den der Export Gerät und Signal gibt (z. B. \"@lampa-w-sypialni-nr-1\", \"@wlacz\"), wenn das Gerät selbst nicht im Dokument steht. Namen werden ohne Groß-/Kleinschreibung und polnische Zeichen verglichen; ein Name muss genau ein Gerät (ein Signal) treffen — sonst wird die Aktion mit einer Warnung übersprungen. Der Export schreibt Aktionen als \"@schlüssel\"."
+    },
+    "pace": {
+      "title": "Tempo (\"pace\", \"buttons\")",
+      "lead": "Das Tempo verlangsamt das Senden, ohne die gespeicherten Signale zu ändern. Im Timer: { \"pauseMs\", \"limitMs\" }; in \"buttons\" (Knöpfe und Probesendungen, am Konto gemerkt) nur \"pauseMs\" — wie lange ein Knopf sendet, entscheidet das Halten."
+    },
+    "timer": {
+      "title": "Timer (\"timers[]\")",
+      "lead": "Ein Timer sendet zu einer Uhrzeit, an gewählten Wochentagen, Signale nacheinander. Ausgeführt wird er von einem Telefon mit der App REcreatio (SMS-Ausgabe), auf dem die Timer eingeschaltet sind — auch bei geschlossener App.",
+      "text": "Um einen vorhandenen Timer zu ändern, reichen \"id\" und das, was sich ändert (z. B. {\"id\": \"…\", \"enabled\": false}). Einen Timer mit falscher Uhrzeit, falschen Tagen oder ohne Aktion, die auf etwas zeigt, überspringt der Import (ein vorhandener bleibt unverändert)."
+    },
+    "root": {
+      "title": "Lampen als JSON (\"{format}\", Version {version})",
+      "short": "Lampen"
+    },
+    "example": {
+      "title": "Beispiel: zwei Lampen und zwei Timer"
+    },
+    "exampleTimers": {
+      "title": "Beispiel: nur Timer für Lampen, die es schon gibt",
+      "lead": "Ohne Kennungen — Geräte und Signale beim Namen (so schreibt sie eine KI, die den Export nicht gesehen hat):"
+    },
+    "exampleChange": {
+      "title": "Beispiel: Ändern und Löschen",
+      "lead": "Kennungen aus dem Export; geändert wird nur, was angegeben ist:"
+    },
+    "sampleFull": "zwei Lampen mit Signalen und zwei Timer",
+    "sampleTimers": "nur Timer für Lampen, die es schon gibt (z. B. von einer KI)"
+  }
+}

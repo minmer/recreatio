@@ -16,6 +16,8 @@
 
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
+import { fmtDate, useT, type Lang } from '../core/i18n';
+
 import { bibliography } from '../library/libraryCite';
 import { ids, ownTitle, str, textTypeName, type LibEntry, type Lookup } from '../library/libraryKinds';
 import { viewPath } from '../routes';
@@ -27,10 +29,10 @@ import { deliveriesOf, mediaFile, planOf, timeLink } from './sermon';
 import { DeliveriesSection, MediaPlayer, PlanSection } from './SermonParts';
 import { typeLines } from './textTypes';
 
-export function dateWords(iso: string): string {
+export function dateWords(iso: string, lang?: Lang): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   if (m === null) return iso;
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+  return fmtDate(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), { day: 'numeric', month: 'long', year: 'numeric' }, lang);
 }
 
 export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, compact = false, delivery = null, onDelivery }: {
@@ -48,6 +50,7 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
   /** … und wohin eine andere Wahl gemeldet wird (die Adresse). */
   onDelivery?: (id: string | null) => void;
 }) {
+  const t = useT();
   const d = entry.data;
   /* Gelesen EINMAL: die Fussnoten hängen an genau diesen Bäumen — erst der Plan, dann die Treść. */
   const plan = useMemo(() => planOf(d).map((point) => ({ point, blocks: parseMarkup(point.text) })), [d]);
@@ -92,7 +95,7 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
   const fieldLines = typeLines(d, look);
   const H = heading;
 
-  const meta = [textTypeName(d, look), str(d, 'date') === '' ? '' : dateWords(str(d, 'date')), str(d, 'occasion'), str(d, 'place')]
+  const meta = [textTypeName(d, look), str(d, 'date') === '' ? '' : dateWords(str(d, 'date'), t.lang), str(d, 'occasion'), str(d, 'place')]
     .filter((s) => s.trim() !== '');
 
   return (
@@ -100,10 +103,10 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
     <article className="lib-article">
       <header className="lib-article-head">
         {project !== undefined && <p className="lib-eyebrow">{str(project.data, 'title')}</p>}
-        <H className="lib-title">{str(d, 'title') || 'Bez tytułu'}</H>
+        <H className="lib-title">{str(d, 'title') || t('common.untitled')}</H>
         {str(d, 'subtitle') !== '' && <p className="lib-subtitle">{str(d, 'subtitle')}</p>}
         {meta.length > 0 && <p className="lib-meta">{meta.join(' · ')}</p>}
-        {str(d, 'readings') !== '' && <p className="lib-readings"><span>Czytania:</span> {str(d, 'readings')}</p>}
+        {str(d, 'readings') !== '' && <p className="lib-readings"><span>{t('scriptorium.article.readings')}</span> {str(d, 'readings')}</p>}
         {/* 2026-10-23 — die eigenen Felder seines Rodzaj tekstu („Tajemnica: Zwiastowanie"); was der Leser nicht lesen kann, fehlt. */}
         {fieldLines.length > 0 && <dl className="lib-type-lines">{fieldLines.map((one) => <div key={one.label}><dt>{one.label}</dt><dd>{one.value}</dd></div>)}</dl>}
         {(str(d, 'audio') !== '' || str(d, 'video') !== '') && (
@@ -122,14 +125,14 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
 
       {plan.length > 0 && body.length > 0 ? (
         <section className="lib-body-part">
-          <h3 className="lib-section">Tekst</h3>
+          <h3 className="lib-section">{t('scriptorium.article.text')}</h3>
           <div className="lib-body"><Blocks blocks={body} look={look} notes={notes} prefix={prefix} /></div>
         </section>
       ) : (body.length > 0 || plan.length === 0) && <div className="lib-body"><Blocks blocks={body} look={look} notes={notes} prefix={prefix} /></div>}
 
       {!compact && further.length > 0 && (
         <section className="lib-further">
-          <h3 className="lib-section">Dalsze informacje</h3>
+          <h3 className="lib-section">{t('scriptorium.article.further')}</h3>
           <Blocks blocks={further} look={look} notes={notes} prefix={prefix} />
         </section>
       )}
@@ -138,7 +141,7 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
 
       {!compact && sources.length > 0 && (
         <section className="lib-sources">
-          <h3 className="lib-section">Źródła</h3>
+          <h3 className="lib-section">{t('scriptorium.article.sources')}</h3>
           <ul>
             {sources.map(({ work, segs }) => (
               <li key={work.id}>
@@ -162,17 +165,18 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
  * Eintrag kommt aus seinem `Lookup`.
  */
 export function OpenedEntry({ entry, look, prefix, onClose }: { entry: LibEntry; look: Lookup; prefix: string; onClose: () => void }) {
+  const t = useT();
   const said = str(entry.data, 'description') || str(entry.data, 'summary') || str(entry.data, 'note');
   /* 2026-10-23 — eine Aussage: jeder Eintrag, dessen Rodzaj ein Feld blocks hat (z. B. ein Komentarz in Nauka). */
   const statement = blocksKeyOf(entry, look) !== null;
   return (
     <aside className="lib-opened" aria-label={ownTitle(entry, look)}>
       <p className="lib-opened-bar">
-        <span className="lib-section">{statement ? 'Wypowiedź' : entry.kind === 'text' ? 'Tekst' : entry.kind === 'quote' ? 'Cytat' : 'Wpis'}</span>
-        <button type="button" className="wk-link-btn" onClick={onClose}>Zamknij</button>
+        <span className="lib-section">{t(statement ? 'scriptorium.opened.statement' : entry.kind === 'text' ? 'scriptorium.opened.text' : entry.kind === 'quote' ? 'scriptorium.opened.quote' : 'scriptorium.opened.entry')}</span>
+        <button type="button" className="wk-link-btn" onClick={onClose}>{t('common.close')}</button>
       </p>
       {entry.kind === 'text' ? <TextArticle entry={entry} look={look} prefix={prefix} heading="h3" compact />
-        : statement ? <StatementCard entry={entry} look={look} prefix={prefix} about />
+        : statement /* i18n-ignore */ ? <StatementCard entry={entry} look={look} prefix={prefix} about />
         : entry.kind === 'quote' ? <QuoteFigure entry={entry} look={look} />
         : entry.kind === 'entity' ? <BaseEntry entry={entry} look={look} />
         : (
@@ -191,6 +195,7 @@ export function OpenedEntry({ entry, look, prefix, onClose }: { entry: LibEntry;
  * Arbeitsbereich der Weg zu ihm in Nauka.
  */
 function BaseEntry({ entry, look }: { entry: LibEntry; look: Lookup }) {
+  const t = useT();
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
   const shown = Object.entries(entry.data)
     .filter(([key, value]) => !key.startsWith('_') && typeof value === 'string' && value.trim() !== '' && !uuid.test(value) && value.length < 200)
@@ -200,7 +205,7 @@ function BaseEntry({ entry, look }: { entry: LibEntry; look: Lookup }) {
     <>
       <h3 className="lib-h">{ownTitle(entry, look)}</h3>
       {shown.length > 1 && <ul className="lib-opened-text">{shown.slice(1).map(([key, value]) => <li key={key}>{value}</li>)}</ul>}
-      {base !== undefined && window.location.hash.startsWith('#/workspace') && <p><a className="wk-link" href={viewPath('knowledge', base, 'wpisy', entry.id)}>Otwórz w Wiedzy</a></p>}
+      {base !== undefined && window.location.hash.startsWith('#/workspace') && <p><a className="wk-link" href={viewPath('knowledge', base, 'wpisy', entry.id)}>{t('scriptorium.opened.openInKnowledge')}</a></p>}
     </>
   );
 }

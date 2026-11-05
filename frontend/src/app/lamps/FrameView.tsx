@@ -5,9 +5,13 @@
  * Luft steht. Was nicht geht, steht da, statt still geändert zu werden.
  */
 
+import { rich, useT } from '../core/i18n';
 import { adName, airBytes, asciiOf, hexOf, idText, LEGACY_MAX, readFrame, spaced } from './adv';
 
+const B = { b: (s: string, k: number) => <strong key={k}>{s}</strong> };
+
 export function FrameView({ hex, compact = false }: { hex: string; compact?: boolean }) {
+  const t = useT();
   const read = readFrame(hex);
   if (read.hex === '') return null;
   const adv = read.advertising;
@@ -16,9 +20,9 @@ export function FrameView({ hex, compact = false }: { hex: string; compact?: boo
   return (
     <div className="lp-view" aria-live="polite">
       <p className="lp-view-size">
-        <strong>{used}</strong> {used === 1 ? 'bajt' : 'bajtów'} z {LEGACY_MAX}
-        {adv !== null && adv.manufacturer !== null && <> · producent <strong>{idText(adv.manufacturer.id)}</strong></>}
-        {read.problem === null && <> · <span className="lp-ok">da się nadać</span></>}
+        {rich(t('lamps.frame.bytesOf', { count: used, max: LEGACY_MAX }), B)}
+        {adv !== null && adv.manufacturer !== null && <> · {rich(t('lamps.frame.maker', { id: idText(adv.manufacturer.id) }), B)}</>}
+        {read.problem === null && <> · <span className="lp-ok">{t('lamps.frame.canSend')}</span></>}
       </p>
       {read.problem !== null && <p className="wk-error">{read.problem}</p>}
       {adv !== null && adv.problems.slice(1).map((p) => <p key={p} className="wk-error">{p}</p>)}
@@ -28,29 +32,29 @@ export function FrameView({ hex, compact = false }: { hex: string; compact?: boo
         <dl className="lp-dl">
           {adv.structures.map((s) => (
             <div key={s.offset} className="lp-dl-row">
-              <dt>{`Bajt ${s.offset + 1}`}</dt>
+              <dt>{t('lamps.frame.byte', { n: s.offset + 1 })}</dt>
               <dd>
-                <span className="lp-hex">{spaced(hexOf(new Uint8Array([s.length, s.type])))}</span> {adName(s.type)} · {s.length - 1} {s.length - 1 === 1 ? 'bajt' : 'bajtów'} danych
+                <span className="lp-hex">{spaced(hexOf(new Uint8Array([s.length, s.type])))}</span> {adName(s.type)} · {t('lamps.frame.dataBytes', { count: s.length - 1 })}
               </dd>
             </div>
           ))}
           {read.manufacturer !== null && (
             <>
               <div className="lp-dl-row">
-                <dt>Dane producenta</dt>
+                <dt>{t('lamps.frame.makerData')}</dt>
                 <dd>
                   <span className="lp-hex">{spaced(hexOf(read.manufacturer.data))}</span>
-                  <span className="lp-ascii" title="Znaki ASCII w danych">{asciiOf(read.manufacturer.data)}</span>
+                  <span className="lp-ascii" title={t('lamps.frame.ascii')}>{asciiOf(read.manufacturer.data)}</span>
                 </dd>
               </div>
               <div className="lp-dl-row">
-                <dt>Android</dt>
+                <dt>{t('lamps.frame.android')}</dt>
                 <dd>
-                  <code>addManufacturerData({idText(read.manufacturer.id)}, {read.manufacturer.data.length} B)</code>, bez nazwy, flag i mocy nadawania
+                  {rich(t('lamps.frame.androidCall', { id: idText(read.manufacturer.id), n: read.manufacturer.data.length }), { c: (s, k) => <code key={k}>{s}</code> })}
                 </dd>
               </div>
               <div className="lp-dl-row">
-                <dt>W powietrzu</dt>
+                <dt>{t('lamps.frame.onAir')}</dt>
                 <dd><span className="lp-hex">{spaced(hexOf(airBytes(read.manufacturer)))}</span></dd>
               </div>
             </>

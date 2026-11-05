@@ -1,0 +1,87 @@
+{
+  "noKey": "Without the key from the address this cannot be opened.",
+  "roleNoLink": "“{name}” has not opened a link here — what they sent from the link will show once it is opened.",
+  "pickWho": "Choose at the top of the page for whom.",
+  "fromForm": "From which form",
+  "exForm": "<form-id>",
+  "openChat": "Open the conversation",
+  "chatShowsStrip": "Heading and button — the conversation opens on click.",
+  "office": {
+    "dataLater": "The person’s data will appear once someone is chosen at the top of the page.",
+    "pick": "Choose a person at the top of the page.",
+    "nothing": "The person sees this part in their link — there is nothing to show about them here.",
+    "chatLoading": "Loading the conversation…"
+  },
+  "submission": {
+    "label": "Person’s submission",
+    "use": "Shows this person what they sent themselves in the chosen form.",
+    "title": "Your submission",
+    "show": "Which answers are visible",
+    "titleHint": "e.g. Your submission",
+    "open": "Show submission",
+    "showsStrip": "Heading and button — the submission opens on click.",
+    "showsBlock": "All the person’s chosen answers, with the option to correct them.",
+    "missingForm": "Choose the form the answers come from.",
+    "missingShow": "Choose which answers this person will see.",
+    "empty": "The submission of the person who opens their link will appear here.",
+    "otherForm": "This module shows a different form than the one the person at the top of the page was chosen from."
+  },
+  "shared": {
+    "label": "Shared dates",
+    "use": "Dates the whole group sees — if the place carries its key.",
+    "exTitle": "Upcoming meetings",
+    "titleHint": "e.g. Upcoming meetings",
+    "open": "Show dates",
+    "showsStrip": "Heading and button — the dates open on click.",
+    "showsBlock": "The group’s dates for the coming weeks.",
+    "empty": "Shared dates will appear here if the place carries the group’s key.",
+    "office": "Here the person sees their group’s shared dates.",
+    "none": "Nothing in the coming weeks.",
+    "sealed": "sealed",
+    "seenBy": "Everyone sees this: {names}."
+  },
+  "steps": {
+    "label": "Person’s steps",
+    "use": "The person’s list of steps — from the page’s logic map, and without steps on the map: the form’s steps (confirming data, additions, marks, tasks).",
+    "title": "Your steps",
+    "titleHint": "e.g. Your steps",
+    "open": "Show steps",
+    "empty": "The list of steps of the person who opens their link will appear here.",
+    "showsStrip": "Heading and button — the steps open on click.",
+    "showsBlock": "The person’s list of steps, with what is already done."
+  },
+  "tasks": {
+    "label": "Person’s tasks",
+    "use": "Tasks for a period (e.g. the rosary in October) — the person answers for each day in the calendar.",
+    "title": "Your tasks",
+    "titleHint": "e.g. Your tasks",
+    "open": "Show tasks",
+    "none": "There are no tasks yet.",
+    "noneNow": "There are no tasks to do right now.",
+    "past": "Finished ({count})",
+    "waiting": {
+      "one": "{count} task waiting",
+      "other": "{count} tasks waiting"
+    },
+    "showsStrip": "Heading, how many tasks are waiting, and a button — the tasks open on click.",
+    "showsBlock": "The person’s current tasks: decision and days of doing them; finished ones folded below.",
+    "empty": "The tasks of the person who opens their link will appear here.",
+    "officeNone": "This person has no tasks."
+  },
+  "chat": {
+    "label": "Group conversation",
+    "use": "Conversations of the person with a link: with the leaders, channels and conversations of the groups they belong to.",
+    "titleHint": "e.g. Group conversation",
+    "showsTall": "Conversation with a longer view of messages.",
+    "showsBlock": "Conversation: the latest messages and a field to write.",
+    "empty": "The group conversation will appear here — for the person who opens their link."
+  },
+  "ask": {
+    "label": "Write to us",
+    "use": "The person with a link (from the chosen forms) starts a conversation with the chosen roles themselves — others from the form do not see it.",
+    "exTitle": "Write to the priest",
+    "says": "heading; who answers and from which forms one may write is set in the module (not in the JSON)",
+    "showsBlock": "A “Write to: …” button, then this person’s conversation with the chosen roles.",
+    "empty": "Here the person who opens their link will write to the chosen people — only they and the person see this conversation."
+  }
+}

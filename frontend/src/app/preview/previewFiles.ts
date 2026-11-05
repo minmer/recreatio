@@ -14,6 +14,7 @@
  */
 
 import type { ImageNeed } from '../pages/pageImageNeeds';
+import { t } from '../core/i18n';
 
 const escape = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -35,7 +36,7 @@ function wrap(text: string, width: number, max: number): string[] {
   return lines;
 }
 
-const WORD: Record<string, string> = { image: 'ZDJĘCIE', video: 'FILM', sound: 'DŹWIĘK', file: 'PLIK', any: 'PLIK' };
+const WORD: Record<string, string> = { image: 'preview.files.image', video: 'preview.files.video', sound: 'preview.files.sound', file: 'preview.files.file', any: 'preview.files.file' };
 
 /** Ein Platzhalter als SVG: was hierher gehört. */
 export function placeholderUrl(need: Pick<ImageNeed, 'key' | 'label' | 'description' | 'kind'>, w = 1200, h = 800): string {
@@ -50,7 +51,7 @@ export function placeholderUrl(need: Pick<ImageNeed, 'key' | 'label' | 'descript
 <rect width="${w}" height="${h}" fill="url(#s)"/>
 <rect x="18" y="18" width="${w - 36}" height="${h - 36}" fill="none" stroke="#7a9bb0" stroke-width="4" stroke-dasharray="18 12"/>
 <g font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">
-<text x="${w / 2}" y="${h * 0.22}" font-size="30" letter-spacing="6" fill="#4f7489">${WORD[need.kind] ?? 'PLIK'} · page-image:@${escape(need.key)}</text>
+<text x="${w / 2}" y="${h * 0.22}" font-size="30" letter-spacing="6" fill="#4f7489">${escape(t(WORD[need.kind] ?? 'preview.files.file'))} · page-image:@${escape(need.key)}</text>
 ${lines.join('\n')}
 </g></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;

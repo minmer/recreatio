@@ -38,6 +38,7 @@ import { rotateSeat, seatPath, type SubmittedValue } from '../seats/seat';
 import { confirmSubmission } from '../seats/seatCheck';
 import type { SeatView } from '../seats/seatContext';
 import { forget, markReplaced, underOf } from '../seats/seatKeep';
+import { fmtDate, rich, useT } from '../core/i18n';
 import { WorkspaceError } from '../core/session';
 import { SignSheetButton } from './SignSheet';
 
@@ -56,6 +57,7 @@ export function OwnSubmissions({ seat, formId, show }: {
   formId: string | null;
   show: ReadonlySet<string> | null;
 }) {
+  const t = useT();
   const shown = (v: { formId: string; fieldId: string }) =>
     (formId === null || v.formId === formId) && (show === null || show.has(v.fieldId));
 
@@ -63,7 +65,7 @@ export function OwnSubmissions({ seat, formId, show }: {
   const registrations = [...new Set(mine.map((v) => v.registrationId))];
 
   if (registrations.length === 0) {
-    return <p className="wk-empty">Jeszcze nic nie wysłano z tego miejsca.</p>;
+    return <p className="wk-empty">{t('forms.own.nothing')}</p>;
   }
 
   return (
@@ -93,8 +95,7 @@ export function OwnSubmissions({ seat, formId, show }: {
         return (
           <section className="wk-seat-one" key={registrationId}>
             <h3 className="wk-seat-who">
-              Zgłoszenie z {new Date(these[0].submittedAt).toLocaleDateString('pl-PL',
-                { day: 'numeric', month: 'long', year: 'numeric' })}
+              {t('forms.own.entryOf', { date: fmtDate(new Date(these[0].submittedAt), { day: 'numeric', month: 'long', year: 'numeric' }, t.lang) })}
             </h3>
             {block}
           </section>
@@ -118,6 +119,7 @@ export function ReviewSubmissions({ seat, who, formId = null }: {
   /** 0098 — nur die Einsendungen dieses Formulars (der Baustein „Zgłoszenie osoby" zeigt eines). */
   formId?: string | null;
 }) {
+  const t = useT();
   if (seat.seatKey === null) return null;
 
   const waiting = [...new Set(seat.submitted
@@ -129,12 +131,10 @@ export function ReviewSubmissions({ seat, who, formId = null }: {
   return (
     <section className="wk-review" aria-labelledby={`review-${seat.seatId}`}>
       <h2 className="wk-h2" id={`review-${seat.seatId}`}>
-        Sprawdź swoje dane{who === null ? '' : ` — ${who}`}
+        {who === null ? t('forms.own.reviewTitle') : t('forms.own.reviewTitleWho', { who })}
       </h2>
       <p className="wk-card-text">
-        Zanim przejdziesz dalej, przejrzyj wszystko, co jest zapisane w zgłoszeniu —
-        <strong> zwłaszcza numery telefonów i adresy e-mail</strong>. Na nie kancelaria
-        wysyła wiadomości i linki. Jeśli coś się nie zgadza, popraw to od razu.
+        {rich(t('forms.own.reviewHint'), { b: (s, k) => <strong key={k}>{s}</strong> })}
       </p>
 
       {waiting.map((registrationId) => (
@@ -167,6 +167,7 @@ export function Submission({ seat, values, open, review = false }: {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const t = useT();
 
   const { seatKey } = seat;
   const registrationId = values[0]?.registrationId;
@@ -214,7 +215,7 @@ export function Submission({ seat, values, open, review = false }: {
       await confirmSubmission(seat.token, registrationId);
       seat.reload();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się potwierdzić.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('forms.own.confirmFailed'));
     } finally {
       setBusy(false);
     }
@@ -261,7 +262,7 @@ export function Submission({ seat, values, open, review = false }: {
         seat.reload();
       }
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('forms.ext.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -273,14 +274,14 @@ export function Submission({ seat, values, open, review = false }: {
 
     return (
       <div key={one.fieldId}>
-        <dt className="wk-row-side">{one.label ?? 'zapieczętowane pytanie'}</dt>
+        <dt className="wk-row-side">{one.label ?? t('forms.ext.sealedQuestion')}</dt>
         <dd>
           {/* 0083 — eine Zustimmung: ja oder nein, und der Wortlaut, dem zugestimmt wurde. */}
           {row?.kind === 'consent'
-            ? (one.value === null ? 'zapieczętowane' : consentGiven(one.value)
-              ? <>✓ tak <span className="wk-consent-text">{consentText(one.value)}</span></>
-              : '— nie (zgoda nie została udzielona albo ją wycofano)')
-            : one.value ?? 'zapieczętowane'}
+            ? (one.value === null ? t('forms.card.sealed') : consentGiven(one.value)
+              ? <>{t('forms.own.consentYes')} <span className="wk-consent-text">{consentText(one.value)}</span></>
+              : t('forms.own.consentNo'))
+            : one.value ?? t('forms.card.sealed')}
 
           {/*
             NUR, WAS EIN GEKLICKTER LINK BELEGT (0030/0031): dass unter DIESER
@@ -288,8 +289,8 @@ export function Submission({ seat, values, open, review = false }: {
             nicht mehr — bestätigt wird das Ganze.
           */}
           {row !== undefined && row.kind === 'phone' && row.verifiedAt !== null && row.verifiedWay === 'sms' && (
-            <span className="wk-chip-ok" title="Otworzyłeś link, który wysłaliśmy na ten numer">
-              {' '}✓ potwierdzony SMS-em
+            <span className="wk-chip-ok" title={t('forms.own.smsOkTitle')}>
+              {' '}{t('forms.own.smsOk')}
             </span>
           )}
         </dd>
@@ -308,18 +309,17 @@ export function Submission({ seat, values, open, review = false }: {
           <>
             <div className="wk-actions">
               <button type="button" className="wk-btn" disabled={busy} onClick={() => void confirm()}>
-                {busy ? 'Zapisywanie…' : 'Wszystko się zgadza'}
+                {busy ? t('common.saving') : t('forms.own.allRight')}
               </button>
               {editable.length > 0 && (
                 <button type="button" className="wk-link-btn" disabled={busy} onClick={start}>
-                  Popraw dane
+                  {t('forms.own.fix')}
                 </button>
               )}
             </div>
             {mayRotate && (
               <p className="wk-hint">
-                Po poprawce numeru telefonu albo adresu e-mail dostaniesz nowy link — obecny
-                przestanie działać. To na wypadek, gdyby trafił pod zły numer.
+                {t('forms.own.rotateHint')}
               </p>
             )}
           </>
@@ -327,14 +327,13 @@ export function Submission({ seat, values, open, review = false }: {
           <>
             {confirmedAt !== null && !review && (
               <p className="wk-hint">
-                ✓ Dane potwierdzone {new Date(confirmedAt).toLocaleDateString('pl-PL',
-                  { day: 'numeric', month: 'long', year: 'numeric' })}.
+                {t('forms.own.confirmed', { date: fmtDate(new Date(confirmedAt), { day: 'numeric', month: 'long', year: 'numeric' }, t.lang) })}
               </p>
             )}
 
             {editable.length > 0 && (
               <div className="wk-actions">
-                <button type="button" className="wk-btn" onClick={start}>Popraw dane</button>
+                <button type="button" className="wk-btn" onClick={start}>{t('forms.own.fix')}</button>
               </div>
             )}
           </>
@@ -352,7 +351,7 @@ export function Submission({ seat, values, open, review = false }: {
 
         return (
           <label className="wk-field" key={one.fieldId}>
-            <span>{one.label ?? 'zapieczętowane pytanie'}</span>
+            <span>{one.label ?? t('forms.ext.sealedQuestion')}</span>
 
             {/*
               Wie im Formular: eine Nummer wird zum Plättchen, eine Auswahl
@@ -369,7 +368,7 @@ export function Submission({ seat, values, open, review = false }: {
                   type="checkbox" checked={consentGiven(value)} disabled={busy || !consentGiven(one.value)}
                   onChange={(e) => set(e.target.checked ? one.value ?? '' : '')}
                 />
-                <span>{consentGiven(value) ? 'tak' : 'nie — wycofana'}{consentGiven(one.value) ? '' : ' (zgody udzielasz w formularzu)'}</span>
+                <span>{consentGiven(value) ? t('forms.own.consentOn') : t('forms.own.consentOff')}{consentGiven(one.value) ? '' : ` ${t('forms.own.consentInForm')}`}</span>
               </span>
             ) : kind === 'phone' ? (
               <Phones value={value} disabled={busy} onChange={set} />
@@ -399,16 +398,15 @@ export function Submission({ seat, values, open, review = false }: {
       {fixed.length > 0 && (
         <>
           <dl className="wk-card-lines">{fixed.map(line)}</dl>
-          <p className="wk-hint">Tych odpowiedzi nie poprawisz sam — w razie potrzeby napisz do kancelarii.</p>
+          <p className="wk-hint">{t('forms.own.fixedHint')}</p>
         </>
       )}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
 
       <p className="wk-hint">
-        Zmiany pieczętujemy w tej przeglądarce. Usługa zapisze je, nie mogąc ich
-        odczytać.
-        {rotates && <> Zmieniasz numer albo e-mail — po zapisaniu dostaniesz <strong>nowy link</strong>, a obecny przestanie działać.</>}
+        {t('forms.own.sealedHint')}
+        {rotates && <> {rich(t('forms.own.rotateNow'), { b: (s, k) => <strong key={k}>{s}</strong> })}</>}
       </p>
 
       <div className="wk-actions">
@@ -417,14 +415,14 @@ export function Submission({ seat, values, open, review = false }: {
           disabled={busy || changed.length === 0}
           onClick={() => void save()}
         >
-          {busy ? 'Zapisywanie…' : `Zapisz${changed.length > 0 ? ` (${changed.length})` : ''}`}
+          {busy ? t('common.saving') : changed.length > 0 ? t('forms.own.saveCount', { count: changed.length }) : t('common.save')}
         </button>
 
         <button
           type="button" className="wk-link-btn" disabled={busy}
           onClick={() => setEditing(false)}
         >
-          Anuluj
+          {t('common.cancel')}
         </button>
       </div>
     </>

@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { t, useT } from '../core/i18n';
 
 import { Modal } from './Modal';
 import { Icon } from './icons';
@@ -52,11 +53,23 @@ export function ask(question: Ask): Promise<boolean> {
  * Der Knopf heisst wie die Handlung — „Usuń", nicht „OK" —, und rot ist er,
  * wo etwas verschwindet. Die Frage selbst bleibt, wie sie war.
  */
+/*
+ * 2026-11-05 — die Verben der Frage in den drei Sprachen (polnisch und englisch vorn, deutsch hinten: „… löschen?");
+ * der Knopf steht in `ui.ask.verb.<name>`.
+ */
 const VERBS: readonly (readonly [RegExp, string, boolean])[] = [
-  [/^Usunąć/, 'Usuń', true], [/^Wycofać/, 'Wycofaj', true], [/^Odwołać/, 'Odwołaj', true], [/^Wypisać/, 'Wypisz', true],
-  [/^Zdjąć/, 'Zdejmij', true], [/^Odłączyć/, 'Odłącz', true], [/^Zarchiwizować/, 'Zarchiwizuj', false],
-  [/^Zakończyć/, 'Zakończ', false], [/^Dodać/, 'Dodaj', false], [/^Dołączyć/, 'Dołącz', false],
-  [/^Połączyć/, 'Połącz', false], [/^Wystawić/, 'Wystaw', false]
+  [/^Usunąć|^(Delete|Remove)\b|\b(löschen|entfernen)\?/, 'delete', true], // i18n-ignore
+  [/^Wycofać|^Withdraw\b|\bzurückziehen\?/, 'withdraw', true], // i18n-ignore
+  [/^Odwołać|^Call off\b|\babsagen\?/, 'callOff', true], // i18n-ignore
+  [/^Wypisać|^Unsubscribe\b|\babmelden\?/, 'unsubscribe', true], // i18n-ignore
+  [/^Zdjąć|^Take down\b|\babnehmen\?/, 'takeDown', true], // i18n-ignore
+  [/^Odłączyć|^(Disconnect|Detach)\b|\btrennen\?/, 'detach', true], // i18n-ignore
+  [/^Zarchiwizować|^Archive\b|\barchivieren\?/, 'archive', false], // i18n-ignore
+  [/^Zakończyć|^(End|Finish)\b|\bbeenden\?/, 'finish', false], // i18n-ignore
+  [/^Dodać|^Add\b|\bhinzufügen\?/, 'add', false], // i18n-ignore
+  [/^Dołączyć|^Join\b|\bbeitreten\?/, 'join', false], // i18n-ignore
+  [/^Połączyć|^(Connect|Link)\b|\bverbinden\?/, 'connect', false], // i18n-ignore
+  [/^Wystawić|^Issue\b|\bausstellen\?/, 'issue', false] // i18n-ignore
 ];
 
 /**
@@ -68,10 +81,11 @@ export function askText(text: string): Promise<boolean> {
   const title = (cut >= 0 ? text.slice(0, cut + 1) : text).trim();
   const body = cut >= 0 ? text.slice(cut + 1).trim() : '';
   const verb = VERBS.find(([re]) => re.test(title));
-  return ask({ title, body: body === '' ? undefined : body, confirm: verb?.[1] ?? 'Tak', danger: verb?.[2] ?? false });
+  return ask({ title, body: body === '' ? undefined : body, confirm: verb !== undefined ? t(`ui.ask.verb.${verb[1]}`) : t('common.yes'), danger: verb?.[2] ?? false });
 }
 
 function AskHost() {
+  const t = useT();
   const [pending, setPending] = useState<Pending | null>(null);
 
   useEffect(() => {
@@ -98,9 +112,9 @@ function AskHost() {
         )}
         <div className="wk-actions">
           {/* Der sichere Knopf zuerst — auf ihm liegt der Fokus (Modal: erster Knopf). */}
-          <button type="button" className="wk-btn wk-btn-quiet" onClick={() => answer(false)}>{pending.cancel ?? 'Anuluj'}</button>
+          <button type="button" className="wk-btn wk-btn-quiet" onClick={() => answer(false)}>{pending.cancel ?? t('common.cancel')}</button>
           <button type="button" className={pending.danger === true ? 'wk-btn wk-btn-danger' : 'wk-btn'} data-ask-yes="" onClick={() => answer(true)}>
-            {pending.confirm ?? 'Tak'}
+            {pending.confirm ?? t('common.yes')}
           </button>
         </div>
       </div>

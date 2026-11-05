@@ -7,8 +7,9 @@
 
 import type { ReactNode } from 'react';
 
+import { useT } from '../../../core/i18n';
 import { Icon } from '../../../ui/icons';
-import { t, type TextKey } from '../i18n';
+import type { TextKey } from '../i18n';
 
 export type SideTab = 'object' | 'inspect' | 'bubble' | 'charts';
 
@@ -22,15 +23,16 @@ export function SidePanel({ tabs, tab, onTab, onClose, children }: {
   onClose: () => void;
   children: ReactNode;
 }) {
+  const t = useT();
   return (
-    <aside className="l2d-side" aria-label={t(LABEL[tab])} onPointerDown={(e) => e.stopPropagation()}>
+    <aside className="l2d-side" aria-label={t(`lab2d.${LABEL[tab]}`)} onPointerDown={(e) => e.stopPropagation()}>
       <header className="l2d-side-head">
         <div className="l2d-tabs" role="tablist">
           {tabs.map((k) => (
-            <button key={k} type="button" role="tab" aria-selected={k === tab} className={`l2d-tab${k === tab ? ' is-on' : ''}`} onClick={() => onTab(k)}>{t(LABEL[k])}</button>
+            <button key={k} type="button" role="tab" aria-selected={k === tab} className={`l2d-tab${k === tab ? ' is-on' : ''}`} onClick={() => onTab(k)}>{t(`lab2d.${LABEL[k]}`)}</button>
           ))}
         </div>
-        <button type="button" className="l2d-icon is-small" onClick={onClose} aria-label={t('closePanel')} title={t('closePanel')}><Icon name="x" /></button>
+        <button type="button" className="l2d-icon is-small" onClick={onClose} aria-label={t('lab2d.closePanel')} title={t('lab2d.closePanel')}><Icon name="x" /></button>
       </header>
       <div className="l2d-side-body" role="tabpanel">{children}</div>
     </aside>

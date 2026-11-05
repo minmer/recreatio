@@ -13,6 +13,7 @@
  * das Gerät des Gastgebers [J4]: hier steht die Rechnung dafür.
  */
 
+import { t, texts } from '../core/i18n';
 import { call } from '../core/session';
 import type { Credentials } from './live';
 
@@ -62,9 +63,9 @@ export interface GameRules {
 
 export const EMPTY_GAME: GameRules = { zones: [], values: [], triggers: [] };
 
-export const TRIGGER_LABEL: Record<Trigger['on'], string> = {
-  enter: 'wejście do strefy', leave: 'wyjście ze strefy', present: 'tylu z drużyny w strefie', every: 'co pewien czas'
-};
+export const TRIGGER_LABEL: Readonly<Record<Trigger['on'], string>> = texts({
+  enter: 'cogitaViewsRewards.game.trigger.enter', leave: 'cogitaViewsRewards.game.trigger.leave', present: 'cogitaViewsRewards.game.trigger.present', every: 'cogitaViewsRewards.game.trigger.every'
+});
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
@@ -161,7 +162,7 @@ export function metres(a: { lat: number; lon: number }, b: { lat: number; lon: n
  * Gibt eine Funktion zum Beenden zurück.
  */
 export function watchPlace(send: (pos: { lat: number; lon: number; accuracy: number | null }) => void, fail?: (message: string) => void): () => void {
-  if (typeof navigator === 'undefined' || navigator.geolocation === undefined) { fail?.('To urządzenie nie podaje położenia.'); return () => undefined; }
+  if (typeof navigator === 'undefined' || navigator.geolocation === undefined) { fail?.(t('cogitaViewsRewards.game.noGeo')); return () => undefined; }
   let lastAt = 0;
   let last: { lat: number; lon: number } | null = null;
   const id = navigator.geolocation.watchPosition((p) => {
@@ -172,7 +173,7 @@ export function watchPlace(send: (pos: { lat: number; lon: number; accuracy: num
     lastAt = now;
     last = here;
     send({ ...here, accuracy: Number.isFinite(p.coords.accuracy) ? p.coords.accuracy : null });
-  }, (e) => fail?.(e.code === 1 ? 'Bez zgody na położenie gra w terenie nie działa.' : 'Nie udało się ustalić położenia.'), { enableHighAccuracy: true, maximumAge: 5000, timeout: 30_000 });
+  }, (e) => fail?.(e.code === 1 ? t('cogitaViewsRewards.game.denied') : t('cogitaViewsRewards.game.failed')), { enableHighAccuracy: true, maximumAge: 5000, timeout: 30_000 });
   return () => navigator.geolocation.clearWatch(id);
 }
 
@@ -190,10 +191,10 @@ export function suspicions(track: ReadonlyMap<string, readonly Position[]>, maxS
       const seconds = (new Date(sorted[i].at).getTime() - new Date(sorted[i - 1].at).getTime()) / 1000;
       if (seconds <= 0) continue;
       const speed = metres(sorted[i - 1], sorted[i]) / seconds;
-      if (speed > maxSpeed) { out.push({ player, why: `skok ${Math.round(speed)} m/s` }); break; }
+      if (speed > maxSpeed) { out.push({ player, why: t('cogitaViewsRewards.game.jump', { count: Math.round(speed) }) }); break; }
     }
     const worst = Math.max(0, ...sorted.map((p) => p.accuracy ?? 0));
-    if (worst > maxAccuracy) out.push({ player, why: `dokładność ${Math.round(worst)} m` });
+    if (worst > maxAccuracy) out.push({ player, why: t('cogitaViewsRewards.game.accuracy', { count: Math.round(worst) }) });
   }
   return out;
 }

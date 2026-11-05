@@ -24,6 +24,7 @@
 import {
   aad, deriveRoleReadKey, Field, fromBase64Url, open, openText, sealText, toBase64Url, unwrapKey
 } from './crypto';
+import { t } from './i18n';
 
 /** Eine Rolle, so wie der Dienst sie herausgibt — alles Geheime versiegelt. */
 export interface SealedRole {
@@ -285,7 +286,7 @@ export class Ring {
    */
   async wrapPrivate(roleId: string): Promise<Uint8Array> {
     const role = this.roles.get(roleId);
-    if (role?.wrapPrivateSealed == null) throw new Error(`Rolle ${roleId} hat keinen Verpackungsschlüssel.`);
+    if (role?.wrapPrivateSealed == null) throw new Error(t('core.keys.noWrapKey', { role: roleId }));
 
     return open(this.keyOf(roleId), wrapAad(roleId), fromBase64Url(role.wrapPrivateSealed));
   }
@@ -310,7 +311,7 @@ export class Ring {
    */
   async signKey(roleId: string): Promise<Uint8Array> {
     const role = this.roles.get(roleId);
-    if (role?.signPrivateSealed == null) throw new Error(`Rolle ${roleId} hat keinen Signierschlüssel.`);
+    if (role?.signPrivateSealed == null) throw new Error(t('core.keys.noSignKey', { role: roleId }));
 
     const opener = role.keyLayout === 1 ? this.signKeys.get(roleId) : this.keys.get(roleId);
 
@@ -344,7 +345,7 @@ export class Ring {
   /** Der Rollenschlüssel selbst — zum Weiterverpacken an einen neuen Halter. */
   keyOf(roleId: string): Uint8Array {
     const key = this.keys.get(roleId);
-    if (key === undefined) throw new Error(`Kein Schlüssel für Rolle ${roleId}.`);
+    if (key === undefined) throw new Error(t('core.keys.noKey', { role: roleId }));
     return key;
   }
 }

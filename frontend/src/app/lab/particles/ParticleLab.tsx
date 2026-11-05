@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
+import { useT } from '../../core/i18n';
 import { Icon, type IconName } from '../../ui/icons';
 import { LabFrame, labQuantity } from '../LabFrame';
 import type { ParticleInfo } from './engine/engine';
@@ -20,7 +21,7 @@ import { phaseColor, spIndex } from './engine/species';
 import { STAGES } from './engine/stages';
 import { GAS, LIQUID, SOLID, T0 } from './engine/units';
 import { ParticleHost } from './host';
-import { num, t, type TextKey } from './i18n';
+import { num, speciesName, type TextKey } from './i18n';
 import { fullLabUseful } from './fullLab';
 import { createEngineWorker, createHelperWorker } from './workerFactory';
 
@@ -97,30 +98,32 @@ function ApparatusIcon({ kind }: { kind: ApparatusKey }) {
 
 /* 2026-10-23 (Schritt 13) — die Werte des Motors (SI) in Einheiten der gemeinsamen Liste (core/quantities.ts, labQuantity). */
 function Inspector({ info }: { info: ParticleInfo }) {
-  const phase = info.implicit ? t('ambientAir') : info.phase === SOLID ? t('phaseSolid') : info.phase === LIQUID ? t('phaseLiquid') : t('phaseGas');
+  const t = useT();
+  const phase = info.implicit ? t('labParticles.ambientAir') : info.phase === SOLID ? t('labParticles.phaseSolid') : info.phase === LIQUID ? t('labParticles.phaseLiquid') : t('labParticles.phaseGas');
   return (
     <div className="lab-values">
-      <div className="lab-value"><span>{t('phase')}</span><output>{phase}{info.fixed ? ` · ${t('fixed')}` : ''}{info.role === 1 ? ` · ${t('heater')}` : ''}</output></div>
-      <div className="lab-value"><span>{t('temp')}</span><output>{labQuantity(info.T, 'DEG_C', 1, num)}</output></div>
-      <div className="lab-value"><span>{t('pressure')}</span><output>{labQuantity(info.p, 'KiloPA', 3, num)}</output></div>
-      {!info.implicit && <div className="lab-value"><span>{t('mass')}</span><output>{labQuantity(info.mass, 'MilliGM', 2, num)}</output></div>}
-      <div className="lab-value"><span>{t('velocity')}</span><output>{labQuantity(Math.hypot(info.vx, info.vy), 'CentiM-PER-SEC', 1, num)}</output></div>
-      <div className="lab-value"><span>{t('density')}</span><output>{labQuantity(info.rho, 'KiloGM-PER-M3', info.rho < 10 ? 3 : 1, num)}</output></div>
-      <div className="lab-value"><span>{t('enthalpy')}</span><output>{labQuantity(info.H, 'KiloJ-PER-KiloGM', 1, num)}</output></div>
-      <div className="lab-value"><span>{t('neighbours')}</span><output>{info.neighbours}</output></div>
-      <div className="lab-value"><span>{t('composition')}</span><output>{info.composition.map((c) => `${c.name} ${num(c.fraction * 100, 0)} %`).join(', ')}</output></div>
+      <div className="lab-value"><span>{t('labParticles.phase')}</span><output>{phase}{info.fixed ? ` · ${t('labParticles.fixed')}` : ''}{info.role === 1 ? ` · ${t('labParticles.heater')}` : ''}</output></div>
+      <div className="lab-value"><span>{t('labParticles.temp')}</span><output>{labQuantity(info.T, 'DEG_C', 1, num)}</output></div>
+      <div className="lab-value"><span>{t('labParticles.pressure')}</span><output>{labQuantity(info.p, 'KiloPA', 3, num)}</output></div>
+      {!info.implicit && <div className="lab-value"><span>{t('labParticles.mass')}</span><output>{labQuantity(info.mass, 'MilliGM', 2, num)}</output></div>}
+      <div className="lab-value"><span>{t('labParticles.velocity')}</span><output>{labQuantity(Math.hypot(info.vx, info.vy), 'CentiM-PER-SEC', 1, num)}</output></div>
+      <div className="lab-value"><span>{t('labParticles.density')}</span><output>{labQuantity(info.rho, 'KiloGM-PER-M3', info.rho < 10 ? 3 : 1, num)}</output></div>
+      <div className="lab-value"><span>{t('labParticles.enthalpy')}</span><output>{labQuantity(info.H, 'KiloJ-PER-KiloGM', 1, num)}</output></div>
+      <div className="lab-value"><span>{t('labParticles.neighbours')}</span><output>{info.neighbours}</output></div>
+      <div className="lab-value"><span>{t('labParticles.composition')}</span><output>{info.composition.map((c) => `${speciesName(c.id, c.phase, t.lang)} ${num(c.fraction * 100, 0)} %`).join(', ')}</output></div>
     </div>
   );
 }
 
 function Hud({ stats }: { stats: HostStats }) {
+  const t = useT();
   const e = stats.engine;
   const lines = [
-    `${e.particles} ${t('particles')} (${t('liquid')} ${e.liquid}, ${t('gas')} ${e.gas} — ${t('airParticles')} ${e.air}, ${t('solidFixed')} ${e.fixed}) / ${e.capacity}`,
-    `${Math.round(stats.stepsPerSecond)} ${t('stepsPerSecond')} · ${t('simRate')} ${num(stats.simRate, 2)}× · ${Math.round(stats.fps)} ${t('fps')}`,
-    `${stats.mode === 'worker' ? t('renderWorker') : t('renderMain')} · render ${num(stats.renderMs, 2)} ms · s = ${num(e.spacing * 1000, 1)} mm · ${e.threads} ${t('threads')} · ${e.substeps}× dt/${e.substeps}`,
+    `${e.particles} ${t('labParticles.particles')} (${t('labParticles.liquid')} ${e.liquid}, ${t('labParticles.gas')} ${e.gas} — ${t('labParticles.airParticles')} ${e.air}, ${t('labParticles.solidFixed')} ${e.fixed}) / ${e.capacity}`,
+    `${Math.round(stats.stepsPerSecond)} ${t('labParticles.stepsPerSecond')} · ${t('labParticles.simRate')} ${num(stats.simRate, 2)}× · ${Math.round(stats.fps)} ${t('labParticles.fps')}`,
+    `${stats.mode === 'worker' ? t('labParticles.renderWorker') : t('labParticles.renderMain')} · render ${num(stats.renderMs, 2)} ms · s = ${num(e.spacing * 1000, 1)} mm · ${e.threads} ${t('labParticles.threads')} · ${e.substeps}× dt/${e.substeps}`,
     ...STAGES.map((name, k) => `${name.padEnd(12)} ${(e.stages[k] ?? 0).toFixed(3)} ms`),
-    `${'step'.padEnd(12)} ${e.stages.reduce((a, b) => a + b, 0).toFixed(3)} ms${e.overflow > 0 ? ` · overflow ${e.overflow}` : ''}`
+    `${'step'.padEnd(12)} ${e.stages.reduce((a, b) => a + b, 0).toFixed(3)} ms${e.overflow > 0 ? ` · overflow ${e.overflow}` : ''}` // i18n-ignore (Entwicklerfeld: Kennzahlen)
   ];
   return <div className="pl-hud" aria-hidden="true">{lines.join('\n')}</div>;
 }
@@ -135,6 +138,7 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
   /** Das Labor in einer eigenen Karte mit allen Kernen öffnen (`lab.html`, `fullLab.ts`); bekommt, was gebaut wurde. Fehlt, wo es das schon ist. */
   fullPower?: (scene: () => Promise<Record<string, unknown> | null>) => void;
 }) {
+  const t = useT();
   const boxRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<ParticleHost | null>(null);
   const drag = useRef<{ start: [number, number]; startPx: [number, number]; last: [number, number]; at: number } | null>(null);
@@ -284,17 +288,17 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
   const lower: Quality | undefined = QUALITIES[QUALITIES.indexOf(quality) + 1];
   const bar = (
     <>
-      <button type="button" className={`lab-tool${paused ? '' : ' is-on'}`} onClick={togglePause} title={paused ? t('play') : t('pause')} aria-label={paused ? t('play') : t('pause')}>
+      <button type="button" className={`lab-tool${paused ? '' : ' is-on'}`} onClick={togglePause} title={paused ? t('labParticles.play') : t('labParticles.pause')} aria-label={paused ? t('labParticles.play') : t('labParticles.pause')}>
         <Icon name={paused ? 'play' : 'pause'} />
       </button>
-      <button type="button" className="lab-tool" disabled={!paused} onClick={() => host()?.step()} title={t('step')} aria-label={t('step')}>
+      <button type="button" className="lab-tool" disabled={!paused} onClick={() => host()?.step()} title={t('labParticles.step')} aria-label={t('labParticles.step')}>
         <Icon name="next" />
       </button>
-      <button type="button" className="lab-tool" onClick={cycleSpeed} title={t('speed')} aria-label={`${t('speed')} ${speed}×`}>{num(speed, speed < 1 ? 2 : 0)}×</button>
-      <button type="button" className={`lab-tool${hud ? ' is-on' : ''}`} onClick={() => setHud(!hud)} title={t('hud')} aria-label={t('hud')}>HUD</button>
+      <button type="button" className="lab-tool" onClick={cycleSpeed} title={t('labParticles.speed')} aria-label={`${t('labParticles.speed')} ${speed}×`}>{num(speed, speed < 1 ? 2 : 0)}×</button>
+      <button type="button" className={`lab-tool${hud ? ' is-on' : ''}`} onClick={() => setHud(!hud)} title={t('labParticles.hud')} aria-label={t('labParticles.hud')}>{t('labParticles.hudButton')}</button>
       {canFull && (
-        <button type="button" className="lab-tool" onClick={openFull} title={t('fullPowerTitle')} aria-label={t('fullPowerTitle')}>
-          <Icon name="external" />{t('fullPower')}
+        <button type="button" className="lab-tool" onClick={openFull} title={t('labParticles.fullPowerTitle')} aria-label={t('labParticles.fullPowerTitle')}>
+          <Icon name="external" />{t('labParticles.fullPower')}
         </button>
       )}
     </>
@@ -306,95 +310,95 @@ export function ParticleLab({ config, whole = false, createWorker = createEngine
         <svg className="pl-overlay" aria-hidden="true"><line className="pl-wall-preview" x1={line[0]} y1={line[1]} x2={line[2]} y2={line[3]} /></svg>
       )}
       {hud && stats !== null && <Hud stats={stats} />}
-      {(!ready || error !== null) && <div className="pl-status">{error ?? t('loading')}</div>}
+      {(!ready || error !== null) && <div className="pl-status">{error ?? t('labParticles.loading')}</div>}
     </div>
   );
 
   const side = (
     <div className="lab-side-in">
       {config.text.map((p, k) => <p key={k} className="lab-text">{p}</p>)}
-      <p className="lab-muted">{t('m1Note')}</p>
+      <p className="lab-muted">{t('labParticles.m1Note')}</p>
       {lagging !== null && (
         <div className="pl-slow" role="status">
-          <p>{t('slow').replace('{x}', num(lagging, 2))}</p>
+          <p>{t('labParticles.slow', { x: num(lagging, 2) })}</p>
           {canFull && (
             <>
-              <p className="lab-muted">{t('fullPowerSlow')}</p>
-              <button type="button" className="lab-tool" onClick={openFull}><Icon name="external" />{t('fullPower')}</button>
+              <p className="lab-muted">{t('labParticles.fullPowerSlow')}</p>
+              <button type="button" className="lab-tool" onClick={openFull}><Icon name="external" />{t('labParticles.fullPower')}</button>
             </>
           )}
           {lower !== undefined
-            ? <button type="button" className="lab-tool" onClick={() => changeQuality(lower)}>{t('slowLower')}: {t(QUALITY_LABEL[lower])}</button>
-            : <p className="lab-muted">{t('slowLowest')}</p>}
+            ? <button type="button" className="lab-tool" onClick={() => changeQuality(lower)}>{t('labParticles.slowLower')}: {t(`labParticles.${QUALITY_LABEL[lower]}`)}</button>
+            : <p className="lab-muted">{t('labParticles.slowLowest')}</p>}
         </div>
       )}
       <details className="lab-section" open>
-        <summary>{t('tools')}</summary>
+        <summary>{t('labParticles.tools')}</summary>
         <div className="lab-section-body">
           <div className="lab-palette">
             {TOOLS.map((k) => (
               <button key={k.key} type="button" className={`lab-item${tool === k.key ? ' is-on' : ''}`} onClick={() => setTool(k.key)}>
-                <Icon name={k.icon} />{t(k.label)}
+                <Icon name={k.icon} />{t(`labParticles.${k.label}`)}
               </button>
             ))}
           </div>
-          <p className="lab-muted">{t(hint)}</p>
+          <p className="lab-muted">{t(`labParticles.${hint}`)}</p>
         </div>
       </details>
       <details className="lab-section" open>
-        <summary>{t('materials')}</summary>
+        <summary>{t('labParticles.materials')}</summary>
         <div className="lab-section-body">
           <div className="lab-palette">
             {MATERIALS.map((m) => (
               <button key={m.key} type="button" className={`lab-item${material === m.key ? ' is-on' : ''}`} onClick={() => { setMaterial(m.key); if (tool !== 'paint' && tool !== 'wall') setTool('paint'); }}>
-                <Swatch color={m.color} />{t(m.label)}
+                <Swatch color={m.color} />{t(`labParticles.${m.label}`)}
               </button>
             ))}
           </div>
         </div>
       </details>
       <details className="lab-section" open>
-        <summary>{t('apparatus')}</summary>
+        <summary>{t('labParticles.apparatus')}</summary>
         <div className="lab-section-body">
           <div className="lab-palette">
             {(['beaker', 'hotplate'] as const).map((k) => (
               <button key={k} type="button" className={`lab-item${apparatus === k && tool === 'place' ? ' is-on' : ''}`} onClick={() => { setApparatus(k); setTool('place'); }}>
-                <ApparatusIcon kind={k} />{t(k === 'beaker' ? 'appBeaker' : 'appHotplate')}
+                <ApparatusIcon kind={k} />{t(`labParticles.${k === 'beaker' ? 'appBeaker' : 'appHotplate'}`)}
               </button>
             ))}
           </div>
         </div>
       </details>
       <details className="lab-section">
-        <summary>{t('settings')}</summary>
+        <summary>{t('labParticles.settings')}</summary>
         <div className="lab-section-body">
-          <label className="lab-field">{t('brush')}: {brushMm} mm
+          <label className="lab-field">{t('labParticles.brush')}: {brushMm} mm
             <input type="range" min={2} max={30} step={1} value={brushMm} onChange={(e) => setBrushMm(Number(e.currentTarget.value))} />
           </label>
-          <label className="lab-field">{t('temperature')}: {tempC} °C
+          <label className="lab-field">{t('labParticles.temperature')}: {tempC} °C
             <input type="range" min={0} max={100} step={1} value={tempC} onChange={(e) => setTempC(Number(e.currentTarget.value))} />
           </label>
-          <label className="lab-field">{t('quality')}
+          <label className="lab-field">{t('labParticles.quality')}
             <select value={quality} onChange={(e) => changeQuality(e.currentTarget.value as Quality)}>
-              {QUALITIES.map((q) => <option key={q} value={q}>{t(QUALITY_LABEL[q])} · {num(SPACING[q] * 1000, 1)} mm</option>)}
+              {QUALITIES.map((q) => <option key={q} value={q}>{t(`labParticles.${QUALITY_LABEL[q]}`)} · {num(SPACING[q] * 1000, 1)} mm</option>)}
             </select>
           </label>
-          <label className="lab-row"><input type="checkbox" checked={showAir} onChange={(e) => { setShowAir(e.currentTarget.checked); host()?.showAir(e.currentTarget.checked); }} />{t('showAir')}</label>
-          <p className="lab-muted">{t('airNote')}</p>
+          <label className="lab-row"><input type="checkbox" checked={showAir} onChange={(e) => { setShowAir(e.currentTarget.checked); host()?.showAir(e.currentTarget.checked); }} />{t('labParticles.showAir')}</label>
+          <p className="lab-muted">{t('labParticles.airNote')}</p>
           <div className="lab-row">
-            <button type="button" className="lab-tool" onClick={() => host()?.load(withQuality(config.scene, quality))}><Icon name="refresh" />{t('restart')}</button>
-            <button type="button" className="lab-tool" onClick={emptyBox}><Icon name="trash" />{t('emptyBox')}</button>
+            <button type="button" className="lab-tool" onClick={() => host()?.load(withQuality(config.scene, quality))}><Icon name="refresh" />{t('labParticles.restart')}</button>
+            <button type="button" className="lab-tool" onClick={emptyBox}><Icon name="trash" />{t('labParticles.emptyBox')}</button>
           </div>
         </div>
       </details>
       {tool === 'inspect' && info !== undefined && (
         <details className="lab-section" open>
-          <summary>{t('inspect')}</summary>
-          <div className="lab-section-body">{info === null ? <p className="lab-muted">{t('nothingHere')}</p> : <Inspector info={info} />}</div>
+          <summary>{t('labParticles.inspect')}</summary>
+          <div className="lab-section-body">{info === null ? <p className="lab-muted">{t('labParticles.nothingHere')}</p> : <Inspector info={info} />}</div>
         </details>
       )}
     </div>
   );
 
-  return <LabFrame title={config.title || t('title')} bar={bar} stage={stage} side={side} whole={whole} />;
+  return <LabFrame title={config.title || t('labParticles.title')} bar={bar} stage={stage} side={side} whole={whole} />;
 }

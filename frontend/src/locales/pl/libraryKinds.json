@@ -1,0 +1,688 @@
+{
+  "person": {
+    "label": "Osoba",
+    "plural": "Osoby",
+    "says": "Autor, redaktor, tłumacz — albo instytucja, która wydała dokument.",
+    "fields": {
+      "personType": {
+        "label": "Kto to",
+        "says": "\"person\" — osoba, \"organization\" — instytucja"
+      },
+      "name": {
+        "label": "Jak się nazywa",
+        "says": "Pełna nazwa, gdy nie dzieli się na imię i nazwisko (np. \"Franciszek\", \"św. Augustyn\", \"Kongregacja Nauki Wiary\")",
+        "hint": "np. św. Augustyn"
+      },
+      "givenNames": {
+        "label": "Imiona",
+        "says": "Imiona — w przypisach skracane do inicjałów",
+        "hint": "np. Joseph"
+      },
+      "surname": {
+        "label": "Nazwisko",
+        "says": "Nazwisko — według niego układa się bibliografia",
+        "hint": "np. Ratzinger"
+      },
+      "years": {
+        "label": "Lata",
+        "says": "Lata życia albo działalności",
+        "hint": "np. 1927–2022"
+      },
+      "description": {
+        "label": "Opis",
+        "says": "Krótki opis osoby (biogram) — widoczny przy jej źródłach"
+      },
+      "url": {
+        "label": "Adres strony",
+        "says": "Strona o tej osobie (np. biografia)"
+      }
+    },
+    "type": {
+      "person": "Osoba",
+      "organization": "Instytucja"
+    },
+    "more": {
+      "composer": "kompozytor",
+      "choir": "wykonawca — chór jako instytucja"
+    }
+  },
+  "workTypes": {
+    "book": "Książka",
+    "chapter": "Rozdział w książce",
+    "article": "Artykuł w czasopiśmie",
+    "periodical": "Czasopismo",
+    "document": "Dokument (Kościoła, urzędowy)",
+    "bible": "Pismo Święte",
+    "web": "Strona internetowa",
+    "talk": "Wykład, kazanie, nagranie",
+    "other": "Inne",
+    "piece": "Utwór muzyczny",
+    "score": "Nuty",
+    "recording": "Nagranie",
+    "album": "Płyta, album"
+  },
+  "psalms": {
+    "hebrew": "Hebrajska (BT)",
+    "greek": "Grecka (Wulgata)"
+  },
+  "scoreFileItem": {
+    "id": {
+      "label": "Identyfikator",
+      "says": "Stały identyfikator pliku na liście; pominięty — nada się sam"
+    },
+    "label": {
+      "label": "Co to jest",
+      "says": "Co zawiera plik",
+      "hint": "np. Partytura · Sopran · Organy · MusicXML"
+    },
+    "file": {
+      "label": "Plik",
+      "says": "Plik wgrany w aplikacji (PDF, obraz, MusicXML, MIDI)"
+    }
+  },
+  "trackRoles": {
+    "part": "Głos albo instrument",
+    "whole": "Całe nagranie"
+  },
+  "trackItem": {
+    "id": {
+      "label": "Identyfikator",
+      "says": "Stały identyfikator ścieżki; pominięty — nada się sam"
+    },
+    "label": {
+      "label": "Głos / instrument",
+      "says": "Czyj to głos albo jaki instrument — albo „Całość”",
+      "hint": "np. Sopran · Alt · Tenor · Bas · Organy · Całość"
+    },
+    "role": {
+      "label": "Rola",
+      "says": "\"part\" — głos albo instrument: odtwarzane razem z innymi ścieżkami tego nagrania; \"whole\" — całe nagranie: odtwarzane samo"
+    },
+    "file": {
+      "label": "Plik",
+      "says": "Plik dźwiękowy wgrany w aplikacji (MP3, OGG, M4A, WAV, FLAC)"
+    }
+  },
+  "bindings": {
+    "soft": "Miękka",
+    "softFlaps": "Miękka ze skrzydełkami",
+    "hard": "Twarda",
+    "integrated": "Zintegrowana",
+    "cloth": "Płócienna",
+    "leather": "Skórzana",
+    "spiral": "Spirala",
+    "ebook": "E-book",
+    "other": "Inna"
+  },
+  "work": {
+    "label": "Źródło",
+    "plural": "Źródła",
+    "says": "Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Kościoła, Pismo Święte, strona — albo muzyka: utwór, nuty, nagranie, płyta.",
+    "fields": {
+      "workType": {
+        "label": "Rodzaj",
+        "says": "Rodzaj: {types}; muzyka: {music}. Rodzaj decyduje, które pola dzieło ma"
+      },
+      "title": {
+        "label": "Tytuł",
+        "says": "Tytuł dzieła (utworu, nagrania, płyty)"
+      },
+      "subtitle": {
+        "label": "Podtytuł",
+        "says": "Podtytuł (albo rodzaj dokumentu, np. \"adhortacja apostolska\")"
+      },
+      "originalTitle": {
+        "label": "Tytuł oryginału",
+        "says": "Tytuł oryginału (oryginalny tytuł przekładu; przy utworze — tytuł w języku oryginału)"
+      },
+      "otherTitles": {
+        "label": "Inne tytuły, incipit",
+        "says": "Inne nazwy, po których ludzie znają utwór — incipit (pierwsze słowa), tytuł w innym języku, nazwa potoczna; każda w osobnym wierszu",
+        "hint": "np. Pan kiedyś stanął nad brzegiem"
+      },
+      "authors": {
+        "label": "Autorzy",
+        "says": "Autorzy — odwołania do osób, w kolejności (przy muzyce: kompozytor, autor słów — pola niżej)"
+      },
+      "composers": {
+        "label": "Kompozytor",
+        "says": "Kompozytorzy — odwołania do osób; nuty i nagranie, które wskazują utwór, nie muszą go powtarzać"
+      },
+      "lyricists": {
+        "label": "Autor słów",
+        "says": "Autorzy słów utworu — odwołania do osób"
+      },
+      "arrangers": {
+        "label": "Opracowanie",
+        "says": "Kto opracował (zharmonizował, zaaranżował) utwór w tej wersji — odwołania do osób"
+      },
+      "editors": {
+        "label": "Redakcja",
+        "says": "Redaktorzy — odwołania do osób"
+      },
+      "translators": {
+        "label": "Tłumaczenie",
+        "says": "Tłumacze — odwołania do osób (przy utworze: przekład słów)"
+      },
+      "performers": {
+        "label": "Wykonawcy",
+        "says": "Kto wykonuje — chór, zespół, dyrygent, soliści: odwołania do osób i instytucji"
+      },
+      "piece": {
+        "label": "Utwór",
+        "says": "Jaki utwór zapisują te nuty albo wykonuje to nagranie — odwołanie do dzieła z \"workType\": \"piece\""
+      },
+      "album": {
+        "label": "Na płycie",
+        "says": "Płyta (album), na której jest to nagranie — odwołanie do dzieła z \"workType\": \"album\""
+      },
+      "track": {
+        "label": "Nr na płycie",
+        "says": "Numer nagrania na płycie",
+        "hint": "np. 5"
+      },
+      "container": {
+        "label": "W (książka, czasopismo)",
+        "says": "Dla rozdziału: książka; dla artykułu: czasopismo — odwołanie do źródła"
+      },
+      "volume": {
+        "label": "Tom / rocznik",
+        "says": "Tom (książka, zbiór nut) albo rocznik (czasopismo)",
+        "hint": "np. 1"
+      },
+      "issue": {
+        "label": "Numer",
+        "says": "Numer czasopisma"
+      },
+      "edition": {
+        "label": "Wydanie",
+        "says": "Które wydanie",
+        "hint": "np. 2"
+      },
+      "catalogue": {
+        "label": "Numer katalogowy",
+        "says": "Przy utworze: numer w katalogu dzieł (op. 27 nr 2, BWV 147, KV 618); przy nutach i płycie: numer wydawcy",
+        "hint": "np. KV 618"
+      },
+      "musicKey": {
+        "label": "Tonacja",
+        "says": "Tonacja (tej wersji)",
+        "hint": "np. D-dur"
+      },
+      "voicing": {
+        "label": "Obsada",
+        "says": "Na jakie głosy i instrumenty",
+        "hint": "np. SATB a cappella · chór mieszany i organy · unisono"
+      },
+      "genre": {
+        "label": "Gatunek",
+        "says": "Jaki to utwór albo jaka to książka (powieść, powieść biograficzna, biografia, reportaż, mszał, modlitewnik, podręcznik…)",
+        "hint": "np. pieśń, psalm, motet · powieść biograficzna, mszał"
+      },
+      "duration": {
+        "label": "Czas trwania",
+        "says": "Jak długo trwa (minuty:sekundy)",
+        "hint": "np. 4:32"
+      },
+      "publisher": {
+        "label": "Wydawca",
+        "says": "Wydawnictwo (przy nagraniu i płycie: wytwórnia)"
+      },
+      "place": {
+        "label": "Miejsce wydania",
+        "says": "Miejsce wydania",
+        "hint": "np. Kraków"
+      },
+      "year": {
+        "label": "Rok",
+        "says": "Rok wydania (albo data dokumentu; przy utworze — rok powstania, przy nagraniu — rok nagrania)",
+        "hint": "np. 2007"
+      },
+      "series": {
+        "label": "Seria",
+        "says": "Seria wydawnicza, z numerem tomu w serii",
+        "hint": "np. Źródła Monastyczne, t. 45"
+      },
+      "pages": {
+        "label": "Strony",
+        "says": "Zakres stron rozdziału albo artykułu",
+        "hint": "np. 45–60"
+      },
+      "pageCount": {
+        "label": "Liczba stron",
+        "says": "Ile stron ma książka",
+        "hint": "np. 384"
+      },
+      "binding": {
+        "label": "Oprawa",
+        "says": "Oprawa: {list}"
+      },
+      "height": {
+        "label": "Wysokość (cm)",
+        "says": "Wysokość w centymetrach",
+        "hint": "np. 20,5"
+      },
+      "width": {
+        "label": "Szerokość (cm)",
+        "says": "Szerokość w centymetrach",
+        "hint": "np. 14,5"
+      },
+      "length": {
+        "label": "Grubość (cm)",
+        "says": "Trzeci wymiar — grubość (długość grzbietu w głąb) w centymetrach",
+        "hint": "np. 2,5"
+      },
+      "siglum": {
+        "label": "Skrót przekładu",
+        "says": "Dla Pisma Świętego: skrót przekładu, dopisywany do sigli",
+        "hint": "np. BT"
+      },
+      "isbn": {
+        "label": "ISBN",
+        "says": "Numer ISBN książki (z kreskami albo bez; kilka — po przecinku)"
+      },
+      "ismn": {
+        "label": "ISMN",
+        "says": "Numer ISMN wydania nut",
+        "hint": "np. 979-0-2025-0123-4"
+      },
+      "libraryNumber": {
+        "label": "Numer w bibliotece",
+        "says": "Własny numer egzemplarza w tej bibliotece (numer inwentarzowy, sygnatura) — można po nim szukać i go zeskanować",
+        "hint": "np. B-0124"
+      },
+      "doi": {
+        "label": "DOI",
+        "says": "Identyfikator DOI publikacji"
+      },
+      "url": {
+        "label": "Adres",
+        "says": "Adres w sieci"
+      },
+      "accessed": {
+        "label": "Dostęp",
+        "says": "Kiedy strona była czytana (RRRR-MM-DD)"
+      },
+      "language": {
+        "label": "Język",
+        "says": "Język (np. \"pl\", \"la\"; przy muzyce — język słów)"
+      },
+      "lyrics": {
+        "label": "Słowa",
+        "says": "Słowa utworu — zwrotki oddzielone pustym wierszem"
+      },
+      "scheme": {
+        "label": "Układ miejsc",
+        "hint": "puste: z rodzaju",
+        "says": "Jak wskazuje się miejsca w tym dziele: {list}; puste — z rodzaju (Pismo Święte: bible, dokument: numbered, nagranie: time — minuty i sekundy, inne: pages)"
+      },
+      "pageSeries": {
+        "label": "Serie stron",
+        "says": "Gdy książka numeruje swoje części osobno (wstęp, dodatki, wkładki): po jednej przykładowej stronie z każdej serii, tak jak jest wydrukowana, w kolejności książki, oddzielone spacją — np. \"xii 12* 1 3' (1) A1\" (rzymskie, z gwiazdką, zwykłe, z apostrofem, w nawiasie, z literą; znaki mogą być dowolne). Strona \"12*\" i strona \"12\" to dwie różne strony. Puste — rzymskie, potem zwykłe, potem pozostałe"
+      },
+      "psalms": {
+        "label": "Numeracja psalmów",
+        "says": "Dla Pisma Świętego: \"hebrew\" (hebrajska — Biblia Tysiąclecia, większość przekładów) albo \"greek\" (grecka — Septuaginta, Wulgata)"
+      },
+      "editionOf": {
+        "label": "Wydanie / przekład dzieła",
+        "says": "To jest inne wydanie albo przekład tego dzieła — odwołanie do źródła. Miejsca w strukturze (werset, numer, paragraf) są wspólne dla wszystkich wydań; strony nie."
+      },
+      "files": {
+        "label": "Pliki nut",
+        "says": "Pliki tych nut — partytura, głosy, zapis nutowy; pliki wgrywa się w aplikacji, JSON z eksportu przenosi je w tej samej bibliotece"
+      },
+      "tracks": {
+        "label": "Ścieżki",
+        "says": "Pliki nagrania — całe nagranie albo osobne głosy i instrumenty, które odtwarza się razem; pliki wgrywa się w aplikacji, JSON z eksportu przenosi je w tej samej bibliotece"
+      }
+    },
+    "more": {
+      "piece": "muzyka — utwór",
+      "recording": "muzyka — nagranie w głosach"
+    }
+  },
+  "quote": {
+    "label": "Cytat",
+    "plural": "Cytaty",
+    "says": "Fragment ze źródła — z miejscem (strona, werset, numer) i opisem.",
+    "fields": {
+      "text": {
+        "label": "Tekst cytatu",
+        "says": "Dokładne brzmienie cytatu"
+      },
+      "work": {
+        "label": "Źródło",
+        "says": "Z jakiego źródła — odwołanie"
+      },
+      "locator": {
+        "label": "Miejsce",
+        "says": "Gdzie w źródle: \"s. 23\", \"J 3,16\", \"nr 24\"",
+        "hint": "s. 23 · J 3,16 · nr 24"
+      },
+      "language": {
+        "label": "Język",
+        "says": "Język cytatu (np. \"pl\", \"la\")"
+      },
+      "translation": {
+        "label": "Przekład",
+        "says": "Przekład cytatu (gdy tekst jest w innym języku)"
+      }
+    }
+  },
+  "textStatus": {
+    "idea": "Pomysł",
+    "draft": "Szkic",
+    "revision": "Do poprawy",
+    "final": "Gotowy"
+  },
+  "pointKinds": {
+    "thought": "Myśl",
+    "quote": "Cytat",
+    "example": "Przykład",
+    "question": "Pytanie",
+    "application": "Zastosowanie"
+  },
+  "planItem": {
+    "id": {
+      "label": "Identyfikator",
+      "says": "Stały identyfikator punktu (np. \"p4k2x\"); pominięty — nada się sam. Wygłoszenia wskazują punkty po nim"
+    },
+    "text": {
+      "label": "Treść",
+      "says": "Myśl w jednym-dwóch zdaniach, w zapisie treści: [@klucz, s. 12] — źródło, sam ![@klucz-cytatu] — cytat z biblioteki"
+    },
+    "depth": {
+      "label": "Poziom",
+      "says": "0 — główna myśl, 1 — pod nią, 2 — jeszcze głębiej"
+    },
+    "kind": {
+      "label": "Rodzaj",
+      "says": "Rodzaj punktu: {list}; pominięty — myśl"
+    }
+  },
+  "coverageStates": {
+    "said": "Powiedziane",
+    "short": "Krótko",
+    "skipped": "Pominięte"
+  },
+  "coverageItem": {
+    "point": {
+      "label": "Punkt planu",
+      "says": "\"id\" punktu z planu tekstu"
+    },
+    "state": {
+      "label": "Jak",
+      "says": "\"said\" — powiedziane, \"short\" — tylko wspomniane, krótko, \"skipped\" — pominięte"
+    },
+    "at": {
+      "label": "Czas",
+      "says": "Kiedy w nagraniu zaczyna się ten punkt (mm:ss albo gg:mm:ss)"
+    },
+    "note": {
+      "label": "Uwaga",
+      "says": "Co było inaczej niż w planie"
+    }
+  },
+  "lessonStates": {
+    "planned": "Zaplanowana",
+    "done": "Zrealizowana",
+    "partial": "Częściowo",
+    "skipped": "Nie odbyła się"
+  },
+  "classItem": {
+    "area": {
+      "label": "Klasa",
+      "says": "Identyfikator obszaru klasy (z eksportu albo z karty szkoły)"
+    }
+  },
+  "addedItem": {
+    "text": {
+      "label": "Co",
+      "says": "Co zostało powiedziane (jedno-dwa zdania), w zapisie treści"
+    },
+    "at": {
+      "label": "Czas",
+      "says": "Kiedy w nagraniu (mm:ss)"
+    },
+    "after": {
+      "label": "Po punkcie",
+      "says": "\"id\" punktu planu, po którym to padło; puste — na końcu"
+    }
+  },
+  "text": {
+    "label": "Tekst",
+    "plural": "Teksty",
+    "says": "Własny tekst — kazanie, rozważanie, rozdział książki — z odwołaniami do źródeł i cytatów.",
+    "fields": {
+      "textType": {
+        "label": "Rodzaj tekstu",
+        "says": "Własny rodzaj tekstu — odwołanie (np. \"@kazanie-maryjne\"); jego dodatkowe pola stoją wtedy obok pól tekstu. Pominięty — zwykły tekst"
+      },
+      "title": {
+        "label": "Tytuł",
+        "says": "Tytuł"
+      },
+      "subtitle": {
+        "label": "Podtytuł",
+        "says": "Podtytuł"
+      },
+      "project": {
+        "label": "Projekt (książka, cykl)",
+        "says": "Do jakiej książki albo cyklu należy — odwołanie"
+      },
+      "status": {
+        "label": "Stan pracy",
+        "says": "Stan pracy: {list}"
+      },
+      "date": {
+        "label": "Data wygłoszenia / napisania",
+        "says": "Data (RRRR-MM-DD) — według niej układa się archiwum"
+      },
+      "occasion": {
+        "label": "Okazja",
+        "says": "Okazja, dzień liturgiczny",
+        "hint": "np. XVIII Niedziela zwykła"
+      },
+      "place": {
+        "label": "Miejsce",
+        "says": "Gdzie wygłoszony"
+      },
+      "readings": {
+        "label": "Czytania",
+        "says": "Czytania, sigla biblijne",
+        "hint": "np. Iz 55,1-3; Rz 8,35.37-39; Mt 14,13-21"
+      },
+      "summary": {
+        "label": "Krótki opis",
+        "says": "Krótki opis — w archiwum, nad treścią"
+      },
+      "plan": {
+        "label": "Plan",
+        "says": "Plan — główne myśli po kolei, pod nimi cytaty, przykłady, pytania, zastosowania; lista punktów { \"id\", \"text\", \"depth\", \"kind\", \"note\" }. Wygłoszenia odwołują się do punktów po \"id\""
+      },
+      "body": {
+        "label": "Treść",
+        "says": "Treść w prostym zapisie (niżej: \"Zapis treści\") — z odwołaniami [@klucz, s. 12]"
+      },
+      "further": {
+        "label": "Dalsze informacje",
+        "says": "Dalsze informacje pod tekstem — w tym samym zapisie"
+      },
+      "audio": {
+        "label": "Nagranie (adres)",
+        "says": "Adres nagrania audio"
+      },
+      "video": {
+        "label": "Wideo (adres)",
+        "says": "Adres nagrania wideo"
+      },
+      "targetWords": {
+        "label": "Docelowa liczba słów",
+        "says": "Ile słów ma mieć"
+      }
+    }
+  },
+  "delivery": {
+    "label": "Wygłoszenie",
+    "plural": "Wygłoszenia",
+    "says": "Jedno wygłoszenie przygotowanego tekstu (kazania, konferencji): kiedy i gdzie, nagranie — i co z planu zostało powiedziane, co tylko krótko, co pominięte, a co doszło.",
+    "fields": {
+      "texts": {
+        "label": "Kazanie (tekst)",
+        "says": "Który przygotowany tekst wygłoszono — odwołanie (zwykle jedno; kilka, gdy łączyło się materiał)"
+      },
+      "date": {
+        "label": "Data",
+        "says": "Kiedy (RRRR-MM-DD) — według niej układa się archiwum"
+      },
+      "occasion": {
+        "label": "Okazja",
+        "says": "Dzień liturgiczny, okazja",
+        "hint": "np. XVIII Niedziela zwykła"
+      },
+      "place": {
+        "label": "Miejsce",
+        "says": "Gdzie: kościół, Msza",
+        "hint": "np. Kraków, Msza o 10:30"
+      },
+      "audience": {
+        "label": "Dla kogo",
+        "says": "Słuchacze",
+        "hint": "np. Msza z udziałem dzieci"
+      },
+      "readings": {
+        "label": "Czytania",
+        "says": "Czytania tego dnia, sigla biblijne"
+      },
+      "audio": {
+        "label": "Nagranie (adres)",
+        "says": "Adres nagrania audio — plik (mp3, m4a, ogg) albo strona z nagraniem"
+      },
+      "video": {
+        "label": "Wideo (adres)",
+        "says": "Adres nagrania wideo — plik (mp4, webm) albo YouTube"
+      },
+      "duration": {
+        "label": "Długość",
+        "says": "Długość nagrania (mm:ss)",
+        "hint": "np. 14:30"
+      },
+      "summary": {
+        "label": "Krótko o tym wygłoszeniu",
+        "says": "Co tym razem było najważniejsze, czym się różniło"
+      },
+      "coverage": {
+        "label": "Co z planu",
+        "says": "Co z planu tekstu zostało powiedziane — punkt po punkcie: { \"point\", \"state\", \"at\", \"note\" }"
+      },
+      "added": {
+        "label": "Co doszło",
+        "says": "Co zostało powiedziane, a nie było w planie: { \"text\", \"at\", \"after\" }"
+      },
+      "transcript": {
+        "label": "Zapis (transkrypcja)",
+        "says": "To, co zostało powiedziane, spisane słowo w słowo — w zapisie treści"
+      },
+      "classArea": {
+        "label": "Klasa",
+        "says": "Lekcja w szkole: identyfikator obszaru klasy, w której była (albo ma być) ta lekcja; pominięty — zwykłe wygłoszenie"
+      },
+      "state": {
+        "label": "Stan lekcji",
+        "says": "Tylko lekcja w klasie: {list}; pominięty — zrealizowana"
+      },
+      "homework": {
+        "label": "Zadanie dla klasy",
+        "says": "Tylko lekcja w klasie: zadanie domowe albo to, co klasa ma przygotować"
+      }
+    }
+  },
+  "projectTypes": {
+    "book": "Książka",
+    "series": "Cykl kazań",
+    "collection": "Zbiór",
+    "article": "Artykuł",
+    "program": "Program nauczania",
+    "other": "Inny"
+  },
+  "projectStatus": {
+    "planned": "Planowany",
+    "writing": "Piszę",
+    "editing": "Redakcja",
+    "done": "Gotowy"
+  },
+  "project": {
+    "label": "Projekt",
+    "plural": "Projekty",
+    "says": "Książka, cykl kazań, zbiór — z planem (rozdziały, części) i postępem pisania.",
+    "fields": {
+      "projectType": {
+        "label": "Rodzaj",
+        "says": "Rodzaj: {list}"
+      },
+      "title": {
+        "label": "Tytuł",
+        "says": "Tytuł"
+      },
+      "subtitle": {
+        "label": "Podtytuł",
+        "says": "Podtytuł"
+      },
+      "description": {
+        "label": "Opis",
+        "says": "Opis projektu — o czym jest książka albo cykl"
+      },
+      "outline": {
+        "label": "Plan",
+        "says": "Plan: lista {\"heading\": \"Część I\"} i {\"text\": <odwołanie do tekstu>} w kolejności; czytelnik widzi te teksty, które może czytać"
+      },
+      "status": {
+        "label": "Stan",
+        "says": "Stan: {list}"
+      },
+      "deadline": {
+        "label": "Termin",
+        "says": "Do kiedy (RRRR-MM-DD)"
+      },
+      "targetWords": {
+        "label": "Docelowa liczba słów",
+        "says": "Ile słów ma mieć całość"
+      },
+      "classes": {
+        "label": "Klasy",
+        "says": "Program nauczania w szkole: klasy, które go realizują — lista { \"area\": identyfikator obszaru klasy }"
+      }
+    }
+  },
+  "textType": {
+    "label": "Rodzaj tekstu",
+    "plural": "Rodzaje tekstów",
+    "says": "Własny rodzaj tekstu (np. „Kazanie maryjne”): nazwa i dodatkowe pola, które ma każdy tekst tego rodzaju — także odwołania do wpisów w Wiedzy (np. tajemnica, obszar). Tekst bez rodzaju to zwykły tekst.",
+    "fields": {
+      "name": {
+        "label": "Nazwa",
+        "says": "Nazwa rodzaju, np. „Kazanie maryjne”"
+      },
+      "description": {
+        "label": "Opis",
+        "says": "Do czego służy ten rodzaj"
+      },
+      "fields": {
+        "label": "Dodatkowe pola",
+        "says": "Pola, które ma każdy tekst tego rodzaju — opisane jak pola rodzaju w Wiedzy: lista {\"key\", \"label\", \"type\", \"multi\", \"options\", \"to\", \"locator\", \"says\"}. \"type\": line, text, number, date, bool, choice, ref, url, list. Przy \"ref\" — \"to\": nazwy rodzajów w Wiedzy (np. [\"Tajemnica\"]) albo \"work\", \"quote\", \"person\" z biblioteki; \"locator\": true — z miejscem (np. Pismo Święte + \"Łk 1,26-38\"). Klucze stałych pól tekstu (title, date, plan, body …) są zajęte"
+      }
+    }
+  },
+  "group": {
+    "texts": "Teksty i wystąpienia",
+    "music": "Muzyka"
+  },
+  "musicSays": {
+    "piece": "sam utwór: kompozytor, słowa, tonacja, obsada",
+    "score": "wydanie nut, z plikami: partytura, głosy, zapis nutowy",
+    "recording": "wykonanie: jeden plik albo kilka ścieżek (głosy i instrumenty, odtwarzane razem)",
+    "album": "zbiór nagrań"
+  },
+  "untitled": "Bez tytułu"
+}

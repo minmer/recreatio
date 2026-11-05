@@ -1,0 +1,262 @@
+{
+  "kind": {
+    "area": "rozmowa obszaru",
+    "channel": "kanał ogłoszeń — piszą prowadzący",
+    "group": "grupa",
+    "direct": "rozmowa we dwoje",
+    "self": "Notatki — tylko Ty",
+    "seat": "rozmowa z jedną osobą z formularza"
+  },
+  "keys": {
+    "doc": {
+      "format": "zawsze \"{format}\"",
+      "version": "wersja formatu: {version}",
+      "chat": "rozmowa, z której pochodzi eksport (niżej) — tylko informacja: import idzie zawsze do rozmowy otwartej w aplikacji",
+      "me": "kto eksportował i co może w tej rozmowie (niżej) — tylko informacja",
+      "exportedAt": "chwila eksportu (ISO 8601, UTC) — tylko informacja",
+      "range": "co obejmuje eksport (niżej) — tylko informacja",
+      "topics": "tematy rozmowy — wszystkie, także zamknięte (niżej: Temat)",
+      "messages": "wiadomości, od najstarszej (niżej: Wiadomość z eksportu, Nowa wiadomość)",
+      "linked": "zadania i terminy utworzone z wiadomości tej rozmowy (niżej) — tylko do odczytu, import je pomija"
+    },
+    "chat": {
+      "id": "identyfikator rozmowy; inny niż rozmowy otwartej — dokument z innej rozmowy: jej wiadomości import pomija, jej tematy zakłada tu jako nowe",
+      "kind": "rodzaj: {kinds}",
+      "title": "nazwa rozmowy, jak w jej nagłówku"
+    },
+    "me": {
+      "name": "jak jest podpisana wiadomość tej osoby: „Imię Nazwisko”, a gdy pisze przez rolę — „Imię Nazwisko (Rola)”; jej wiadomości mają \"mine\": true",
+      "writes": "true — pisze w tej rozmowie: import może dodać jej nowe wiadomości i tematy",
+      "moderates": "true — prowadzi rozmowę: przypina, porządkuje także cudze wiadomości, zmienia każdy temat"
+    },
+    "range": {
+      "from": "od kiedy (ISO 8601; null — od początku rozmowy)",
+      "to": "do kiedy (chwila eksportu)",
+      "topic": "tylko wiadomości tego tematu (\"@klucz\" z \"topics\") albo null — wszystkie",
+      "limited": "true — eksport doszedł do limitu {maxExport} wiadomości; starszych z tego okresu w nim nie ma"
+    },
+    "topic": {
+      "id": "identyfikator tematu z eksportu — z nim import zmienia TEN temat; bez niego zakłada nowy (a gdy temat o tej nazwie już jest, używa istniejącego)",
+      "key": "krótka nazwa do odwołań w tym dokumencie (litery, cyfry, - i _): wiadomość wskazuje temat przez \"topic\": \"@klucz\"; eksport tworzy ją z nazwy",
+      "title": "nazwa tematu (wymagana przy nowym, do {maxTitle} znaków); inna niż w rozmowie przy temacie z \"id\" — zmiana nazwy",
+      "closed": "true — temat zamknięty (schowany pod „Zamknięte”), false — otwarty; zmiana zamyka albo otwiera go ponownie",
+      "createdAt": "kiedy założony — tylko informacja",
+      "createdBy": "kto założył — tylko informacja",
+      "messages": "ile ma wiadomości — tylko informacja",
+      "tasks": "ile zadań z niego powstało — tylko informacja",
+      "appointments": "ile terminów z niego powstało — tylko informacja"
+    },
+    "message": {
+      "id": "identyfikator wiadomości — z nim import tylko porządkuje (\"topic\", \"pinned\", \"starred\"); treść, nadawca i czas zostają zawsze, jakie są",
+      "at": "kiedy wysłana (ISO 8601, UTC)",
+      "author": "kto napisał — jak w rozmowie: „Imię Nazwisko”, a przez rolę „Imię Nazwisko (Rola)”",
+      "mine": "true — napisała ją osoba z \"me\"",
+      "link": "true — napisała osoba z linku (bez konta)",
+      "topic": "temat: \"@klucz\" z \"topics\" (albo \"id\" tematu); w eksporcie brak — bez tematu. W imporcie inny niż w rozmowie — przeniesienie (null — poza tematy), brak — bez zmian; przenosi autor wiadomości albo prowadzący (we dwoje i w Notatkach każdy, kto pisze)",
+      "text": "treść",
+      "replyTo": "\"id\" wiadomości, na którą odpowiada",
+      "quote": "cytat, który widział odpowiadający",
+      "attachments": "załączniki — tylko opis; plików w JSON nie ma",
+      "attachments_name": "nazwa pliku",
+      "attachments_type": "typ (MIME), np. \"application/pdf\", \"image/jpeg\"",
+      "attachments_size": "rozmiar w bajtach",
+      "forwarded": "true — przekazana z innej rozmowy",
+      "imported": "true — przyszła z importu JSON (w rozmowie oznaczona „Z importu”)",
+      "edited": "kiedy ostatnio poprawiona (historia zmian jest w rozmowie)",
+      "deleted": "kiedy usunięta — treści już nie ma",
+      "deletedBy": "\"author\" — usunął ją autor, \"moderator\" — prowadzący",
+      "blocked": "true — zablokowana po zgłoszeniu; treści nie ma",
+      "unreadable": "true — nie do odczytania w tej przeglądarce (brak klucza tej epoki rozmowy)",
+      "reactions": "reakcje — tylko informacja (import ich nie zmienia)",
+      "reactions_emoji": "znak reakcji, np. \"👍\"",
+      "reactions_count": "ile osób tak zareagowało",
+      "reactions_mine": "true — także osoba z \"me\"",
+      "pinned": "true — przypięta dla wszystkich; w imporcie zmiana przypina albo odpina (false) — tylko prowadzący",
+      "starred": "true — w „Zapisanych wiadomościach” osoby z \"me\" (widzi je tylko ona); w imporcie zmiana zapisuje albo usuwa z zapisanych (false)"
+    },
+    "new": {
+      "text": "treść (wymagana; najwyżej {maxText} bajtów UTF-8, licząc podwójnie znaki nowej linii i cudzysłowy — kilka tysięcy znaków)",
+      "topic": "temat: \"@klucz\" z \"topics\" (także nowego tematu z tego dokumentu) albo \"id\" istniejącego; brak albo null — bez tematu",
+      "replyTo": "\"id\" wiadomości z tej rozmowy, na którą to odpowiedź — cytat import bierze z tej wiadomości, nigdy z dokumentu",
+      "sendAt": "zaplanuj wysłanie (ISO 8601 ze strefą, np. \"2026-12-01T09:00:00+01:00\"; od {minMinutes} minut do roku naprzód) — czeka w „Zaplanowanych”, gdzie można ją wysłać od razu albo odwołać; bez \"sendAt\" wychodzi od razu",
+      "silent": "true — bez dźwięku: nikogo nie budzi powiadomieniem"
+    },
+    "linked": {
+      "kind": "\"task\" — zadanie, \"appointment\" — termin w kalendarzu",
+      "title": "tytuł",
+      "topic": "temat (\"@klucz\") albo null",
+      "message": "\"id\" wiadomości, z której powstało zadanie",
+      "at": "zadanie: najbliższy (albo ostatni) termin wykonania; termin: początek (ISO 8601)",
+      "end": "koniec terminu",
+      "state": "zadanie: „zaplanowane”, „teraz”, „przegapione”, „zrobione”, „zaległe”, „co pewien czas”; termin: „zaplanowany” albo „odwołany”"
+    }
+  },
+  "state": {
+    "planned": "zaplanowany",
+    "cancelled": "odwołany"
+  },
+  "readOnly": "Tę rozmowę możesz tylko czytać — import (tematy, porządki, nowe wiadomości) jest dla tych, którzy w niej piszą. Eksport działa jak zawsze.",
+  "plan": {
+    "notDoc": "To nie jest dokument rozmowy — oczekiwano jednego obiektu JSON.",
+    "otherFormat": "Inny format: \"{found}\" — oczekiwano \"{format}\".",
+    "version": "Wersja {found} — czytana jak wersja {version}.",
+    "unknownTop": "Nieznany klucz \"{key}\" — pominięty.",
+    "foreignSource": " („{title}”)",
+    "topicsNotList": "\"topics\" to nie lista — pominięte.",
+    "topicN": "Temat {n}",
+    "topic": {
+      "notObject": "{where}: to nie obiekt — pominięty.",
+      "unknownKey": "{where}: nieznany klucz \"{key}\" — pominięty.",
+      "badKey": "{where}: \"key\" może mieć tylko litery, cyfry, - i _ (do 40 znaków) — odwołania do niego nie zadziałają.",
+      "titleNotText": "{where}: \"title\" to nie tekst — pominięte.",
+      "titleLong": "{where}: nazwa dłuższa niż {max} znaków — skrócona.",
+      "closedBool": "{where}: \"closed\" to true albo false — pominięte.",
+      "twice": "{where}: ten sam temat („{title}”) drugi raz — pominięty.",
+      "emptyTitle": "{where}: pusta nazwa — zostaje „{title}”.",
+      "mayNotChange": "{where} („{title}”): nazwę zmienia i temat zamyka ten, kto go założył, albo prowadzący rozmowę — pominięte.",
+      "noIdSkipped": "{where}: w tej rozmowie nie ma tematu o tym \"id\" — pominięty.",
+      "noIdNew": "{where}: w tej rozmowie nie ma tematu o tym \"id\" — potraktowany jak nowy.",
+      "noTitle": "{where}: bez nazwy (\"title\") — pominięty.",
+      "inNotes": "{where} („{title}”): w Notatkach nie ma tematów — pominięty.",
+      "notWriter": "{where} („{title}”): temat zakłada ktoś, kto pisze w tej rozmowie — pominięty.",
+      "tooMany": "{where} („{title}”): najwyżej {max} nowych tematów w jednym imporcie — pominięty.",
+      "keyTwice": "{where}: klucz \"{key}\" drugi raz — \"@{key}\" wskazuje pierwszy temat z tym kluczem."
+    },
+    "topicWord": "temat",
+    "ref": {
+      "notText": "{where}: \"topic\" to nie tekst — {instead}.",
+      "noKey": "{where}: w \"topics\" nie ma tematu z kluczem \"{key}\" — {instead}.",
+      "skipped": "{where}: temat \"{ref}\" jest pominięty (wyżej) — {instead}.",
+      "noTopic": "{where}: w tej rozmowie nie ma tematu „{title}” — {instead}."
+    },
+    "instead": {
+      "stays": "zostaje, gdzie była",
+      "noTopic": "pójdzie bez tematu"
+    },
+    "importer": "osoba, która importuje",
+    "messagesNotList": "\"messages\" to nie lista — pominięte.",
+    "messageN": "Wiadomość {n}",
+    "msg": {
+      "notObject": "{where}: to nie obiekt — pominięta.",
+      "badId": "{where}: nieczytelne \"id\" — pominięta.",
+      "twice": "{where}: ta sama wiadomość drugi raz — pominięta.",
+      "older": "{where}: starsza niż wczytane wiadomości tej rozmowy (najwyżej {max}) — pominięta.",
+      "noId": "{where}: w tej rozmowie nie ma wiadomości o tym \"id\" — pominięta (import nie wstawia cudzych wiadomości).",
+      "differs": "{label}: {keys} — inaczej niż w rozmowie. Import nie zmienia treści, nadawcy ani czasu wiadomości (swoją poprawisz w rozmowie: „Edytuj”); pominięte.",
+      "reactions": "{label}: reakcji import nie zmienia — swoją dodasz w rozmowie.",
+      "mayNotFile": "{label}: do tematu przenosi ją jej autor albo prowadzący rozmowę — zostaje, gdzie była.",
+      "flagBool": "{label}: \"{key}\" to true albo false — pominięte.",
+      "pinModerator": "{label}: przypina i odpina prowadzący rozmowę — pominięte.",
+      "goneNoPin": "{label}: usunięta albo nieczytelna — nie da się jej przypiąć.",
+      "goneNoStar": "{label}: usunięta albo nieczytelna — nie da się jej zapisać."
+    },
+    "msgLabel": "{where} ({author}, {when})",
+    "unknownKey": "{label}: nieznany klucz \"{key}\" — pominięty.",
+    "newN": "Nowa wiadomość (pozycja {n})",
+    "new": {
+      "gone": "{label}: to opis usuniętej albo nieczytelnej wiadomości, bez \"id\" — pominięta.",
+      "at": "{label}: ma \"at\" — import nie pisze wstecz, wiadomość z importu nigdy nie udaje dawnej. Usuń \"at\" (wyjdzie od razu) albo podaj \"sendAt\" (zaplanuje ją); pominięta.",
+      "author": "{label}: \"author\" to „{author}” — import pisze wyłącznie jako Ty ({me}), nigdy w czyimś imieniu; pominięta.",
+      "files": "{label}: plików nie ma w JSON — dołącz je w rozmowie; wiadomość pójdzie bez nich.",
+      "quote": "{label}: \"quote\" pominięte — cytat import bierze z wiadomości z \"replyTo\".",
+      "ignored": "{label}: \"{key}\" w nowej wiadomości jest pomijane.",
+      "noText": "{label}: bez treści (\"text\") — pominięta.",
+      "tooLong": "{label}: za długa ({size} bajtów, najwyżej {max}) — podziel ją na kilka; pominięta.",
+      "sendAtBad": "{label}: \"sendAt\" to nie data ISO 8601 (np. \"2026-12-01T09:00:00+01:00\") — pominięta.",
+      "sendAtSoon": "{label}: \"sendAt\" ({when}) jest w przeszłości albo za blisko — zaplanować można od {min} minut naprzód; bez \"sendAt\" wyjdzie od razu. Pominięta.",
+      "sendAtFar": "{label}: \"sendAt\" dalej niż rok naprzód — pominięta.",
+      "silentBool": "{label}: \"silent\" to true albo false — pominięte.",
+      "replyMissing": "{label}: \"replyTo\" nie wskazuje wczytanej wiadomości tej rozmowy — pójdzie bez cytatu.",
+      "replyGone": "{label}: wiadomość z \"replyTo\" jest usunięta albo nieczytelna — pójdzie bez cytatu.",
+      "dupSent": "{label}: Twoja wiadomość o tej treści już jest w rozmowie — pominięta, żeby nie było jej dwa razy.",
+      "dupWaiting": "{label}: ta sama wiadomość już czeka w „Zaplanowanych” — pominięta, żeby nie było jej dwa razy."
+    },
+    "foreign": "Dokument pochodzi z innej rozmowy{source} — jej wiadomości nie zostaną tu przeniesione ani skopiowane{skipped}; jej tematy powstaną tu jako nowe.",
+    "foreignSkipped": " (pominięto {count})",
+    "notWriting": "Nowe wiadomości ({count}) pominięte — w tej rozmowie nie piszesz.",
+    "over": "Najwyżej {max} nowych wiadomości w jednym imporcie — pominięto {count}.",
+    "line": {
+      "newTopic": "Nowy temat: „{title}”",
+      "newTopicClosed": "Nowy temat: „{title}” (od razu zamknięty)",
+      "rename": "Zmiana nazwy tematu: „{was}” → „{title}”",
+      "close": "Zamknięcie tematu „{title}”",
+      "reopen": "Ponowne otwarcie tematu „{title}”",
+      "movedOut": {
+        "one": "Poza tematy: {count} wiadomość",
+        "few": "Poza tematy: {count} wiadomości",
+        "many": "Poza tematy: {count} wiadomości",
+        "other": "Poza tematy: {count} wiadomości"
+      },
+      "movedTo": {
+        "one": "Do tematu „{name}”: {count} wiadomość",
+        "few": "Do tematu „{name}”: {count} wiadomości",
+        "many": "Do tematu „{name}”: {count} wiadomości",
+        "other": "Do tematu „{name}”: {count} wiadomości"
+      },
+      "pin": {
+        "one": "Przypięcie: {count} wiadomość",
+        "few": "Przypięcie: {count} wiadomości",
+        "many": "Przypięcie: {count} wiadomości",
+        "other": "Przypięcie: {count} wiadomości"
+      },
+      "unpin": {
+        "one": "Odpięcie: {count} wiadomość",
+        "few": "Odpięcie: {count} wiadomości",
+        "many": "Odpięcie: {count} wiadomości",
+        "other": "Odpięcie: {count} wiadomości"
+      },
+      "star": {
+        "one": "Zapisanie (dla Ciebie): {count} wiadomość",
+        "few": "Zapisanie (dla Ciebie): {count} wiadomości",
+        "many": "Zapisanie (dla Ciebie): {count} wiadomości",
+        "other": "Zapisanie (dla Ciebie): {count} wiadomości"
+      },
+      "unstar": {
+        "one": "Usunięcie z zapisanych: {count} wiadomość",
+        "few": "Usunięcie z zapisanych: {count} wiadomości",
+        "many": "Usunięcie z zapisanych: {count} wiadomości",
+        "other": "Usunięcie z zapisanych: {count} wiadomości"
+      },
+      "post": "Nowa wiadomość jako {me}{how}, oznaczona „Z importu”: „{text}”",
+      "nothing": "Nic do zmiany — dokument zgadza się z rozmową."
+    },
+    "how": {
+      "planned": "zaplanowana na {when}",
+      "topic": "w temacie „{topic}”",
+      "reply": "odpowiedź na: {author}",
+      "silent": "bez dźwięku"
+    }
+  },
+  "desc": {
+    "intro": "Jedna rozmowa (Rozmowy → rozmowa → ⋮ „Więcej opcji” → „Rozmowa jako JSON”): wiadomości z wybranego okresu albo jednego tematu — kto i kiedy napisał, odpowiedzi, poprawki, załączniki (nazwa i rozmiar), reakcje, przypięcia — do tego tematy oraz zadania i terminy, które z rozmowy powstały. Do archiwum i do przeczytania, streszczenia albo uporządkowania przez asystenta.\n\nCo robi import (zawsze w rozmowie otwartej w aplikacji; najpierw lista zmian z ostrzeżeniami, zapis dopiero po „Importuj”):\n- Tematy bez \"id\" — zakłada nowe (temat o tej samej nazwie, który już jest, zostaje użyty). Tematy z \"id\" — zmienia nazwę (\"title\") albo zamyka i otwiera (\"closed\"); może ten, kto temat założył, albo prowadzący.\n- Wiadomości z \"id\" (z eksportu) — tylko porządki: przeniesienie do innego tematu (\"topic\"; autor wiadomości albo prowadzący), przypięcie (\"pinned\"; prowadzący) i zapisanie dla siebie (\"starred\").\n- Wiadomości bez \"id\" — NOWE wiadomości osoby, która importuje: z jej imieniem i nazwiskiem (jak przy pisaniu ręcznym), z chwilą wysłania i z oznaczeniem „Z importu”, które widzą wszyscy; albo zaplanowane na później (\"sendAt\"). Najwyżej {maxPosts} w jednym imporcie; jej wiadomość o tej samej treści, która już jest w rozmowie (albo już czeka zaplanowana), nie idzie drugi raz.\n- Treść wiadomości i nazwy tematów są szyfrowane w przeglądarce kluczem rozmowy — tak samo jak pisane ręcznie. Plik eksportu zawiera je jawnie: to Twoja kopia.\n\nCzego import nigdy nie robi — i dlaczego. Wiadomość jest czyjąś wypowiedzią, podpisaną kluczem roli jej autora. Import może tylko dodać Twoje nowe słowa (widocznie oznaczone) i uporządkować rozmowę:\n- nie pisze w czyimś imieniu — nowa wiadomość z \"author\" innej osoby jest pomijana;\n- nie pisze wstecz — \"at\" mówi, kiedy wiadomość napisano; nowa wiadomość z \"at\" jest pomijana (zamiast tego \"sendAt\": wysłanie w przyszłości);\n- nie zmienia treści, nadawcy ani czasu istniejących wiadomości — także Twoich (poprawisz je w rozmowie: „Edytuj”, z historią zmian);\n- nie usuwa wiadomości ani tematów — czego nie ma w dokumencie, zostaje, jak jest;\n- nie przenosi wiadomości z innej rozmowy i nie wkleja ich tu jako nowych;\n- nie dodaje plików (JSON ma tylko ich nazwy), reakcji, zadań ani terminów;\n- nie bierze cytatu z dokumentu — cytat odpowiedzi pochodzi z prawdziwej wiadomości (\"replyTo\").\nKto w rozmowie tylko czyta, ma sam eksport. Eksport obejmuje najwyżej {maxExport} wiadomości.\nZwróć JEDEN obiekt JSON, bez komentarzy.",
+    "topic": "Wpis w \"topics\". Zmienia nazwę i zamyka temat ten, kto go założył, albo prowadzący rozmowę; w Notatkach tematów nie ma. Nowych najwyżej {max} w jednym imporcie.",
+    "message": "Eksport opisuje każdą wiadomość tak, jak widać ją w rozmowie. Import czyta z wiadomości z \"id\" tylko \"topic\", \"pinned\" i \"starred\" — reszta jest do czytania: inna treść, nadawca albo czas dają ostrzeżenie i nic nie zmieniają. Wiadomości, których w dokumencie nie ma, zostają.",
+    "new": "Wiadomość bez \"id\" import wysyła w tej rozmowie jako osoba, która importuje (jej imię i nazwisko; gdy pisze przez rolę — z rolą w nawiasie), oznaczoną „Z importu”. Kolejność w dokumencie jest kolejnością wysyłania.",
+    "newNever": "Nie podawaj \"author\" ani \"at\": wiadomość z \"author\" innej osoby albo z \"at\" jest pomijana. Pliki (\"attachments\"), reakcje, \"pinned\", \"starred\" i \"quote\" nowej wiadomości import pomija.",
+    "newExample": "Przykład (dwa nowe tematy i po jednej wiadomości w każdym):",
+    "newLater": "Wiadomość na później, bez dźwięku: {\"text\": \"Przypomnienie: …\", \"sendAt\": \"2026-12-01T09:00:00+01:00\", \"silent\": true}",
+    "linked": "Wpis w \"linked\" — zadanie albo termin, które ktoś utworzył z wiadomości tej rozmowy (menu wiadomości: „Utwórz zadanie”, „Dodaj do kalendarza”). Tylko do odczytu: import go pomija.",
+    "usage": "- Rozmowa należy do obszaru, a dostęp do rozmowy to dostęp do obszaru: kto może go czytać, czyta rozmowę; kto może w nim pisać, pisze. Tematy i wiadomości z importu widzą więc wszyscy, którzy widzą rozmowę — tak samo jak pisane ręcznie.\n- Usługa nie czyta wiadomości: leżą zapieczętowane kluczem obszaru, a każdą podpisuje rola, przez którą piszesz; usługa sprawdza tylko podpis. Imię i nazwisko pod wiadomością pochodzi z „Moje dane”.\n- Nowa wiadomość jest dla innych nieprzeczytana (dzwonek, „Czeka na Ciebie”; krok „Przeczytaj wiadomości” traci haczyk, dopóki jej nie przeczytają) i budzi ich telefony — przez Firebase idzie tylko sygnał „sprawdź”, treść otwiera dopiero telefon. Z \"silent\": true tego sygnału nie ma; nieprzeczytana jest i tak.\n- Wiadomość z \"sendAt\" czeka zapieczętowana w usłudze; o tej porze wychodzi tylko wtedy, gdy nadal możesz pisać w tej rozmowie — i dopiero wtedy budzi innych.\n- Temat to filtr i miejsce: kto go wybierze, widzi jego wiadomości, a to, co napisze, trafia do niego.\n- Zadania i terminy powstają z wiadomości w aplikacji („Utwórz zadanie”, „Dodaj do kalendarza”) i pamiętają rozmowę, temat i wiadomość; okno „Zadania i terminy z tej rozmowy” zbiera je według tematów.\n- Import nie zmienia, kto ma dostęp do rozmowy — to ustawia się w obszarze.",
+    "document": "Dokument:",
+    "inChat": "W \"chat\":",
+    "inMe": "W \"me\":",
+    "inRange": "W \"range\":"
+  },
+  "node": {
+    "usage": "Jak aplikacja używa tych danych",
+    "topic": "Temat (\"topics[]\")",
+    "message": "Wiadomość z eksportu (\"messages[]\" z \"id\")",
+    "messageShort": "Wiadomość z eksportu",
+    "new": "Nowa wiadomość (\"messages[]\" bez \"id\")",
+    "newShort": "Nowa wiadomość",
+    "linked": "Zadania i terminy z rozmowy (\"linked[]\")",
+    "linkedShort": "Zadania i terminy",
+    "example": "Przykład eksportu",
+    "chat": "Rozmowa jako JSON (\"{format}\", wersja {version})",
+    "chatShort": "Rozmowa"
+  },
+  "sample": {
+    "topics": "dwa nowe tematy i wiadomość w każdym",
+    "reminder": "przypomnienie na jutro rano, bez dźwięku"
+  }
+}

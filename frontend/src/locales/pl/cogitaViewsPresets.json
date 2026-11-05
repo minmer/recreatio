@@ -1,0 +1,161 @@
+{
+  "choice": {
+    "backRef": "{kind}: {field}",
+    "noFields": "Ten rodzaj nie ma pól.",
+    "noRefField": "Ten rodzaj nie ma pola, które odwołuje się do innych wpisów.",
+    "noTarget": "Pole „{field}” nie wskazuje jednego rodzaju z polami — wybierz w schemacie, do czego się odwołuje.",
+    "noText": "Ten rodzaj nie ma pola tekstowego.",
+    "noBack": "Żaden rodzaj nie odwołuje się do tego (np. tłumaczenie do słowa) — dodaj takie pole w schemacie."
+  },
+  "asks": {
+    "wordsField": "Pole ze słowami (odwołanie)",
+    "langIn": "Pole języka w",
+    "langField": "Pole języka (odwołanie)",
+    "wordText": "Pole z tekstem słowa",
+    "backField": "Gdzie są tłumaczenia (rodzaj: pole ze słowami)"
+  },
+  "tpl": {
+    "thesis": {
+      "label": "Teza: o czym → teza",
+      "says": "Na przodzie: o czym jest wypowiedź (jej pola-odwołania, np. „Łk 1,35; Dz 1,8\"), z tyłu jej teza — pierwsze zdanie. Oceniasz się sam.",
+      "pattern": "Co mówi ta wypowiedź o: {0}?",
+      "name": "Teza"
+    },
+    "table": {
+      "label": "Tabela z treści: dopasuj pary",
+      "says": "Wiersze pierwszej tabeli w treści (kolumna 1 ↔ kolumna 2) do połączenia w pary; nad nimi teza.",
+      "name": "Tabela z treści"
+    },
+    "ask": {
+      "label": "Pytanie o pole",
+      "says": "„Rok urodzenia: Mickiewicz?\" — wpisz wartość pola.",
+      "pattern": "{field}: {0}?",
+      "name": "{field} (wpisz)"
+    },
+    "reverse": {
+      "label": "Odwrotnie: kto to?",
+      "says": "Pokazuje wartość pola, pyta o wpis („Kto urodził się w 1798?\").",
+      "pattern": "Kto lub co — {field}: {0}?",
+      "name": "Kto: {field}"
+    },
+    "choose": {
+      "label": "Wybór z czterech",
+      "says": "Poprawna wartość pola i trzy wartości tego pola z innych wpisów.",
+      "name": "{field} (wybór)"
+    },
+    "date": {
+      "label": "Data",
+      "says": "Kiedy? — z dokładnością do roku, miesiąca albo dnia.",
+      "pattern": "{field}: {0} — kiedy?",
+      "name": "{field} (data)"
+    },
+    "flash": {
+      "label": "Fiszka",
+      "says": "Na przodzie pole pierwsze, z tyłu drugie — oceniasz się sam.",
+      "name": "Fiszka: {front} → {back}"
+    },
+    "vocabulary": {
+      "label": "Słówko (każde tłumaczenie osobno)",
+      "says": "Jedna karta dla każdej wartości drugiego pola — każde tłumaczenie.",
+      "pattern": "Przetłumacz: {0}",
+      "name": "Słówko: {front} → {back}"
+    },
+    "languages": {
+      "label": "Słówka: z języka na język (oba kierunki)",
+      "says": "Wpis łączy słowa w kilku językach (np. tłumaczenie z polem „Słowa\"): dla każdego języka osobna karta — słowa w tym języku z kierunkiem („angielski → polski: house\"), odpowiedzią są słowa w pozostałych językach.",
+      "name": "{field}: z języka na język"
+    },
+    "whichLanguage": {
+      "label": "Słówka: jaki to język?",
+      "says": "Pokazuje słowo i pyta, w jakim jest języku — zaznacza się wszystkie języki, w których istnieje słowo o tej pisowni (np. „hotel\"). Słowa o tej samej pisowni dają jedną kartę.",
+      "pattern": "Jaki to język: „{0}”? Zaznacz wszystkie, w których istnieje.",
+      "name": "Jaki to język?"
+    },
+    "pairs": {
+      "label": "Słówka: połącz w pary",
+      "says": "Kilka tłumaczeń naraz: z lewej słowa w jednym języku, z prawej w drugim — łączy się je w pary. Bierze to tłumaczenie i losowo inne; języki są te z tego tłumaczenia.",
+      "pattern": "Połącz w pary: {0} — {1}",
+      "name": "Połącz w pary"
+    },
+    "chooseTranslations": {
+      "label": "Słówka: zaznacz tłumaczenia",
+      "says": "Pokazuje słowo; trzeba zaznaczyć wszystkie jego tłumaczenia — w jednym albo kilku językach — spośród nich i kilku innych słów tych języków.",
+      "pattern": "Zaznacz tłumaczenia: „{0}” ({1})",
+      "name": "Zaznacz tłumaczenia"
+    },
+    "translateWord": {
+      "label": "Słówka: przetłumacz słowo (każdy język osobno)",
+      "says": "Pokazuje słowo i pyta o jego tłumaczenie — osobna karta dla każdego języka, w którym ma tłumaczenia; poprawne są wszystkie tłumaczenia w tym języku.",
+      "name": "Przetłumacz słowo"
+    },
+    "gaps": {
+      "label": "Luki w cytacie",
+      "says": "Dzieli tekst na kawałki i pyta o każdy — najpierw kawałki, potem całość.",
+      "name": "Luki: {field}"
+    }
+  },
+  "rev": {
+    "temporal": {
+      "label": "Według tego, co umiem",
+      "says": "Najpierw to, na co przyszła pora (najsłabsze najpierw), potem nowe i zapomniane — od podstaw do szczegółów; gdy nic nie zostało, na zapas to, co umiesz najsłabiej; stos po 20.",
+      "name": "Powtórka codzienna"
+    },
+    "random": {
+      "label": "20 losowych",
+      "says": "Dwadzieścia kart, każda raz.",
+      "name": "20 losowych"
+    },
+    "once": {
+      "label": "Wszystko raz",
+      "says": "Cały zbiór, każda karta raz — sprawdzian.",
+      "name": "Wszystko raz"
+    },
+    "levels": {
+      "label": "Poziomy",
+      "says": "Dobra odpowiedź podnosi kartę o poziom, zła wraca na pierwszy; koniec, gdy wszystko na górze.",
+      "name": "Poziomy"
+    },
+    "due": {
+      "label": "Tylko zaległe",
+      "says": "Tylko karty, na które przyszła pora, według znajomości.",
+      "name": "Zaległe"
+    },
+    "gated": {
+      "label": "Najpierw podstawy",
+      "says": "Karta wchodzi dopiero, gdy to, czego wymaga („Najpierw trzeba znać”), jest opanowane; brakujące podstawy dochodzą same. Złożone ze zwykłych kroków: „Idź po kolejności nauki”, „Filtr znajomości”, kolejność „najpierw ogólne”.",
+      "name": "Od podstaw"
+    },
+    "general": {
+      "label": "Od ogólnego do szczegółu",
+      "says": "Najpierw to, co najogólniejsze; wpis, który leży pod innym w strukturze (rok pod etapem, etap pod całym życiem), wchodzi, gdy tamten jest już znany. Złożone z „Filtra znajomości” i kolejności „najpierw ogólne”.",
+      "name": "Od ogólnego do szczegółu"
+    }
+  },
+  "flow": {
+    "story": {
+      "label": "Opowieść o osobie (szablon)",
+      "says": "Przypomnienie, wpis osoby z miejsca {osoba}, pytanie, koniec — do użycia z różnymi osobami.",
+      "opening": "Na początek",
+      "show": "Kim był?",
+      "ask": "Sprawdź się",
+      "name": "Opowieść o osobie",
+      "slot": "Osoba"
+    },
+    "chapters": {
+      "label": "Kurs z rozdziałami",
+      "says": "Wybór rozdziału, w każdym treść i pytanie; kończy się, gdy wszystkie przerobione.",
+      "pick": "Wybierz rozdział",
+      "chapter": "Rozdział {n}",
+      "name": "Kurs"
+    },
+    "dialogue": {
+      "label": "Rozmowa z postacią",
+      "says": "Postać mówi, uczący się wybiera odpowiedź; wybór zmienia bliskość.",
+      "question": "Co odpowiesz?",
+      "agree": "Zgadzam się",
+      "dontKnow": "Nie wiem",
+      "closeness": "bliskość",
+      "name": "Rozmowa"
+    }
+  }
+}

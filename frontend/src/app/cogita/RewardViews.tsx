@@ -16,7 +16,7 @@
 
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
-import { plural } from '../core/plural';
+import { fmtDate, fmtNumber, rich, t, useT, type Lang, type T } from '../core/i18n';
 import { viewPath } from '../routes';
 import { later } from '../ui/later';
 import { motionLevel } from '../ui/motion';
@@ -33,28 +33,30 @@ import './rewards.css';
 
 /* -- Was eine Tafel zeigt --------------------------------------------------------------------------------------------- */
 
+/* Die Namen werden beim Lesen übersetzt (Getter). */
 export const REWARD_PIECES = [
-  { value: 'points', label: 'Punkty' },
-  { value: 'level', label: 'Poziom' },
-  { value: 'streak', label: 'Seria dni' },
-  { value: 'goal', label: 'Cel dnia' },
-  { value: 'badges', label: 'Odznaki' },
-  { value: 'feed', label: 'Ostatnie nagrody' }
+  { value: 'points' as const, get label() { return t('cogitaViewsRewards.board.piece.points'); } },
+  { value: 'level' as const, get label() { return t('cogitaViewsRewards.board.piece.level'); } },
+  { value: 'streak' as const, get label() { return t('cogitaViewsRewards.board.piece.streak'); } },
+  { value: 'goal' as const, get label() { return t('cogitaViewsRewards.board.piece.goal'); } },
+  { value: 'badges' as const, get label() { return t('cogitaViewsRewards.board.piece.badges'); } },
+  { value: 'feed' as const, get label() { return t('cogitaViewsRewards.board.piece.feed'); } }
 ] as const;
 export type RewardPiece = (typeof REWARD_PIECES)[number]['value'];
 export type RewardShape = 'strip' | 'compact' | 'block' | 'full';
 
-const NUM = new Intl.NumberFormat('pl-PL');
-const TIME = new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '2-digit' });
-const WEEKDAY = new Intl.DateTimeFormat('pl-PL', { weekday: 'narrow' });
-const DAY_NAME = new Intl.DateTimeFormat('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
+/* Zahlen und Tage in der Sprache der Stelle. */
+const num = (n: number, lang: Lang): string => fmtNumber(n, undefined, lang);
+const timeOf = (at: number, lang: Lang): string => fmtDate(new Date(at), { hour: '2-digit', minute: '2-digit' }, lang);
+const weekdayOf = (day: number, lang: Lang): string => fmtDate(new Date(day), { weekday: 'narrow' }, lang);
+const dayName = (day: number, lang: Lang): string => fmtDate(new Date(day), { weekday: 'long', day: 'numeric', month: 'long' }, lang);
 
 /* 2026-11-05 (Prompt 17) — die Wahl „Animacje" des Geräts (sonst das Betriebssystem): ograniczone und wyłączone zählen nicht hoch. */
 const reducedMotion = (): boolean => motionLevel() !== 'full';
 /* 2026-11-05 (Prompt 17) — „Odznaki i poziomy" unter einer Tafel (eine Seite, ein Link): erst geladen, wenn sie aufgeht. */
 const BadgesPageLater = later(() => import('./BadgesPage').then((m) => m.BadgesPage));
-const days = (n: number) => `${n} ${plural(n, 'dzień', 'dni', 'dni')}`;
-const pointsWord = (n: number) => plural(n, 'punkt', 'punkty', 'punktów');
+const days = (n: number, tr: T) => tr('cogitaViewsRewards.board.days', { count: n });
+const pointsWord = (n: number, tr: T) => tr('cogitaViewsRewards.board.pointsWord', { count: n });
 
 /* -- Der Stand, live --------------------------------------------------------------------------------------------------- */
 
@@ -130,6 +132,7 @@ function useHeld(hold: number | HoldSource): number {
 
 /** Eine Zahl, die zu ihrem neuen Wert hochzählt (ohne Bewegung: sofort). */
 export function CountUp({ value, className, from }: { value: number; className?: string; /** 2026-11-05 (Prompt 17) — von hier zählen (sonst steht der Wert gleich da). */ from?: number }) {
+  const t = useT();
   const [shown, setShown] = useState(from ?? value);
   const now = useRef(from ?? value);
   useEffect(() => {
@@ -150,7 +153,7 @@ export function CountUp({ value, className, from }: { value: number; className?:
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [value]);
-  return <span className={className} data-rw-value={value}>{NUM.format(shown)}</span>;
+  return <span className={className} data-rw-value={value}>{num(shown, t.lang)}</span>;
 }
 
 /** Eine Klasse für eine Weile — eine Animation, die bei jedem neuen `seq` neu läuft. */
@@ -233,13 +236,14 @@ function Flame({ lit, ignite, big = false }: { lit: boolean; ignite: boolean; bi
 
 /** Der Ring des Tagesziels — füllt sich weich; erreicht: ein Haken. */
 function GoalRing({ now, goal, size = 'md', pop }: { now: number; goal: number; size?: 'sm' | 'md' | 'lg'; pop: boolean }) {
+  const t = useT();
   const share = Math.max(0, Math.min(1, now / Math.max(1, goal)));
   const r = 15.5;
   const c = 2 * Math.PI * r;
   const ref = useVar<SVGCircleElement>('--cg-rw-dash', `${(c * (1 - share)).toFixed(2)}`);
   const met = now >= goal;
   return (
-    <span className={`cg-rw-ring is-${size}${met ? ' is-met' : ''}${pop ? ' is-pop' : ''}`} role="meter" aria-valuemin={0} aria-valuemax={goal} aria-valuenow={Math.min(goal, now)} aria-label="Cel dnia" data-rw-goal={`${now}/${goal}`}>
+    <span className={`cg-rw-ring is-${size}${met ? ' is-met' : ''}${pop ? ' is-pop' : ''}`} role="meter" aria-valuemin={0} aria-valuemax={goal} aria-valuenow={Math.min(goal, now)} aria-label={t('cogitaViewsRewards.board.goal')} data-rw-goal={`${now}/${goal}`}>
       <svg viewBox="0 0 36 36" aria-hidden focusable="false">
         <circle className="cg-rw-ring-back" cx={18} cy={18} r={r} />
         <circle ref={ref} className="cg-rw-ring-fill" cx={18} cy={18} r={r} strokeDasharray={c.toFixed(2)} />
@@ -259,7 +263,8 @@ function Meter({ value, label }: { value: number; label: string }) {
 
 /** Was in einer Gruppe am meisten zählt — es gibt der Blase Wort, Farbe und Zeichen. */
 const RANK: readonly RewardEvent['kind'][] = ['streak', 'goal', 'combo', 'known', 'fast', 'first', 'answer'];
-const SHORT: Partial<Record<RewardEvent['kind'], string>> = { answer: 'dobrze', first: 'nowa karta', fast: 'szybko!', known: 'utrwalona karta', goal: 'cel dnia!' };
+/* Schlüssel; übersetzt beim Zeichnen. */
+const SHORT: Partial<Record<RewardEvent['kind'], string>> = { answer: 'cogitaViewsRewards.board.short.answer', first: 'cogitaViewsRewards.board.short.first', fast: 'cogitaViewsRewards.board.short.fast', known: 'cogitaViewsRewards.board.short.known', goal: 'cogitaViewsRewards.board.short.goal' };
 const FLOAT_ICON: Partial<Record<RewardEvent['kind'], BadgeIcon>> = { streak: 'flame', goal: 'target', combo: 'bolt', known: 'leaf', fast: 'bolt', first: 'star', answer: 'star' };
 
 type FloatItem = { readonly id: string; readonly points: number; readonly text: string; readonly kind: string; readonly icon: BadgeIcon };
@@ -268,13 +273,14 @@ type FloatItem = { readonly id: string; readonly points: number; readonly text: 
  * Die Blase einer Gruppe: EINE für die Punkte (ihr wichtigster Grund im Wort). 2026-11-05 (Prompt 17): Stufe und Abzeichen
  * sind Meldungen am Rand (`RewardToasts.tsx`); flogen die Punkte eben von der Antwort zum Zähler, gibt es keine Blase.
  */
-function floatsOf(fresh: Fresh, rules: RewardRules, flown: boolean): FloatItem[] {
+function floatsOf(fresh: Fresh, rules: RewardRules, flown: boolean, tr: T): FloatItem[] {
   const out: FloatItem[] = [];
   const paid = fresh.events.filter((e) => celebrated(e) && e.kind !== 'level' && e.kind !== 'badge');
   if (paid.length > 0 && !flown) {
     const top = RANK.find((k) => paid.some((e) => e.kind === k)) ?? 'answer';
     const lead = paid.find((e) => e.kind === top)!;
-    const text = top === 'answer' ? eventText(lead, rules) : top === 'combo' || top === 'streak' ? eventText(lead, rules) : SHORT[top] ?? eventText(lead, rules);
+    const short = SHORT[top];
+    const text = top === 'answer' || top === 'combo' || top === 'streak' || short === undefined ? eventText(lead, rules) : tr(short);
     out.push({ id: `p${fresh.seq}`, points: paid.reduce((s, e) => s + e.points, 0), text, kind: top, icon: FLOAT_ICON[top] ?? 'star' });
   }
   return out;
@@ -285,17 +291,18 @@ function floatsOf(fresh: Fresh, rules: RewardRules, flown: boolean): FloatItem[]
  * zugleich (die neuesten); in einer Zeile nur eine.
  */
 function Floaters({ fresh, rules, max = 3, flown = false }: { fresh: Fresh; rules: RewardRules; max?: number; flown?: boolean }) {
+  const t = useT();
   const [items, setItems] = useState<readonly FloatItem[]>([]);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
   useEffect(() => () => { for (const t of timers.current) clearTimeout(t); }, []);
   useEffect(() => {
     if (fresh.seq === 0 || fresh.events.length === 0) return;
-    const made = floatsOf(fresh, rules, flown);
+    const made = floatsOf(fresh, rules, flown, t);
     if (made.length === 0) return;
     /* In einer Zeile nur eine Blase: die der Punkte (sie trägt die Antwort); sonst die neuesten. */
     setItems((was) => (max === 1 ? made.slice(0, 1) : [...was.filter((x) => !made.some((m) => m.id === x.id)), ...made].slice(-max)));
-    const t = setTimeout(() => { timers.current.delete(t); setItems((was) => was.filter((x) => !made.includes(x))); }, reducedMotion() ? 3000 : 2400);
-    timers.current.add(t);
+    const tm = setTimeout(() => { timers.current.delete(tm); setItems((was) => was.filter((x) => !made.includes(x))); }, reducedMotion() ? 3000 : 2400);
+    timers.current.add(tm);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `flown` gehört zu derselben Gruppe
   }, [fresh, rules, max]);
   return (
@@ -303,7 +310,7 @@ function Floaters({ fresh, rules, max = 3, flown = false }: { fresh: Fresh; rule
       {items.map((x, i) => (
         <span key={x.id} className={`cg-rw-float is-${x.kind}`} data-rw-float={x.kind} data-rw-float-at={i}>
           <RewardIcon name={x.icon} />
-          {x.points > 0 && <strong>+{NUM.format(x.points)}</strong>}
+          {x.points > 0 && <strong>+{num(x.points, t.lang)}</strong>}
           <span>{x.text}</span>
         </span>
       ))}
@@ -313,16 +320,17 @@ function Floaters({ fresh, rules, max = 3, flown = false }: { fresh: Fresh; rule
 
 /** Die letzten Tage als Reihe: ein Zeichen je Tag (✓ Serie, ◐ gelernt, · nichts) — nie nur Farbe. */
 function DayStrip({ list, today, seq, live }: { list: readonly RewardDay[]; today: number; seq: number; live: boolean }) {
+  const t = useT();
   const wide = list.length > 7;
   return (
-    <ol className={`cg-rw-days${wide ? ' is-month' : ''}`} aria-label={`Ostatnie ${list.length} dni`}>
+    <ol className={`cg-rw-days${wide ? ' is-month' : ''}`} aria-label={t('cogitaViewsRewards.board.lastDays', { count: list.length })}>
       {list.map((d) => {
         const state = d.counted ? 'counted' : d.answers + d.cards > 0 ? 'some' : 'none';
         const isToday = d.day === today;
-        const said = `${DAY_NAME.format(new Date(d.day))}: ${d.answers} odpowiedzi, ${NUM.format(d.points)} pkt${d.counted ? ' — dzień serii' : ''}${d.met ? ', cel osiągnięty' : ''}`;
+        const said = `${t('cogitaViewsRewards.board.daySaid', { day: dayName(d.day, t.lang), answers: d.answers, points: num(d.points, t.lang) })}${d.counted ? t('cogitaViewsRewards.board.daySaidStreak') : ''}${d.met ? t('cogitaViewsRewards.board.daySaidGoal') : ''}`;
         return (
           <li key={isToday && live ? `${d.day}:${seq}` : d.day} className={`is-${state}${isToday ? ' is-today' : ''}${isToday && live ? ' is-pop' : ''}`} title={said} data-rw-day={state}>
-            {!wide && <span className="cg-rw-day-wd" aria-hidden>{WEEKDAY.format(new Date(d.day))}</span>}
+            {!wide && <span className="cg-rw-day-wd" aria-hidden>{weekdayOf(d.day, t.lang)}</span>}
             <span className="cg-rw-day-mark" aria-hidden>{d.counted ? '✓' : state === 'some' ? '◐' : '·'}</span>
             <span className="cg-sr">{said}</span>
           </li>
@@ -335,63 +343,67 @@ function DayStrip({ list, today, seq, live }: { list: readonly RewardDay[]; toda
 /* -- Die Teile der Tafel ----------------------------------------------------------------------------------------------- */
 
 function PointsPart({ state, fresh, hero, shownTotal, counter }: { state: RewardState; fresh: Fresh; hero: boolean; shownTotal: number; counter: (el: HTMLElement | null) => void }) {
+  const t = useT();
   const bump = useFlash(fresh.events.some((e) => e.points > 0), fresh.seq, 900);
   return (
     <section className={`cg-rw-part cg-rw-points${hero ? ' is-hero' : ''}${bump ? ' is-bump' : ''}`} data-rw-part="points">
-      <span className="cg-rw-label"><RewardIcon name="star" className="is-star" />Punkty</span>
+      <span className="cg-rw-label"><RewardIcon name="star" className="is-star" />{t('cogitaViewsRewards.board.points')}</span>
       <span ref={counter} className="cg-rw-counter" data-rw-counter=""><CountUp value={shownTotal} className="cg-rw-big" /></span>
-      <span className="cg-rw-sub">dziś +{NUM.format(state.today.points + state.events.filter((e) => e.at >= state.today.day && (e.kind === 'goal' || e.kind === 'streak' || e.kind === 'badge')).reduce((s, e) => s + e.points, 0))}</span>
+      <span className="cg-rw-sub">{t('cogitaViewsRewards.board.todayPlus', { count: num(state.today.points + state.events.filter((e) => e.at >= state.today.day && (e.kind === 'goal' || e.kind === 'streak' || e.kind === 'badge')).reduce((s, e) => s + e.points, 0), t.lang) })}</span>
     </section>
   );
 }
 
 function LevelPart({ state, fresh, onOpen }: { state: RewardState; fresh: Fresh; onOpen?: () => void }) {
+  const t = useT();
   const up = useFlash(fresh.events.some((e) => e.kind === 'level'), fresh.seq, 2200);
   const l = state.level;
   if (state.rules.levels.length === 0) return null;
   return (
     <section className={`cg-rw-part cg-rw-level${up ? ' is-up' : ''}`} data-rw-part="level" data-rw-level={l.index + 1}>
-      <span className="cg-rw-label"><RewardIcon name="crown" className="is-crown" />Poziom {l.index + 1}</span>
+      <span className="cg-rw-label"><RewardIcon name="crown" className="is-crown" />{t('cogitaViewsRewards.board.levelN', { count: l.index + 1 })}</span>
       {/* 2026-11-05 (Prompt 17) — die Stufe antippen: „Odznaki i poziomy". */}
       {onOpen === undefined ? <strong className="cg-rw-level-name">{l.name ?? '—'}</strong>
         : <button type="button" className="cg-rw-level-name cg-rw-open" onClick={onOpen} data-rw-open="level">{l.name ?? '—'}</button>}
-      <Meter value={l.share} label={l.next === null ? 'Najwyższy poziom' : `Do poziomu „${l.next.name}”`} />
-      <span className="cg-rw-sub">{l.next === null ? 'najwyższy poziom' : `do „${l.next.name}”: ${NUM.format(Math.max(0, l.next.at - state.total))} pkt`}</span>
+      <Meter value={l.share} label={l.next === null ? t('cogitaViewsRewards.board.topLevel') : t('cogitaViewsRewards.board.toLevel', { name: l.next.name })} />
+      <span className="cg-rw-sub">{l.next === null ? t('cogitaViewsRewards.board.topLevelSub') : t('cogitaViewsRewards.board.toLevelSub', { name: l.next.name, count: num(Math.max(0, l.next.at - state.total), t.lang) })}</span>
       {up && <span className="cg-rw-burst" aria-hidden>{Array.from({ length: 8 }, (_, i) => <i key={i} />)}</span>}
     </section>
   );
 }
 
 function StreakPart({ state, fresh, hero, list }: { state: RewardState; fresh: Fresh; hero: boolean; list: readonly RewardDay[] | null }) {
+  const t = useT();
   const ignite = useFlash(fresh.events.some((e) => e.kind === 'streak'), fresh.seq, 1800);
-  const counts = state.rules.streak.counts === 'goal' ? 'cel dnia' : 'nauka';
+  const counts = state.rules.streak.counts === 'goal' ? t('cogitaViewsRewards.board.countsGoal') : t('cogitaViewsRewards.board.countsAny');
   const say = state.streak === 0
-    ? (state.rules.streak.counts === 'goal' ? 'Osiągnij dziś cel, a zacznie się seria.' : 'Ucz się dziś, a zacznie się seria.')
-    : state.streakToday ? `Dzisiaj już się liczy (${counts}).`
-      : state.rules.streak.counts === 'goal' ? 'Osiągnij dziś cel, żeby utrzymać serię.' : 'Ucz się dziś, żeby utrzymać serię.';
+    ? (state.rules.streak.counts === 'goal' ? t('cogitaViewsRewards.board.startGoal') : t('cogitaViewsRewards.board.startAny'))
+    : state.streakToday ? t('cogitaViewsRewards.board.countsToday', { what: counts })
+      : state.rules.streak.counts === 'goal' ? t('cogitaViewsRewards.board.keepGoal') : t('cogitaViewsRewards.board.keepAny');
   return (
     <section className={`cg-rw-part cg-rw-streak${hero ? ' is-hero' : ''}${state.atRisk ? ' is-risk' : ''}`} data-rw-part="streak" data-rw-streak={state.streak} data-rw-streak-today={state.streakToday ? '' : undefined}>
-      <span className="cg-rw-label">Seria</span>
+      <span className="cg-rw-label">{t('cogitaViewsRewards.board.streak')}</span>
       <span className="cg-rw-streak-row">
         <Flame lit={state.streakToday} ignite={ignite} big={hero} />
-        <span className="cg-rw-streak-num"><CountUp value={state.streak} className="cg-rw-big" /> <span>{plural(state.streak, 'dzień', 'dni', 'dni')}</span></span>
+        <span className="cg-rw-streak-num"><CountUp value={state.streak} className="cg-rw-big" /> <span>{t('cogitaViewsRewards.board.daysWord', { count: state.streak })}</span></span>
       </span>
-      <span className="cg-rw-sub">{say}{state.best > state.streak ? ` Najdłuższa: ${days(state.best)}.` : ''}</span>
+      <span className="cg-rw-sub">{say}{state.best > state.streak ? t('cogitaViewsRewards.board.longest', { days: days(state.best, t) }) : ''}</span>
       {list !== null && <DayStrip list={list} today={state.today.day} seq={fresh.seq} live={ignite} />}
     </section>
   );
 }
 
 function GoalPart({ state, fresh, hero }: { state: RewardState; fresh: Fresh; hero: boolean }) {
+  const t = useT();
   const pop = useFlash(fresh.events.some((e) => e.kind === 'goal'), fresh.seq, 1600);
   const g = state.rules.goal;
   const left = Math.max(0, g.amount - state.goalNow);
   return (
     <section className={`cg-rw-part cg-rw-goal${hero ? ' is-hero' : ''}`} data-rw-part="goal">
-      <span className="cg-rw-label">Cel dnia</span>
+      <span className="cg-rw-label">{t('cogitaViewsRewards.board.goal')}</span>
       <span className="cg-rw-goal-row">
         <GoalRing now={state.goalNow} goal={g.amount} size={hero ? 'lg' : 'md'} pop={pop} />
-        <span className="cg-rw-sub">{left === 0 ? <><strong>Cel osiągnięty!</strong> {state.rules.points.goal > 0 ? `+${state.rules.points.goal} pkt` : ''}</> : <>jeszcze <strong>{NUM.format(left)}</strong> {GOAL_UNIT_LABEL[g.unit]}</>}</span>
+        <span className="cg-rw-sub">{left === 0 ? <><strong>{t('cogitaViewsRewards.board.goalMet')}</strong> {state.rules.points.goal > 0 ? t('cogitaViewsRewards.board.plusPts', { count: state.rules.points.goal }) : ''}</> : rich(t('cogitaViewsRewards.board.stillLeft', { count: num(left, t.lang), unit: GOAL_UNIT_LABEL[g.unit] }), { b: (s) => <strong>{s}</strong> })}</span>
       </span>
     </section>
   );
@@ -434,16 +446,17 @@ function BadgesPart({ state, fresh, onOpen, RW }: { state: RewardState; fresh: F
 export const FEED_KINDS: ReadonlySet<RewardEvent['kind']> = new Set(['level', 'badge', 'goal', 'streak']);
 
 function FeedPart({ state, n }: { state: RewardState; n: number }) {
+  const t = useT();
   const list = state.events.filter((e) => e.points > 0 || FEED_KINDS.has(e.kind)).slice(-n).reverse();
   return (
     <section className="cg-rw-part cg-rw-feed" data-rw-part="feed">
-      <span className="cg-rw-label">Ostatnie nagrody</span>
-      {list.length === 0 ? <span className="cg-rw-sub">Jeszcze nic — pierwsza odpowiedź przyniesie punkty.</span> : (
+      <span className="cg-rw-label">{t('cogitaViewsRewards.board.feed')}</span>
+      {list.length === 0 ? <span className="cg-rw-sub">{t('cogitaViewsRewards.board.feedEmpty')}</span> : (
         <ol className="cg-rw-feed-list">
           {list.map((e) => (
             <li key={e.id} data-rw-feed={e.kind}>
-              <span className="cg-rw-feed-time">{TIME.format(new Date(e.at))}</span>
-              <strong className="cg-rw-feed-pts">{e.points > 0 ? `+${NUM.format(e.points)}` : ''}</strong>
+              <span className="cg-rw-feed-time">{timeOf(e.at, t.lang)}</span>
+              <strong className="cg-rw-feed-pts">{e.points > 0 ? `+${num(e.points, t.lang)}` : ''}</strong>
               <span>{eventText(e, state.rules)}</span>
             </li>
           ))}
@@ -512,6 +525,7 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
   /** 2026-11-05 (Prompt 17) — so viele Punkte sind noch unterwegs (die Karte spielt ab): der Zähler steht so viel tiefer. Eine Zahl oder ein Speicher (`worldPlay.ts` `holdStore`). */
   hold?: number | HoldSource;
 }) {
+  const t = useT();
   const { state, fresh } = useRewards(learner, rules, { ...(keys === undefined ? {} : { keys }), ...(rename === undefined ? {} : { rename }), live });
   const cg = useContext(CogitaContext);
   const MW = motionWords(cg === null ? 'pl' : baseLang(cg.lib));
@@ -561,7 +575,7 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
     pushToasts(toastsOf(fresh, state, MW, RW, openBadges ?? (() => undefined)));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- je neuer Gruppe einmal
   }, [fresh]);
-  if (state === null) return <div className="cg-rw is-waiting" data-rw-shape={shape}><span className="cg-muted">Liczenie punktów…</span></div>;
+  if (state === null) return <div className="cg-rw is-waiting" data-rw-shape={shape}><span className="cg-muted">{t('cogitaViewsRewards.board.counting')}</span></div>;
   const badgesLink = openBadges !== undefined && show('badges') && (state.badges.length > 0 || state.rules.levels.length > 0)
     ? <button type="button" className="wk-link-btn cg-rw-badges-link" onClick={openBadges} data-rw-badges-open="">{MW.openBadges}</button> : null;
   const inlinePage = open && inlineNow !== undefined ? <div className="cg-rw-inline" data-rw-inline="">{inlineNow(() => setOpen(false))}</div> : null;
@@ -570,14 +584,14 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
     return (
       <div className={`cg-rw is-${shape}`} data-rw-shape={shape} data-rw-total={state.total}>
         <span className="cg-rw-line">
-          {show('points') && <span className="cg-rw-chip is-points" title="Punkty"><RewardIcon name="star" className="is-star" /><span ref={setCounter} className="cg-rw-counter" data-rw-counter=""><CountUp value={shownTotal} className="cg-rw-chip-num" /></span><span className="cg-sr"> {pointsWord(state.total)}</span></span>}
+          {show('points') && <span className="cg-rw-chip is-points" title={t('cogitaViewsRewards.board.points')}><RewardIcon name="star" className="is-star" /><span ref={setCounter} className="cg-rw-counter" data-rw-counter=""><CountUp value={shownTotal} className="cg-rw-chip-num" /></span><span className="cg-sr"> {pointsWord(state.total, t)}</span></span>}
           {show('level') && state.rules.levels.length > 0 && (openBadges === undefined
-            ? <span className="cg-rw-chip is-level" title={`Poziom ${state.level.index + 1}`}><RewardIcon name="crown" className="is-crown" />{state.level.name ?? '—'}</span>
-            : <button type="button" className="cg-rw-chip is-level cg-rw-open" title={`Poziom ${state.level.index + 1} — ${MW.openBadges}`} onClick={openBadges} data-rw-open="level"><RewardIcon name="crown" className="is-crown" />{state.level.name ?? '—'}</button>)}
+            ? <span className="cg-rw-chip is-level" title={t('cogitaViewsRewards.board.levelN', { count: state.level.index + 1 })}><RewardIcon name="crown" className="is-crown" />{state.level.name ?? '—'}</span>
+            : <button type="button" className="cg-rw-chip is-level cg-rw-open" title={t('cogitaViewsRewards.board.levelOpen', { count: state.level.index + 1, open: MW.openBadges })} onClick={openBadges} data-rw-open="level"><RewardIcon name="crown" className="is-crown" />{state.level.name ?? '—'}</button>)}
           {show('streak') && <StreakChip state={state} fresh={fresh} />}
           {show('goal') && <GoalChip state={state} fresh={fresh} />}
           {show('badges') && state.badges.length > 0 && (openBadges === undefined
-            ? <span className="cg-rw-chip is-badges" title="Odznaki"><RewardIcon name="medal" className="is-medal" />{state.badges.filter((x) => x.at !== null).length}/{state.badges.length}</span>
+            ? <span className="cg-rw-chip is-badges" title={t('cogitaViewsRewards.board.badges')}><RewardIcon name="medal" className="is-medal" />{state.badges.filter((x) => x.at !== null).length}/{state.badges.length}</span>
             : <button type="button" className="cg-rw-chip is-badges cg-rw-open" title={MW.openBadges} onClick={openBadges} data-rw-open="badges"><RewardIcon name="medal" className="is-medal" />{state.badges.filter((x) => x.at !== null).length}/{state.badges.length}</button>)}
         </span>
         <Floaters fresh={fresh} rules={rules} max={1} flown={flight !== null} />
@@ -598,9 +612,9 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
       </div>
       {show('streak') && shape === 'full' && list !== null && (
         <section className="cg-rw-part cg-rw-month" data-rw-part="days">
-          <span className="cg-rw-label">Ostatnie 4 tygodnie</span>
+          <span className="cg-rw-label">{t('cogitaViewsRewards.board.last4Weeks')}</span>
           <DayStrip list={list} today={state.today.day} seq={fresh.seq} live={false} />
-          <span className="cg-rw-sub">✓ dzień serii, ◐ była nauka, · nic</span>
+          <span className="cg-rw-sub">{t('cogitaViewsRewards.board.legend')}</span>
         </section>
       )}
       {show('badges') && (shape === 'full' || pieces.length === 0) && <BadgesPart state={state} fresh={fresh} RW={RW} {...(openBadges === undefined ? {} : { onOpen: openBadges })} />}
@@ -613,22 +627,24 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
 }
 
 function StreakChip({ state, fresh }: { state: RewardState; fresh: Fresh }) {
+  const t = useT();
   const ignite = useFlash(fresh.events.some((e) => e.kind === 'streak'), fresh.seq, 1800);
   return (
-    <span className={`cg-rw-chip is-streak${state.atRisk ? ' is-risk' : ''}`} title={state.streakToday ? 'Seria — dzisiaj już się liczy' : state.atRisk ? 'Seria — ucz się dziś, żeby ją utrzymać' : 'Seria dni'}>
+    <span className={`cg-rw-chip is-streak${state.atRisk ? ' is-risk' : ''}`} title={state.streakToday ? t('cogitaViewsRewards.board.chipToday') : state.atRisk ? t('cogitaViewsRewards.board.chipRisk') : t('cogitaViewsRewards.board.chipDays')}>
       <Flame lit={state.streakToday} ignite={ignite} />
-      <CountUp value={state.streak} className="cg-rw-chip-num" /><span className="cg-sr"> {plural(state.streak, 'dzień', 'dni', 'dni')} serii</span>
+      <CountUp value={state.streak} className="cg-rw-chip-num" /><span className="cg-sr"> {t('cogitaViewsRewards.board.streakWord', { count: state.streak })}</span>
     </span>
   );
 }
 
 function GoalChip({ state, fresh }: { state: RewardState; fresh: Fresh }) {
+  const t = useT();
   const pop = useFlash(fresh.events.some((e) => e.kind === 'goal'), fresh.seq, 1600);
   const g = state.rules.goal;
   return (
-    <span className="cg-rw-chip is-goal" title={`Cel dnia: ${g.amount} ${GOAL_UNIT_LABEL[g.unit]}`}>
+    <span className="cg-rw-chip is-goal" title={t('cogitaViewsRewards.board.goalTitle', { amount: g.amount, unit: GOAL_UNIT_LABEL[g.unit] })}>
       <GoalRing now={state.goalNow} goal={g.amount} size="sm" pop={pop} />
-      {Math.min(state.goalNow, g.amount)}/{g.amount}<span className="cg-sr"> {GOAL_UNIT_LABEL[g.unit]} dziś</span>
+      {Math.min(state.goalNow, g.amount)}/{g.amount}<span className="cg-sr"> {t('cogitaViewsRewards.board.goalToday', { unit: GOAL_UNIT_LABEL[g.unit] })}</span>
     </span>
   );
 }

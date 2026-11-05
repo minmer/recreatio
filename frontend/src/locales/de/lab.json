@@ -1,0 +1,52 @@
+{
+  "frame": {
+    "controls": "Steuerung",
+    "fullscreen": "Vollbild",
+    "exitFullscreen": "Vollbild verlassen",
+    "exitFullscreenEsc": "Vollbild verlassen (Esc)"
+  },
+  "graph": {
+    "empty": "Der Schreiber erscheint, sobald etwas geschieht."
+  },
+  "liquid": {
+    "water": "Wasser",
+    "saltwater": "Salzwasser",
+    "sea": "Meerwasser",
+    "oil": "Öl",
+    "alcohol": "Alkohol",
+    "glycerin": "Glycerin",
+    "honey": "Honig",
+    "mercury": "Quecksilber",
+    "milk": "Milch"
+  },
+  "editor": {
+    "sceneOneObject": "Eine Szene ist ein Objekt { … }.",
+    "notJson": "Das ist kein gültiges JSON: {error}",
+    "accepted": "Übernommen.",
+    "title": "Titel",
+    "kind": "Art",
+    "kindExperiment": "Versuch (die Szene wie im JSON)",
+    "kindSandbox": "Sandkasten (alles erlaubt, fertige Versuche zum Laden)",
+    "studentText": "Text für die Schüler (jeder Absatz in einer neuen Zeile)",
+    "insertLabel": "Versuch einsetzen",
+    "inserted": "„{title}“ eingesetzt — prüfe die Vorschau und übernimm.",
+    "insertPlaceholder": "Versuch einsetzen…",
+    "presetOption": "{title} — {summary}",
+    "copied": "Auftrag für die KI kopiert — füge ihn in deinen Chat ein und die fertige Szene hier.",
+    "copyFailed": "Der Auftrag liess sich nicht kopieren.",
+    "copyPrompt": "Auftrag für die KI kopieren",
+    "sceneJson": "Szene ({what}) JSON",
+    "scenarios": "Szenarien zur Wahl im Labor (das erste ist die Szene oben)",
+    "noScenarios": "Keine — das Labor zeigt nur die Szene oben.",
+    "scenarioRow": "{n}. {title}",
+    "untitled": "ohne Titel",
+    "moveUp": "Nach oben: {title}",
+    "moveDown": "Nach unten: {title}",
+    "remove": "Entfernen",
+    "addPresetLabel": "Fertigen Versuch als Szenario hinzufügen",
+    "addPresetPlaceholder": "Fertigen Versuch hinzufügen…",
+    "addCurrent": "Aktuelle Szene hinzufügen",
+    "preview": "Vorschau",
+    "accept": "Übernehmen"
+  }
+}

@@ -24,6 +24,7 @@
 import { useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
+import { useT } from '../core/i18n';
 import { libraryKindOf, settleLibrary, type OpenLibrary } from '../library/library';
 import { useLibraries } from '../library/LibraryPick';
 import { storeOf } from '../library/libraryStore';
@@ -41,7 +42,8 @@ const TAB_OF: Record<string, string> = { entity: 'wpisy', revision: 'powtorki', 
  * DER KASTEN „KTO WIDZI" — wer diesen Eintrag (diese Powtórka, diesen
  * Przebieg) liest, und: in eine andere Baza tragen.
  */
-export function WhoSees({ id, title = 'Kto widzi' }: { id: string; title?: string }) {
+export function WhoSees({ id, title }: { id: string; title?: string }) {
+  const t = useT();
   const { lib, me, writes, name } = useCtx();
   const rows = useLibraries();
   const [target, setTarget] = useState('');
@@ -73,52 +75,51 @@ export function WhoSees({ id, title = 'Kto widzi' }: { id: string; title?: strin
     /* Die alte Baza sieht weiter, was hinüberging: die neue wird ihre Quelle. */
     if (!sourced && !tooMany) await lib.saveSettings({ sources: [...lib.settings().sources, { id: chosen.libraryId, kind: 'knowledge', name: chosen.name }] });
     window.dispatchEvent(new Event(BASES_CHANGED));
-    setSaid(`Przeniesiono ${ids.length === 1 ? 'wpis' : `${ids.length} wpisów`} do „${chosen.name}”.${renamed > 0 ? ` ${renamed} z nich dostało nowy klucz (stary był tam zajęty) — odnośniki idą po identyfikatorze, więc nic się nie zepsuło.` : ''}`);
+    setSaid(`${t('cogitaViews.who.moved', { count: ids.length, name: chosen.name })}${renamed > 0 ? t('cogitaViews.who.renamed', { count: renamed }) : ''}`);
     const tab = TAB_OF[entry.kind];
     window.location.hash = tab === undefined ? viewPath('knowledge', chosen.libraryId) : cogitaPath(chosen.libraryId, tab, id);
   });
 
   return (
     <section className="cg-card">
-      <h3>{title}</h3>
-      <p>Baza „{name}”: {audience(here)}.</p>
+      <h3>{title ?? t('cogitaViews.who.title')}</h3>
+      <p>{t('cogitaViews.who.baseAudience', { name, audience: audience(here) })}</p>
       {writes && me !== null && entry !== undefined && others.length > 0 && (
         <details className="wk-fold">
-          <summary>Przenieś do innej bazy wiedzy</summary>
+          <summary>{t('cogitaViews.who.moveSummary')}</summary>
           <p className="cg-muted">
-            Tak teraz się publikuje: żeby coś było publiczne, przenieś to do bazy w obszarze jawnym (żeby było prywatne — do bazy w obszarze zamkniętym).
-            Identyfikator zostaje, więc odnośniki dalej działają. Odpowiedzi uczących się zostają przy tej bazie.
+            {t('cogitaViews.who.moveHint')}
           </p>
-          <select value={target} disabled={busy} aria-label="Baza docelowa" onChange={(e) => { setTarget(e.target.value); setUnderstood(false); }}>
-            <option value="">— wybierz bazę wiedzy —</option>
-            {others.map((r) => <option key={r.libraryId} value={r.libraryId}>{r.name} — {isPublicBase(r) ? 'publiczna w całości' : r.areaPublic === true ? 'obszar jawny, baza jeszcze nie otwarta' : 'dla członków obszaru'}</option>)}
+          <select value={target} disabled={busy} aria-label={t('cogitaViews.who.targetBase')} onChange={(e) => { setTarget(e.target.value); setUnderstood(false); }}>
+            <option value="">{t('cogitaViews.who.pickBase')}</option>
+            {others.map((r) => <option key={r.libraryId} value={r.libraryId}>{isPublicBase(r) ? t('cogitaViews.who.optPublic', { name: r.name }) : r.areaPublic === true ? t('cogitaViews.who.optOpenArea', { name: r.name }) : t('cogitaViews.who.optMembers', { name: r.name })}</option>)}
           </select>
           {chosen !== undefined && (
             <>
-              <h4>Co się zmieni</h4>
-              <p>Po przeniesieniu czytają go: {audience(chosen)}.</p>
-              {opens && <p className="wk-warn">Baza „{chosen.name}” jest publiczna w całości: każdy zobaczy ten wpis i {WHOLE_BASE} tej bazy.</p>}
+              <h4>{t('cogitaViews.who.whatChanges')}</h4>
+              <p>{t('cogitaViews.who.afterMove', { audience: audience(chosen) })}</p>
+              {opens && <p className="wk-warn">{t('cogitaViews.who.opensWarn', { name: chosen.name, whole: WHOLE_BASE })}</p>}
               {needs.length > 0 && (
                 <>
-                  <p>Potrzebuje z tej bazy ({needs.length}): {needs.slice(0, 8).map((n) => nameIn(lib, n)).join(', ')}{needs.length > 8 ? ` i ${needs.length - 8} innych` : ''}.</p>
+                  <p>{needs.length > 8 ? t('cogitaViews.who.needsMore', { count: needs.length, list: needs.slice(0, 8).map((n) => nameIn(lib, n)).join(', '), more: needs.length - 8 }) : t('cogitaViews.who.needs', { count: needs.length, list: needs.map((n) => nameIn(lib, n)).join(', ') })}</p>
                   <label className="wk-check">
                     <input type="checkbox" checked={along} disabled={busy} onChange={(e) => setAlong(e.target.checked)} />
-                    <span>Przenieś je razem z nim{opens ? ' (też staną się publiczne)' : ''}</span>
+                    <span>{opens ? t('cogitaViews.who.moveAlongPublic') : t('cogitaViews.who.moveAlong')}</span>
                   </label>
-                  {!along && <p className="cg-muted">Zostają tutaj — kto czyta tylko „{chosen.name}”, zobaczy w ich miejscu „[odwołanie niedostępne]”.</p>}
+                  {!along && <p className="cg-muted">{t('cogitaViews.who.stayHere', { name: chosen.name })}</p>}
                 </>
               )}
               {!sourced && (tooMany
-                ? <p className="wk-warn">Ta baza ma już {MAX_SOURCES} źródeł — „{chosen.name}” nie zostanie dodana; to, co przeniesiesz, zniknie stąd z widoku.</p>
-                : <p>„{name}” dostanie „{chosen.name}” jako źródło — dalej widzi wszystko, co tam przeniesiesz.</p>)}
+                ? <p className="wk-warn">{t('cogitaViews.who.tooMany', { max: MAX_SOURCES, name: chosen.name })}</p>
+                : <p>{t('cogitaViews.who.asSource', { base: name, name: chosen.name })}</p>)}
               {opens && (
                 <label className="wk-check">
                   <input type="checkbox" checked={understood} disabled={busy} onChange={(e) => setUnderstood(e.target.checked)} />
-                  <span>Rozumiem: to będzie publiczne.</span>
+                  <span>{t('cogitaViews.who.understoodPublic')}</span>
                 </label>
               )}
               <div className="wk-actions">
-                <button type="button" className="wk-btn" disabled={busy || (opens && !understood)} onClick={() => void move()}>{busy ? 'Przenoszenie…' : `Przenieś do „${chosen.name}”`}</button>
+                <button type="button" className="wk-btn" disabled={busy || (opens && !understood)} onClick={() => void move()}>{busy ? t('cogitaViews.who.moving') : t('cogitaViews.who.moveTo', { name: chosen.name })}</button>
               </div>
             </>
           )}
@@ -136,6 +137,7 @@ export function WhoSees({ id, title = 'Kto widzi' }: { id: string; title?: strin
  * es nicht (0123: keine Baza öffnet sich von selbst).
  */
 export function BaseVisibility({ libraries, areas, onChanged }: { libraries: readonly OpenLibrary[]; areas: readonly AreaRow[]; onChanged: () => void }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   const [understood, setUnderstood] = useState(false);
   const [report, setReport] = useState<string | null>(null);
@@ -149,8 +151,8 @@ export function BaseVisibility({ libraries, areas, onChanged }: { libraries: rea
     revisions: own(lib.docs('revision')),
     flows: own(lib.docs('flow'))
   };
-  const inside = `${counts.entries} wpisów (w tym ${counts.questions} pytań z odpowiedziami), ${counts.revisions} powtórek, ${counts.flows} przebiegów`;
-  const areaName = area?.personal === true ? 'tylko Ty' : area?.name ?? 'obszar tej bazy';
+  const inside = t('cogitaViews.who.inside', counts);
+  const areaName = area?.personal === true ? t('cogitaViews.who.onlyYou') : area?.name ?? t('cogitaViews.who.thisArea');
   /* Eine alte Abschrift kann Inhalt aus einer Quelle tragen, die nicht öffentlich ist — erst zurücknehmen (unten). */
   const copies = hasOldCopies(lib.store);
   const old = hasOldPublications(lib.store);
@@ -158,34 +160,34 @@ export function BaseVisibility({ libraries, areas, onChanged }: { libraries: rea
 
   return (
     <section className="cg-card">
-      <h3>Kto czyta</h3>
+      <h3>{t('cogitaViews.who.readers')}</h3>
       {row === undefined ? <Loading lines={1} />
         : row.areaPublic !== true ? (
           <>
-            <p>Czytają ją członkowie obszaru „{areaName}” (i ci, którym dali link albo miejsce).</p>
-            <p className="cg-muted">Gdyby ten obszar stał się jawny, każdy przeczytałby {WHOLE_BASE}. Żeby udostępnić tylko część, załóż osobną bazę w obszarze jawnym i przenieś do niej wybrane wpisy (wpis → Kto widzi → Przenieś).</p>
+            <p>{t('cogitaViews.who.members', { area: areaName })}</p>
+            <p className="cg-muted">{t('cogitaViews.who.ifOpen', { whole: WHOLE_BASE })}</p>
           </>
         ) : row.areaRuleAt != null ? (
           <>
-            <p className="wk-warn">Obszar „{areaName}” jest jawny: każdy czyta {WHOLE_BASE} — teraz {inside}.</p>
-            <p className="cg-muted">Coś, co ma zostać dla wybranych, przenieś do bazy w obszarze zamkniętym (wpis → Kto widzi → Przenieś).</p>
+            <p className="wk-warn">{t('cogitaViews.who.openArea', { area: areaName, whole: WHOLE_BASE, inside })}</p>
+            <p className="cg-muted">{t('cogitaViews.who.keepForSome')}</p>
           </>
         ) : (
           <>
-            <p>Obszar „{areaName}” jest jawny, ale ta baza nie jest jeszcze otwarta — dopóki jej nie otworzysz, czytają ją tylko członkowie obszaru.</p>
+            <p>{t('cogitaViews.who.notOpened', { area: areaName })}</p>
             {writes && (
               <>
-                <h4>Co się zmieni</h4>
-                <p className="wk-warn">Po otwarciu każdy — bez konta — przeczyta {WHOLE_BASE}: teraz {inside}. Moduły na stronach pokażą ją wszystkim.</p>
-                <p className="cg-muted">Jeśli publiczna ma być tylko część, nie otwieraj tej bazy: załóż osobną w tym obszarze i przenieś do niej wybrane wpisy.</p>
-                {copies && <p className="wk-warn">Najpierw wycofaj stare kopie publikacji (niżej): ta baza ma jeszcze kopie zapisane we wpisach.</p>}
+                <h4>{t('cogitaViews.who.whatChanges')}</h4>
+                <p className="wk-warn">{t('cogitaViews.who.afterOpen', { whole: WHOLE_BASE, inside })}</p>
+                <p className="cg-muted">{t('cogitaViews.who.partOnly')}</p>
+                {copies && <p className="wk-warn">{t('cogitaViews.who.copiesFirst')}</p>}
                 <label className="wk-check">
                   <input type="checkbox" checked={understood} disabled={busy || copies} onChange={(e) => setUnderstood(e.target.checked)} />
-                  <span>Rozumiem: cała baza będzie publiczna.</span>
+                  <span>{t('cogitaViews.who.understoodWhole')}</span>
                 </label>
                 <div className="wk-actions">
                   <button type="button" className="wk-btn" disabled={busy || !understood || copies} onClick={() => void run(async () => { await settleLibrary(lib.libraryId); window.dispatchEvent(new Event(BASES_CHANGED)); onChanged(); })}>
-                    Otwórz całą bazę dla wszystkich
+                    {t('cogitaViews.who.openForAll')}
                   </button>
                 </div>
               </>
@@ -194,11 +196,11 @@ export function BaseVisibility({ libraries, areas, onChanged }: { libraries: rea
         )}
       {writes && old && (
         <>
-          <h4>Stare kopie publikacji</h4>
-          <p className="cg-muted">Z czasów, gdy baza publikowała pojedyncze wpisy, zostały kopie — u serwera i zapisane we wpisach. Nic z nich już nie korzysta. Wycofanie zostawia same wpisy; kopia, która pokazuje wpis, którego już nie ma, zostaje.</p>
+          <h4>{t('cogitaViews.who.oldCopies')}</h4>
+          <p className="cg-muted">{t('cogitaViews.who.oldCopiesHint')}</p>
           <div className="wk-actions">
             <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => { setReport(oldCopiesLine(await withdrawOldCopies(lib.store, known, { libraryId: lib.libraryId }))); onChanged(); })}>
-              Wycofaj stare kopie
+              {t('cogitaViews.who.withdraw')}
             </button>
           </div>
         </>

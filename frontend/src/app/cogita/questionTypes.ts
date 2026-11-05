@@ -23,15 +23,12 @@
  */
 
 import type { AnswerForm } from './check';
+import { appLang, t } from '../core/i18n';
 
 export type QuestionGroup = 'write' | 'choose' | 'connect' | 'other';
 
-export const QUESTION_GROUPS: readonly { readonly id: QuestionGroup; readonly label: string }[] = [
-  { id: 'write', label: 'Piszesz odpowiedź' },
-  { id: 'choose', label: 'Wybierasz' },
-  { id: 'connect', label: 'Łączysz i układasz' },
-  { id: 'other', label: 'Inne' }
-];
+export const QUESTION_GROUPS: readonly { readonly id: QuestionGroup; readonly label: string }[] = (['write', 'choose', 'connect', 'other'] as const)
+  .map((id) => ({ id, get label() { return t(`cogitaData.questionGroup.${id}`); } }));
 
 export interface QuestionType {
   readonly form: AnswerForm;
@@ -45,35 +42,29 @@ export interface QuestionType {
   readonly fields: readonly string[];
 }
 
+/* 2026-11-05 — Name, Erklärung und Feld der Frage in der Sprache der Anwendung (`cogitaData.questionType.<art>.*`), beim Lesen geholt. */
+const qt = (form: AnswerForm, group: QuestionGroup, fields: readonly string[]): QuestionType => ({
+  form, group, fields,
+  get label() { return t(`cogitaData.questionType.${form}.label`); },
+  get says() { return t(`cogitaData.questionType.${form}.says`); },
+  get prompt() { return t(`cogitaData.questionType.${form}.prompt`); }
+});
+
 export const QUESTION_TYPES: readonly QuestionType[] = [
-  { form: 'text', label: 'Odpowiedź słowami', group: 'write', prompt: 'Pytanie', fields: ['answers'],
-    says: 'Uczący się wpisuje odpowiedź; liczy się podobieństwo — literówka daje część punktów. Dobrych odpowiedzi może być kilka.' },
-  { form: 'number', label: 'Liczba', group: 'write', prompt: 'Pytanie', fields: ['answers', 'unit', 'quantity', 'tolerance', 'relative'],
-    says: 'Uczący się wpisuje liczbę, może z jednostką; tolerancja mówi, ile wolno się pomylić.' },
-  { form: 'date', label: 'Data', group: 'write', prompt: 'Pytanie', fields: ['answers', 'precision', 'tolerance'],
-    says: 'Uczący się wpisuje datę — z dokładnością do roku, miesiąca albo dnia.' },
-  { form: 'gap', label: 'Luka w tekście', group: 'write', prompt: 'Tekst z luką', fields: ['answers', 'choices'],
-    says: 'Tekst z zakrytym słowem — w treści [[słowo]] (albo „…” i dobre odpowiedzi niżej); uczący się wpisuje, czego brakuje. Kilka luk: każda osobno; luka z „Do wyboru” jest listą do wybrania (może mieć wzory), bez — polem do wpisania.' },
-  { form: 'one', label: 'Jedna z kilku', group: 'choose', prompt: 'Pytanie', fields: ['options', 'correct', 'feedback'],
-    says: 'Kilka możliwości, dobra jest jedna; kolejność miesza się przy każdym pytaniu. Do każdej możliwości można dopisać zdanie, które uczący się zobaczy po odpowiedzi.' },
-  { form: 'many', label: 'Kilka z kilku', group: 'choose', prompt: 'Pytanie', fields: ['options', 'correct', 'feedback', 'show'],
-    says: 'Kilka możliwości, dobrych może być kilka — trzeba zaznaczyć wszystkie. Każde zdanie liczy się osobno (dobrze zaznaczone albo dobrze pominięte), wynik to ich średnia; każde jest też osobnym faktem, więc liczy się na każdej karcie, na której stoi. Długa lista z „Ile naraz” — każde zdanie ma swoją kartę. Do każdej możliwości można dopisać zdanie na po odpowiedzi.' },
-  { form: 'truefalse', label: 'Prawda czy fałsz', group: 'choose', prompt: 'Zdanie', fields: ['value'],
-    says: 'Jedno zdanie; uczący się mówi, czy jest prawdziwe.' },
-  { form: 'match', label: 'Połącz w pary', group: 'connect', prompt: 'Polecenie', fields: ['left', 'right', 'leftLabel', 'rightLabel', 'show'],
-    says: 'Dwie kolumny (np. rok — wydarzenie); uczący się łączy je w pary. Długa lista pokazuje się po kilka par naraz.' },
-  { form: 'order', label: 'Ułóż w kolejności', group: 'connect', prompt: 'Polecenie', fields: ['items', 'extra', 'preview', 'join'],
-    says: 'Elementy pomieszane; uczący się układa je po kolei (przeciąga). Z „Podglądem” nad listą widać ułożone razem — jako wzór albo tekst.' },
-  { form: 'build', label: 'Zbuduj z kafelków', group: 'connect', prompt: 'Polecenie', fields: ['items', 'extra', 'alternatives', 'preview', 'join'],
-    says: 'Uczący się składa odpowiedź z kafelków (wzór, zaprzeczenie, wyrażenie, linijkę dowodu) i od razu widzi ją złożoną; są kafelki zbędne, może być kilka dobrych kolejności.' },
-  { form: 'flash', label: 'Fiszka (sam oceniasz)', group: 'other', prompt: 'Przód fiszki', fields: ['back'],
-    says: 'Przód i odwrotna strona; uczący się odwraca kartę i sam mówi, czy umiał.' },
-  { form: 'point', label: 'Miejsce na mapie', group: 'other', prompt: 'Pytanie', fields: ['place', 'radius'],
-    says: 'Uczący się wskazuje punkt na mapie; liczy się, czy trafił w promień.' },
-  { form: 'code', label: 'Kod (Python)', group: 'other', prompt: 'Pytanie', fields: ['task', 'starter', 'tests', 'createInput', 'reference', 'cases'],
-    says: 'Uczący się pisze funkcję transform(x) w Pythonie; sprawdzają ją widoczne przykłady (wejście → wynik), potem ukryte przypadki porównane z rozwiązaniem wzorcowym. Każdy przypadek ma 2 sekundy.' },
-  { form: 'interactive', label: 'Rysunek do poruszania', group: 'other', prompt: 'Pytanie', fields: ['drawing', 'goal', 'solution', 'goals', 'check'],
-    says: 'Uczący się ustawia rysunek (suwaki, przeciąganie) i sprawdza; dobrze, gdy symulacja osiąga cel.' }
+  qt('text', 'write', ['answers']),
+  qt('number', 'write', ['answers', 'unit', 'quantity', 'tolerance', 'relative']),
+  qt('date', 'write', ['answers', 'precision', 'tolerance']),
+  qt('gap', 'write', ['answers', 'choices']),
+  qt('one', 'choose', ['options', 'correct', 'feedback']),
+  qt('many', 'choose', ['options', 'correct', 'feedback', 'show']),
+  qt('truefalse', 'choose', ['value']),
+  qt('match', 'connect', ['left', 'right', 'leftLabel', 'rightLabel', 'show']),
+  qt('order', 'connect', ['items', 'extra', 'preview', 'join']),
+  qt('build', 'connect', ['items', 'extra', 'alternatives', 'preview', 'join']),
+  qt('flash', 'other', ['back']),
+  qt('point', 'other', ['place', 'radius']),
+  qt('code', 'other', ['task', 'starter', 'tests', 'createInput', 'reference', 'cases']),
+  qt('interactive', 'other', ['drawing', 'goal', 'solution', 'goals', 'check'])
 ];
 
 /**
@@ -191,45 +182,46 @@ export function questionProblems(d: Readonly<Record<string, unknown>>): string[]
   const out: string[] = [];
   const prompt = str(d.prompt).trim();
   const answers = filledList(d.answers);
-  if (prompt === '' && type.form !== 'interactive' && type.form !== 'code') out.push(`Wpisz: ${type.prompt.toLowerCase()}.`);
+  /* Im Deutschen bleibt das Hauptwort gross. */
+  if (prompt === '' && type.form !== 'interactive' && type.form !== 'code') out.push(t('cogitaData.questionProblem.writePrompt', { what: appLang() === 'de' ? type.prompt : type.prompt.toLowerCase() }));
   switch (type.form) {
-    case 'text': if (answers.length === 0) out.push('Wpisz co najmniej jedną dobrą odpowiedź.'); break;
-    case 'gap': if (answers.length === 0 && [...str(d.prompt).matchAll(GAP)].length === 0) out.push('Zaznacz lukę w tekście: [[słowo]] — albo wpisz „…” i dobrą odpowiedź.'); break;
-    case 'number': if (!answers.some((a) => readNum(a.replace(/[^\d,.\-\s]/g, '')) !== null)) out.push('Wpisz dobrą odpowiedź — liczbę.'); break;
-    case 'date': if (!answers.some((a) => /\d/.test(a))) out.push('Wpisz dobrą odpowiedź — datę (np. 1410 albo 1410-07-15).'); break;
+    case 'text': if (answers.length === 0) out.push(t('cogitaData.questionProblem.text')); break;
+    case 'gap': if (answers.length === 0 && [...str(d.prompt).matchAll(GAP)].length === 0) out.push(t('cogitaData.questionProblem.gap')); break;
+    case 'number': if (!answers.some((a) => readNum(a.replace(/[^\d,.\-\s]/g, '')) !== null)) out.push(t('cogitaData.questionProblem.number')); break;
+    case 'date': if (!answers.some((a) => /\d/.test(a))) out.push(t('cogitaData.questionProblem.date')); break;
     case 'one':
     case 'many': {
       const { options, correct } = choicesOf(d);
-      if (options.length < 2) out.push('Dodaj co najmniej dwie możliwości.');
-      if (correct.length === 0) out.push(type.form === 'one' ? 'Zaznacz dobrą możliwość.' : 'Zaznacz dobre możliwości.');
-      if (type.form === 'one' && correct.length > 1) out.push('W „Jedna z kilku” dobra jest jedna — zaznaczonych jest więcej (zmień na „Kilka z kilku”).');
+      if (options.length < 2) out.push(t('cogitaData.questionProblem.twoOptions'));
+      if (correct.length === 0) out.push(type.form === 'one' ? t('cogitaData.questionProblem.markOne') : t('cogitaData.questionProblem.markMany'));
+      if (type.form === 'one' && correct.length > 1) out.push(t('cogitaData.questionProblem.oneOnly'));
       break;
     }
-    case 'truefalse': if (typeof d.value !== 'boolean') out.push('Wybierz, czy zdanie jest prawdziwe.'); break;
-    case 'order': if (filledList(d.items).length < 2) out.push('Dodaj co najmniej dwa elementy, w dobrej kolejności.'); break;
+    case 'truefalse': if (typeof d.value !== 'boolean') out.push(t('cogitaData.questionProblem.truefalse')); break;
+    case 'order': if (filledList(d.items).length < 2) out.push(t('cogitaData.questionProblem.order')); break;
     case 'build': {
       const items = filledList(d.items).length;
-      if (items === 0) out.push('Dodaj kafelki dobrej odpowiedzi, w dobrej kolejności.');
-      else if (items + filledList(d.extra).length < 2) out.push('Dodaj drugi kafelek — dobry albo zbędny.');
+      if (items === 0) out.push(t('cogitaData.questionProblem.buildItems'));
+      else if (items + filledList(d.extra).length < 2) out.push(t('cogitaData.questionProblem.buildSecond'));
       break;
     }
-    case 'match': if (pairsOf(d).length < 2) out.push('Dodaj co najmniej dwie pary.'); break;
-    case 'flash': if (filledList(d.back).length === 0 && answers.length === 0) out.push('Wpisz, co jest na odwrocie.'); break;
-    case 'point': if (!isObject(d.place)) out.push('Wskaż szukany punkt na mapie.'); break;
+    case 'match': if (pairsOf(d).length < 2) out.push(t('cogitaData.questionProblem.match')); break;
+    case 'flash': if (filledList(d.back).length === 0 && answers.length === 0) out.push(t('cogitaData.questionProblem.flash')); break;
+    case 'point': if (!isObject(d.place)) out.push(t('cogitaData.questionProblem.point')); break;
     case 'code': {
       /* 2026-11-01 — sichtbare Beispiele genügen; verdeckte Fälle brauchen Rozwiązanie wzorcowe UND Dane testowe. */
       const hidden = str(d.reference).trim() !== '' && str(d.createInput).trim() !== '';
       const half = !hidden && (str(d.reference).trim() !== '' || str(d.createInput).trim() !== '');
-      if (!hidden && jsonCount(d.tests) === 0) out.push('Dodaj przykłady (wejście → wynik) albo rozwiązanie wzorcowe z danymi testowymi.');
-      else if (half) out.push('Ukryte przypadki potrzebują obu: rozwiązania wzorcowego i danych testowych.');
+      if (!hidden && jsonCount(d.tests) === 0) out.push(t('cogitaData.questionProblem.codeTests'));
+      else if (half) out.push(t('cogitaData.questionProblem.codeHalf'));
       break;
     }
-    case 'interactive': if (str(d.drawing).trim() === '') out.push('Wklej rysunek (JSON).'); break;
+    case 'interactive': if (str(d.drawing).trim() === '') out.push(t('cogitaData.questionProblem.drawing')); break;
   }
   if (type.form === 'gap') {
     const gaps = [...str(d.prompt).matchAll(GAP)].length;
     const lists = jsonCount(d.choices);
-    if (lists > gaps) out.push(`„Do wyboru” ma ${lists} list, a w tekście ${gaps === 1 ? 'jest 1 luka' : `są ${gaps} luk`} — lista idzie do luki o tym samym numerze.`);
+    if (lists > gaps) out.push(t('cogitaData.questionProblem.gapLists', { lists, gaps: t('cogitaData.questionProblem.gaps', { count: gaps }) }));
   }
   return out;
 }

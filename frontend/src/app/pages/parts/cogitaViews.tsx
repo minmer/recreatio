@@ -12,6 +12,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { useT } from '../../core/i18n';
+
 import type { PartContext } from '../part';
 import type { SeatView } from '../../seats/seatContext';
 import type { Card } from '../../cogita/cardBasics';
@@ -85,16 +87,18 @@ const Head = ({ title }: { title: string }) => <h2 className="wk-card-title">{ti
 const ModuleStats = later(() => import('../../cogita/ModuleStats').then((m) => m.ModuleStats));
 
 /** Der Knopf dazu — im hohen Baustein über der laufenden Powtórka, sonst neben „Zacznij”. */
-const StatsButton = ({ onOpen, line = false }: { onOpen: () => void; line?: boolean }) => (
-  <button type="button" className={line ? 'wk-link-btn' : 'wk-btn wk-btn-line'} onClick={onOpen} data-module-stats-open="">Moje statystyki</button>
-);
+const StatsButton = ({ onOpen, line = false }: { onOpen: () => void; line?: boolean }) => {
+  const t = useT();
+  return <button type="button" className={line ? 'wk-link-btn' : 'wk-btn wk-btn-line'} onClick={onOpen} data-module-stats-open="">{t('moduleDataCogita.v.myStats')}</button>;
+};
 
 /** Was die Seite sagt, solange die Baza wiedzy geöffnet wird — oder wenn dieser Leser sie nicht lesen darf. */
 function Closed({ title, lib }: { title: string; lib: CogitaLibrary | null | undefined }) {
+  const t = useT();
   return (
     <>
       <Head title={title} />
-      {lib === undefined ? <Loading /> : <p className="wk-card-muted">Tej bazy wiedzy nie możesz tu czytać — nie jest publiczna albo nie masz do niej dostępu.</p>}
+      {lib === undefined ? <Loading /> : <p className="wk-card-muted">{t('moduleDataCogita.v.closed')}</p>}
     </>
   );
 }
@@ -104,13 +108,14 @@ function Closed({ title, lib }: { title: string; lib: CogitaLibrary | null | und
  * schickt, kommt von hier zu ihnen (Nauka → Postępy dieses Bereichs: jeder Uczący się mit seinen Antworten).
  */
 function TeacherLink({ library, area }: { library: string; area: string | null }) {
+  const t = useT();
   const who = useWho();
   const leads = useAsync(area === null || library === '' || who == null ? null
     : () => loadAreas().then((r) => r.areas.some((a) => a.areaId.toLowerCase() === area.toLowerCase() && (a.myLevel === 'admin' || a.myLevel === 'write'))), [area, library, who]);
   if (leads !== true || area === null) return null;
   return (
     <p className="wk-card-muted">
-      <a className="wk-link" href={viewPath('learn', library, 'postepy', area)} data-teacher-answers="">Odpowiedzi uczących się →</a>
+      <a className="wk-link" href={viewPath('learn', library, 'postepy', area)} data-teacher-answers="">{t('moduleDataCogita.v.teacherAnswers')}</a>
     </p>
   );
 }
@@ -121,6 +126,7 @@ function TeacherLink({ library, area }: { library: string; area: string | null }
  * im Arbeitsbereich. Wer sie liest, sagt der Bereich der Baza.
  */
 export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: PartContext }) {
+  const t = useT();
   const { lib, ctx: cg } = usePageBase(config.library);
   /*
    * 2026-11-01 — „NASTĘPNA LEKCJA": der Baustein stellt sich auf die Powtórka um, die die gelaufene nennt (`next`) — mit
@@ -138,14 +144,14 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
   const learner = who.learner;
   const [view, setView] = useState<'run' | 'stats' | null>(null);
   const name = typeof doc?.data.name === 'string' ? doc.data.name : '';
-  const title = current === null ? config.title || name || 'Powtórka' : name || 'Powtórka';
+  const title = current === null ? config.title || name || t('moduleDataCogita.v.revision') : name || t('moduleDataCogita.v.revision');
   const planned = useAsync(lib == null || doc === undefined ? null : () => planFor(lib, doc.id, null, 'page'), [lib, lib?.revision, doc?.id]);
   /* 2026-11-02 — Punkte und Serie im Lauf: die genannte Regel, sonst die eines Bausteins „Punkty i seria" der Seite. */
   const rewards = useRunRules(lib, config.rewards);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const rename = useMemo(() => (lib == null ? undefined : renamer(lib.merges())), [lib, lib?.revision]);
   if (lib == null || cg === null) return <Closed title={title} lib={lib} />;
-  if (doc === undefined) return <><Head title={title} /><p className="wk-card-muted">Tej powtórki nie ma w bazie wiedzy.</p></>;
+  if (doc === undefined) return <><Head title={title} /><p className="wk-card-muted">{t('moduleDataCogita.v.noRevision')}</p></>;
 
   if (view === 'stats') {
     return (
@@ -172,13 +178,13 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
   return (
     <>
       <Head title={title} />
-      <p className="wk-card-muted">{planned === undefined ? 'Liczenie kart…' : `${total} kart`}{levels !== null && levels.known + levels.learning > 0 ? ` · ${LEVEL_LABEL.known}: ${levels.known} · ${LEVEL_LABEL.learning}: ${levels.learning}` : ''}</p>
-      {levels !== null && levels.known > 0 && <Bar value={levels.known / Math.max(1, total)} label="Ile już umiesz" />}
+      <p className="wk-card-muted">{planned === undefined ? t('moduleDataCogita.v.counting') : t('moduleDataCogita.v.cards', { count: total })}{levels !== null && levels.known + levels.learning > 0 ? t('moduleDataCogita.v.levels', { known: LEVEL_LABEL.known, nKnown: levels.known, learning: LEVEL_LABEL.learning, nLearning: levels.learning }) : ''}</p>
+      {levels !== null && levels.known > 0 && <Bar value={levels.known / Math.max(1, total)} label={t('moduleDataCogita.v.howMuchKnown')} />}
       {/* 2026-11-02 — eigens genannte Nagrody: die Zeile schon vor dem Start. */}
       {config.rewards !== '' && rewards !== null && learner !== null && <RewardBoard learner={learner} rules={rewards} {...(rename === undefined ? {} : { rename })} shape="compact" hidden={NO_FEED} />}
       {who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
       <div className="wk-actions">
-        <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setView('run')}>{levels !== null && levels.known + levels.learning > 0 ? 'Powtórz' : 'Zacznij'}</button>
+        <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setView('run')}>{levels !== null && levels.known + levels.learning > 0 ? t('moduleDataCogita.v.repeat') : t('moduleDataCogita.s.start')}</button>
         {who.ready && <StatsButton onOpen={() => setView('stats')} />}
       </div>
       <LearnerLine learner={who} lib={lib} />
@@ -189,6 +195,7 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
 
 /** Ein Przebieg der Baza wiedzy selbst — Schritte, Fragen und Dateien aus ihren Einträgen. */
 export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext }) {
+  const t = useT();
   const { lib, ctx: cg } = usePageBase(config.library);
   const who = usePageLearner(lib, answersArea(config.answers));
   const learner = who.learner;
@@ -196,10 +203,10 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
   const cards = useAsync(lib == null ? null : () => lib.cards('flow').then((r) => r.cards), [lib, lib?.revision]);
   const content = useMemo(() => (lib == null || cards == null ? null : contentOfLibrary(lib, cards)), [lib, cards]);
   const flow = useMemo(() => (content === null ? undefined : content.flow(config.flow)), [content, config.flow]);
-  const title = config.title || flow?.name || 'Przebieg';
+  const title = config.title || flow?.name || t('moduleDataCogita.v.flow');
   if (lib == null || cg === null) return <Closed title={title} lib={lib} />;
   if (content === null) return <><Head title={title} /><Loading /></>;
-  if (flow === undefined) return <><Head title={title} /><p className="wk-card-muted">Tego przebiegu nie ma w bazie wiedzy.</p></>;
+  if (flow === undefined) return <><Head title={title} /><p className="wk-card-muted">{t('moduleDataCogita.v.noFlow')}</p></>;
 
   if (view === 'stats') {
     return (
@@ -214,7 +221,7 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
         {!isTall(ctx) && <Head title={title} />}
         {isTall(ctx) && who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
         {isTall(ctx) && who.ready && <p className="cg-module-tools"><StatsButton line onOpen={() => setView('stats')} /></p>}
-        <FlowPlayer key={who.as ?? ''} flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setView(null)} backLabel="Strona" presentationAs="link" />
+        <FlowPlayer key={who.as ?? ''} flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setView(null)} backLabel={t('moduleDataCogita.v.page')} presentationAs="link" />
       </CogitaContext.Provider>
     );
   }
@@ -223,11 +230,11 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
   return (
     <>
       <Head title={title} />
-      <p className="wk-card-muted">{LOOK_LABEL[flow.look]} · {flow.graph.nodes.length} kroków{questions > 0 ? ` · ${questions} pytań` : ''}</p>
-      {flow.goals.length > 0 && ctx.size.width !== 'narrow' && <p className="wk-card-muted">Cele: {flow.goals.map((g) => g.title).join(' · ')}</p>}
+      <p className="wk-card-muted">{LOOK_LABEL[flow.look]} · {t('moduleDataCogita.v.steps', { count: flow.graph.nodes.length })}{questions > 0 ? ` · ${t('moduleDataCogita.v.questions', { count: questions })}` : ''}</p>
+      {flow.goals.length > 0 && ctx.size.width !== 'narrow' && <p className="wk-card-muted">{t('moduleDataCogita.v.goals', { goals: flow.goals.map((g) => g.title).join(' · ') })}</p>}
       {who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
       <div className="wk-actions">
-        <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setView('play')}>{saved !== null ? 'Wróć tam, gdzie skończyłeś' : 'Zacznij'}</button>
+        <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setView('play')}>{saved !== null ? t('moduleDataCogita.v.resume') : t('moduleDataCogita.s.start')}</button>
         {who.ready && <StatsButton onOpen={() => setView('stats')} />}
       </div>
       <LearnerLine learner={who} lib={lib} />
@@ -263,12 +270,13 @@ interface Joined {
 }
 
 export function LiveView({ config, ctx }: { config: LiveConfig; ctx: PartContext }) {
+  const t = useT();
   const [ticket] = useState<Ticket | null>(ticketHere);
   const [joined, setJoined] = useState<Joined | null>(null);
   const [code, setCode] = useState('');
   const { busy, failed, run } = useBusy();
   const learner = useLocalLearner(joined?.session.libraryId ?? '');
-  const title = config.title || 'Dołącz do sesji';
+  const title = config.title || t('moduleDataCogita.live.label');
 
   useEffect(() => {
     if (ticket === null) return;
@@ -278,7 +286,7 @@ export function LiveView({ config, ctx }: { config: LiveConfig; ctx: PartContext
       const keys = new Map<number, Uint8Array>();
       if (ticket.key !== null && ticket.epoch !== null) keys.set(ticket.epoch, ticket.key);
       const named = ticket.key === null ? null : await openTitle(ticket.key, session).catch(() => null);
-      setJoined({ session, cred, keys, title: named ?? 'Sesja' });
+      setJoined({ session, cred, keys, title: named ?? t('moduleDataCogita.v.session') });
     });
     // Einmal, mit dem Zugang aus der Adresse.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -286,7 +294,7 @@ export function LiveView({ config, ctx }: { config: LiveConfig; ctx: PartContext
 
   const byCode = () => run(async () => {
     const { session, join } = await joinByCode(code);
-    setJoined({ session, cred: { join }, keys: new Map(), title: `Sesja ${session.joinCode ?? code.trim().toUpperCase()}` });
+    setJoined({ session, cred: { join }, keys: new Map(), title: t('moduleDataCogita.v.sessionCode', { code: session.joinCode ?? code.trim().toUpperCase() }) });
   });
 
   if (joined !== null) {
@@ -294,11 +302,11 @@ export function LiveView({ config, ctx }: { config: LiveConfig; ctx: PartContext
       return (
         <>
           <Head title={joined.title} />
-          <button type="button" className="wk-btn wk-card-open" onClick={ctx.openWhole}>Otwórz sesję</button>
+          <button type="button" className="wk-btn wk-card-open" onClick={ctx.openWhole}>{t('moduleDataCogita.v.openSession')}</button>
         </>
       );
     }
-    if (joined.session.state === 'finished' || joined.session.state === 'closed') return <><Head title={joined.title} /><p className="wk-card-muted">Ta sesja już się skończyła.</p></>;
+    if (joined.session.state === 'finished' || joined.session.state === 'closed') return <><Head title={joined.title} /><p className="wk-card-muted">{t('moduleDataCogita.v.sessionOver')}</p></>;
     return (
       <SessionPlay session={joined.session} title={joined.title} cred={joined.cred} keys={joined.keys}
         participant={participantId(joined.session.sessionId)} name={null} learner={learner} />
@@ -309,34 +317,35 @@ export function LiveView({ config, ctx }: { config: LiveConfig; ctx: PartContext
   return (
     <>
       {!strip && <Head title={title} />}
-      {ticket !== null && failed === null ? <p className="wk-card-muted">Otwieranie sesji…</p> : (
+      {ticket !== null && failed === null ? <p className="wk-card-muted">{t('moduleDataCogita.v.sessionOpening')}</p> : (
         <form className={strip ? 'cg-row' : 'wk-form'} onSubmit={(e) => { e.preventDefault(); void byCode(); }}>
           <label className={strip ? 'cg-row' : 'wk-field'}>
-            <span>{strip ? title : 'Kod sesji (z ekranu prowadzącego)'}</span>
+            <span>{strip ? title : t('moduleDataCogita.v.codeLabel')}</span>
             <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={8} autoComplete="off" inputMode="text"
-              className="cg-code-input" aria-label="Kod sesji" placeholder="np. K7M2QX" />
+              className="cg-code-input" aria-label={t('moduleDataCogita.v.code')} placeholder={t('moduleDataCogita.v.codePlaceholder')} />
           </label>
-          <button type="submit" className="wk-btn" disabled={busy || code.trim().length < 4}>Dołącz</button>
+          <button type="submit" className="wk-btn" disabled={busy || code.trim().length < 4}>{t('moduleDataCogita.v.join')}</button>
         </form>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {isTall(ctx) && <p className="wk-card-muted">Bez konta: przedstawisz się imieniem, odpowiedzi idą do prowadzącego. Link albo kod QR z ekranu otwiera sesję od razu.</p>}
+      {isTall(ctx) && <p className="wk-card-muted">{t('moduleDataCogita.v.liveNote')}</p>}
     </>
   );
 }
 
 /** Ein Eintrag als Karte — aus der Baza wiedzy selbst (Schritt 8), mit seinen Feldern und Bildern. */
 export function EntityCardView({ config, ctx }: { config: EntityConfig; ctx: PartContext }) {
+  const t = useT();
   /* 0109 — ohne eigenen Eintrag: der, den die Seite oben gewählt hat („Wpis z bazy wiedzy"). */
   const subject = useEntitySubject();
   const library = config.library !== '' ? config.library : subject?.library ?? '';
   const entry = config.entry !== '' ? config.entry : subject !== null && subject.library === library ? subject.chosen ?? '' : '';
   const { lib, ctx: cg } = usePageBase(library);
-  if (entry === '' && subject !== null) return <><Head title={config.title || 'Wpis'} /><p className="wk-card-muted">Wybierz wpis u góry strony.</p></>;
-  if (entry === '' || library === '') return <><Head title={config.title || 'Wpis'} /><p className="wk-card-muted">Wybierz wpis w ustawieniach modułu — albo ustaw na stronie „Wybór: wpis z bazy wiedzy”.</p></>;
-  if (lib == null || cg === null) return <Closed title={config.title || 'Wpis'} lib={lib} />;
+  if (entry === '' && subject !== null) return <><Head title={config.title || t('moduleDataCogita.v.entry')} /><p className="wk-card-muted">{t('moduleDataCogita.v.pickEntryTop')}</p></>;
+  if (entry === '' || library === '') return <><Head title={config.title || t('moduleDataCogita.v.entry')} /><p className="wk-card-muted">{t('moduleDataCogita.v.pickEntry')}</p></>;
+  if (lib == null || cg === null) return <Closed title={config.title || t('moduleDataCogita.v.entry')} lib={lib} />;
   const entity = lib.entity(entry);
-  if (entity === undefined) return <><Head title={config.title || 'Wpis'} /><p className="wk-card-muted">Tego wpisu nie ma w bazie wiedzy.</p></>;
+  if (entity === undefined) return <><Head title={config.title || t('moduleDataCogita.v.entry')} /><p className="wk-card-muted">{t('moduleDataCogita.v.noEntry')}</p></>;
   const shown = publicEntity(lib, entity);
   const kinds = shown.kinds.join(' · ');
   if (ctx.size.height === 'strip' && ctx.whole !== true) {
@@ -360,6 +369,7 @@ interface Row {
 
 /** Die Einträge der Baza wiedzy als Tabelle — alle, die ihr Bereich zeigt (Schritt 8: keine Auswahl „veröffentlichter" mehr). */
 export function EntityTableView({ config, ctx }: { config: TableConfig; ctx: PartContext }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   /* Wählt die Seite oben einen Eintrag dieser Bibliothek, wählt ein Klick dort — sonst klappt er hier auf. */
@@ -375,16 +385,16 @@ export function EntityTableView({ config, ctx }: { config: TableConfig; ctx: Par
     return lib.entities()
       .filter((e) => want === '' || e.kinds.some((k) => k.toLowerCase() === want || (lib.kind(k)?.name ?? '').toLowerCase() === want))
       .map((e) => { const p = publicEntity(lib, e); return { id: e.id, label: p.label, kinds: p.kinds, cells: new Map(p.fields.map((f) => [f.label, f.text])) }; })
-      .sort((a, b) => a.label.localeCompare(b.label, 'pl'));
+      .sort((a, b) => a.label.localeCompare(b.label, t.locale));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lib, lib?.revision, config.kind]);
-  const title = config.title || 'Wpisy';
+  }, [lib, lib?.revision, config.kind, t]);
+  const title = config.title || t('moduleDataCogita.v.entries');
   if (lib == null || cg === null || rows === null) return <Closed title={title} lib={lib} />;
   if (ctx.size.height === 'strip' && ctx.whole !== true) {
     return (
       <p className="cg-row">
-        <strong>{title}</strong><span className="wk-card-muted">{rows.length} wpisów</span>
-        {ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>Zobacz</button>}
+        <strong>{title}</strong><span className="wk-card-muted">{t('moduleDataCogita.v.entriesCount', { count: rows.length })}</span>
+        {ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>{t('moduleDataCogita.v.see')}</button>}
       </p>
     );
   }
@@ -393,21 +403,21 @@ export function EntityTableView({ config, ctx }: { config: TableConfig; ctx: Par
       <>
         <Head title={title} />
         <ul className="cg-plain-list">{rows.slice(0, 8).map((r) => <li key={r.id}>{r.label}</li>)}</ul>
-        {rows.length > 8 && <p className="wk-card-muted">i {rows.length - 8} więcej{ctx.openWhole !== undefined ? ' — ' : ''}{ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cała tabela</button>}</p>}
+        {rows.length > 8 && <p className="wk-card-muted">{t('moduleDataCogita.v.andMore', { count: rows.length - 8 })}{ctx.openWhole !== undefined ? ' — ' : ''}{ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>{t('moduleDataCogita.v.wholeTable')}</button>}</p>}
       </>
     );
   }
   const columns = config.columns.length > 0 ? config.columns : [...new Set(rows.flatMap((r) => [...r.cells.keys()]))].slice(0, 4);
-  const folded = (s: string) => s.toLocaleLowerCase('pl-PL').normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const folded = (s: string) => s.toLocaleLowerCase(t.locale).normalize('NFD').replace(/[̀-ͯ]/g, '');
   const words = folded(query).split(/\s+/).filter(Boolean);
   const shown = words.length === 0 ? rows : rows.filter((r) => words.every((w) => folded(`${r.label} ${[...r.cells.values()].join(' ')}`).includes(w)));
   return (
     <CogitaContext.Provider value={cg}>
       <Head title={title} />
-      <input type="search" className="cg-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Szukaj w tabeli…" aria-label="Szukaj w tabeli" />
+      <input type="search" className="cg-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('moduleDataCogita.v.searchTablePh')} aria-label={t('moduleDataCogita.v.searchTable')} />
       <div className="cg-table-wrap">
         <table className="cg-table">
-          <thead><tr><th>Nazwa</th>{columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+          <thead><tr><th>{t('common.name')}</th>{columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
           <tbody>
             {shown.map((r) => (
               <tr key={r.id} className={open === r.id ? 'is-on' : undefined}>
@@ -418,7 +428,7 @@ export function EntityTableView({ config, ctx }: { config: TableConfig; ctx: Par
           </tbody>
         </table>
       </div>
-      {shown.length === 0 && <p className="wk-card-muted">Nic nie pasuje.</p>}
+      {shown.length === 0 && <p className="wk-card-muted">{t('moduleDataCogita.v.noMatch')}</p>}
       {open !== null && <OneEntity lib={lib} entry={open} />}
     </CogitaContext.Provider>
   );
@@ -436,16 +446,18 @@ function OneEntity({ lib, entry }: { lib: CogitaLibrary; entry: string }) {
  * Baustein zeigt einen Hinweis statt eines Fehlers oder einer leeren Fläche.
  */
 export function TopicExplorerView({ config }: { config: TopicsConfig; ctx: PartContext }) {
+  const t = useT();
   return (
     <div className="wk-card-text">
-      <Head title={config.title || 'Tematy'} />
-      <p className="wk-card-muted">Tematów już nie ma — porządek dają teraz własne rodzaje (np. „Tajemnica”, „Obszar”). Ten moduł zastępuje moduł „Widok”: drzewo albo macierz według osi.</p>
+      <Head title={config.title || t('moduleDataCogita.topics.label')} />
+      <p className="wk-card-muted">{t('moduleDataCogita.v.topicsGone')}</p>
     </div>
   );
 }
 
 /** Die Karte des Wissens einer Powtórka — aus den Einträgen der Baza selbst, im eigenen Nebel. */
 export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: PartContext }) {
+  const t = useT();
   const { lib, ctx: cg } = usePageBase(config.library);
   const learner = usePageLearner(lib, answersArea(lib?.docs('revision').find((e) => e.id === config.revision)?.data.storageAreaId)).learner;
   const [chosen, setChosen] = useState<string | null>(null);
@@ -466,10 +478,10 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
     if (learning === null || lib == null) return null;
     const of = cards.filter((c) => c.entity === learning);
     const e = lib.entity(learning);
-    return { plan: readPlan(of, { mode: 'once', order: 'random' }), cards: of, deps, title: e === undefined ? 'Powtórka' : lib.labelTex(e) };
-  }, [learning, lib, cards, deps]);
+    return { plan: readPlan(of, { mode: 'once', order: 'random' }), cards: of, deps, title: e === undefined ? t('moduleDataCogita.v.revision') : lib.labelTex(e) };
+  }, [learning, lib, cards, deps, t]);
 
-  const title = config.title || 'Mapa wiedzy';
+  const title = config.title || t('moduleDataCogita.map.label');
   if (lib == null || cg === null || graph === null) return <Closed title={title} lib={lib} />;
   if (planned === undefined) return <><Head title={title} /><Loading /></>;
 
@@ -487,9 +499,9 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
     return (
       <div className="cg-row">
         <strong>{title}</strong>
-        <Bar value={known / Math.max(1, graph.ids.length)} label="Ile już umiesz" />
-        <span className="wk-card-muted">{known} z {graph.ids.length}</span>
-        {ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>Mapa</button>}
+        <Bar value={known / Math.max(1, graph.ids.length)} label={t('moduleDataCogita.v.howMuchKnown')} />
+        <span className="wk-card-muted">{t('moduleDataCogita.v.xOfY', { x: known, y: graph.ids.length })}</span>
+        {ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>{t('moduleDataCogita.v.map')}</button>}
       </div>
     );
   }
@@ -507,7 +519,7 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
   return (
     <CogitaContext.Provider value={cg}>
       <Head title={title} />
-      <p className="wk-card-muted">{known} z {graph.ids.length} umiesz · przerywana obwódka — możesz tam wejść; mgła — jeszcze nieodkryte.</p>
+      <p className="wk-card-muted">{t('moduleDataCogita.v.mapLegend', { x: known, y: graph.ids.length })}</p>
       <FogMap tall={tall} edges={graph.edges} place={graph.place} onOpen={setChosen}
         nodes={graph.ids.map((id) => {
           const state = fog.get(id) ?? 'fog';
@@ -515,12 +527,12 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
           /* 2026-11-01 — die Karte setzt Wzory im Etikett (`labelTex`); der Hinweis bleibt eine Zeile ohne LaTeX. */
           const label = e === undefined ? '?' : lib.labelTex(e);
           const plain = e === undefined ? '?' : lib.label(e);
-          return { id, label, state, title: state === 'fog' ? 'Jeszcze w mgle' : `${plain} · ${Math.round(shareOf(knowness(id)) * 100)}%` };
+          return { id, label, state, title: state === 'fog' ? t('moduleDataCogita.v.inFog') : `${plain} · ${Math.round(shareOf(knowness(id)) * 100)}%` };
         })} />
       {entity !== undefined && chosen !== null && (
         <div className="cg-card">
           <EntityView entity={tall ? publicEntity(lib, entity) : { ...publicEntity(lib, entity), media: [], fields: publicEntity(lib, entity).fields.slice(0, 2) }} />
-          {cardsOf(chosen).length > 0 && <button type="button" className="wk-btn" onClick={() => setLearning(chosen)}>Ucz się tego ({cardsOf(chosen).length} kart)</button>}
+          {cardsOf(chosen).length > 0 && <button type="button" className="wk-btn" onClick={() => setLearning(chosen)}>{t('moduleDataCogita.v.learnThis', { count: cardsOf(chosen).length })}</button>}
         </div>
       )}
     </CogitaContext.Provider>
@@ -528,6 +540,7 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
 }
 
 function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnConfig; tall: boolean }) {
+  const t = useT();
   const opened = useSeatLibrary(seat, config.library);
   const { lib, name } = opened;
   const { learner, failed } = useSeatLearner(seat, lib, answersArea(config.answers));
@@ -542,19 +555,19 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const rename = useMemo(() => (lib == null ? undefined : renamer(lib.merges())), [lib, lib?.revision]);
 
-  if (lib === undefined) return <p className="wk-card-muted">Otwieranie bazy wiedzy…</p>;
-  if (lib === null || ctx === null) return <p className="wk-card-muted">Ta baza wiedzy nie jest dostępna z tego linku.</p>;
+  if (lib === undefined) return <p className="wk-card-muted">{t('moduleDataCogita.v.baseOpening')}</p>;
+  if (lib === null || ctx === null) return <p className="wk-card-muted">{t('moduleDataCogita.v.baseNotFromLink')}</p>;
   const revisions = lib.docs('revision').filter((r) => config.revision === '' || r.id === config.revision);
   /* 2026-11-01 — auch die nächste Lektion (`next`), die nicht unter den Powtórki dieses Bausteins steht. */
   const nameOf = (id: string) => {
     const doc = lib.docs('revision').find((r) => r.id === id);
-    return typeof doc?.data.name === 'string' ? doc.data.name : 'Powtórka';
+    return typeof doc?.data.name === 'string' ? doc.data.name : t('moduleDataCogita.v.revision');
   };
 
   if (stats) {
     return (
       <CogitaContext.Provider value={ctx}>
-        <ModuleStats lib={lib} learner={learner} cards={(config.revision === '' ? cards : scoped) ?? null} title={config.title || name || 'Twoja nauka'} onBack={() => setStats(false)} />
+        <ModuleStats lib={lib} learner={learner} cards={(config.revision === '' ? cards : scoped) ?? null} title={config.title || name || t('moduleDataCogita.seat.exTitle')} onBack={() => setStats(false)} />
       </CogitaContext.Provider>
     );
   }
@@ -577,10 +590,10 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
   const levels = cards == null || learner === null ? null : levelsOf(readPlan(cards, {}), (key) => learner.marks(key), now, learner.spacing);
   return (
     <CogitaContext.Provider value={ctx}>
-      <p className="wk-card-muted">{name}{due !== null ? ` · na teraz: ${due} kart` : ''}</p>
+      <p className="wk-card-muted">{name}{due !== null ? t('moduleDataCogita.v.dueNow', { count: due }) : ''}</p>
       {tall && levels !== null && cards != null && cards.length > 0 && (
         <>
-          <Bar value={levels.known / Math.max(1, cards.length)} label="Ile już umiesz" />
+          <Bar value={levels.known / Math.max(1, cards.length)} label={t('moduleDataCogita.v.howMuchKnown')} />
           <p className="wk-card-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${levels[l]}`).join(' · ')}</p>
         </>
       )}
@@ -588,23 +601,24 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
       {/* 2026-11-02 — mit eigens genannten Nagrody deren Zeile statt des Tagesziels. */}
       {config.rewards !== '' && rewards !== null && learner !== null ? <RewardBoard learner={learner} rules={rewards} {...(rename === undefined ? {} : { rename })} shape={tall ? 'block' : 'compact'} hidden={NO_FEED} />
         : tall && <DailyGoal lib={lib} learner={learner} compact />}
-      {revisions.length === 0 ? <p className="wk-card-muted">W tej bazie wiedzy nie ma jeszcze powtórki.</p> : (
+      {revisions.length === 0 ? <p className="wk-card-muted">{t('moduleDataCogita.v.noRevisions')}</p> : (
         <div className="wk-actions">
           {revisions.map((r) => <button key={r.id} type="button" className="wk-btn" disabled={learner === null} onClick={() => setRunning(r.id)}>{nameOf(r.id)}</button>)}
           {learner !== null && <StatsButton onOpen={() => setStats(true)} />}
         </div>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {learner !== null && learner.waiting > 0 && <p className="wk-card-muted">{learner.waiting} pakietów odpowiedzi czeka na internet.</p>}
+      {learner !== null && learner.waiting > 0 && <p className="wk-card-muted">{t('moduleDataCogita.v.waiting', { count: learner.waiting })}</p>}
     </CogitaContext.Provider>
   );
 }
 
 /** Hinter einem persönlichen Link: der Platz (oder die Wahl oben auf der Seite), dann sein Lernen. */
 export function SeatLearnView({ config, ctx }: { config: SeatLearnConfig; ctx: PartContext }) {
+  const t = useT();
   return (
     <>
-      <OnSeat title={config.title} fallback="Twoja nauka" empty="Tu pojawi się nauka — dla osoby, która otworzy swój link.">
+      <OnSeat title={config.title} fallback={t('moduleDataCogita.seat.exTitle')} empty={t('moduleDataCogita.v.seatEmpty')}>
         {(seat) => <SeatLearn seat={seat} config={config} tall={isTall(ctx)} />}
       </OnSeat>
       {/* 2026-11-01 — wer den Bereich der Antworten führt, kommt von hier zu ihnen. */}
@@ -623,6 +637,7 @@ const NO_FEED: ReadonlySet<string> = new Set(['feed']);
  * Baustein meldet seine Regel der Seite (`pageRewards.ts`) — die Powtórka daneben zeigt dann im Lauf dieselben Punkte.
  */
 export function RewardsView({ config, ctx }: { config: RewardsConfig; ctx: PartContext }) {
+  const t = useT();
   const { lib, ctx: cg } = usePageBase(config.library);
   const who = usePageLearner(lib);
   const rules = usePlaceRules(lib, config.rewards);
@@ -630,7 +645,7 @@ export function RewardsView({ config, ctx }: { config: RewardsConfig; ctx: PartC
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const rename = useMemo(() => (lib == null ? undefined : renamer(lib.merges())), [lib, lib?.revision]);
   const scope = useScope(lib, config.revision, rename);
-  const title = config.title || 'Twoje punkty';
+  const title = config.title || t('moduleDataCogita.rewards.exTitle');
   if (lib == null || cg === null) return <Closed title={title} lib={lib} />;
   const strip = ctx.size.height === 'strip' && ctx.whole !== true;
   const shape = strip ? 'strip' : isTall(ctx) ? 'full' : 'block';
@@ -638,15 +653,16 @@ export function RewardsView({ config, ctx }: { config: RewardsConfig; ctx: PartC
     <CogitaContext.Provider value={cg}>
       {!strip && <Head title={title} />}
       {!who.ready || scope.loading ? <Loading lines={2} />
-        : who.learner === null ? <p className="wk-card-muted">Punkty pojawią się tutaj, gdy zaczniesz się uczyć.</p>
+        : who.learner === null ? <p className="wk-card-muted">{t('moduleDataCogita.v.pointsLater')}</p>
           : <RewardBoard learner={who.learner} rules={rules} {...(rename === undefined ? {} : { rename })} {...(scope.keys === undefined ? {} : { keys: scope.keys })} hidden={config.hidden} shape={shape} />}
-      {shape === 'full' && who.as === 'local' && <p className="wk-card-muted">Bez konta punkty liczą się w tej przeglądarce.</p>}
+      {shape === 'full' && who.as === 'local' && <p className="wk-card-muted">{t('moduleDataCogita.v.pointsLocal')}</p>}
     </CogitaContext.Provider>
   );
 }
 
 /** STATYSTYKI NA ŻYWO — Zahlen und Diagramme des Lernens dieser Person, die mit jeder Antwort wachsen (`LiveStats.tsx`). */
 export function LiveStatsView({ config, ctx }: { config: LiveStatsConfig; ctx: PartContext }) {
+  const t = useT();
   const { lib, ctx: cg } = usePageBase(config.library);
   const who = usePageLearner(lib);
   const rules = usePlaceRules(lib, config.rewards);
@@ -657,14 +673,14 @@ export function LiveStatsView({ config, ctx }: { config: LiveStatsConfig; ctx: P
   const tall = isTall(ctx);
   /* „Gdzie są karty" nur im Ganzen — die Karten der ganzen Baza erst dann. */
   const all = useAsync(lib == null || !tall || config.revision !== '' || config.hidden.has('knowledge') ? null : () => lib.cards('learn').then((r) => r.cards), [lib, lib?.revision, tall, config.revision, config.hidden.has('knowledge')]);
-  const title = config.title || 'Na żywo';
+  const title = config.title || t('moduleDataCogita.stats.exTitle');
   if (lib == null || cg === null) return <Closed title={title} lib={lib} />;
   const strip = ctx.size.height === 'strip' && ctx.whole !== true;
   return (
     <CogitaContext.Provider value={cg}>
       {!strip && <Head title={title} />}
       {!who.ready || scope.loading ? <Loading lines={2} />
-        : who.learner === null ? <p className="wk-card-muted">Statystyki pojawią się tutaj, gdy zaczniesz się uczyć.</p>
+        : who.learner === null ? <p className="wk-card-muted">{t('moduleDataCogita.v.statsLater')}</p>
           : <LiveStats lib={lib} learner={who.learner} rules={rules} cards={config.revision !== '' ? scope.cards : all ?? null}
             {...(rename === undefined ? {} : { rename })} {...(scope.keys === undefined ? {} : { keys: scope.keys })} hidden={config.hidden} shape={strip ? 'strip' : tall ? 'full' : 'block'} />}
     </CogitaContext.Provider>

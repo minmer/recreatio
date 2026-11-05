@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { aad, Field, fromBase64Url, open, seal, toBase64Url } from '../core/crypto';
 import { API, call, WorkspaceError } from '../core/session';
 import type { Attachment } from './chat';
+import { fmtDate, t } from '../core/i18n';
 
 export const chatEndpoint = (id: string, token?: string) => token
   ? `/seat/${encodeURIComponent(token)}/chat/${encodeURIComponent(id)}` : `/workspace/chat/${encodeURIComponent(id)}`;
@@ -64,14 +65,14 @@ export function useOnline(path: string | null): void {
 export function lastOnline(iso: string, now = new Date()): string {
   const at = new Date(iso);
   const minutes = Math.round((now.getTime() - at.getTime()) / 60_000);
-  if (minutes < 2) return 'przed chwilą';
-  if (minutes < 60) return `${minutes} min temu`;
-  const time = at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  if (minutes < 2) return t('chat.online.justNow');
+  if (minutes < 60) return t('chat.online.minutesAgo', { count: minutes });
+  const time = fmtDate(at, { hour: '2-digit', minute: '2-digit' });
   const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((day(now) - day(at)) / 86_400_000);
-  if (days === 0) return `dziś ${time}`;
-  if (days === 1) return `wczoraj ${time}`;
-  return at.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
+  if (days === 0) return t('chat.online.today', { time });
+  if (days === 1) return t('chat.online.yesterday', { time });
+  return fmtDate(at, { day: 'numeric', month: 'short' });
 }
 
 /**
@@ -87,7 +88,7 @@ function send(path: string, body: Blob, onProgress?: (part: number) => void): Pr
     xhr.setRequestHeader('Accept', 'application/json');
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     xhr.upload.onprogress = (e) => { if (e.lengthComputable && e.total > 0) onProgress?.(e.loaded / e.total); };
-    xhr.onerror = () => reject(new WorkspaceError('Nie udało się wysłać pliku — sprawdź połączenie i spróbuj jeszcze raz.'));
+    xhr.onerror = () => reject(new WorkspaceError(t('chat.file.uploadNetwork')));
     xhr.ontimeout = xhr.onerror;
     xhr.onload = () => {
       let said: unknown = null;
@@ -97,14 +98,14 @@ function send(path: string, body: Blob, onProgress?: (part: number) => void): Pr
         return;
       }
       if (said !== null && typeof said === 'object' && 'error' in said) { reject(new WorkspaceError(String((said as { error: unknown }).error))); return; }
-      reject(new WorkspaceError(xhr.status === 413 ? 'Plik jest za duży dla serwera.' : 'Nie udało się wysłać pliku.'));
+      reject(new WorkspaceError(xhr.status === 413 ? t('chat.file.tooBigServer') : t('chat.file.uploadFailed')));
     };
     xhr.send(body);
   });
 }
 
 export async function uploadAttachment(endpoint: string, file: File, onProgress?: (part: number) => void): Promise<Attachment> {
-  if (file.size > 50 * 1024 * 1024 - 1024) throw new WorkspaceError('Plik jest większy niż 50 MB.');
+  if (file.size > 50 * 1024 * 1024 - 1024) throw new WorkspaceError(t('chat.file.over50'));
   const key = crypto.getRandomValues(new Uint8Array(32));
   const encrypted = await seal(key, attachmentAad(), new Uint8Array(await file.arrayBuffer()));
   const { attachmentId } = await send(`${endpoint}/attachments`, new Blob([encrypted as BlobPart]), onProgress);
@@ -139,7 +140,7 @@ export async function photoForChat(file: File): Promise<File> {
 }
 export async function downloadAttachment(endpoint: string, attachment: Attachment): Promise<Blob> {
   const response = await fetch(`${API}${endpoint}/attachments/${encodeURIComponent(attachment.id)}`, { credentials: 'include' });
-  if (!response.ok) throw new WorkspaceError('Nie udało się pobrać pliku.');
+  if (!response.ok) throw new WorkspaceError(t('chat.file.fetchFailed'));
   const plaintext = await open(fromBase64Url(attachment.key), attachmentAad(), new Uint8Array(await response.arrayBuffer()));
   return new Blob([plaintext as BlobPart], { type: attachment.type || 'application/octet-stream' });
 }

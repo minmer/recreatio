@@ -28,7 +28,7 @@ import { Fragment, useId, useMemo, useRef, useState, type ReactNode } from 'reac
 import { readJsonText } from '../core/jsonText';
 import { WorkspaceError } from '../core/session';
 import { samplesOf, sectionsOf, sectionText, type JsonNode, type JsonSection } from '../core/jsonTree';
-import { plural } from '../core/plural';
+import { useT } from '../core/i18n';
 
 export interface JsonPreview {
   readonly lines: readonly string[];
@@ -41,6 +41,7 @@ export interface JsonPreview {
  * stehen nebeneinander, damit vierzig Bausteinarten keine vierzig Zeilen sind.
  */
 function FormatTree({ sections, onJump }: { sections: readonly JsonSection[]; onJump: (key: string) => void }) {
+  const t = useT();
   const below = new Map<string | null, JsonSection[]>();
   for (const s of sections) below.set(s.parent, [...(below.get(s.parent) ?? []), s]);
   const jump = (s: JsonSection) => (
@@ -63,7 +64,7 @@ function FormatTree({ sections, onJump }: { sections: readonly JsonSection[]; on
             {/* Viele auf einer Ebene (die Arten der Module): zugeklappt, damit der Baum ein Baum bleibt. */}
             {row.length > 12 ? (
               <details className="wk-json-tree-more">
-                <summary>{row.length} {plural(row.length, 'pozycja', 'pozycje', 'pozycji')}</summary>
+                <summary>{t('ui.json.entries', { count: row.length })}</summary>
                 {leaves(row)}
               </details>
             ) : leaves(row)}
@@ -75,7 +76,7 @@ function FormatTree({ sections, onJump }: { sections: readonly JsonSection[]; on
     );
   };
   return (
-    <nav className="wk-json-tree" aria-label="Co zawiera ten format">
+    <nav className="wk-json-tree" aria-label={t('ui.json.treeLabel')}>
       {level(null)}
     </nav>
   );
@@ -106,6 +107,7 @@ export function JsonPanel({
   /** Gleich offen — etwa in einem Dialog, der nur dafür da ist. */
   open?: boolean;
 }) {
+  const t = useT();
   const [exported, setExported] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [text, setText] = useState('');
@@ -121,7 +123,7 @@ export function JsonPanel({
   const parsed = useMemo(() => readJsonText(text), [text]);
   const plan = parsed !== null && 'value' in parsed ? preview(parsed.value) : null;
   const repaired = parsed !== null && 'value' in parsed && parsed.repaired > 0
-    ? `JSON poprawiony przed odczytaniem (${parsed.repaired} ${plural(parsed.repaired, 'miejsce', 'miejsca', 'miejsc')}): pojedyncze ukośniki (np. we wzorach LaTeX), znaki końca wiersza w tekście albo otoczka wokół JSON. Sprawdź podgląd.`
+    ? t('ui.json.repaired', { count: parsed.repaired })
     : null;
   /* Der Baum einmal gelesen — nicht bei jedem Tastendruck im Import. Der Text zum Kopieren ist derselbe (`describe`). */
   const sections = useMemo(() => (format === undefined ? [] : sectionsOf(format)), [format]);
@@ -149,7 +151,7 @@ export function JsonPanel({
       const value = await exportDoc();
       setExported(JSON.stringify(value, null, 2));
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować eksportu.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('ui.json.exportFailed'));
     } finally {
       setExporting(false);
     }
@@ -169,14 +171,14 @@ export function JsonPanel({
     if (parsed === null || !('value' in parsed)) return;
     setFailed(null);
     setDone(null);
-    setStage('Importowanie…');
+    setStage(t('ui.json.importing'));
     try {
       const result = await onImport(parsed.value, setStage);
       setDone(result);
       setText('');
       setExported(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : 'Import się nie udał.');
+      setFailed(e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : t('ui.json.importFailed'));
     } finally {
       setStage(null);
     }
@@ -192,37 +194,37 @@ export function JsonPanel({
 
         <div className={`wk-json-grid${showDoc ? '' : ' is-narrow'}`}>
           <div className="wk-json-io">
-            <section className="wk-json-part" aria-label="Eksport">
-              <h4 className="wk-json-h">Eksport</h4>
+            <section className="wk-json-part" aria-label={t('ui.json.export')}>
+              <h4 className="wk-json-h">{t('ui.json.export')}</h4>
               <div className="wk-actions">
                 <button type="button" className="wk-btn wk-btn-line" disabled={exporting || working} onClick={() => void makeExport()}>
-                  {exporting ? 'Przygotowywanie…' : exported === null ? 'Pokaż JSON' : 'Odśwież'}
+                  {exporting ? t('ui.json.preparing') : exported === null ? t('ui.json.show') : t('ui.json.refresh')}
                 </button>
                 {exported !== null && (
                   <>
-                    <button type="button" className="wk-link-btn" onClick={() => copy('export', exported)}>{copied === 'export' ? 'Skopiowano' : 'Kopiuj'}</button>
-                    <button type="button" className="wk-link-btn" onClick={download}>Pobierz plik .json</button>
-                    <button type="button" className="wk-link-btn" onClick={() => { setText(exported); setDone(null); }}>Edytuj w imporcie</button>
+                    <button type="button" className="wk-link-btn" onClick={() => copy('export', exported)}>{copied === 'export' ? t('common.copied') : t('common.copy')}</button>
+                    <button type="button" className="wk-link-btn" onClick={download}>{t('ui.json.download')}</button>
+                    <button type="button" className="wk-link-btn" onClick={() => { setText(exported); setDone(null); }}>{t('ui.json.editInImport')}</button>
                   </>
                 )}
               </div>
               {exported !== null && (
-                <textarea className="wk-json-text" readOnly rows={10} value={exported} spellCheck={false} aria-label="Eksport JSON" />
+                <textarea className="wk-json-text" readOnly rows={10} value={exported} spellCheck={false} aria-label={t('ui.json.exportText')} />
               )}
             </section>
 
-            <section className="wk-json-part" aria-label="Import">
-              <h4 className="wk-json-h">Import</h4>
+            <section className="wk-json-part" aria-label={t('ui.json.import')}>
+              <h4 className="wk-json-h">{t('ui.json.import')}</h4>
               <textarea
                 className="wk-json-text" rows={10} spellCheck={false} value={text} disabled={working}
-                placeholder="Wklej JSON — z eksportu albo napisany według opisu formatu."
-                aria-label="Import JSON"
+                placeholder={t('ui.json.placeholder')}
+                aria-label={t('ui.json.importText')}
                 onChange={(e) => { setText(e.target.value); setDone(null); setFailed(null); }}
               />
               {/* 2026-10-24 — ganze Dokumente zum Einsetzen: was das Format kann, an einem Beispiel, das sich importieren lässt. */}
               {samples.length > 0 && (
                 <div className="wk-json-samples">
-                  <span className="wk-json-h">Wstaw przykład</span>
+                  <span className="wk-json-h">{t('ui.json.sample')}</span>
                   <ul>
                     {samples.map((one) => (
                       <li key={one.label}>
@@ -236,8 +238,8 @@ export function JsonPanel({
                 </div>
               )}
               <div className="wk-actions">
-                <button type="button" className="wk-link-btn" disabled={working} onClick={() => file.current?.click()}>Wczytaj plik…</button>
-                {text !== '' && <button type="button" className="wk-link-btn" disabled={working} onClick={() => setText('')}>Wyczyść</button>}
+                <button type="button" className="wk-link-btn" disabled={working} onClick={() => file.current?.click()}>{t('ui.json.loadFile')}</button>
+                {text !== '' && <button type="button" className="wk-link-btn" disabled={working} onClick={() => setText('')}>{t('ui.json.clear')}</button>}
                 <input
                   ref={file} type="file" accept=".json,application/json" hidden
                   onChange={(e) => {
@@ -248,12 +250,12 @@ export function JsonPanel({
                 />
               </div>
 
-              {parsed !== null && 'error' in parsed && <p className="wk-error">Nieprawidłowy JSON: {parsed.error}</p>}
+              {parsed !== null && 'error' in parsed && <p className="wk-error">{t('ui.json.invalid', { error: parsed.error })}</p>}
               {plan !== null && 'error' in plan && <p className="wk-error">{plan.error}</p>}
 
               {plan !== null && !('error' in plan) && parsed !== null && 'value' in parsed && (
                 <div className="wk-json-plan" role="status">
-                  <p className="wk-json-h">Co się zmieni</p>
+                  <p className="wk-json-h">{t('ui.json.changes')}</p>
                   <ul>{plan.lines.map((line, i) => <li key={i}>{line}</li>)}</ul>
                   {(plan.warnings.length > 0 || repaired !== null) && (
                     <ul className="wk-json-warn">{[...(repaired === null ? [] : [repaired]), ...plan.warnings].map((line, i) => <li key={i}>{line}</li>)}</ul>
@@ -278,7 +280,7 @@ export function JsonPanel({
               )}
               {done !== null && (
                 <div role="status" className="wk-json-plan">
-                  <p className="wk-done">Zaimportowano.</p>
+                  <p className="wk-done">{t('ui.json.imported')}</p>
                   <ul>{done.lines.map((line, i) => <li key={i}>{line}</li>)}</ul>
                   {done.warnings.length > 0 && <ul className="wk-json-warn">{done.warnings.map((line, i) => <li key={i}>{line}</li>)}</ul>}
                 </div>
@@ -286,11 +288,11 @@ export function JsonPanel({
             </section>
           </div>
 
-          <aside className="wk-json-doc" aria-label="Opis formatu">
+          <aside className="wk-json-doc" aria-label={t('ui.json.format')}>
             <div className="wk-json-doc-head">
-              <h4 className="wk-json-h">Opis formatu</h4>
-              <button type="button" className="wk-link-btn" onClick={() => copy('doc', doc)}>{copied === 'doc' ? 'Skopiowano opis' : 'Kopiuj opis (dla AI)'}</button>
-              <button type="button" className="wk-link-btn" aria-expanded={showDoc} onClick={() => setShowDoc(!showDoc)}>{showDoc ? 'Zwiń' : 'Pokaż'}</button>
+              <h4 className="wk-json-h">{t('ui.json.format')}</h4>
+              <button type="button" className="wk-link-btn" onClick={() => copy('doc', doc)}>{copied === 'doc' ? t('ui.json.copiedDoc') : t('ui.json.copyDoc')}</button>
+              <button type="button" className="wk-link-btn" aria-expanded={showDoc} onClick={() => setShowDoc(!showDoc)}>{showDoc ? t('ui.json.fold') : t('ui.json.unfold')}</button>
             </div>
             {showDoc && sections.length > 1 && <FormatTree sections={sections} onJump={jumpTo} />}
             {showDoc && (sections.length === 0 ? <pre className="wk-json-pre">{doc}</pre> : (

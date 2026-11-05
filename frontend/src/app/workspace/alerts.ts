@@ -23,6 +23,7 @@
 import type { Digest } from '../notify/notify';
 import { chatLabel } from '../notify/notify';
 import { useRemembered } from '../core/prefs';
+import { appLang, fmtDate, localeOf, t } from '../core/i18n';
 import { formNewsPath, pageSteps, viewPath, formsPath } from '../routes';
 
 export type AlertKind = 'forms' | 'chats' | 'bookings' | 'steps' | 'tasks' | 'today' | 'links' | 'learn' | 'duties' | 'records' | 'plans';
@@ -35,21 +36,28 @@ export interface AlertKindDef {
   readonly counts: boolean;
 }
 
+/** Bezeichnung und Erklärung werden erst beim Lesen übersetzt (Sprache der Anwendung). */
+const kindDef = (kind: AlertKind, counts: boolean): AlertKindDef => ({
+  kind, counts,
+  get label() { return t(`workspace.alert.${kind}.label`); },
+  get says() { return t(`workspace.alert.${kind}.says`); }
+});
+
 export const ALERT_KINDS: readonly AlertKindDef[] = [
-  { kind: 'forms', label: 'Nowe zgłoszenia', says: 'Ktoś wysłał formularz — do przejrzenia.', counts: true },
-  { kind: 'chats', label: 'Nieprzeczytane wiadomości', says: 'Rozmowy, w których ktoś napisał.', counts: true },
-  { kind: 'bookings', label: 'Rezerwacje do potwierdzenia', says: 'Ktoś prosi o termin albo miejsce i czeka na Twoje „tak".', counts: true },
-  { kind: 'steps', label: 'Kroki po terminie', says: 'Rzeczy do odhaczenia przez kancelarię, których termin minął (np. zgoda na papierze).', counts: true },
-  { kind: 'tasks', label: 'Zadania na teraz', says: 'Zadania otwarte teraz albo zaległe.', counts: false },
-  { kind: 'today', label: 'Terminy dziś', says: 'Spotkania i msze, które są dzisiaj.', counts: false },
+  kindDef('forms', true),
+  kindDef('chats', true),
+  kindDef('bookings', true),
+  kindDef('steps', true),
+  kindDef('tasks', false),
+  kindDef('today', false),
   /* 0109 — was in den eigenen Bibliotheken wieder dran ist: wie „dziś", etwas für jeden Tag. */
-  { kind: 'learn', label: 'Powtórka czeka', says: 'Karty, na które przyszła pora w Twoich bazach wiedzy.', counts: false },
-  { kind: 'links', label: 'Dołączenia przez link', says: 'Ktoś dołączył przez Twój link.', counts: true },
+  kindDef('learn', false),
+  kindDef('links', true),
   /* 0129–0131 — was entschieden werden muss: Administrator danych, gemeldete Inhalte, Bitten um einen Platz in einer Liste. */
-  { kind: 'duties', label: 'Sprawy do decyzji', says: 'Administrator danych, zgłoszenia treści, prośby o miejsce na liście wydarzeń.', counts: true },
+  kindDef('duties', true),
   /* 0132 — was von aussen an einen Termin kam (eine Anmeldung) und auf die Kanzlei wartet; Pläne, deren Termine bald enden. */
-  { kind: 'records', label: 'Wpisy do przyjęcia', says: 'Ktoś zapisał się na termin (albo zgłosił intencję) i czeka, aż przyjmie to kancelaria.', counts: true },
-  { kind: 'plans', label: 'Plany do przedłużenia', says: 'Terminy utworzone z planu (np. msze) wkrótce się kończą — zaplanuj kolejne tygodnie.', counts: false }
+  kindDef('records', true),
+  kindDef('plans', false)
 ];
 
 const KNOWN = new Set<string>(ALERT_KINDS.map((one) => one.kind));
@@ -128,13 +136,7 @@ export interface TodayItem {
   readonly href: string;
 }
 
-const plural = (n: number, one: string, few: string, many: string): string => {
-  const tens = n % 100;
-  const last = n % 10;
-  return n === 1 ? one : last >= 2 && last <= 4 && (tens < 12 || tens > 14) ? few : many;
-};
-
-const time = (iso: string) => new Date(iso).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+const time = (iso: string) => new Date(iso).toLocaleTimeString(localeOf(appLang()), { hour: '2-digit', minute: '2-digit' });
 
 /**
  * WAS JETZT DASTEHT — in der Reihenfolge der Einstellung, je Art das Dringendste
@@ -150,54 +152,54 @@ export function alertItems(
     if (kind === 'forms') {
       for (const f of digest?.registrations.list ?? []) {
         if (!inScope(f.areaId)) continue;
-        out.push({ kind, key: `f${f.moduleId}`, label: f.name, count: f.count, detail: `${f.count} ${plural(f.count, 'nowe', 'nowe', 'nowych')}`, href: formNewsPath(f.moduleId), seen: { form: f.moduleId } });
+        out.push({ kind, key: `f${f.moduleId}`, label: f.name, count: f.count, detail: t('workspace.alertItem.newCount', { count: f.count }), href: formNewsPath(f.moduleId), seen: { form: f.moduleId } });
       }
     } else if (kind === 'chats') {
       for (const c of (digest?.chats.list ?? []).filter((one) => one.unread > 0)) {
         if (!inScope(c.areaId)) continue;
-        out.push({ kind, key: `c${c.chatId}`, label: c.quiet ? `${chatLabel(c)} (wyciszona)` : chatLabel(c), count: c.unread, detail: `${c.unread} ${plural(c.unread, 'wiadomość', 'wiadomości', 'wiadomości')}`, href: viewPath('chat', c.chatId) });
+        out.push({ kind, key: `c${c.chatId}`, label: c.quiet ? t('workspace.alertItem.muted', { name: chatLabel(c) }) : chatLabel(c), count: c.unread, detail: t('workspace.alertItem.messages', { count: c.unread }), href: viewPath('chat', c.chatId) });
       }
     } else if (kind === 'bookings') {
       for (const b of digest?.bookings?.list ?? []) {
         if (!inScope(b.areaId)) continue;
-        out.push({ kind, key: `b${b.resourceId ?? b.name}`, label: b.name, count: b.count, detail: `${b.count} do potwierdzenia`, href: b.resourceId === undefined ? viewPath('bookings') : viewPath('bookings', b.resourceId) });
+        out.push({ kind, key: `b${b.resourceId ?? b.name}`, label: b.name, count: b.count, detail: t('workspace.alertItem.toConfirm', { count: b.count }), href: b.resourceId === undefined ? viewPath('bookings') : viewPath('bookings', b.resourceId) });
       }
     } else if (kind === 'steps') {
       for (const s of digest?.steps?.list ?? []) {
         if (!inScope(s.areaId)) continue;
-        out.push({ kind, key: `s${s.moduleId ?? s.name}`, label: s.name, count: s.count, detail: `${s.count} ${plural(s.count, 'krok', 'kroki', 'kroków')} po terminie`, href: s.moduleId === undefined ? formsPath() : formNewsPath(s.moduleId) });
+        out.push({ kind, key: `s${s.moduleId ?? s.name}`, label: s.name, count: s.count, detail: t('workspace.alertItem.stepsLate', { count: s.count }), href: s.moduleId === undefined ? formsPath() : formNewsPath(s.moduleId) });
       }
     } else if (kind === 'records') {
       for (const r of digest?.records?.list ?? []) {
         if (!inScope(r.areaId)) continue;
-        out.push({ kind, key: `r${r.calendarId}`, label: r.title, count: r.count, detail: `${r.count} ${plural(r.count, 'wpis czeka', 'wpisy czekają', 'wpisów czeka')}`, href: viewPath('calendar') });
+        out.push({ kind, key: `r${r.calendarId}`, label: r.title, count: r.count, detail: t('workspace.alertItem.recordsWait', { count: r.count }), href: viewPath('calendar') });
       }
     } else if (kind === 'plans') {
       for (const p of digest?.plans?.list ?? []) {
         if (!inScope(p.areaId)) continue;
         out.push({
           kind, key: `p${p.calendarId}`, label: p.title, count: null,
-          detail: `zaplanowane do ${new Date(p.until).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}`,
+          detail: t('workspace.alertItem.plannedUntil', { date: fmtDate(new Date(p.until), { day: 'numeric', month: 'long' }) }),
           href: viewPath('calendar', 'zaplanuj', p.calendarId)
         });
       }
     } else if (kind === 'tasks') {
       if (scope === null && (digest?.tasks ?? 0) > 0) {
-        out.push({ kind, key: 'tasks', label: 'Do zrobienia teraz', count: digest!.tasks, detail: `${digest!.tasks} ${plural(digest!.tasks, 'zadanie', 'zadania', 'zadań')}`, href: viewPath('tasks') });
+        out.push({ kind, key: 'tasks', label: t('workspace.alertItem.tasksNow'), count: digest!.tasks, detail: t('workspace.alertItem.tasks', { count: digest!.tasks }), href: viewPath('tasks') });
       }
     } else if (kind === 'today') {
-      for (const t of today ?? []) {
-        if (!inScope(t.areaId)) continue;
-        out.push({ kind, key: `t${t.key}`, label: t.title, count: null, detail: time(t.at), href: t.href });
+      for (const one of today ?? []) {
+        if (!inScope(one.areaId)) continue;
+        out.push({ kind, key: `t${one.key}`, label: one.title, count: null, detail: time(one.at), href: one.href });
       }
     } else if (kind === 'links') {
       if (scope === null && (digest?.links ?? 0) > 0) {
-        out.push({ kind, key: 'links', label: 'Dołączyli przez link', count: digest!.links, detail: `${digest!.links}`, href: viewPath('areas'), seen: { links: true } });
+        out.push({ kind, key: 'links', label: t('workspace.alertItem.joinedByLink'), count: digest!.links, detail: `${digest!.links}`, href: viewPath('areas'), seen: { links: true } });
       }
     } else if (kind === 'learn') {
       const learn = digest?.learn;
       if (scope === null && learn !== undefined && learn.count > 0) {
-        out.push({ kind, key: 'learn', label: 'Powtórka czeka', count: learn.count, detail: `${learn.count} ${plural(learn.count, 'karta', 'karty', 'kart')}`, href: viewPath('learn') });
+        out.push({ kind, key: 'learn', label: t('workspace.alert.learn.label'), count: learn.count, detail: t('workspace.alertItem.cards', { count: learn.count }), href: viewPath('learn') });
       }
     } else if (kind === 'duties') {
       out.push(...dutyItems(digest, inScope, scope === null));
@@ -220,42 +222,42 @@ function dutyItems(digest: Digest | null, inScope: (areaId: string | null | unde
 
   for (const a of d.controllers.asks) {
     if (!inScope(a.homeAreaId)) continue;
-    out.push({ kind, key: `da${a.attachmentId}`, label: `${a.areaName ?? 'Obszar'} prosi o administratora „${a.controllerName}”`, count: null, detail: 'do podpisu', href: settings(a.homeAreaId) });
+    out.push({ kind, key: `da${a.attachmentId}`, label: t('workspace.duty.asksController', { area: a.areaName ?? t('workspace.duty.area'), name: a.controllerName }), count: null, detail: t('workspace.duty.toSign'), href: settings(a.homeAreaId) });
   }
   for (const o of d.controllers.offers) {
     if (!inScope(o.areaId)) continue;
-    out.push({ kind, key: `do${o.attachmentId}`, label: `Propozycja: „${o.controllerName}” dla ${o.areaName ?? 'obszaru'}`, count: null, detail: 'do przyjęcia', href: settings(o.areaId) });
+    out.push({ kind, key: `do${o.attachmentId}`, label: t('workspace.duty.offer', { name: o.controllerName, area: o.areaName ?? t('workspace.duty.areaOf') }), count: null, detail: t('workspace.duty.toAccept'), href: settings(o.areaId) });
   }
   for (const x of d.controllers.decided) {
     if (!inScope(x.areaId)) continue;
-    out.push({ kind, key: `dd${x.attachmentId}`, label: `„${x.controllerName}” dla ${x.areaName ?? 'obszaru'}`, count: null, detail: x.state === 'live' ? 'przyjęte' : 'odmowa', href: settings(x.areaId) });
+    out.push({ kind, key: `dd${x.attachmentId}`, label: t('workspace.duty.decided', { name: x.controllerName, area: x.areaName ?? t('workspace.duty.areaOf') }), count: null, detail: x.state === 'live' ? t('workspace.duty.accepted') : t('workspace.duty.refused'), href: settings(x.areaId) });
   }
   for (const n of d.controllers.nobody) {
     if (!inScope(n.areaId)) continue;
-    out.push({ kind, key: `dn${n.areaId}`, label: `${n.areaName}: nikt nie odpowiada za dane`, count: null, detail: 'wskaż administratora', href: settings(n.areaId) });
+    out.push({ kind, key: `dn${n.areaId}`, label: t('workspace.duty.nobody', { area: n.areaName }), count: null, detail: t('workspace.duty.pickController'), href: settings(n.areaId) });
   }
   for (const m of d.controllers.missing) {
     if (!inScope(m.homeAreaId)) continue;
-    const what = !m.terms ? 'zaakceptuj warunki' : !m.confirmed ? 'potwierdź uprawnienie' : 'uzupełnij dane';
+    const what = !m.terms ? t('workspace.duty.acceptTerms') : !m.confirmed ? t('workspace.duty.confirmRight') : t('workspace.duty.completeData');
     out.push({ kind, key: `dm${m.controllerId}`, label: m.name, count: null, detail: what, href: settings(m.homeAreaId) });
   }
 
   if (!everything) return out;
 
   for (const p of d.controllers.pages ?? []) {
-    out.push({ kind, key: `dp${p.path}`, label: `Strona ${p.path === '' ? 'recreatio.pl' : p.path}: nikt nie odpowiada za treść`, count: null, detail: 'wskaż obszar', href: viewPath('pages', ...pageSteps(p.path)) });
+    out.push({ kind, key: `dp${p.path}`, label: t('workspace.duty.pageNobody', { page: p.path === '' ? 'recreatio.pl' : p.path }), count: null, detail: t('workspace.duty.pickArea'), href: viewPath('pages', ...pageSteps(p.path)) });
   }
   if (d.reports.isOperator && d.reports.count > 0) {
-    out.push({ kind, key: 'dr', label: 'Zgłoszenia treści', count: d.reports.count, detail: `${d.reports.count} do decyzji`, href: viewPath('sprawy') });
+    out.push({ kind, key: 'dr', label: t('workspace.duty.reports'), count: d.reports.count, detail: t('workspace.duty.toDecide', { count: d.reports.count }), href: viewPath('sprawy') });
   }
-  for (const t of d.takedowns.filter((one) => one.state === 'blocked')) {
+  for (const one of d.takedowns.filter((x) => x.state === 'blocked')) {
     out.push({
-      kind, key: `dt${t.id}`, label: `Zablokowano po zgłoszeniu: ${t.path ?? 'Twoja treść'}`, count: null,
-      detail: t.objectedAt === null ? `odwołanie do ${new Date(t.objectUntil).toLocaleDateString('pl-PL')}` : 'odwołanie wysłane', href: viewPath('sprawy')
+      kind, key: `dt${one.id}`, label: t('workspace.duty.blocked', { what: one.path ?? t('workspace.duty.yourContent') }), count: null,
+      detail: one.objectedAt === null ? t('workspace.duty.objectUntil', { date: new Date(one.objectUntil).toLocaleDateString(localeOf(appLang())) }) : t('workspace.duty.objectSent'), href: viewPath('sprawy')
     });
   }
   for (const l of d.listings) {
-    out.push({ kind, key: `dl${l.areaId}${l.moduleId}`, label: `${l.name} prosi o miejsce na liście${l.path === null ? '' : ` ${l.path}`}`, count: null, detail: l.catalogue ? 'katalog' : 'lista', href: viewPath('sprawy') });
+    out.push({ kind, key: `dl${l.areaId}${l.moduleId}`, label: l.path === null ? t('workspace.duty.listing', { name: l.name }) : t('workspace.duty.listingAt', { name: l.name, path: l.path }), count: null, detail: l.catalogue ? t('workspace.duty.catalogue') : t('workspace.duty.list'), href: viewPath('sprawy') });
   }
   return out;
 }

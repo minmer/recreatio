@@ -20,18 +20,20 @@ import { BOOK_KINDS } from './store';
 import { EntityPicker, ForeignOnly, kindLabel, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
 import { TexText } from '../ui/tex/Tex';
+import { useT, type T } from '../core/i18n';
 
 /** 2026-11-01 — bei einer Wahl im Podgląd auch die anderen Möglichkeiten (die Dystraktoren aus „Oblicz" sieht man so gleich). */
-function optionsOf(c: Card): ReactNode {
+function optionsOf(c: Card, t: T): ReactNode {
   const a = c.answer;
   if (a.form !== 'one' && a.form !== 'many') return null;
   const right = new Set(a.form === 'one' ? [a.correct] : a.correct);
   const wrong = a.options.filter((_o, i) => !right.has(i));
   if (wrong.length === 0) return null;
-  return <span className="cg-muted"> · obok: {wrong.map((o, i) => <Fragment key={i}>{i > 0 && ', '}<TexText text={o} /></Fragment>)}</span>;
+  return <span className="cg-muted"> · {t('cogitaEditTemplate.besides')} {wrong.map((o, i) => <Fragment key={i}>{i > 0 && ', '}<TexText text={o} /></Fragment>)}</span>;
 }
 
 export function TemplateEditor({ chosenId, onChoose }: { chosenId: string | null; onChoose: (id: string | null) => void }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   const templates = lib.templates();
   const entry = chosenId === null ? undefined : lib.docs('template').find((e) => e.id === chosenId);
@@ -40,21 +42,22 @@ export function TemplateEditor({ chosenId, onChoose }: { chosenId: string | null
     <div className="cg">
       <div className="cg-row-between">
         <div className="cg-row">
-          <select value={chosenId ?? ''} onChange={(e) => onChoose(e.target.value === '' ? null : e.target.value)} aria-label="Szablon">
-            <option value="">— szablony kart ({templates.length}) —</option>
-            {templates.map((t) => <option key={t.id} value={t.id}>{t.name} · {t.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}{lib.isOwn(t.id) ? '' : ` · z: ${lib.origin(t.id)?.name ?? '?'}`}</option>)}
+          <select value={chosenId ?? ''} onChange={(e) => onChoose(e.target.value === '' ? null : e.target.value)} aria-label={t('cogitaEditTemplate.template')}>
+            <option value="">{t('cogitaEditTemplate.listHead', { n: templates.length })}</option>
+            {templates.map((tp) => <option key={tp.id} value={tp.id}>{tp.name} · {tp.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}{lib.isOwn(tp.id) ? '' : t('cogitaEditTemplate.fromOrigin', { name: lib.origin(tp.id)?.name ?? '?' })}</option>)}
           </select>
         </div>
         {writes && <NewTemplate onMade={onChoose} />}
       </div>
       {entry === undefined
-        ? <p className="wk-hint">Szablon mówi, jak z wpisów jednego rodzaju powstają karty — np. „Kto napisał {'{tytuł}'}?" z polem autorów jako odpowiedzią. Zacznij od gotowego początku albo od pustego grafu.</p>
+        ? <p className="wk-hint">{t('cogitaEditTemplate.intro', { title: '{tytuł}' })}</p> // i18n-ignore: ein Feldname als Beispiel
         : <ForeignOnly id={entry.id} tab="karty"><TemplateForm key={entry.id} template={readTemplate(entry.id, entry.data)} /></ForeignOnly>}
     </div>
   );
 }
 
 function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
+  const t = useT();
   const { lib } = useCtx();
   /* Zuerst eine eigene Art, die keine der Bibliotheken ist — die Bibliotheken stehen darunter (2026-10-22: auch ihr Stoff gibt Karten). */
   const [kind, setKind] = useState(lib.materialKinds.find((k) => !lib.isForeignKind(k.id))?.id ?? lib.materialKinds[0]?.id ?? 'question');
@@ -71,48 +74,48 @@ function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
   const needs = (n: 'second' | 'through' | 'back') => p?.needs.includes(n) === true;
   return (
     <details className="cg-card" ref={box}>
-      <summary>+ Nowy szablon</summary>
+      <summary>{t('cogitaEditTemplate.new')}</summary>
       <div className="cg">
-        <label className="wk-field"><span>Dla rodzaju</span>
+        <label className="wk-field"><span>{t('cogitaEditTemplate.forKind')}</span>
           <select value={kind} onChange={(e) => { setKind(e.target.value); setField(''); setSecond(''); setBack(''); }}>{lib.materialKinds.map((k) => <option key={k.id} value={k.id}>{kindLabel(k)}</option>)}</select>
         </label>
-        <label className="wk-field"><span>Początek</span>
+        <label className="wk-field"><span>{t('cogitaEditTemplate.preset')}</span>
           <select value={preset} onChange={(e) => { setPreset(e.target.value); setField(''); setSecond(''); setBack(''); }}>
             {TEMPLATE_PRESETS.filter((x) => (x.statements === true ? isStatementKind(lib.refKinds.find((k) => k.id === kind) ?? { fields: [] }) : x.kinds === undefined || x.kinds.includes(kind))).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
-            <option value="empty">Pusty graf</option>
+            <option value="empty">{t('cogitaEditTemplate.empty')}</option>
           </select>
         </label>
         {p !== undefined && <p className="wk-hint">{p.says}</p>}
         {c !== null && c.fields.length > 0 && (
-          <label className="wk-field"><span>{asks?.field?.label ?? 'Pole'}</span>
+          <label className="wk-field"><span>{asks?.field?.label ?? t('cogitaEditTemplate.field')}</span>
             <select value={c.field?.key ?? ''} onChange={(e) => { setField(e.target.value); if (needs('through')) setSecond(''); }}>{c.fields.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
           </label>
         )}
         {c !== null && needs('through') && c.seconds.length > 0 && (
-          <label className="wk-field"><span>{asks?.through?.label ?? 'Pole w'} „{c.target?.name}”</span>
+          <label className="wk-field"><span>{asks?.through?.label === undefined ? t('cogitaEditTemplate.fieldIn', { name: c.target?.name ?? '' }) : `${asks.through.label} „${c.target?.name ?? ''}”`}</span>
             <select value={c.second?.key ?? ''} onChange={(e) => setSecond(e.target.value)}>{c.seconds.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
           </label>
         )}
         {c !== null && needs('second') && c.seconds.length > 0 && (
-          <label className="wk-field"><span>{asks?.second?.label ?? 'Drugie pole'}</span>
+          <label className="wk-field"><span>{asks?.second?.label ?? t('cogitaEditTemplate.secondField')}</span>
             <select value={c.second?.key ?? ''} onChange={(e) => setSecond(e.target.value)}>{c.seconds.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
           </label>
         )}
         {c !== null && needs('back') && c.backs.length > 0 && (
-          <label className="wk-field"><span>{asks?.back?.label ?? 'Co się do niego odwołuje'}</span>
+          <label className="wk-field"><span>{asks?.back?.label ?? t('cogitaEditTemplate.back')}</span>
             <select value={c.back === undefined ? '' : `${c.back.kind}|${c.back.key}`} onChange={(e) => setBack(e.target.value)}>{c.backs.map((x) => <option key={`${x.kind}|${x.key}`} value={`${x.kind}|${x.key}`}>{x.label}</option>)}</select>
           </label>
         )}
         {c !== null && c.missing !== null && <p className="wk-warn">{c.missing}</p>}
         <button type="button" className="wk-btn" disabled={busy || (c !== null && c.missing !== null)} onClick={() => void run(async () => {
           const doc = p === undefined || c === null || c.field === undefined
-            ? { name: 'Nowy szablon', kinds: [kind], direction: '', graph: { nodes: [], edges: [] } }
+            ? { name: t('cogitaEditTemplate.newName'), kinds: [kind], direction: '', graph: { nodes: [], edges: [] } }
             : p.make(kind, presetField(c.field), c.second === undefined ? undefined : presetField(c.second), c.back === undefined ? undefined : { back: { kind: c.back.kind, key: c.back.key } });
           const made = await lib.saveDoc('template', doc);
           /* Der neue Szablon steht gleich darunter offen — der Dialog hat seine Arbeit getan. */
           if (box.current !== null) box.current.open = false;
           onMade(made.id);
-        })}>Utwórz</button>
+        })}>{t('common.create')}</button>
         {failed !== null && <p className="wk-error">{failed}</p>}
       </div>
     </details>
@@ -120,6 +123,7 @@ function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
 }
 
 function TemplateForm({ template }: { template: Template }) {
+  const t = useT();
   const { lib, writes } = useCtx();
   const [draft, setDraft] = useState<Template>(template);
   const [dirty, setDirty] = useState(false);
@@ -183,9 +187,9 @@ function TemplateForm({ template }: { template: Template }) {
   return (
     <div className="cg">
       <div className="cg-row">
-        <label className="wk-field"><span>Nazwa</span><input value={draft.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
-        <label className="wk-field"><span>Kierunek (część klucza karty)</span><input value={draft.direction} disabled={!writes} placeholder="np. a→b" onChange={(e) => set({ direction: e.target.value })} /></label>
-        <fieldset className="cg-row"><legend>Dla rodzajów</legend>
+        <label className="wk-field"><span>{t('common.name')}</span><input value={draft.name} disabled={!writes} onChange={(e) => set({ name: e.target.value })} /></label>
+        <label className="wk-field"><span>{t('cogitaEditTemplate.direction')}</span><input value={draft.direction} disabled={!writes} placeholder={t('cogitaEditTemplate.directionPh')} onChange={(e) => set({ direction: e.target.value })} /></label>
+        <fieldset className="cg-row"><legend>{t('cogitaEditTemplate.forKinds')}</legend>
           {[...lib.materialKinds, ...lib.refKinds.filter((k) => draft.kinds.includes(k.id) && !lib.materialKinds.includes(k))].map((k) => (
             <label key={k.id} className="pe-check">
               <input type="checkbox" checked={draft.kinds.includes(k.id)} disabled={!writes} onChange={(e) => set({ kinds: e.target.checked ? [...draft.kinds, k.id] : draft.kinds.filter((x) => x !== k.id) })} />
@@ -194,63 +198,63 @@ function TemplateForm({ template }: { template: Template }) {
           ))}
         </fieldset>
       </div>
-      <p className="wk-hint">Zmiana kierunku albo pytań zaczyna historię kart od nowa tylko tam, gdzie zmieniła się poprawna odpowiedź.</p>
+      <p className="wk-hint">{t('cogitaEditTemplate.directionHint')}</p>
       <GraphEditor graph={draft.graph} palette={TEMPLATE_PALETTE} fieldKeys={fieldKeys} readOnly={!writes}
         errors={preview === undefined || preview === null ? undefined : preview.errors}
         onChange={(g: Graph) => set({ graph: g })} />
       {problems.map((p, i) => <p key={i} className="wk-warn">{p}</p>)}
       <details className="cg-card" data-template-tests={draft.tests.length}>
-        <summary>Co sprawdza ta karta — do znajomości {draft.tests.length > 0 ? `(${draft.tests.length})` : ''}</summary>
-        <p className="cg-muted">Znajomość należy do wpisu, a karta jest dowodem: każda odpowiedź liczy się dla wpisów wymienionych tu, z tą wagą (dokładne pytanie — więcej, ogólne — mniej). Bez ustawienia: ten wpis z wagą 1.</p>
-        {draft.tests.map((t, i) => (
-          <div key={`${t.of}-${i}`} className="cg-row">
-            <select value={t.of} disabled={!writes} aria-label="Który wpis" onChange={(e) => set({ tests: draft.tests.map((x, j) => (j === i ? { ...x, of: e.target.value } : x)) })}>
-              <option value="this">ten wpis</option>
-              {refFields.map((f) => <option key={f.key} value={f.key}>to, na co wskazuje „{f.label}”</option>)}
-              {t.of !== 'this' && !refFields.some((f) => f.key === t.of) && <option value={t.of}>{t.of}</option>}
+        <summary>{t('cogitaEditTemplate.tests')} {draft.tests.length > 0 ? `(${draft.tests.length})` : ''}</summary>
+        <p className="cg-muted">{t('cogitaEditTemplate.testsHint')}</p>
+        {draft.tests.map((tt, i) => (
+          <div key={`${tt.of}-${i}`} className="cg-row">
+            <select value={tt.of} disabled={!writes} aria-label={t('cogitaEditTemplate.whichEntry')} onChange={(e) => set({ tests: draft.tests.map((x, j) => (j === i ? { ...x, of: e.target.value } : x)) })}>
+              <option value="this">{t('cogitaEditTemplate.thisEntry')}</option>
+              {refFields.map((f) => <option key={f.key} value={f.key}>{t('cogitaEditTemplate.pointedBy', { field: f.label })}</option>)}
+              {tt.of !== 'this' && !refFields.some((f) => f.key === tt.of) && <option value={tt.of}>{tt.of}</option>}
             </select>
-            <label className="wk-field"><span>Waga</span>
-              <input type="number" step="0.1" min="0" max="10" value={t.weight} disabled={!writes} onChange={(e) => set({ tests: draft.tests.map((x, j) => (j === i ? { ...x, weight: Math.max(0, Math.min(10, Number(e.target.value) || 0)) } : x)) })} />
+            <label className="wk-field"><span>{t('cogitaEditTemplate.weight')}</span>
+              <input type="number" step="0.1" min="0" max="10" value={tt.weight} disabled={!writes} onChange={(e) => set({ tests: draft.tests.map((x, j) => (j === i ? { ...x, weight: Math.max(0, Math.min(10, Number(e.target.value) || 0)) } : x)) })} />
             </label>
-            {writes && <button type="button" className="wk-link-btn" aria-label="Usuń" onClick={() => set({ tests: draft.tests.filter((_, j) => j !== i) })}>×</button>}
+            {writes && <button type="button" className="wk-link-btn" aria-label={t('common.remove')} onClick={() => set({ tests: draft.tests.filter((_, j) => j !== i) })}>×</button>}
           </div>
         ))}
-        {writes && <button type="button" className="wk-link-btn" onClick={() => set({ tests: [...draft.tests, { of: draft.tests.some((t) => t.of === 'this') ? (refFields.find((f) => !draft.tests.some((t) => t.of === f.key))?.key ?? 'this') : 'this', weight: 1 }] })}>+ wpis, który sprawdza</button>}
+        {writes && <button type="button" className="wk-link-btn" onClick={() => set({ tests: [...draft.tests, { of: draft.tests.some((x) => x.of === 'this') ? (refFields.find((f) => !draft.tests.some((x) => x.of === f.key))?.key ?? 'this') : 'this', weight: 1 }] })}>{t('cogitaEditTemplate.addTest')}</button>}
       </details>
       {/* 2026-11-01 — welchen Fakt die Karten fragen: Karten mit demselben Fakt teilen jede Antwort (`answerEvidence`). */}
       <details className="cg-card" data-template-asks={draft.asks.length}>
-        <summary>O jaki fakt pyta — wspólne odpowiedzi {draft.asks.length > 0 ? `(${draft.asks.length})` : ''}</summary>
-        <p className="cg-muted">Karty, które pytają o ten sam fakt tego samego wpisu, dzielą każdą odpowiedź: dobra odpowiedź na „Kiedy było X?” liczy się też dla „Co było w 1829?”, jeśli oba szablony nazywają fakt tak samo (np. „data”). Bez ustawienia karta liczy się tylko dla siebie.</p>
+        <summary>{t('cogitaEditTemplate.asks')} {draft.asks.length > 0 ? `(${draft.asks.length})` : ''}</summary>
+        <p className="cg-muted">{t('cogitaEditTemplate.asksHint')}</p>
         {draft.asks.map((a, i) => (
           <div key={`${a.of}-${i}`} className="cg-row">
-            <select value={a.of} disabled={!writes} aria-label="Czego fakt" onChange={(e) => set({ asks: draft.asks.map((x, j) => (j === i ? { ...x, of: e.target.value } : x)) })}>
-              <option value="this">tego wpisu</option>
-              {refFields.map((f) => <option key={f.key} value={f.key}>tego, na co wskazuje „{f.label}”</option>)}
+            <select value={a.of} disabled={!writes} aria-label={t('cogitaEditTemplate.factOf')} onChange={(e) => set({ asks: draft.asks.map((x, j) => (j === i ? { ...x, of: e.target.value } : x)) })}>
+              <option value="this">{t('cogitaEditTemplate.ofThisEntry')}</option>
+              {refFields.map((f) => <option key={f.key} value={f.key}>{t('cogitaEditTemplate.ofPointedBy', { field: f.label })}</option>)}
               {a.of !== 'this' && !refFields.some((f) => f.key === a.of) && <option value={a.of}>{a.of}</option>}
             </select>
-            <label className="wk-field"><span>Nazwa faktu</span>
-              <input value={a.facet} disabled={!writes} maxLength={80} placeholder="np. data" onChange={(e) => set({ asks: draft.asks.map((x, j) => (j === i ? { ...x, facet: e.target.value } : x)) })} />
+            <label className="wk-field"><span>{t('cogitaEditTemplate.factName')}</span>
+              <input value={a.facet} disabled={!writes} maxLength={80} placeholder={t('cogitaEditTemplate.factPh')} onChange={(e) => set({ asks: draft.asks.map((x, j) => (j === i ? { ...x, facet: e.target.value } : x)) })} />
             </label>
-            {writes && <button type="button" className="wk-link-btn" aria-label="Usuń" onClick={() => set({ asks: draft.asks.filter((_, j) => j !== i) })}>×</button>}
+            {writes && <button type="button" className="wk-link-btn" aria-label={t('common.remove')} onClick={() => set({ asks: draft.asks.filter((_, j) => j !== i) })}>×</button>}
           </div>
         ))}
-        {writes && <button type="button" className="wk-link-btn" onClick={() => set({ asks: [...draft.asks, { of: 'this', facet: '' }] })}>+ fakt</button>}
+        {writes && <button type="button" className="wk-link-btn" onClick={() => set({ asks: [...draft.asks, { of: 'this', facet: '' }] })}>{t('cogitaEditTemplate.addFact')}</button>}
       </details>
       <div className="cg-card">
-        <div className="cg-row"><strong>Podgląd na wpisie:</strong>
+        <div className="cg-row"><strong>{t('cogitaEditTemplate.previewOn')}</strong>
           <EntityPicker lib={lib} kinds={draft.kinds} refs={draft.kinds.some((k) => BOOK_KINDS.has(k))} value={entity?.id ?? null} onPick={setSample} allowClear={false} />
         </div>
-        {entity === undefined ? <span className="wk-hint">Nie ma jeszcze wpisu tego rodzaju.</span>
-          : preview === undefined ? <span className="wk-hint">Liczenie…</span>
-          : preview === null ? <span className="wk-error">Podgląd się nie udał.</span>
+        {entity === undefined ? <span className="wk-hint">{t('cogitaEditTemplate.noEntry')}</span>
+          : preview === undefined ? <span className="wk-hint">{t('cogitaEditTemplate.counting')}</span>
+          : preview === null ? <span className="wk-error">{t('cogitaEditTemplate.previewFailed')}</span>
           : (
             <>
-              {preview.made.cards.length === 0 && <span className="wk-hint">Z tego wpisu nie powstaje karta (np. puste pole albo warunek niespełniony).</span>}
+              {preview.made.cards.length === 0 && <span className="wk-hint">{t('cogitaEditTemplate.noCard')}</span>}
               <ul>
                 {/* 2026-11-01 — Wzory gesetzt, wie die Karte sie zeigt (KaTeX lädt erst, wenn einer da ist). */}
                 {preview.made.cards.slice(0, 20).map((c) => {
                   const asked = c.prompt.map((p) => p.text).join(' ');
-                  return <li key={c.key}>{asked === '' ? '(bez treści)' : <TexText text={asked} />} → <strong><TexText text={answerText(c)} /></strong>{optionsOf(c)} <span className="cg-muted">({c.answer.form}{c.varies ? ', losowa' : ''})</span></li>;
+                  return <li key={c.key}>{asked === '' ? t('cogitaEditTemplate.noText') : <TexText text={asked} />} → <strong><TexText text={answerText(c)} /></strong>{optionsOf(c, t)} <span className="cg-muted">({c.answer.form}{c.varies ? t('cogitaEditTemplate.random') : ''})</span></li>;
                 })}
               </ul>
               {preview.made.problems.map((p, i) => <p key={i} className="wk-warn">{p}</p>)}
@@ -265,8 +269,8 @@ function TemplateForm({ template }: { template: Template }) {
       {failed !== null && <p className="wk-error">{failed}</p>}
       {writes && (
         <div className="wk-actions">
-          <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>{busy ? 'Zapisywanie…' : 'Zapisz szablon'}</button>
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText('Usunąć szablon? Karty z niego znikną z powtórek (odpowiedzi zostają).')) void run(() => lib.remove(draft.id)); }}>Usuń szablon</button>
+          <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>{busy ? t('common.saving') : t('cogitaEditTemplate.save')}</button>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => { if (await askText(t('cogitaEditTemplate.askDelete'))) void run(() => lib.remove(draft.id)); }}>{t('cogitaEditTemplate.delete')}</button>
         </div>
       )}
     </div>

@@ -11,6 +11,7 @@ import { useRef, useState } from 'react';
 
 import { Avatar, PopMenu, useButtonMenu, type MenuItem } from './ChatKit';
 import { speakerKey, speakerText, throughRole, type Speaker } from './chatAuthor';
+import { useT } from '../core/i18n';
 
 export function SpeakerPick({ speakers, speaker, name, onPick }: {
   speakers: readonly Speaker[];
@@ -18,6 +19,7 @@ export function SpeakerPick({ speakers, speaker, name, onPick }: {
   name: (id: string) => string | null | undefined;
   onPick: (one: Speaker) => void;
 }) {
+  const t = useT();
   const menu = useButtonMenu();
   const button = useRef<HTMLButtonElement | null>(null);
   const [role, setRole] = useState<string | null>(null);
@@ -30,7 +32,8 @@ export function SpeakerPick({ speakers, speaker, name, onPick }: {
   const roleName = (roleId: string) => {
     const own = speakers.find((one) => one.roleId === roleId && !throughRole(one));
     const n = personsOf(roleId).length;
-    return own !== undefined ? `${name(roleId) ?? 'osoba'} — jako ja` : `${name(roleId) ?? 'rola'}${n > 1 ? ` (${n} osoby)` : ''}`;
+    return own !== undefined ? t('chat.speaker.asMe', { name: name(roleId) ?? t('chat.speaker.person') })
+      : n > 1 ? t('chat.speaker.roleCount', { name: name(roleId) ?? t('chat.speaker.role'), count: n }) : name(roleId) ?? t('chat.speaker.role');
   };
 
   const items: MenuItem[] = step === null
@@ -47,12 +50,12 @@ export function SpeakerPick({ speakers, speaker, name, onPick }: {
     }))
     : [
       ...personsOf(step).map((one) => ({
-        label: name(one.personId) ?? 'osoba',
+        label: name(one.personId) ?? t('chat.speaker.person'),
         checked: speakerKey(one) === speakerKey(speaker),
         onSelect: () => { setRole(null); onPick(one); }
       })),
       ...(roles.length > 1 ? [{
-        label: '← Inna rola',
+        label: t('chat.speaker.otherRole'),
         onSelect: () => {
           setRole(null);
           window.requestAnimationFrame(() => { if (button.current !== null) menu.toggle(button.current); });
@@ -63,16 +66,16 @@ export function SpeakerPick({ speakers, speaker, name, onPick }: {
   return (
     <>
       <button ref={button} type="button" className="ch-sendas" data-speaker={speakerKey(speaker)}
-        aria-label={`Piszesz jako ${label} — zmień`} title={`Piszesz jako ${label}`}
+        aria-label={t('chat.speaker.change', { name: label })} title={t('chat.speaker.writingAs', { name: label })}
         aria-haspopup="menu" aria-expanded={menu.open !== null}
         onClick={(e) => { setRole(null); menu.toggle(e.currentTarget); }}>
         <Avatar seed={speaker.personId} name={name(speaker.personId) ?? label} size="sm" />
       </button>
       {menu.open !== null && (
-        <PopMenu anchor={{ rect: menu.open.rect, above: true }} from={menu.open.from} label="Piszesz jako"
+        <PopMenu anchor={{ rect: menu.open.rect, above: true }} from={menu.open.from} label={t('chat.speaker.menu')}
           onClose={menu.close} items={items}>
           <p className="ch-pop-head">
-            {step === null ? 'Piszesz jako — najpierw rola' : throughRole(personsOf(step)[0]) ? `Kto pisze przez „${name(step) ?? 'rolę'}"` : 'Piszesz jako'}
+            {step === null ? t('chat.speaker.roleFirst') : throughRole(personsOf(step)[0]) ? t('chat.speaker.through', { name: name(step) ?? t('chat.speaker.roleAcc') }) : t('chat.speaker.menu')}
           </p>
         </PopMenu>
       )}

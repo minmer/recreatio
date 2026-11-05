@@ -12,11 +12,11 @@
 
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 
-import { count } from './event/kit';
 import { describeFile, imageRef, isAudioType, isImageType, isVideoType, loadPageImages, typeOfFile, type PageImageRow } from './pageImages';
 import { acceptOf, fileProblem, fitsNeed, matchFiles, type ImageNeed, type NeedFit } from './pageImageNeeds';
 import { imageUrl } from './slides/slideLook';
 import { Icon, type IconName } from '../ui/icons';
+import { useT, type T } from '../core/i18n';
 
 /** Was für eine Bitte gewählt ist: eine Datei von hier (noch nicht hochgeladen) oder eine der Seite. */
 export type ImageChoice =
@@ -35,14 +35,14 @@ function Thumb({ need, choice }: { need: ImageNeed; choice: ImageChoice | undefi
   return isImageType(choice.type) ? <img src={imageUrl(imageRef(choice.id))} alt="" /> : <Icon name={typeIcon(choice.type)} />;
 }
 
-function metaOf(need: ImageNeed, choice: ImageChoice | undefined): string {
+function metaOf(need: ImageNeed, choice: ImageChoice | undefined, t: T): string {
   const said = [
     choice === undefined ? null
-      : choice.from === 'device' ? `wybrany: ${choice.file.name} (${describeFile(choice.file.name, choice.file.size)}) — wgra się przy imporcie`
-      : `z plików strony: ${choice.name ?? 'bez nazwy'}`,
-    choice === undefined && need.name !== null ? `plik: ${need.name}` : null,
-    need.declared ? null : 'bez opisu w dokumencie',
-    `${count(need.uses, 'miejsce', 'miejsca', 'miejsc')} na stronie`
+      : choice.from === 'device' ? t('pages.needs.chosen', { name: choice.file.name, size: describeFile(choice.file.name, choice.file.size) })
+      : t('pages.needs.fromPage', { name: choice.name ?? t('pages.needs.unnamed') }),
+    choice === undefined && need.name !== null ? t('pages.needs.file', { name: need.name }) : null,
+    need.declared ? null : t('pages.needs.noDescription'),
+    t('pages.needs.uses', { count: need.uses })
   ];
   return said.filter((one) => one !== null).join(' · ');
 }
@@ -55,6 +55,7 @@ export function ImageNeeds({ path, needs, chosen, busy, onChoose }: {
   busy: boolean;
   onChoose: (key: string, choice: ImageChoice | null) => void;
 }) {
+  const t = useT();
   const [files, setFiles] = useState<readonly PageImageRow[] | null>(null);
   const [problems, setProblems] = useState<Readonly<Record<string, string>>>({});
   const [loose, setLoose] = useState<readonly File[]>([]);
@@ -116,7 +117,7 @@ export function ImageNeeds({ path, needs, chosen, busy, onChoose }: {
 
   return (
     <section
-      className={dropping ? 'pe-needs is-drop' : 'pe-needs'} data-image-needs="" aria-label="Pliki dla tej strony"
+      className={dropping ? 'pe-needs is-drop' : 'pe-needs'} data-image-needs="" aria-label={t('pages.needs.title')}
       onDragOver={(e) => { if (!busy && carriesFiles(e)) { e.preventDefault(); setDropping(true); } }}
       onDragLeave={() => setDropping(false)}
       onDrop={(e) => {
@@ -127,18 +128,16 @@ export function ImageNeeds({ path, needs, chosen, busy, onChoose }: {
       }}
     >
       <div className="pe-needs-head">
-        <p className="wk-json-h">Pliki dla tej strony — {missing === 0 ? 'wszystkie dodane' : `brakuje ${missing} z ${needs.length}`}</p>
+        <p className="wk-json-h">{missing === 0 ? t('pages.needs.headDone') : t('pages.needs.headMissing', { missing, total: needs.length })}</p>
         <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy} data-need-many="" onClick={() => many.current?.click()}>
-          <Icon name="upload" /> Dodaj kilka naraz…
+          <Icon name="upload" /> {t('pages.needs.addMany')}
         </button>
         <input
           ref={many} type="file" multiple hidden accept={acceptOf(needs.every((n) => n.kind === 'image') ? 'image' : 'any')}
           onChange={(e) => { const list = Array.from(e.target.files ?? []); e.target.value = ''; takeMany(list); }}
         />
       </div>
-      <p className="pe-needs-lead">
-        Dokument prosi o te pliki. Dodaj je przed importem (albo przeciągnij tutaj) — import wgra je do plików strony, publicznych jak sama strona, i wstawi w każde miejsce, które ich używa.
-      </p>
+      <p className="pe-needs-lead">{t('pages.needs.lead')}</p>
 
       <ul className="pe-needs-list">
         {needs.map((need) => {
@@ -150,26 +149,26 @@ export function ImageNeeds({ path, needs, chosen, busy, onChoose }: {
               <span className="pe-need-text">
                 <strong>{need.label}</strong>
                 {need.description !== '' && <span>{need.description}</span>}
-                <span className="pe-need-meta">{metaOf(need, choice)}</span>
+                <span className="pe-need-meta">{metaOf(need, choice, t)}</span>
                 {problems[need.key] !== undefined && <span className="wk-error">{problems[need.key]}</span>}
               </span>
               <span className="pe-need-act">
                 <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy} data-need-pick={need.key}
                   onClick={() => inputs.current.get(need.key)?.click()}>
-                  {choice === undefined ? 'Wybierz plik…' : 'Zmień'}
+                  {choice === undefined ? t('pages.needs.pick') : t('pages.needs.change')}
                 </button>
                 {choice !== undefined && (
-                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onChoose(need.key, null)}>Usuń</button>
+                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onChoose(need.key, null)}>{t('common.remove')}</button>
                 )}
                 {fitting.length > 0 && (
                   <select
-                    value={choice?.from === 'page' ? choice.id : ''} disabled={busy} aria-label={`${need.label} — plik, który strona już ma`}
+                    value={choice?.from === 'page' ? choice.id : ''} disabled={busy} aria-label={t('pages.needs.existingAria', { label: need.label })}
                     onChange={(e) => {
                       const one = fitting.find((f) => f.id === e.target.value);
                       if (one !== undefined) onChoose(need.key, { from: 'page', id: one.id, name: one.name, type: one.contentType });
                     }}
                   >
-                    <option value="">— albo plik, który strona już ma —</option>
+                    <option value="">{t('pages.needs.existing')}</option>
                     {fitting.map((f) => <option key={f.id} value={f.id}>{f.name ?? f.id} · {describeFile(f.name ?? '', f.size)}</option>)}
                   </select>
                 )}
@@ -186,22 +185,22 @@ export function ImageNeeds({ path, needs, chosen, busy, onChoose }: {
 
       {loose.length > 0 && (
         <div className="pe-needs-loose" data-need-loose="">
-          <p className="wk-note">Te pliki nie pasują nazwą do żadnego opisu — przypisz je:</p>
+          <p className="wk-note">{t('pages.needs.loose')}</p>
           <ul>
             {loose.map((file, i) => (
               <li key={`${file.name}-${i}`}>
                 <span>{file.name}</span>
                 <select
-                  value="" disabled={busy} aria-label={`Do którego opisu: ${file.name}`}
+                  value="" disabled={busy} aria-label={t('pages.needs.whichAria', { name: file.name })}
                   onChange={(e) => {
                     const need = needs.find((n) => n.key === e.target.value);
                     if (need !== undefined && take(need, file)) setLoose((was) => was.filter((one) => one !== file));
                   }}
                 >
-                  <option value="">— do którego opisu —</option>
-                  {needs.map((n) => <option key={n.key} value={n.key}>{n.label}{chosen[n.key] === undefined ? '' : ' (zamień)'}</option>)}
+                  <option value="">{t('pages.needs.which')}</option>
+                  {needs.map((n) => <option key={n.key} value={n.key}>{n.label}{chosen[n.key] === undefined ? '' : t('pages.needs.replace')}</option>)}
                 </select>
-                <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setLoose((was) => was.filter((one) => one !== file))}>Pomiń</button>
+                <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setLoose((was) => was.filter((one) => one !== file))}>{t('pages.needs.skip')}</button>
               </li>
             ))}
           </ul>

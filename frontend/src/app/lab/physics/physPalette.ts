@@ -7,6 +7,7 @@
  * dort gebaut, wo man es hinstellt.
  */
 
+import { t } from '../../core/i18n';
 import { NO_DRAW } from '../labRandom';
 import type { Body } from './physBody';
 import { basinOf, bodyOf, jointOf } from './physScene';
@@ -18,19 +19,11 @@ export interface PaletteItem {
   readonly label: string;
 }
 
-export const PALETTE_ITEMS: readonly PaletteItem[] = [
-  { key: 'ball', label: 'Piłka' },
-  { key: 'box', label: 'Klocek' },
-  { key: 'plank', label: 'Deska' },
-  { key: 'wedge', label: 'Klin' },
-  { key: 'ramp', label: 'Równia' },
-  { key: 'wall', label: 'Ściana' },
-  { key: 'pendulum', label: 'Wahadło' },
-  { key: 'spring', label: 'Sprężyna' },
-  { key: 'pulley', label: 'Bloczek' },
-  { key: 'seesaw', label: 'Huśtawka' },
-  { key: 'basin', label: 'Zbiornik' }
-];
+/** Die Teile in ihrer Reihenfolge; die Namen kommen beim Lesen aus labPhysics.json (`labPhysics.palette.<key>`). */
+export const PALETTE_ITEMS: readonly PaletteItem[] = (['ball', 'box', 'plank', 'wedge', 'ramp', 'wall', 'pendulum', 'spring', 'pulley', 'seesaw', 'basin'] as const).map((key) => ({
+  key,
+  get label() { return t(`labPhysics.palette.${key}`); }
+}));
 
 let serial = 0;
 const fresh = (world: World, base: string): string => {

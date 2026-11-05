@@ -17,6 +17,8 @@
  * Mitschnitte) sind laut Kernspezifikation kein Inhalt und werden nicht gesendet.
  */
 
+import { t } from '../core/i18n';
+
 export const LEGACY_MAX = 31;
 export const AD_MANUFACTURER = 0xff;
 /** Länge, Typ, zwei Bytes Kennung — was vor den Daten des Herstellers steht. */
@@ -26,24 +28,24 @@ export const MANUFACTURER_MAX = LEGACY_MAX - MANUFACTURER_HEAD;
 
 /** Die bekannten AD-Typen — nur, um sie beim Namen zu nennen. */
 const AD_NAMES: Readonly<Record<number, string>> = {
-  0x01: 'Flagi',
-  0x02: 'UUID 16-bit (część listy)',
-  0x03: 'UUID 16-bit (cała lista)',
-  0x04: 'UUID 32-bit (część listy)',
-  0x05: 'UUID 32-bit (cała lista)',
-  0x06: 'UUID 128-bit (część listy)',
-  0x07: 'UUID 128-bit (cała lista)',
-  0x08: 'Nazwa skrócona',
-  0x09: 'Nazwa pełna',
-  0x0a: 'Moc nadawania',
-  0x16: 'Dane usługi (UUID 16-bit)',
-  0x19: 'Wygląd',
-  0x20: 'Dane usługi (UUID 32-bit)',
-  0x21: 'Dane usługi (UUID 128-bit)',
-  0xff: 'Dane producenta'
+  0x01: 'flags',
+  0x02: 'uuid16part',
+  0x03: 'uuid16all',
+  0x04: 'uuid32part',
+  0x05: 'uuid32all',
+  0x06: 'uuid128part',
+  0x07: 'uuid128all',
+  0x08: 'nameShort',
+  0x09: 'nameFull',
+  0x0a: 'txPower',
+  0x16: 'service16',
+  0x19: 'appearance',
+  0x20: 'service32',
+  0x21: 'service128',
+  0xff: 'manufacturer'
 };
 
-export const adName = (type: number): string => AD_NAMES[type] ?? 'Nieznany typ';
+export const adName = (type: number): string => t(`lamps.adType.${AD_NAMES[type] ?? 'unknown'}`);
 
 /* -- Text → Bytes ------------------------------------------------------------------------------ */
 
@@ -64,10 +66,10 @@ export function normalizeHex(text: string): HexRead {
     .map((piece) => piece.replace(/^0x/i, ''))
     .join('')
     .toUpperCase();
-  if (joined === '') return { hex: '', problem: 'Wpisz bajty szesnastkowo, np. 1EFF0000…' };
+  if (joined === '') return { hex: '', problem: t('lamps.adv.enterHex') };
   const bad = /[^0-9A-F]/.exec(joined);
-  if (bad !== null) return { hex: joined, problem: `Niedozwolony znak „${bad[0]}" — tylko cyfry 0–9 i litery A–F.` };
-  if (joined.length % 2 !== 0) return { hex: joined, problem: `Nieparzysta liczba cyfr (${joined.length}) — każdy bajt to dwie cyfry.` };
+  if (bad !== null) return { hex: joined, problem: t('lamps.adv.badChar', { char: bad[0] }) };
+  if (joined.length % 2 !== 0) return { hex: joined, problem: t('lamps.adv.oddDigits', { digits: joined.length }) };
   return { hex: joined, problem: null };
 }
 
@@ -125,7 +127,7 @@ export function parseAdvertising(bytes: Uint8Array): Advertising {
   const structures: AdStructure[] = [];
   let padding = 0;
 
-  if (bytes.length === 0) problems.push('Pakiet jest pusty.');
+  if (bytes.length === 0) problems.push(t('lamps.adv.empty'));
 
   let at = 0;
   while (at < bytes.length) {
@@ -133,14 +135,14 @@ export function parseAdvertising(bytes: Uint8Array): Advertising {
     if (length === 0) {
       /* Länge 0: hier endet der Inhalt; dahinter dürfen nur Nullen stehen. */
       if (bytes.slice(at).some((b) => b !== 0)) {
-        problems.push(`Bajt ${at + 1} ma długość 0 (koniec danych), a za nim są jeszcze dane.`);
+        problems.push(t('lamps.adv.dataAfterEnd', { byte: at + 1 }));
       } else {
         padding = bytes.length - at;
       }
       break;
     }
     if (at + 1 + length > bytes.length) {
-      problems.push(`Struktura od bajtu ${at + 1} zapowiada ${length} bajtów, a zostało ${bytes.length - at - 1}.`);
+      problems.push(t('lamps.adv.structTooLong', { byte: at + 1, length, left: bytes.length - at - 1 }));
       break;
     }
     structures.push({ offset: at, length, type: bytes[at + 1], data: bytes.slice(at + 2, at + 1 + length) });
@@ -149,27 +151,27 @@ export function parseAdvertising(bytes: Uint8Array): Advertising {
 
   /* Gezählt wird der Inhalt — die Nullen dahinter (bei einem Mitschnitt des Telefons bis 62 Bytes) nicht. */
   const used = bytes.length - padding;
-  if (used > LEGACY_MAX) problems.unshift(`Pakiet ma ${used} bajtów — reklama BLE (legacy) mieści najwyżej ${LEGACY_MAX}.`);
+  if (used > LEGACY_MAX) problems.unshift(t('lamps.adv.tooBig', { used, max: LEGACY_MAX }));
 
   for (const s of structures) {
     if (s.type !== AD_MANUFACTURER) {
-      problems.push(`${adName(s.type)} (typ 0x${s.type.toString(16).toUpperCase().padStart(2, '0')}, bajt ${s.offset + 1}) — nadawane są na razie tylko dane producenta (0xFF), bez zmiany bajtów.`);
+      problems.push(t('lamps.adv.otherType', { name: adName(s.type), type: s.type.toString(16).toUpperCase().padStart(2, '0'), byte: s.offset + 1 }));
     }
   }
 
   const makers = structures.filter((s) => s.type === AD_MANUFACTURER);
   let manufacturer: Manufacturer | null = null;
   if (makers.length > 1) {
-    problems.push('Więcej niż jedna struktura danych producenta — Android ułożyłby je po swojemu.');
+    problems.push(t('lamps.adv.twoMakers'));
   } else if (makers.length === 1) {
     const one = makers[0];
-    if (one.data.length < 2) problems.push('Dane producenta muszą zaczynać się dwubajtowym identyfikatorem producenta.');
+    if (one.data.length < 2) problems.push(t('lamps.adv.makerId'));
     else manufacturer = { id: one.data[0] | (one.data[1] << 8), data: one.data.slice(2) };
   } else if (structures.length > 0 || bytes.length > 0) {
-    if (problems.length === 0) problems.push('Brak danych producenta (typ 0xFF).');
+    if (problems.length === 0) problems.push(t('lamps.adv.noMaker'));
   }
 
-  if (padding > 0) notes.push(`Na końcu ${padding} ${padding === 1 ? 'bajt' : 'bajtów'} zer (wypełnienie) — nie są nadawane.`);
+  if (padding > 0) notes.push(t('lamps.adv.padding', { count: padding }));
   return { bytes, structures, padding, problems, notes, manufacturer };
 }
 

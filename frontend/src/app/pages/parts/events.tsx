@@ -21,6 +21,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { t, useT, type T } from '../../core/i18n';
+
 import { AreaPick, AreaPickMany } from '../../areas/AreaPick';
 import type { AreaRow } from '../../areas/area';
 import type { ControllerInfo } from '../../areas/controllers';
@@ -31,66 +33,18 @@ import { pagePath, parsePath } from '../../routes';
 import { FadeImg } from '../../ui/fadeImage';
 import { Loading } from '../../ui/Loading';
 import { areasNow } from '../../workspace/viewData';
-import { definePart, flag, maybeNumber, text, type EditorProps, type PartContext, type PartSize, type RawConfig } from '../part';
+import { flag, maybeNumber, text, type EditorProps, type PartContext, type PartSize, type RawConfig } from '../part';
+import { texts, textPart, withTexts } from './partTexts';
 
 /* -- Gemeinsam ------------------------------------------------------------------------ */
 
-/** Die Worte einer Art — in der Liste, im Editor und in „co pokazuje". */
-interface Words {
-  /** Der Kopf der Liste und der Name in der Wahl. */
-  readonly label: string;
-  /** Im Streifen: das erste. */
-  readonly first: string;
-  /** „Wszystkie …" */
-  readonly all: string;
-  /** „Do czterech …" */
-  readonly many: string;
-  readonly facts: string;
-  readonly factsShort: string;
-  readonly none: string;
-  readonly noneEnded: string;
-  /** Die Wahl „Które". */
-  readonly when: Readonly<Record<EventWhen, string>>;
-  /** Die Marke einer Karte, die vorbei ist. */
-  readonly done: string;
-}
-
-const KEPT: Readonly<Record<EventWhen, string>> = { coming: 'Aktywne', past: 'W archiwum', all: 'Wszystkie' };
-
-const WORDS: Readonly<Record<ProfileKind, Words>> = {
-  event: {
-    label: 'Wydarzenia', first: 'Najbliższe wydarzenie', all: 'wydarzenia', many: 'najbliższych',
-    facts: 'data, miejsce, kategoria', factsShort: 'data i miejsce',
-    none: 'Na razie nie ma tu wydarzeń.', noneEnded: 'Nie było tu jeszcze wydarzeń.',
-    when: { coming: 'Nadchodzące i trwające', past: 'Minione', all: 'Wszystkie' }, done: 'zakończone'
-  },
-  group: {
-    label: 'Grupy', first: 'Pierwsza grupa', all: 'grupy', many: 'grup',
-    facts: 'nazwa, termin, kategoria', factsShort: 'nazwa i termin',
-    none: 'Na razie nie ma tu grup.', noneEnded: 'Nie ma tu grup w archiwum.', when: KEPT, done: 'w archiwum'
-  },
-  organisation: {
-    label: 'Parafie i organizacje', first: 'Pierwsza parafia lub organizacja', all: 'parafie i organizacje', many: 'parafii lub organizacji',
-    facts: 'nazwa, termin, kategoria', factsShort: 'nazwa i termin',
-    none: 'Na razie nie ma tu parafii ani organizacji.', noneEnded: 'Nie ma tu parafii ani organizacji w archiwum.', when: KEPT, done: 'w archiwum'
-  },
-  course: {
-    label: 'Kursy', first: 'Pierwszy kurs', all: 'kursy', many: 'kursów',
-    facts: 'nazwa, termin, kategoria', factsShort: 'nazwa i termin',
-    none: 'Na razie nie ma tu kursów.', noneEnded: 'Nie ma tu kursów w archiwum.', when: KEPT, done: 'w archiwum'
-  },
-  /* 0134 */
-  school: {
-    label: 'Szkoły', first: 'Pierwsza szkoła', all: 'szkoły', many: 'szkół',
-    facts: 'nazwa, kategoria', factsShort: 'nazwa',
-    none: 'Na razie nie ma tu szkół.', noneEnded: 'Nie ma tu szkół w archiwum.', when: KEPT, done: 'w archiwum'
-  },
-  class: {
-    label: 'Klasy', first: 'Pierwsza klasa', all: 'klasy', many: 'klas',
-    facts: 'nazwa, kategoria', factsShort: 'nazwa',
-    none: 'Na razie nie ma tu klas.', noneEnded: 'Nie ma tu klas w archiwum.', when: KEPT, done: 'w archiwum'
-  }
-};
+/**
+ * Die Worte einer Art — in der Liste, im Editor und in „co pokazuje": `moduleDataEvents.kind.<art>.*` (ganze Sätze je Art).
+ * Die Wahl „Które": `moduleDataEvents.when.event.*` für Wydarzenia, `moduleDataEvents.when.kept.*` für alle anderen.
+ */
+const word = (t: T | ((key: string) => string), type: ProfileKind, what: 'label' | 'none' | 'noneEnded' | 'done' | 'showsStrip' | 'showsGrid' | 'showsList' | 'showsRow' | 'showsShort'): string =>
+  t(`moduleDataEvents.kind.${type}.${what}`);
+const whenWord = (t: T, type: ProfileKind, when: EventWhen): string => t(`moduleDataEvents.when.${type === 'event' ? 'event' : 'kept'}.${when}`);
 
 const TYPES: readonly ProfileKind[] = ['event', 'group', 'organisation', 'course', 'school', 'class'];
 
@@ -137,6 +91,7 @@ async function shownOf(card: EventCard): Promise<Shown> {
 const doneOf = (card: EventCard): boolean => card.ended === true && card.item?.status !== 'cancelled';
 
 function Tags({ one, withType = false }: { one: Shown; withType?: boolean }) {
+  const t = useT();
   const card = one.card;
   const cancelled = card.item?.status === 'cancelled';
   const done = doneOf(card);
@@ -147,17 +102,18 @@ function Tags({ one, withType = false }: { one: Shown; withType?: boolean }) {
     <span className="wk-tags">
       {type !== null && <span className="wk-tag">{kindLabel(type)}</span>}
       {card.kind !== null && <span className="wk-tag">{card.kind}</span>}
-      {cancelled && <span className="wk-tag">odwołane</span>}
-      {done && <span className="wk-tag">{WORDS[card.type ?? 'event'].done}</span>}
-      {open && <span className="wk-tag wk-tag-open">Zapisy otwarte</span>}
+      {cancelled && <span className="wk-tag">{t('moduleDataEvents.cancelled')}</span>}
+      {done && <span className="wk-tag">{word(t, card.type ?? 'event', 'done')}</span>}
+      {open && <span className="wk-tag wk-tag-open">{t('moduleDataEvents.open')}</span>}
     </span>
   );
 }
 
 /** Nach dem Ende: der Weg zur Seite „Po wydarzeniu" — der Dienst nennt sie erst dann. */
 function After({ card }: { card: EventCard }) {
+  const t = useT();
   if (card.after == null) return null;
-  return <a className="wk-event-after" href={pagePath(card.after.path)}>Po wydarzeniu →</a>;
+  return <a className="wk-event-after" href={pagePath(card.after.path)}>{t('moduleDataEvents.after')}</a>;
 }
 
 /** Eine Karte in der Liste — `rich`: mit Bild, Vorspann und Veranstalter. */
@@ -219,6 +175,7 @@ const countFor = (size: PartSize, whole: boolean, limit: number | null): number 
 };
 
 function EventsView({ config, ctx }: { config: ListConfig; ctx: PartContext }) {
+  const t = useT();
   const [list, setList] = useState<readonly Shown[] | 'failed' | null>(null);
   const areasKey = config.areas.join(',');
 
@@ -241,14 +198,13 @@ function EventsView({ config, ctx }: { config: ListConfig; ctx: PartContext }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- die Liste der Bereiche zählt als Text
   }, [areasKey, config.type, config.deep, config.kind, config.when, config.limit, ctx.moduleId]);
 
-  const words = WORDS[config.type];
   const whole = ctx.whole === true;
   const strip = ctx.size.height === 'strip' && !whole;
-  const head = <h2 className="wk-card-title">{config.title !== '' ? config.title : words.label}</h2>;
+  const head = <h2 className="wk-card-title">{config.title !== '' ? config.title : word(t, config.type, 'label')}</h2>;
 
   if (list === null) return <>{head}<Loading lines={strip ? 1 : 3} /></>;
-  if (list === 'failed') return <>{head}<p className="wk-card-muted">Nie udało się wczytać listy.</p></>;
-  if (list.length === 0) return <>{head}<p className="wk-card-muted">{config.when === 'past' ? words.noneEnded : words.none}</p></>;
+  if (list === 'failed') return <>{head}<p className="wk-card-muted">{t('moduleDataEvents.failed')}</p></>;
+  if (list.length === 0) return <>{head}<p className="wk-card-muted">{word(t, config.type, config.when === 'past' ? 'noneEnded' : 'none')}</p></>;
 
   if (strip) {
     const next = list[0];
@@ -260,7 +216,7 @@ function EventsView({ config, ctx }: { config: ListConfig; ctx: PartContext }) {
           {next.when !== null && <span className="wk-event-when">{next.when}</span>}
           <Tags one={next} />
           <After card={next.card} />
-          {list.length > 1 && <span className="wk-card-muted">i {list.length - 1} więcej</span>}
+          {list.length > 1 && <span className="wk-card-muted">{t('moduleDataCogita.v.andMore', { count: list.length - 1 })}</span>}
         </p>
       </>
     );
@@ -277,9 +233,9 @@ function EventsView({ config, ctx }: { config: ListConfig; ctx: PartContext }) {
         {shown.map((one) => <EventItem key={one.card.areaId} one={one} rich={rich} />)}
       </ul>
       {list.length > shown.length && (
-        <p className="wk-card-muted">I jeszcze {list.length - shown.length} — {ctx.openWhole !== undefined
-          ? <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>pokaż wszystkie</button>
-          : 'pełna lista w pełnym ekranie'}.</p>
+        <p className="wk-card-muted">{t('moduleDataEvents.more', { count: list.length - shown.length })}{ctx.openWhole !== undefined
+          ? <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>{t('moduleDataEvents.showAll')}</button>
+          : t('moduleDataEvents.fullList')}.</p>
       )}
     </>
   );
@@ -297,29 +253,30 @@ function useAreas(): readonly AreaRow[] | null {
 }
 
 function EventsEditor({ raw, onSet, busy }: EditorProps) {
+  const t = useT();
   const areas = useAreas();
   const config = readList(raw);
-  const words = WORDS[config.type];
+  const label = word(t, config.type, 'label');
 
   return (
     <>
       <label className="wk-field">
-        <span>Nagłówek</span>
-        <input value={raw.title ?? ''} disabled={busy} placeholder={words.label} onChange={(e) => onSet({ title: e.target.value })} />
+        <span>{t('moduleDataCogita.f.heading')}</span>
+        <input value={raw.title ?? ''} disabled={busy} placeholder={label} onChange={(e) => onSet({ title: e.target.value })} />
       </label>
 
       <label className="wk-field">
-        <span>Rodzaj</span>
+        <span>{t('moduleDataEvents.type')}</span>
         <select value={config.type} disabled={busy} onChange={(e) => onSet({ type: e.target.value })}>
-          {TYPES.map((one) => <option key={one} value={one}>{WORDS[one].label}</option>)}
+          {TYPES.map((one) => <option key={one} value={one}>{word(t, one, 'label')}</option>)}
         </select>
       </label>
 
       <div className="wk-field">
-        <span>{words.label} z obszarów</span>
+        <span>{t('moduleDataEvents.fromAreas', { label })}</span>
         {areas === null ? <Loading lines={2} /> : (
           <AreaPickMany
-            label={`${words.label} z obszarów`}
+            label={t('moduleDataEvents.fromAreas', { label })}
             areas={areas}
             only={areas.filter((a) => a.personal !== true)}
             value={config.areas}
@@ -330,50 +287,48 @@ function EventsEditor({ raw, onSet, busy }: EditorProps) {
 
       <label className="wk-check">
         <input type="checkbox" checked={config.deep} disabled={busy} onChange={(e) => onSet({ deep: e.target.checked ? 'yes' : 'no' })} />
-        <span>także z obszarów w nich</span>
+        <span>{t('moduleDataEvents.deep')}</span>
       </label>
 
       <label className="wk-field">
-        <span>Tylko kategoria (opcjonalnie)</span>
-        <input value={raw.kind ?? ''} disabled={busy} placeholder="np. rekolekcje" maxLength={40} onChange={(e) => onSet({ kind: e.target.value })} />
+        <span>{t('moduleDataEvents.kindOnly')}</span>
+        <input value={raw.kind ?? ''} disabled={busy} placeholder={t('moduleDataEvents.kindPh')} maxLength={40} onChange={(e) => onSet({ kind: e.target.value })} />
       </label>
 
       <label className="wk-field">
-        <span>Które</span>
+        <span>{t('moduleDataEvents.which')}</span>
         <select value={config.when} disabled={busy} onChange={(e) => onSet({ when: e.target.value })}>
-          {WHENS.map((one) => <option key={one} value={one}>{words.when[one]}</option>)}
+          {WHENS.map((one) => <option key={one} value={one}>{whenWord(t, config.type, one)}</option>)}
         </select>
       </label>
 
       <label className="wk-field">
-        <span>Najwyżej</span>
+        <span>{t('moduleDataEvents.limit')}</span>
         <input type="number" min={1} max={200} value={raw.limit ?? ''} disabled={busy} placeholder="24" onChange={(e) => onSet({ limit: e.target.value })} />
       </label>
 
       <p className="wk-note">
-        {config.areas.length === 0 ? 'Bez wybranych obszarów lista pokaże tylko te, które poprosiły o miejsce i zostały przyjęte. ' : ''}
-        Inne obszary mogą poprosić o miejsce na tej liście — prośby trafiają do „Sprawy” osoby, która prowadzi stronę.
+        {config.areas.length === 0 ? t('moduleDataEvents.noAreasNote') : ''}
+        {t('moduleDataEvents.askNote')}
       </p>
     </>
   );
 }
 
-export const eventsPart = definePart<ListConfig>({
+export const eventsPart = textPart<ListConfig>(texts({ label: 'moduleDataEvents.kind.event.label', use: 'moduleDataEvents.list.use' }), {
   kind: 'events',
-  label: 'Wydarzenia',
-  use: 'Wydarzenia, grupy, parafie albo kursy wybranych obszarów jako karty (data, miejsce, zdjęcie, „Zapisy otwarte”); inne mogą poprosić o miejsce na liście.',
   box: { colSpan: 6, rowSpan: 3 },
 
-  example: { title: 'Wydarzenia w parafii', type: 'event', areas: '<id-obszaru-1>,<id-obszaru-2>', deep: 'yes', kind: 'rekolekcje', when: 'coming', limit: '12' },
+  example: withTexts({ type: 'event', deep: 'yes', when: 'coming', limit: '12' }, texts({ title: 'moduleDataEvents.list.exTitle', areas: 'moduleDataEvents.list.exAreas', kind: 'moduleDataEvents.list.exKind' })),
   fields: [],
   extra: [
-    { key: 'title', shape: 'line', says: 'nagłówek listy; puste — nazwa rodzaju („Wydarzenia”, „Grupy” …)' },
-    { key: 'type', shape: 'line', says: 'co lista pokazuje: "event" — wydarzenia (zwykle), "group" — grupy, "organisation" — parafie i organizacje, "course" — kursy' },
-    { key: 'areas', shape: 'ids', says: 'obszary, z których lista bierze karty (identyfikatory) — najprościej wybrać w edytorze; puste — tylko karty przyjęte na prośbę' },
-    { key: 'deep', shape: 'line', says: '"yes" — także obszary w nich (zwykle), "no" — tylko te obszary' },
-    { key: 'kind', shape: 'line', says: 'tylko karty tej kategorii (np. "rekolekcje"); puste — wszystkie' },
-    { key: 'when', shape: 'line', says: '"coming" — nadchodzące i trwające, u grup, parafii i kursów: aktywne (zwykle); "past" — minione albo w archiwum; "all" — wszystkie' },
-    { key: 'limit', shape: 'line', says: 'najwyżej tyle kart (1–200); puste — 24' }
+    withTexts({ key: 'title', shape: 'line' } as const, texts({ says: 'moduleDataEvents.list.sTitle' })),
+    withTexts({ key: 'type', shape: 'line' } as const, texts({ says: 'moduleDataEvents.list.sType' })),
+    withTexts({ key: 'areas', shape: 'ids' } as const, texts({ says: 'moduleDataEvents.list.sAreas' })),
+    withTexts({ key: 'deep', shape: 'line' } as const, texts({ says: 'moduleDataEvents.list.sDeep' })),
+    withTexts({ key: 'kind', shape: 'line' } as const, texts({ says: 'moduleDataEvents.list.sKind' })),
+    withTexts({ key: 'when', shape: 'line' } as const, texts({ says: 'moduleDataEvents.list.sWhen' })),
+    withTexts({ key: 'limit', shape: 'line' } as const, texts({ says: 'moduleDataEvents.list.sLimit' }))
   ],
   Editor: EventsEditor,
 
@@ -382,18 +337,9 @@ export const eventsPart = definePart<ListConfig>({
   hasContent: () => true,
 
   fullscreen: true,
-  shows: (config, size) => {
-    const words = WORDS[config.type];
-    return size.height === 'strip'
-      ? `${words.first} w jednym wierszu.`
-      : size.height === 'tall'
-        ? (size.width === 'full' || size.width === 'wide'
-          ? `Wszystkie ${words.all} jako siatka kart ze zdjęciami i opisem.`
-          : `Wszystkie ${words.all} ze zdjęciami i opisem, jedna karta pod drugą.`)
-        : size.width === 'full'
-          ? `Do czterech ${words.many} w rzędzie — ${words.facts}.`
-          : `Do czterech ${words.many} krótko — ${words.factsShort}.`;
-  },
+  shows: (config, size) => word(t, config.type, size.height === 'strip' ? 'showsStrip'
+    : size.height === 'tall' ? (size.width === 'full' || size.width === 'wide' ? 'showsGrid' : 'showsList')
+      : size.width === 'full' ? 'showsRow' : 'showsShort'),
 
   View: EventsView
 });
@@ -465,6 +411,7 @@ async function oneOf(areaId: string): Promise<One> {
 }
 
 function EventView({ config, ctx }: { config: OneConfig; ctx: PartContext }) {
+  const t = useT();
   const fromAddress = useHashParam('wydarzenie');
   const areaId = config.area !== '' ? config.area : fromAddress;
   const [one, setOne] = useState<One | 'failed' | null>(null);
@@ -487,8 +434,8 @@ function EventView({ config, ctx }: { config: OneConfig; ctx: PartContext }) {
       <>
         {head}
         <p className="wk-card-muted">{areaId === ''
-          ? 'Tu pojawi się wizytówka — wybierz obszar w ustawieniach modułu albo podaj go w adresie (?wydarzenie=…).'
-          : 'Ten obszar nie ma wizytówki albo nie jest ona publiczna.'}</p>
+          ? t('moduleDataEvents.one.empty')
+          : t('moduleDataEvents.one.none')}</p>
       </>
     );
   }
@@ -530,11 +477,11 @@ function EventView({ config, ctx }: { config: OneConfig; ctx: PartContext }) {
           {s.when !== null && <span className="wk-event-when">{s.when}</span>}
           {s.location !== null && <span className="wk-event-where">{s.location}</span>}
           {!own && s.lead !== null && <p className="wk-event-lead">{s.lead}</p>}
-          {tall && s.card.organiser !== null && <span className="wk-event-who">Organizuje: {s.card.organiser}</span>}
+          {tall && s.card.organiser !== null && <span className="wk-event-who">{t('moduleDataEvents.one.organiser', { name: s.card.organiser })}</span>}
           <Tags one={s} withType />
           {(join || s.card.after != null) && (
             <span className="wk-event-actions">
-              {join && <a className="wk-btn wk-btn-small" href={href}>Zapisz się</a>}
+              {join && <a className="wk-btn wk-btn-small" href={href}>{t('moduleDataEvents.one.join')}</a>}
               <After card={s.card} />
             </span>
           )}
@@ -546,45 +493,44 @@ function EventView({ config, ctx }: { config: OneConfig; ctx: PartContext }) {
 }
 
 function EventEditor({ raw, onSet, busy }: EditorProps) {
+  const t = useT();
   const areas = useAreas();
   return (
     <>
       <label className="wk-field">
-        <span>Nagłówek (opcjonalnie)</span>
-        <input value={raw.title ?? ''} disabled={busy} placeholder="np. Najbliższe rekolekcje" onChange={(e) => onSet({ title: e.target.value })} />
+        <span>{t('moduleDataEvents.one.heading')}</span>
+        <input value={raw.title ?? ''} disabled={busy} placeholder={t('moduleDataEvents.one.headingPh')} onChange={(e) => onSet({ title: e.target.value })} />
       </label>
       <div className="wk-field">
-        <span>Wizytówka obszaru</span>
+        <span>{t('moduleDataEvents.one.area')}</span>
         {areas === null ? <Loading lines={1} /> : (
           <AreaPick
-            label="Wizytówka obszaru"
+            label={t('moduleDataEvents.one.area')}
             areas={areas}
             only={areas.filter((a) => a.personal !== true)}
             value={raw.area ?? ''}
             onChange={(area) => onSet({ area })}
-            extras={[{ value: '', label: '— z adresu strony (?wydarzenie=…) —' }]}
+            extras={[{ value: '', label: t('moduleDataEvents.one.fromAddress') }]}
             disabled={busy}
           />
         )}
       </div>
       <p className="wk-note">
-        Pusty wybór: strona pokaże wizytówkę obszaru podanego w adresie, np. #/strona?wydarzenie=&lt;identyfikator obszaru&gt; — jedna strona dla wielu.
+        {t('moduleDataEvents.one.note')}
       </p>
     </>
   );
 }
 
-export const eventPart = definePart<OneConfig>({
+export const eventPart = textPart<OneConfig>(texts({ label: 'moduleDataEvents.one.label', use: 'moduleDataEvents.one.use' }), {
   kind: 'event',
-  label: 'Wizytówka',
-  use: 'Wizytówka jednego obszaru — wydarzenia, grupy, parafii albo kursu: zdjęcie, nazwa, opis, termin, „Zapisz się”, po zakończeniu „Po wydarzeniu”; wybrana tutaj albo podana w adresie strony (?wydarzenie=…).',
   box: { colSpan: 4, rowSpan: 3 },
 
-  example: { title: 'Najbliższe rekolekcje', area: '<id-obszaru>' },
+  example: texts({ title: 'moduleDataEvents.one.exTitle', area: 'moduleDataEvents.one.exArea' }),
   fields: [],
   extra: [
-    { key: 'title', shape: 'line', says: 'nagłówek nad kartą; puste — bez nagłówka' },
-    { key: 'area', shape: 'line', says: 'obszar, którego wizytówkę pokazać (identyfikator) — najprościej wybrać w edytorze; puste — obszar z adresu strony (?wydarzenie=<id>)' }
+    withTexts({ key: 'title', shape: 'line' } as const, texts({ says: 'moduleDataEvents.one.sTitle' })),
+    withTexts({ key: 'area', shape: 'line' } as const, texts({ says: 'moduleDataEvents.one.sArea' }))
   ],
   Editor: EventEditor,
 
@@ -594,12 +540,12 @@ export const eventPart = definePart<OneConfig>({
 
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nazwa, data, rodzaj i „Zapisy otwarte” w jednym wierszu.'
+    ? t('moduleDataEvents.one.showsStrip')
     : size.height === 'tall'
-      ? 'Duże zdjęcie, nazwa, data, miejsce, opis, organizator, „Zapisz się” (po zakończeniu „Po wydarzeniu”) i kto odpowiada za treść.'
+      ? t('moduleDataEvents.one.showsTall')
       : size.width === 'wide' || size.width === 'full'
-        ? 'Zdjęcie obok: nazwa, data, miejsce, opis i „Zapisz się”.'
-        : 'Zdjęcie, nazwa, data, miejsce i „Zapisz się”.',
+        ? t('moduleDataEvents.one.showsSide')
+        : t('moduleDataEvents.one.showsBlock'),
 
   View: EventView
 });

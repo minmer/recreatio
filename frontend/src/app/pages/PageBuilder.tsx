@@ -30,8 +30,10 @@ import { newId } from '../core/ids';
 import {
   BREAKPOINTS, byReadingOrder, canPlace, cellWidth, cells, COLUMNS, firstFreeCell, frameFor, hitAt,
   MIN_COL_SPAN, MIN_ROW_SPAN, pixelSize, resized, snapColSpan, snapRowSpan, validCells, withFrame,
-  type Breakpoint, type Frame, type Handle, type Layout
+  langOfLayout, withLang, type Breakpoint, type Frame, type Handle, type Layout
 } from './layout';
+import { useT, type Lang } from '../core/i18n';
+import { LangPick } from '../ui/LangPick';
 import { partSize, SIZE_WORD, type PartSize } from './part';
 import { palette, partLabel, partOf } from './parts/registry';
 import { PickModule } from '../modules/PickModule';
@@ -55,7 +57,7 @@ const GAP = 8;
 const CANVAS_W: Record<Breakpoint, number | null> = { desktop: null, tablet: 820, mobile: 390 };
 
 const BREAKPOINT_LABEL: Record<Breakpoint, string> = {
-  desktop: 'Komputer', tablet: 'Tablet', mobile: 'Telefon'
+  desktop: 'pages.builder.desktop', tablet: 'pages.builder.tablet', mobile: 'pages.builder.mobile'
 };
 
 const HANDLES: readonly Handle[] = [
@@ -85,6 +87,7 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule, path 
    */
   onOpenModule: (moduleId: string, parts: readonly DraftPart[]) => void;
 }) {
+  const t = useT();
   /**
    * JEDE Änderung geht durch die Leserichtung.
    *
@@ -301,14 +304,17 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule, path 
   /* 0133 — wem ein Baustein gehört („tylko: …"), beim Namen. */
   const seen = useSeenAreas();
   const audienceName = (areaId: string | null | undefined) =>
-    areaId == null ? null : seen.find((a) => a.areaId === areaId)?.name ?? 'inny obszar';
+    areaId == null ? null : seen.find((a) => a.areaId === areaId)?.name ?? t('pages.builder.otherArea');
   const setAudience = (partId: string, areaId: string | null) =>
     onChange(parts.map((p) => (p.id === partId ? { ...p, audienceAreaId: areaId } : p)));
+  /* 2026-11-05 — die Sprache eines Bausteins liegt in seiner Anordnung (`layout.lang`). */
+  const setLang = (partId: string, lang: Lang | null) =>
+    onChange(parts.map((p) => (p.id === partId ? { ...p, layout: withLang(p.layout, lang) } : p)));
 
   return (
     <div className="pb">
       <div className="pb-bar">
-        <div className="pb-views" role="group" aria-label="Rozmiar ekranu">
+        <div className="pb-views" role="group" aria-label={t('pages.builder.screenSize')}>
           {BREAKPOINTS.map((bp) => (
             <button
               key={bp}
@@ -317,15 +323,13 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule, path 
               aria-pressed={breakpoint === bp}
               onClick={() => setBreakpoint(bp)}
             >
-              {BREAKPOINT_LABEL[bp]}
+              {t(BREAKPOINT_LABEL[bp])}
               <span className="pb-view-cols">{COLUMNS[bp]}</span>
             </button>
           ))}
         </div>
 
-        <p className="pb-hint">
-          Przeciągnij moduł na siatkę. Krawędzie zaznaczonego modułu zmieniają rozmiar.
-        </p>
+        <p className="pb-hint">{t('pages.builder.hint')}</p>
       </div>
 
       <DndContext
@@ -396,7 +400,7 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule, path 
       </DndContext>
 
       {parts.length === 0 && (
-        <p className="pb-empty">Strona nie ma jeszcze modułu. Przeciągnij pierwszy z listy powyżej.</p>
+        <p className="pb-empty">{t('pages.builder.empty')}</p>
       )}
 
       {/*
@@ -418,6 +422,7 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule, path 
           path={path}
           onSet={(patch) => setConfigMany(chosen.id, patch)}
           onAudience={(areaId) => setAudience(chosen.id, areaId)}
+          onLang={(lang) => setLang(chosen.id, lang)}
           onPickModule={(moduleId) => setModule(chosen.id, moduleId)}
           onMadeModule={(moduleId) => {
             const next = withModule(chosen.id, moduleId);
@@ -485,6 +490,7 @@ function Item({ part, frame, columns, selected, audience = null, onSelect, onRes
   onResizeStart: (handle: Handle, event: ReactPointerEvent<HTMLButtonElement>) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `item:${part.id}` });
   const colSpan = snapColSpan(frame.size.colSpan, columns);
   const rowSpan = snapRowSpan(frame.size.rowSpan);
@@ -512,8 +518,9 @@ function Item({ part, frame, columns, selected, audience = null, onSelect, onRes
     >
       <span className="pb-item-name">{partLabel(part.kind)}</span>
       <span className="pb-item-size">{colSpan}×{rowSpan}</span>
-      {empty && <span className="pb-item-todo">do uzupełnienia</span>}
-      {audience !== null && <span className="pb-item-audience" title="Ten moduł widzą tylko osoby z tego obszaru">tylko: {audience}</span>}
+      {empty && <span className="pb-item-todo">{t('pages.builder.todo')}</span>}
+      {audience !== null && <span className="pb-item-audience" title={t('pages.builder.audienceTitle')}>{t('pages.builder.audienceOnly', { name: audience })}</span>}
+      {langOfLayout(part.layout) !== null && <span className="pb-item-audience" title={t('i18n.partLang')}>{langOfLayout(part.layout)}</span>}
 
       {/*
         WAS DIESE GRÖSSE ZEIGT — an der Kachel selbst. Wer an der Kante zieht,
@@ -529,7 +536,7 @@ function Item({ part, frame, columns, selected, audience = null, onSelect, onRes
               key={handle}
               type="button"
               className={`pb-handle pb-handle-${handle}`}
-              aria-label={`Zmień rozmiar: ${handle}`}
+              aria-label={t('pages.builder.resize', { handle })}
               onPointerDown={(e) => onResizeStart(handle, e)}
               onClick={(e) => e.stopPropagation()}
             />
@@ -538,7 +545,7 @@ function Item({ part, frame, columns, selected, audience = null, onSelect, onRes
           <button
             type="button"
             className="pb-drop"
-            aria-label="Usuń moduł"
+            aria-label={t('pages.builder.remove')}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
           >
@@ -555,7 +562,7 @@ function Item({ part, frame, columns, selected, audience = null, onSelect, onRes
  * Slajdy (0062) im aufgeklappten Slajd. Ein Bogen wird gewählt, nicht hier
  * gestellt (siehe oben); alles andere füllt man hier.
  */
-export function PartSettings({ part, size, busy, onSet, onAudience, onPickModule, onMadeModule, path = null }: {
+export function PartSettings({ part, size, busy, onSet, onAudience, onLang, onPickModule, onMadeModule, path = null }: {
   part: DraftPart;
   size: PartSize;
   busy: boolean;
@@ -563,6 +570,8 @@ export function PartSettings({ part, size, busy, onSet, onAudience, onPickModule
   onSet: (patch: Record<string, string>) => void;
   /** 0133 — „Widoczne dla": wer den Baustein bekommt; fehlt: nicht einstellbar (Slajdy, Präsentation). */
   onAudience?: (areaId: string | null) => void;
+  /** 2026-11-05 — die Sprache des Bausteins (`layout.lang`); fehlt: nicht einstellbar. */
+  onLang?: (lang: Lang | null) => void;
   onPickModule: (moduleId: string) => void;
   onMadeModule: (moduleId: string) => void;
 }) {
@@ -570,17 +579,21 @@ export function PartSettings({ part, size, busy, onSet, onAudience, onPickModule
   const embed = <WidgetEmbed path={path} partId={part.id} title={part.config.title ?? part.kind} />;
   const audience = onAudience === undefined ? null
     : <AudienceField value={part.audienceAreaId ?? null} busy={busy} onChange={onAudience} />;
+  const lang = onLang === undefined ? null
+    : <PartLangField value={langOfLayout(part.layout)} busy={busy} onChange={onLang} />;
 
   return part.kind === 'form' ? (
     <>
     <PickModule kind={part.kind} chosen={part.moduleId} busy={busy} onPick={onPickModule} onMade={onMadeModule} />
     {audience}
+    {lang}
     {embed}
     </>
   ) : (
     <>
     <Fields part={part} size={size} busy={busy} onSet={onSet} path={path} />
     {audience}
+    {lang}
     {embed}
     </>
   );
@@ -593,14 +606,11 @@ function Fields({ part, size, busy, onSet, path }: {
   path: string | null;
   onSet: (patch: Record<string, string>) => void;
 }) {
+  const t = useT();
   const def = partOf(part.kind);
 
   if (def === undefined) {
-    return (
-      <p className="pb-empty">
-        Moduł „{part.kind}" nie jest znany tej wersji — zostaje nietknięty.
-      </p>
-    );
+    return <p className="pb-empty">{t('pages.builder.unknownKind', { kind: part.kind })}</p>;
   }
 
   return (
@@ -612,7 +622,7 @@ function Fields({ part, size, busy, onSet, path }: {
       <p className="pb-shows">
         <strong>{size.colSpan}×{size.rowSpan} · {SIZE_WORD.width[size.width]} {SIZE_WORD.height[size.height]}:</strong>
         {' '}{def.shows(part.config, size)}
-        {' '}<span className="wk-hint">Zmień rozmiar, ciągnąc za krawędź — widok zmieni się razem z nim.</span>
+        {' '}<span className="wk-hint">{t('pages.builder.resizeHint')}</span>
       </p>
 
       {def.missing(part.config) !== null && <p className="wk-blocker">{def.missing(part.config)}</p>}
@@ -684,6 +694,18 @@ function Fields({ part, size, busy, onSet, path }: {
       {/* 0064 — sein Inhalt als JSON, mit der Beschreibung daneben. */}
       <PartJson part={part} onSet={onSet} />
     </section>
+  );
+}
+
+/** 2026-11-05 — „Język modułu": eigene Sprache oder die der Seite. */
+function PartLangField({ value, busy, onChange }: { value: Lang | null; busy: boolean; onChange: (lang: Lang | null) => void }) {
+  const t = useT();
+  return (
+    <div className="wk-field">
+      <span>{t('i18n.partLang')}</span>
+      <LangPick value={value} onChange={onChange} follow={t('i18n.followPage')} label={t('i18n.partLang')} disabled={busy} />
+      <span className="wk-hint">{t('i18n.partLangNote')}</span>
+    </div>
   );
 }
 

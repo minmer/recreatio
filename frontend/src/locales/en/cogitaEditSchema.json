@@ -1,0 +1,32 @@
+{
+  "introWrites": "Choose a kind from the list or add a new one. A kind says what fields an entry has, what it is called (the label pattern) and how entries with the same name differ.",
+  "intro": "Choose a kind from the list. A kind says what fields an entry has, what it is called (the label pattern) and how entries with the same name differ.",
+  "jsonLead": "Kinds with their card templates and add forms as one document. The import makes an independent copy: changes here don't change the base it came from [B12]. To use another base's kinds without copying, add it as a source in Settings. Ready-made schemes (Commentary, Dictionary, Psalter) are the files <code>templates/cogita/*.json</code> in the repository — they are imported here.",
+  "noKinds": "This knowledge base has no own kinds yet. Add your own — or import a scheme as JSON (e.g. the ready-made Commentary from <code>templates/cogita/komentarz.json</code>, concepts with a learning order from <code>templates/cogita/podstawy.json</code>).",
+  "entries": {
+    "one": "{count} entry",
+    "other": "{count} entries"
+  },
+  "fields": {
+    "one": "{count} field",
+    "other": "{count} fields"
+  },
+  "qtype": {
+    "kind": "Question type",
+    "does": "What the learner does",
+    "fields": "Fields",
+    "shared": "Every question has: {fields}. “{form}” decides which fields are added — the question editor shows only those.",
+    "title": "Question types — one scheme"
+  },
+  "newKind": "New kind",
+  "askDelete": "Delete the kind “{name}”?",
+  "askDeleteBody": "This cannot be undone. Together with it:",
+  "deleteKind": "Delete kind",
+  "deleted": "The kind “{name}” was deleted.",
+  "jsonSummary": "Scheme as JSON — a copy for another knowledge base",
+  "importSave": "Save accepted",
+  "kinds": "Kinds",
+  "addKind": "+ Kind",
+  "system": "system",
+  "builtIn": "built-in"
+}

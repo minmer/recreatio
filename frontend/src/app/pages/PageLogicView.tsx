@@ -19,6 +19,7 @@ import {
 import type { SeatView } from '../seats/seatContext';
 import { markOwnStep } from '../steps/steps';
 import { WorkspaceError } from '../core/session';
+import { fmtDate, useT } from '../core/i18n';
 
 export function PageLogicProvider({ logic: text, children }: { logic: string | null | undefined; children: ReactNode }) {
   const logic = useMemo(() => readLogic(text), [text]);
@@ -52,7 +53,7 @@ export function PageLogicProvider({ logic: text, children }: { logic: string | n
 }
 
 const MARK: Record<PageStep['status'], string> = { done: '✓', overdue: '!', todo: '○' };
-const STATUS: Record<PageStep['status'], string> = { done: 'zrobione', todo: 'do zrobienia', overdue: 'po terminie' };
+const STATUS: Record<PageStep['status'], string> = { done: 'pages.steps.done', todo: 'pages.steps.todo', overdue: 'pages.steps.overdue' };
 
 /**
  * „KROKI OSOBY" — die Liste, die auf der Karte der Seite entstanden ist.
@@ -62,12 +63,13 @@ const STATUS: Record<PageStep['status'], string> = { done: 'zrobione', todo: 'do
  * der Mensch selbst setzt, setzt er ihn gleich hier.
  */
 export function PageSteps({ seat }: { seat: SeatView | null }) {
+  const t = useT();
   const state = usePageLogic();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
   if (state === null || state.outcome.steps.length === 0) {
-    return <p className="wk-empty">Nie ma tu nic do zrobienia.</p>;
+    return <p className="wk-empty">{t('pages.steps.nothing')}</p>;
   }
 
   const steps = state.outcome.steps;
@@ -85,7 +87,7 @@ export function PageSteps({ seat }: { seat: SeatView | null }) {
       await markOwnStep(seat.token, registrationId, step.ownMark.stepId, on);
       seat.reload();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pages.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -93,7 +95,7 @@ export function PageSteps({ seat }: { seat: SeatView | null }) {
 
   return (
     <div className="wk-steps">
-      <p className="wk-hint">{done === steps.length ? 'Wszystko zrobione. Dziękujemy!' : `Zrobione ${done} z ${steps.length}.`}</p>
+      <p className="wk-hint">{done === steps.length ? t('pages.steps.allDone') : t('pages.steps.progress', { done, total: steps.length })}</p>
 
       <ol className="wk-step-list">
         {steps.map((s) => (
@@ -103,9 +105,9 @@ export function PageSteps({ seat }: { seat: SeatView | null }) {
               <div className="wk-step-text">
                 <strong>{s.label}</strong>
                 <span className="wk-row-side">
-                  {' · '}{STATUS[s.status]}
+                  {' · '}{t(STATUS[s.status])}
                   {s.dueAt !== null && s.status !== 'done'
-                    && ` · do ${new Date(s.dueAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+                    && ` · ${t('pages.steps.due', { date: fmtDate(new Date(s.dueAt), { day: 'numeric', month: 'long', year: 'numeric' }, t.lang) })}`}
                 </span>
                 {s.help !== null && <p className="wk-hint">{s.help}</p>}
               </div>
@@ -115,7 +117,7 @@ export function PageSteps({ seat }: { seat: SeatView | null }) {
                   type="button" className="wk-link-btn"
                   onClick={() => document.getElementById(`part-${s.goto}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                 >
-                  Przejdź
+                  {t('pages.steps.go')}
                 </button>
               )}
 
@@ -124,7 +126,7 @@ export function PageSteps({ seat }: { seat: SeatView | null }) {
                   type="button" className={s.status === 'done' ? 'wk-link-btn' : 'wk-btn'} disabled={busy}
                   onClick={() => void tick(s, s.status !== 'done')}
                 >
-                  {s.status === 'done' ? 'Cofnij' : 'Zrobione'}
+                  {s.status === 'done' ? t('pages.steps.undo') : t('pages.steps.markDone')}
                 </button>
               )}
             </div>

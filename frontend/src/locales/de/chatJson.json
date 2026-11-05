@@ -1,0 +1,250 @@
+{
+  "kind": {
+    "area": "Chat des Bereichs",
+    "channel": "Ankündigungskanal — es schreiben die Leitenden",
+    "group": "Gruppe",
+    "direct": "Chat zu zweit",
+    "self": "Notizen — nur du",
+    "seat": "Chat mit einer Person aus einem Formular"
+  },
+  "keys": {
+    "doc": {
+      "format": "immer \"{format}\"",
+      "version": "Version des Formats: {version}",
+      "chat": "der Chat, aus dem der Export stammt (unten) — nur zur Information: Der Import geht immer in den Chat, der in der App offen ist",
+      "me": "wer exportiert hat und was diese Person im Chat darf (unten) — nur zur Information",
+      "exportedAt": "der Zeitpunkt des Exports (ISO 8601, UTC) — nur zur Information",
+      "range": "was der Export umfasst (unten) — nur zur Information",
+      "topics": "die Themen des Chats — alle, auch geschlossene (unten: Thema)",
+      "messages": "Nachrichten, die älteste zuerst (unten: Nachricht aus dem Export, Neue Nachricht)",
+      "linked": "Aufgaben und Termine, die aus Nachrichten dieses Chats entstanden sind (unten) — nur lesbar, der Import überspringt sie"
+    },
+    "chat": {
+      "id": "Kennung des Chats; anders als die des offenen Chats — ein Dokument aus einem anderen Chat: Der Import überspringt seine Nachrichten und legt seine Themen hier neu an",
+      "kind": "Art: {kinds}",
+      "title": "Name des Chats, wie in seiner Kopfzeile"
+    },
+    "me": {
+      "name": "wie die Nachricht dieser Person unterschrieben ist: „Vorname Nachname“, und wenn sie über eine Rolle schreibt — „Vorname Nachname (Rolle)“; ihre Nachrichten haben \"mine\": true",
+      "writes": "true — schreibt in diesem Chat: Der Import kann ihre neuen Nachrichten und Themen hinzufügen",
+      "moderates": "true — leitet den Chat: heftet an, ordnet auch fremde Nachrichten, ändert jedes Thema"
+    },
+    "range": {
+      "from": "seit wann (ISO 8601; null — vom Beginn des Chats)",
+      "to": "bis wann (der Zeitpunkt des Exports)",
+      "topic": "nur Nachrichten dieses Themas (\"@schlüssel\" aus \"topics\") oder null — alle",
+      "limited": "true — der Export hat die Grenze von {maxExport} Nachrichten erreicht; ältere aus diesem Zeitraum fehlen"
+    },
+    "topic": {
+      "id": "Kennung des Themas aus dem Export — damit ändert der Import DIESES Thema; ohne sie legt er ein neues an (und gibt es schon ein Thema mit diesem Namen, nimmt er das vorhandene)",
+      "key": "ein kurzer Name für Verweise in diesem Dokument (Buchstaben, Ziffern, - und _): Eine Nachricht zeigt mit \"topic\": \"@schlüssel\" auf das Thema; der Export bildet ihn aus dem Namen",
+      "title": "Name des Themas (bei einem neuen nötig, bis {maxTitle} Zeichen); anders als im Chat bei einem Thema mit \"id\" — eine Umbenennung",
+      "closed": "true — Thema geschlossen (unter „Geschlossen“ versteckt), false — offen; eine Änderung schließt es oder öffnet es wieder",
+      "createdAt": "wann angelegt — nur zur Information",
+      "createdBy": "wer es angelegt hat — nur zur Information",
+      "messages": "wie viele Nachrichten es hat — nur zur Information",
+      "tasks": "wie viele Aufgaben daraus entstanden sind — nur zur Information",
+      "appointments": "wie viele Termine daraus entstanden sind — nur zur Information"
+    },
+    "message": {
+      "id": "Kennung der Nachricht — damit ordnet der Import nur (\"topic\", \"pinned\", \"starred\"); Inhalt, Absender und Zeit bleiben immer, wie sie sind",
+      "at": "wann gesendet (ISO 8601, UTC)",
+      "author": "wer sie geschrieben hat — wie im Chat: „Vorname Nachname“, über eine Rolle „Vorname Nachname (Rolle)“",
+      "mine": "true — von der Person aus \"me\" geschrieben",
+      "link": "true — von einer Person mit Link geschrieben (ohne Konto)",
+      "topic": "Thema: \"@schlüssel\" aus \"topics\" (oder die \"id\" des Themas); fehlt im Export — ohne Thema. Im Import anders als im Chat — eine Verschiebung (null — aus den Themen), fehlt — keine Änderung; verschiebt die Autorin oder der Autor der Nachricht oder die Leitung (zu zweit und in den Notizen jede Person, die schreibt)",
+      "text": "Inhalt",
+      "replyTo": "\"id\" der Nachricht, auf die sie antwortet",
+      "quote": "das Zitat, das die antwortende Person sah",
+      "attachments": "Anhänge — nur eine Beschreibung; die Dateien sind nicht im JSON",
+      "attachments_name": "Dateiname",
+      "attachments_type": "Typ (MIME), z. B. \"application/pdf\", \"image/jpeg\"",
+      "attachments_size": "Größe in Bytes",
+      "forwarded": "true — aus einem anderen Chat weitergeleitet",
+      "imported": "true — kam aus einem JSON-Import (im Chat mit „Aus einem Import“ markiert)",
+      "edited": "wann zuletzt korrigiert (der Änderungsverlauf ist im Chat)",
+      "deleted": "wann gelöscht — der Inhalt ist weg",
+      "deletedBy": "\"author\" — von der Autorin oder dem Autor gelöscht, \"moderator\" — von der Leitung",
+      "blocked": "true — nach einer Meldung gesperrt; kein Inhalt",
+      "unreadable": "true — in diesem Browser nicht lesbar (der Schlüssel dieser Epoche des Chats fehlt)",
+      "reactions": "Reaktionen — nur zur Information (der Import ändert sie nicht)",
+      "reactions_emoji": "das Zeichen der Reaktion, z. B. \"👍\"",
+      "reactions_count": "wie viele Personen so reagiert haben",
+      "reactions_mine": "true — auch die Person aus \"me\"",
+      "pinned": "true — für alle angeheftet; im Import heftet eine Änderung an oder löst (false) — nur die Leitung",
+      "starred": "true — in den „Gespeicherten Nachrichten“ der Person aus \"me\" (nur sie sieht sie); im Import speichert eine Änderung oder entfernt aus den gespeicherten (false)"
+    },
+    "new": {
+      "text": "Inhalt (nötig; höchstens {maxText} Bytes UTF-8, Zeilenumbrüche und Anführungszeichen zählen doppelt — einige tausend Zeichen)",
+      "topic": "Thema: \"@schlüssel\" aus \"topics\" (auch eines neuen Themas aus diesem Dokument) oder die \"id\" eines vorhandenen; fehlt oder null — ohne Thema",
+      "replyTo": "\"id\" der Nachricht aus diesem Chat, auf die das antwortet — das Zitat nimmt der Import aus dieser Nachricht, nie aus dem Dokument",
+      "sendAt": "Senden planen (ISO 8601 mit Zeitzone, z. B. \"2026-12-01T09:00:00+01:00\"; ab {minMinutes} Minuten bis ein Jahr im Voraus) — wartet unter „Geplant“, wo man sie sofort senden oder absagen kann; ohne \"sendAt\" geht sie sofort hinaus",
+      "silent": "true — ohne Ton: Die Benachrichtigung weckt niemanden"
+    },
+    "linked": {
+      "kind": "\"task\" — eine Aufgabe, \"appointment\" — ein Termin im Kalender",
+      "title": "Titel",
+      "topic": "Thema (\"@schlüssel\") oder null",
+      "message": "\"id\" der Nachricht, aus der die Aufgabe entstand",
+      "at": "Aufgabe: der nächste (oder letzte) Fälligkeitstermin; Termin: der Beginn (ISO 8601)",
+      "end": "Ende des Termins",
+      "state": "Aufgabe: „geplant“, „jetzt“, „verpasst“, „erledigt“, „überfällig“, „ab und zu“; Termin: „geplant“ oder „abgesagt“"
+    }
+  },
+  "state": {
+    "planned": "geplant",
+    "cancelled": "abgesagt"
+  },
+  "readOnly": "Diesen Chat kannst du nur lesen — der Import (Themen, Ordnung, neue Nachrichten) ist für die, die darin schreiben. Der Export funktioniert wie immer.",
+  "plan": {
+    "notDoc": "Das ist kein Chat-Dokument — erwartet wurde ein JSON-Objekt.",
+    "otherFormat": "Anderes Format: \"{found}\" — erwartet wurde \"{format}\".",
+    "version": "Version {found} — gelesen als Version {version}.",
+    "unknownTop": "Unbekannter Schlüssel \"{key}\" — übersprungen.",
+    "foreignSource": " („{title}“)",
+    "topicsNotList": "\"topics\" ist keine Liste — übersprungen.",
+    "topicN": "Thema {n}",
+    "topic": {
+      "notObject": "{where}: kein Objekt — übersprungen.",
+      "unknownKey": "{where}: unbekannter Schlüssel \"{key}\" — übersprungen.",
+      "badKey": "{where}: \"key\" darf nur Buchstaben, Ziffern, - und _ enthalten (bis 40 Zeichen) — Verweise darauf funktionieren nicht.",
+      "titleNotText": "{where}: \"title\" ist kein Text — übersprungen.",
+      "titleLong": "{where}: Name länger als {max} Zeichen — gekürzt.",
+      "closedBool": "{where}: \"closed\" ist true oder false — übersprungen.",
+      "twice": "{where}: dasselbe Thema („{title}“) ein zweites Mal — übersprungen.",
+      "emptyTitle": "{where}: leerer Name — „{title}“ bleibt.",
+      "mayNotChange": "{where} („{title}“): Den Namen ändert und das Thema schließt, wer es angelegt hat, oder die Leitung des Chats — übersprungen.",
+      "noIdSkipped": "{where}: In diesem Chat gibt es kein Thema mit dieser \"id\" — übersprungen.",
+      "noIdNew": "{where}: In diesem Chat gibt es kein Thema mit dieser \"id\" — als neu behandelt.",
+      "noTitle": "{where}: ohne Namen (\"title\") — übersprungen.",
+      "inNotes": "{where} („{title}“): In den Notizen gibt es keine Themen — übersprungen.",
+      "notWriter": "{where} („{title}“): Ein Thema legt an, wer in diesem Chat schreibt — übersprungen.",
+      "tooMany": "{where} („{title}“): höchstens {max} neue Themen in einem Import — übersprungen.",
+      "keyTwice": "{where}: Schlüssel \"{key}\" ein zweites Mal — \"@{key}\" zeigt auf das erste Thema mit diesem Schlüssel."
+    },
+    "topicWord": "Thema",
+    "ref": {
+      "notText": "{where}: \"topic\" ist kein Text — {instead}.",
+      "noKey": "{where}: In \"topics\" gibt es kein Thema mit dem Schlüssel \"{key}\" — {instead}.",
+      "skipped": "{where}: Das Thema \"{ref}\" wird übersprungen (oben) — {instead}.",
+      "noTopic": "{where}: In diesem Chat gibt es kein Thema „{title}“ — {instead}."
+    },
+    "instead": {
+      "stays": "sie bleibt, wo sie war",
+      "noTopic": "sie geht ohne Thema"
+    },
+    "importer": "die importierende Person",
+    "messagesNotList": "\"messages\" ist keine Liste — übersprungen.",
+    "messageN": "Nachricht {n}",
+    "msg": {
+      "notObject": "{where}: kein Objekt — übersprungen.",
+      "badId": "{where}: unlesbare \"id\" — übersprungen.",
+      "twice": "{where}: dieselbe Nachricht ein zweites Mal — übersprungen.",
+      "older": "{where}: älter als die geladenen Nachrichten dieses Chats (höchstens {max}) — übersprungen.",
+      "noId": "{where}: In diesem Chat gibt es keine Nachricht mit dieser \"id\" — übersprungen (der Import fügt keine fremden Nachrichten ein).",
+      "differs": "{label}: {keys} — anders als im Chat. Der Import ändert weder Inhalt noch Absender noch Zeit einer Nachricht (deine eigene korrigierst du im Chat: „Bearbeiten“); übersprungen.",
+      "reactions": "{label}: Reaktionen ändert der Import nicht — deine fügst du im Chat hinzu.",
+      "mayNotFile": "{label}: In ein Thema verschiebt sie ihre Autorin oder ihr Autor oder die Leitung des Chats — sie bleibt, wo sie war.",
+      "flagBool": "{label}: \"{key}\" ist true oder false — übersprungen.",
+      "pinModerator": "{label}: Anheften und Lösen macht die Leitung des Chats — übersprungen.",
+      "goneNoPin": "{label}: gelöscht oder unlesbar — sie lässt sich nicht anheften.",
+      "goneNoStar": "{label}: gelöscht oder unlesbar — sie lässt sich nicht speichern."
+    },
+    "msgLabel": "{where} ({author}, {when})",
+    "unknownKey": "{label}: unbekannter Schlüssel \"{key}\" — übersprungen.",
+    "newN": "Neue Nachricht (Position {n})",
+    "new": {
+      "gone": "{label}: Das beschreibt eine gelöschte oder unlesbare Nachricht, ohne \"id\" — übersprungen.",
+      "at": "{label}: hat \"at\" — der Import schreibt nicht rückwirkend, eine Nachricht aus einem Import gibt sich nie als alt aus. Entferne \"at\" (sie geht sofort hinaus) oder gib \"sendAt\" an (sie wird geplant); übersprungen.",
+      "author": "{label}: \"author\" ist „{author}“ — der Import schreibt nur als du ({me}), nie im Namen anderer; übersprungen.",
+      "files": "{label}: Dateien sind nicht im JSON — hänge sie im Chat an; die Nachricht geht ohne sie.",
+      "quote": "{label}: \"quote\" übersprungen — das Zitat nimmt der Import aus der Nachricht in \"replyTo\".",
+      "ignored": "{label}: \"{key}\" wird in einer neuen Nachricht übersprungen.",
+      "noText": "{label}: ohne Inhalt (\"text\") — übersprungen.",
+      "tooLong": "{label}: zu lang ({size} Bytes, höchstens {max}) — teile sie in mehrere; übersprungen.",
+      "sendAtBad": "{label}: \"sendAt\" ist kein ISO-8601-Datum (z. B. \"2026-12-01T09:00:00+01:00\") — übersprungen.",
+      "sendAtSoon": "{label}: \"sendAt\" ({when}) liegt in der Vergangenheit oder zu nah — planen lässt sich ab {min} Minuten im Voraus; ohne \"sendAt\" geht sie sofort hinaus. Übersprungen.",
+      "sendAtFar": "{label}: \"sendAt\" mehr als ein Jahr im Voraus — übersprungen.",
+      "silentBool": "{label}: \"silent\" ist true oder false — übersprungen.",
+      "replyMissing": "{label}: \"replyTo\" zeigt auf keine geladene Nachricht dieses Chats — sie geht ohne Zitat.",
+      "replyGone": "{label}: Die Nachricht aus \"replyTo\" ist gelöscht oder unlesbar — sie geht ohne Zitat.",
+      "dupSent": "{label}: Deine Nachricht mit diesem Inhalt ist schon im Chat — übersprungen, damit sie nicht doppelt da ist.",
+      "dupWaiting": "{label}: Dieselbe Nachricht wartet schon unter „Geplant“ — übersprungen, damit sie nicht doppelt da ist."
+    },
+    "foreign": "Das Dokument stammt aus einem anderen Chat{source} — seine Nachrichten werden weder hierher verschoben noch kopiert{skipped}; seine Themen entstehen hier neu.",
+    "foreignSkipped": " ({count} übersprungen)",
+    "notWriting": "Neue Nachrichten ({count}) übersprungen — in diesem Chat schreibst du nicht.",
+    "over": "Höchstens {max} neue Nachrichten in einem Import — {count} übersprungen.",
+    "line": {
+      "newTopic": "Neues Thema: „{title}“",
+      "newTopicClosed": "Neues Thema: „{title}“ (gleich geschlossen)",
+      "rename": "Thema umbenennen: „{was}“ → „{title}“",
+      "close": "Thema „{title}“ schließen",
+      "reopen": "Thema „{title}“ wieder öffnen",
+      "movedOut": {
+        "one": "Aus den Themen: {count} Nachricht",
+        "other": "Aus den Themen: {count} Nachrichten"
+      },
+      "movedTo": {
+        "one": "In das Thema „{name}“: {count} Nachricht",
+        "other": "In das Thema „{name}“: {count} Nachrichten"
+      },
+      "pin": {
+        "one": "Anheften: {count} Nachricht",
+        "other": "Anheften: {count} Nachrichten"
+      },
+      "unpin": {
+        "one": "Lösen: {count} Nachricht",
+        "other": "Lösen: {count} Nachrichten"
+      },
+      "star": {
+        "one": "Speichern (für dich): {count} Nachricht",
+        "other": "Speichern (für dich): {count} Nachrichten"
+      },
+      "unstar": {
+        "one": "Aus den gespeicherten entfernen: {count} Nachricht",
+        "other": "Aus den gespeicherten entfernen: {count} Nachrichten"
+      },
+      "post": "Neue Nachricht als {me}{how}, markiert mit „Aus einem Import“: „{text}“",
+      "nothing": "Nichts zu ändern — das Dokument stimmt mit dem Chat überein."
+    },
+    "how": {
+      "planned": "geplant für {when}",
+      "topic": "im Thema „{topic}“",
+      "reply": "Antwort an: {author}",
+      "silent": "ohne Ton"
+    }
+  },
+  "desc": {
+    "intro": "Ein Chat (Chats → Chat → ⋮ „Weitere Optionen“ → „Chat als JSON“): die Nachrichten eines gewählten Zeitraums oder eines Themas — wer wann geschrieben hat, Antworten, Korrekturen, Anhänge (Name und Größe), Reaktionen, Angeheftetes — dazu die Themen sowie die Aufgaben und Termine, die aus dem Chat entstanden sind. Für das Archiv und zum Lesen, Zusammenfassen oder Ordnen durch einen Assistenten.\n\nWas der Import tut (immer im Chat, der in der App offen ist; zuerst eine Liste der Änderungen mit Warnungen, gespeichert wird erst nach „Importieren“):\n- Themen ohne \"id\" — legt neue an (ein Thema mit demselben Namen, das es schon gibt, wird genommen). Themen mit \"id\" — benennt um (\"title\") oder schließt und öffnet (\"closed\"); das darf, wer das Thema angelegt hat, oder die Leitung.\n- Nachrichten mit \"id\" (aus dem Export) — nur Ordnung: in ein anderes Thema verschieben (\"topic\"; Autorin oder Autor der Nachricht oder die Leitung), anheften (\"pinned\"; Leitung) und für sich speichern (\"starred\").\n- Nachrichten ohne \"id\" — NEUE Nachrichten der importierenden Person: mit ihrem Vor- und Nachnamen (wie beim Schreiben von Hand), mit dem Zeitpunkt des Sendens und der Markierung „Aus einem Import“, die alle sehen; oder für später geplant (\"sendAt\"). Höchstens {maxPosts} in einem Import; ihre Nachricht mit demselben Inhalt, die schon im Chat ist (oder geplant schon wartet), geht nicht ein zweites Mal.\n- Inhalt der Nachrichten und Namen der Themen werden im Browser mit dem Schlüssel des Chats verschlüsselt — genau wie von Hand geschriebene. Die Exportdatei enthält sie im Klartext: Sie ist deine Kopie.\n\nWas der Import nie tut — und warum. Eine Nachricht ist die Aussage eines Menschen, unterschrieben mit dem Schlüssel der Rolle ihrer Autorin oder ihres Autors. Der Import kann nur deine neuen Worte hinzufügen (sichtbar markiert) und den Chat ordnen:\n- er schreibt nicht im Namen anderer — eine neue Nachricht mit dem \"author\" einer anderen Person wird übersprungen;\n- er schreibt nicht rückwirkend — \"at\" sagt, wann eine Nachricht geschrieben wurde; eine neue Nachricht mit \"at\" wird übersprungen (stattdessen \"sendAt\": Senden in der Zukunft);\n- er ändert weder Inhalt noch Absender noch Zeit vorhandener Nachrichten — auch nicht deiner (die korrigierst du im Chat: „Bearbeiten“, mit Änderungsverlauf);\n- er löscht keine Nachrichten und keine Themen — was nicht im Dokument steht, bleibt, wie es ist;\n- er verschiebt keine Nachrichten aus einem anderen Chat und fügt sie hier nicht als neue ein;\n- er fügt keine Dateien (das JSON hat nur ihre Namen), Reaktionen, Aufgaben oder Termine hinzu;\n- er nimmt kein Zitat aus dem Dokument — das Zitat einer Antwort stammt aus der echten Nachricht (\"replyTo\").\nWer im Chat nur liest, hat nur den Export. Der Export umfasst höchstens {maxExport} Nachrichten.\nGib EIN JSON-Objekt zurück, ohne Kommentare.",
+    "topic": "Ein Eintrag in \"topics\". Den Namen ändert und das Thema schließt, wer es angelegt hat, oder die Leitung des Chats; in den Notizen gibt es keine Themen. Neue höchstens {max} in einem Import.",
+    "message": "Der Export beschreibt jede Nachricht so, wie man sie im Chat sieht. Aus Nachrichten mit \"id\" liest der Import nur \"topic\", \"pinned\" und \"starred\" — der Rest ist zum Lesen: Anderer Inhalt, Absender oder Zeit geben eine Warnung und ändern nichts. Nachrichten, die im Dokument fehlen, bleiben.",
+    "new": "Eine Nachricht ohne \"id\" sendet der Import in diesem Chat als die importierende Person (ihr Vor- und Nachname; schreibt sie über eine Rolle — mit der Rolle in Klammern), markiert mit „Aus einem Import“. Die Reihenfolge im Dokument ist die Reihenfolge des Sendens.",
+    "newNever": "Gib weder \"author\" noch \"at\" an: Eine Nachricht mit dem \"author\" einer anderen Person oder mit \"at\" wird übersprungen. Dateien (\"attachments\"), Reaktionen, \"pinned\", \"starred\" und \"quote\" einer neuen Nachricht überspringt der Import.",
+    "newExample": "Beispiel (zwei neue Themen und je eine Nachricht darin):",
+    "newLater": "Eine Nachricht für später, ohne Ton: {\"text\": \"Erinnerung: …\", \"sendAt\": \"2026-12-01T09:00:00+01:00\", \"silent\": true}",
+    "linked": "Ein Eintrag in \"linked\" — eine Aufgabe oder ein Termin, den jemand aus einer Nachricht dieses Chats erstellt hat (Menü der Nachricht: „Aufgabe erstellen“, „Zum Kalender hinzufügen“). Nur lesbar: Der Import überspringt ihn.",
+    "usage": "- Ein Chat gehört zu einem Bereich, und Zugang zum Chat ist Zugang zum Bereich: Wer ihn lesen kann, liest den Chat; wer darin schreiben kann, schreibt. Themen und Nachrichten aus einem Import sehen also alle, die den Chat sehen — genau wie von Hand geschriebene.\n- Der Dienst liest keine Nachrichten: Sie liegen versiegelt mit dem Schlüssel des Bereichs, und jede unterschreibt die Rolle, über die du schreibst; der Dienst prüft nur die Unterschrift. Vor- und Nachname unter einer Nachricht stammen aus „Meine Daten“.\n- Eine neue Nachricht ist für andere ungelesen (die Glocke, „Wartet auf dich“; der Schritt „Nachrichten lesen“ verliert sein Häkchen, bis sie gelesen ist) und weckt ihre Telefone — über Firebase geht nur ein Signal „prüfen“, den Inhalt öffnet erst das Telefon. Mit \"silent\": true gibt es dieses Signal nicht; ungelesen ist sie trotzdem.\n- Eine Nachricht mit \"sendAt\" wartet versiegelt im Dienst; zu dieser Zeit geht sie nur hinaus, wenn du in diesem Chat noch schreiben darfst — und erst dann weckt sie die anderen.\n- Ein Thema ist ein Filter und ein Ort: Wer es wählt, sieht seine Nachrichten, und was er schreibt, landet darin.\n- Aufgaben und Termine entstehen in der App aus Nachrichten („Aufgabe erstellen“, „Zum Kalender hinzufügen“) und merken sich Chat, Thema und Nachricht; das Fenster „Aufgaben und Termine aus diesem Chat“ sammelt sie nach Themen.\n- Der Import ändert nicht, wer Zugang zum Chat hat — das wird im Bereich eingestellt.",
+    "document": "Dokument:",
+    "inChat": "In \"chat\":",
+    "inMe": "In \"me\":",
+    "inRange": "In \"range\":"
+  },
+  "node": {
+    "usage": "Wie die App diese Daten verwendet",
+    "topic": "Thema (\"topics[]\")",
+    "message": "Nachricht aus dem Export (\"messages[]\" mit \"id\")",
+    "messageShort": "Nachricht aus dem Export",
+    "new": "Neue Nachricht (\"messages[]\" ohne \"id\")",
+    "newShort": "Neue Nachricht",
+    "linked": "Aufgaben und Termine aus dem Chat (\"linked[]\")",
+    "linkedShort": "Aufgaben und Termine",
+    "example": "Beispiel eines Exports",
+    "chat": "Chat als JSON (\"{format}\", Version {version})",
+    "chatShort": "Chat"
+  },
+  "sample": {
+    "topics": "zwei neue Themen und je eine Nachricht",
+    "reminder": "eine Erinnerung für morgen früh, ohne Ton"
+  }
+}

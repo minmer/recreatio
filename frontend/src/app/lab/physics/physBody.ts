@@ -5,6 +5,7 @@
  * Masse: der Boden, eine Wand, eine Rampe.
  */
 
+import { t } from '../../core/i18n';
 import type { Shape } from './physShapes';
 
 /** Ein Stoff: Dichte (kg/m³), Reibung, wie stark er zurückprallt, wie er aussieht. */
@@ -19,24 +20,27 @@ export interface Material {
   readonly look: 'wood' | 'metal' | 'rubber' | 'ice' | 'stone' | 'plastic' | 'cork' | 'glass' | 'plain' | 'paper';
 }
 
+/** Ein Stoff; sein Name kommt beim Lesen aus labPhysics.json (`labPhysics.material.<key>`). */
+const mat = (m: Omit<Material, 'name'>): Material => ({ ...m, get name() { return t(`labPhysics.material.${m.key}`); } });
+
 export const MATERIALS: Readonly<Record<string, Material>> = {
-  wood: { key: 'wood', name: 'drewno', density: 600, friction: 0.5, bounce: 0.25, color: '#c8955a', look: 'wood' },
-  oak: { key: 'oak', name: 'dąb', density: 750, friction: 0.55, bounce: 0.2, color: '#a87442', look: 'wood' },
-  cork: { key: 'cork', name: 'korek', density: 240, friction: 0.6, bounce: 0.3, color: '#d9b27c', look: 'cork' },
-  steel: { key: 'steel', name: 'stal', density: 7850, friction: 0.4, bounce: 0.35, color: '#9aa4ad', look: 'metal' },
-  aluminium: { key: 'aluminium', name: 'aluminium', density: 2700, friction: 0.4, bounce: 0.35, color: '#c7ccd1', look: 'metal' },
-  lead: { key: 'lead', name: 'ołów', density: 11340, friction: 0.5, bounce: 0.05, color: '#6f7479', look: 'metal' },
-  gold: { key: 'gold', name: 'złoto', density: 19300, friction: 0.4, bounce: 0.2, color: '#d4af37', look: 'metal' },
-  rubber: { key: 'rubber', name: 'guma', density: 1100, friction: 0.9, bounce: 0.8, color: '#3b3b3f', look: 'rubber' },
-  ice: { key: 'ice', name: 'lód', density: 917, friction: 0.03, bounce: 0.1, color: '#cfe9f7', look: 'ice' },
-  stone: { key: 'stone', name: 'kamień', density: 2600, friction: 0.6, bounce: 0.15, color: '#8c8478', look: 'stone' },
-  plastic: { key: 'plastic', name: 'plastik', density: 950, friction: 0.35, bounce: 0.45, color: '#e0584f', look: 'plastic' },
-  glass: { key: 'glass', name: 'szkło', density: 2500, friction: 0.3, bounce: 0.3, color: '#bfe3e8', look: 'glass' },
+  wood: mat({ key: 'wood', density: 600, friction: 0.5, bounce: 0.25, color: '#c8955a', look: 'wood' }),
+  oak: mat({ key: 'oak', density: 750, friction: 0.55, bounce: 0.2, color: '#a87442', look: 'wood' }),
+  cork: mat({ key: 'cork', density: 240, friction: 0.6, bounce: 0.3, color: '#d9b27c', look: 'cork' }),
+  steel: mat({ key: 'steel', density: 7850, friction: 0.4, bounce: 0.35, color: '#9aa4ad', look: 'metal' }),
+  aluminium: mat({ key: 'aluminium', density: 2700, friction: 0.4, bounce: 0.35, color: '#c7ccd1', look: 'metal' }),
+  lead: mat({ key: 'lead', density: 11340, friction: 0.5, bounce: 0.05, color: '#6f7479', look: 'metal' }),
+  gold: mat({ key: 'gold', density: 19300, friction: 0.4, bounce: 0.2, color: '#d4af37', look: 'metal' }),
+  rubber: mat({ key: 'rubber', density: 1100, friction: 0.9, bounce: 0.8, color: '#3b3b3f', look: 'rubber' }),
+  ice: mat({ key: 'ice', density: 917, friction: 0.03, bounce: 0.1, color: '#cfe9f7', look: 'ice' }),
+  stone: mat({ key: 'stone', density: 2600, friction: 0.6, bounce: 0.15, color: '#8c8478', look: 'stone' }),
+  plastic: mat({ key: 'plastic', density: 950, friction: 0.35, bounce: 0.45, color: '#e0584f', look: 'plastic' }),
+  glass: mat({ key: 'glass', density: 2500, friction: 0.3, bounce: 0.3, color: '#bfe3e8', look: 'glass' }),
   /* Ein Blatt Papier ist im Bild viel dicker als in Wirklichkeit — seine Dichte ist darum die eines Blatts von 0,1 mm, auf die gezeichnete Dicke verteilt. */
-  paper: { key: 'paper', name: 'kartka papieru', density: 60, friction: 0.5, bounce: 0.05, color: '#f3efe2', look: 'paper' },
-  foam: { key: 'foam', name: 'styropian', density: 30, friction: 0.5, bounce: 0.2, color: '#f6f6f2', look: 'plain' },
-  ball: { key: 'ball', name: 'piłka', density: 120, friction: 0.7, bounce: 0.85, color: '#e8823a', look: 'rubber' },
-  egg: { key: 'egg', name: 'jajko', density: 1035, friction: 0.4, bounce: 0.1, color: '#f1e3c8', look: 'plain' }
+  paper: mat({ key: 'paper', density: 60, friction: 0.5, bounce: 0.05, color: '#f3efe2', look: 'paper' }),
+  foam: mat({ key: 'foam', density: 30, friction: 0.5, bounce: 0.2, color: '#f6f6f2', look: 'plain' }),
+  ball: mat({ key: 'ball', density: 120, friction: 0.7, bounce: 0.85, color: '#e8823a', look: 'rubber' }),
+  egg: mat({ key: 'egg', density: 1035, friction: 0.4, bounce: 0.1, color: '#f1e3c8', look: 'plain' })
 };
 
 export type BodyType = 'dynamic' | 'static';

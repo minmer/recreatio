@@ -22,9 +22,10 @@ import { partOf } from './parts/registry';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
 import { BLOCKED_KIND, BLOCKED_PART_TEXT, reportPath } from '../reports/reportPath';
-
-/** 0130 — die ganze Seite ist nach einer Meldung gesperrt. */
-const BLOCKED_PAGE = 'Treść zablokowana po zgłoszeniu.';
+import { useT, type Lang } from '../core/i18n';
+import { InLang } from './pageLang';
+import { langOfLayout } from './layout';
+import { readLook } from './slides/slideLook';
 
 const WIDTHS: Record<string, number> = { narrow: 2, medium: 3, wide: 4, full: 6 };
 const HEIGHTS: Record<string, number> = { strip: 1, block: 3, tall: 5 };
@@ -52,7 +53,12 @@ export function embedCode(path: string, partId: string, title: string, size: { w
 
 export function Widget({ partId, pagePath }: { partId: string | null; pagePath: string }) {
   const [part, setPart] = useState<DraftPart | null | undefined>(undefined);
+  const t = useT();
   const [failed, setFailed] = useState<string | null>(null);
+  /* 0130 — die ganze Seite ist nach einer Meldung gesperrt. */
+  const [blockedPage, setBlockedPage] = useState(false);
+  /* 2026-11-05 — die Sprache der Seite (`look.lang`), wie auf ihr selbst. */
+  const [pageLang, setPageLang] = useState<Lang | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const opts = useMemo(options, []);
 
@@ -73,24 +79,26 @@ export function Widget({ partId, pagePath }: { partId: string | null; pagePath: 
     let alive = true;
     if (partId === null || pagePath === '') {
       setPart(null);
-      setFailed('W adresie widżetu brakuje modułu albo strony.');
+      setFailed(t('pages.widget.missing'));
       return;
     }
     loadPage(pagePath)
       .then((page) => {
         if (!alive) return;
+        setPageLang(readLook(page.theme).lang ?? null);
         const found = page.parts.map(toDraft).find((p) => p.id === partId || p.moduleId === partId) ?? null;
         setPart(found);
-        if (found === null) setFailed('Tego modułu nie ma na tej stronie.');
+        if (found === null) setFailed(t('pages.widget.notHere'));
       })
       .catch((e) => {
         if (!alive) return;
         setPart(null);
         const verdict = e instanceof WorkspaceError ? e.verdict : null;
+        setBlockedPage(verdict === 'blocked');
         setFailed(verdict === 'needsaccess' || verdict === 'noaccess'
-          ? 'Ta strona nie jest publiczna — widżet pokazuje tylko to, co widzi każdy.'
-          : verdict === 'blocked' ? BLOCKED_PAGE
-          : 'Nie udało się wczytać.');
+          ? t('pages.widget.notPublic')
+          : verdict === 'blocked' ? t('pages.public.blockedText')
+          : t('pages.widget.loadFailed'));
       });
     return () => { alive = false; };
   }, [partId, pagePath]);
@@ -138,26 +146,33 @@ export function Widget({ partId, pagePath }: { partId: string | null; pagePath: 
   /* 0130 — „Zgłoś" führt auf recreatio.pl (woher das Widget kommt), auf die Meldung DIESES Teils. */
   const reportHref = part == null ? null : `${window.location.origin}${window.location.pathname}${reportPath('part', part.id)}`;
 
+  const quiet = (className: string, said: string | null) => <p className={className}>{said}</p>;
+  const body = part === undefined ? <Loading label={t('common.loading')} />
+    : part !== null && part.kind === BLOCKED_KIND ? quiet('wk-blocked', BLOCKED_PART_TEXT)
+    : blockedPage ? quiet('wk-blocked', failed)
+    : part === null || def === undefined ? quiet('wk-hint', failed ?? t('pages.widget.cannotShow'))
+    : (
+      <InLang lang={langOfLayout(part.layout)}>
+        <article className={`wk-card wk-card-${part.kind} wk-widget-card`} data-w={size.width} data-h={size.height} onClick={onClick}>
+          <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size }} />
+        </article>
+      </InLang>
+    );
+
   return (
+    <InLang lang={pageLang}>
     <div className="wk-widget" ref={box}>
-      {part === undefined ? <Loading label="Wczytywanie…" />
-        : part !== null && part.kind === BLOCKED_KIND ? <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>
-        : failed === BLOCKED_PAGE ? <p className="wk-blocked">{BLOCKED_PAGE}</p>
-        : part === null || def === undefined ? <p className="wk-hint">{failed ?? 'Tego modułu nie da się pokazać.'}</p>
-        : (
-          <article className={`wk-card wk-card-${part.kind} wk-widget-card`} data-w={size.width} data-h={size.height} onClick={onClick}>
-            <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size }} />
-          </article>
-        )}
+      {body}
       <div className="wk-widget-bottom">
         {reportHref !== null && part?.kind !== BLOCKED_KIND && (
-          <a className="wk-widget-report" href={reportHref} target="_blank" rel="noopener" data-report="part">Zgłoś</a>
+          <a className="wk-widget-report" href={reportHref} target="_blank" rel="noopener" data-report="part">{t('pages.widget.report')}</a>
         )}
         <a className="wk-widget-foot" href={target} target="_blank" rel="noopener" onClick={(e) => { e.preventDefault(); go(); }}>
-          recreatio.pl<span aria-hidden="true"> ↗</span>
+          {'recreatio.pl'}<span aria-hidden="true"> ↗</span>
         </a>
       </div>
     </div>
+    </InLang>
   );
 }
 

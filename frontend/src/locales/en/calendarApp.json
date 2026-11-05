@@ -1,0 +1,381 @@
+{
+  "itemLabel": {
+    "appointment": "meeting",
+    "task": "task",
+    "mass": "mass",
+    "confession": "confession",
+    "visit": "visit",
+    "devotion": "service"
+  },
+  "repeatLabel": {
+    "none": "once",
+    "daily": "daily",
+    "weekly": "weekly",
+    "monthly": "monthly",
+    "yearly": "yearly"
+  },
+  "moreInfo": "More information",
+  "calendarKind": {
+    "appointment": "meetings",
+    "mass": "masses",
+    "confession": "confessions",
+    "visit": "visits",
+    "devotion": "services"
+  },
+  "kindWord": {
+    "appointment": "Appointment",
+    "task": "Task",
+    "mass": "Mass",
+    "confession": "Confession",
+    "visit": "Visit",
+    "devotion": "Service"
+  },
+  "noAreaKey": "You don't have this area's key — you can't save here.",
+  "peopleWord": {
+    "mass": "Who celebrates",
+    "confession": "Who hears confessions",
+    "devotion": "Who leads",
+    "other": "Who must be there"
+  },
+  "claim": {
+    "linkPersonSince": "person from a link (signed up {date})",
+    "linkPerson": "person from a link",
+    "noName": "no name",
+    "waiting": "awaiting confirmation",
+    "asksHost": "asks the host for a place",
+    "hostPending": "first — decides whether to invite",
+    "hosting": "host of the appointment",
+    "byOffice": "entered by the office",
+    "confirmed": "confirmed"
+  },
+  "duty": {
+    "present": "present",
+    "celebrant": "celebrant",
+    "lead": "leads"
+  },
+  "appointmentOptions": {
+    "goesTo": "Appointments “{label}” ({count}) go to the calendar",
+    "loading": "Loading calendars…",
+    "none": "— you don't write in any calendar —",
+    "choose": "— choose a calendar —"
+  },
+  "linkCalendar": {
+    "title": "Calendar",
+    "opened": "Opened from a link, without an account — {access}.",
+    "mayWrite": "You can add and change appointments here.",
+    "mayRead": "You can read appointments here.",
+    "signIn": "Have an account? <b>Sign in</b> to see your own calendar."
+  },
+  "people": {
+    "duty": "Role in the appointment",
+    "remove": "Remove from the appointment",
+    "loading": "Loading people of the group…",
+    "empty": "There are no other people in this group yet.",
+    "add": "Add a person",
+    "addOption": "+ add a person…"
+  },
+  "pick": {
+    "loadingCalendars": "Loading calendars…",
+    "allOpen": "All public together (combined plan)",
+    "unknown": "Right now it says “{value}” — that is not the calendar of any of your groups. Choose the right one.",
+    "noCalendars": "You don't have any group calendar yet.",
+    "goneOne": "One of the chosen calendars is no longer available — tick the right ones.",
+    "pageNote": "On the page everyone sees the appointments they may see. In full screen, the people running the calendar can also add and change appointments.",
+    "calendarFirst": "Choose a calendar first.",
+    "loadingItems": "Loading appointments…",
+    "noItems": "This calendar has no appointments in the coming year.",
+    "chooseItem": "— choose an appointment —",
+    "series": "(series: {terms})",
+    "parts": {
+      "one": "({count} programme item)",
+      "other": "({count} programme items)"
+    },
+    "itemGone": "The chosen appointment doesn't belong to this calendar (or is long past) — choose another.",
+    "partsHint": "You add programme items in the calendar: open the appointment and “Add programme item”."
+  },
+  "label": {
+    "personal": "{title} (only me)"
+  },
+  "program": {
+    "event": "Event",
+    "part": "Programme item"
+  },
+  "part": {
+    "noCalendar": "Appointments will appear here — a calendar still needs to be chosen.",
+    "item": "appointment",
+    "loadFailed": "Could not load the appointments.",
+    "nothingSoon": "Nothing coming up.",
+    "next": "Next: <b>{title}</b> · {when}",
+    "joinNamed": "Link “{label}” in this browser lets you add appointments here ({access}). You are signed in — add it to your account and you will write as yourself.",
+    "join": "A link in this browser lets you add appointments here ({access}). You are signed in — add it to your account and you will write as yourself.",
+    "joinButton": "Add to account",
+    "add": "+ Appointment",
+    "place": "<b>Place:</b> {place}",
+    "cancelled": "This appointment is cancelled."
+  },
+  "nav": {
+    "earlier": "Earlier",
+    "today": "Today",
+    "later": "Later",
+    "view": "View"
+  },
+  "view": {
+    "day": "Day",
+    "week": "Week",
+    "month": "Month",
+    "list": "List"
+  },
+  "minutesShort": {
+    "one": "{count} min",
+    "other": "{count} min"
+  },
+  "hoursShort": {
+    "one": "{count} h",
+    "other": "{count} h"
+  },
+  "settings": {
+    "needsName": "The calendar needs a name.",
+    "saveFailed": "Could not save the calendar.",
+    "onlyMe": "Only me (private)",
+    "newTitle": "New calendar",
+    "title": "Calendar settings",
+    "intro": "Calendar settings are the defaults for every new appointment — a single appointment can change them later.",
+    "namePlaceholder": "e.g. Meetings with candidates",
+    "description": "How appointments work in this calendar",
+    "descriptionPlaceholder": "e.g. The talk takes 40 minutes. Come 5 minutes early. The confirmation comes from the office.",
+    "descriptionHint": "Everyone who sees the calendar will see this description.",
+    "ownerLong": "Who runs it (adds and changes appointments)",
+    "owner": "Who runs it",
+    "sees": "Who sees it",
+    "sameGroup": "the same group",
+    "kind": "Appointments in this calendar are",
+    "duration": "They usually take",
+    "massHint": "Intentions are taken at the mass — in the calendar or in “Masses and services”. You enter who celebrates at the appointment.",
+    "booking": "Bookings",
+    "bookingMode": {
+      "none": "nobody",
+      "all": "every appointment",
+      "marked": "only marked ones"
+    },
+    "capacity": "Places per appointment",
+    "perPerson": "Appointments per person",
+    "noLimit": "0 — no limit",
+    "approval": "Confirmation",
+    "approvalNone": "immediately",
+    "approvalOffice": "confirmed by the organisers",
+    "reserve": "Who can book",
+    "reserveAnyone": "anyone who finds the appointment (e.g. on a page)",
+    "reserveAnyoneHint": "or only people of the chosen group (and the groups below it)",
+    "reserveHint": "E.g. confirmation candidates: only people of this group — including those with a personal link.",
+    "create": "Create calendar",
+    "archiveAsk": "Archive this calendar? Its appointments will disappear from view but will not be deleted.",
+    "archive": "Archive"
+  },
+  "remind": {
+    "start": "at the start",
+    "middle": "halfway",
+    "end": "near the end"
+  },
+  "span": {
+    "now": "now",
+    "in": "in {span}",
+    "ago": "{span} ago",
+    "minutes": {
+      "one": "{count} min",
+      "other": "{count} min"
+    },
+    "hours": {
+      "one": "{count} h",
+      "other": "{count} h"
+    },
+    "days": {
+      "one": "{count} day",
+      "other": "{count} days"
+    }
+  },
+  "every": {
+    "week": "weekly",
+    "weeks": {
+      "one": "every {count} week",
+      "other": "every {count} weeks"
+    },
+    "day": "daily",
+    "days": {
+      "one": "every {count} day",
+      "other": "every {count} days"
+    },
+    "hour": "hourly",
+    "hours": {
+      "one": "every {count} hour",
+      "other": "every {count} hours"
+    },
+    "minutes": {
+      "one": "every {count} min",
+      "other": "every {count} min"
+    }
+  },
+  "taskDay": {
+    "everyAt": "{every} · by {time}",
+    "doneAt": "done {time}",
+    "done": "done",
+    "skipped": "skipped",
+    "openLeft": "now · {span} left",
+    "due": "to do",
+    "lateFor": "overdue {span}",
+    "missed": "missed",
+    "behindPast": "missed",
+    "behindNow": "overdue",
+    "settled": "done {settled} of {total}",
+    "pressing": "{count} now",
+    "behindCount": "{count} {word}",
+    "words": "Tasks: {list}",
+    "title": "Tasks · {date}",
+    "thisDay": "This day ({count})",
+    "allDays": "All days ({count})",
+    "summary": "Done {settled} of {total}",
+    "summaryPressing": " · {count} now",
+    "summaryBehind": " · {count} overdue",
+    "empty": "There are no tasks on this day.",
+    "undo": "Undo: {title}",
+    "markDone": "Done: {title}",
+    "skip": "skip",
+    "more": {
+      "one": "And {count} more older overdue task — it will show here once these are done or skipped.",
+      "other": "And {count} more older overdue tasks — they will show here once these are done or skipped."
+    },
+    "new": "+ Task",
+    "all": "All tasks"
+  },
+  "failed": "That did not work.",
+  "tasks": {
+    "noKey": "Without a key in this tab, tasks are locked — sign in again or unlock the key.",
+    "today": "today",
+    "tomorrow": "tomorrow",
+    "yesterday": "yesterday",
+    "loadFailed": "Could not load the tasks.",
+    "new": "+ New task",
+    "more": "More: Tasks",
+    "json": "Import and export (JSON)",
+    "jsonTitle": "Tasks — import and export (JSON)",
+    "empty": "You don't have any tasks yet. A task has its own time (e.g. a prayer at 21:00 every day) or comes back some time after it was done (e.g. water the flowers every 3 days).",
+    "groupNow": "Now",
+    "groupMissed": "Missed",
+    "groupLater": "Later today",
+    "groupSoon": "In the coming days",
+    "groupAfter": "From time to time",
+    "allDueAbove": "All of them are due now — see above.",
+    "groupDone": "Done today",
+    "groupSkipped": "Skipped today",
+    "left": "{span} left",
+    "overdueBy": "{span} late",
+    "skippedAt": "skipped {time}",
+    "fromChat": "from a chat",
+    "withReminder": "with a reminder",
+    "unskipLabel": "Undo skipping: {title}",
+    "skipLabel": "Skip: {title}",
+    "skipOnce": "Skip this once: {title}",
+    "undo": "Undo",
+    "skip": "Skip",
+    "never": "not even once yet",
+    "last": "last {when}",
+    "next": "next {when}"
+  },
+  "taskDialog": {
+    "unit": {
+      "u60": "hours",
+      "u1440": "days",
+      "u10080": "weeks"
+    },
+    "everyUnit": {
+      "u60": {
+        "one": "every {count} hour",
+        "other": "every {count} hours"
+      },
+      "u1440": {
+        "one": "every {count} day",
+        "other": "every {count} days"
+      },
+      "u10080": {
+        "one": "every {count} week",
+        "other": "every {count} weeks"
+      }
+    },
+    "unitLabel": "Unit",
+    "repeat": {
+      "daily": "Every day",
+      "weekly": "On chosen weekdays",
+      "monthly": "Every month",
+      "yearly": "Every year",
+      "none": "Once"
+    },
+    "kind": {
+      "window": {
+        "label": "At a set time",
+        "says": "Has its own time, which may repeat — e.g. a prayer at 21:00 every day. You tick off each occurrence; missed ones show.",
+        "placeholder": "e.g. Evening prayer"
+      },
+      "period": {
+        "label": "For a while, regularly",
+        "says": "Has time to get done and comes back every so often — e.g. cleaning the church: 3 days to do it, every 2 weeks. It appears at the start and grows more urgent until the end.",
+        "placeholder": "e.g. Clean the church"
+      },
+      "after": {
+        "label": "Every so often after doing it",
+        "says": "Counts the time since it was last done — e.g. water the flowers every 3 days. When you tick it off, the counter starts again.",
+        "placeholder": "e.g. Water the flowers"
+      }
+    },
+    "saveFailed": "Could not save.",
+    "needsTitle": "Name the task.",
+    "endBeforeStart": "The end falls before the start.",
+    "windowTooLong": "A window longer than a year — that is a resolution, not an appointment.",
+    "tooOften": "The task can't come back more often than it lasts — lengthen the interval or shorten the time to do it.",
+    "periodTooLong": "Time to do it longer than a year — that is a resolution, not a task.",
+    "newTitle": "New task",
+    "fromChat": "From a chat — the task will remember which message it came from and show up next to it.",
+    "kindLabel": "Kind of task",
+    "what": "What",
+    "fromDay": "From",
+    "atTime": "at",
+    "toDay": "Until",
+    "howOften": "How often",
+    "firstFrom": "First time from",
+    "timeToDo": "Time to do it",
+    "returnsEvery": "Comes back every",
+    "periodHint": "First time: from {from} to {to} — then {every}.",
+    "every": "Every",
+    "firstWas": "First time was",
+    "first": "First time",
+    "afterHint": "First time: {first} — then {every} after each time it is done.",
+    "remind": "Remind",
+    "whenDue": "when it is time",
+    "remindHint": "The reminder arrives on the devices where you have notifications turned on.",
+    "notes": "Note",
+    "deleteAsk": "Delete this task? Its history stays in the archive."
+  },
+  "details": {
+    "addPartFailed": "Could not add the item.",
+    "program": "Programme",
+    "unlink": "detach",
+    "noParts": "No programme items yet.",
+    "partName": "Item name",
+    "partNamePlaceholder": "Item name, e.g. Lunch",
+    "partStart": "Item start",
+    "partEnd": "Item end",
+    "adding": "Adding…",
+    "endAfterStart": "The end must be after the start.",
+    "newPart": "+ New programme item",
+    "link": "Attach an existing appointment",
+    "linking": "Attaching…",
+    "linkOption": "+ Attach an existing appointment…",
+    "calendar": "Calendar: {name}",
+    "sees": "Seen by: {who}",
+    "you": "You",
+    "scope": "For which appointments",
+    "scopeOne": "Only this appointment",
+    "scopeAll": "The whole series",
+    "ownClaimConfirmed": "This is your booking (confirmed). You change it where you made it.",
+    "ownClaimWaiting": "This is your booking (awaiting confirmation). You change it where you made it.",
+    "readOnly": "You can only view this appointment — you don't write in its calendar."
+  }
+}

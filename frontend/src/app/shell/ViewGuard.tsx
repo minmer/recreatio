@@ -12,6 +12,7 @@
  */
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { useT } from '../core/i18n';
 
 interface GuardState {
   readonly error: Error | null;
@@ -45,21 +46,24 @@ export class ViewGuard extends Component<{ children: ReactNode }, GuardState> {
     const { error } = this.state;
     if (error === null) return this.props.children;
 
-    return (
-      <section className="wk-panel" role="alert">
-        <h1 className="wk-h1">Ten widok się zatrzymał</h1>
-        <p className="wk-lede">
-          Coś poszło nie tak przy wyświetlaniu tej części. Spróbuj ponownie — a jeśli błąd wraca,
-          przekaż komunikat poniżej.
-        </p>
-        <p className="wk-error">{error.name !== 'Error' ? `${error.name}: ` : ''}{error.message}</p>
-        <div className="wk-actions">
-          <button type="button" className="wk-btn" onClick={this.reset}>Spróbuj ponownie</button>
-          <button type="button" className="wk-link-btn" onClick={() => window.location.reload()}>
-            Załaduj stronę od nowa
-          </button>
-        </div>
-      </section>
-    );
+    return <Stopped error={error} onReset={this.reset} />;
   }
+}
+
+/* 2026-11-05 — als Funktion, damit sie `useT()` hat (die Klasse kann keine Hooks). */
+function Stopped({ error, onReset }: { error: Error; onReset: () => void }) {
+  const t = useT();
+  return (
+    <section className="wk-panel" role="alert">
+      <h1 className="wk-h1">{t('shell.guard.title')}</h1>
+      <p className="wk-lede">{t('shell.guard.lede')}</p>
+      <p className="wk-error">{error.name !== 'Error' ? `${error.name}: ` : ''}{error.message}</p>
+      <div className="wk-actions">
+        <button type="button" className="wk-btn" onClick={onReset}>{t('common.retry')}</button>
+        <button type="button" className="wk-link-btn" onClick={() => window.location.reload()}>
+          {t('shell.guard.reload')}
+        </button>
+      </div>
+    </section>
+  );
 }

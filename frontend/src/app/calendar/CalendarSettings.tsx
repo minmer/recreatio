@@ -20,13 +20,14 @@ import { ensurePrivateArea } from './agenda';
 import { areaPath, type AreaRow } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
 import {
-  addCalendar, CALENDAR_KIND_LABEL, saveCalendarRules, type CalendarKind, type CalendarRow, type CalendarRules
+  addCalendar, saveCalendarRules, type CalendarKind, type CalendarRow, type CalendarRules
 } from './calendar';
 import type { Me } from '../core/me';
 import { Modal } from '../ui/Modal';
 import { WorkspaceError } from '../core/session';
 import { PRIVATE, writableGroups } from '../areas/WhoSees';
 import { askText } from '../ui/dialogs';
+import { useT } from '../core/i18n';
 /* 0132 — erst, wenn die Einstellungen eines bestehenden Kalenders offen sind: die Vorlagen sind gross. */
 const CalendarDocsSection = lazy(() => import('./CalendarDocsSection'));
 /* 2026-10-29 — die Termine als JSON, neben Schematen und Plänen; ebenso erst, wenn sie gebraucht werden. */
@@ -47,6 +48,7 @@ export function CalendarSettings({ me, areas, calendar, calendars = [], onClose,
   onClose: () => void;
   onSaved: (calendarId: string) => void;
 }) {
+  const t = useT();
   const personal = areas.find((a) => a.personal === true);
   const writable = writableGroups(areas);
 
@@ -67,7 +69,7 @@ export function CalendarSettings({ me, areas, calendar, calendars = [], onClose,
   const ownerIsPrivate = owner === PRIVATE || owner === personal?.areaId;
 
   const save = async (archive = false) => {
-    if (title.trim() === '' && !archive) { setFailed('Kalendarz potrzebuje nazwy.'); return; }
+    if (title.trim() === '' && !archive) { setFailed(t('calendarApp.settings.needsName')); return; }
     setBusy(true);
     setFailed(null);
     try {
@@ -93,42 +95,42 @@ export function CalendarSettings({ me, areas, calendar, calendars = [], onClose,
       }
       onClose();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać kalendarza.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.settings.saveFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   const ownerName = calendar === null ? null
-    : calendar.areaId === personal?.areaId ? 'Tylko ja (prywatny)' : areaPath(areas, calendar.areaId).full || calendar.areaName;
+    : calendar.areaId === personal?.areaId ? t('calendarApp.settings.onlyMe') : areaPath(areas, calendar.areaId).full || calendar.areaName;
 
   return (
-    <Modal title={calendar === null ? 'Nowy kalendarz' : 'Ustawienia kalendarza'} onClose={onClose} wide>
+    <Modal title={calendar === null ? t('calendarApp.settings.newTitle') : t('calendarApp.settings.title')} onClose={onClose} wide>
       <form className="wk-form wk-calset" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         <p className="wk-hint">
-          Ustawienia kalendarza są domyślne dla każdego nowego terminu — pojedynczy termin może je potem zmienić.
+          {t('calendarApp.settings.intro')}
         </p>
 
         <label className="wk-field">
-          <span>Nazwa</span>
-          <input value={title} maxLength={200} placeholder="np. Spotkania z kandydatami" onChange={(e) => setTitle(e.target.value)} />
+          <span>{t('common.name')}</span>
+          <input value={title} maxLength={200} placeholder={t('calendarApp.settings.namePlaceholder')} onChange={(e) => setTitle(e.target.value)} />
         </label>
 
         <label className="wk-field">
-          <span>Jak działają terminy w tym kalendarzu</span>
+          <span>{t('calendarApp.settings.description')}</span>
           <textarea rows={3} maxLength={1000} value={description}
-            placeholder="np. Rozmowa trwa 40 minut. Przyjdź 5 minut wcześniej. Potwierdzenie przychodzi z kancelarii."
+            placeholder={t('calendarApp.settings.descriptionPlaceholder')}
             onChange={(e) => setDescription(e.target.value)} />
-          <span className="wk-hint">Ten opis zobaczą wszyscy, którzy widzą kalendarz.</span>
+          <span className="wk-hint">{t('calendarApp.settings.descriptionHint')}</span>
         </label>
 
         <div className="wk-calset-row">
           <label className="wk-field">
-            <span>Kto prowadzi (dodaje i zmienia terminy)</span>
+            <span>{t('calendarApp.settings.ownerLong')}</span>
             {calendar === null ? (
               <AreaPick
-                label="Kto prowadzi" value={owner} onChange={setOwner} areas={areas} only={writable}
-                extras={[{ value: personal?.areaId ?? PRIVATE, label: 'Tylko ja (prywatny)' }]}
+                label={t('calendarApp.settings.owner')} value={owner} onChange={setOwner} areas={areas} only={writable}
+                extras={[{ value: personal?.areaId ?? PRIVATE, label: t('calendarApp.settings.onlyMe') }]}
               />
             ) : (
               <strong className="wk-calset-fixed">{ownerName}</strong>
@@ -137,11 +139,11 @@ export function CalendarSettings({ me, areas, calendar, calendars = [], onClose,
 
           {!ownerIsPrivate && (
             <label className="wk-field">
-              <span>Kto widzi</span>
+              <span>{t('calendarApp.settings.sees')}</span>
               <AreaPick
-                label="Kto widzi" value={visibility} onChange={setVisibility}
+                label={t('calendarApp.settings.sees')} value={visibility} onChange={setVisibility}
                 areas={areas} only={writable.filter((a) => a.areaId !== owner)}
-                extras={[{ value: '', label: 'ta sama grupa' }]}
+                extras={[{ value: '', label: t('calendarApp.settings.sameGroup') }]}
               />
             </label>
           )}
@@ -149,33 +151,33 @@ export function CalendarSettings({ me, areas, calendar, calendars = [], onClose,
 
         <div className="wk-calset-row">
           <label className="wk-field">
-            <span>Terminy w tym kalendarzu to</span>
+            <span>{t('calendarApp.settings.kind')}</span>
             <select value={kind} onChange={(e) => setKind(e.target.value as CalendarKind)}>
-              {KINDS.map((one) => <option key={one} value={one}>{CALENDAR_KIND_LABEL[one]}</option>)}
+              {KINDS.map((one) => <option key={one} value={one}>{t(`calendarApp.calendarKind.${one}`)}</option>)}
             </select>
           </label>
           <label className="wk-field">
-            <span>Zwykle trwają</span>
+            <span>{t('calendarApp.settings.duration')}</span>
             <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
               {[...new Set([...DURATIONS, duration])].sort((a, b) => a - b).map((m) => (
-                <option key={m} value={m}>{m < 60 ? `${m} min` : `${m / 60} godz.`}</option>
+                <option key={m} value={m}>{m < 60 ? t('calendarApp.minutesShort', { count: m }) : t('calendarApp.hoursShort', { count: m / 60 })}</option>
               ))}
             </select>
           </label>
         </div>
 
         {kind === 'mass' && (
-          <p className="wk-hint">Intencje przyjmuje się przy mszy — w kalendarzu albo w „Msze i nabożeństwa". Kto odprawia, wpiszesz przy terminie.</p>
+          <p className="wk-hint">{t('calendarApp.settings.massHint')}</p>
         )}
 
         {!ownerIsPrivate && (
           <fieldset className="wk-calset-booking">
-            <legend>Rezerwacje</legend>
-            <div className="wk-seg" role="group" aria-label="Rezerwacje">
-              {([['none', 'nikt'], ['all', 'każdy termin'], ['marked', 'tylko oznaczone']] as const).map(([value, label]) => (
+            <legend>{t('calendarApp.settings.booking')}</legend>
+            <div className="wk-seg" role="group" aria-label={t('calendarApp.settings.booking')}>
+              {(['none', 'all', 'marked'] as const).map((value) => (
                 <button key={value} type="button" aria-pressed={mode === value}
                   className={mode === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} onClick={() => setMode(value)}>
-                  {label}
+                  {t(`calendarApp.settings.bookingMode.${value}`)}
                 </button>
               ))}
             </div>
@@ -184,34 +186,34 @@ export function CalendarSettings({ me, areas, calendar, calendars = [], onClose,
               <>
                 <div className="wk-calset-row">
                   <label className="wk-field">
-                    <span>Miejsc na termin</span>
+                    <span>{t('calendarApp.settings.capacity')}</span>
                     <input type="number" min={1} max={10000} value={capacity}
                       onChange={(e) => setCapacity(Math.max(1, Number(e.target.value) || 1))} />
                   </label>
                   <label className="wk-field">
-                    <span>Terminów na osobę</span>
+                    <span>{t('calendarApp.settings.perPerson')}</span>
                     <input type="number" min={0} max={1000} value={perPerson}
                       onChange={(e) => setPerPerson(Math.max(0, Number(e.target.value) || 0))} />
-                    <span className="wk-hint">0 — bez limitu</span>
+                    <span className="wk-hint">{t('calendarApp.settings.noLimit')}</span>
                   </label>
                   <label className="wk-field">
-                    <span>Potwierdzenie</span>
+                    <span>{t('calendarApp.settings.approval')}</span>
                     <select value={approval} onChange={(e) => setApproval(e.target.value as 'none' | 'office')}>
-                      <option value="none">od razu</option>
-                      <option value="office">potwierdzają prowadzący</option>
+                      <option value="none">{t('calendarApp.settings.approvalNone')}</option>
+                      <option value="office">{t('calendarApp.settings.approvalOffice')}</option>
                     </select>
                   </label>
                 </div>
 
                 <label className="wk-field">
-                  <span>Kto może rezerwować</span>
+                  <span>{t('calendarApp.settings.reserve')}</span>
                   <AreaPick
-                    label="Kto może rezerwować" value={reserveArea} onChange={setReserveArea}
+                    label={t('calendarApp.settings.reserve')} value={reserveArea} onChange={setReserveArea}
                     areas={areas} only={areas.filter((a) => a.personal !== true)}
-                    extras={[{ value: '', label: 'każdy, kto znajdzie termin (np. na stronie)', hint: 'albo tylko osoby z wybranej grupy (i grup pod nią)' }]}
+                    extras={[{ value: '', label: t('calendarApp.settings.reserveAnyone'), hint: t('calendarApp.settings.reserveAnyoneHint') }]}
                   />
                   <span className="wk-hint">
-                    Np. kandydaci do bierzmowania: tylko osoby z tej grupy — także te z osobistym linkiem.
+                    {t('calendarApp.settings.reserveHint')}
                   </span>
                 </label>
               </>
@@ -222,13 +224,13 @@ export function CalendarSettings({ me, areas, calendar, calendars = [], onClose,
         {failed !== null && <p className="wk-error">{failed}</p>}
 
         <div className="wk-actions">
-          <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zapisywanie…' : calendar === null ? 'Utwórz kalendarz' : 'Zapisz'}</button>
-          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>Anuluj</button>
+          <button type="submit" className="wk-btn" disabled={busy}>{busy ? t('common.saving') : calendar === null ? t('calendarApp.settings.create') : t('common.save')}</button>
+          <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={onClose}>{t('common.cancel')}</button>
           {calendar !== null && !calendar.isDefault && (
             <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={async () => {
-              if (await askText('Zarchiwizować ten kalendarz? Jego terminy znikną z widoku, ale nie zostaną usunięte.')) void save(true);
+              if (await askText(t('calendarApp.settings.archiveAsk'))) void save(true);
             }}>
-              Zarchiwizuj
+              {t('calendarApp.settings.archive')}
             </button>
           )}
         </div>

@@ -73,6 +73,8 @@ import { slideWords } from './slideWords';
 import { libQuestionGroups } from './slideLib';
 import { FlagIcon, GoalFlagIcon, PieceIcon, WayIcon, WorldMap, type WorldCommand, type WorldPiece, type WorldTopic } from './WorldMap';
 import type { RegionTree } from './regions';
+import { useT } from '../core/i18n';
+import { ProgressRing } from '../ui/ProgressRing';
 import './landscape.css';
 
 /* -- Worte -------------------------------------------------------------------------------------------------------- */
@@ -328,7 +330,8 @@ interface TopicInfo {
 }
 
 export function LandscapeView({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope, busy = false }: LandscapeProps) {
-  const { lib, writes, name: baseName } = useCtx();
+  const { lib, writes, name: baseName, learnerLoading } = useCtx();
+  const tr = useT();
   const lang = baseLang(lib);
   W = words(lang);
   T = landscapeWords(lang);
@@ -622,6 +625,13 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   */
   const hostEl = useRef<HTMLDivElement | null>(null);
   const hostRef = useCallback((el: HTMLDivElement | null) => { boxRef(el); hostEl.current = el; }, [boxRef]);
+  /* 2026-11-05 — während die eigenen Fortschritte laden: alles in der Hülle ausser dem Kreis nimmt weder Klick noch Taste an. */
+  const loadingNow = learnerLoading != null;
+  useEffect(() => {
+    const el = hostEl.current;
+    if (el === null) return;
+    for (const child of Array.from(el.children)) if (!child.classList.contains('cg-ls-loading')) child.toggleAttribute('inert', loadingNow);
+  });
   const runSig = running?.key ?? '';
   const seenRun = useRef(runSig);
   useEffect(() => {
@@ -889,7 +899,23 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const regionName = useMemo(() => (key: string) => tree?.regions.get(key)?.name ?? key, [tree]);
 
   /* Immer in einer Hülle, deren Breite gemessen wird. */
-  const host = (body: ReactNode) => <div ref={hostRef} className="cg-ls-host">{body}</div>;
+  /*
+    2026-11-05 (vom Nutzer) — SOLANGE DIE EIGENEN FORTSCHRITTE LADEN: ein Kreis, der sich füllt („120 z 480"), und der Krajobraz
+    darunter nimmt nichts an (inert) — sonst wählte man auf einer Karte, die gleich anders aussieht.
+  */
+  const busyLoad = learnerLoading != null && running === null;
+  const host = (body: ReactNode) => (
+    <div ref={hostRef} className={`cg-ls-host${busyLoad ? ' is-loading' : ''}`} {...(busyLoad ? { 'aria-busy': true } : {})}>
+      {body}
+      {busyLoad && (
+        <div className="cg-ls-loading" data-landscape-loading={learnerLoading.total === null ? 'open' : `${learnerLoading.done}/${learnerLoading.total}`}>
+          <ProgressRing done={learnerLoading.done} total={learnerLoading.total} label={tr('cogita.learnerLoading.title')}
+            detail={learnerLoading.total === null ? tr('cogita.learnerLoading.countOpen', { done: learnerLoading.done }) : tr('cogita.learnerLoading.count', { done: Math.min(learnerLoading.done, learnerLoading.total), total: learnerLoading.total })} />
+          <p className="cg-muted cg-ls-loading-note">{tr('cogita.learnerLoading.note')}</p>
+        </div>
+      )}
+    </div>
+  );
   if (running !== null) {
     /* 2026-11-05 — über einer Powtórka: zurück zur Karte; eine Erzählung hat es in ihrer Kopfzeile („‹ Mapa", Prompt 18). */
     const back = <p className="cg-ls-back"><button type="button" className="wk-link-btn" onClick={() => setRunning(null)} data-landscape-back="">{T.backToMap}</button></p>;

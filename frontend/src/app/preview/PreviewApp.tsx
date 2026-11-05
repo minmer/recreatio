@@ -57,6 +57,7 @@ import { lintDocument, type LintItem } from './previewLint';
 import { animatedItems, measureView, nextFrames, seek, settle, type Settled, type ViewKind, type ViewMeasure } from './previewProbe';
 import { knowledgeSamples, knowledgeSummary, renderKnowledge, type KnowledgeInput, type KnowledgeResult, type KnowledgeSummary, type SamplesResult } from './PreviewKnowledge';
 import './preview.css';
+import { rich, t, useT } from '../core/i18n';
 
 /* -- Was der Treiber bekommt --------------------------------------------------------- */
 
@@ -221,9 +222,9 @@ async function prepare(state: State, input: LoadInput): Promise<{ pp: PreviewPla
     try {
       base = await call<PageContent>(`/page/${basePath.split('/').map(encodeURIComponent).join('/')}`);
     } catch (e) {
-      return { error: `Strony „${basePath}” nie da się pobrać (${e instanceof Error ? e.message : 'błąd'}) — tylko strony publiczne, i tylko z danymi na żywo.` };
+      return { error: t('preview.app.baseFailed', { path: basePath, why: e instanceof Error ? e.message : t('preview.app.error') }) };
     }
-    if (base.locked === true) return { error: `Strona „${basePath}” jest zaszyfrowana — podgląd jej nie otworzy.` };
+    if (base.locked === true) return { error: t('preview.app.baseLocked', { path: basePath }) };
   }
 
   const first = planPreview({ ...input, doc, base, path: input.path ?? (basePath || null) });
@@ -306,7 +307,7 @@ async function matrixInto(state: State, input: LoadInput, which: string | number
   if ('error' in ready) return ready;
   const { pp, doc } = ready;
   const part = pickModule(pp, which);
-  if (part === null) return { error: `Nie ma takiego modułu: ${String(which ?? '')} — podaj M1…M${pp.plan.parts.length}, "modules[i]", id albo rodzaj.` };
+  if (part === null) return { error: t('preview.app.noModule', { which: String(which ?? ''), count: pp.plan.parts.length }) };
   const modules = modulesOf(pp);
   const module = modules.find((m) => m.id === part.id)!;
   unmount(state);
@@ -345,7 +346,7 @@ async function matrixInto(state: State, input: LoadInput, which: string | number
 
 function labelsOf(state: State): Record<string, string> {
   const out: Record<string, string> = {};
-  if (state.view === 'knowledge') return { view: 'V1 widok' };
+  if (state.view === 'knowledge') return { view: t('preview.app.viewLabel') };
   if (state.current === null) return out;
   state.current.plan.parts.forEach((part, i) => { out[part.id] = `M${i + 1} ${part.kind}`; });
   return out;
@@ -378,17 +379,18 @@ function PasteForm({ onShow, problem }: { onShow: (text: string, live: boolean) 
   const [text, setText] = useState(() => {
     try { return sessionStorage.getItem(KEEP) ?? ''; } catch { return ''; }
   });
+  const t = useT();
   const [live, setLive] = useState(true);
   return (
     <div className="wk-root wk-public">
       <main className="wk-main pv-paste">
-        <h1 className="wk-h1">Podgląd strony z JSON</h1>
-        <p>Wklej dokument strony (<code>recreatio/page</code>, moduł albo stary dokument wydarzenia) — zobaczysz stronę tak, jak będzie wyglądała po imporcie. Nic nie jest zapisywane.</p>
+        <h1 className="wk-h1">{t('preview.app.pasteTitle')}</h1>
+        <p>{rich(t('preview.app.pasteLede'), { code: (s) => <code>{s}</code> })}</p>
         {problem !== null && <p className="wk-error" role="alert">{problem}</p>}
-        <textarea className="wk-json-text" rows={18} value={text} spellCheck={false} aria-label="Dokument JSON" onChange={(e) => setText(e.target.value)} />
-        <label className="pv-paste-live"><input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> Dane na żywo (kalendarze, msze — tylko odczyt)</label>
+        <textarea className="wk-json-text" rows={18} value={text} spellCheck={false} aria-label={t('preview.app.doc')} onChange={(e) => setText(e.target.value)} />
+        <label className="pv-paste-live"><input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> {t('preview.app.live')}</label>
         <div className="wk-actions">
-          <button type="button" className="wk-btn" disabled={text.trim() === ''} onClick={() => onShow(text, live)}>Pokaż stronę</button>
+          <button type="button" className="wk-btn" disabled={text.trim() === ''} onClick={() => onShow(text, live)}>{t('preview.app.show')}</button>
         </div>
       </main>
     </div>
@@ -396,10 +398,11 @@ function PasteForm({ onShow, problem }: { onShow: (text: string, live: boolean) 
 }
 
 function Bar({ onBack, problem }: { onBack: () => void; problem: string | null }) {
+  const t = useT();
   return (
     <div className="pv-bar" role="status">
-      <span>Podgląd · nic nie jest zapisane{problem === null ? '' : ` · ${problem}`}</span>
-      <button type="button" className="wk-link-btn" onClick={onBack}>Zmień JSON</button>
+      <span>{t('preview.app.bar')}{problem === null ? '' : ` · ${problem}`}</span>
+      <button type="button" className="wk-link-btn" onClick={onBack}>{t('preview.app.change')}</button>
     </div>
   );
 }
@@ -493,12 +496,12 @@ export function startPreview(node: HTMLElement): void {
       .then((response) => (response.ok ? response.json() as Promise<KnowledgeInput> : Promise.reject(new Error('gone'))))
       .then((input) => knowledgeInto(state, input))
       .then((done) => { if ('error' in done) showForm(state, done.error); })
-      .catch(() => showForm(state, 'Tego podglądu już nie ma (serwer podglądu został zamknięty).'));
+      .catch(() => showForm(state, t('preview.app.gone')));
   } else if (docId !== null) {
     void fetch(`/__preview/doc/${encodeURIComponent(docId)}`)
       .then((response) => (response.ok ? response.json() as Promise<LoadInput> : Promise.reject(new Error('gone'))))
       .then((input) => loadInto(state, input, <Bar onBack={() => showForm(state)} problem={null} />))
       .then((done) => { if ('error' in done) showForm(state, done.error); })
-      .catch(() => showForm(state, 'Tego podglądu już nie ma (serwer podglądu został zamknięty) — wklej JSON.'));
+      .catch(() => showForm(state, t('preview.app.gonePaste')));
   } else if (!params.has('driver')) showForm(state);
 }

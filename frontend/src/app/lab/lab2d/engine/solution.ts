@@ -37,8 +37,6 @@ import { tSat } from './if97';
 import { cpL, data, hL, muL, rhoL, tFromHL } from './materials';
 import { E_CHARGE, EPS0, K_B, N_A, R_GAS, T0 } from './units';
 
-type Lang3 = { readonly pl: string; readonly de: string; readonly en: string };
-
 const S = data.solutes[0];
 const W = data.species[0];
 
@@ -53,13 +51,11 @@ export const NACL = 1;
 
 export interface SoluteInfo {
   readonly id: string;
-  readonly name: Lang3;
-  readonly short: Lang3;
   /** Farbe des Kristalls (Kruste). */
   readonly color: string;
 }
 
-export const SOLUTES: readonly SoluteInfo[] = data.solutes.map((s) => ({ id: s.id, name: s.name, short: s.short, color: s.solid.color }));
+export const SOLUTES: readonly SoluteInfo[] = data.solutes.map((s) => ({ id: s.id, color: s.solid.color }));
 
 /** Index eines gelösten Stoffs (−1: unbekannt); im Stoffplatz der Teilchen steht Index + 1. */
 export function soluteIndex(id: string): number {

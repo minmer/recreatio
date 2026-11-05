@@ -3,6 +3,7 @@
  */
 
 import { API } from '../../core/session';
+import { isLang, type Lang } from '../../core/i18n';
 import { type MotionUse, motionsJson, readMotions } from '../motion/motion';
 
 /* -- Schichten ---------------------------------------------------------------- */
@@ -377,6 +378,8 @@ export interface Look {
   readonly show?: unknown;
   /** 0107 — was für die ganze Folge der Slajdy gilt (gemeinsames Tuch, Leiste, Titelslajd, Breite). Fehlt: wie bisher. */
   readonly deck?: DeckLook;
+  /** 2026-11-05 — die Sprache der Seite (LOCALIZATION.md, Stufe 3); fehlt: jeder Besucher in seiner. */
+  readonly lang?: Lang;
 }
 
 /**
@@ -457,7 +460,8 @@ export function readLook(json: string | null | undefined): Look {
       theme,
       cover: readLayers(record(one.cover).layers),
       ...(one.show === undefined || one.show === null ? {} : { show: one.show }),
-      ...(deck === undefined || deckJson(deck) === undefined ? {} : { deck })
+      ...(deck === undefined || deckJson(deck) === undefined ? {} : { deck }),
+      ...(isLang(one.lang) ? { lang: one.lang } : {})
     };
   } catch {
     return NO_LOOK;
@@ -467,14 +471,16 @@ export function readLook(json: string | null | undefined): Look {
 export function writeLook(look: Look): string | null {
   const show = look.show ?? null;
   const deck = look.deck === undefined ? undefined : deckJson(look.deck);
-  if (look.theme === null && look.cover.length === 0 && show === null && deck === undefined) return null;
+  const lang = isLang(look.lang) ? look.lang : undefined;
+  if (look.theme === null && look.cover.length === 0 && show === null && deck === undefined && lang === undefined) return null;
   const { night, ...theme } = look.theme ?? { mode: 'auto' as const, night: null };
   return JSON.stringify({
     ...theme,
     ...(night == null ? {} : { night }),
     cover: { layers: layersJson(look.cover) },
     ...(show === null ? {} : { show }),
-    ...(deck === undefined ? {} : { deck })
+    ...(deck === undefined ? {} : { deck }),
+    ...(lang === undefined ? {} : { lang })
   });
 }
 

@@ -31,6 +31,7 @@ import { createContext, useContext } from 'react';
 import { gate } from '../cogita/logic';
 import { sha256, toBase64Url } from '../core/crypto';
 import type { SeatView } from '../seats/seatContext';
+import { texts } from '../core/i18n';
 
 /* -- Das Modell ------------------------------------------------------------------ */
 
@@ -41,39 +42,39 @@ export type InputKind = (typeof INPUT_KINDS)[number];
 export type GateKind = (typeof GATE_KINDS)[number];
 export type PageNodeKind = InputKind | GateKind | 'part' | 'step';
 
-export const PAGE_NODE_LABEL: Record<PageNodeKind, string> = {
-  chosen: 'Wybrana osoba',
-  link: 'Otwarte przez link',
-  loggedIn: 'Zalogowany',
-  registered: 'Zgłoszenie wysłane',
-  confirmed: 'Dane potwierdzone',
-  answer: 'Odpowiedź',
-  mark: 'Znacznik',
-  date: 'Data',
-  and: 'I',
-  or: 'LUB',
-  not: 'NIE',
-  part: 'Moduł',
-  step: 'Krok'
-};
+export const PAGE_NODE_LABEL: Readonly<Record<PageNodeKind, string>> = texts({
+  chosen: 'pages.logic.node.chosen',
+  link: 'pages.logic.node.link',
+  loggedIn: 'pages.logic.node.loggedIn',
+  registered: 'pages.logic.node.registered',
+  confirmed: 'pages.logic.node.confirmed',
+  answer: 'pages.logic.node.answer',
+  mark: 'pages.logic.node.mark',
+  date: 'pages.logic.node.date',
+  and: 'pages.logic.node.and',
+  or: 'pages.logic.node.or',
+  not: 'pages.logic.node.not',
+  part: 'pages.logic.node.part',
+  step: 'pages.logic.node.step'
+});
 
 export type AnswerOp = 'filled' | 'empty' | 'eq' | 'ne';
 
-export const ANSWER_OP_LABEL: Record<AnswerOp, string> = {
-  filled: 'wypełniona',
-  empty: 'pusta',
-  eq: 'równa wartości',
-  ne: 'różna od wartości'
-};
+export const ANSWER_OP_LABEL: Readonly<Record<AnswerOp, string>> = texts({
+  filled: 'pages.logic.op.filled',
+  empty: 'pages.logic.op.empty',
+  eq: 'pages.logic.op.eq',
+  ne: 'pages.logic.op.ne'
+});
 
 export type PagePort = 'in' | 'show' | 'done' | 'applies';
 
-export const PORT_LABEL: Record<PagePort, string> = {
-  in: '',
-  show: 'pokaż, gdy',
-  done: 'zrobione, gdy',
-  applies: 'dotyczy, gdy'
-};
+export const PORT_LABEL: Readonly<Record<PagePort, string>> = texts({
+  in: 'pages.logic.port.in',
+  show: 'pages.logic.port.show',
+  done: 'pages.logic.port.done',
+  applies: 'pages.logic.port.applies'
+});
 
 export interface PageNode {
   readonly id: string;

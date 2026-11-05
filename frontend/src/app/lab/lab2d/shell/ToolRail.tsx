@@ -8,10 +8,11 @@
 
 import type { ReactNode } from 'react';
 
+import { useT } from '../../../core/i18n';
 import { Icon } from '../../../ui/icons';
 import { GRAIN_MATS } from '../engine/grains';
 import { LIQUIDS } from '../engine/materials';
-import { num, t, type TextKey } from '../i18n';
+import { num, type TextKey } from '../i18n';
 import { KindIcon, OBJECT_KINDS, type ObjectKind } from '../objectKinds';
 
 export type Tool = 'select' | 'add' | 'paint' | 'erase' | 'wall' | 'inspect';
@@ -78,15 +79,16 @@ export function ToolRail({ tool, onTool, locked, off }: {
   /** Backen oder Wiedergabe: das Bild gehört dem Nachweis, alle Werkzeuge ruhen. */
   off: boolean;
 }) {
+  const t = useT();
   return (
-    <nav className={`l2d-rail${off ? ' is-off' : ''}`} aria-label={t('tools')}>
+    <nav className={`l2d-rail${off ? ' is-off' : ''}`} aria-label={t('lab2d.tools')}>
       {TOOLS.map((k) => {
         const off = locked && EDIT_TOOLS.includes(k.key);
         return (
           <button key={k.key} type="button" className={`l2d-railbtn${tool === k.key ? ' is-on' : ''}${off ? ' is-locked' : ''}`} aria-pressed={tool === k.key}
-            onClick={() => onTool(k.key)} title={off ? `${t(k.label)} — ${t('pauseToEdit')}` : t(k.label)}>
+            onClick={() => onTool(k.key)} title={off ? `${t(`lab2d.${k.label}`)} — ${t('lab2d.pauseToEdit')}` : t(`lab2d.${k.label}`)}>
             <ToolIcon tool={k.key} />
-            <span>{t(k.label)}</span>
+            <span>{t(`lab2d.${k.label}`)}</span>
           </button>
         );
       })}
@@ -125,13 +127,14 @@ export function ToolOptions({ tool, s, onChange, onClose }: {
   onChange: (patch: Partial<ToolSettings>) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   let body: ReactNode = null;
   if (tool === 'add') {
     body = (
       <div className="l2d-tiles">
         {OBJECT_KINDS.map((k) => (
           <button key={k.key} type="button" className={`l2d-tile${s.addKind === k.key ? ' is-on' : ''}`} aria-pressed={s.addKind === k.key} onClick={() => onChange({ addKind: k.key })}>
-            <KindIcon kind={k.key} /><span>{t(k.label)}</span>
+            <KindIcon kind={k.key} /><span>{t(`lab2d.${k.label}`)}</span>
           </button>
         ))}
       </div>
@@ -143,36 +146,36 @@ export function ToolOptions({ tool, s, onChange, onClose }: {
         <div className="l2d-tiles">
           {MATERIALS.map((x) => (
             <button key={x.key} type="button" className={`l2d-tile${s.material === x.key ? ' is-on' : ''}`} aria-pressed={s.material === x.key} onClick={() => onChange({ material: x.key })}>
-              <Swatch color={x.color} /><span>{t(x.label)}</span>
+              <Swatch color={x.color} /><span>{t(`lab2d.${x.label}`)}</span>
             </button>
           ))}
         </div>
-        <Range label={t('brush')} value={s.brushMm} unit="mm" min={2} max={30} onChange={(v) => onChange({ brushMm: v })} />
-        <Range label={t('paintTemp')} value={s.tempC} unit="°C" min={0} max={200} onChange={(v) => onChange({ tempC: v })} />
-        {m.solute !== undefined && <Range label={t('saltConc')} value={s.saltPct} unit="%" min={1} max={26} onChange={(v) => onChange({ saltPct: v })} />}
+        <Range label={t('lab2d.brush')} value={s.brushMm} unit="mm" min={2} max={30} onChange={(v) => onChange({ brushMm: v })} />
+        <Range label={t('lab2d.paintTemp')} value={s.tempC} unit="°C" min={0} max={200} onChange={(v) => onChange({ tempC: v })} />
+        {m.solute !== undefined && <Range label={t('lab2d.saltConc')} value={s.saltPct} unit="%" min={1} max={26} onChange={(v) => onChange({ saltPct: v })} />}
       </>
     );
   } else if (tool === 'erase') {
-    body = <Range label={t('brush')} value={s.brushMm} unit="mm" min={2} max={30} onChange={(v) => onChange({ brushMm: v })} />;
+    body = <Range label={t('lab2d.brush')} value={s.brushMm} unit="mm" min={2} max={30} onChange={(v) => onChange({ brushMm: v })} />;
   } else if (tool === 'wall') {
     body = (
       <>
         <div className="l2d-tiles">
           {WALL_MATERIALS.map((x) => (
             <button key={x.key} type="button" className={`l2d-tile${s.wallMaterial === x.key ? ' is-on' : ''}`} aria-pressed={s.wallMaterial === x.key} onClick={() => onChange({ wallMaterial: x.key })}>
-              <Swatch color={x.color} /><span>{t(x.label)}</span>
+              <Swatch color={x.color} /><span>{t(`lab2d.${x.label}`)}</span>
             </button>
           ))}
         </div>
-        <Range label={t('paintTemp')} value={s.tempC} unit="°C" min={0} max={200} onChange={(v) => onChange({ tempC: v })} />
+        <Range label={t('lab2d.paintTemp')} value={s.tempC} unit="°C" min={0} max={200} onChange={(v) => onChange({ tempC: v })} />
       </>
     );
   }
   if (body === null) return null;
   const title: TextKey = tool === 'add' ? 'objects' : tool === 'paint' ? 'materials' : tool === 'erase' ? 'toolErase' : 'toolWall';
   return (
-    <section className="l2d-toolopts" aria-label={t(title)} onPointerDown={(e) => e.stopPropagation()}>
-      <header><strong>{t(title)}</strong><button type="button" className="l2d-icon is-small" onClick={onClose} aria-label={t('hideOptions')} title={t('hideOptions')}><Icon name="chevron" /></button></header>
+    <section className="l2d-toolopts" aria-label={t(`lab2d.${title}`)} onPointerDown={(e) => e.stopPropagation()}>
+      <header><strong>{t(`lab2d.${title}`)}</strong><button type="button" className="l2d-icon is-small" onClick={onClose} aria-label={t('lab2d.hideOptions')} title={t('lab2d.hideOptions')}><Icon name="chevron" /></button></header>
       {body}
     </section>
   );

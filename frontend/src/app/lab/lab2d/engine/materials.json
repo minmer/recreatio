@@ -48,10 +48,8 @@
   "species": [
     {
       "id": "H2O",
-      "name": { "pl": "woda", "de": "Wasser", "en": "water" },
       "molarMass": { "v": 0.01801528, "src": "codata" },
       "liquid": {
-        "name": { "pl": "woda", "de": "Wasser", "en": "water" },
         "kell": { "c": [999.83952, 16.945176, -7.9870401e-3, -46.170461e-6, 105.56302e-9, -280.54253e-12, 16.879850e-3], "src": "kell" },
         "cp": { "table": [[273.16, 4219.9], [283.15, 4195.5], [293.15, 4184.3], [303.15, 4180.1], [313.15, 4179.6], [323.15, 4181.5], [333.15, 4185.1], [343.15, 4190.2], [353.15, 4196.9], [363.15, 4205.3], [373.15, 4215.7], [383.15, 4228.3], [393.15, 4243.5], [403.15, 4261.5], [413.15, 4282.6], [423.15, 4307.0]], "src": "nist" },
         "k": { "poly": [0.5587, 2.1825e-3, -9.78e-6], "src": "iapws-k" },
@@ -59,7 +57,6 @@
         "color": "#3d8fd8"
       },
       "vapour": {
-        "name": { "pl": "para wodna", "de": "Wasserdampf", "en": "water vapour" },
         "cp": { "linear": [1864.5, 0.374, 298.15], "src": "janaf" },
         "k": { "v": 0.0248, "src": "nist" },
         "mu": { "v": 1.227e-5, "src": "nist" }
@@ -86,7 +83,6 @@
     },
     {
       "id": "N2",
-      "name": { "pl": "azot", "de": "Stickstoff", "en": "nitrogen" },
       "molarMass": { "v": 0.0280134, "src": "codata" },
       "gas": {
         "cp": { "v": 1041, "src": "incropera" },
@@ -97,7 +93,6 @@
     },
     {
       "id": "O2",
-      "name": { "pl": "tlen", "de": "Sauerstoff", "en": "oxygen" },
       "molarMass": { "v": 0.0319988, "src": "codata" },
       "gas": {
         "cp": { "v": 920, "src": "incropera" },
@@ -108,9 +103,7 @@
     },
     {
       "id": "oil-rapeseed",
-      "name": { "pl": "olej rzepakowy", "de": "Rapsöl", "en": "rapeseed (canola) oil" },
       "liquid": {
-        "name": { "pl": "olej", "de": "Öl", "en": "oil" },
         "rho": { "linear": [990.070, -0.237], "src": "rojas2013" },
         "cp": { "linear": [287, 5.3], "src": "rojas2013" },
         "k": { "linear": [0.13939, 9.0714e-5], "src": "rojas2013fit" },
@@ -124,8 +117,6 @@
   "solutes": [
     {
       "id": "NaCl",
-      "name": { "pl": "sól kuchenna (chlorek sodu)", "de": "Kochsalz (Natriumchlorid)", "en": "table salt (sodium chloride)" },
-      "short": { "pl": "sól", "de": "Salz", "en": "salt" },
       "solvent": "H2O",
       "molarMass": { "v": 0.0584428, "src": "codata" },
       "ions": { "v": 2, "src": "phreeqc-pitzer" },
@@ -164,7 +155,6 @@
   "solids": [
     {
       "id": "glass",
-      "name": { "pl": "szkło borokrzemowe", "de": "Borosilikatglas", "en": "borosilicate glass" },
       "rho": { "v": 2230, "src": "schott" },
       "cp": { "v": 830, "src": "schott" },
       "k": { "v": 1.2, "src": "schott" },
@@ -176,7 +166,6 @@
     },
     {
       "id": "steel",
-      "name": { "pl": "stal nierdzewna", "de": "Edelstahl", "en": "stainless steel" },
       "rho": { "v": 7900, "src": "incropera" },
       "cp": { "v": 477, "src": "incropera" },
       "k": { "v": 14.9, "src": "incropera" },
@@ -188,7 +177,6 @@
     },
     {
       "id": "ceramic",
-      "name": { "pl": "kamyczki wrzenne (ceramika porowata)", "de": "Siedesteine (poröse Keramik)", "en": "boiling chips (porous ceramic)" },
       "rho": { "v": 1920, "src": "incropera" },
       "cp": { "v": 835, "src": "incropera" },
       "k": { "v": 0.72, "src": "incropera" },
@@ -200,7 +188,6 @@
     },
     {
       "id": "wood",
-      "name": { "pl": "drewno (sosna)", "de": "Holz (Kiefer)", "en": "wood (pine)" },
       "rho": { "v": 510, "src": "incropera" },
       "cp": { "v": 1380, "src": "incropera" },
       "k": { "v": 0.12, "src": "incropera" },
@@ -212,7 +199,6 @@
     },
     {
       "id": "ice",
-      "name": { "pl": "lód", "de": "Eis", "en": "ice" },
       "rho": { "v": 916.709, "src": "iapws-ice" },
       "cp": { "v": 2096.784, "src": "iapws-ice" },
       "k": { "v": 2.24, "src": "slack1980" },
@@ -224,7 +210,6 @@
     },
     {
       "id": "stone",
-      "name": { "pl": "kamień (granit)", "de": "Stein (Granit)", "en": "stone (granite)" },
       "rho": { "v": 2630, "src": "incropera" },
       "cp": { "v": 775, "src": "incropera" },
       "k": { "v": 2.79, "src": "incropera" },

@@ -16,7 +16,6 @@
 import raw from './materials.json';
 import { H2O, N2, O2, P_ATM, SPECIES_SLOTS, T0 } from './units';
 
-type Lang3 = { readonly pl: string; readonly de: string; readonly en: string };
 /** Ein Wert mit Quelle. */
 interface V { readonly v: number; readonly src: string }
 interface Thermo { readonly dHf: V; readonly S: V }
@@ -27,9 +26,8 @@ interface Thermo { readonly dHf: V; readonly S: V }
  * nach Vogel, Oberflächenspannung konstant; `range` der Messbereich.
  */
 interface LiquidEntry {
-  readonly id: string; readonly name: Lang3;
+  readonly id: string;
   readonly liquid: {
-    readonly name: Lang3;
     readonly rho: { readonly linear: readonly number[] }; readonly cp: { readonly linear: readonly number[] };
     readonly k: { readonly linear: readonly number[] }; readonly mu: { readonly vogel: readonly number[] };
     readonly sigma: V; readonly range: { readonly lo: number; readonly hi: number }; readonly color: string;
@@ -42,12 +40,12 @@ export interface MaterialsFile {
   readonly ambient: { readonly p: V; readonly T: V; readonly rh: V; readonly air: { readonly N2: V; readonly O2: V }; readonly hExt: V };
   readonly species: readonly [
     {
-      readonly id: string; readonly name: Lang3; readonly molarMass: V;
+      readonly id: string; readonly molarMass: V;
       readonly liquid: {
-        readonly name: Lang3; readonly kell: { readonly c: readonly number[] }; readonly cp: { readonly table: readonly (readonly number[])[] };
+        readonly kell: { readonly c: readonly number[] }; readonly cp: { readonly table: readonly (readonly number[])[] };
         readonly k: { readonly poly: readonly number[] }; readonly mu: { readonly vogel: readonly number[] }; readonly color: string;
       };
-      readonly vapour: { readonly name: Lang3; readonly cp: { readonly linear: readonly number[] }; readonly k: V; readonly mu: V };
+      readonly vapour: { readonly cp: { readonly linear: readonly number[] }; readonly k: V; readonly mu: V };
       readonly saturation: {
         readonly if97: { readonly n: readonly number[] }; readonly Tc: V; readonly rhoc: V;
         readonly vapourDensity: { readonly c: readonly number[] }; readonly liquidDensity: { readonly b: readonly number[] }; readonly hlv100: V;
@@ -65,7 +63,7 @@ export interface MaterialsFile {
   readonly solutes: readonly SoluteEntry[];
   readonly vapourInAir: { readonly D0: V; readonly T0: V; readonly exponent: V };
   readonly solids: readonly {
-    readonly id: string; readonly name: Lang3; readonly rho: V; readonly cp: V; readonly k: V; readonly contactAngle: V;
+    readonly id: string; readonly rho: V; readonly cp: V; readonly k: V; readonly contactAngle: V;
     readonly cavities: { readonly scale: V; readonly rmax: V };
     /** Reibung (Coulomb, eine Zahl für Gleiten und Haften) und Rückprall der Körper (M3a). */
     readonly friction: V; readonly restitution: V; readonly color: string;
@@ -79,7 +77,7 @@ export interface MaterialsFile {
  * Löslichkeit, Lösungsenthalpie und der Kristall.
  */
 export interface SoluteEntry {
-  readonly id: string; readonly name: Lang3; readonly short: Lang3; readonly solvent: string;
+  readonly id: string; readonly solvent: string;
   readonly molarMass: V; readonly ions: V;
   readonly pitzer: { readonly b0: { readonly a: readonly number[] }; readonly b1: { readonly a: readonly number[] }; readonly c: { readonly a: readonly number[] }; readonly b: V; readonly alpha: V };
   /** Die Parameter unter `below` (K): ein Satz, der bis −60 °C gilt (für den Gefrierpunkt). */
@@ -97,7 +95,7 @@ export interface SoluteEntry {
 }
 
 interface GasEntry {
-  readonly id: string; readonly name: Lang3; readonly molarMass: V;
+  readonly id: string; readonly molarMass: V;
   readonly gas: { readonly cp: V; readonly k: { readonly power: readonly number[] }; readonly mu: { readonly sutherland: readonly number[] } };
   readonly thermo: { readonly gas: Thermo };
 }
@@ -115,8 +113,7 @@ MOLAR[N2] = nitrogen.molarMass.v;
 MOLAR[O2] = oxygen.molarMass.v;
 MOLAR[H2O] = water.molarMass.v;
 
-/** Namen der Gasplätze (Anzeige). */
-export const GAS_NAMES: readonly Lang3[] = [nitrogen.name, oxygen.name, water.vapour.name];
+/* Die Namen der Gase stehen in den Sprachdateien (lab2d.species.<id>), nicht hier. */
 export const GAS_FORMULA: readonly string[] = ['N₂', 'O₂', 'H₂O'];
 
 const CP_N2 = nitrogen.gas.cp.v;
@@ -351,7 +348,6 @@ export const H_EXT = data.ambient.hExt.v;
 
 export interface SolidMaterial {
   readonly id: string;
-  readonly name: Lang3;
   readonly rho: number;
   readonly cp: number;
   readonly k: number;
@@ -368,7 +364,6 @@ export interface SolidMaterial {
 
 export const SOLIDS: readonly SolidMaterial[] = data.solids.map((s) => ({
   id: s.id,
-  name: s.name,
   rho: s.rho.v,
   cp: s.cp.v,
   k: s.k.v,
@@ -399,9 +394,6 @@ export const WATER = 0;
 
 export interface LiquidInfo {
   readonly id: string;
-  readonly name: Lang3;
-  /** Kurzname der Flüssigkeit („woda“, „olej“). */
-  readonly short: Lang3;
   readonly color: string;
   /** Verdampft sie (hat sie eine Sättigungslinie)? */
   readonly volatile: boolean;
@@ -435,8 +427,8 @@ const GEN: readonly (Generic | null)[] = [null, ...others.map((s): Generic => {
 
 /** Die Flüssigkeiten der Datenbank: Wasser zuerst, dann die weiteren in der Reihenfolge von materials.json. */
 export const LIQUIDS: readonly LiquidInfo[] = [
-  { id: water.id, name: water.name, short: water.liquid.name, color: water.liquid.color, volatile: true, range: [T0, T0 + 150] },
-  ...others.map((s): LiquidInfo => ({ id: s.id, name: s.name, short: s.liquid.name, color: s.liquid.color, volatile: false, range: [s.liquid.range.lo, s.liquid.range.hi] }))
+  { id: water.id, color: water.liquid.color, volatile: true, range: [T0, T0 + 150] },
+  ...others.map((s): LiquidInfo => ({ id: s.id, color: s.liquid.color, volatile: false, range: [s.liquid.range.lo, s.liquid.range.hi] }))
 ];
 
 /** Index einer Flüssigkeit (−1: unbekannt). */

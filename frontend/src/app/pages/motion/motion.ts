@@ -48,6 +48,8 @@
  * entstehen hier (`keyframesOf`, `timingOf`). Geprüft in `app-motion-check`.
  */
 
+import { t } from '../../core/i18n';
+
 export type MotionKind = 'enter' | 'loop';
 export type Repeat = 'once' | 'loop' | 'alternate' | number;
 
@@ -125,100 +127,106 @@ export interface MotionDef {
   readonly legacy: string | null;
 }
 
-const param = (label: string, value: number, min: number, max: number): MotionParam => ({ label, value, min, max });
+const param = (value: number, min: number, max: number): MotionParam => ({ label: '', value, min, max });
 
 /** Ein Grundwort — seine Bilder entstehen aus dem, was an ihm steht (`keysOf`). */
-const verb = (name: string, label: string, says: string, duration: number, easing: string, kind: MotionKind = 'enter', params: Record<string, MotionParam> = {}): MotionDef => ({
-  name, verb: true, kind, label, says, duration, delay: 0, easing, alternate: false, unit: 'px', params, frames: [], legacy: null
+const verb = (name: string, duration: number, easing: string, kind: MotionKind = 'enter', params: Record<string, MotionParam> = {}): Unspoken => ({
+  name, verb: true, kind, duration, delay: 0, easing, alternate: false, unit: 'px', params, frames: [], legacy: null
 });
+
+type Unspoken = Omit<MotionDef, 'label' | 'says'>;
+
+/** Bezeichnung, Beschreibung und Regler in der Sprache der Anwendung — erst beim Lesen geholt. */
+function spoken(def: Unspoken): MotionDef {
+  const params: Record<string, MotionParam> = {};
+  for (const [key, p] of Object.entries(def.params)) {
+    params[key] = { value: p.value, min: p.min, max: p.max, get label() { return t(`pageMotion.motion.${def.name}.param.${key}`); } };
+  }
+  return {
+    ...def,
+    params,
+    get label() { return t(`pageMotion.motion.${def.name}.label`); },
+    get says() { return t(`pageMotion.motion.${def.name}.says`); }
+  };
+}
 
 /**
  * DAS WÖRTERBUCH. Erst die Grundwörter, dann die Vorlagen des Altbestands —
  * jede Zahl dort ist die von dort; was dort pro Ding verschieden war (jede
  * Blase, jede Fadenschicht), ist hier ein Regler mit der Vorgabe von dort.
  */
-export const MOTIONS: readonly MotionDef[] = [
-  verb('move', 'Przesuwa się', 'zmienia miejsce: "to": [x, y] — do punktu (od "from", zwykle [0, 0]), albo "path": [[x, y], …] — drogą przez punkty ("times": kiedy w każdym, 0–1)', 800, 'ease-in-out'),
-  verb('size', 'Zmienia wielkość', 'rośnie albo maleje: "from" → "to" (1 — jak jest; liczba albo [szerokość, wysokość])', 600, 'ease-in-out'),
-  verb('turn', 'Obraca się', 'obraca się: "from" → "to" w stopniach (360 — pełny obrót)', 1200, 'linear'),
+export const MOTIONS: readonly MotionDef[] = ([
+  verb('move', 800, 'ease-in-out'),
+  verb('size', 600, 'ease-in-out'),
+  verb('turn', 1200, 'linear'),
   {
-    name: 'fade', verb: true, kind: 'enter', label: 'Rozjaśnia się',
-    says: 'zmienia krycie: "from" → "to" (0 — niewidoczny, 1 — cały; zwykle 0 → 1)',
+    name: 'fade', verb: true, kind: 'enter',
     duration: 600, delay: 0, easing: 'ease', alternate: false, unit: 'px', params: {}, frames: [], legacy: null
   },
   {
-    name: 'draw', verb: true, kind: 'enter', label: 'Rysuje się',
-    says: 'linia rysuje się od początku do końca: "from" → "to" (0 — nic, 1 — cała; mniej niż 0 — jeszcze chwilę nic, więcej niż 1 (do 10) — gotowa przed końcem ruchu)',
+    name: 'draw', verb: true, kind: 'enter',
     duration: 1800, delay: 0, easing: 'ease', alternate: false, unit: 'px',
-    params: { length: param('Długość kreski (poza rysunkiem)', 1, 0.01, 20000) }, frames: [],
-    legacy: 'cogita-intro.css: cogita-shield-draw — 1,8 s (kreska 420 przy obrysie 318: "to": 1.32, przy haczyku 50: "to": 8.45)'
+    params: { length: param(1, 0.01, 20000) }, frames: [],
+    legacy: 'cogita-intro.css: cogita-shield-draw — 1,8 s (kreska 420 przy obrysie 318: "to": 1.32, przy haczyku 50: "to": 8.45)' // i18n-ignore
   },
-  verb('color', 'Zmienia kolor', 'zmienia kolor wypełnienia (napisu): "from" → "to"', 600, 'ease'),
-  verb('reveal', 'Odsłania się', 'odsłania się od lewej: "from" → "to" (0 — nic, 1 — całość)', 800, 'linear'),
-  verb('keys', 'Klatki', 'wszystko naraz, klatka po klatce: "keys": [{ "at": 0–1, "x", "y", "scale", "sx", "sy", "rotate", "opacity", "blur", "draw", "color", "stroke", "glow", "reveal", "clip", "ease" }]', 1000, 'ease'),
+  verb('color', 600, 'ease'),
+  verb('reveal', 800, 'linear'),
+  verb('keys', 1000, 'ease'),
   {
-    name: 'rise', verb: false, kind: 'enter', label: 'Wynurza się',
-    says: 'pojawia się, unosząc się o kilka pikseli — tekst slajdu po dotarciu',
+    name: 'rise', verb: false, kind: 'enter',
     duration: 520, delay: 220, easing: 'ease', alternate: false, unit: 'px',
-    params: { y: param('Skąd (px niżej)', 10, -400, 400) },
+    params: { y: param(10, -400, 400) },
     frames: [{ at: 0, opacity: 0, y: 'y' }, { at: 1, opacity: 1, y: 0 }],
-    legacy: 'cogita-intro.css: cogita-text-delayed — 520 ms po 220 ms (na slajdzie mapy po 1000 ms)'
+    legacy: 'cogita-intro.css: cogita-text-delayed — 520 ms po 220 ms (na slajdzie mapy po 1000 ms)' // i18n-ignore
   },
   {
-    name: 'assemble', verb: false, kind: 'enter', label: 'Składa się',
-    says: 'warstwa pojawia się, lekko uniesiona i pomniejszona; kolejne z rosnącym opóźnieniem składają znak',
+    name: 'assemble', verb: false, kind: 'enter',
     duration: 620, delay: 0, easing: 'ease', alternate: false, unit: 'px',
-    params: { y: param('Skąd (px niżej)', 8, -400, 400), scale: param('Skala na początku', 0.985, 0.2, 3) },
+    params: { y: param(8, -400, 400), scale: param(0.985, 0.2, 3) },
     frames: [{ at: 0, opacity: 0, y: 'y', scale: 'scale' }, { at: 1, opacity: 1, y: 0, scale: 1 }],
-    legacy: 'cogita-intro.css: cogita-logo-stagger — 620 ms; litery po 0, 90, 180, 260, 340, 420 ms, „REcreatio” po 520 i 620 ms'
+    legacy: 'cogita-intro.css: cogita-logo-stagger — 620 ms; litery po 0, 90, 180, 260, 340, 420 ms, „REcreatio” po 520 i 620 ms' // i18n-ignore
   },
   {
-    name: 'focus', verb: false, kind: 'enter', label: 'Wyostrza się',
-    says: 'z lekkiego rozmycia i z dołu do ostrości',
+    name: 'focus', verb: false, kind: 'enter',
     duration: 480, delay: 0, easing: 'ease', alternate: false, unit: 'px',
-    params: { y: param('Skąd (px niżej)', 12, -400, 400), blur: param('Rozmycie (px)', 2, 0, 40) },
+    params: { y: param(12, -400, 400), blur: param(2, 0, 40) },
     frames: [{ at: 0, opacity: 0, y: 'y', blur: 'blur' }, { at: 1, opacity: 1, y: 0, blur: 0 }],
-    legacy: 'cogita-intro.css: .cogita-intro-slide — zmiana slajdu: krycie, 12 px, rozmycie 2 px w 480 ms'
+    legacy: 'cogita-intro.css: .cogita-intro-slide — zmiana slajdu: krycie, 12 px, rozmycie 2 px w 480 ms' // i18n-ignore
   },
   {
-    name: 'float', verb: false, kind: 'loop', label: 'Unosi się',
-    says: 'kołysze się łagodnie o kilka pikseli i wraca',
+    name: 'float', verb: false, kind: 'loop',
     duration: 3800, delay: 0, easing: 'ease-in-out', alternate: false, unit: 'px',
-    params: { x: param('W bok (px)', 4, -200, 200), y: param('W pionie (px)', 6, -200, 200) },
+    params: { x: param(4, -200, 200), y: param(6, -200, 200) },
     frames: [{ at: 0, x: 0, y: 0 }, { at: 0.5, x: 'x', y: 'y' }, { at: 1, x: 0, y: 0 }],
-    legacy: 'cogita-intro.css: cogita-bubble-wave — bańki logo, 3,4–4,8 s, każda o inny wektor'
+    legacy: 'cogita-intro.css: cogita-bubble-wave — bańki logo, 3,4–4,8 s, każda o inny wektor' // i18n-ignore
   },
   {
-    name: 'breathe', verb: false, kind: 'loop', label: 'Oddycha',
-    says: 'rośnie i jaśnieje, maleje i blednie',
+    name: 'breathe', verb: false, kind: 'loop',
     duration: 2600, delay: 0, easing: 'ease-in-out', alternate: false, unit: 'px',
-    params: { low: param('Najmniejsza skala', 0.92, 0.1, 3), high: param('Największa skala', 1.12, 0.1, 3), dim: param('Najmniejsze krycie', 0.55, 0, 1) },
+    params: { low: param(0.92, 0.1, 3), high: param(1.12, 0.1, 3), dim: param(0.55, 0, 1) },
     frames: [{ at: 0, opacity: 'dim', scale: 'low' }, { at: 0.5, opacity: 1, scale: 'high' }, { at: 1, opacity: 'dim', scale: 'low' }],
-    legacy: 'cogita-intro.css: round-player-breathe — gracze rundy, 2,6 s'
+    legacy: 'cogita-intro.css: round-player-breathe — gracze rundy, 2,6 s' // i18n-ignore
   },
   {
-    name: 'glow', verb: false, kind: 'loop', label: 'Pulsuje blaskiem',
-    says: 'poświata rośnie i przygasa',
+    name: 'glow', verb: false, kind: 'loop',
     duration: 2200, delay: 0, easing: 'ease-in-out', alternate: false, unit: 'px',
-    params: { low: param('Najmniejsza skala', 0.95, 0.1, 3), high: param('Największa skala', 1.05, 0.1, 3), dim: param('Najmniejsze krycie', 0.2, 0, 1), bright: param('Największe krycie', 0.5, 0, 1) },
+    params: { low: param(0.95, 0.1, 3), high: param(1.05, 0.1, 3), dim: param(0.2, 0, 1), bright: param(0.5, 0, 1) },
     frames: [{ at: 0, opacity: 'dim', scale: 'low' }, { at: 0.5, opacity: 'bright', scale: 'high' }, { at: 1, opacity: 'dim', scale: 'low' }],
-    legacy: 'cogita-intro.css: cogita-shield-glow — 2,2 s'
+    legacy: 'cogita-intro.css: cogita-shield-glow — 2,2 s' // i18n-ignore
   },
   {
-    name: 'drift', verb: false, kind: 'loop', label: 'Dryfuje',
-    says: 'przesuwa się powoli po skosie i rośnie, potem wraca — tło, mgła',
+    name: 'drift', verb: false, kind: 'loop',
     duration: 18000, delay: 0, easing: 'ease-in-out', alternate: true, unit: '%',
-    params: { shift: param('Przesunięcie (%)', 1, -50, 50), from: param('Skala na początku', 1.02, 0.1, 3), to: param('Skala na końcu', 1.08, 0.1, 3) },
+    params: { shift: param(1, -50, 50), from: param(1.02, 0.1, 3), to: param(1.08, 0.1, 3) },
     frames: [{ at: 0, x: '-shift', y: '-shift', scale: 'from' }, { at: 1, x: 'shift', y: 'shift', scale: 'to' }],
-    legacy: 'cogita.css: cogita-depth — 18 s tam i z powrotem'
+    legacy: 'cogita.css: cogita-depth — 18 s tam i z powrotem' // i18n-ignore
   },
   {
-    name: 'sway', verb: false, kind: 'loop', label: 'Faluje',
-    says: 'bardzo wolno faluje w górę i w dół, rozciągając się w pionie — nici tła',
+    name: 'sway', verb: false, kind: 'loop',
     duration: 240000, delay: 0, easing: 'ease-in-out', alternate: false, unit: '%',
     params: {
-      x: param('W bok (%)', 3, -50, 50), y: param('W pionie (%)', 6, -50, 50), stretch: param('Rozciągnięcie', 0.1, 0, 1),
-      x0: param('Spoczynek w bok (%)', 0, -50, 50), y0: param('Spoczynek w pionie (%)', 0, -50, 50)
+      x: param(3, -50, 50), y: param(6, -50, 50), stretch: param(0.1, 0, 1),
+      x0: param(0, -50, 50), y0: param(0, -50, 50)
     },
     frames: [
       { at: 0, x: 'x0', y: 'y0', scaleY: 1 },
@@ -229,13 +237,12 @@ export const MOTIONS: readonly MotionDef[] = [
       { at: 0.81, x: 'x0 + 0.7*x', y: 'y0 - 0.2*y', scaleY: '1 + 0.4*stretch' },
       { at: 1, x: 'x0', y: 'y0', scaleY: 1 }
     ],
-    legacy: 'cogita.css: cogita-mesh-layer — 180–400 s, każda warstwa nici inaczej'
+    legacy: 'cogita.css: cogita-mesh-layer — 180–400 s, każda warstwa nici inaczej' // i18n-ignore
   },
   {
-    name: 'wave', verb: false, kind: 'loop', label: 'Fala',
-    says: 'przelewa się w bok i w pionie po nieregularnej drodze — pasma fal',
+    name: 'wave', verb: false, kind: 'loop',
     duration: 10000, delay: 0, easing: 'ease-in-out', alternate: false, unit: '%',
-    params: { x: param('W bok (%)', 3, -50, 50), y: param('W pionie (%)', 4, -50, 50), x0: param('Spoczynek w bok (%)', 0, -50, 50), y0: param('Spoczynek w pionie (%)', 0, -50, 50) },
+    params: { x: param(3, -50, 50), y: param(4, -50, 50), x0: param(0, -50, 50), y0: param(0, -50, 50) },
     frames: [
       { at: 0, x: 'x0', y: 'y0' },
       { at: 0.24, x: 'x0 + x', y: 'y0 + y' },
@@ -243,17 +250,16 @@ export const MOTIONS: readonly MotionDef[] = [
       { at: 0.78, x: 'x0 + 1.1*x', y: 'y0 + 1.2*y' },
       { at: 1, x: 'x0', y: 'y0' }
     ],
-    legacy: 'cogita.css: cogita-wave-sway — zdefiniowana, ale w starym systemie wyłączona (fale stały)'
+    legacy: 'cogita.css: cogita-wave-sway — zdefiniowana, ale w starym systemie wyłączona (fale stały)' // i18n-ignore
   },
   {
-    name: 'blink', verb: false, kind: 'loop', label: 'Miga',
-    says: 'przygasa i rozbłyska — ostrzeżenie, błąd',
+    name: 'blink', verb: false, kind: 'loop',
     duration: 1000, delay: 0, easing: 'ease-in-out', alternate: false, unit: 'px',
-    params: { dim: param('Najmniejsze krycie', 0.25, 0, 1), bright: param('Największe krycie', 0.9, 0, 1) },
+    params: { dim: param(0.25, 0, 1), bright: param(0.9, 0, 1) },
     frames: [{ at: 0, opacity: 'dim' }, { at: 0.5, opacity: 'bright' }, { at: 1, opacity: 'dim' }],
-    legacy: 'cogita-intro.css: link-error (1 s) i node-blocked (1,2 s) — brakujące podstawy na mapie wiedzy'
+    legacy: 'cogita-intro.css: link-error (1 s) i node-blocked (1,2 s) — brakujące podstawy na mapie wiedzy' // i18n-ignore
   }
-];
+] as Unspoken[]).map(spoken);
 
 const BY_NAME = new Map(MOTIONS.map((one) => [one.name, one]));
 
@@ -736,27 +742,27 @@ export const dashArray = (length: number): string => `${round(DRAW_DASH * length
 export function motionDescription(): string {
   const line = (def: MotionDef): string => {
     const knobs = Object.entries(def.params).map(([key, p]) => `"${key}" (${p.label.toLowerCase()}, ${p.value})`);
-    return `    "${def.name}" — ${def.label}: ${def.says}; ${def.duration} ms${def.delay !== 0 ? `, opóźnienie ${def.delay} ms` : ''}${def.alternate ? ', tam i z powrotem' : ''}`
-      + `${knobs.length > 0 ? `; regulacje: ${knobs.join(', ')}` : ''}`;
+    return `    "${def.name}" — ${def.label}: ${def.says}; ${def.duration} ms${def.delay !== 0 ? t('pageMotion.desc.delay', { ms: def.delay }) : ''}${def.alternate ? t('pageMotion.desc.alternate') : ''}`
+      + `${knobs.length > 0 ? t('pageMotion.desc.knobs', { list: knobs.join(', ') }) : ''}`;
   };
   return [
-    'Ruch ("motion") — przy module na slajdzie i w scenie prezentacji, przy warstwie obrazu z warstw, przy warstwie tła i przy każdym elemencie rysunku ("animation"):',
-    '  { "name": "move", "to": [40, -12], "duration": 900, "delay": 120, "repeat": "once", "ease": "inOut" } albo lista do trzech takich (zewnętrzny pierwszy); sam napis "rise" też wystarczy',
-    '  "duration", "delay" — w milisekundach; "delay" przy ruchu w pętli może być ujemne (zaczyna w środku cyklu)',
-    '  "repeat" — "once" (raz, gdy rzecz zostaje osiągnięta; przy następnym przyjściu od nowa — do tego czasu stoi w pierwszej klatce), "loop" (w kółko, dopóki widać), "alternate" (tam i z powrotem), albo liczba powtórzeń',
-    '  "ease" — jak przechodzi z klatki do klatki: "linear", "ease", "in", "out", "inOut", "step" albo "cubic-bezier(a, b, c, d)"',
-    '  "unit" — "px" (zwykle; w rysunku — jednostki rysunku) albo "%" (procent własnej wielkości)',
-    '  "by" — tylko w scenie prezentacji: ruch idzie nie za zegarem, lecz za POSTĘPEM sceny — "scene" (wnętrze sceny: od pierwszego do ostatniego kroku), "enter" (wejście sceny), "leave" (wyjście sceny); 0 — pierwsza klatka, 1 — ostatnia. Przewijanie wstecz cofa ruch, zatrzymanie go zatrzymuje; "duration", "delay" i "repeat" wtedy nie grają roli',
-    '  Słowa podstawowe (z nich da się złożyć każdy ruch):',
+    t('pageMotion.desc.intro'),
+    t('pageMotion.desc.shape'),
+    t('pageMotion.desc.times'),
+    t('pageMotion.desc.repeat'),
+    t('pageMotion.desc.ease'),
+    t('pageMotion.desc.unit'),
+    t('pageMotion.desc.by'),
+    t('pageMotion.desc.verbs'),
     ...MOTIONS.filter((d) => d.verb).map(line),
-    '  Klatka ("keys"): "at" 0–1 — kiedy; "x", "y" — przesunięcie; "scale" albo "sx", "sy" — wielkość; "rotate" — stopnie; "opacity" 0–1; "blur" — rozmycie w px;',
-    '    "draw" — ile linii narysowane (0–1); "color" — kolor wypełnienia albo napisu; "stroke" — kolor linii; "glow" — poświata "x y rozmycie kolor" (np. "0 0 10px rgba(160, 220, 255, 0.75)");',
-    '    "reveal" 0–1 — ile widać od lewej; "clip" — wycinek "inset(góra prawa dół lewa round 1rem)", koło "circle(40% at 50% 50%)" albo owal "ellipse(60% 40% at 50% 50%)" (z "by" — maska, która rośnie z postępem); "ease" — przejście do następnej klatki. Czego klatka nie podaje, płynie jednym ruchem między klatkami, które to podają; przed pierwszą taką — jak rzecz jest sama z siebie, po ostatniej — zostaje.',
-    '  Kolory: "#rrggbb", "rgba(…)", nazwy motywu "accent", "ink", "ground", "muted", "ok", "danger" — z "/35" na końcu: krycie 35 %.',
-    '  Gotowe ruchy (ze starego pokazu Cogita) — wejścia:',
+    t('pageMotion.desc.frame'),
+    t('pageMotion.desc.frame2'),
+    t('pageMotion.desc.frame3'),
+    t('pageMotion.desc.colors'),
+    t('pageMotion.desc.presets'),
     ...MOTIONS.filter((d) => !d.verb && d.kind === 'enter').map(line),
-    '  — w pętli:',
+    t('pageMotion.desc.loops'),
     ...MOTIONS.filter((d) => !d.verb && d.kind === 'loop').map(line),
-    '  Przy ustawieniu „mniej ruchu” w systemie nic się nie rusza — wszystko stoi tak, jak jest opisane bez ruchu.'
+    t('pageMotion.desc.reduced')
   ].join('\n');
 }

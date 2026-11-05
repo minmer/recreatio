@@ -20,6 +20,7 @@ import { createContext, Fragment, useContext, useEffect, useState, type ReactNod
 
 import { texPieces, texSource, type TexMacros, type TexPiece } from '../../core/tex';
 import './tex.css';
+import { useT } from '../../core/i18n';
 
 type Api = typeof import('./katexStyled');
 
@@ -63,13 +64,14 @@ export function useTexApi(want = true): Api | null | undefined {
 export const TexMacrosContext = createContext<TexMacros>({});
 
 export function Tex({ tex, display = false }: { tex: string; display?: boolean }) {
+  const t = useT();
   const macros = useContext(TexMacrosContext);
   const katex = useTexApi();
   const cls = display ? 'tex is-display' : 'tex';
   const mark = display ? '1' : undefined;
   if (katex === undefined || katex === null) return <code className={`${cls} tex-src`} data-tex={tex} data-display={mark}>{texSource(tex, display)}</code>;
   const out = katex.renderTex(tex, display, macros);
-  if ('error' in out) return <code className={`${cls} tex-src is-error`} data-tex={tex} data-display={mark} title={`Tego wzoru nie da się złożyć: ${out.error}`}>{texSource(tex, display)}</code>;
+  if ('error' in out) return <code className={`${cls} tex-src is-error`} data-tex={tex} data-display={mark} title={t('ui.tex.failed', { error: out.error })}>{texSource(tex, display)}</code>;
   return <span className={cls} data-tex={tex} data-display={mark} dangerouslySetInnerHTML={{ __html: out.html }} />;
 }
 

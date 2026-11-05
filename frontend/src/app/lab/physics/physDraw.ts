@@ -9,6 +9,7 @@
  * Linien und Schrift haben eine feste Breite in Bildpunkten.
  */
 
+import { t } from '../../core/i18n';
 import { kPa } from '../fluid';
 import type { Camera } from '../labView';
 import type { Body } from './physBody';
@@ -450,8 +451,8 @@ function drawVectors(ctx: CanvasRenderingContext2D, b: Body, s: DrawState): void
   /* Kräfte: 40 px je Gewicht des Körpers (so sind Auftrieb und Gewicht vergleichbar). */
   const fs = 40 / Math.max(1e-6, weight);
   if (s.vectors.includes('v')) arrow(ctx, x, y, b.vx * 18, -b.vy * 18, pal.ok, 'v');
-  if (s.vectors.includes('g')) arrow(ctx, x, y, 0, weight * fs, pal.danger, 'Q');
-  if (s.vectors.includes('lift') && b.lift > 0) arrow(ctx, x + 6, y, 0, -b.lift * fs, pal.info, 'Fw');
+  if (s.vectors.includes('g')) arrow(ctx, x, y, 0, weight * fs, pal.danger, t('labPhysics.draw.vecWeight'));
+  if (s.vectors.includes('lift') && b.lift > 0) arrow(ctx, x + 6, y, 0, -b.lift * fs, pal.info, t('labPhysics.draw.vecLift'));
   if (s.vectors.includes('net')) arrow(ctx, x - 6, y, b.fx * fs, -(b.fy - weight) * fs, pal.accent, 'F');
 }
 
@@ -521,7 +522,7 @@ function drawProbe(ctx: CanvasRenderingContext2D, p: NonNullable<DrawState['prob
   ctx.strokeStyle = pal.danger;
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(x, y, 7, 0, tau); ctx.moveTo(x - 11, y); ctx.lineTo(x + 11, y); ctx.moveTo(x, y - 11); ctx.lineTo(x, y + 11); ctx.stroke();
-  const text = `p = ${kPa(pressure)}${depth > 0 ? ` · głęb. ${fmt(depth, 2)} m` : ''}`;
+  const text = depth > 0 ? t('labPhysics.draw.probeDepth', { p: kPa(pressure), d: fmt(depth, 2) }) : t('labPhysics.draw.probe', { p: kPa(pressure) });
   const w = ctx.measureText(text).width;
   ctx.fillStyle = pal.surface;
   ctx.fillRect(x + 12, y - 22, w + 8, 16);

@@ -31,8 +31,10 @@ import { KindForm } from './KindForm';
 import { ReadingPreview } from './EntityReading';
 import { useImportReview } from './ImportReviewPanel';
 import { OriginTag, useBusy, useCtx } from './ui';
+import { rich, useT } from '../core/i18n';
 
 export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; onChoose: (id: string | null) => void }) {
+  const t = useT();
   const { lib, writes, name } = useCtx();
   const chosen = chosenId === null ? undefined : lib.kind(chosenId);
   /* 2026-10-27 — Pytanie immer: ein Schema, das jede Baza hat (Dodaj bietet es ohnehin an). */
@@ -44,7 +46,7 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
 
   const create = () => {
     const id = lib.newId();
-    setDraft({ id, name: 'Nowy rodzaj', label: '{name}', fields: [{ key: 'name', label: 'Nazwa', type: 'line', multi: false, uncertain: false }] });
+    setDraft({ id, name: t('cogitaEditSchema.newKind'), label: '{name}', fields: [{ key: 'name', label: t('common.name'), type: 'line', multi: false, uncertain: false }] });
     onChoose(null);
   };
   const [removing, setRemoving] = useState<string | null>(null);
@@ -59,11 +61,11 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
     const plan = lib.planKindRemoval(id);
     if (plan === null) return;
     if (plan.blocked !== null) throw new Error(plan.blocked);
-    const yes = await ask({ title: `Usunąć rodzaj „${plan.kind.name}”?`, body: 'Tego nie da się cofnąć. Razem z nim:', list: plan.lines, confirm: 'Usuń rodzaj', danger: true });
+    const yes = await ask({ title: t('cogitaEditSchema.askDelete', { name: plan.kind.name }), body: t('cogitaEditSchema.askDeleteBody'), list: plan.lines, confirm: t('cogitaEditSchema.deleteKind'), danger: true });
     if (!yes) return;
     await lib.removeKind(plan, setRemoving);
     setRemoving(null);
-    toast(`Usunięto rodzaj „${plan.kind.name}”.`);
+    toast(t('cogitaEditSchema.deleted', { name: plan.kind.name }));
     setDraft(null);
     onChoose(null);
   }).finally(() => setRemoving(null));
@@ -72,7 +74,7 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
     <div className="cg-split">
       <div className="cg">
         {draft === null ? (
-          <p className="wk-hint">Wybierz rodzaj z listy{writes ? ' albo dodaj nowy' : ''}. Rodzaj mówi, jakie pola ma wpis, jak się nazywa (wzór etykiety) i czym różnią się wpisy o tej samej nazwie.</p>
+          <p className="wk-hint">{writes ? t('cogitaEditSchema.introWrites') : t('cogitaEditSchema.intro')}</p>
         ) : (
           <BaseKindForm key={draft.id} draft={draft} writes={writes && (isBaseKind(draft.id) || lib.isOwn(draft.id) || lib.origin(draft.id) === undefined)} busy={busy}
             onChange={setDraft}
@@ -84,32 +86,32 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
         {failed !== null && <p className="wk-error">{failed}</p>}
         {writes && (
           <JsonPanel
-            summary="Schemat jako JSON — kopia do innej bazy wiedzy"
-            lead={<>Rodzaje z ich szablonami kart i formularzami dodawania jako jeden dokument. Import tworzy niezależną kopię: zmiany tutaj nie zmieniają bazy, z której przyszła [B12]. Żeby korzystać z rodzajów innej bazy bez kopiowania, dodaj ją w Ustawieniach jako źródło. Gotowe schematy (Komentarz, Słownik, Psałterz) to pliki <code>templates/cogita/*.json</code> w repozytorium — importuje się je tutaj.</>}
+            summary={t('cogitaEditSchema.jsonSummary')}
+            lead={<>{rich(t('cogitaEditSchema.jsonLead'), { code: (s) => <code>{s}</code> })}</>}
             fileName={`schemat-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`}
             exportDoc={() => exportSchema(lib, name, lib.kinds.filter((k) => (!isBaseKind(k.id) && lib.isOwn(k.id)) || lib.docs('kind').some((e) => e.data.builtin === k.id)))}
             description={() => courseDescription(lib)}
             preview={(doc) => review.preview(doc, false)}
             options={review.options}
-            importLabel="Zapisz przyjęte"
+            importLabel={t('cogitaEditSchema.importSave')}
             onImport={async (doc, stage) => applyImport(lib, review.decide(doc), stage)}
           />
         )}
       </div>
       <aside className="cg">
         <div className="cg-row-between">
-          <h3>Rodzaje</h3>
+          <h3>{t('cogitaEditSchema.kinds')}</h3>
           {writes && (
-            <button type="button" className="wk-btn" onClick={create}>+ Rodzaj</button>
+            <button type="button" className="wk-btn" onClick={create}>{t('cogitaEditSchema.addKind')}</button>
           )}
         </div>
-        {lib.kinds.length === 0 && <p className="cg-muted">Ta baza wiedzy nie ma jeszcze własnych rodzajów. Dodaj własny — albo zaimportuj schemat jako JSON (np. gotowy Komentarz z <code>templates/cogita/komentarz.json</code>, pojęcia z kolejnością nauki z <code>templates/cogita/podstawy.json</code>).</p>}
+        {lib.kinds.length === 0 && <p className="cg-muted">{rich(t('cogitaEditSchema.noKinds'), { code: (s) => <code>{s}</code> })}</p>}
         <ul className="lib-list">
           {listed.map((k) => (
             <li key={k.id}>
               <button type="button" className={`lib-row cg-card${chosenId === k.id ? ' is-on' : ''}`} onClick={() => onChoose(k.id)}>
-                <span className="lib-row-title">{k.name} {k.system !== undefined && <span className="cg-tag">system</span>} {isBaseKind(k.id) && k.system === undefined && <span className="cg-tag">wbudowany</span>} {!isBaseKind(k.id) && <OriginTag id={k.id} />}</span>
-                <span className="lib-row-meta">{lib.ofKind(k.id).length} wpisów · {k.fields.length} pól</span>
+                <span className="lib-row-title">{k.name} {k.system !== undefined && <span className="cg-tag">{t('cogitaEditSchema.system')}</span>} {isBaseKind(k.id) && k.system === undefined && <span className="cg-tag">{t('cogitaEditSchema.builtIn')}</span>} {!isBaseKind(k.id) && <OriginTag id={k.id} />}</span>
+                <span className="lib-row-meta">{t('cogitaEditSchema.entries', { count: lib.ofKind(k.id).length })} · {t('cogitaEditSchema.fields', { count: k.fields.length })}</span>
               </button>
             </li>
           ))}
@@ -145,20 +147,21 @@ function BaseKindForm({ draft, writes, busy, onChange, onSave, onRemove }: { dra
  * (`questionTypes.ts`), kein neuer Rodzaj.
  */
 function QuestionTypes({ kind }: { kind: KindDef }) {
+  const t = useT();
   const label = (key: string) => kind.fields.find((f) => f.key === key)?.label ?? key;
   return (
     <section className="cg-card cg-qtypes" data-question-types="">
-      <h3>Rodzaje pytań — jeden schemat</h3>
-      <p className="cg-muted">Każde pytanie ma: {QUESTION_SHARED.map(label).join(', ')}. „{label('form')}” decyduje, które pola dochodzą — edytor pytania pokazuje tylko je.</p>
+      <h3>{t('cogitaEditSchema.qtype.title')}</h3>
+      <p className="cg-muted">{t('cogitaEditSchema.qtype.shared', { fields: QUESTION_SHARED.map(label).join(', '), form: label('form') })}</p>
       <div className="cg-fields-wrap">
         <table className="cg-table">
-          <thead><tr><th>Rodzaj pytania</th><th>Co robi uczący się</th><th>Pola</th></tr></thead>
+          <thead><tr><th>{t('cogitaEditSchema.qtype.kind')}</th><th>{t('cogitaEditSchema.qtype.does')}</th><th>{t('cogitaEditSchema.qtype.fields')}</th></tr></thead>
           <tbody>
-            {QUESTION_TYPES.map((t) => (
-              <tr key={t.form} data-question-type={t.form}>
-                <td><strong>{t.label}</strong> <code>{t.form}</code></td>
-                <td>{t.says}</td>
-                <td>{[t.prompt, ...t.fields.map(label)].join(', ')}</td>
+            {QUESTION_TYPES.map((qt) => (
+              <tr key={qt.form} data-question-type={qt.form}>
+                <td><strong>{qt.label}</strong> <code>{qt.form}</code></td>
+                <td>{qt.says}</td>
+                <td>{[qt.prompt, ...qt.fields.map(label)].join(', ')}</td>
               </tr>
             ))}
           </tbody>

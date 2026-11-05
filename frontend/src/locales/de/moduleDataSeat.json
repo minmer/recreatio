@@ -1,0 +1,87 @@
+{
+  "noKey": "Ohne den Schlüssel aus der Adresse lässt sich das nicht öffnen.",
+  "roleNoLink": "„{name}“ hat hier keinen Link geöffnet — was über den Link gesendet wurde, erscheint, sobald er geöffnet ist.",
+  "pickWho": "Wähle oben auf der Seite, für wen.",
+  "fromForm": "Aus welchem Formular",
+  "exForm": "<formular-id>",
+  "openChat": "Gespräch öffnen",
+  "chatShowsStrip": "Überschrift und Knopf — das Gespräch öffnet sich beim Klick.",
+  "office": {
+    "dataLater": "Die Daten der Person erscheinen nach der Auswahl oben auf der Seite.",
+    "pick": "Wähle oben auf der Seite eine Person.",
+    "nothing": "Diesen Teil sieht die Person in ihrem Link — hier gibt es über sie nichts zu zeigen.",
+    "chatLoading": "Gespräch wird geladen…"
+  },
+  "submission": {
+    "label": "Einsendung der Person",
+    "use": "Zeigt dieser Person, was sie selbst im gewählten Formular gesendet hat.",
+    "title": "Deine Einsendung",
+    "show": "Welche Antworten sichtbar sind",
+    "titleHint": "z. B. Deine Einsendung",
+    "open": "Einsendung zeigen",
+    "showsStrip": "Überschrift und Knopf — die Einsendung öffnet sich beim Klick.",
+    "showsBlock": "Alle gewählten Antworten der Person, mit der Möglichkeit, sie zu korrigieren.",
+    "missingForm": "Wähle das Formular, aus dem die Antworten stammen.",
+    "missingShow": "Wähle, welche Antworten diese Person sieht.",
+    "empty": "Hier erscheint die Einsendung der Person, die ihren Link öffnet.",
+    "otherForm": "Dieser Baustein zeigt ein anderes Formular als das, aus dem oben auf der Seite die Person gewählt wurde."
+  },
+  "shared": {
+    "label": "Gemeinsame Termine",
+    "use": "Termine, die die ganze Gruppe sieht — wenn der Platz ihren Schlüssel trägt.",
+    "exTitle": "Nächste Treffen",
+    "titleHint": "z. B. Nächste Treffen",
+    "open": "Termine zeigen",
+    "showsStrip": "Überschrift und Knopf — die Termine öffnen sich beim Klick.",
+    "showsBlock": "Die Termine der Gruppe für die nächsten Wochen.",
+    "empty": "Hier erscheinen gemeinsame Termine, wenn der Platz den Schlüssel der Gruppe trägt.",
+    "office": "Hier sieht die Person die gemeinsamen Termine ihrer Gruppe.",
+    "none": "Nichts in den nächsten Wochen.",
+    "sealed": "versiegelt",
+    "seenBy": "Das sehen alle: {names}."
+  },
+  "steps": {
+    "label": "Schritte der Person",
+    "use": "Die Liste der Schritte der Person — aus der Logikkarte der Seite, und ohne Schritte auf der Karte: die Schritte des Formulars (Daten bestätigen, Ergänzungen, Markierungen, Aufgaben).",
+    "title": "Deine Schritte",
+    "titleHint": "z. B. Deine Schritte",
+    "open": "Schritte zeigen",
+    "empty": "Hier erscheint die Liste der Schritte der Person, die ihren Link öffnet.",
+    "showsStrip": "Überschrift und Knopf — die Schritte öffnen sich beim Klick.",
+    "showsBlock": "Die Liste der Schritte der Person, mit dem, was schon erledigt ist."
+  },
+  "tasks": {
+    "label": "Aufgaben der Person",
+    "use": "Aufgaben für eine Zeit (z. B. der Rosenkranz im Oktober) — die Person antwortet zu jedem Tag im Kalender.",
+    "title": "Deine Aufgaben",
+    "titleHint": "z. B. Deine Aufgaben",
+    "open": "Aufgaben zeigen",
+    "none": "Es gibt noch keine Aufgaben.",
+    "noneNow": "Gerade gibt es keine Aufgaben zu erledigen.",
+    "past": "Abgeschlossen ({count})",
+    "waiting": {
+      "one": "{count} Aufgabe wartet",
+      "other": "{count} Aufgaben warten"
+    },
+    "showsStrip": "Überschrift, wie viele Aufgaben warten, und ein Knopf — die Aufgaben öffnen sich beim Klick.",
+    "showsBlock": "Die aktuellen Aufgaben der Person: Entscheidung und Tage der Ausführung; abgeschlossene eingeklappt darunter.",
+    "empty": "Hier erscheinen die Aufgaben der Person, die ihren Link öffnet.",
+    "officeNone": "Diese Person hat keine Aufgaben."
+  },
+  "chat": {
+    "label": "Gruppengespräch",
+    "use": "Gespräche der Person mit Link: mit der Leitung, Kanäle und Gespräche der Gruppen, zu denen sie gehört.",
+    "titleHint": "z. B. Gruppengespräch",
+    "showsTall": "Gespräch mit längerer Ansicht der Nachrichten.",
+    "showsBlock": "Gespräch: die letzten Nachrichten und ein Feld zum Schreiben.",
+    "empty": "Hier erscheint das Gruppengespräch — für die Person, die ihren Link öffnet."
+  },
+  "ask": {
+    "label": "Schreib uns",
+    "use": "Die Person mit Link (aus den gewählten Formularen) beginnt selbst ein Gespräch mit den gewählten Rollen — andere aus dem Formular sehen es nicht.",
+    "exTitle": "Schreib dem Pfarrer",
+    "says": "Überschrift; wer antwortet und aus welchen Formularen man schreiben darf, wird im Baustein eingestellt (nicht im JSON)",
+    "showsBlock": "Ein Knopf „Schreib an: …“, danach das Gespräch dieser Person mit den gewählten Rollen.",
+    "empty": "Hier schreibt die Person, die ihren Link öffnet, an die gewählten Personen — nur sie und die Person sehen dieses Gespräch."
+  }
+}

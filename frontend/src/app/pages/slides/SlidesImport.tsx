@@ -36,6 +36,7 @@ import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Lay
 import type { DraftPart } from '../page';
 import { partOf } from '../parts/registry';
 import { DEFAULT_THEMES, readLayers, type Theme } from './slideLook';
+import { t } from '../../core/i18n';
 
 /** Arten, die ihr `config` unverändert als `json` tragen. */
 const VERBATIM: Readonly<Record<string, string>> = {
@@ -53,13 +54,13 @@ const VERBATIM: Readonly<Record<string, string>> = {
 
 /** Was es für das, was nicht herüberkommt, im Neubau gibt. */
 const INSTEAD: Readonly<Record<string, string>> = {
-  form: 'formularz zgłoszeń — dodaj moduł „Formularz” i ułóż w nim pytania',
-  registration: 'własne zgłoszenie — moduł „Twoje zgłoszenie” (za linkiem osobistym)',
-  card: 'karta uczestnika — pytania w module „Formularz”, zgody w jego ustawieniach',
-  roster: 'lista uczestników — zgłoszenia formularza w Warsztacie',
-  checklist: 'lista spraw — moduł „Kroki” (za linkiem osobistym)',
-  topics: 'tematy do rozmowy — moduł „Rozmowa”',
-  meme: 'memy — tego jeszcze nie ma w nowym systemie'
+  form: 'pagesSlides.legacy.instead.form',
+  registration: 'pagesSlides.legacy.instead.registration',
+  card: 'pagesSlides.legacy.instead.card',
+  roster: 'pagesSlides.legacy.instead.roster',
+  checklist: 'pagesSlides.legacy.instead.checklist',
+  topics: 'pagesSlides.legacy.instead.topics',
+  meme: 'pagesSlides.legacy.instead.meme'
 };
 
 export interface LegacyPage {
@@ -78,13 +79,13 @@ export interface Imported {
 
 /** Die Seiten des Dokuments — oder eine, wenn es nur Teile sind (`{ parts }` oder eine Liste). */
 export function legacyPages(doc: unknown): LegacyPage[] {
-  if (Array.isArray(doc)) return [{ index: 0, label: 'Części', parts: doc }];
+  if (Array.isArray(doc)) return [{ index: 0, label: t('pagesSlides.legacy.parts'), parts: doc }];
   const root = asRecord(doc);
-  if (Array.isArray(root.parts)) return [{ index: 0, label: asText(root.title, 'Części'), parts: root.parts }];
+  if (Array.isArray(root.parts)) return [{ index: 0, label: asText(root.title, t('pagesSlides.legacy.parts')), parts: root.parts }];
   return asArray(root.pages).map((page, index) => {
     const one = asRecord(page);
-    const kind = asText(one.kind) === 'internal' ? ' (wewnętrzna)' : '';
-    return { index, label: `${asText(one.menuLabel) || asText(one.title) || `Strona ${index + 1}`}${kind}`, parts: asArray(one.parts) };
+    const name = asText(one.menuLabel) || asText(one.title) || t('pagesSlides.legacy.page', { n: index + 1 });
+    return { index, label: asText(one.kind) === 'internal' ? t('pagesSlides.legacy.internal', { name }) : name, parts: asArray(one.parts) };
   });
 }
 
@@ -152,7 +153,7 @@ function rawOf(kind: string, part: Record<string, unknown>): { kind: string; raw
     };
   }
 
-  return INSTEAD[kind] ?? `nieznany rodzaj „${kind}”`;
+  return INSTEAD[kind] !== undefined ? t(INSTEAD[kind]) : t('pagesSlides.legacy.unknownKind', { kind });
 }
 
 /**
@@ -171,10 +172,10 @@ export function importLegacy(doc: unknown, pageIndex: number, existing: readonly
     const kind = asText(part.kind).trim();
     const label = asOptionalText(part.menuLabel) ?? asOptionalText(part.title) ?? kind;
 
-    if (part.isVisible === false) { warnings.push(`„${label}” było ukryte — przeniesione, sprawdź, czy ma być widoczne.`); }
+    if (part.isVisible === false) { warnings.push(t('pagesSlides.legacy.hidden', { label })); }
 
     const mapped = rawOf(kind, part);
-    if (typeof mapped === 'string') { warnings.push(`Część ${index + 1} „${label}” pominięta: ${mapped}.`); continue; }
+    if (typeof mapped === 'string') { warnings.push(t('pagesSlides.legacy.skipped', { n: index + 1, label, why: mapped })); continue; }
 
     const def = partOf(mapped.kind);
     const layout: Record<string, unknown> = {};

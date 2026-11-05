@@ -1,0 +1,142 @@
+{
+  "sources": {
+    "intro": "<b>Biblioteki</b> — tylko do odwołań: ich dzieła, cytaty i osoby można wskazać w polach i cytować, ale nie stają się kartami. <b>Skryptoria</b> — ich teksty (z polami swojego rodzaju tekstu, np. tajemnica, obszar) można pokazać w widokach i macierzach, wskazać w polach i uczyć się ich przez szablony. <b>Inne bazy wiedzy</b> — do wykorzystania: ich rodzaje, wpisy, szablony, powtórki i przebiegi działają tutaj, a zmienia się je u nich. Każde źródło widzi tylko ten, kto ma dostęp do jego obszaru.",
+    "title": "Źródła",
+    "none": "Jeszcze bez źródeł.",
+    "kindBooks": "biblioteka — do odwołań",
+    "kindWriting": "skryptorium — teksty",
+    "kindKnowledge": "baza wiedzy — do wykorzystania",
+    "unavailable": "niedostępne w tej karcie",
+    "entries": {
+      "one": "{count} wpisów",
+      "few": "{count} wpisów",
+      "many": "{count} wpisów",
+      "other": "{count} wpisów"
+    },
+    "loading": "wczytywanie…",
+    "add": "Dodaj źródło",
+    "addPlaceholder": "— dodaj bibliotekę, skryptorium albo bazę wiedzy —"
+  },
+  "authorsOnly": "Ustawienia bazy wiedzy zmieniają autorzy.",
+  "storage": {
+    "title": "Gdzie zapisują się odpowiedzi uczących się",
+    "hint": "Postępy uczących się widzi ten, kto prowadzi wybrany obszar (np. nauczyciel). To wybór dla nauki tutaj, w aplikacji, i dla modułów bez własnego — moduł na stronie kursu (albo grupy) kieruje odpowiedzi do swojego obszaru, więc ta sama baza może służyć wielu kursom. Bez wyboru — tylko sam uczący się.",
+    "learnerPrivate": "prywatny obszar uczącego się",
+    "myPrivate": "mój prywatny obszar"
+  },
+  "reports": {
+    "title": "Zgłoszenia i liczby od uczących się (anonimowo)",
+    "hint": "Zgłoszone karty i liczby błędów trafiają do przyjęć obszaru tej bazy wiedzy — bez imion."
+  },
+  "motivation": {
+    "title": "Motywacja",
+    "rewards": "Zasady nagród w Nauce",
+    "rewardsDefault": "— domyślne: pierwsze zasady bazy, a bez nich wbudowane —",
+    "rewardsFallback": "Nagrody",
+    "rewardsLink": "Nagrody: zasady i Twoje punkty →",
+    "rankings": "Rankingi są tylko w sesjach na żywo."
+  },
+  "fromOrigin": " · z: {name}",
+  "language": {
+    "title": "Język nauki",
+    "hint": "W tym języku mówią ekrany nauki: krajobraz, ścieżka, powtórka i jej zakończenie. Bez wyboru — rozpoznany z nazw w bazie (teraz: {lang}).",
+    "detect": "— rozpoznaj z bazy —"
+  },
+  "tags": {
+    "title": "Perspektywy",
+    "hint": "Ta baza ma jeszcze stare perspektywy ({tags}). Perspektyw i tematów już nie ma — porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”) połączone polami-odwołaniami."
+  },
+  "join": {
+    "title": "Strona dołączania do sesji",
+    "hint": "Strona z modułem „Dołącz do sesji\" (np. parafia/quiz). Link i kod QR sesji prowadzą tam."
+  },
+  "proposals": {
+    "title": "Propozycje od czytających",
+    "hint": "Autorzy zmieniają bazę wprost; inni proponują wyjaśnienia i pytania, a autor je przyjmuje.",
+    "none": "— bez propozycji —"
+  },
+  "base": {
+    "title": "Baza wiedzy",
+    "name": "Nazwa bazy wiedzy",
+    "saveName": "Zapisz nazwę",
+    "area": "Obszar: {area} — kto ma jego klucz, uczy się z tej bazy; kto w nim pisze, ją buduje.",
+    "unknownArea": "nieznany",
+    "delete": "Usuń bazę wiedzy",
+    "deleteHint": "Usuwa wszystkie wpisy, szablony, powtórki, przebiegi i odpowiedzi uczących się; sesje zostają, ale bez bazy. Tego nie da się cofnąć — najpierw zrób eksport (JSON).",
+    "typeName": "Wpisz nazwę, żeby potwierdzić",
+    "deleteForever": "Usuń na zawsze"
+  },
+  "onlyYou": "tylko Ty",
+  "remove": "usuń",
+  "kind": {
+    "knowledge": "baza wiedzy",
+    "writing": "skryptorium",
+    "books": "biblioteka"
+  },
+  "intake": {
+    "checking": "Sprawdzanie przyjęć…",
+    "works": "przyjęcia działają",
+    "worksIn": "przyjęcia działają · {area}",
+    "none": "ten obszar nie ma jeszcze przyjęć — odpowiedzi zobaczy tylko uczący się",
+    "keyFor": "Klucz przyjęć dla roli:",
+    "role": "rola",
+    "creating": "Tworzenie klucza (kilka sekund)…",
+    "create": "Utwórz przyjęcia"
+  },
+  "deps": {
+    "title": "Zależności",
+    "hint": "Kolejność nauki bierze się przede wszystkim z pól „Najpierw trzeba znać” w rodzajach i pytaniach (Nauka → Ścieżka); tutaj — dodatkowe zależności między pojedynczymi wpisami. „Najpierw trzeba znać\" blokuje karty, dopóki podstawa nie jest opanowana; każda krawędź przekazuje część znajomości (waga) w górę.",
+    "weightOf": "waga {n}",
+    "proposal": "propozycja",
+    "confirm": "potwierdź",
+    "child": "wpis, który zależy",
+    "parent": "od czego",
+    "weight": "Waga"
+  },
+  "values": {
+    "title": "Wartości kursu",
+    "hint": "Zmieniają się podczas nauki (kroki przebiegów, postępy): punkty, bliskość postaci, zasoby. Zostają między sesjami.",
+    "key": "Klucz",
+    "scopePerson": "osoby",
+    "scopeGroup": "grupy",
+    "scopeSession": "sesji",
+    "visAll": "widzą wszyscy",
+    "visGroup": "grupa",
+    "visPerson": "tylko osoba",
+    "initial": "Na start",
+    "score": "punkty",
+    "newLabel": "Nowa wartość",
+    "add": "+ wartość",
+    "save": "Zapisz wartości",
+    "min": "min",
+    "max": "max"
+  },
+  "rules": {
+    "fallback": "Zasady",
+    "title": "Zasady sesji na żywo",
+    "own": "— własne zasady ({n}) —",
+    "fromPreset": "+ z gotowych",
+    "roundTimer": "Czas na pytanie (s)",
+    "actionTimer": "Po pierwszej odpowiedzi (s)",
+    "baseCorrect": "Za dobrą odpowiedź",
+    "firstBonus": "Bonus za pierwszą",
+    "speedBonus": "Bonus za szybkość (max)",
+    "streakBonus": "Bonus za serię",
+    "penalty": "Kara za błąd",
+    "autoNext": "następne pytanie samo",
+    "save": "Zapisz zasady",
+    "foreign": "Te zasady są z „{name}” — działają tutaj, zmienia się je tam."
+  },
+  "looks": {
+    "title": "Wyglądy",
+    "hint": "Wygląd mówi, jak przebieg pokazuje kroki i co widać z każdego rodzaju wpisu (np. karta osoby: imię, lata, portret).",
+    "fallback": "Wygląd",
+    "transition": "przejście (np. fade, slide)",
+    "newName": "Nowy wygląd",
+    "add": "+ wygląd"
+  },
+  "daily": {
+    "label": "Cel dzienny — ile kart dziennie",
+    "hint": "Seria to dni z rzędu, w których cel jest osiągnięty. Każdy uczący się widzi tylko swoje dni."
+  }
+}

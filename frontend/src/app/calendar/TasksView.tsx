@@ -35,7 +35,7 @@ import type { Who } from '../core/session';
 import { WorkspaceError } from '../core/session';
 import { TaskDialog } from './TaskDialog';
 import {
-  afterState, everyWords, howLong, loadTasks, markDone, markSkipped, markUndone, openTasks,
+  afterState, everyWords, howLong, spanWord, loadTasks, markDone, markSkipped, markUndone, openTasks,
   taskLevel, taskUrgency, windowState, type OpenTask, type TaskOccurrence
 } from './tasks';
 import { DUE } from '../core/urgency';
@@ -44,14 +44,16 @@ import { Loading } from '../ui/Loading';
 import { later } from '../ui/later';
 import { MenuButton } from '../ui/Menu';
 import { Modal } from '../ui/Modal';
+import { fmtDate, useT, type Lang, type T } from '../core/i18n';
 
 /* 2026-10-29 — das JSON der Zadania (Fach, Plan, Beschreibung) lädt erst, wenn es geöffnet wird. */
 const TasksJson = later(() => import('./TasksJsonPanel').then((m) => m.TasksJson));
 
 export function TasksView({ who }: { who: Who }) {
+  const t = useT();
   const me = useMe(who);
-  if (me === undefined) return <Loading label="Wczytywanie…" />;
-  if (me === null) return <p className="wk-note">Bez klucza w tej karcie zadania są zamknięte — zaloguj się ponownie albo odblokuj klucz.</p>;
+  if (me === undefined) return <Loading label={t('common.loading')} />;
+  if (me === null) return <p className="wk-note">{t('calendarApp.tasks.noKey')}</p>;
   return <Tasks me={me} />;
 }
 
@@ -62,21 +64,20 @@ interface Row {
   readonly at: Date;
 }
 
-const REPEAT_WORD: Record<string, string> = {
-  none: 'raz', daily: 'codziennie', weekly: 'co tydzień', monthly: 'co miesiąc', yearly: 'co rok'
-};
+const REPEATS = ['none', 'daily', 'weekly', 'monthly', 'yearly'];
 
-const clock = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
-const dayWord = (at: Date, now: Date) => {
+const clock = (at: Date, lang: Lang) => fmtDate(at, { hour: '2-digit', minute: '2-digit' }, lang);
+const dayWord = (at: Date, now: Date, t: T) => {
   const d = startOfDay(at).getTime();
-  const t = startOfDay(now).getTime();
-  if (d === t) return 'dziś';
-  if (d === addDays(startOfDay(now), 1).getTime()) return 'jutro';
-  if (d === addDays(startOfDay(now), -1).getTime()) return 'wczoraj';
-  return at.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'numeric' });
+  const n = startOfDay(now).getTime();
+  if (d === n) return t('calendarApp.tasks.today');
+  if (d === addDays(startOfDay(now), 1).getTime()) return t('calendarApp.tasks.tomorrow');
+  if (d === addDays(startOfDay(now), -1).getTime()) return t('calendarApp.tasks.yesterday');
+  return fmtDate(at, { weekday: 'short', day: 'numeric', month: 'numeric' }, t.lang);
 };
 
 function Tasks({ me }: { me: Me }) {
+  const t = useT();
   const now = useNow();
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [tasks, setTasks] = useState<readonly OpenTask[] | null>(null);
@@ -101,11 +102,11 @@ function Tasks({ me }: { me: Me }) {
         setTasks(opened);
         setFailed(null);
       } catch (e) {
-        if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać zadań.');
+        if (alive) setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.tasks.loadFailed'));
       }
     })();
     return () => { alive = false; };
-  }, [me.ring, today, tick]);
+  }, [me.ring, today, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reload = useCallback(() => setTick((n) => n + 1), []);
 
@@ -117,7 +118,7 @@ function Tasks({ me }: { me: Me }) {
       else await markDone(task.taskId, me.person.id, occurrence?.at);
       reload();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.failed'));
     } finally {
       setBusy(null);
     }
@@ -131,7 +132,7 @@ function Tasks({ me }: { me: Me }) {
       else await markSkipped(task.taskId, me.person.id, occurrence?.at);
       reload();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.failed'));
     } finally {
       setBusy(null);
     }
@@ -144,19 +145,19 @@ function Tasks({ me }: { me: Me }) {
       await markUndone(task.taskId, task.lastSettledAt);
       reload();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('calendarApp.failed'));
     } finally {
       setBusy(null);
     }
   };
 
   if (tasks === null) {
-    return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label="Wczytywanie…" />;
+    return failed !== null ? <p className="wk-error">{failed}</p> : <Loading label={t('common.loading')} />;
   }
 
   /* Die Fenster, sortiert nach dem, was sie gerade sind. */
   /* 0066 — ein Zeitraum (`period`) ist ein Fenster mit freiem Abstand: dieselben Zeilen. */
-  const windows: Row[] = tasks.filter((t) => t.kind !== 'after')
+  const windows: Row[] = tasks.filter((one) => one.kind !== 'after')
     .flatMap((task) => [...(task.overdue ?? []), ...task.occurrences]
       .map((occurrence) => ({ key: `${task.taskId}:${occurrence.at}`, task, occurrence, at: new Date(occurrence.at) })))
     .sort((a, b) => a.at.getTime() - b.at.getTime());
@@ -187,7 +188,7 @@ function Tasks({ me }: { me: Me }) {
   const skippedToday = windows.filter((r) => state(r) === 'skipped'
     && ((r.at >= new Date(today) && r.at < endOfToday) || new Date(r.occurrence!.skippedAt!) >= new Date(today)));
 
-  const afters = tasks.filter((t) => t.kind === 'after')
+  const afters = tasks.filter((one) => one.kind === 'after')
     .map((task) => ({ task, ...afterState(task, now), urge: taskUrgency(task, null, now) }))
     .sort((a, b) => b.urge - a.urge);
   const dueAfters = afters.filter((a) => a.late || a.due < endOfToday);
@@ -201,10 +202,10 @@ function Tasks({ me }: { me: Me }) {
   return (
     <div className="wk-tasks">
       <div className="wk-actions">
-        <button type="button" className="wk-btn" onClick={() => setDialog({ task: null })}>+ Nowe zadanie</button>
+        <button type="button" className="wk-btn" onClick={() => setDialog({ task: null })}>{t('calendarApp.tasks.new')}</button>
         {/* 2026-10-29 — was selten gebraucht wird, steht hinter „⋯": die Zadania als JSON (Export, Import, Beschreibung). */}
-        <MenuButton label="Więcej: Zadania" items={[
-          { label: 'Import i eksport (JSON)', icon: 'braces', onSelect: () => setJson(true) }
+        <MenuButton label={t('calendarApp.tasks.more')} items={[
+          { label: t('calendarApp.tasks.json'), icon: 'braces', onSelect: () => setJson(true) }
         ]} />
       </div>
 
@@ -212,14 +213,13 @@ function Tasks({ me }: { me: Me }) {
 
       {tasks.length === 0 && (
         <p className="wk-empty">
-          Nie masz jeszcze zadań. Zadanie ma swoją porę (np. modlitwa o 21:00 codziennie) albo wraca co pewien
-          czas od wykonania (np. podlać kwiaty co 3 dni).
+          {t('calendarApp.tasks.empty')}
         </p>
       )}
 
       {(openNow.length > 0 || dueAfters.length > 0) && (
         <section className="wk-tasks-group is-now">
-          <h2 className="wk-h2">Teraz</h2>
+          <h2 className="wk-h2">{t('calendarApp.tasks.groupNow')}</h2>
           {openNow.map(line)}
           {dueAfters.map((a) => (
             <AfterLine key={a.task.taskId} task={a.task} now={now} areas={areas} busy={busy !== null}
@@ -231,47 +231,47 @@ function Tasks({ me }: { me: Me }) {
 
       {missed.length > 0 && (
         <section className="wk-tasks-group is-missed">
-          <h2 className="wk-h2">Przegapione</h2>
+          <h2 className="wk-h2">{t('calendarApp.tasks.groupMissed')}</h2>
           {missed.map(line)}
         </section>
       )}
 
       {later.length > 0 && (
         <section className="wk-tasks-group">
-          <h2 className="wk-h2">Dziś później</h2>
+          <h2 className="wk-h2">{t('calendarApp.tasks.groupLater')}</h2>
           {later.map(line)}
         </section>
       )}
 
       {soon.length > 0 && (
         <section className="wk-tasks-group">
-          <h2 className="wk-h2">W najbliższych dniach</h2>
+          <h2 className="wk-h2">{t('calendarApp.tasks.groupSoon')}</h2>
           {soon.map(line)}
         </section>
       )}
 
       {afters.length > 0 && (
         <section className="wk-tasks-group">
-          <h2 className="wk-h2">Co pewien czas</h2>
+          <h2 className="wk-h2">{t('calendarApp.tasks.groupAfter')}</h2>
           {afters.filter((a) => !dueAfters.includes(a)).map((a) => (
             <AfterLine key={a.task.taskId} task={a.task} now={now} areas={areas} busy={busy !== null}
               onDone={() => void toggle(a.task, null)} onSkip={() => void skip(a.task, null)}
               onUndo={() => void undoAfter(a.task)} onOpen={() => setDialog({ task: a.task })} />
           ))}
-          {afters.every((a) => dueAfters.includes(a)) && <p className="wk-hint">Wszystkie są teraz do zrobienia — wyżej.</p>}
+          {afters.every((a) => dueAfters.includes(a)) && <p className="wk-hint">{t('calendarApp.tasks.allDueAbove')}</p>}
         </section>
       )}
 
       {doneToday.length > 0 && (
         <section className="wk-tasks-group is-done">
-          <h2 className="wk-h2">Zrobione dziś</h2>
+          <h2 className="wk-h2">{t('calendarApp.tasks.groupDone')}</h2>
           {doneToday.map(line)}
         </section>
       )}
 
       {skippedToday.length > 0 && (
         <section className="wk-tasks-group is-done">
-          <h2 className="wk-h2">Pominięte dziś</h2>
+          <h2 className="wk-h2">{t('calendarApp.tasks.groupSkipped')}</h2>
           {skippedToday.map(line)}
         </section>
       )}
@@ -281,7 +281,7 @@ function Tasks({ me }: { me: Me }) {
       )}
 
       {json && (
-        <Modal title="Zadania — import i eksport (JSON)" onClose={() => setJson(false)} wide>
+        <Modal title={t('calendarApp.tasks.jsonTitle')} onClose={() => setJson(false)} wide>
           <TasksJson me={me} areas={areas} tasks={tasks} onChanged={reload} />
         </Modal>
       )}
@@ -306,6 +306,7 @@ function WindowLine({ row, now, areas, busy, onToggle, onSkip, onOpen }: {
   onSkip: () => void;
   onOpen: () => void;
 }) {
+  const t = useT();
   const occurrence = row.occurrence!;
   const done = occurrence.doneAt !== null;
   const skipped = occurrence.skippedAt !== null;
@@ -318,27 +319,27 @@ function WindowLine({ row, now, areas, busy, onToggle, onSkip, onOpen }: {
   /* Was übermorgen ist, lässt sich weder abhaken noch absagen — der Dienst nimmt es nicht an. */
   const far = state === 'upcoming' && row.at.getTime() - now.getTime() > 86400_000;
 
-  const badge = state === 'open' ? (end.getTime() - now.getTime() > 60_000 ? `jeszcze ${howLong(end, now).replace('za ', '')}` : 'teraz')
+  const badge = state === 'open' ? (end.getTime() - now.getTime() > 60_000 ? t('calendarApp.tasks.left', { span: spanWord(end, now) }) : t('calendarApp.span.now'))
     : state === 'upcoming' ? howLong(row.at, now)
-    : state === 'missed' ? `${howLong(end, now).replace(' temu', '')} po czasie`
-    : state === 'skipped' ? `pominięte ${clock(new Date(occurrence.skippedAt!))}`
-    : `zrobione ${clock(new Date(occurrence.doneAt!))}`;
+    : state === 'missed' ? t('calendarApp.tasks.overdueBy', { span: spanWord(end, now) })
+    : state === 'skipped' ? t('calendarApp.tasks.skippedAt', { time: clock(new Date(occurrence.skippedAt!), t.lang) })
+    : t('calendarApp.taskDay.doneAt', { time: clock(new Date(occurrence.doneAt!), t.lang) });
 
   return (
     <div className={`wk-task is-${state} is-urge-${level}`} style={{ '--ev-h': hueOf(task.areaId) } as CSSProperties}>
       <button type="button" role="checkbox" aria-checked={done} disabled={busy || far}
-        className={`wk-task-tick${done ? ' is-done' : ''}`} aria-label={done ? `Cofnij: ${task.title}` : `Zrobione: ${task.title}`}
+        className={`wk-task-tick${done ? ' is-done' : ''}`} aria-label={done ? t('calendarApp.taskDay.undo', { title: task.title }) : t('calendarApp.taskDay.markDone', { title: task.title })}
         onClick={onToggle}>
         {done ? '✓' : ''}
       </button>
       <button type="button" className="wk-task-main" onClick={onOpen}>
         <span className="wk-task-title">{task.title}</span>
         <span className="wk-task-when">
-          {dayWord(row.at, now)} {clock(row.at)}
-          {task.windowMinutes > 0 && `–${clock(end)}`}
-          {' · '}{task.kind === 'period' ? everyWords(task.everyMinutes ?? 0) : REPEAT_WORD[task.repeatKind] ?? ''}
-          {task.chatId != null && ' · z rozmowy'}
-          {(task.remind ?? 0) !== 0 && ' · z przypomnieniem'}
+          {dayWord(row.at, now, t)} {clock(row.at, t.lang)}
+          {task.windowMinutes > 0 && `–${clock(end, t.lang)}`}
+          {' · '}{task.kind === 'period' ? everyWords(task.everyMinutes ?? 0) : REPEATS.includes(task.repeatKind) ? t(`calendarApp.repeatLabel.${task.repeatKind}`) : ''}
+          {task.chatId != null && ` · ${t('calendarApp.tasks.fromChat')}`}
+          {(task.remind ?? 0) !== 0 && ` · ${t('calendarApp.tasks.withReminder')}`}
           {' · '}{groupName(areas, task.areaId)}
         </span>
         {!done && !skipped && (
@@ -350,8 +351,8 @@ function WindowLine({ row, now, areas, busy, onToggle, onSkip, onOpen }: {
       <span className={`wk-task-badge is-${state}`}>{badge}</span>
       {!done && !far && (
         <button type="button" className="wk-link-btn wk-task-skip" disabled={busy}
-          aria-label={skipped ? `Cofnij pominięcie: ${task.title}` : `Pomiń: ${task.title}`} onClick={onSkip}>
-          {skipped ? 'Cofnij' : 'Pomiń'}
+          aria-label={skipped ? t('calendarApp.tasks.unskipLabel', { title: task.title }) : t('calendarApp.tasks.skipLabel', { title: task.title })} onClick={onSkip}>
+          {skipped ? t('calendarApp.tasks.undo') : t('calendarApp.tasks.skip')}
         </button>
       )}
     </div>
@@ -372,6 +373,7 @@ function AfterLine({ task, now, areas, busy, onDone, onSkip, onUndo, onOpen }: {
   onUndo: () => void;
   onOpen: () => void;
 }) {
+  const t = useT();
   const { due, late } = afterState(task, now);
   const urge = taskUrgency(task, null, now);
   const level = taskLevel(urge);
@@ -381,15 +383,15 @@ function AfterLine({ task, now, areas, busy, onDone, onSkip, onUndo, onOpen }: {
   return (
     <div className={`wk-task is-after is-urge-${level}${late ? ' is-late' : ''}`} style={{ '--ev-h': hueOf(task.areaId) } as CSSProperties}>
       <button type="button" className={`wk-task-tick${doneRecently ? ' is-done' : ''}`} disabled={busy}
-        aria-label={`Zrobione: ${task.title}`} onClick={onDone}>
+        aria-label={t('calendarApp.taskDay.markDone', { title: task.title })} onClick={onDone}>
         {doneRecently ? '✓' : ''}
       </button>
       <button type="button" className="wk-task-main" onClick={onOpen}>
         <span className="wk-task-title">{task.title}</span>
         <span className="wk-task-when">
           {everyWords(task.everyMinutes ?? 0)}
-          {' · '}{task.lastDoneAt === null ? 'jeszcze ani razu' : `ostatnio ${howLong(new Date(task.lastDoneAt), now)}`}
-          {skippedRecently && ' · pominięte'}
+          {' · '}{task.lastDoneAt === null ? t('calendarApp.tasks.never') : t('calendarApp.tasks.last', { when: howLong(new Date(task.lastDoneAt), now) })}
+          {skippedRecently && ` · ${t('calendarApp.taskDay.skipped')}`}
           {' · '}{groupName(areas, task.areaId)}
         </span>
         <span className="wk-task-meter" aria-hidden="true">
@@ -397,12 +399,12 @@ function AfterLine({ task, now, areas, busy, onDone, onSkip, onUndo, onOpen }: {
         </span>
       </button>
       <span className={`wk-task-badge${late ? ' is-missed' : ''}`}>
-        {late ? `zaległe ${howLong(due, now).replace(' temu', '')}` : `następne ${howLong(due, now)}`}
+        {late ? t('calendarApp.taskDay.lateFor', { span: spanWord(due, now) }) : t('calendarApp.tasks.next', { when: howLong(due, now) })}
       </span>
       {doneRecently || skippedRecently
-        ? <button type="button" className="wk-link-btn wk-task-skip" disabled={busy} onClick={onUndo}>Cofnij</button>
+        ? <button type="button" className="wk-link-btn wk-task-skip" disabled={busy} onClick={onUndo}>{t('calendarApp.tasks.undo')}</button>
         : <button type="button" className="wk-link-btn wk-task-skip" disabled={busy}
-            aria-label={`Pomiń ten raz: ${task.title}`} onClick={onSkip}>Pomiń</button>}
+            aria-label={t('calendarApp.tasks.skipOnce', { title: task.title })} onClick={onSkip}>{t('calendarApp.tasks.skip')}</button>}
     </div>
   );
 }

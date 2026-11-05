@@ -19,6 +19,7 @@ import { DEFAULT_ENTRY, type AppointmentDoc } from '../calendar/appointmentsJson
 import { createCalendar } from '../calendar/calendar';
 import { byPlace, loadProgram } from '../calendar/program';
 import { areaKeys, loadAreaNames, openNames, setMemberName, startAreaChat } from '../chat/chat';
+import { t } from '../core/i18n';
 import { newId } from '../core/ids';
 import type { Ring, SealedRole } from '../core/keys';
 import { keysFor } from '../core/ringOf';
@@ -49,7 +50,7 @@ import { linkAudienceForm } from './audience';
 import { setPageController } from './controllers';
 import { loadImportKeys, loadProfile, saveImportKeys, saveProfile, sealCard, type ImportKey, type ImportKeyKind, type ProfilePatch } from './profile';
 
-const failure = (e: unknown, fallback = 'nie udało się'): string =>
+const failure = (e: unknown, fallback = t('areasJson.import.failedWord')): string =>
   (e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : fallback).replace(/[.\s]+$/, '');
 
 /* -- Was der Plan über eine Seite wissen muss ------------------------------------------ */
@@ -124,12 +125,12 @@ async function joinForms(chatId: string, forms: readonly { ref: string; moduleId
   let linked = 0;
   const warnings: string[] = [];
   for (const one of forms) {
-    if (one.moduleId === null) { warnings.push(`formularza „${one.ref}” nie ma w dokumencie ani w obszarze — pominięty.`); continue; }
+    if (one.moduleId === null) { warnings.push(t('areasJson.import.formMissingLower', { ref: one.ref })); continue; }
     try {
       await linkAudienceForm('chat', chatId, one.moduleId, true, byRoleId);
       linked += 1;
     } catch (e) {
-      warnings.push(`zapisanych z „${one.ref}” nie dołączono (${failure(e)}).`);
+      warnings.push(t('areasJson.import.signedUpNotJoinedLower', { ref: one.ref, error: failure(e) }));
     }
   }
   return { linked, warnings };
@@ -140,7 +141,7 @@ async function myWriter(ring: Ring, areaId: string): Promise<string> {
   const { members } = await loadMembers(areaId);
   const mine = members.filter((m) => ring.has(m.roleId));
   const writer = mine.find((m) => m.capabilities.includes('admin')) ?? mine.find((m) => m.capabilities.includes('write'));
-  if (writer === undefined) throw new WorkspaceError('Żadna z Twoich ról nie pisze w tym obszarze.');
+  if (writer === undefined) throw new WorkspaceError(t('areas.page.noWriter'));
   return writer.roleId;
 }
 
@@ -164,10 +165,8 @@ export interface AreaRunResult {
   readonly links: readonly { readonly name: string; readonly url: string }[];
 }
 
-const STEP_TITLE: Record<PlanStep['key'], string> = {
-  profile: 'Profil', roles: 'Role', appointments: 'Terminy', pages: 'Formularze i strony', subforms: 'Podformularze',
-  chats: 'Rozmowy', card: 'Wizytówka i profil', listings: 'Listy'
-};
+/* Die Namen der Schritte: `areasJson.step.<key>`. */
+const stepTitle = (key: PlanStep['key']): string => t(`areasJson.step.${key}`);
 
 /** DER IMPORT — prüft noch einmal mit frischem Stand, dann Schritt für Schritt. */
 export async function runAreaImport(input: {
@@ -185,12 +184,12 @@ export async function runAreaImport(input: {
   const warnings: string[] = [];
   const links: { name: string; url: string }[] = [];
 
-  hooks.stage('Sprawdzanie obszaru…');
+  hooks.stage(t('areasJson.panel.checkingArea'));
   const held = await keysFor(who);
   let ring: Ring | null = held.ring;
-  if (ring === null) throw new WorkspaceError('Najpierw podaj hasło — import pieczętuje w tej przeglądarce.');
+  if (ring === null) throw new WorkspaceError(t('areasJson.import.passwordFirst'));
   const person: SealedRole | null = held.graph.roles.find((r) => r.kind === 'person' && ring!.maySign(r.id)) ?? null;
-  if (person === null) throw new WorkspaceError('To konto nie ma jeszcze osoby, która mogłaby to zrobić.');
+  if (person === null) throw new WorkspaceError(t('areasJson.import.noPerson'));
   const keyRing = (): Ring => ring!;
   const personId = person.id;
 
@@ -222,7 +221,7 @@ export async function runAreaImport(input: {
       try {
         await saveImportKeys(areaId, chunk);
       } catch (e) {
-        warnings.push(`Nie zapamiętano ${chunk.length} kluczy importu (${failure(e)}) — ponowny import może utworzyć to jeszcze raz.`);
+        warnings.push(t('areasJson.import.keysNotSaved', { count: chunk.length, error: failure(e) }));
       }
     }
   };
@@ -252,10 +251,12 @@ export async function runAreaImport(input: {
     try {
       await run();
       hooks.step(key, 'done');
-      done.push(STEP_TITLE[key]);
+      done.push(stepTitle(key));
     } catch (e) {
       hooks.step(key, 'failed');
-      throw new WorkspaceError(`Krok „${STEP_TITLE[key]}” przerwany: ${failure(e)}.${done.length > 0 ? ` Zrobione wcześniej (${done.join(', ')}) zostaje.` : ''} Popraw i zaimportuj jeszcze raz — import trafi w to samo.`);
+      throw new WorkspaceError(done.length > 0
+        ? t('areasJson.import.stepFailedDone', { step: stepTitle(key), error: failure(e), done: done.join(', ') })
+        : t('areasJson.import.stepFailed', { step: stepTitle(key), error: failure(e) }));
     } finally {
       await flush();
     }
@@ -267,11 +268,11 @@ export async function runAreaImport(input: {
     const id = publishTarget(say, plan.publishAreaId, state.areas, areaId);
     return leads(id) ? id : areaId;
   };
-  const nameOf = (id: string) => (id === areaId ? 'tym obszarze' : `„${state.areas.find((a) => a.areaId === id)?.name ?? 'obszar'}”`);
+  const nameOf = (id: string) => (id === areaId ? t('areasJson.import.inThisArea') : t('areasJson.quoted', { name: state.areas.find((a) => a.areaId === id)?.name ?? t('areas.ctl.anArea') }));
 
   /* 1 — das Profil (die Art zuerst: dann versteckt der Dienst die Seite danach von Anfang an). */
   await step('profile', async () => {
-    hooks.stage('Profil obszaru…');
+    hooks.stage(t('areasJson.import.stageProfile'));
     const patch: { -readonly [K in keyof ProfilePatch]?: ProfilePatch[K] } = {
       publishAreaId: plan.publishAreaId === areaId ? '' : plan.publishAreaId
     };
@@ -279,7 +280,7 @@ export async function runAreaImport(input: {
     if (doc.category !== undefined) patch.category = doc.category ?? '';
     if (doc.archive !== undefined) patch.archiveMode = doc.archive;
     await saveProfile(areaId, patch);
-    lines.push(`Profil zapisany — publiczne części w ${nameOf(plan.publishAreaId)}.`);
+    lines.push(t('areasJson.import.profileSaved', { where: nameOf(plan.publishAreaId) }));
   });
 
   /* 2 — Rollen und ihre Links. */
@@ -292,7 +293,7 @@ export async function runAreaImport(input: {
         let roleId = r.roleId;
         if (roleId === null) {
           try {
-            hooks.stage(`Rola „${r.doc.name}”: liczenie kluczy…`);
+            hooks.stage(t('areasJson.import.stageRoleKeys', { name: r.doc.name }));
             const created = await createCommonRole(keyRing(), person, { name: r.doc.name, areas: [{ areaId, capability: r.doc.level }] }, hooks.stage);
             ring = created.ring;
             roleId = created.roleId;
@@ -304,7 +305,7 @@ export async function runAreaImport(input: {
               await setMemberName(areaId, await areaKeys(keyRing(), areaId, true), roleId, r.doc.name, by);
             } catch { /* ohne Namen im Bereich — die Rolle selbst steht */ }
           } catch (e) {
-            warnings.push(`Rola „${r.doc.name}”: ${failure(e)} — pominięta (i jej link).`);
+            warnings.push(t('areasJson.import.roleSkipped', { name: r.doc.name, error: failure(e) }));
             continue;
           }
         }
@@ -313,7 +314,7 @@ export async function runAreaImport(input: {
         roleIds.set(r.doc.key, roleId);
         if (r.doc.link !== null && !r.linkMade) {
           try {
-            hooks.stage(`Link dla „${r.doc.name}”…`);
+            hooks.stage(t('areasJson.import.stageLink', { name: r.doc.name }));
             /* Wie im Reiter der Art: wer in einem Wydarzenie nur liest, landet auf seiner Hauptseite — sonst im Widok obszaru. */
             const mainPlanned = plan.pages.find((p) => p.doc.main && p.problem === null)?.path ?? null;
             const aim = aimOf(doc.kind === 'event' && r.doc.level === 'read' && mainPlanned !== null ? pagePath(mainPlanned) : viewPath('areas', areaId));
@@ -324,11 +325,13 @@ export async function runAreaImport(input: {
             remember('link', r.doc.key, link.invitationId);
             links.push({ name: r.doc.name, url: link.url });
           } catch (e) {
-            warnings.push(`Link dla „${r.doc.name}”: ${failure(e)}.`);
+            warnings.push(t('areasJson.import.linkFailed', { name: r.doc.name, error: failure(e) }));
           }
         }
       }
-      lines.push(`Role: nowe — ${made}, już były — ${plan.roles.length - made}${links.length > 0 ? `; linki — ${links.length} (niżej)` : ''}.`);
+      lines.push(links.length > 0
+        ? t('areasJson.import.rolesLinks', { made, had: plan.roles.length - made, links: links.length })
+        : t('areasJson.import.roles', { made, had: plan.roles.length - made }));
     });
   }
 
@@ -339,7 +342,7 @@ export async function runAreaImport(input: {
   let mainItemId: string | null = null;
   if (plan.items.length > 0 || plan.dropItems.length > 0) {
     await step('appointments', async () => {
-      hooks.stage('Kalendarz obszaru…');
+      hooks.stage(t('areasJson.import.stageAreaCalendar'));
       calendarId = (await createCalendar({ areaId, title: areaName, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })).calendarId;
 
       /* Was es von früheren Importen noch gibt — der Baum jedes Termins (und je Ganzem seine Teile der Reihe nach). */
@@ -374,7 +377,7 @@ export async function runAreaImport(input: {
           repeat: one.repeat, every: one.every, weekdays: one.weekdays, until: one.until, count: null,
           ...(it.parentKey === null ? {} : { parentItemId: parent, position: it.position })
         };
-        hooks.stage(`Kalendarz: „${one.title}”…`);
+        hooks.stage(t('areasJson.import.stageCalendar', { title: one.title }));
         let existing = it.itemId;
         if (existing === null && parent !== null && it.parentKey !== null && adoptedKeys.has(it.parentKey)) {
           const at = (childrenOf.get(parent) ?? [])[(it.position ?? 0) - 1];
@@ -395,7 +398,7 @@ export async function runAreaImport(input: {
           if (one.key !== null) refItems.set(one.key, id);
           if (it.main) mainItemId = id;
         } catch (e) {
-          warnings.push(`„${one.title}” nie trafił do kalendarza: ${failure(e)}${one.points.length > 0 ? ' (razem z programem)' : ''}.`);
+          warnings.push(t(one.points.length > 0 ? 'areasJson.import.itemFailedProgram' : 'areasJson.import.itemFailed', { title: one.title, error: failure(e) }));
         }
       }
       let dropped = 0;
@@ -405,7 +408,9 @@ export async function runAreaImport(input: {
         }
         forget('appointment', k.key);
       }
-      lines.push(`Terminy: nowe — ${created}, zmienione — ${changed}${dropped > 0 ? `, usunięte punkty programu — ${dropped}` : ''}.`);
+      lines.push(dropped > 0
+        ? t('areasJson.import.itemsDropped', { created, changed, dropped })
+        : t('areasJson.import.items', { created, changed }));
     });
   }
 
@@ -417,7 +422,7 @@ export async function runAreaImport(input: {
     try {
       calendarId = (await createCalendar({ areaId, title: areaName, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })).calendarId;
     } catch (e) {
-      warnings.push(`Kalendarz obszaru: ${failure(e)} — moduły kalendarza zostają bez niego.`);
+      warnings.push(t('areasJson.import.calendarFailed', { error: failure(e) }));
     }
   }
 
@@ -438,12 +443,12 @@ export async function runAreaImport(input: {
     const target = targetOf(say);
     const now = row === null ? areaId : questionsAreaOf(row) ?? areaId;
     if (target === now) return;
-    hooks.stage(`Pytania „${name}” w ${nameOf(target)}…`);
+    hooks.stage(t('areasJson.import.stageQuestions', { name, where: nameOf(target) }));
     try {
       await moveQuestions(keyRing(), moduleId, target === areaId ? null : target);
-      lines.push(`Formularz „${name}”: pytania w ${nameOf(target)}, odpowiedzi w tym obszarze.`);
+      lines.push(t('areasJson.import.questionsMoved', { name, where: nameOf(target) }));
     } catch (e) {
-      warnings.push(`Formularz „${name}”: pytania zostały w ${nameOf(now)} (${failure(e)}) — zmienisz to w ustawieniach formularza.`);
+      warnings.push(t('areasJson.import.questionsStayed', { name, where: nameOf(now), error: failure(e) }));
     }
   };
 
@@ -460,7 +465,7 @@ export async function runAreaImport(input: {
           try {
             if (moduleId === null) {
               moduleId = newId();
-              hooks.stage(`Formularz „${f.name}”…`);
+              hooks.stage(t('areasJson.import.stageForm', { name: f.name }));
               await createModule(moduleId, 'form', f.name, areaId, 'person');
               isNew = true;
               remember('form', f.ref, moduleId);
@@ -469,7 +474,7 @@ export async function runAreaImport(input: {
             formIds.set(f.ref, moduleId);
             await placeQuestions(moduleId, f.publish, f.name, isNew ? null : modules.find((m) => m.moduleId === moduleId) ?? null);
           } catch (e) {
-            warnings.push(`Formularz „${f.name}” (${f.ref}): ${failure(e)}.`);
+            warnings.push(t('areasJson.import.formFailed', { name: f.name, ref: f.ref, error: failure(e) }));
           }
         }
       }
@@ -482,7 +487,7 @@ export async function runAreaImport(input: {
         try {
           if (moduleId === null) {
             moduleId = newId();
-            hooks.stage(`Podformularz „${s.doc.name}”…`);
+            hooks.stage(t('areasJson.import.stageSubform', { name: s.doc.name }));
             await createModule(moduleId, 'form', s.doc.name, areaId, 'person', undefined, {
               extendsId: parent, audience: s.doc.audience, ...(s.doc.wish.repeat === undefined ? {} : { repeat: s.doc.wish.repeat })
             });
@@ -492,7 +497,7 @@ export async function runAreaImport(input: {
           subformIds.set(s.doc.key, { moduleId, isNew });
           formIds.set(s.doc.key, moduleId);
         } catch (e) {
-          warnings.push(`Podformularz „${s.doc.name}”: ${failure(e)} — pominięty.`);
+          warnings.push(t('areasJson.import.subformSkipped', { name: s.doc.name, error: failure(e) }));
         }
       }
       const pages = new Map(usable.map((p) => [p.doc.key, p.path] as const));
@@ -502,7 +507,7 @@ export async function runAreaImport(input: {
         const result = await importPage(p, ids);
         if (result === 'made') made += 1;
       }
-      lines.push(`Strony: ${usable.length}${made > 0 ? ` (nowe — ${made})` : ''}.`);
+      lines.push(made > 0 ? t('areasJson.import.pagesMade', { all: usable.length, made }) : t('areasJson.import.pages', { all: usable.length }));
       for (const one of asks) await setUpAsk(one.moduleId, one.ask, one.label);
     });
   }
@@ -513,7 +518,7 @@ export async function runAreaImport(input: {
    * der Art. Was es schon gibt, bleibt; es kommt nur hinzu, was fehlt.
    */
   async function setUpAsk(moduleId: string, ask: AskWant, label: string): Promise<void> {
-    const where = `${label}: „Napisz do nas”`;
+    const where = t('areasJson.import.askWhere', { label });
     const answer = ask.answer.length > 0 ? ask.answer : doc.roles.filter((r) => r.level === 'admin').map((r) => r.key);
     const forms = ask.forms ?? [...formModules.keys()];
     try {
@@ -521,8 +526,8 @@ export async function runAreaImport(input: {
       let answerArea = row?.areaId ?? null;
       if (answerArea === null) {
         const named = answer.map((k) => doc.roles.find((r) => r.key === k)?.name).filter((n): n is string => n !== undefined);
-        hooks.stage(`${where}: kto odpowiada…`);
-        const made = await createArea(keyRing(), person!, (named.join(', ') || 'Organizatorzy').slice(0, 200), areaId);
+        hooks.stage(t('areasJson.import.stageWhoAnswers', { where }));
+        const made = await createArea(keyRing(), person!, (named.join(', ') || t('areasJson.import.organisers')).slice(0, 200), areaId);
         await updateModule(moduleId, { areaId: made.areaId });
         answerArea = made.areaId;
       }
@@ -532,37 +537,38 @@ export async function runAreaImport(input: {
       ]);
       for (const key of answer) {
         const roleId = roleIds.get(key);
-        if (roleId === undefined) { warnings.push(`${where}: roli „${key}” nie ma w dokumencie ani w obszarze — pominięta.`); continue; }
+        if (roleId === undefined) { warnings.push(t('areasJson.import.roleMissing', { where, key })); continue; }
         if (inside.some((m) => m.roleId === roleId)) continue;
         const member = here.find((m) => m.roleId === roleId);
-        if (member === undefined) { warnings.push(`${where}: rola „${key}” nie jest jeszcze w obszarze — dodasz ją w edytorze strony.`); continue; }
+        if (member === undefined) { warnings.push(t('areasJson.import.roleNotInArea', { where, key })); continue; }
         await joinArea(keyRing(), answerArea, { id: roleId, kind: 'group', wrapPublicKey: member.wrapPublicKey }, personId, 'write')
-          .catch((e: unknown) => { warnings.push(`${where}: rola „${key}” nie dodana (${failure(e)}).`); });
+          .catch((e: unknown) => { warnings.push(t('areasJson.import.roleNotAdded', { where, key, error: failure(e) })); });
       }
       let linked = 0;
       for (const ref of forms) {
         const formId = formIds.get(ref);
-        if (formId === undefined) { warnings.push(`${where}: formularza „${ref}” nie ma w dokumencie ani w obszarze — pominięty.`); continue; }
+        if (formId === undefined) { warnings.push(t('areasJson.import.formMissing', { where, ref })); continue; }
         await linkAudienceForm('module', moduleId, formId, true, personId).then(() => { linked += 1; },
-          (e: unknown) => { warnings.push(`${where}: zapisanych z „${ref}” nie dołączono (${failure(e)}).`); });
+          (e: unknown) => { warnings.push(t('areasJson.import.signedUpNotJoined', { where, ref, error: failure(e) })); });
       }
-      lines.push(`${where}: odpowiadają ${answer.length > 0 ? answer.map((k) => `„${doc.roles.find((r) => r.key === k)?.name ?? k}”`).join(', ') : 'Ty'}${linked > 0 ? `; piszą zapisani z ${linked} ${linked === 1 ? 'formularza' : 'formularzy'}` : ''}.`);
+      const answering = answer.length > 0 ? answer.map((k) => t('areasJson.quoted', { name: doc.roles.find((r) => r.key === k)?.name ?? k })).join(', ') : t('areasJson.import.you');
+      lines.push(linked > 0 ? t('areasJson.import.answersLinked', { where, who: answering, count: linked }) : t('areasJson.import.answers', { where, who: answering }));
     } catch (e) {
-      warnings.push(`${where}: ${failure(e)} — ustawisz to w edytorze strony.`);
+      warnings.push(t('areasJson.import.askFailed', { where, error: failure(e) }));
     }
   }
 
   /** Eine Seite: anlegen, wem sie gehört, wer sie sieht — dann der Import der Seite selbst. */
   async function importPage(p: PlannedPage, ids: RefIds): Promise<'made' | 'kept' | 'skipped'> {
-    const label = `Strona „${p.doc.key}” (${p.path})`;
+    const label = t('areasJson.import.pageLabel', { key: p.doc.key, path: p.path });
     hooks.stage(`${label}…`);
     let made = false;
     if (!p.exists) {
       try {
-        await openSubpage(p.path, personId, `Import obszaru „${areaName}”`.slice(0, 200));
+        await openSubpage(p.path, personId, t('areasJson.import.pageNote', { name: areaName }).slice(0, 200));
         made = true;
       } catch (e) {
-        warnings.push(`${label}: ${failure(e)} — pominięta.`);
+        warnings.push(t('areasJson.import.pageSkipped', { label, error: failure(e) }));
         return 'skipped';
       }
     }
@@ -572,7 +578,7 @@ export async function runAreaImport(input: {
       afterPath = p.path;
       /* Sofort: dann zeigt der Dienst sie erst nach dem Ende. */
       await saveProfile(areaId, { afterPath: p.path }).catch((e: unknown) => {
-        warnings.push(`${label}: nie oznaczono jej jako „po wydarzeniu” (${failure(e)}) — do końca wydarzenia może być widoczna.`);
+        warnings.push(t('areasJson.import.afterFailed', { label, error: failure(e) }));
       });
     }
 
@@ -582,15 +588,15 @@ export async function runAreaImport(input: {
     try {
       if (p.doc.access === 'members' && !bound.includes(areaId)) {
         await setPageAreas(p.path, [...bound, areaId]);
-        lines.push(`${label}: tylko dla osób obszaru.`);
+        lines.push(t('areasJson.import.pageMembers', { label }));
         isPublic = false;
       } else if (p.doc.access === 'public' && bound.length > 0) {
         await setPageAreas(p.path, []);
-        lines.push(`${label}: publiczna.`);
+        lines.push(t('areasJson.import.pagePublic', { label }));
         isPublic = true;
       }
     } catch (e) {
-      warnings.push(`${label}: dostęp nie zmieniony (${failure(e)}).`);
+      warnings.push(t('areasJson.import.accessFailed', { label, error: failure(e) }));
     }
 
     /* Wer für eine öffentliche Seite geradesteht: dieser Bereich (sein Administrator danych). */
@@ -600,7 +606,7 @@ export async function runAreaImport(input: {
       try {
         await setPageController(p.path, areaId);
       } catch (e) {
-        warnings.push(`${label}: nie wskazano obszaru jako odpowiedzialnego za stronę (${failure(e)}).`);
+        warnings.push(t('areasJson.import.controllerFailed', { label, error: failure(e) }));
       }
     }
 
@@ -628,7 +634,7 @@ export async function runAreaImport(input: {
           adjust: (planned) => adjustPagePlan(planned, prep, areaId, options.replaceModules, now.parts)
         }
       });
-      lines.push(`${label}${made ? ' — nowa' : ''}:`, ...result.lines.map((line) => `   ${line.startsWith('Moduły: zmienione w miejscu') ? moduleLine(prep, options.replaceModules, now.parts) : line}`));
+      lines.push(made ? t('areasJson.import.pageHeadNew', { label }) : t('areasJson.import.pageHead', { label }), ...result.lines.map((line) => `   ${line.startsWith(t('areasJson.import.modulesLinePrefix')) ? moduleLine(prep, options.replaceModules, now.parts) : line}`));
       warnings.push(...result.warnings.map((w) => `${label}: ${w}`));
       for (const [moduleId, ids] of result.questions) {
         const ref = refOfModule.get(moduleId) ?? prep.entries.find((e) => result.moduleOf.get(e.partId) === moduleId)?.ref;
@@ -645,7 +651,7 @@ export async function runAreaImport(input: {
         if (ref !== undefined) cardImageId = ref.slice('page-image:'.length);
       }
     } catch (e) {
-      warnings.push(`${label}: ${failure(e)} — treść strony nie zapisana.`);
+      warnings.push(t('areasJson.import.pageContentFailed', { label, error: failure(e) }));
       return made ? 'made' : 'skipped';
     }
     return made ? 'made' : 'kept';
@@ -660,11 +666,11 @@ export async function runAreaImport(input: {
         const made = subformIds.get(s.doc.key);
         if (made === undefined) continue;
         const row = modules.find((m) => m.moduleId === made.moduleId);
-        if (row === undefined) { warnings.push(`Podformularz „${s.doc.name}”: nie widać go na liście modułów — pominięty.`); continue; }
+        if (row === undefined) { warnings.push(t('areasJson.import.subformNotListed', { name: s.doc.name })); continue; }
         await placeQuestions(made.moduleId, s.doc.publish, s.doc.name, made.isNew ? null : row);
         const said = new Set<string>();
         const resolved = resolveRoleRefs(resolveTokens(s.doc.raw, ids, said) as Record<string, unknown>, ids, said);
-        for (const token of said) missing.add(`Podformularz „${s.doc.name}”\u0000${token}`);
+        for (const token of said) missing.add(`${t('areasJson.import.subformLabel', { name: s.doc.name })}\u0000${token}`);
         const questions = Array.isArray(resolved.questions)
           ? resolved.questions.map((q) => {
             if (q === null || typeof q !== 'object' || Array.isArray(q)) return q;
@@ -678,10 +684,10 @@ export async function runAreaImport(input: {
             replace: options.replaceQuestions, answersTo: areaId, stage: hooks.stage, known: knownQuestions(s.doc.key), byLabel: true
           });
           rememberQuestions(s.doc.key, applied.ids);
-          lines.push(`Podformularz „${s.doc.name}”${made.isNew ? ' (nowy)' : ''}: ${applied.lines.join(' ') || 'bez zmian.'}`);
-          warnings.push(...applied.warnings.map((w) => `Podformularz „${s.doc.name}”: ${w}`));
+          lines.push(t(made.isNew ? 'areasJson.import.subformNew' : 'areasJson.import.subformDone', { name: s.doc.name, lines: applied.lines.join(' ') || t('areasJson.import.noChanges') }));
+          warnings.push(...applied.warnings.map((w) => t('areasJson.import.subformWarning', { name: s.doc.name, warning: w })));
         } catch (e) {
-          warnings.push(`Podformularz „${s.doc.name}”: ${failure(e)}.`);
+          warnings.push(t('areasJson.import.subformFailed', { name: s.doc.name, error: failure(e) }));
         }
       }
     });
@@ -694,18 +700,18 @@ export async function runAreaImport(input: {
       try {
         writer = await myWriter(keyRing(), areaId);
       } catch (e) {
-        warnings.push(`Rozmowy: ${failure(e)} — pominięte.`);
+        warnings.push(t('areasJson.import.chatsSkipped', { error: failure(e) }));
         return;
       }
       for (const c of doc.chats!) {
-        const label = c.kind === 'area' ? 'Rozmowa obszaru' : 'Kanał ogłoszeń';
+        const label = c.kind === 'area' ? t('areas.page.chat') : t('areasJson.import.channel');
         try {
           hooks.stage(`${label}…`);
           const chatId = await startAreaChat(areaId, writer, c.kind === 'channel');
           remember('chat', c.kind, chatId);
           const joined = await joinForms(chatId, c.forms.map((ref) => ({ ref, moduleId: formIds.get(ref) ?? null })), writer);
           warnings.push(...joined.warnings.map((w) => `${label}: ${w}`));
-          lines.push(`${label}: jest${joined.linked > 0 ? `; dołączeni zapisani z ${joined.linked} ${joined.linked === 1 ? 'formularza' : 'formularzy'}` : ''}.`);
+          lines.push(joined.linked > 0 ? t('areasJson.import.chatJoined', { label, count: joined.linked }) : t('areasJson.import.chatThere', { label }));
         } catch (e) {
           warnings.push(`${label}: ${failure(e)}.`);
         }
@@ -724,21 +730,21 @@ export async function runAreaImport(input: {
         if (doc.card === null) patch.card = { sealed: '' };
         else if (doc.card !== undefined) {
           const at = targetOf(doc.card.publish);
-          hooks.stage('Pieczętowanie wizytówki…');
+          hooks.stage(t('areasJson.import.stageCard'));
           patch.card = await sealCard(keyRing(), areaId, at, { title: doc.card.title, lead: doc.card.lead });
           if (doc.card.image === null) patch.imageId = '';
           else if (typeof doc.card.image === 'string') {
             const id = cardNeed !== null ? cardImageId : doc.card.image.slice('page-image:'.length);
             if (id !== null && id !== '') patch.imageId = id;
-            else warnings.push('Zdjęcie wizytówki: nie dodano pliku — wybierzesz je w ustawieniach obszaru.');
+            else warnings.push(t('areasJson.import.cardImageMissing'));
           }
-          lines.push(`Wizytówka „${doc.card.title}” — w ${nameOf(at)}.`);
+          lines.push(t('areasJson.import.cardDone', { title: doc.card.title, where: nameOf(at) }));
         }
-        hooks.stage('Profil: strony i termin…');
+        hooks.stage(t('areasJson.import.stageProfilePages'));
         await saveProfile(areaId, patch);
-        if (mainPath !== null) lines.push(`Strona główna: ${mainPath}.`);
-        if (afterPath !== null) lines.push(`Strona „po wydarzeniu”: ${afterPath} — pokaże się po zakończeniu.`);
-        if (mainItemId !== null) lines.push('Główny termin ustawiony.');
+        if (mainPath !== null) lines.push(t('areasJson.import.mainPage', { path: mainPath }));
+        if (afterPath !== null) lines.push(t('areasJson.import.afterPage', { path: afterPath }));
+        if (mainItemId !== null) lines.push(t('areasJson.import.mainItem'));
       });
     }
   }
@@ -749,12 +755,12 @@ export async function runAreaImport(input: {
       const had = await loadListings(areaId).then((r) => r.listings, () => []);
       for (const path of doc.listings) {
         const known = had.find((l) => l.path === path);
-        if (known !== undefined) { lines.push(`Lista „${path}”: prośba już jest (${LISTING_WORDS[known.state]}).`); continue; }
+        if (known !== undefined) { lines.push(t('areasJson.import.listingKnown', { path, state: LISTING_WORDS[known.state] })); continue; }
         try {
           const asked = await askListing(areaId, { path });
-          lines.push(`Lista „${path}”: ${LISTING_WORDS[asked.state]}${asked.catalogue ? ' (katalog — decyduje operator)' : ''}.`);
+          lines.push(t(asked.catalogue ? 'areasJson.import.listingCatalogue' : 'areasJson.import.listingAsked', { path, state: LISTING_WORDS[asked.state] }));
         } catch (e) {
-          warnings.push(`Lista „${path}”: ${failure(e)}.`);
+          warnings.push(t('areasJson.import.listingFailed', { path, error: failure(e) }));
         }
       }
     });

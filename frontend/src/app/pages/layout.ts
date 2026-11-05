@@ -22,6 +22,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { isLang, type Lang } from '../core/i18n';
+
 export const BREAKPOINTS = ['desktop', 'tablet', 'mobile'] as const;
 export type Breakpoint = (typeof BREAKPOINTS)[number];
 
@@ -45,7 +47,16 @@ export interface Frame {
  * nur mit: wer einen Baustein verschiebt, nimmt seinen Hintergrund mit.
  * Ebenso (0085) seine Plätze in einer Präsentation (`show`, `presentation.ts`).
  */
-export type Layout = Partial<Record<Breakpoint, Frame>> & { readonly slide?: unknown; readonly show?: unknown };
+export type Layout = Partial<Record<Breakpoint, Frame>> & { readonly slide?: unknown; readonly show?: unknown; readonly lang?: Lang };
+
+/** 2026-11-05 — die Sprache des Bausteins (LOCALIZATION.md, Stufe 3); fehlt: die der Seite. Duldsam gelesen. */
+export const langOfLayout = (layout: Layout): Lang | null => (isLang(layout.lang) ? layout.lang : null);
+
+/** Die Sprache setzen oder (`null`) wegnehmen — der Rest der Anordnung bleibt. */
+export const withLang = (layout: Layout, lang: Lang | null): Layout => {
+  const { lang: _was, ...rest } = layout;
+  return lang === null ? rest : { ...rest, lang };
+};
 
 /** Ein Baustein, so weit das Raster ihn kennt: Kennung, Art, Anordnung. */
 export interface Placed {

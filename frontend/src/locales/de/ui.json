@@ -1,0 +1,95 @@
+{
+  "ask": {
+    "verb": {
+      "delete": "Löschen",
+      "withdraw": "Zurückziehen",
+      "callOff": "Absagen",
+      "unsubscribe": "Austragen",
+      "takeDown": "Abnehmen",
+      "detach": "Trennen",
+      "archive": "Archivieren",
+      "finish": "Beenden",
+      "add": "Hinzufügen",
+      "join": "Beitreten",
+      "connect": "Verbinden",
+      "issue": "Ausstellen"
+    }
+  },
+  "modal": {
+    "backToPage": "Zurück zur Seite",
+    "back": "‹ Zurück",
+    "closeFull": "Vollbild schließen"
+  },
+  "month": {
+    "previous": "Voriger Monat",
+    "next": "Nächster Monat",
+    "today": "{date} (heute)"
+  },
+  "password": {
+    "hide": "Passwort verbergen",
+    "show": "Passwort zeigen"
+  },
+  "scanner": {
+    "noCode": "Auf dem Foto ist kein Code zu sehen — geh näher heran, ohne Spiegelung, den Code waagerecht.",
+    "video": "Kamerabild",
+    "starting": "Kamera wird eingeschaltet…",
+    "denied": "Keine Erlaubnis für die Kamera. Mach ein Foto des Codes oder gib die Nummer ein.",
+    "none": "Die Kamera ist hier nicht verfügbar. Mach ein Foto des Codes oder gib die Nummer ein.",
+    "reading": "Wird gelesen…",
+    "photo": "Foto des Codes",
+    "orType": "…oder gib die Nummer ein",
+    "placeholder": "978-… oder Bibliotheksnummer"
+  },
+  "tex": {
+    "failed": "Diese Formel lässt sich nicht setzen: {error}"
+  },
+  "tree": {
+    "searchIn": "Suchen: {label}",
+    "recent": "Zuletzt",
+    "collapse": "Zuklappen: {label}",
+    "expand": "Aufklappen: {label}",
+    "inside": {
+      "one": "{count} darin",
+      "other": "{count} darin"
+    },
+    "empty": "Hier ist nichts.",
+    "noMatch": "Nichts passt.",
+    "choose": "— wählen —",
+    "otherArea": "ein anderer Bereich"
+  },
+  "json": {
+    "entries": {
+      "one": "{count} Eintrag",
+      "other": "{count} Einträge"
+    },
+    "treeLabel": "Was dieses Format enthält",
+    "repaired": {
+      "one": "JSON vor dem Lesen ausgebessert ({count} Stelle): einzelne Backslashes (z. B. in LaTeX-Formeln), Zeilenumbrüche im Text oder eine Hülle um das JSON. Prüf die Vorschau.",
+      "other": "JSON vor dem Lesen ausgebessert ({count} Stellen): einzelne Backslashes (z. B. in LaTeX-Formeln), Zeilenumbrüche im Text oder eine Hülle um das JSON. Prüf die Vorschau."
+    },
+    "exportFailed": "Der Export ließ sich nicht vorbereiten.",
+    "importing": "Wird importiert…",
+    "importFailed": "Der Import ist fehlgeschlagen.",
+    "export": "Export",
+    "import": "Import",
+    "preparing": "Wird vorbereitet…",
+    "show": "JSON zeigen",
+    "refresh": "Aktualisieren",
+    "download": ".json-Datei herunterladen",
+    "editInImport": "Im Import bearbeiten",
+    "exportText": "Export-JSON",
+    "importText": "Import-JSON",
+    "placeholder": "Füge JSON ein — aus einem Export oder nach der Formatbeschreibung geschrieben.",
+    "sample": "Beispiel einsetzen",
+    "loadFile": "Datei laden…",
+    "clear": "Leeren",
+    "invalid": "Ungültiges JSON: {error}",
+    "changes": "Was sich ändert",
+    "imported": "Importiert.",
+    "format": "Formatbeschreibung",
+    "copiedDoc": "Beschreibung kopiert",
+    "copyDoc": "Beschreibung kopieren (für KI)",
+    "fold": "Zuklappen",
+    "unfold": "Zeigen"
+  }
+}

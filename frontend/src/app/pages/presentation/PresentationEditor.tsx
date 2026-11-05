@@ -20,6 +20,7 @@
 
 import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 
+import { useT } from '../../core/i18n';
 import { newId } from '../../core/ids';
 import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Layout } from '../layout';
 import type { DraftPart } from '../page';
@@ -74,6 +75,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
   onLook: (next: Look) => void;
   onOpenModule: (moduleId: string, parts: readonly DraftPart[]) => void;
 }) {
+  const t = useT();
   const show = readShow(look.show);
   const dark = usePrefersDark();
   const theme = resolveTheme(look.theme, dark);
@@ -107,7 +109,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
     const key = sceneKey();
     const made: Scene = copy && scene !== undefined
       ? { ...scene, key, label: scene.label === '' ? '' : `${scene.label} (2)` }
-      : blankScene(key, scenes.length === 0 ? (title.trim() || 'Start') : `Scena ${scenes.length + 1}`);
+      : blankScene(key, scenes.length === 0 ? (title.trim() || t('pagePresentation.editor.startScene')) : t('pagePresentation.view.sceneN', { n: scenes.length + 1 }));
     const next = [...scenes.slice(0, index + 1), made, ...scenes.slice(index + 1)];
     setShow({ ...show, scenes: scenes.length === 0 ? [made] : next });
     /* Eine Kopie nimmt ihre Bausteine mit — an dieselben Plätze. */
@@ -124,7 +126,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
 
   const dropScene = async () => {
     if (scene === undefined) return;
-    if (!(await askText(`Usunąć scenę „${scene.label || index + 1}"? Moduły zostają na stronie; znikają tylko ich miejsca na tej scenie.`))) return;
+    if (!(await askText(t('pagePresentation.editor.dropScene', { name: scene.label || index + 1 })))) return;
     onChange(parts.map((part) => {
       const piece = readPiece(part.layout);
       if (piece.places[scene.key] === undefined && piece.go[scene.key] === undefined) return part;
@@ -403,12 +405,12 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
       <div className="pe-side">
         <ShowSettings look={look} show={show} path={path} theme={theme} busy={busy} onLook={onLook} onShow={setShow} />
 
-        <h4 className="pb-h">Sceny ({scenes.length})</h4>
+        <h4 className="pb-h">{t('pagePresentation.editor.scenes', { n: scenes.length })}</h4>
         {scenes.length === 0 && (
           <div className="pe-empty">
-            <p className="pb-empty">Prezentacja nie ma jeszcze sceny. Scena to jeden ekran — moduły stoją na niej tam, gdzie je postawisz.</p>
+            <p className="pb-empty">{t('pagePresentation.editor.empty')}</p>
             <div className="wk-actions">
-              <button type="button" className="wk-btn" disabled={busy} onClick={() => addScene(false)}>Dodaj pierwszą scenę</button>
+              <button type="button" className="wk-btn" disabled={busy} onClick={() => addScene(false)}>{t('pagePresentation.editor.addFirst')}</button>
               {parts.length > 0 && (
                 <button type="button" className="wk-btn wk-btn-quiet" disabled={busy}
                   onClick={() => {
@@ -420,7 +422,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
                       return { ...part, layout: withPiece(part.layout, { ...piece, skin: 'card', type: 'auto', places: { [made[i].key]: { ...piece.places[made[i].key], w: 64 } } }) };
                     }));
                   }}>
-                  Każdy moduł jako osobna scena
+                  {t('pagePresentation.editor.eachModule')}
                 </button>
               )}
             </div>
@@ -433,10 +435,10 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
               <button type="button" className="pe-scene" onClick={() => { setSceneAt(i); setStep(0); setSelected(null); }}>
                 <span className="pe-num">{i + 1}</span>
                 <span className="pe-scene-name">
-                  <strong>{sc.label || `Scena ${i + 1}`}</strong>
+                  <strong>{sc.label || t('pagePresentation.view.sceneN', { n: i + 1 })}</strong>
                   <span>
-                    {i === 0 ? 'początek' : SCENE_CHANGE_LABEL[sc.change].split(' — ')[0].toLowerCase()}{sc.steps > 1 ? ` · ${sc.steps} kroków` : ''}
-                    {sc.next !== null ? ` · dalej: ${targetLabel(show, sc.next, 'następna')}` : ''}
+                    {i === 0 ? t('pagePresentation.map.start') : SCENE_CHANGE_LABEL[sc.change].split(' — ')[0].toLocaleLowerCase(t.locale)}{sc.steps > 1 ? t('pagePresentation.editor.steps', { count: sc.steps }) : ''}
+                    {sc.next !== null ? t('pagePresentation.editor.nextTo', { target: targetLabel(show, sc.next, t('pagePresentation.editor.nextOne')) }) : ''}
                   </span>
                 </span>
               </button>
@@ -447,20 +449,20 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
         {scenes.length > 0 && (
           <div className="wk-actions pe-scene-tools">
             <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy} onClick={() => addScene(false)}>
-              <Icon name="plus" />Nowa scena
+              <Icon name="plus" />{t('pagePresentation.editor.newScene')}
             </button>
-            <MenuButton label={`Scena „${scene?.label || index + 1}"`} disabled={busy} items={[
-              { label: 'Kopia tej sceny', icon: 'copy', onSelect: () => addScene(true) },
-              index > 0 && { label: 'Przesuń wyżej', icon: 'up', onSelect: () => moveScene(-1) },
-              index < scenes.length - 1 && { label: 'Przesuń niżej', icon: 'down', onSelect: () => moveScene(1) },
-              { label: 'Usuń scenę', icon: 'trash', danger: true, onSelect: () => void dropScene() }
+            <MenuButton label={t('pagePresentation.editor.sceneMenu', { name: scene?.label || index + 1 })} disabled={busy} items={[
+              { label: t('pagePresentation.editor.copyScene'), icon: 'copy', onSelect: () => addScene(true) },
+              index > 0 && { label: t('pagePresentation.editor.moveUp'), icon: 'up', onSelect: () => moveScene(-1) },
+              index < scenes.length - 1 && { label: t('pagePresentation.editor.moveDown'), icon: 'down', onSelect: () => moveScene(1) },
+              { label: t('pagePresentation.editor.deleteScene'), icon: 'trash', danger: true, onSelect: () => void dropScene() }
             ]} />
           </div>
         )}
 
         {scene !== undefined && (
           <details className="wk-fold pe-scene-fold" open>
-            <summary>Scena „{scene.label || index + 1}"</summary>
+            <summary>{t('pagePresentation.editor.sceneMenu', { name: scene.label || index + 1 })}</summary>
             <SceneSettings key={scene.key} scene={scene} show={show} first={index === 0} next={scenes[index + 1]} path={path} theme={theme}
               need={stepsNeeded(scene.key, parts.map((p) => readPiece(p.layout)))} busy={busy} onChange={setScene} />
           </details>
@@ -468,7 +470,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
 
         {scene !== undefined && (
           <>
-            <h4 className="pb-h">Na tej scenie ({here.length})</h4>
+            <h4 className="pb-h">{t('pagePresentation.editor.onScene', { n: here.length })}</h4>
             <ol className="pe-pieces">
               {here.map((part) => {
                 const piece = readPiece(part.layout);
@@ -480,9 +482,9 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
                       <strong>{pieceLabelOf(part)}</strong>
                       <span>
                         {partLabel(part.kind)}
-                        {place.step !== null ? ` · krok ${place.step + 1}` : ''}
-                        {moving ? ' · wędruje' : ''}
-                        {place.z !== 0 ? ' · w głębi' : ''}
+                        {place.step !== null ? t('pagePresentation.editor.stepN', { n: place.step + 1 }) : ''}
+                        {moving ? t('pagePresentation.editor.travels') : ''}
+                        {place.z !== 0 ? t('pagePresentation.editor.deep') : ''}
                       </span>
                     </button>
                   </li>
@@ -491,7 +493,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
             </ol>
 
             <div className="pe-arrange">
-              <span className="wk-hint">Ułóż wszystkie moduły tej sceny{show.format === 'screen' ? ' (od razu też na wąskim ekranie)' : ''}:</span>
+              <span className="wk-hint">{show.format === 'screen' ? t('pagePresentation.editor.arrangeBoth') : t('pagePresentation.editor.arrange')}</span>
               <div className="wk-actions">
                 {ARRANGEMENTS.map((kind) => (
                   <button key={kind} type="button" className="wk-link-btn" disabled={busy || here.length === 0} onClick={() => arrangeAll(kind)}>
@@ -500,13 +502,13 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
                 ))}
               </div>
               <div className="wk-actions">
-                <button type="button" className="wk-link-btn" disabled={busy || here.length === 0} onClick={() => stepsInOrder(true)}>Kroki po kolei</button>
-                <button type="button" className="wk-link-btn" disabled={busy || here.length === 0} onClick={() => stepsInOrder(false)}>Bez kroków</button>
+                <button type="button" className="wk-link-btn" disabled={busy || here.length === 0} onClick={() => stepsInOrder(true)}>{t('pagePresentation.editor.stepsInOrder')}</button>
+                <button type="button" className="wk-link-btn" disabled={busy || here.length === 0} onClick={() => stepsInOrder(false)}>{t('pagePresentation.editor.noSteps')}</button>
               </div>
             </div>
 
             <div className="pe-add">
-              <span className="pb-h">Dodaj na scenę</span>
+              <span className="pb-h">{t('pagePresentation.editor.addToScene')}</span>
               <div className="pb-palette">
                 {[...palette().filter((one) => ['text', 'image', 'shape'].includes(one.kind)), ...palette().filter((one) => !['text', 'image', 'shape'].includes(one.kind))].map((one) => (
                   <button key={one.kind} type="button" className="pb-pill" title={one.use} disabled={busy} onClick={() => add(one.kind)}>
@@ -517,12 +519,12 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
               </div>
               {elsewhere.length > 0 && (
                 <details className="wk-fold">
-                  <summary>Moduły tej strony, których tu nie ma ({elsewhere.length})</summary>
+                  <summary>{t('pagePresentation.editor.elsewhere', { n: elsewhere.length })}</summary>
                   <ul className="pe-elsewhere">
                     {elsewhere.map((part) => (
                       <li key={part.id}>
-                        <span>{pieceLabelOf(part)} <span className="wk-hint">· {partLabel(part.kind)}{Object.keys(readPiece(part.layout).places).length === 0 ? ' · poza prezentacją' : ''}</span></span>
-                        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => placeHere(part)}>Postaw tutaj</button>
+                        <span>{pieceLabelOf(part)} <span className="wk-hint">· {partLabel(part.kind)}{Object.keys(readPiece(part.layout).places).length === 0 ? t('pagePresentation.editor.outside') : ''}</span></span>
+                        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => placeHere(part)}>{t('pagePresentation.editor.placeHere')}</button>
                       </li>
                     ))}
                   </ul>
@@ -550,7 +552,7 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
             onPart={replacePart}
             onPlace={(patch) => commitPlace(chosen, patchPlace(chosenPlace, patch))}
             onDelete={async () => {
-              if (!(await askText(`Usunąć moduł „${pieceLabelOf(chosen)}" ze strony?`))) return;
+              if (!(await askText(t('pagePresentation.editor.dropModule', { name: pieceLabelOf(chosen) })))) return;
               onChange(parts.filter((p) => p.id !== chosen.id));
               setSelected(null);
             }}
@@ -565,26 +567,26 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
 
       <div className="pe-main">
         <div className="pe-bar">
-          <button type="button" className="wk-icon-btn" aria-label="Poprzednia scena" title="Poprzednia scena" disabled={index === 0} onClick={() => { setSceneAt(index - 1); setStep(0); }}><Icon name="prev" /></button>
-          <span className="pe-bar-scene">{scene === undefined ? '—' : `${index + 1}. ${scene.label || 'Scena'}`}</span>
-          <button type="button" className="wk-icon-btn" aria-label="Następna scena" title="Następna scena" disabled={index >= scenes.length - 1} onClick={() => { setSceneAt(index + 1); setStep(0); }}><Icon name="next" /></button>
+          <button type="button" className="wk-icon-btn" aria-label={t('pagePresentation.editor.prevScene')} title={t('pagePresentation.editor.prevScene')} disabled={index === 0} onClick={() => { setSceneAt(index - 1); setStep(0); }}><Icon name="prev" /></button>
+          <span className="pe-bar-scene">{scene === undefined ? '—' : `${index + 1}. ${scene.label || t('pagePresentation.paths.scene')}`}</span>
+          <button type="button" className="wk-icon-btn" aria-label={t('pagePresentation.editor.nextScene')} title={t('pagePresentation.editor.nextScene')} disabled={index >= scenes.length - 1} onClick={() => { setSceneAt(index + 1); setStep(0); }}><Icon name="next" /></button>
           {scene !== undefined && scene.steps > 1 && !playing && (
-            <span className="pe-steps" role="group" aria-label="Krok sceny">
+            <span className="pe-steps" role="group" aria-label={t('pagePresentation.editor.sceneStep')}>
               {Array.from({ length: scene.steps }, (_, n) => (
                 <button key={n} type="button" className={n === step ? 'is-on' : ''} onClick={() => setStep(n)}>{n + 1}</button>
               ))}
             </span>
           )}
           {show.format === 'screen' && (
-            <span className="wk-seg pe-format" role="group" aria-label="Ekran">
-              <button type="button" className={!tallView ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={!tallView} onClick={() => setTallView(false)}>Szeroki</button>
-              <button type="button" className={tallView ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={tallView} onClick={() => setTallView(true)}>Wąski (telefon)</button>
+            <span className="wk-seg pe-format" role="group" aria-label={t('pagePresentation.editor.screen')}>
+              <button type="button" className={!tallView ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={!tallView} onClick={() => setTallView(false)}>{t('pagePresentation.editor.wide')}</button>
+              <button type="button" className={tallView ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={tallView} onClick={() => setTallView(true)}>{t('pagePresentation.editor.narrow')}</button>
             </span>
           )}
-          <span className="wk-seg" role="group" aria-label="Widok">
-            <button type="button" className={!playing && !mapping ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={!playing && !mapping} onClick={() => { setPlaying(false); setMapping(false); }}>Układanie</button>
-            <button type="button" className={playing ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={playing} onClick={() => { setPlaying(true); setMapping(false); setSelected(null); }}>Podgląd</button>
-            <button type="button" className={mapping ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={mapping} onClick={() => { setMapping(true); setPlaying(false); setSelected(null); }}>Przejścia</button>
+          <span className="wk-seg" role="group" aria-label={t('pagePresentation.editor.view')}>
+            <button type="button" className={!playing && !mapping ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={!playing && !mapping} onClick={() => { setPlaying(false); setMapping(false); }}>{t('pagePresentation.editor.arranging')}</button>
+            <button type="button" className={playing ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={playing} onClick={() => { setPlaying(true); setMapping(false); setSelected(null); }}>{t('pagePresentation.editor.preview')}</button>
+            <button type="button" className={mapping ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} aria-pressed={mapping} onClick={() => { setMapping(true); setPlaying(false); setSelected(null); }}>{t('pagePresentation.editor.transitions')}</button>
           </span>
           <button type="button" className="wk-btn wk-btn-quiet pe-present" disabled={scenes.length === 0} onClick={() => {
             if (scene === undefined) return;
@@ -596,8 +598,8 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
             setMapping(false);
             setPresent({ at: (along[here]?.at ?? 0) + Math.min(step, scene.steps - 1), route });
           }}
-            title="Na pełnym ekranie: strzałki, spacja albo kliknięcie — dalej; Esc — koniec">
-            Pokaz
+            title={t('pagePresentation.editor.presentHint')}>
+            {t('pagePresentation.view.present')}
           </button>
         </div>
 
@@ -615,8 +617,8 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
         ) : (<>
         <p className="wk-hint pe-main-hint">
           {playing
-            ? 'Podgląd — przewijaj w ramce (kółko, palec, strzałki po kliknięciu w ramkę). Tak zobaczy to gość, bez zapisywania.'
-            : 'Kliknij moduł, żeby go wybrać; przeciągnij ramkę, żeby go przesunąć; uchwyty zmieniają szerokość i wysokość. Strzałki przesuwają (z Shift — dalej), Alt wyłącza przyciąganie.'}
+            ? t('pagePresentation.editor.previewHint')
+            : t('pagePresentation.editor.arrangeHint')}
         </p>
 
         <div className={`pe-canvas${tall ? ' is-tall' : ''}`} ref={canvas} tabIndex={0} onKeyDown={nudge}
@@ -641,11 +643,11 @@ export function PresentationEditor({ path, parts, look, title, busy, onChange, o
           {frame !== null && !playing && (
             <div className="pe-frame" style={{ left: frame.left, top: frame.top, width: frame.width, height: frame.height } as CSSProperties}
               onPointerDown={(e) => startDrag(e, 'move')}>
-              <span className="pe-grip is-w" onPointerDown={(e) => startDrag(e, 'w')} title="Szerokość" />
+              <span className="pe-grip is-w" onPointerDown={(e) => startDrag(e, 'w')} title={t('pagePresentation.editor.width')} />
               {chosenPlace?.h !== null && chosenPlace !== null && effective(chosenPlace).h !== null && (
                 <>
-                  <span className="pe-grip is-h" onPointerDown={(e) => startDrag(e, 'h')} title="Wysokość" />
-                  <span className="pe-grip is-wh" onPointerDown={(e) => startDrag(e, 'wh')} title="Szerokość i wysokość" />
+                  <span className="pe-grip is-h" onPointerDown={(e) => startDrag(e, 'h')} title={t('pagePresentation.editor.height')} />
+                  <span className="pe-grip is-wh" onPointerDown={(e) => startDrag(e, 'wh')} title={t('pagePresentation.editor.widthHeight')} />
                 </>
               )}
             </div>

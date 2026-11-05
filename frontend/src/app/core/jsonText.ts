@@ -14,6 +14,7 @@
  */
 
 import { JSON_ESCAPE_WORDS } from './tex';
+import { t } from './i18n';
 
 export type JsonRead = { readonly value: unknown; readonly repaired: number } | { readonly error: string } | null;
 
@@ -23,7 +24,7 @@ export function readJsonText(text: string): JsonRead {
   try {
     return { value: JSON.parse(text) as unknown, repaired: 0 };
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Nieprawidłowy JSON.';
+    const message = e instanceof Error ? e.message : t('core.json.invalid');
     const body = unwrap(text);
     for (const candidate of body === text ? [text] : [body, text]) {
       const fixed = repairJsonText(candidate);

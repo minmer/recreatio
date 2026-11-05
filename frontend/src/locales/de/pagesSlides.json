@@ -1,0 +1,44 @@
+{
+  "deck": {
+    "start": "Start",
+    "personal": "Deine Angelegenheiten",
+    "nav": "Folien",
+    "prev": "Vorherige Folie",
+    "next": "Nächste Folie"
+  },
+  "legacy": {
+    "instead": {
+      "form": "Anmeldeformular — füge das Modul „Formular“ hinzu und lege darin die Fragen an",
+      "registration": "eigene Anmeldung — das Modul „Deine Anmeldung“ (hinter einem persönlichen Link)",
+      "card": "Teilnehmerkarte — Fragen im Modul „Formular“, Einwilligungen in seinen Einstellungen",
+      "roster": "Teilnehmerliste — die Anmeldungen des Formulars in der Werkstatt",
+      "checklist": "Liste der Aufgaben — das Modul „Schritte“ (hinter einem persönlichen Link)",
+      "topics": "Gesprächsthemen — das Modul „Gespräch“",
+      "meme": "Memes — gibt es im neuen System noch nicht"
+    },
+    "parts": "Teile",
+    "page": "Seite {n}",
+    "internal": "{name} (intern)",
+    "unknownKind": "unbekannte Art „{kind}“",
+    "hidden": "„{label}“ war ausgeblendet — übernommen, prüfe, ob es sichtbar sein soll.",
+    "skipped": "Teil {n} „{label}“ übersprungen: {why}."
+  },
+  "transition": {
+    "scroll": "Bildlauf — kommt von unten herein wie ein Blatt (Standard)",
+    "flow": "Fluss — fährt mit dem Scrollen nach oben und blendet mit dem vorigen über",
+    "fade": "Überblenden — der vorige bleibt stehen, dieser erscheint darauf",
+    "cover": "Abdecken — dieser fährt über den vorigen, der stehen bleibt und verblasst",
+    "reveal": "Enthüllen — der vorige fährt nach oben und gibt diesen frei",
+    "zoom": "Zoom — der vorige wächst und verschwindet, dieser taucht aus der Tiefe auf",
+    "side": "Von der Seite — dieser kommt von rechts, der vorige rückt nach links",
+    "dissolve": "Auflösen — der vorige verblasst, verschwimmt und sinkt, dieser wird scharf und steigt (wie die Cogita-Schau)"
+  },
+  "enter": {
+    "none": "Kein Effekt",
+    "rise": "Steigt von unten auf",
+    "fade": "Hellt sich auf",
+    "zoom": "Zoomt heran",
+    "left": "Gleitet von links herein",
+    "right": "Gleitet von rechts herein"
+  }
+}

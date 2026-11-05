@@ -17,6 +17,7 @@
 
 import { aad, Field, fromBase64Url, open, openText, sealText, toBase64Url, unwrapKey, wrapKey } from '../core/crypto';
 import { newId } from '../core/ids';
+import { t, texts } from '../core/i18n';
 import { call } from '../core/session';
 import type { SealedDesign } from './formDesign';
 import type { Controller } from './intake';
@@ -59,22 +60,22 @@ export const consentText = (value: string | undefined | null): string =>
  * „Tak / nie" als „tak", alles andere, wie es ist.
  */
 export const shownAnswer = (kind: string | undefined, value: string): string =>
-  kind === 'consent' ? (consentGiven(value) ? 'tak' : '')
-  : kind === 'checkbox' ? (isYes(value) ? 'tak' : value.trim() === '' ? '' : value)
+  kind === 'consent' ? (consentGiven(value) ? t('forms.kind.yes') : '')
+  : kind === 'checkbox' ? (isYes(value) ? t('forms.kind.yes') : value.trim() === '' ? '' : value)
   : value;
 
-export const KIND_LABEL: Record<FieldKind, string> = {
-  line: 'Jedna linia',
-  text: 'Dłuższy tekst',
-  choice: 'Wybór z listy',
-  date: 'Data',
-  number: 'Liczba',
-  checkbox: 'Tak / nie',
-  email: 'E-mail',
-  phone: 'Telefon',
-  consent: 'Zgoda / oświadczenie',
-  pesel: 'PESEL'
-};
+export const KIND_LABEL: Readonly<Record<FieldKind, string>> = texts({
+  line: 'forms.kind.line',
+  text: 'forms.kind.text',
+  choice: 'forms.kind.choice',
+  date: 'forms.kind.date',
+  number: 'forms.kind.number',
+  checkbox: 'forms.kind.checkbox',
+  email: 'forms.kind.email',
+  phone: 'forms.kind.phone',
+  consent: 'forms.kind.consent',
+  pesel: 'forms.kind.pesel'
+});
 
 /**
  * WELCHE genormte Angabe eine Frage abfragt (0038).
@@ -92,16 +93,16 @@ export const IDENTITY_ROLES = [
 
 export type IdentityRole = (typeof IDENTITY_ROLES)[number];
 
-export const IDENTITY_LABEL: Record<IdentityRole, string> = {
-  none: '— zwykłe pytanie —',
-  given_name: 'Imię',
-  surname: 'Nazwisko',
-  nickname: 'Przezwisko',
-  born: 'Data urodzenia',
-  phone: 'Telefon',
-  email: 'E-mail',
-  address: 'Adres'
-};
+export const IDENTITY_LABEL: Readonly<Record<IdentityRole, string>> = texts({
+  none: 'forms.identity.none',
+  given_name: 'forms.identity.given_name',
+  surname: 'forms.identity.surname',
+  nickname: 'forms.identity.nickname',
+  born: 'forms.identity.born',
+  phone: 'forms.identity.phone',
+  email: 'forms.identity.email',
+  address: 'forms.identity.address'
+});
 
 /**
  * DER VOLLE NAME eines Menschen aus seinen Antworten — Imię i nazwisko.
@@ -471,11 +472,11 @@ export interface AfterSend {
 /** Wer ein Formular ausfüllt (0047). */
 export type Audience = 'public' | 'person' | 'office';
 
-export const AUDIENCE_LABEL: Record<Audience, string> = {
-  public: 'każdy, kto je zobaczy',
-  person: 'osoba — przez swój link, jako uzupełnienie zgłoszenia',
-  office: 'tylko koordynator — osoba tego nie widzi'
-};
+export const AUDIENCE_LABEL: Readonly<Record<Audience, string>> = texts({
+  public: 'forms.audience.public',
+  person: 'forms.audience.person',
+  office: 'forms.audience.office'
+});
 
 export const loadForm = (partId: string): Promise<PublicForm> =>
   call(`/form/${encodeURIComponent(partId)}`);

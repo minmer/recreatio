@@ -7,6 +7,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 
 import { loadAreas, type AreaRow } from '../areas/area';
+import { fmtDate, useT } from '../core/i18n';
 import type { Ring } from '../core/keys';
 import { WorkspaceError, type Who } from '../core/session';
 import { linkUrlOf, loadLinks, type LinkRow } from '../links/linkAccess';
@@ -29,13 +30,14 @@ const StructureMap = lazy(() => import('./StructureMap').then((m) => ({ default:
 
 export type CommunityTab = 'struktura' | 'jednostka' | 'osoby' | 'obsada' | 'json' | 'historia';
 const TABS: readonly { id: CommunityTab; label: string }[] = [
-  { id: 'struktura', label: 'Struktura' }, { id: 'jednostka', label: 'Jednostka' }, { id: 'osoby', label: 'Osoby' },
-  { id: 'obsada', label: 'Obsada' }, { id: 'json', label: 'JSON' }, { id: 'historia', label: 'Historia' }
+  { id: 'struktura', label: 'communities.tabs.structure' }, { id: 'jednostka', label: 'communities.tabs.unit' }, { id: 'osoby', label: 'communities.tabs.people' },
+  { id: 'obsada', label: 'communities.tabs.staffing' }, { id: 'json', label: 'communities.tabs.json' }, { id: 'historia', label: 'communities.tabs.history' }
 ];
 
 const narrow = (): boolean => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 47.5rem)').matches === true;
 
 export function CommunityView({ who, ring, areaId, tab, unitKey }: { who: Who; ring: Ring; areaId: string; tab: CommunityTab; unitKey: string | null }) {
+  const t = useT();
   const [stored, setStored] = useState<StoredCommunity | null>(null);
   const [draft, setDraft] = useState<CommunityDoc | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -47,14 +49,14 @@ export function CommunityView({ who, ring, areaId, tab, unitKey }: { who: Who; r
     try {
       const [row, list] = await Promise.all([loadSetup(ring, areaId), loadAreas()]);
       setAreas(list.areas);
-      if (row.missing) { setFailed('Migracja 0137 (wspólnoty) nie jest jeszcze zastosowana na serwerze.'); return; }
+      if (row.missing) { setFailed(t('communities.migrationMissing')); return; }
       if (row.stored?.kind === 'unit') { window.location.hash = viewPath('wspolnoty', row.stored.view.community.areaId); return; }
-      if (row.stored?.kind !== 'community') { setFailed(row.unreadable ? 'Nie można otworzyć ustawień tej wspólnoty.' : 'Ten obszar nie jest wspólnotą.'); return; }
+      if (row.stored?.kind !== 'community') { setFailed(row.unreadable ? t('communities.view.unreadable') : t('communities.view.notCommunity')); return; }
       setStored(row.stored);
       setDraft(row.stored.doc);
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać wspólnoty.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('communities.view.loadFailed'));
     }
   };
   useEffect(() => { void reload(); }, [areaId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -67,49 +69,49 @@ export function CommunityView({ who, ring, areaId, tab, unitKey }: { who: Who; r
 
   const dirty = changed(stored.doc, draft);
   const selected = unitKey !== null && findUnit(draft, unitKey) !== undefined ? unitKey : draft.unit.key;
-  const go = (t: CommunityTab, key?: string) => { window.location.hash = viewPath('wspolnoty', areaId, t, ...(key ? [key] : [])); };
+  const go = (to: CommunityTab, key?: string) => { window.location.hash = viewPath('wspolnoty', areaId, to, ...(key ? [key] : [])); };
   const areaHref = (key: string) => { const id = stored.state.units[key]; return id === undefined ? null : viewPath('areas', id); };
 
   return (
     <div className="wk-cm" data-community={areaId}>
-      <PageHeader title={draft.name} meta={`${unitsOf(draft).length} jednostek · ${draft.persons.filter((p) => p.remove !== true).length} osób · ${draft.positions.length} pozycji`}
-        actions={<a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('areas', areaId)}>Obszar na górze</a>} />
+      <PageHeader title={draft.name} meta={`${t('communities.count.units', { count: unitsOf(draft).length })} · ${t('communities.count.persons', { count: draft.persons.filter((p) => p.remove !== true).length })} · ${t('communities.count.positions', { count: draft.positions.length })}`}
+        actions={<a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('areas', areaId)}>{t('communities.view.topArea')}</a>} />
       <nav className="wk-tabs" aria-label={draft.name}>
-        {TABS.map((t) => (
-          <a key={t.id} className={tab === t.id ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('wspolnoty', areaId, t.id)} aria-current={tab === t.id ? 'page' : undefined}>{t.label}</a>
+        {TABS.map((x) => (
+          <a key={x.id} className={tab === x.id ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('wspolnoty', areaId, x.id)} aria-current={tab === x.id ? 'page' : undefined}>{t(x.label)}</a>
         ))}
       </nav>
       {dirty && (
         <div className="wk-cm-savebar" data-cm-dirty="">
-          <span>Masz niezapisane zmiany.</span>
-          <button type="button" className="wk-btn" onClick={() => setPlanning({})}>Zobacz plan i zapisz</button>
-          <button type="button" className="wk-btn wk-btn-line" onClick={() => setDraft(stored.doc)}>Odrzuć</button>
+          <span>{t('communities.view.unsaved')}</span>
+          <button type="button" className="wk-btn" onClick={() => setPlanning({})}>{t('communities.view.planAndSave')}</button>
+          <button type="button" className="wk-btn wk-btn-line" onClick={() => setDraft(stored.doc)}>{t('communities.view.discard')}</button>
         </div>
       )}
 
       {tab === 'struktura' && (
         <>
           <div className="wk-actions">
-            <button type="button" className="wk-link-btn" onClick={() => setAsList(!asList)}>{asList ? 'Pokaż mapę' : 'Pokaż listę'}</button>
+            <button type="button" className="wk-link-btn" onClick={() => setAsList(!asList)}>{asList ? t('communities.view.showMap') : t('communities.view.showList')}</button>
           </div>
           {asList
-            ? <StructureList doc={draft} selected={selected} onPick={(k) => go('jednostka', k)} onMove={(k, t) => setDraft(moveUnit(draft, k, t))} />
-            : <Suspense fallback={<Loading />}><StructureMap doc={draft} selected={selected} onPick={(k) => go('jednostka', k)} onMove={(k, t) => setDraft(moveUnit(draft, k, t))} /></Suspense>}
+            ? <StructureList doc={draft} selected={selected} onPick={(k) => go('jednostka', k)} onMove={(k, to) => setDraft(moveUnit(draft, k, to))} />
+            : <Suspense fallback={<Loading />}><StructureMap doc={draft} selected={selected} onPick={(k) => go('jednostka', k)} onMove={(k, to) => setDraft(moveUnit(draft, k, to))} /></Suspense>}
         </>
       )}
 
       {tab === 'jednostka' && (
         <>
           <div className="wk-cm-inline">
-            <label className="wk-field"><span>Jednostka</span>
+            <label className="wk-field"><span>{t('communities.view.unit')}</span>
               <select value={selected} onChange={(e) => go('jednostka', e.target.value)}>
                 {flatten(draft.unit).map((f) => <option key={f.unit.key} value={f.unit.key}>{'· '.repeat(f.depth)}{f.unit.name}</option>)}
               </select>
             </label>
             {selected !== draft.unit.key && (
               findUnit(draft, selected)?.unit.remove
-                ? <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={() => setDraft(removeUnit(draft, selected, false))}>Przywróć jednostkę</button>
-                : <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={() => setDraft(removeUnit(draft, selected))}>Rozwiąż jednostkę</button>
+                ? <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={() => setDraft(removeUnit(draft, selected, false))}>{t('communities.view.restoreUnit')}</button>
+                : <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={() => setDraft(removeUnit(draft, selected))}>{t('communities.view.dissolveUnit')}</button>
             )}
           </div>
           <UnitSettings doc={draft} unitKey={selected} onChange={setDraft} onOpen={(k) => go('jednostka', k)} areaHref={areaHref(selected)} />
@@ -122,8 +124,8 @@ export function CommunityView({ who, ring, areaId, tab, unitKey }: { who: Who; r
 
       {tab === 'json' && (
         <JsonPanel
-          summary="Wspólnota jako JSON — eksport i import" open
-          lead="Cała wspólnota w jednym dokumencie: jednostki, pozycje, plany budowy, osoby i ustawienia pięciu kroków. Zmień go (także z pomocą AI) i zaimportuj — import pokaże listę zmian."
+          summary={t('communities.view.jsonSummary')} open
+          lead={t('communities.view.jsonLead')}
           fileName={`wspolnota-${draft.unit.key}.json`}
           exportDoc={() => exportCommunity(draft, names)}
           format={COMMUNITY_JSON}
@@ -132,13 +134,13 @@ export function CommunityView({ who, ring, areaId, tab, unitKey }: { who: Who; r
             if ('error' in read) return read;
             return { lines: planLines(read.doc, stored, names).map((l) => l.text), warnings: read.warnings };
           }}
-          importLabel="Importuj"
+          importLabel={t('common.import')}
           onImport={async (value, stage) => {
             const read = readCommunity(value);
             if ('error' in read) throw new WorkspaceError(read.error);
             const r = await runCommunityImport({ who, rootAreaId: areaId, doc: read.doc, stage });
             await reload();
-            return { lines: [...r.lines, ...r.links.map((l) => `Link — ${l.name}: ${l.url}`)], warnings: r.warnings };
+            return { lines: [...r.lines, ...r.links.map((l) => t('communities.linkLine', { name: l.name, url: l.url }))], warnings: r.warnings };
           }}
         />
       )}
@@ -147,7 +149,7 @@ export function CommunityView({ who, ring, areaId, tab, unitKey }: { who: Who; r
 
       {planning !== null && (
         <RunDialog who={who} rootAreaId={areaId} doc={draft} renew={planning.renew}
-          lines={planning.renew ? [{ kind: 'person', text: `${draft.persons.find((p) => p.key === planning.renew![0])?.name}: NOWY link, stary przestaje działać.` }, ...planLines(draft, stored, names)] : planLines(draft, stored, names)}
+          lines={planning.renew ? [{ kind: 'person', text: t('communities.view.renewLine', { name: draft.persons.find((p) => p.key === planning.renew![0])?.name ?? '' }) }, ...planLines(draft, stored, names)] : planLines(draft, stored, names)}
           onClose={() => setPlanning(null)} onDone={() => void reload()} />
       )}
     </div>
@@ -157,6 +159,7 @@ export function CommunityView({ who, ring, areaId, tab, unitKey }: { who: Who; r
 /* -- Osoby -------------------------------------------------------------------------------------- */
 
 function People({ doc, stored, ring, onChange, onRenew }: { doc: CommunityDoc; stored: StoredCommunity; ring: Ring; onChange: (d: CommunityDoc) => void; onRenew: (key: string) => void }) {
+  const t = useT();
   const units = unitsOf(doc);
   const [unit, setUnit] = useState(units[0]?.unit.key ?? '');
   const ps = (key: string) => { const u = findUnit(doc, key)?.unit; return u === undefined ? [] : positionsOf(doc, u); };
@@ -175,17 +178,17 @@ function People({ doc, stored, ring, onChange, onRenew }: { doc: CommunityDoc; s
   return (
     <div className="wk-cm-people">
       <div className="wk-cm-box">
-        <h3 className="wk-h3">Dodaj osoby (grupą)</h3>
+        <h3 className="wk-h3">{t('communities.people.addTitle')}</h3>
         <div className="wk-cm-inline">
-          <label className="wk-field"><span>Jednostka</span>
+          <label className="wk-field"><span>{t('communities.view.unit')}</span>
             <select value={unit} onChange={(e) => { setUnit(e.target.value); setPosition(''); }}>{units.map((f) => <option key={f.unit.key} value={f.unit.key}>{'· '.repeat(f.depth)}{f.unit.name}</option>)}</select>
           </label>
-          <label className="wk-field"><span>Pozycja</span>
+          <label className="wk-field"><span>{t('communities.people.position')}</span>
             <select value={pos} onChange={(e) => setPosition(e.target.value)}>{ps(unit).map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}</select>
           </label>
         </div>
-        <label className="wk-field"><span>Imię i nazwisko — jedna osoba w wierszu</span><textarea rows={4} value={names} onChange={(e) => setNames(e.target.value)} data-cm-names="" /></label>
-        <button type="button" className="wk-btn wk-btn-line" disabled={names.trim() === '' || pos === ''} onClick={() => { onChange(addPeople(doc, unit, pos, names)); setNames(''); }}>Dodaj</button>
+        <label className="wk-field"><span>{t('communities.people.namesLabel')}</span><textarea rows={4} value={names} onChange={(e) => setNames(e.target.value)} data-cm-names="" /></label>
+        <button type="button" className="wk-btn wk-btn-line" disabled={names.trim() === '' || pos === ''} onClick={() => { onChange(addPeople(doc, unit, pos, names)); setNames(''); }}>{t('common.add')}</button>
       </div>
       <ul className="wk-cm-person-list">
         {doc.persons.map((p) => {
@@ -194,23 +197,23 @@ function People({ doc, stored, ring, onChange, onRenew }: { doc: CommunityDoc; s
           return (
             <li key={p.key} className={p.remove ? 'is-removed' : undefined} data-person={p.key}>
               <div className="wk-cm-person-head">
-                <input className="wk-cm-person-name" value={p.name} aria-label="Imię i nazwisko" onChange={(e) => onChange(upsertPerson(doc, { ...p, name: e.target.value }))} />
-                <span className="wk-cm-meta">{row === undefined ? (mark === undefined ? 'link powstanie po zapisaniu' : 'link nie jest Twój albo go cofnięto') : row.revokedAt ? 'link cofnięty' : `link działa do ${row.expiresAt.slice(0, 10)}`}</span>
-                {row !== undefined && row.revokedAt === null && <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={() => void copy(row)}>{copied === row.invitationId ? 'Skopiowano' : 'Kopiuj link'}</button>}
-                {mark !== undefined && !p.remove && <button type="button" className="wk-link-btn" onClick={() => onRenew(p.key)}>Nowy link</button>}
-                <button type="button" className="wk-link-btn" onClick={() => onChange(removePerson(doc, p.key, p.remove !== true))}>{p.remove ? 'Przywróć' : 'Usuń'}</button>
+                <input className="wk-cm-person-name" value={p.name} aria-label={t('communities.people.fullName')} onChange={(e) => onChange(upsertPerson(doc, { ...p, name: e.target.value }))} />
+                <span className="wk-cm-meta">{row === undefined ? (mark === undefined ? t('communities.people.linkAfterSave') : t('communities.people.linkNotYours')) : row.revokedAt ? t('communities.people.linkRevoked') : t('communities.people.linkUntil', { date: row.expiresAt.slice(0, 10) })}</span>
+                {row !== undefined && row.revokedAt === null && <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={() => void copy(row)}>{copied === row.invitationId ? t('common.copied') : t('communities.people.copyLink')}</button>}
+                {mark !== undefined && !p.remove && <button type="button" className="wk-link-btn" onClick={() => onRenew(p.key)}>{t('communities.people.newLink')}</button>}
+                <button type="button" className="wk-link-btn" onClick={() => onChange(removePerson(doc, p.key, p.remove !== true))}>{p.remove ? t('communities.people.restore') : t('common.remove')}</button>
               </div>
               <div className="wk-cm-chips">
                 {p.places.map((pl, i) => (
                   <span key={i} className="wk-tag">{posName(pl.position)} · {unitName(pl.unit)}
-                    <button type="button" className="wk-link-btn" aria-label="Zdejmij" onClick={() => onChange(setPlaces(doc, p.key, p.places.filter((_, j) => j !== i)))}>×</button>
+                    <button type="button" className="wk-link-btn" aria-label={t('communities.people.takeOff')} onClick={() => onChange(setPlaces(doc, p.key, p.places.filter((_, j) => j !== i)))}>×</button>
                   </span>
                 ))}
-                <select aria-label={`Nowe miejsce: ${p.name}`} value="" onChange={(e) => {
+                <select aria-label={t('communities.people.newPlaceFor', { name: p.name })} value="" onChange={(e) => {
                   const [u, q] = e.target.value.split('|');
                   if (u && q) onChange(setPlaces(doc, p.key, [...p.places, { unit: u, position: q }]));
                 }}>
-                  <option value="">+ miejsce…</option>
+                  <option value="">{t('communities.people.addPlace')}</option>
                   {units.flatMap((f) => ps(f.unit.key).map((q) => <option key={`${f.unit.key}|${q.key}`} value={`${f.unit.key}|${q.key}`}>{f.unit.name} — {q.name}</option>))}
                 </select>
               </div>
@@ -225,16 +228,17 @@ function People({ doc, stored, ring, onChange, onRenew }: { doc: CommunityDoc; s
 /* -- Obsada --------------------------------------------------------------------------------------- */
 
 function Staffing({ doc }: { doc: CommunityDoc }) {
+  const t = useT();
   const rows = staffing(doc);
-  if (rows.length === 0) return <p className="wk-note">Żadna pozycja nie mówi, ilu potrzeba. W „Jednostka” → krok 3 → pozycja → „Więcej” wpisz „Potrzeba osób”, albo w JSON "per" (np. animator na 4 uczestników).</p>;
+  if (rows.length === 0) return <p className="wk-note">{t('communities.staffing.none')}</p>;
   return (
     <table className="wk-cm-table">
-      <thead><tr><th>Jednostka</th><th>Pozycja</th><th>Jest</th><th>Potrzeba</th><th /></tr></thead>
+      <thead><tr><th>{t('communities.view.unit')}</th><th>{t('communities.people.position')}</th><th>{t('communities.staffing.have')}</th><th>{t('communities.staffing.want')}</th><th /></tr></thead>
       <tbody>
         {rows.map((r) => (
           <tr key={`${r.unit}/${r.position}`} className={r.have < r.want ? 'is-short' : undefined}>
             <td>{r.unitName}</td><td>{r.positionName}</td><td>{r.have}</td><td>{r.want}</td>
-            <td>{r.have < r.want ? `brakuje ${r.want - r.have}` : 'jest dość'}</td>
+            <td>{r.have < r.want ? t('communities.staffing.missing', { count: r.want - r.have }) : t('communities.staffing.enough')}</td>
           </tr>
         ))}
       </tbody>
@@ -245,21 +249,22 @@ function Staffing({ doc }: { doc: CommunityDoc }) {
 /* -- Historia -------------------------------------------------------------------------------------- */
 
 function History({ ring, areaId, onRestore }: { ring: Ring; areaId: string; onRestore: (doc: CommunityDoc) => void }) {
+  const t = useT();
   const [entries, setEntries] = useState<readonly HistoryEntry[] | null>(null);
   useEffect(() => { void loadHistory(ring, areaId).then(setEntries, () => setEntries([])); }, [ring, areaId]);
   if (entries === null) return <Loading />;
-  if (entries.length === 0) return <p className="wk-note">Jeszcze bez wcześniejszych wersji.</p>;
+  if (entries.length === 0) return <p className="wk-note">{t('communities.history.none')}</p>;
   return (
     <ul className="wk-cm-history">
       {entries.map((h) => (
         <li key={h.id}>
-          <span>{new Date(h.at).toLocaleString('pl-PL')} · wersja {h.version}</span>
+          <span>{t('communities.history.version', { at: fmtDate(new Date(h.at), { dateStyle: 'short', timeStyle: 'medium' }, t.lang), version: h.version })}</span>
           {h.stored?.kind === 'community' ? (
             <>
-              <span className="wk-cm-meta">{unitsOf(h.stored.doc).length} jednostek · {h.stored.doc.persons.length} osób</span>
-              <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={() => onRestore((h.stored as StoredCommunity).doc)}>Przywróć tę wersję</button>
+              <span className="wk-cm-meta">{t('communities.count.units', { count: unitsOf(h.stored.doc).length })} · {t('communities.count.persons', { count: h.stored.doc.persons.length })}</span>
+              <button type="button" className="wk-btn wk-btn-line wk-btn-small" onClick={() => onRestore((h.stored as StoredCommunity).doc)}>{t('communities.history.restore')}</button>
             </>
-          ) : <span className="wk-cm-meta">nie do otwarcia</span>}
+          ) : <span className="wk-cm-meta">{t('communities.history.unreadable')}</span>}
         </li>
       ))}
     </ul>

@@ -26,6 +26,7 @@ import { Ring, type SealedRole } from '../core/keys';
 import { heldLinkKeys, heldProofs, type HeldRole } from './linkAccess';
 import type { Me } from '../core/me';
 import { carryLinks } from '../core/session';
+import { t } from '../core/i18n';
 
 const writes = (held: HeldRole): boolean =>
   held.areas.some((area) => area.capability === 'write' || area.capability === 'admin');
@@ -65,7 +66,7 @@ export async function linkMe(): Promise<Me | null> {
     ring: Ring.ofRoles(held.map((one, at) => ({ role: roles[at], key: one.roleKey }))),
     roles,
     person: acting,
-    names: new Map(held.map((one) => [one.roleId, one.label ?? 'Link z dostępem']))
+    names: new Map(held.map((one) => [one.roleId, one.label ?? t('links.bar.label')]))
   };
 }
 

@@ -28,7 +28,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 import {
-  accessWords, aimOf, createLink, heldLinkKeys, linkState, linkUrl, linkUrlOf, loadLinks, revokeLink, setLinkAim,
+  accessWords, aimOf, createLink, heldLinkKeys, linkState, linkStateWord, linkUrl, linkUrlOf, loadLinks, revokeLink, setLinkAim,
   type HeldInfo, type LinkRow
 } from './linkAccess';
 import { forgetLink } from './linkKeep';
@@ -41,6 +41,7 @@ import type { Ring, SealedRole } from '../core/keys';
 import { WorkspaceError } from '../core/session';
 import { describeLink, useHeldLinksStamp } from './HeldLinkBar';
 import { Loading } from '../ui/Loading';
+import { rich, useT, type T } from '../core/i18n';
 
 /**
  * Was in diesem Tab eben angelegt wurde — das Geheimnis, sofort wieder zu
@@ -49,22 +50,23 @@ import { Loading } from '../ui/Loading';
  */
 const madeHere = new Map<string, string>();
 
-const EXPIRY = [
-  { days: 1, label: 'dzień' },
-  { days: 7, label: 'tydzień' },
-  { days: 30, label: 'miesiąc' },
-  { days: 90, label: '3 miesiące' },
-  { days: 365, label: 'rok' }
+export const EXPIRY = [
+  { days: 1, label: 'links.expiry.day' },
+  { days: 7, label: 'links.expiry.week' },
+  { days: 30, label: 'links.expiry.month' },
+  { days: 90, label: 'links.expiry.months3' },
+  { days: 365, label: 'links.expiry.year' }
 ];
 
 /** Ziele, die man nicht tippen muss: die eigenen Seiten (die der gewählten Bereiche zuerst) und Ansichten des Arbeitsplatzes. */
 const VIEW_AIMS: readonly { aim: string; label: string }[] = [
-  { aim: 'workspace/calendar', label: 'Kalendarz w warsztacie' },
-  { aim: 'workspace/chat', label: 'Rozmowy w warsztacie' },
-  { aim: 'workspace/areas', label: 'Obszary w warsztacie' }
+  { aim: 'workspace/calendar', label: 'links.aim.view.calendar' },
+  { aim: 'workspace/chat', label: 'links.aim.view.chat' },
+  { aim: 'workspace/areas', label: 'links.aim.view.areas' }
 ];
 
 function useAimChoices(areaIds: ReadonlySet<string>): readonly { aim: string; label: string }[] {
+  const t = useT();
   const [pages, setPages] = useState<readonly PageCard[]>([]);
   useEffect(() => {
     let alive = true;
@@ -75,14 +77,14 @@ function useAimChoices(areaIds: ReadonlySet<string>): readonly { aim: string; la
     const bound = (p: PageCard) => (p.accessAreaIds ?? []).some((a) => areaIds.has(a));
     const sorted = [...pages].sort((a, b) => Number(bound(b)) - Number(bound(a)) || a.path.localeCompare(b.path));
     return [
-      ...sorted.map((p) => ({ aim: p.path, label: bound(p) ? 'strona tylko z dostępem dla wybranego obszaru' : (p.accessAreaIds ?? []).length > 0 ? 'strona tylko z dostępem' : 'strona' })),
-      ...VIEW_AIMS
+      ...sorted.map((p) => ({ aim: p.path, label: bound(p) ? t('links.aim.pageBound') : (p.accessAreaIds ?? []).length > 0 ? t('links.aim.pageAccess') : t('links.aim.page') })),
+      ...VIEW_AIMS.map((one) => ({ aim: one.aim, label: t(one.label) }))
     ];
-  }, [pages, areaIds]);
+  }, [pages, areaIds, t]);
 }
 
 /** Wo der Link aufgeht — ein Weg hier, für Menschen lesbar. */
-const aimWords = (aim: string | null): string => (aim === null ? 'strona dołączenia' : `recreatio.pl/#/${aim}`);
+const aimWords = (aim: string | null, t: T): string => (aim === null ? t('links.aim.joinPage') : `recreatio.pl/#/${aim}`);
 
 export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
   ring: Ring | null;
@@ -93,6 +95,7 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
+  const t = useT();
   const [links, setLinks] = useState<readonly LinkRow[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [made, setMade] = useState<{ url: string; label: string } | null>(null);
@@ -105,9 +108,9 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
       /* 0090 — wer über Links hereinkam, steht hier: für das Konto gesehen. */
       markLinksSeen();
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać linków.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('links.list.loadFailed'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -135,8 +138,8 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
   const mine = useMemo(() => (links ?? []).filter((l) =>
     focusAreaId === undefined || l.areas.some((a) => a.areaId === focusAreaId)), [links, focusAreaId]);
 
-  const open = mine.filter((l) => linkState(l) === 'działa');
-  const closed = mine.filter((l) => linkState(l) !== 'działa');
+  const open = mine.filter((l) => linkState(l) === 'active');
+  const closed = mine.filter((l) => linkState(l) !== 'active');
 
   return (
     <div className="wk-links">
@@ -144,9 +147,9 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
 
       {made !== null && (
         <div className="wk-link-made" role="status">
-          <h3 className="wk-h2">Link gotowy: {made.label}</h3>
+          <h3 className="wk-h2">{t('links.list.ready', { label: made.label })}</h3>
           <LinkShare url={made.url} />
-          <button type="button" className="wk-link-btn" onClick={() => setMade(null)}>Zamknij</button>
+          <button type="button" className="wk-link-btn" onClick={() => setMade(null)}>{t('common.close')}</button>
         </div>
       )}
 
@@ -157,8 +160,8 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
         areas={areas}
         focusAreaId={focusAreaId}
         busy={busy}
-        onCreate={(what) => onAct(what.draft === null ? 'Tworzenie linku…' : 'Tworzenie roli i linku…', async () => {
-          if (ring === null || self === null) throw new WorkspaceError('Najpierw podaj hasło.');
+        onCreate={(what) => onAct(what.draft === null ? t('links.busy.create') : t('links.busy.createRole'), async () => {
+          if (ring === null || self === null) throw new WorkspaceError(t('links.needPassword'));
           /* 0091 — eine neue Rolle zuerst; der Link hält sie danach wie jede andere. */
           let bund = ring;
           const roles = [...what.roles];
@@ -174,9 +177,9 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
         })}
       />
 
-      <h3 className="wk-h2">Działające linki</h3>
-      {links === null ? <Loading label="Wczytywanie…" />
-        : open.length === 0 ? <p className="wk-empty">Nie ma działających linków.</p>
+      <h3 className="wk-h2">{t('links.list.active')}</h3>
+      {links === null ? <Loading />
+        : open.length === 0 ? <p className="wk-empty">{t('links.list.noActive')}</p>
         : (
           <ul className="wk-link-list">
             {open.map((row) => (
@@ -184,11 +187,11 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
                 shown={shown?.id === row.invitationId ? shown.url : undefined}
                 onShow={async () => setShown({ id: row.invitationId, url: await urlOf(row) })}
                 onHide={() => setShown(null)}
-                onAim={(aim) => onAct('Zmiana celu linku…', async () => {
+                onAim={(aim) => onAct(t('links.busy.aim'), async () => {
                   await setLinkAim(row.invitationId, aim);
                   await look();
                 })}
-                onRevoke={(drop) => onAct(drop ? 'Wycofywanie linku i dostępu…' : 'Wycofywanie linku…', async () => {
+                onRevoke={(drop) => onAct(drop ? t('links.busy.revokeAll') : t('links.busy.revoke'), async () => {
                   await revokeLink(row.invitationId, drop);
                   await look();
                 })} />
@@ -198,11 +201,11 @@ export function AccessLinks({ ring, self, areas, focusAreaId, busy, onAct }: {
 
       {closed.length > 0 && (
         <details className="wk-links-old">
-          <summary>Nieaktywne ({closed.length})</summary>
+          <summary>{t('links.list.inactive', { count: closed.length })}</summary>
           <ul className="wk-link-list">
             {closed.map((row) => (
               <LinkItem key={row.invitationId} row={row} ring={ring} busy={busy}
-                onRevoke={(drop) => onAct('Odbieranie dostępu…', async () => { await revokeLink(row.invitationId, drop); await look(); })} />
+                onRevoke={(drop) => onAct(t('links.busy.takeAccess'), async () => { await revokeLink(row.invitationId, drop); await look(); })} />
             ))}
           </ul>
         </details>
@@ -231,6 +234,7 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
   busy: boolean;
   onCreate: (what: NewLinkWhat) => Promise<void>;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [once, setOnce] = useState(true);
@@ -250,19 +254,19 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
   const aim = aimOf(aimText);
 
   const blocker =
-    ring === null ? 'Najpierw podaj hasło.'
-    : self === null ? 'Konto nie prowadzi jeszcze żadnej osoby.'
-    : picked.size === 0 ? 'Wybierz rolę, którą daje link — albo utwórz nową.'
-    : picked.has(NEW_ROLE) && draft.name.trim() === '' ? 'Nazwij nową rolę.'
-    : picked.has(NEW_ROLE) && draft.areas.length === 0 ? 'Zaznacz obszary, do których nowa rola daje dostęp.'
-    : label.trim() === '' ? 'Nazwij link — np. „Rada parafialna" albo imię osoby.'
+    ring === null ? t('links.needPassword')
+    : self === null ? t('links.new.noPerson')
+    : picked.size === 0 ? t('links.new.pickRole')
+    : picked.has(NEW_ROLE) && draft.name.trim() === '' ? t('links.new.nameRole')
+    : picked.has(NEW_ROLE) && draft.areas.length === 0 ? t('links.new.pickAreas')
+    : label.trim() === '' ? t('links.new.nameLink')
     : 'error' in aim ? aim.error
     : null;
 
   if (!open) {
     return (
       <button type="button" className="wk-tree-add" disabled={busy} onClick={() => setOpen(true)}>
-        <span aria-hidden="true">+</span> Nowy link dostępu
+        <span aria-hidden="true">+</span> {t('links.new.title')}
       </button>
     );
   }
@@ -284,38 +288,38 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
         setDraft(EMPTY_DRAFT);
       });
     }}>
-      <h3 className="wk-h2">Nowy link dostępu</h3>
+      <h3 className="wk-h2">{t('links.new.title')}</h3>
 
       <label className="wk-field">
-        <span>Dla kogo / po co</span>
-        <input value={label} placeholder="np. Rada parafialna" autoComplete="off" onChange={(e) => setLabel(e.target.value)} />
-        <span className="wk-hint">Nazwę widzi ten, kto otworzy link — zanim dołączy.</span>
+        <span>{t('links.new.label')}</span>
+        <input value={label} placeholder={t('links.new.labelPlaceholder')} autoComplete="off" onChange={(e) => setLabel(e.target.value)} />
+        <span className="wk-hint">{t('links.new.labelHint')}</span>
       </label>
 
       <CommonRoleChoice roles={roles} failed={failed} areas={areas} focusAreaId={focusAreaId} many busy={busy}
         picked={picked} onPicked={setPicked} draft={draft} onDraft={setDraft}
-        leadLabel="może też zapraszać innych do tej roli" />
-      <p className="wk-hint">Kto ma link, ma to, co daje rola. Zmienisz obszary roli — zmienią się dla wszystkich jej linków i formularzy.</p>
+        leadLabel={t('links.new.lead')} />
+      <p className="wk-hint">{t('links.new.roleHint')}</p>
 
       <AimField value={aimText} onChange={setAimText} choices={choices} />
 
       <label className="wk-check">
         <input type="checkbox" checked={once} onChange={(e) => setOnce(e.target.checked)} />
-        <span>Jednorazowy — po dołączeniu jednej osoby do konta link przestaje działać (wcześniej działa w każdej przeglądarce, w której go otwarto)</span>
+        <span>{t('links.new.once')}</span>
       </label>
 
       <label className="wk-field">
-        <span>Ważny przez</span>
+        <span>{t('links.new.validFor')}</span>
         <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-          {EXPIRY.map((x) => <option key={x.days} value={x.days}>{x.label}</option>)}
+          {EXPIRY.map((x) => <option key={x.days} value={x.days}>{t(x.label)}</option>)}
         </select>
       </label>
 
       {blocker !== null && !busy && <p className="wk-blocker">{blocker}</p>}
 
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy || blocker !== null}>Utwórz link</button>
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setOpen(false)}>Anuluj</button>
+        <button type="submit" className="wk-btn" disabled={busy || blocker !== null}>{t('links.new.create')}</button>
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setOpen(false)}>{t('common.cancel')}</button>
       </div>
     </form>
   );
@@ -338,13 +342,14 @@ function AimField({ value, onChange, choices }: {
   onChange: (next: string) => void;
   choices: readonly { aim: string; label: string }[];
 }) {
+  const t = useT();
   const parsed = aimOf(value);
   const listId = useId();
   return (
     <label className="wk-field wk-link-aim">
-      <span>Gdzie otwiera się link</span>
+      <span>{t('links.aim.label')}</span>
       <input list={listId} value={value} autoComplete="off" spellCheck={false}
-        placeholder="np. parish/grzegorzki/oaza — albo wklej adres strony"
+        placeholder={t('links.aim.placeholder')}
         onChange={(e) => onChange(e.target.value)} />
       <datalist id={listId}>
         {choices.map((c) => <option key={c.aim} value={c.aim}>{c.label}</option>)}
@@ -352,28 +357,29 @@ function AimField({ value, onChange, choices }: {
       {'error' in parsed
         ? <span className="wk-error">{parsed.error}</span>
         : parsed.aim === null
-          ? <span className="wk-hint">Puste: link otwiera stronę dołączenia. Z celem: otwiera tę stronę i od razu daje na niej dostęp — także bez konta, w tej przeglądarce.</span>
-          : <span className="wk-hint">Otworzy: <a href={`#/${parsed.aim}`} target="_blank" rel="noopener noreferrer">{aimWords(parsed.aim)}</a> — {needsAccount(parsed.aim)
-            ? 'ta część warsztatu wymaga konta: kto otworzy link, zaloguje się i doda go do konta. Bez konta działają strony i kalendarz.'
-            : 'z dostępem od razu, także bez konta.'}</span>}
+          ? <span className="wk-hint">{t('links.aim.empty')}</span>
+          : <span className="wk-hint">{t('links.aim.willOpen')} <a href={`#/${parsed.aim}`} target="_blank" rel="noopener noreferrer">{aimWords(parsed.aim, t)}</a> — {needsAccount(parsed.aim)
+            ? t('links.aim.needsAccount')
+            : t('links.aim.noAccount')}</span>}
     </label>
   );
 }
 
 /** 0091 — die Namen der Rollen, die ein Link gibt (offen, wo mein Bund sie kennt). */
 function useRoleNames(ring: Ring | null, ids: readonly string[]): readonly string[] {
+  const t = useT();
   const [names, setNames] = useState<readonly string[]>([]);
   const key = ids.join(',');
   useEffect(() => {
     let alive = true;
     void (async () => {
       const out: string[] = [];
-      for (const id of ids) out.push((ring === null ? null : await ring.name(id)) ?? 'rola');
+      for (const id of ids) out.push((ring === null ? null : await ring.name(id)) ?? t('links.item.someRole'));
       if (alive) setNames(out);
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ring, key]);
+  }, [ring, key, t]);
   return names;
 }
 
@@ -388,6 +394,7 @@ function LinkItem({ row, ring, busy, shown, onShow, onHide, onAim, onRevoke }: {
   onAim?: (aim: string | null) => Promise<void>;
   onRevoke: (dropMembers: boolean) => Promise<void>;
 }) {
+  const t = useT();
   const state = linkState(row);
   const active = row.redeemed.filter((r) => r.active).length;
   const [asking, setAsking] = useState(false);
@@ -398,19 +405,19 @@ function LinkItem({ row, ring, busy, shown, onShow, onHide, onAim, onRevoke }: {
     <li className="wk-link-item">
       <div className="wk-link-head">
         <strong>{row.label ?? 'Link'}</strong>
-        <span className={state === 'działa' ? 'wk-tag wk-tag-open' : 'wk-tag'}>{state}</span>
+        <span className={state === 'active' ? 'wk-tag wk-tag-open' : 'wk-tag'}>{linkStateWord(state, t.lang)}</span>
       </div>
-      {roleNames.length > 0 && <p className="wk-link-roles">{roleNames.length === 1 ? 'Rola' : 'Role'}: <strong>{roleNames.join(', ')}</strong>{row.capability === 'admin' ? ' (może zapraszać innych)' : ''}</p>}
+      {roleNames.length > 0 && <p className="wk-link-roles">{rich(t('links.item.roles', { count: roleNames.length, names: roleNames.join(', ') }), { b: (s) => <strong>{s}</strong> })}{row.capability === 'admin' ? ` ${t('links.item.canInvite')}` : ''}</p>}
       <p className="wk-hint">
         {roleNames.length > 0 ? reachWords(row.areas) : accessWords(row.areas)}
-        {' · '}{row.maxUses === 1 ? 'jednorazowy' : row.maxUses === null ? 'wielokrotny' : `do ${row.maxUses} osób`}
-        {' · '}użyty {row.used}×{active > 0 ? `, ${active} z dostępem` : ''}
-        {' · '}ważny do {new Date(row.expiresAt).toLocaleDateString('pl-PL')}
+        {' · '}{row.maxUses === 1 ? t('links.item.once') : row.maxUses === null ? t('links.item.many') : t('links.item.upTo', { count: row.maxUses })}
+        {' · '}{active > 0 ? t('links.item.usedActive', { count: row.used, active }) : t('links.item.used', { count: row.used })}
+        {' · '}{t('links.item.validUntil', { date: new Date(row.expiresAt).toLocaleDateString(t.locale) })}
       </p>
       <p className="wk-hint wk-link-aim-now">
-        Otwiera: {row.aim === null ? 'stronę dołączenia' : <a href={`#/${row.aim}`}>{aimWords(row.aim)}</a>}
-        {state === 'działa' && onAim !== undefined && !aiming && (
-          <> · <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setAiming(true)}>Zmień cel</button></>
+        {t('links.item.opens')} {row.aim === null ? t('links.item.joinPage') : <a href={`#/${row.aim}`}>{aimWords(row.aim, t)}</a>}
+        {state === 'active' && onAim !== undefined && !aiming && (
+          <> · <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setAiming(true)}>{t('links.item.changeAim')}</button></>
         )}
       </p>
 
@@ -418,29 +425,29 @@ function LinkItem({ row, ring, busy, shown, onShow, onHide, onAim, onRevoke }: {
 
       {shown !== undefined && (
         shown === null
-          ? <p className="wk-note">Tego linku nie da się już pokazać — utwórz nowy.</p>
+          ? <p className="wk-note">{t('links.item.cannotShow')}</p>
           : <LinkShare url={shown} />
       )}
 
       <div className="wk-actions">
-        {state === 'działa' && onShow !== undefined && (shown === undefined
-          ? <button type="button" className="wk-link-btn" disabled={ring === null && !madeHere.has(row.invitationId)} onClick={() => void onShow()}>Pokaż link</button>
-          : <button type="button" className="wk-link-btn" onClick={onHide}>Ukryj</button>)}
-        {state === 'działa' && (
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setAsking(true)}>Wyłącz link…</button>
+        {state === 'active' && onShow !== undefined && (shown === undefined
+          ? <button type="button" className="wk-link-btn" disabled={ring === null && !madeHere.has(row.invitationId)} onClick={() => void onShow()}>{t('links.item.show')}</button>
+          : <button type="button" className="wk-link-btn" onClick={onHide}>{t('links.item.hide')}</button>)}
+        {state === 'active' && (
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setAsking(true)}>{t('links.item.disable')}</button>
         )}
-        {state !== 'działa' && active > 0 && (
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void onRevoke(true)}>Odbierz dostęp ({active})</button>
+        {state !== 'active' && active > 0 && (
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void onRevoke(true)}>{t('links.item.takeAccess', { count: active })}</button>
         )}
       </div>
 
       {asking && (
         <div className="wk-confirm">
-          <p>Link przestanie działać — także w przeglądarkach, w których go otwarto. Co z tymi, którzy dodali go do konta{active > 0 ? ` (${active})` : ''}?</p>
+          <p>{active > 0 ? t('links.item.revokeAskCount', { count: active }) : t('links.item.revokeAsk')}</p>
           <div className="wk-actions">
-            <button type="button" className="wk-btn" disabled={busy} onClick={() => { setAsking(false); void onRevoke(false); }}>Zostają</button>
-            <button type="button" className="wk-btn wk-btn-danger" disabled={busy} onClick={() => { setAsking(false); void onRevoke(true); }}>Też tracą dostęp</button>
-            <button type="button" className="wk-link-btn" onClick={() => setAsking(false)}>Anuluj</button>
+            <button type="button" className="wk-btn" disabled={busy} onClick={() => { setAsking(false); void onRevoke(false); }}>{t('links.item.keep')}</button>
+            <button type="button" className="wk-btn wk-btn-danger" disabled={busy} onClick={() => { setAsking(false); void onRevoke(true); }}>{t('links.item.dropToo')}</button>
+            <button type="button" className="wk-link-btn" onClick={() => setAsking(false)}>{t('common.cancel')}</button>
           </div>
         </div>
       )}
@@ -450,6 +457,7 @@ function LinkItem({ row, ring, busy, shown, onShow, onHide, onAim, onRevoke }: {
 
 /** Das Ziel eines bestehenden Links ändern — die Vorschläge werden erst hier geladen. */
 function AimEdit({ row, busy, onAim, onDone }: { row: LinkRow; busy: boolean; onAim: (aim: string | null) => Promise<void>; onDone: () => void }) {
+  const t = useT();
   const [value, setValue] = useState(row.aim ?? '');
   const choices = useAimChoices(useMemo(() => new Set(row.areas.map((a) => a.areaId)), [row.areas]));
   const parsed = aimOf(value);
@@ -460,10 +468,10 @@ function AimEdit({ row, busy, onAim, onDone }: { row: LinkRow; busy: boolean; on
       void onAim(parsed.aim).then(onDone);
     }}>
       <AimField value={value} onChange={setValue} choices={choices} />
-      <p className="wk-hint">Link zostaje ten sam — wysłany wcześniej nadal działa i prowadzi tam, gdzie prowadził. Nowy cel mają adresy pokazane od teraz.</p>
+      <p className="wk-hint">{t('links.item.aimHint')}</p>
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy || 'error' in parsed}>Zapisz cel</button>
-        <button type="button" className="wk-link-btn" onClick={onDone}>Anuluj</button>
+        <button type="submit" className="wk-btn" disabled={busy || 'error' in parsed}>{t('links.item.saveAim')}</button>
+        <button type="button" className="wk-link-btn" onClick={onDone}>{t('common.cancel')}</button>
       </div>
     </form>
   );
@@ -475,6 +483,7 @@ function AimEdit({ row, busy, onAim, onDone }: { row: LinkRow; busy: boolean; on
  * hinzufügen oder aus dem Browser nehmen.
  */
 function HeldHere({ ring }: { ring: Ring | null }) {
+  const t = useT();
   const stamp = useHeldLinksStamp();
   const [held, setHeld] = useState<readonly HeldInfo[] | null>(null);
 
@@ -489,8 +498,8 @@ function HeldHere({ ring }: { ring: Ring | null }) {
 
   return (
     <section className="wk-held-here">
-      <h3 className="wk-h2">Linki otwarte w tej przeglądarce</h3>
-      <p className="wk-hint">Działają tu bez logowania i sumują się. Na koncie działają na każdym urządzeniu i pozwalają pisać.</p>
+      <h3 className="wk-h2">{t('links.held.title')}</h3>
+      <p className="wk-hint">{t('links.held.lede')}</p>
       <ul className="wk-link-list">
         {held.map((h) => {
           const owned = h.info !== null && ring !== null && ring.has(h.info.roleId);
@@ -498,13 +507,13 @@ function HeldHere({ ring }: { ring: Ring | null }) {
             <li key={h.token} className="wk-link-item">
               <div className="wk-link-head">
                 <strong>{h.label ?? 'Link'}</strong>
-                <span className={h.info === null ? 'wk-tag' : 'wk-tag wk-tag-open'}>{h.info === null ? 'nie działa' : owned ? 'na koncie' : 'w przeglądarce'}</span>
+                <span className={h.info === null ? 'wk-tag' : 'wk-tag wk-tag-open'}>{h.info === null ? t('links.held.dead') : owned ? t('links.held.onAccount') : t('links.held.inBrowser')}</span>
               </div>
-              {h.info !== null && <p className="wk-hint">{describeLink(h.info)} · ważny do {new Date(h.info.expiresAt).toLocaleDateString('pl-PL')}</p>}
+              {h.info !== null && <p className="wk-hint">{describeLink(h.info)} · {t('links.item.validUntil', { date: new Date(h.info.expiresAt).toLocaleDateString(t.locale) })}</p>}
               <div className="wk-actions">
-                {h.info !== null && <a className="wk-link-btn" href={h.aim === null ? `#/dolacz/${h.token}` : `#/${h.aim}`}>Otwórz</a>}
-                {h.info !== null && !owned && <a className="wk-link-btn" href={`#/dolacz/${h.token}`}>Dodaj do konta</a>}
-                <button type="button" className="wk-link-btn" onClick={() => forgetLink(h.token)}>Usuń z przeglądarki</button>
+                {h.info !== null && <a className="wk-link-btn" href={h.aim === null ? `#/dolacz/${h.token}` : `#/${h.aim}`}>{t('common.open')}</a>}
+                {h.info !== null && !owned && <a className="wk-link-btn" href={`#/dolacz/${h.token}`}>{t('links.held.addToAccount')}</a>}
+                <button type="button" className="wk-link-btn" onClick={() => forgetLink(h.token)}>{t('links.held.forget')}</button>
               </div>
             </li>
           );
@@ -516,6 +525,7 @@ function HeldHere({ ring }: { ring: Ring | null }) {
 
 /** Adresse, Kopieren, Teilen, QR. */
 export function LinkShare({ url }: { url: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   return (
@@ -524,15 +534,15 @@ export function LinkShare({ url }: { url: string }) {
       <div className="wk-actions">
         <button type="button" className="wk-btn" onClick={() => {
           void navigator.clipboard?.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 2000); });
-        }}>{copied ? 'Skopiowano' : 'Kopiuj'}</button>
+        }}>{copied ? t('common.copied') : t('common.copy')}</button>
         {typeof navigator.share === 'function' && (
-          <button type="button" className="wk-link-btn" onClick={() => void navigator.share({ url, title: 'Zaproszenie do recreatio.pl' }).catch(() => undefined)}>
-            Udostępnij
+          <button type="button" className="wk-link-btn" onClick={() => void navigator.share({ url, title: t('links.share.title') }).catch(() => undefined)}>
+            {t('common.share')}
           </button>
         )}
       </div>
       <div className="wk-link-qr"><QRCodeSVG value={url} size={168} marginSize={2} /></div>
-      <p className="wk-hint">Kto ma ten link, ma dostęp. Wysyłaj go tylko tym, dla których jest.</p>
+      <p className="wk-hint">{t('links.share.warn')}</p>
     </div>
   );
 }

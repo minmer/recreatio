@@ -17,6 +17,9 @@
 
 import { choiceOf, choiceWords, needOf, NEEDS, sameChoice, type NeedChoice, type NeedId } from './needs';
 import { choiceOfOn, keysOfOn, type NeedOn } from './needPlan';
+import { appLang, localeOf, t } from '../core/i18n';
+
+const J = 'formsNeeds.json.';
 
 /** Ein Wymaganie, wie ein Dokument es will. */
 export interface NeedWish {
@@ -53,22 +56,22 @@ export function readNeedWishes(value: unknown, warnings: string[]): NeedWish[] |
   if (value === undefined) return undefined;
   if (value === null) return [];
   if (!Array.isArray(value)) {
-    warnings.push('"needs" to nie lista — wymagania zostają bez zmian.');
+    warnings.push(t(`${J}notList`));
     return undefined;
   }
   const out: NeedWish[] = [];
   value.forEach((entry, index) => {
     const said = typeof entry === 'string' ? { id: entry } : typeof entry === 'object' && entry !== null && !Array.isArray(entry) ? entry as Record<string, unknown> : null;
-    if (said === null) { warnings.push(`"needs" ${index + 1}: to nie wymaganie — pominięte.`); return; }
+    if (said === null) { warnings.push(t(`${J}notNeed`, { n: index + 1 })); return; }
     const id = typeof said.id === 'string' ? said.id.trim() : '';
     const need = needOf(id);
     if (need === undefined) {
-      warnings.push(`"needs" ${index + 1}: nie ma wymagania „${id}” — możliwe: ${NEEDS.map((n) => `"${n.id}"`).join(', ')}.`);
+      warnings.push(t(`${J}unknown`, { n: index + 1, id, known: NEEDS.map((n) => `"${n.id}"`).join(', ') }));
       return;
     }
-    if (out.some((w) => w.id === need.id)) { warnings.push(`"needs": „${need.label}” drugi raz — pominięte.`); return; }
+    if (out.some((w) => w.id === need.id)) { warnings.push(t(`${J}twice`, { need: need.label })); return; }
     for (const key of Object.keys(said)) {
-      if (!OWN_KEYS.includes(key) && !need.settings.some((s) => s.key === key)) warnings.push(`„${need.label}”: nieznany klucz "${key}" — pominięty.`);
+      if (!OWN_KEYS.includes(key) && !need.settings.some((s) => s.key === key)) warnings.push(t(`${J}unknownKey`, { need: need.label, key }));
     }
     let holds: Record<string, string> | undefined;
     if (said.holds !== undefined) {
@@ -76,7 +79,7 @@ export function readNeedWishes(value: unknown, warnings: string[]): NeedWish[] |
         holds = {};
         for (const [key, one] of Object.entries(said.holds as Record<string, unknown>)) if (typeof one === 'string' && one.trim() !== '') holds[key] = one.trim();
       } else {
-        warnings.push(`„${need.label}”: "holds" to nie obiekt — pominięte.`);
+        warnings.push(t(`${J}holdsNotObject`, { need: need.label }));
       }
     }
     out.push({ id: need.id, choice: choiceOf(need, said, 'start', warnings), ...(holds === undefined || Object.keys(holds).length === 0 ? {} : { holds }) });
@@ -91,13 +94,13 @@ export function needWishLines(wishes: readonly NeedWish[], current: readonly Nee
     const need = needOf(wish.id)!;
     const on = current.find((one) => one.id === wish.id);
     const how = need.settings.length === 0 ? '' : ` — ${choiceWords(need, wish.choice)}`;
-    if (on === undefined) lines.push(`Wymaganie „${need.label}”: zostanie włączone${how}${wish.holds === undefined ? '' : ' (z pytaniami z dokumentu)'}.`);
-    else if (!sameChoice(need, choiceOfOn(on), wish.choice)) lines.push(`Wymaganie „${need.label}”: nowe ustawienia${how}.`);
+    if (on === undefined) lines.push(t(wish.holds === undefined ? `${J}lineOn` : `${J}lineOnHolds`, { need: need.label, how }));
+    else if (!sameChoice(need, choiceOfOn(on), wish.choice)) lines.push(t(`${J}lineChanged`, { need: need.label, how }));
   }
   for (const on of current.filter((one) => !wishes.some((w) => w.id === one.id))) {
     lines.push(replace
-      ? `Wymaganie „${on.label}” zostanie wyłączone (nie ma go w dokumencie).`
-      : `Wymaganie „${on.label}” zostaje włączone — nie ma go w dokumencie, ale wyłącza je dopiero „Usuń pytania i wymagania, których nie ma w dokumencie”.`);
+      ? t(`${J}lineOff`, { need: on.label })
+      : t(`${J}lineStays`, { need: on.label }));
   }
   return lines;
 }
@@ -108,19 +111,23 @@ const quoted = (values: readonly string[]): string => values.map((v) => `"${v}"`
 
 /** Was jeder Schlüssel bedeutet — aus den Wymagania selbst erzeugt: ein neues Wymaganie, eine neue Einstellung steht sofort darin. */
 export function needsKeys(): Record<string, string> {
+  const locale = localeOf(appLang());
   const keys: Record<string, string> = {
-    needs: 'Wymagania formularza — lista. Każde włączone wymaganie dodaje swoje pytania, grupy i logikę; dopóki jest włączone, jego pytań nie da się usunąć (przesuwać i przeredagować — tak). Pominięte: wymagania zostają, jak są; [] — żadnego (wyłącza je dopiero „Usuń pytania i wymagania, których nie ma w dokumencie”)',
-    'needs[].id': `Które: ${NEEDS.map((n) => `"${n.id}" (${n.label})`).join(', ')}. Wymaganie bez ustawień można podać samym identyfikatorem, np. "health"`
+    needs: t(`${J}keyNeeds`),
+    'needs[].id': t(`${J}keyId`, { list: NEEDS.map((n) => `"${n.id}" (${n.label})`).join(', ') })
   };
   for (const need of NEEDS) {
     for (const s of need.settings) {
-      keys[`needs[].${s.key}`] = `Tylko "${need.id}" — ${s.label.toLocaleLowerCase('pl')}: `
-        + s.choices.map((c) => `"${c.value}" (${c.label.toLocaleLowerCase('pl')} — ${c.says})`).join('; ')
-        + (s.many ? `. Lista, co najmniej jedna wartość; gdy jest tylko jedna, uczestnik nie wybiera — ona obowiązuje` : '. Jedna wartość')
-        + `. Pominięte: ${s.many ? `[${quoted(s.start)}]` : quoted(s.start)}`;
+      keys[`needs[].${s.key}`] = t(`${J}keySetting`, {
+        id: need.id,
+        label: s.label.toLocaleLowerCase(locale),
+        choices: s.choices.map((c) => `"${c.value}" (${c.label.toLocaleLowerCase(locale)} — ${c.says})`).join('; ')
+      })
+        + t(s.many ? `${J}keyMany` : `${J}keyOne`)
+        + t(`${J}keyDefault`, { value: s.many ? `[${quoted(s.start)}]` : quoted(s.start) });
     }
   }
-  keys['needs[].holds'] = 'Z eksportu: co w tym formularzu należy do wymagania (klucz → identyfikator pytania, grupy, tekstu, węzła albo połączenia logiki). Zostaw bez zmian; dzięki temu import do innego formularza przejmie pytania z dokumentu zamiast dodawać je drugi raz. Pisząc od nowa — pomiń: import sam doda pytania, grupy i logikę';
+  keys['needs[].holds'] = t(`${J}keyHolds`);
   return keys;
 }
 

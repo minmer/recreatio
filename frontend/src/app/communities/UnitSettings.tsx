@@ -8,6 +8,7 @@
 import { useState } from 'react';
 
 import { PROFILE_KINDS, type ProfileKind } from '../areas/profile';
+import { useT } from '../core/i18n';
 import {
   ASSIGN_WORD, blueprintOf, councilOf, FIELD_KINDS, FIELD_PRESETS, findUnit, holdersOf, positionsOf, resolveSetting, RIGHTS,
   rightsLabel, SETTINGS, sourceWords, STEP_TITLES, valueOf, type Assign, type CommunityDoc, type FieldKind, type Rights, type SettingDef, type Step
@@ -17,6 +18,7 @@ import { addUnit, freePositionKey, saveAsBlueprint, setUnitPositions, setUnitSet
 type Edit = (next: CommunityDoc) => void;
 
 function SettingRow({ doc, unitKey, def, onChange, busy }: { doc: CommunityDoc; unitKey: string; def: SettingDef; onChange: Edit; busy: boolean }) {
+  const t = useT();
   const r = resolveSetting(doc, unitKey, def.path);
   const own = r.source.kind === 'own';
   const set = (v: unknown) => onChange(setUnitSetting(doc, unitKey, def.path, v));
@@ -29,7 +31,7 @@ function SettingRow({ doc, unitKey, def, onChange, busy }: { doc: CommunityDoc; 
         {def.choices!.map((c) => (
           <label key={c.value} className={`wk-cm-choice${value === c.value ? ' is-on' : ''}`}>
             <input type="radio" name={id} checked={value === c.value} disabled={busy} onChange={() => set(c.value)} />
-            <span><strong>{c.label}</strong>{c.example && <small>Pasuje np.: {c.example}</small>}</span>
+            <span><strong>{c.label}</strong>{c.example && <small>{t('communities.unit.fitsFor', { example: c.example })}</small>}</span>
           </label>
         ))}
       </div>
@@ -57,7 +59,7 @@ function SettingRow({ doc, unitKey, def, onChange, busy }: { doc: CommunityDoc; 
       <span className={`wk-cm-source is-${r.source.kind}`}>
         {sourceWords(r.source)}
         {own && def.inherit && (
-          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => set(undefined)}>Przywróć odziedziczone</button>
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => set(undefined)}>{t('communities.unit.restoreInherited')}</button>
         )}
       </span>
     </div>
@@ -65,6 +67,7 @@ function SettingRow({ doc, unitKey, def, onChange, busy }: { doc: CommunityDoc; 
 }
 
 function Settings({ doc, unitKey, step, onChange, busy }: { doc: CommunityDoc; unitKey: string; step: Step; onChange: Edit; busy: boolean }) {
+  const t = useT();
   const [fine, setFine] = useState(false);
   const get = (path: string) => valueOf(doc, unitKey, path);
   const shown = SETTINGS.filter((s) => s.step === step && (s.when === undefined || s.when(get)));
@@ -75,7 +78,7 @@ function Settings({ doc, unitKey, step, onChange, busy }: { doc: CommunityDoc; u
       {rough.map((def) => <SettingRow key={def.path} doc={doc} unitKey={unitKey} def={def} onChange={onChange} busy={busy} />)}
       {more.length > 0 && (
         <details className="wk-fold" open={fine} onToggle={(e) => setFine((e.target as HTMLDetailsElement).open)}>
-          <summary>Więcej ustawień</summary>
+          <summary>{t('communities.unit.moreSettings')}</summary>
           {more.map((def) => <SettingRow key={def.path} doc={doc} unitKey={unitKey} def={def} onChange={onChange} busy={busy} />)}
         </details>
       )}
@@ -86,6 +89,7 @@ function Settings({ doc, unitKey, step, onChange, busy }: { doc: CommunityDoc; u
 /* -- Krok 2: jednostki pod nią, grono ------------------------------------------------------------ */
 
 function Structure({ doc, unitKey, onChange, busy, onOpen }: { doc: CommunityDoc; unitKey: string; onChange: Edit; busy: boolean; onOpen?: (key: string) => void }) {
+  const t = useT();
   const here = findUnit(doc, unitKey)!.unit;
   const [name, setName] = useState('');
   const [plan, setPlan] = useState(here.units?.find((u) => u.from !== undefined)?.from ?? '');
@@ -110,55 +114,55 @@ function Structure({ doc, unitKey, onChange, busy, onOpen }: { doc: CommunityDoc
   return (
     <>
       <Settings doc={doc} unitKey={unitKey} step={2} onChange={onChange} busy={busy} />
-      <h4 className="wk-h3">Jednostki pod „{here.name}”</h4>
-      {(here.units ?? []).length === 0 ? <p className="wk-note">Jeszcze żadnej — można zacząć od jednej jednostki, dodać drugą obok i później obie podpiąć pod nową.</p> : (
+      <h4 className="wk-h3">{t('communities.unit.unitsUnder', { name: here.name })}</h4>
+      {(here.units ?? []).length === 0 ? <p className="wk-note">{t('communities.unit.noChildren')}</p> : (
         <ul className="wk-cm-children">
           {(here.units ?? []).map((c) => (
             <li key={c.key} className={c.remove ? 'is-removed' : undefined}>
               {onOpen ? <button type="button" className="wk-link-btn" onClick={() => onOpen(c.key)}>{c.name}</button> : c.name}
-              {c.from && <span className="wk-tag">plan: {doc.blueprints.find((b) => b.key === c.from)?.name ?? c.from}</span>}
-              {c.remove && <span className="wk-tag">rozwiązana</span>}
+              {c.from && <span className="wk-tag">{t('communities.unit.planTag', { name: doc.blueprints.find((b) => b.key === c.from)?.name ?? c.from })}</span>}
+              {c.remove && <span className="wk-tag">{t('communities.unit.dissolved')}</span>}
             </li>
           ))}
         </ul>
       )}
       <div className="wk-cm-inline">
-        <label className="wk-field"><span>Nazwa nowej jednostki</span><input value={name} disabled={busy} placeholder="np. Krąg, Klasa 1a, Grupa OND" onChange={(e) => setName(e.target.value)} /></label>
-        <label className="wk-field"><span>Z planu budowy</span>
+        <label className="wk-field"><span>{t('communities.unit.newUnitName')}</span><input value={name} disabled={busy} placeholder={t('communities.unit.newUnitPlaceholder')} onChange={(e) => setName(e.target.value)} /></label>
+        <label className="wk-field"><span>{t('communities.unit.fromBlueprint')}</span>
           <select value={plan} disabled={busy} onChange={(e) => setPlan(e.target.value)}>
-            <option value="">— bez planu —</option>
+            <option value="">{t('communities.unit.noBlueprint')}</option>
             {doc.blueprints.map((b) => <option key={b.key} value={b.key}>{b.name}</option>)}
           </select>
         </label>
-        <label className="wk-field wk-cm-narrow"><span>Ile</span><input type="number" min={1} max={50} value={count} disabled={busy} onChange={(e) => setCount(Number(e.target.value) || 1)} /></label>
-        <button type="button" className="wk-btn wk-btn-line" disabled={busy || name.trim() === ''} onClick={add} data-cm-add-unit="">Dodaj</button>
+        <label className="wk-field wk-cm-narrow"><span>{t('communities.unit.howMany')}</span><input type="number" min={1} max={50} value={count} disabled={busy} onChange={(e) => setCount(Number(e.target.value) || 1)} /></label>
+        <button type="button" className="wk-btn wk-btn-line" disabled={busy || name.trim() === ''} onClick={add} data-cm-add-unit="">{t('common.add')}</button>
       </div>
       {valueOf(doc, unitKey, 'structure.council') === true && (
         <div className="wk-cm-box">
-          <h4 className="wk-h3">Grono</h4>
+          <h4 className="wk-h3">{t('communities.unit.council')}</h4>
           {council === undefined ? (
             <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy}
-              onClick={() => setCouncil({ key: `grono-${unitKey}`.slice(0, 40), name: `Grono — ${here.name}`, own: ps.filter((p) => p.rights === 'lead' || p.rights === 'accompany').map((p) => p.key), below: below.filter((p) => p.rights === 'lead').map((p) => p.key) })}>
-              Utwórz grono
+              onClick={() => setCouncil({ key: `grono-${unitKey}`.slice(0, 40), name: t('communities.unit.councilName', { name: here.name }), own: ps.filter((p) => p.rights === 'lead' || p.rights === 'accompany').map((p) => p.key), below: below.filter((p) => p.rights === 'lead').map((p) => p.key) })}>
+              {t('communities.unit.createCouncil')}
             </button>
           ) : (
             <>
-              <label className="wk-field"><span>Nazwa</span><input value={council.name} disabled={busy} onChange={(e) => setCouncil({ ...council, name: e.target.value })} /></label>
-              <span className="wk-cm-setting-label">Z tej jednostki:</span>
+              <label className="wk-field"><span>{t('common.name')}</span><input value={council.name} disabled={busy} onChange={(e) => setCouncil({ ...council, name: e.target.value })} /></label>
+              <span className="wk-cm-setting-label">{t('communities.unit.fromThisUnit')}</span>
               <div className="wk-cm-checks">
                 {ps.map((p) => (
                   <label key={p.key}><input type="checkbox" checked={council.own.includes(p.key)} disabled={busy}
                     onChange={(e) => setCouncil({ ...council, own: e.target.checked ? [...council.own, p.key] : council.own.filter((k) => k !== p.key) })} /> {p.name}</label>
                 ))}
               </div>
-              <span className="wk-cm-setting-label">Z każdej jednostki pod nią:</span>
+              <span className="wk-cm-setting-label">{t('communities.unit.fromEachBelow')}</span>
               <div className="wk-cm-checks">
                 {below.map((p) => (
                   <label key={p.key}><input type="checkbox" checked={council.below.includes(p.key)} disabled={busy}
                     onChange={(e) => setCouncil({ ...council, below: e.target.checked ? [...council.below, p.key] : council.below.filter((k) => k !== p.key) })} /> {p.name}</label>
                 ))}
               </div>
-              <p className="wk-note">Skład liczy się sam z obsady: kto obejmie pozycję, jest w gronie; kto ją odda, wychodzi.</p>
+              <p className="wk-note">{t('communities.unit.councilNote')}</p>
             </>
           )}
         </div>
@@ -170,6 +174,7 @@ function Structure({ doc, unitKey, onChange, busy, onOpen }: { doc: CommunityDoc
 /* -- Krok 3: pozycje ----------------------------------------------------------------------------- */
 
 function Positions({ doc, unitKey, onChange, busy }: { doc: CommunityDoc; unitKey: string; onChange: Edit; busy: boolean }) {
+  const t = useT();
   const here = findUnit(doc, unitKey)!.unit;
   const plan = blueprintOf(doc, here);
   const fromPlan = new Set(plan?.positions ?? []);
@@ -186,49 +191,49 @@ function Positions({ doc, unitKey, onChange, busy }: { doc: CommunityDoc; unitKe
   };
   return (
     <>
-      <p className="wk-note">Pozycja opisana raz działa w wielu jednostkach. Prawa: {RIGHTS.map((r) => `${r.label} — ${r.says}`).join('; ')}.</p>
+      <p className="wk-note">{t('communities.unit.positionsNote', { rights: RIGHTS.map((r) => `${r.label} — ${r.says}`).join('; ') })}</p>
       <ul className="wk-cm-positions">
         {doc.positions.map((p) => (
           <li key={p.key} data-position={p.key}>
             <label>
               <input type="checkbox" checked={active.has(p.key)} disabled={busy || fromPlan.has(p.key)} onChange={(e) => toggle(p.key, e.target.checked)} />
-              <strong>{p.name}</strong> <span className="wk-tag">{rightsLabel(p.rights)}</span>{p.pair && <span className="wk-tag">para</span>}
-              {fromPlan.has(p.key) && <span className="wk-cm-source is-blueprint">z planu „{plan!.name}”</span>}
+              <strong>{p.name}</strong> <span className="wk-tag">{rightsLabel(p.rights)}</span>{p.pair && <span className="wk-tag">{t('communities.unit.pairTag')}</span>}
+              {fromPlan.has(p.key) && <span className="wk-cm-source is-blueprint">{t('communities.source.blueprint', { name: plan!.name })}</span>}
             </label>
-            {active.has(p.key) && <span className="wk-cm-meta">obsada: {holdersOf(doc, unitKey, p.key).map((h) => h.name).join(', ') || 'nikt'}</span>}
+            {active.has(p.key) && <span className="wk-cm-meta">{t('communities.unit.holders', { names: holdersOf(doc, unitKey, p.key).map((h) => h.name).join(', ') || t('communities.unit.nobody') })}</span>}
             <details className="wk-fold">
-              <summary>Więcej</summary>
+              <summary>{t('common.more')}</summary>
               <div className="wk-cm-inline">
-                <label className="wk-field"><span>Nazwa</span><input value={p.name} disabled={busy} onChange={(e) => onChange(upsertPosition(doc, { ...p, name: e.target.value }))} /></label>
-                <label className="wk-field"><span>Prawa</span>
+                <label className="wk-field"><span>{t('common.name')}</span><input value={p.name} disabled={busy} onChange={(e) => onChange(upsertPosition(doc, { ...p, name: e.target.value }))} /></label>
+                <label className="wk-field"><span>{t('communities.unit.rights')}</span>
                   <select value={p.rights} disabled={busy} onChange={(e) => onChange(upsertPosition(doc, { ...p, rights: e.target.value as Rights }))}>
                     {RIGHTS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                   </select>
                 </label>
-                <label className="wk-field"><span>Obsadzanie</span>
+                <label className="wk-field"><span>{t('communities.unit.assign')}</span>
                   <select value={p.assign ?? ''} disabled={busy} onChange={(e) => { const { assign: _a, ...rest } = p; onChange(upsertPosition(doc, e.target.value === '' ? rest : { ...rest, assign: e.target.value as Assign })); }}>
                     <option value="">—</option>
                     {Object.entries(ASSIGN_WORD).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </label>
-                <label className="wk-field"><span>Kadencja</span><input value={p.term ?? ''} disabled={busy} placeholder="np. 3 lata, +2 możliwe" onChange={(e) => onChange(upsertPosition(doc, { ...p, term: e.target.value }))} /></label>
-                <label className="wk-field wk-cm-narrow"><span>Potrzeba osób</span><input type="number" min={0} value={p.need ?? ''} disabled={busy}
+                <label className="wk-field"><span>{t('communities.unit.term')}</span><input value={p.term ?? ''} disabled={busy} placeholder={t('communities.unit.termPlaceholder')} onChange={(e) => onChange(upsertPosition(doc, { ...p, term: e.target.value }))} /></label>
+                <label className="wk-field wk-cm-narrow"><span>{t('communities.unit.need')}</span><input type="number" min={0} value={p.need ?? ''} disabled={busy}
                   onChange={(e) => { const { need: _n, ...rest } = p; const n = Number(e.target.value); onChange(upsertPosition(doc, n > 0 ? { ...rest, need: n } : rest)); }} /></label>
-                <label className="wk-check"><input type="checkbox" checked={p.pair === true} disabled={busy} onChange={(e) => onChange(upsertPosition(doc, { ...p, pair: e.target.checked }))} /> obsadza para</label>
+                <label className="wk-check"><input type="checkbox" checked={p.pair === true} disabled={busy} onChange={(e) => onChange(upsertPosition(doc, { ...p, pair: e.target.checked }))} /> {t('communities.unit.heldByPair')}</label>
               </div>
             </details>
           </li>
         ))}
       </ul>
       <div className="wk-cm-inline">
-        <label className="wk-field"><span>Nowa pozycja</span><input value={name} disabled={busy} placeholder="np. Animator, Dyrygent" onChange={(e) => setName(e.target.value)} /></label>
-        <label className="wk-field"><span>Prawa</span>
+        <label className="wk-field"><span>{t('communities.unit.newPosition')}</span><input value={name} disabled={busy} placeholder={t('communities.unit.newPositionPlaceholder')} onChange={(e) => setName(e.target.value)} /></label>
+        <label className="wk-field"><span>{t('communities.unit.rights')}</span>
           <select value={rights} disabled={busy} onChange={(e) => setRights(e.target.value as Rights)}>
             {RIGHTS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
         </label>
-        <label className="wk-check"><input type="checkbox" checked={pair} disabled={busy} onChange={(e) => setPair(e.target.checked)} /> para</label>
-        <button type="button" className="wk-btn wk-btn-line" disabled={busy || name.trim() === ''} onClick={add} data-cm-add-position="">Dodaj pozycję</button>
+        <label className="wk-check"><input type="checkbox" checked={pair} disabled={busy} onChange={(e) => setPair(e.target.checked)} /> {t('communities.unit.pairTag')}</label>
+        <button type="button" className="wk-btn wk-btn-line" disabled={busy || name.trim() === ''} onClick={add} data-cm-add-position="">{t('communities.unit.addPosition')}</button>
       </div>
     </>
   );
@@ -237,6 +242,7 @@ function Positions({ doc, unitKey, onChange, busy }: { doc: CommunityDoc; unitKe
 /* -- Krok 4: pola osób ---------------------------------------------------------------------------- */
 
 function Fields({ doc, onChange, busy }: { doc: CommunityDoc; onChange: Edit; busy: boolean }) {
+  const t = useT();
   const [label, setLabel] = useState('');
   const [kind, setKind] = useState<FieldKind>('line');
   const [options, setOptions] = useState('');
@@ -244,10 +250,10 @@ function Fields({ doc, onChange, busy }: { doc: CommunityDoc; onChange: Edit; bu
   const has = new Set(doc.fields.map((f) => f.key));
   return (
     <div className="wk-cm-box">
-      <h4 className="wk-h3">Dane osób</h4>
+      <h4 className="wk-h3">{t('communities.unit.personData')}</h4>
       <div className="wk-cm-chips">
         {FIELD_PRESETS.filter((f) => !has.has(f.key)).map((f) => (
-          <button key={f.key} type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy} onClick={() => onChange({ ...doc, fields: [...doc.fields, f] })}>+ {f.label}</button>
+          <button key={f.key} type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy} onClick={() => onChange({ ...doc, fields: [...doc.fields, { ...f }] })}>+ {f.label}</button>
         ))}
       </div>
       {doc.fields.length > 0 && (
@@ -256,24 +262,24 @@ function Fields({ doc, onChange, busy }: { doc: CommunityDoc; onChange: Edit; bu
             <li key={f.key}>
               {f.label} <span className="wk-tag">{f.kind}</span>
               <label className="wk-check"><input type="checkbox" checked={f.leadersOnly === true} disabled={busy}
-                onChange={(e) => onChange({ ...doc, fields: doc.fields.map((x) => (x.key === f.key ? { ...x, leadersOnly: e.target.checked } : x)) })} /> tylko prowadzący</label>
-              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onChange({ ...doc, fields: doc.fields.filter((x) => x.key !== f.key) })}>Usuń</button>
+                onChange={(e) => onChange({ ...doc, fields: doc.fields.map((x) => (x.key === f.key ? { ...x, leadersOnly: e.target.checked } : x)) })} /> {t('communities.unit.leadersOnly')}</label>
+              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onChange({ ...doc, fields: doc.fields.filter((x) => x.key !== f.key) })}>{t('common.remove')}</button>
             </li>
           ))}
         </ul>
       )}
       <details className="wk-fold">
-        <summary>Własne pole</summary>
+        <summary>{t('communities.unit.ownField')}</summary>
         <div className="wk-cm-inline">
-          <label className="wk-field"><span>Napis</span><input value={label} disabled={busy} onChange={(e) => setLabel(e.target.value)} /></label>
-          <label className="wk-field"><span>Rodzaj</span><select value={kind} disabled={busy} onChange={(e) => setKind(e.target.value as FieldKind)}>{FIELD_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select></label>
-          {kind === 'choice' && <label className="wk-field"><span>Wartości (po przecinku)</span><input value={options} disabled={busy} onChange={(e) => setOptions(e.target.value)} /></label>}
-          <label className="wk-check"><input type="checkbox" checked={secret} disabled={busy} onChange={(e) => setSecret(e.target.checked)} /> tylko prowadzący</label>
+          <label className="wk-field"><span>{t('communities.unit.fieldLabel')}</span><input value={label} disabled={busy} onChange={(e) => setLabel(e.target.value)} /></label>
+          <label className="wk-field"><span>{t('communities.unit.fieldKind')}</span><select value={kind} disabled={busy} onChange={(e) => setKind(e.target.value as FieldKind)}>{FIELD_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select></label>
+          {kind === 'choice' && <label className="wk-field"><span>{t('communities.unit.fieldOptions')}</span><input value={options} disabled={busy} onChange={(e) => setOptions(e.target.value)} /></label>}
+          <label className="wk-check"><input type="checkbox" checked={secret} disabled={busy} onChange={(e) => setSecret(e.target.checked)} /> {t('communities.unit.leadersOnly')}</label>
           <button type="button" className="wk-btn wk-btn-line" disabled={busy || label.trim() === ''} onClick={() => {
             const base = freePositionKey({ ...doc, positions: doc.fields.map((f) => ({ key: f.key, name: f.label, rights: 'member' as const })) }, label);
             onChange({ ...doc, fields: [...doc.fields, { key: base, label: label.trim(), kind, ...(kind === 'choice' ? { options: options.split(',').map((o) => o.trim()).filter((o) => o !== '') } : {}), ...(secret ? { leadersOnly: true } : {}) }] });
             setLabel(''); setOptions(''); setSecret(false);
-          }}>Dodaj pole</button>
+          }}>{t('communities.unit.addField')}</button>
         </div>
       </details>
     </div>
@@ -294,9 +300,10 @@ export function UnitSettings({ doc, unitKey, onChange, busy = false, only, onOpe
   /** Der Bereich dieser Einheit in „Obszary" (wenn es ihn schon gibt). */
   areaHref?: string | null;
 }) {
+  const t = useT();
   const flat = findUnit(doc, unitKey);
   const [bpName, setBpName] = useState('');
-  if (flat === undefined) return <p className="wk-note">Tej jednostki nie ma w wspólnocie.</p>;
+  if (flat === undefined) return <p className="wk-note">{t('communities.unit.notInCommunity')}</p>;
   const u = flat.unit;
   const steps: readonly Step[] = only === undefined ? [1, 2, 3, 4, 5] : [only];
   const body = (step: Step) => {
@@ -309,22 +316,22 @@ export function UnitSettings({ doc, unitKey, onChange, busy = false, only, onOpe
     <div className="wk-cm-unit" data-unit-settings={unitKey}>
       {only === undefined && (
         <div className="wk-cm-inline">
-          <label className="wk-field"><span>Nazwa jednostki</span><input value={u.name} disabled={busy} onChange={(e) => onChange(updateUnit(doc, unitKey, (x) => ({ ...x, name: e.target.value })))} /></label>
-          <label className="wk-field"><span>Rodzaj obszaru</span>
+          <label className="wk-field"><span>{t('communities.unit.unitName')}</span><input value={u.name} disabled={busy} onChange={(e) => onChange(updateUnit(doc, unitKey, (x) => ({ ...x, name: e.target.value })))} /></label>
+          <label className="wk-field"><span>{t('communities.unit.areaKind')}</span>
             <select value={u.kind ?? ''} disabled={busy} onChange={(e) => onChange(updateUnit(doc, unitKey, (x) => { const { kind: _k, ...rest } = x; return e.target.value === '' ? rest : { ...rest, kind: e.target.value as ProfileKind }; }))}>
-              <option value="">{blueprintOf(doc, u)?.kind ? `z planu (${blueprintOf(doc, u)!.kind})` : 'grupa'}</option>
+              <option value="">{blueprintOf(doc, u)?.kind ? t('communities.unit.kindFromPlan', { kind: blueprintOf(doc, u)!.kind! }) : t('communities.unit.kindGroup')}</option>
               {PROFILE_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
             </select>
           </label>
           {flat.parent !== null && (
-            <label className="wk-field"><span>Plan budowy</span>
+            <label className="wk-field"><span>{t('communities.unit.blueprint')}</span>
               <select value={u.from ?? ''} disabled={busy} onChange={(e) => onChange(updateUnit(doc, unitKey, (x) => { const { from: _f, ...rest } = x; return e.target.value === '' ? rest : { ...rest, from: e.target.value }; }))}>
-                <option value="">— bez planu —</option>
+                <option value="">{t('communities.unit.noBlueprint')}</option>
                 {doc.blueprints.map((b) => <option key={b.key} value={b.key}>{b.name}</option>)}
               </select>
             </label>
           )}
-          {areaHref && <a className="wk-link" href={areaHref}>Obszar tej jednostki</a>}
+          {areaHref && <a className="wk-link" href={areaHref}>{t('communities.unit.thisArea')}</a>}
         </div>
       )}
       {steps.map((step) => (
@@ -337,8 +344,8 @@ export function UnitSettings({ doc, unitKey, onChange, busy = false, only, onOpe
       ))}
       {only === undefined && (
         <div className="wk-cm-inline wk-cm-blueprint">
-          <label className="wk-field"><span>Zapisz jako plan budowy (dla podobnych jednostek)</span><input value={bpName} disabled={busy} placeholder="np. Krąg, Klasa" onChange={(e) => setBpName(e.target.value)} /></label>
-          <button type="button" className="wk-btn wk-btn-line" disabled={busy || bpName.trim() === ''} onClick={() => { onChange(saveAsBlueprint(doc, unitKey, bpName.trim())); setBpName(''); }}>Zapisz plan</button>
+          <label className="wk-field"><span>{t('communities.unit.saveAsBlueprint')}</span><input value={bpName} disabled={busy} placeholder={t('communities.unit.blueprintPlaceholder')} onChange={(e) => setBpName(e.target.value)} /></label>
+          <button type="button" className="wk-btn wk-btn-line" disabled={busy || bpName.trim() === ''} onClick={() => { onChange(saveAsBlueprint(doc, unitKey, bpName.trim())); setBpName(''); }}>{t('communities.unit.saveBlueprint')}</button>
         </div>
       )}
     </div>

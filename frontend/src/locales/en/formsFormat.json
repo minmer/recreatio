@@ -1,0 +1,63 @@
+{
+  "example": "Example:",
+  "module": {
+    "needs": "\"needs\" — form requirements: minors, health, insurance, rules — each with settings (below: Form requirements)",
+    "extends": "\"extends\", \"audience\" — only in an extension (sub-form): which form it extends and who fills it in (\"person\" — the person through their link, \"office\" — only the coordinator). \"extends\" is information only; the import changes \"audience\" as long as the sub-form has no entry",
+    "group": "\"group\" — the form group (folder) it stands in: its name; null — no group. The import moves the form into the group of that name (if it does not exist — creates it). Nothing changes for those filling in",
+    "repeat": "\"repeat\" — only in an extension: how often each person on the list gets an entry — \"once\", \"day\", \"week\", \"month\", \"year\". The import changes it as long as the extension has no entry",
+    "memberRoles": "\"memberRoles\" — participant roles: a list of role ids that everyone who sends the form gets (access to their areas, pages, calendars, conversations); an empty list — none. The import sets them only if you hold these roles; whoever already belongs to a role stays. Current entries are moved in the module (“Move current entries”). The older \"memberRole\" (one role or null) is read too",
+    "virtualAreas": "\"virtualAreas\" — areas of people: a list of rules; everyone who sends the form gets their own area according to each rule (conversation, appointments, tasks just for them). Rule: { \"name\": name, \"submitter\": what the person does — \"write\" (writes), \"read\" (reads), \"none\" (does not see it: an area only for the leaders), \"roles\": [{ \"role\": role id, \"level\": \"read\" | \"write\" | \"admin\" (leads) }] } — each of these roles sees such an area of every person. The import creates rules whose names do not exist yet, changes \"submitter\" and adds roles you hold; it removes nothing"
+  },
+  "sample": {
+    "name": "Trip sign-up",
+    "sentTitle": "Thank you for signing up!",
+    "email": "Contact e-mail",
+    "phone": "Phone",
+    "birth": "form with minors — date of birth, all options",
+    "ask": "form with minors — only “is a minor”, all options"
+  },
+  "needs": {
+    "title": "Form requirements (\"needs\")",
+    "intro": "Requirements are ready-made parts of a form for what an event requires. A requirement turned on adds its questions, groups and logic (what the form already asks — first name, surname, date of birth — it reuses); while it is on, its questions and logic cannot be deleted, while the questions can be moved and reworded.",
+    "importDoes": "What the import does:",
+    "import1": "- A requirement the form does not have is turned on with the given settings.",
+    "import2": "- One that is on with other settings is switched: what both need stays in its place with its answers; questions the new settings do not need disappear (those with answers — only taken off the form; the answers stay in the entries).",
+    "import3": "- With \"holds\" (from an export) the import takes over the questions, groups and logic from the document instead of adding them a second time — that is how a form moves to another page or to the next edition.",
+    "import4": "- Requirements that are on but not in the document stay — only “Remove questions and requirements not in the document” turns them off.",
+    "list": "Requirements (with the settings the import proposes without them):",
+    "minors": "Minors: whoever comes with a parent — nothing more; with an adult carer — only their first name and surname; on their own — the parent's first name and surname, their phone and the consent: the form shows its text without a tick box, and at the end (and after sending) “Print consent for signing” (\"paper\": \"sign\" in \"config\"). When only one option is open, nobody chooses — it applies (e.g. a trip only for children: \"ways\": [\"consent\"]).",
+    "wholeExample": "Example of a whole form (module document) with all options for minors:"
+  },
+  "usage": {
+    "title": "How the app uses this data",
+    "text": "- A form is filled in without an account on the page it stands on (also in a widget); a sub-form — only through a personal link or only by the office (\"audience\"). The same form on several pages collects one list of entries.\n- Anyone can read the questions when the area they lie in is public; otherwise only those who read it (account or link).\n- It accepts entries only when the form's area (or an area above it) has a data controller — its clause stands above the questions and on the printout for signing.\n- The answers are encrypted by the browser of whoever fills in; the server does not read them. The form's coordinators open them: the tabs “Entries” and “Table”, the page modules “List of people” and “Person panel”. Whoever only runs the page sees that there are entries — without their content.\n- A new entry stands in the bell of the people who read the form's area (also as a notification).\n- Whoever sends the form gets their own link (they see it once; the office can send it to them by SMS). Under it they see their answers and correct those with \"selfEdit\", complete sub-forms with \"audience\": \"person\", tick off their steps and write in conversations.\n- Through this link \"memberRoles\" and \"virtualAreas\" work: the person belongs to the roles at once, and the role keys and areas of people are handed out without a click by the browser of the office or the leader (when they open the form or the bell).\n- A sub-form gives the person a step “Fill in: …” (an office sub-form — a step visible only to the office). Entries are also used by steps (tab “Steps”), the page logic map (\"registered\", \"confirmed\", \"answer\", \"mark\"), conversations linked to the form and “Write to us”.\n- The import neither opens nor closes sign-ups and changes neither steps nor anyone's answers."
+  },
+  "form": {
+    "title": "Form (module \"form\")",
+    "intro": "An entry of the module \"form\" — on a page and in the module document — carries, besides the name and content (\"config\"), what belongs to the form: questions, layout and logic, requirements, participant roles, areas of people, group. Page and module import them the same way. The questions are encrypted in the browser with the key of the form's area: the export shows only those that can be opened with your keys (others have \"label\": null and stay untouched on import). The import seals new and changed questions here before they reach the service.\n- A question with an \"id\" from the export is changed — its answers stay.\n- A question without an \"id\" or with its own (e.g. \"q1\") is created new, at the end; the same name can be used in \"design\".\n- The import does not delete questions that are not in the document — unless you tick “Remove questions and requirements not in the document”. The service only takes questions with answers off the form (their answers stay), and it will not delete questions of requirements that are on.\n- The order of existing questions cannot be changed — the order on the form is set by \"design.layout\"."
+  },
+  "keys": {
+    "questions": "Form questions — a list, in order",
+    "qId": "Question id. One from an export — the question will be changed (answers stay). A new or own one (e.g. \"q1\") — a new question is created; the same name can be used in \"design\". A question taken off the form (it had answers) is not in the export; its id in the document brings it back together with its answers",
+    "qKind": "Kind: {kinds}",
+    "qLabel": "Question text",
+    "qHelp": "Hint below the question (or null). With \"consent\" — the full text of the declaration; a ticked consent is saved together with it (\"tak: …\"). \"pesel\" checks the check digit",
+    "qOptions": "Choices — a list (only for \"choice\")",
+    "qRequired": "true — an answer is required",
+    "qHalfWidth": "true — half-width field",
+    "qIdentity": "Which personal detail it is about (the form fills it in from the profile): {roles}; an ordinary question: \"none\"",
+    "qSelfEdit": "true — the person can correct the answer later through their link",
+    "qPersonOnly": "true — only the person themselves enters and corrects the answer (through their link); the office reads it but neither changes it nor enters it for them (e.g. a candidate's own goals). Also turns on \"selfEdit\". Omitted: false",
+    "qAnswersTo": "Id of the area the answers go to (who reads them). Omitted: the area chosen on import. Changing it on an existing question does not move the answers — that is done in the module",
+    "design": "Layout and logic of the form (or null — a plain list). Requires the form's area",
+    "designVersion": "Always 1",
+    "designLayout": "Order and groups — a list of items; questions not listed here stand at the end. Group: {\"type\":\"group\",\"id\":\"g1\",\"kind\":\"group\"|\"page\"|\"tab\",\"title\":\"…\",\"items\":[…]} (\"page\" — a separate step of the form, \"tab\" — a tab)",
+    "layoutType": "\"field\" — a question, \"text\" — text between questions, \"group\" — a group (see above)",
+    "layoutId": "With \"field\": the question id (also an own one from \"questions\", e.g. \"q1\"); with text and group: any unique one",
+    "layoutText": "With \"text\": the content",
+    "layoutPrint": "With \"field\": true / false — whether the answer goes onto the printout for signing. Omitted: first name and surname, the parent's details (name, phone), consents and declarations yes; the rest (age, school…) no",
+    "layoutSign": "With \"text\": true — a declaration to sign on the printout (e.g. parental consent): to read in the form, without a tick box; on the printout above the signature line",
+    "designNodes": "Logic nodes: {\"id\",\"kind\",\"x\",\"y\", \"fieldId\"?, \"value\"?, \"op\"?, \"target\"?}; kind: answer, const, age, compare, and, or, not, xor, show, message, label, require. \"age\" — age in full years from a question with a date of birth or PESEL (\"fieldId\"), on the day \"value\" (YYYY-MM-DD; empty — today); compared with 18 it shows the fields for minors",
+    "designEdges": "Logic connections: {\"id\",\"from\",\"to\",\"port\":\"a\"|\"b\"|\"in\"}"
+  }
+}

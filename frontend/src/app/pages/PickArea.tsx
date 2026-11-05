@@ -17,18 +17,17 @@ import { call, WorkspaceError } from '../core/session';
 import { createIntake } from '../forms/intake';
 import { selfOf } from '../roles/roles';
 import { useSeenAreas } from './PartAudience';
+import { useT } from '../core/i18n';
 
 export function PickArea({ value, busy, onPick }: { value: string; busy: boolean; onPick: (areaId: string) => void }) {
+  const t = useT();
   const areas = useSeenAreas();
   return (
     <>
-      <AreaPick label="Obszar" areas={areas} only={answerAreas(areas)} value={value} disabled={busy}
-        extras={[{ value: '', label: 'jak w bazie wiedzy' }]} onChange={onPick} />
+      <AreaPick label={t('pages.area.label')} areas={areas} only={answerAreas(areas)} value={value} disabled={busy}
+        extras={[{ value: '', label: t('pages.area.asBase') }]} onChange={onPick} />
       {value !== '' && (
-        <p className="wk-part-audience-says" data-area-says="">
-          Odpowiedzi przyślą uczący się, którzy należą do tego obszaru albo do obszaru nad nim (np. kursu). Czyta je ten, kto ma klucz przyjęć —
-          na stronie zobaczy pod modułem „Odpowiedzi uczących się →”. Kto tu nie może wysłać, zachowa odpowiedzi dla siebie.
-        </p>
+        <p className="wk-part-audience-says" data-area-says="">{t('pages.area.says')}</p>
       )}
       {value !== '' && <IntakeNote key={value} areaId={value} areas={areas} />}
     </>
@@ -37,6 +36,7 @@ export function PickArea({ value, busy, onPick }: { value: string; busy: boolean
 
 /** Hat der Bereich Przyjęcia? Ohne sie: ein Satz, und für wer ihn leitet der Knopf, der sie anlegt. */
 function IntakeNote({ areaId, areas }: { areaId: string; areas: readonly AreaRow[] }) {
+  const t = useT();
   const who = useWho();
   const [has, setHas] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
@@ -55,21 +55,21 @@ function IntakeNote({ areaId, areas }: { areaId: string; areas: readonly AreaRow
     try {
       const keys = await keysFor(who);
       const person = selfOf(keys.graph);
-      if (keys.ring === null || person === null) throw new WorkspaceError('Najpierw podaj hasło — klucze nie są otwarte w tej karcie.');
+      if (keys.ring === null || person === null) throw new WorkspaceError(t('pages.area.needPassword'));
       await createIntake(keys.ring, areaId, person.id);
       setHas(true);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się utworzyć przyjęć.');
+      setFailed(e instanceof WorkspaceError ? e.message : t('pages.area.intakeFailed'));
     } finally {
       setBusy(false);
     }
   };
   return (
     <div className="wk-part-intake" data-area-intake="missing">
-      <p className="wk-part-audience-says">Ten obszar nie ma jeszcze przyjęć — odpowiedzi tu nie trafią (zobaczy je tylko sam uczący się).</p>
+      <p className="wk-part-audience-says">{t('pages.area.noIntake')}</p>
       {leads && who != null && (
         <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy} onClick={() => void make()}>
-          {busy ? 'Tworzenie klucza (kilka sekund)…' : 'Utwórz przyjęcia'}
+          {busy ? t('pages.area.making') : t('pages.area.make')}
         </button>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
