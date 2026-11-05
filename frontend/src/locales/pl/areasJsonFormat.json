@@ -69,7 +69,8 @@
     "publish": "tylko \"form\": \"area\", \"auto\" albo identyfikator obszaru — gdzie leżą pytania (formularz publiczny w prywatnym obszarze: pytania pod kluczem jawnego obszaru, odpowiedzi tutaj); pominięty — jak \"publish\" obszaru",
     "answer": "tylko \"seat-ask\" („Napisz do nas”): kto odpowiada — role z \"roles\", np. [\"@role:organizatorzy\"]; pominięty — role z \"level\": \"admin\" (bez nich tylko osoba importująca); osoba z linkiem czyta „Napisz do: …” z ich nazwami",
     "forms": "tylko \"seat-ask\": czyje osoby mogą zacząć rozmowę — formularze z tego dokumentu, np. [\"@form:main/zapisy\"]; pominięty — wszystkie formularze stron dokumentu",
-    "tail": "\"module\" jest w dokumencie obszaru pomijane, \"answersTo\" pytań też (odpowiedzi trafiają do tego obszaru). Strona, która już istnieje, a nie jest stroną tego obszaru, nie zostanie zmieniona, chyba że osoba importująca na to pozwoli."
+    "tail": "\"module\" jest w dokumencie obszaru pomijane, \"answersTo\" pytań też (odpowiedzi trafiają do tego obszaru). Strona, która już istnieje, a nie jest stroną tego obszaru, nie zostanie zmieniona, chyba że osoba importująca na to pozwoli.",
+    "owner": "kto prowadzi adres: \"@KEY\" roli z \"roles\" (albo identyfikator roli, którą masz); pominięty — Twoja osoba. Prowadzić = edytować stronę, otwierać podstrony i upubliczniać je. Działa dla nowych i istniejących adresów, które prowadzisz"
   },
   "subforms": {
     "lead": "Wpis w \"subforms\" — formularz, który rozszerza formularz ze strony (zgody, ankieta po wydarzeniu, karta zdrowia):",

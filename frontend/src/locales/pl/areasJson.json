@@ -159,7 +159,9 @@
     "listingAsked": "Lista „{path}”: {state}.",
     "listingCatalogue": "Lista „{path}”: {state} (katalog — decyduje operator).",
     "listingFailed": "Lista „{path}”: {error}.",
-    "stageAreaCalendar": "Kalendarz obszaru…"
+    "stageAreaCalendar": "Kalendarz obszaru…",
+    "ownerFailed": "{label}: nie udało się przekazać adresu roli ({error}).",
+    "ownerUnknown": "{label}: właściciel „{owner}” nie jest rolą tego dokumentu — adres zostaje przy Tobie."
   },
   "path": {
     "empty": "pusty adres to strona główna recreatio.pl — tam strony obszaru nie ma",
@@ -226,7 +228,8 @@
     "askAnswer": "{where}: \"answer\" to lista ról — pominięte.",
     "askAnswerRole": "{where}: \"answer\" to role tego dokumentu (\"@role:klucz\") — „{said}” pominięte.",
     "askForms": "{where}: \"forms\" to lista formularzy — pominięte.",
-    "askForm": "{where}: formularz „{said}” to \"@form:strona/moduł\" — pominięty."
+    "askForm": "{where}: formularz „{said}” to \"@form:strona/moduł\" — pominięty.",
+    "pageOwner": "Strona „{key}”: \"owner\" to \"@<klucz roli>\" albo identyfikator roli — pominięte."
   },
   "prep": {
     "moduleTwice": "Strona „{page}”: moduł „{id}” powtarza się — drugi dostaje inną nazwę.",

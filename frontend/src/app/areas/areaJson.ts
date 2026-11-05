@@ -218,6 +218,12 @@ export interface AreaPageDoc {
   readonly after: boolean;
   /** "members": nur für die Menschen des Bereichs; fehlt: bleibt (neu: öffentlich). */
   readonly access?: 'public' | 'members';
+  /**
+   * 2026-11-05 — WER DIE ADRESSE FÜHRT: `@<schlüssel>` einer Rolle dieses Dokuments oder die Kennung einer Rolle, die der
+   * Importierende hält. Fehlt: die Person des Importierenden (wie bisher). Führen heisst: die Seite bearbeiten,
+   * Unterseiten öffnen, sie öffentlich machen (`Access.OfAsync`, nächste übernommene Adresse gewinnt).
+   */
+  readonly owner?: string;
   /** Die Seite selbst — ein Dokument „recreatio/page". */
   readonly page: Record<string, unknown>;
 }
@@ -270,7 +276,7 @@ const TOP_KEYS = new Set([
   'format', 'version', 'kind', 'name', 'category', 'address', 'publish', 'archive', 'card',
   'roles', 'appointments', 'pages', 'subforms', 'chats', 'listings'
 ]);
-const PAGE_ENTRY_KEYS = new Set(['key', 'path', 'main', 'after', 'access', 'page']);
+const PAGE_ENTRY_KEYS = new Set(['key', 'path', 'main', 'after', 'access', 'owner', 'page']);
 
 /** DULDSAM LESEN — was nicht passt, fällt weg, mit einem Wort dazu. Ein Fehler nur, wenn es gar kein Dokument eines Bereichs ist. */
 export function readAreaDocument(value: unknown): { doc: AreaDocument; warnings: string[] } | { error: string } {
@@ -442,7 +448,10 @@ export function readAreaDocument(value: unknown): { doc: AreaDocument; warnings:
     const accessSaid = text(one.access);
     const access = accessSaid === 'public' || accessSaid === 'members' ? accessSaid : undefined;
     if (has(one, 'access') && access === undefined) warnings.push(t('areasJson.read.pageAccess', { key }));
-    pages.push({ key, path: path.startsWith('/') ? `/${relative}` : relative, main, after: one.after === true, ...(access === undefined ? {} : { access }), page });
+    const ownerSaid = text(one.owner);
+    const owner = ownerSaid === '' ? undefined : (ownerSaid.startsWith('@') && ownerSaid.length > 1) || isUuid(ownerSaid) ? ownerSaid : undefined;
+    if (has(one, 'owner') && owner === undefined) warnings.push(t('areasJson.read.pageOwner', { key }));
+    pages.push({ key, path: path.startsWith('/') ? `/${relative}` : relative, main, after: one.after === true, ...(access === undefined ? {} : { access }), ...(owner === undefined ? {} : { owner }), page });
   }
   {
     /* Eine strona główna, eine po wydarzeniu — und nicht dieselbe. */

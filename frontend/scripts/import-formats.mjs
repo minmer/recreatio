@@ -241,7 +241,7 @@ export async function formats() {
   /* 0137 — wie ein Assistent eine ganze Wspólnota vorbereitet und später ändert, und je ein Beispiel. */
   list.push({
     id: 'guide-community', group: 'Przewodniki dla AI', title: 'Przewodnik: wspólnota (struktura → pozycje → osoby → treści)',
-    what: 'W jakiej kolejności przygotować wspólnotę jako „community”: drzewo jednostek i plany budowy, pozycje z prawami, osoby grupą i pojedynczo, ustawienia pięciu kroków (tylko różnice — reszta dziedziczy), treści osobnymi formatami; zmiany później po kluczach (usuwanie, przeniesienia, nowy link przy zmianie ról), łączenie wspólnot w aplikacji, typowe błędy.',
+    what: 'Model (jednostka = obszar, pozycja = rola, osoba ≠ konto, link osobisty, para), macierz uprawnień (lead/accompany/cooperate/member/participant → read/write/admin, subunitsSee, grono) z tym, co sprawdza usługa, kalendarze, rozmowy i kanały (co tworzy dane ustawienie), strony i adresy (pagesBy — kto prowadzi adres; publikacja nie jest zatwierdzana technicznie), terminy publiczne bezpiecznie, co robi import (kolejność, powtórzenie, remove, przeniesienia), praca asystenta bez dostępu do instancji (pytania, walidacja, kroki w aplikacji, sprawdzenie po imporcie, drugi etap), wzorzec Domowy Kościół ze stanem wymagań, czego nie obiecywać.',
     where: 'Plik templates/communities/wspolnoty-AI.md; import jako „community”.',
     text: (await readFile('../templates/communities/wspolnoty-AI.md', 'utf8')).replace(/\r\n/g, '\n')
   });

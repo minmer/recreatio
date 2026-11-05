@@ -3,9 +3,18 @@
   "noAreaKey": "Kein Schlüssel des Bereichs — die Einstellungen der Gemeinschaft lassen sich nicht speichern.",
   "linkLine": "Link — {name}: {url}",
   "count": {
-    "units": { "one": "{count} Einheit", "other": "{count} Einheiten" },
-    "persons": { "one": "{count} Person", "other": "{count} Personen" },
-    "positions": { "one": "{count} Position", "other": "{count} Positionen" }
+    "units": {
+      "one": "{count} Einheit",
+      "other": "{count} Einheiten"
+    },
+    "persons": {
+      "one": "{count} Person",
+      "other": "{count} Personen"
+    },
+    "positions": {
+      "one": "{count} Position",
+      "other": "{count} Positionen"
+    }
   },
   "list": {
     "unlockWhy": "Gemeinschaften versiegeln Namen und Einstellungen in diesem Browser.",
@@ -36,7 +45,14 @@
     "slowKeys": "Jede neue Rolle und jeder neue Link braucht etwa ein Dutzend Sekunden Schlüsselberechnung in diesem Browser — schließ den Tab nicht.",
     "save": "Änderungen speichern"
   },
-  "tabs": { "structure": "Struktur", "unit": "Einheit", "people": "Personen", "staffing": "Besetzung", "json": "JSON", "history": "Verlauf" },
+  "tabs": {
+    "structure": "Struktur",
+    "unit": "Einheit",
+    "people": "Personen",
+    "staffing": "Besetzung",
+    "json": "JSON",
+    "history": "Verlauf"
+  },
   "view": {
     "unreadable": "Die Einstellungen dieser Gemeinschaft lassen sich nicht öffnen.",
     "notCommunity": "Dieser Bereich ist keine Gemeinschaft.",
@@ -88,7 +104,12 @@
     "unit": "Verwaltet von der Gemeinschaft <link>„{name}“</link> · Einheit „{unit}“. Manuelle Änderungen an Rollen, Seiten und Gesprächen hier kann das nächste Speichern der Gemeinschaft überschreiben."
   },
   "mine": {
-    "level": { "read": "du liest hier", "write": "du schreibst hier", "admin": "du leitest hier", "reads": "du liest hier" },
+    "level": {
+      "read": "du liest hier",
+      "write": "du schreibst hier",
+      "admin": "du leitest hier",
+      "reads": "du liest hier"
+    },
     "area": "Bereich",
     "loading": "Deine Gemeinschaften werden geöffnet…",
     "noLink": "Dieser Browser hat keinen persönlichen Link. Öffne den Link, den du von der Leitung bekommen hast.",
@@ -171,7 +192,8 @@
     "oaza": "Jugendgruppe der Pfarrei (Gruppen nach Stufe von selbst, Schola, Theater)",
     "turnus": "Exerzitien-Turnus (Anmeldung mit Limit, Gruppen, Besetzung)",
     "choir": "Chor (Stimmen als Untergruppen, Proben, Auftritte)",
-    "learning": "Lerngruppe mit Cogita (online, Einladungen)"
+    "learning": "Lerngruppe mit Cogita (online, Einladungen)",
+    "dkKrakow": "Hauskirche: Erzdiözese → Rejony → Kręgi (Referenz, ohne Personen)"
   },
   "wizard": {
     "leader": "Leitung",
@@ -224,13 +246,32 @@
     "viewNotSaved": "„{name}“: Ansicht der Einheit nicht gespeichert ({why})."
   },
   "rights": {
-    "lead": { "label": "Leitung", "says": "ändert alles in der Einheit und in allen Einheiten darunter; lässt andere herein" },
-    "accompany": { "label": "Begleitung", "says": "sieht alles in der Einheit und darunter, ändert nichts (z. B. ein Priester als Moderator)" },
-    "cooperate": { "label": "Mitarbeit", "says": "schreibt in der Einheit (Termine, Materialien), z. B. ein Animator mit eigener Gruppe" },
-    "member": { "label": "Mitgliedschaft", "says": "gehört zur Einheit, schreibt in ihren Gesprächen und im Kalender" },
-    "participant": { "label": "Teilnahme", "says": "liest, was die Einheit teilt, und redet mit" }
+    "lead": {
+      "label": "Leitung",
+      "says": "ändert alles in der Einheit und in allen Einheiten darunter; lässt andere herein"
+    },
+    "accompany": {
+      "label": "Begleitung",
+      "says": "sieht alles in der Einheit und darunter, ändert nichts (z. B. ein Priester als Moderator)"
+    },
+    "cooperate": {
+      "label": "Mitarbeit",
+      "says": "schreibt in der Einheit (Termine, Materialien), z. B. ein Animator mit eigener Gruppe"
+    },
+    "member": {
+      "label": "Mitgliedschaft",
+      "says": "gehört zur Einheit, schreibt in ihren Gesprächen und im Kalender"
+    },
+    "participant": {
+      "label": "Teilnahme",
+      "says": "liest, was die Einheit teilt, und redet mit"
+    }
   },
-  "assign": { "appointed": "ernannt", "elected": "gewählt", "result": "Ergebnis wird eingetragen" },
+  "assign": {
+    "appointed": "ernannt",
+    "elected": "gewählt",
+    "result": "Ergebnis wird eingetragen"
+  },
   "presets": {
     "voice": "Stimme",
     "stage": "Formationsstufe",
@@ -248,89 +289,269 @@
     "s4": "Wer kommt dazu und wie?",
     "s5": "Was nutzt ihr und wer sieht was?"
   },
-  "weekday": { "mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So" },
+  "weekday": {
+    "mon": "Mo",
+    "tue": "Di",
+    "wed": "Mi",
+    "thu": "Do",
+    "fri": "Fr",
+    "sat": "Sa",
+    "sun": "So"
+  },
   "settings": {
     "life": {
-      "duration": { "label": "Wie lange", "choices": {
-        "permanent": { "label": "Dauerhaft", "example": "Chor, Kreis, Klasse, Jugendgruppe" },
-        "limited": { "label": "Befristet — mit Anfang und Ende", "example": "Exerzitien-Turnus, Fahrt, Konzertprojekt" } } },
-      "from": { "label": "Von" },
-      "until": { "label": "Bis" },
-      "place": { "label": "Wo", "choices": {
-        "onsite": { "label": "Vor Ort", "example": "Treffen im Gruppenraum, Proben, Unterricht" },
-        "online": { "label": "Online", "example": "eine Gruppe, die vor allem im Netz redet und lernt — ohne Orte und Räume" },
-        "both": { "label": "Beides" } } },
-      "rhythm": { "label": "Wie oft ihr euch trefft", "choices": {
-        "weekly": { "label": "Jede Woche", "example": "Chorprobe, Gruppentreffen" },
-        "monthly": { "label": "Jeden Monat", "example": "Treffen des Kreises" },
-        "once": { "label": "Einmalig", "example": "Turnus, Fahrt" },
-        "asNeeded": { "label": "Nach Bedarf", "example": "eine Gruppe, die in ihrem eigenen Tempo lernt" } } },
-      "weekday": { "label": "Tag der Treffen" },
-      "time": { "label": "Uhrzeit" },
-      "minutes": { "label": "Dauer (Minuten)" },
-      "location": { "label": "Treffpunkt" },
-      "yearFrom": { "label": "Arbeitsjahr ab (MM-TT)", "hint": "z. B. 09-01 — alte Jahre bleiben als Archiv" },
-      "yearUntil": { "label": "Arbeitsjahr bis (MM-TT)" },
-      "open": { "label": "Wer mitmachen kann", "choices": {
-        "anyone": { "label": "Jeder kann mitmachen", "example": "Pfarrchor, Jugendgruppe, Exerzitien mit Anmeldung" },
-        "invite": { "label": "Nur auf Einladung", "example": "Klasse, Lerngruppe, Kreis" } } }
+      "duration": {
+        "label": "Wie lange",
+        "choices": {
+          "permanent": {
+            "label": "Dauerhaft",
+            "example": "Chor, Kreis, Klasse, Jugendgruppe"
+          },
+          "limited": {
+            "label": "Befristet — mit Anfang und Ende",
+            "example": "Exerzitien-Turnus, Fahrt, Konzertprojekt"
+          }
+        }
+      },
+      "from": {
+        "label": "Von"
+      },
+      "until": {
+        "label": "Bis"
+      },
+      "place": {
+        "label": "Wo",
+        "choices": {
+          "onsite": {
+            "label": "Vor Ort",
+            "example": "Treffen im Gruppenraum, Proben, Unterricht"
+          },
+          "online": {
+            "label": "Online",
+            "example": "eine Gruppe, die vor allem im Netz redet und lernt — ohne Orte und Räume"
+          },
+          "both": {
+            "label": "Beides"
+          }
+        }
+      },
+      "rhythm": {
+        "label": "Wie oft ihr euch trefft",
+        "choices": {
+          "weekly": {
+            "label": "Jede Woche",
+            "example": "Chorprobe, Gruppentreffen"
+          },
+          "monthly": {
+            "label": "Jeden Monat",
+            "example": "Treffen des Kreises"
+          },
+          "once": {
+            "label": "Einmalig",
+            "example": "Turnus, Fahrt"
+          },
+          "asNeeded": {
+            "label": "Nach Bedarf",
+            "example": "eine Gruppe, die in ihrem eigenen Tempo lernt"
+          }
+        }
+      },
+      "weekday": {
+        "label": "Tag der Treffen"
+      },
+      "time": {
+        "label": "Uhrzeit"
+      },
+      "minutes": {
+        "label": "Dauer (Minuten)"
+      },
+      "location": {
+        "label": "Treffpunkt"
+      },
+      "yearFrom": {
+        "label": "Arbeitsjahr ab (MM-TT)",
+        "hint": "z. B. 09-01 — alte Jahre bleiben als Archiv"
+      },
+      "yearUntil": {
+        "label": "Arbeitsjahr bis (MM-TT)"
+      },
+      "open": {
+        "label": "Wer mitmachen kann",
+        "choices": {
+          "anyone": {
+            "label": "Jeder kann mitmachen",
+            "example": "Pfarrchor, Jugendgruppe, Exerzitien mit Anmeldung"
+          },
+          "invite": {
+            "label": "Nur auf Einladung",
+            "example": "Klasse, Lerngruppe, Kreis"
+          }
+        }
+      }
     },
     "structure": {
-      "subgroups": { "label": "Untergruppen", "choices": {
-        "manual": { "label": "Von Hand (du legst sie selbst an)", "example": "Formationsgruppen, Kreise, Klassen" },
-        "byField": { "label": "Von selbst, nach einem Merkmal der Person", "example": "alle Tenöre, alle aus ONŻ I°" } } },
-      "byField": { "label": "Nach Feld", "hint": "Schlüssel eines Felds aus Schritt 4, z. B. „glos“" },
-      "council": { "label": "Gremium der Leitenden der Einheiten darunter", "hint": "z. B. ein Bezirkskreis: Bezirkspaar, Moderator und alle Animatorenpaare — die Besetzung ergibt sich von selbst" },
-      "founders": { "label": "Wer neue Einheiten darunter anlegt", "choices": {
-        "admin": { "label": "Nur die Verwaltung der Gemeinschaft" },
-        "lead": { "label": "Auch die Leitenden dieser Einheit" } } }
+      "subgroups": {
+        "label": "Untergruppen",
+        "choices": {
+          "manual": {
+            "label": "Von Hand (du legst sie selbst an)",
+            "example": "Formationsgruppen, Kreise, Klassen"
+          },
+          "byField": {
+            "label": "Von selbst, nach einem Merkmal der Person",
+            "example": "alle Tenöre, alle aus ONŻ I°"
+          }
+        }
+      },
+      "byField": {
+        "label": "Nach Feld",
+        "hint": "Schlüssel eines Felds aus Schritt 4, z. B. „glos“"
+      },
+      "council": {
+        "label": "Gremium der Leitenden der Einheiten darunter",
+        "hint": "z. B. ein Bezirkskreis: Bezirkspaar, Moderator und alle Animatorenpaare — die Besetzung ergibt sich von selbst"
+      },
+      "founders": {
+        "label": "Wer neue Einheiten darunter anlegt",
+        "choices": {
+          "admin": {
+            "label": "Nur die Verwaltung der Gemeinschaft"
+          },
+          "lead": {
+            "label": "Auch die Leitenden dieser Einheit"
+          }
+        }
+      }
     },
     "intake": {
-      "mode": { "label": "Wie man dazukommt", "choices": {
-        "leaders": { "label": "Die Leitung trägt Personen ein", "example": "Klasse, Kreis, Lerngruppe — jeder bekommt einen persönlichen Link" },
-        "link": { "label": "Einladung per Link", "example": "ein Link für alle neuen Chormitglieder" },
-        "signup": { "label": "Öffentliche Anmeldung per Formular", "example": "Exerzitien-Turnus, Jugendgruppe mit Aufnahme" } } },
-      "limit": { "label": "Anzahl der Plätze" },
-      "waitlist": { "label": "Warteliste, wenn die Plätze voll sind" },
-      "requires": { "label": "Bedingungen (z. B. eine Stufe im laufenden Jahr)" },
-      "confirm": { "label": "Die Leitung bestätigt die Aufnahme", "hint": "der persönliche Link kommt erst nach der Aufnahme" },
-      "minors": { "label": "Es gibt Minderjährige (Einwilligung der Eltern)" },
-      "health": { "label": "Wir erfassen Gesundheitsdaten (nur die Leitung)" }
+      "mode": {
+        "label": "Wie man dazukommt",
+        "choices": {
+          "leaders": {
+            "label": "Die Leitung trägt Personen ein",
+            "example": "Klasse, Kreis, Lerngruppe — jeder bekommt einen persönlichen Link"
+          },
+          "link": {
+            "label": "Einladung per Link",
+            "example": "ein Link für alle neuen Chormitglieder"
+          },
+          "signup": {
+            "label": "Öffentliche Anmeldung per Formular",
+            "example": "Exerzitien-Turnus, Jugendgruppe mit Aufnahme"
+          }
+        }
+      },
+      "limit": {
+        "label": "Anzahl der Plätze"
+      },
+      "waitlist": {
+        "label": "Warteliste, wenn die Plätze voll sind"
+      },
+      "requires": {
+        "label": "Bedingungen (z. B. eine Stufe im laufenden Jahr)"
+      },
+      "confirm": {
+        "label": "Die Leitung bestätigt die Aufnahme",
+        "hint": "der persönliche Link kommt erst nach der Aufnahme"
+      },
+      "minors": {
+        "label": "Es gibt Minderjährige (Einwilligung der Eltern)"
+      },
+      "health": {
+        "label": "Wir erfassen Gesundheitsdaten (nur die Leitung)"
+      }
     },
     "tools": {
-      "chat": { "label": "Gespräch für alle" },
-      "announcements": { "label": "Ankündigungen (schreibt die Leitung)" },
-      "askLeaders": { "label": "Jeder kann der Leitung privat schreiben" },
-      "calendar": { "label": "Kalender (Termine oben sieht man unten)" },
-      "forms": { "label": "Formulare und Einladungen" },
-      "polls": { "label": "Umfragen an die Einheiten darunter" },
-      "attendance": { "label": "Anwesenheit" },
-      "lessons": { "label": "Materialien und Lektionen" },
-      "cogita": { "label": "Lernen mit Cogita" },
-      "notes": { "label": "Private Notizen der Leitung" },
-      "tables": { "label": "Eigene Kategorien und Tabellen (z. B. Noten)" },
-      "staffing": { "label": "Besetzungsplanung (wo jemand fehlt)" }
+      "chat": {
+        "label": "Gespräch für alle"
+      },
+      "announcements": {
+        "label": "Ankündigungen (schreibt die Leitung)"
+      },
+      "askLeaders": {
+        "label": "Jeder kann der Leitung privat schreiben"
+      },
+      "calendar": {
+        "label": "Kalender (Termine oben sieht man unten)"
+      },
+      "forms": {
+        "label": "Formulare und Einladungen"
+      },
+      "polls": {
+        "label": "Umfragen an die Einheiten darunter"
+      },
+      "attendance": {
+        "label": "Anwesenheit"
+      },
+      "lessons": {
+        "label": "Materialien und Lektionen"
+      },
+      "cogita": {
+        "label": "Lernen mit Cogita"
+      },
+      "notes": {
+        "label": "Private Notizen der Leitung"
+      },
+      "tables": {
+        "label": "Eigene Kategorien und Tabellen (z. B. Noten)"
+      },
+      "staffing": {
+        "label": "Besetzungsplanung (wo jemand fehlt)"
+      }
     },
     "talk": {
-      "direct": { "label": "Personen schreiben sich auch gegenseitig, eins zu eins" }
+      "direct": {
+        "label": "Personen schreiben sich auch gegenseitig, eins zu eins"
+      }
     },
     "visibility": {
-      "default": { "label": "Wer neue Inhalte standardmäßig sieht", "choices": {
-        "me": { "label": "Nur ich" },
-        "persons": { "label": "Ausgewählte Personen" },
-        "position": { "label": "Eine Position (z. B. alle Animatoren)" },
-        "unit": { "label": "Diese Einheit" },
-        "subtree": { "label": "Diese Einheit mit allem darunter" },
-        "public": { "label": "Öffentlich" } } },
-      "subunitsSee": { "label": "Einheiten darunter sehen diese Einheit (ihre Termine, Materialien)", "hint": "z. B. alle Bezirke und Kreise sehen die Termine der Diözese" }
+      "default": {
+        "label": "Wer neue Inhalte standardmäßig sieht",
+        "choices": {
+          "me": {
+            "label": "Nur ich"
+          },
+          "persons": {
+            "label": "Ausgewählte Personen"
+          },
+          "position": {
+            "label": "Eine Position (z. B. alle Animatoren)"
+          },
+          "unit": {
+            "label": "Diese Einheit"
+          },
+          "subtree": {
+            "label": "Diese Einheit mit allem darunter"
+          },
+          "public": {
+            "label": "Öffentlich"
+          }
+        }
+      },
+      "subunitsSee": {
+        "label": "Einheiten darunter sehen diese Einheit (ihre Termine, Materialien)",
+        "hint": "z. B. alle Bezirke und Kreise sehen die Termine der Diözese"
+      }
     },
     "public": {
-      "page": { "label": "Öffentliche Seite" },
-      "description": { "label": "Beschreibung" },
-      "meetings": { "label": "Treffen (Zeiten)" },
-      "contact": { "label": "Kontakt (E-Mail oder Telefon)" },
-      "events": { "label": "Öffentliche Termine auf der Seite" },
-      "reports": { "label": "Seite „danach“ (Bericht nach dem Ereignis)" }
+      "page": {
+        "label": "Öffentliche Seite"
+      },
+      "description": {
+        "label": "Beschreibung"
+      },
+      "meetings": {
+        "label": "Treffen (Zeiten)"
+      },
+      "contact": {
+        "label": "Kontakt (E-Mail oder Telefon)"
+      },
+      "events": {
+        "label": "Öffentliche Termine auf der Seite"
+      },
+      "reports": {
+        "label": "Seite „danach“ (Bericht nach dem Ereignis)"
+      }
     }
   },
   "source": {
@@ -360,7 +581,10 @@
     "signupForm": "Anmeldung — {name}",
     "leadersData": "Daten nur für die Leitung",
     "saysSignup": "öffentliche Anmeldung",
-    "saysSignupLimit": { "one": "öffentliche Anmeldung ({count} Platz)", "other": "öffentliche Anmeldung ({count} Plätze)" },
+    "saysSignupLimit": {
+      "one": "öffentliche Anmeldung ({count} Platz)",
+      "other": "öffentliche Anmeldung ({count} Plätze)"
+    },
     "saysPublic": "öffentliche Seite",
     "afterTitle": "Danach: {name}",
     "afterHeading": "Wie es war",
@@ -370,7 +594,9 @@
     "askLeaders": "Schreib der Leitung",
     "forUsTitle": "{name} — für uns",
     "linkLabel": "Persönlicher Link · {position} · {unit}",
-    "linkPerson": "Person"
+    "linkPerson": "Person",
+    "saysOwnerUnknown": "pagesBy „{said}”: keine solche Position hier oder darüber — die Adresse bleibt bei dem, der importiert",
+    "saysOwnerLater": "die Seiten gehen an „{said}” der Einheit darüber, sobald deren Rolle besteht (bei diesem Speichern)"
   },
   "access": {
     "leadsBelow": "{position} ({unit}) — leitet darunter",

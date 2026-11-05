@@ -72,6 +72,10 @@ export const certificateValue = (c: {
  * Geheimnis, das man sich selbst schickt, ist Umstand ohne Gewinn. Die Rolle
  * muss eine eigene sein; fremden Rollen gibt man Zugang mit einem Zertifikat.
  */
+/** 2026-11-05 — eine Adresse, die ich führe, einer anderen eigenen Rolle geben (`POST /workspace/slug/owner`). */
+export const giveAddress = (path: string, roleId: string): Promise<{ path: string; roleId: string }> =>
+  call<{ path: string; roleId: string }>('/workspace/slug/owner', { method: 'POST', body: JSON.stringify({ path, roleId }) });
+
 export const openSubpage = (
   path: string, roleId: string, note?: string
 ): Promise<{ path: string; roleId: string; claimedAt: string }> =>

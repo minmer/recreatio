@@ -109,3 +109,40 @@ Durchgespielt mit der echten App (Vite) und dem echten Dienst gegen eine eigene 
 **Gefunden und behoben dabei:** Seiten brauchen eine Seite darüber (Mitgliederseite jetzt auf der Adresse der Einheit, wenn sie keine öffentliche hat); Kalender-Bausteine ohne Termine (der Bereichsimport holt den Kalender jetzt auch dann); nach dem Import kannte der Schlüsselbund die neuen Links nicht („Kopiuj link“ leer bis zum Neuladen).
 
 **Offen:** der Abnahmetest „Lektion aus vorhandenem Material“ (J 21, Auftrag Abschnitt 7) — die aktualisierte Auftragsdatei und der Ordner `beispiele/` lagen nicht vor.
+
+## 6. Rechte, Seiten und Domowy Kościół (2026-11-05)
+
+**Die maßgebliche Referenz für Agenten** (Modell, Rechte-Matrix mit dem, was der Dienst prüft, Kalender, Rozmowy, Seiten
+und Adressen, Arbeitsweise ohne Zugang zur Instanz, Grenzen) steht auf Polnisch in
+[templates/communities/wspolnoty-AI.md](../templates/communities/wspolnoty-AI.md) — über MCP als `guide-community`.
+
+**Neu gebaut (vorher nur von Hand):**
+- `pagesBy` an Einheit und Bauplan: `{ "inside": "<Position>", "public": "<Position>" }`, mit `^` die Position der
+  Einheit darüber. Wer eine Adresse führt (`Access.OfAsync`: nächste übernommene gewinnt), bearbeitet ihre Seite, öffnet
+  Unterseiten und kann sie öffentlich machen. Bisher führte der Importierende jede Adresse — die Para animatorska konnte
+  die Seite ihres Krąg nicht bearbeiten.
+- Area-Format: Seite `owner` (`"@<rolle>"` oder Kennung einer gehaltenen Rolle) — `areaImport.ts` öffnet die Adresse
+  für diese Rolle bzw. übergibt eine vorhandene.
+- Dienst: `POST /workspace/slug/owner` (`Pages/Access.cs`) — eine Adresse, die man führt, einer anderen EIGENEN Rolle
+  geben; wiederholbar; fremde Adresse oder fremde Rolle → 403, unbekannter Pfad → 404.
+- Beispiel `example-community-dk-krakow` (dk/krakow → Rejon V mit zehn Kręgi, Rejon VI; Krąg rejonowy je Rejon;
+  Rozmowa + Ogłoszenia im Rejon, keine Rozmowa im Krąg; `participant` für Mitglieder; ohne Personen).
+
+**Festgestellt (Code), nicht änderbar ohne neues Produktmerkmal:** keine Freigabe öffentlicher Seiten durch den Rejon
+(wer die Adresse führt, veröffentlicht); kein Recht „nur Kalender“ (Stufe write gilt für den ganzen Bereich);
+`member` = write (darf Termine anlegen); Seitenbearbeitung nur mit Konto; Zugang einer Seite erbt nicht entlang des
+Pfads; Jawność eines Bereichs nicht per Import (bewusst: sie öffnet alles im Bereich). Vorschlag für später:
+„Freigabe vor Veröffentlichung“ als Eigenschaft einer Adresse (veröffentlichen nur mit `certify` der darüberliegenden
+Adresse).
+
+**Geprüft:** `scripts/app-json-community-check.mjs` (242, darunter Personen-Rechte des Wzorzec: Administrator admin
+überall; Para rejonowa V admin in zehn Kręgi, nichts in Rejon VI; Para animatorska ohne Zugang zu Kalinowe 2; Mitglied
+liest nur Rejon V und Erzdiözese; Rozmowy; Eigentümer der Seiten). Auf privater LocalDB (rc_mc, nie Produktion,
+Skript `scratchpad/mc/dk-e2e-pl.mjs` der Sitzung 719fcce1): Import Rejon V mit zwei Kręgi, Eigentümer der Adressen in
+`app.slug` wie geplant, zweiter Import ändert nichts, Übergaberegeln (403/404/idempotent), anonym 403 auf Mitgliederseiten,
+nach dem Administrator danych: Rejon = Rozmowa + Kanał, Krąg rejonowy = Rozmowa, Kręgi ohne Rozmowa, öffentliche
+Rejon-Seite 200, vierter Import ohne zweite Rozmowa (17 Prüfungen). Link-Zugriffe der Personen (Mitglied liest eigene
+Einheit und darüber, nicht den Nachbarn; alter Link nach Umzug tot) wurden in §5 geprüft.
+
+**Nur vorgeschlagen, nicht ausgeführt:** Umzug eines Krąg zwischen Rejony und Wechsel der Para mit dem Wzorzec (gleicher
+Mechanismus wie in §5 geprüft); Einbettung als Widget; Anmeldung mit Link + Konto und Seitenbearbeitung durch die Para.

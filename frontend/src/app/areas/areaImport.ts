@@ -39,7 +39,7 @@ import { createCommonRole } from '../roles/commonRole';
 import { pagePath, viewPath } from '../routes';
 import { loadDesk, setPageAreas, type PageCard } from '../workspace/desk';
 import { invalidate, refreshDesk } from '../workspace/viewData';
-import { openSubpage } from './access';
+import { giveAddress, openSubpage } from './access';
 import { createArea, joinArea, loadAreas, loadMembers, type AreaRow } from './area';
 import {
   adjustPagePlan, blankPage, existingFormModule, formsOf, isUuid, keyBook, missingLine, moduleLine, normalisePath, pagePaths, planArea, preparePage,
@@ -563,14 +563,21 @@ export async function runAreaImport(input: {
     const label = t('areasJson.import.pageLabel', { key: p.doc.key, path: p.path });
     hooks.stage(`${label}…`);
     let made = false;
+    /* 2026-11-05 — wer die Adresse führt: eine Rolle dieses Dokuments ("@schlüssel"), eine gehaltene Rolle (Kennung) oder ich. */
+    const said = p.doc.owner;
+    const ownerId = said === undefined ? personId : isUuid(said) ? said : ids.roles.get(said.replace(/^@(role:)?/, ''));
+    if (ownerId === undefined) warnings.push(t('areasJson.import.ownerUnknown', { label, owner: said ?? '' }));
     if (!p.exists) {
       try {
-        await openSubpage(p.path, personId, t('areasJson.import.pageNote', { name: areaName }).slice(0, 200));
+        await openSubpage(p.path, ownerId ?? personId, t('areasJson.import.pageNote', { name: areaName }).slice(0, 200));
         made = true;
       } catch (e) {
         warnings.push(t('areasJson.import.pageSkipped', { label, error: failure(e) }));
         return 'skipped';
       }
+    } else if (said !== undefined && ownerId !== undefined) {
+      /* Eine vorhandene Adresse: übergeben (der Dienst ändert nichts, wenn sie schon dort ist). */
+      await giveAddress(p.path, ownerId).catch((e: unknown) => { warnings.push(t('areasJson.import.ownerFailed', { label, error: failure(e) })); });
     }
     remember('page', p.doc.key, null, p.path);
     if (p.doc.main) mainPath = p.path;

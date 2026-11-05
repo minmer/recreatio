@@ -40,7 +40,8 @@
     "personNoField": "Person „{key}“: Feld „{field}“ steht nicht in \"fields\" — übersprungen.",
     "peopleNoPosition": "Einheit „{unit}“: \"people\" — Position „{position}“ gibt es nicht; übersprungen.",
     "peopleNoPerson": "Einheit „{unit}“: Person „{name}“ steht nicht in \"persons\" — übersprungen.",
-    "personNoPair": "Person „{key}“: Partner „{pair}“ steht nicht in \"persons\"."
+    "personNoPair": "Person „{key}“: Partner „{pair}“ steht nicht in \"persons\".",
+    "pagesBy": "{where}: \"pagesBy.{key}\" ist der Schlüssel einer Position, wahlweise mit \"^\" davor (die Einheit darüber) — übergangen."
   },
   "desc": {
     "title": "Gemeinschaft als JSON (\"{format}\", Version 1)",
@@ -98,7 +99,8 @@
       "address": "Adresse der Seiten der Einheit, z. B. \"dk/rejon-13\"; weggelassen — Adresse der Einheit darüber + \"/\" + Schlüssel (ganz oben: aus dem Namen der Gemeinschaft)",
       "area": "Kennung eines BESTEHENDEN Bereichs, der zu dieser Einheit wird und an diese Stelle verschoben wird (z. B. zwei Bezirke unter eine neue Diözese) — nur bewusst",
       "remove": "true — aufgelöst: Die Gemeinschaft verwaltet sie nicht mehr (nimmt die Zugänge zurück, die sie gab); Bereich und Inhalte bleiben",
-      "extra": "weitere Teile des Dokuments eines Bereichs — \"appointments\", \"pages\", \"subforms\", \"card\", \"category\", \"listings\", \"chats\", \"publish\" — genau wie im Format „area“"
+      "extra": "weitere Teile des Dokuments eines Bereichs — \"appointments\", \"pages\", \"subforms\", \"card\", \"category\", \"listings\", \"chats\", \"publish\" — genau wie im Format „area“",
+      "pagesBy": "{ \"inside\": POSITION, \"public\": POSITION } — wer die Adressen der Einheit FÜHRT (bearbeitet die Seite, öffnet Unterseiten, kann sie öffentlich machen). \"inside\": die Seite der Mitglieder (\"dla-nas\"; ohne öffentliche Seite die Adresse der Einheit selbst); \"public\": die öffentliche Seite auf der Adresse der Einheit (und \"po\"). Eine Position dieser Einheit (\"para-animatorska\") oder, mit \"^\", der Einheit darüber (\"^para-rejonowa\"; \"^^\" zwei darüber). Fehlt: wer importiert, behält die Adresse. Erbt nur aus dem Bauplan. Eine Adresse führen = darunter veröffentlichen können: \"public\" (oder eine Einheit ohne öffentliche Seite) nur dem geben, der veröffentlichen darf"
     },
     "settings": {
       "step": "Schritt {step} — {title}",

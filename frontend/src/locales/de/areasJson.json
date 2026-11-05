@@ -153,7 +153,9 @@
     "listingAsked": "Liste „{path}“: {state}.",
     "listingCatalogue": "Liste „{path}“: {state} (Katalog — der Betreiber entscheidet).",
     "listingFailed": "Liste „{path}“: {error}.",
-    "stageAreaCalendar": "Kalender des Bereichs…"
+    "stageAreaCalendar": "Kalender des Bereichs…",
+    "ownerFailed": "{label}: die Adresse ließ sich der Rolle nicht geben ({error}).",
+    "ownerUnknown": "{label}: Eigentümer „{owner}” ist keine Rolle dieses Dokuments — die Adresse bleibt bei dir."
   },
   "path": {
     "empty": "eine leere Adresse ist die Startseite von recreatio.pl — dort gibt es keine Seite des Bereichs",
@@ -220,7 +222,8 @@
     "askAnswer": "{where}: \"answer\" ist eine Liste von Rollen — übersprungen.",
     "askAnswerRole": "{where}: \"answer\" sind Rollen dieses Dokuments (\"@role:schluessel\") — „{said}“ übersprungen.",
     "askForms": "{where}: \"forms\" ist eine Liste von Formularen — übersprungen.",
-    "askForm": "{where}: Das Formular „{said}“ ist \"@form:seite/modul\" — übersprungen."
+    "askForm": "{where}: Das Formular „{said}“ ist \"@form:seite/modul\" — übersprungen.",
+    "pageOwner": "Seite „{key}”: \"owner\" ist \"@<Rollenschlüssel>\" oder die Kennung einer Rolle — übergangen."
   },
   "prep": {
     "moduleTwice": "Seite „{page}“: Modul „{id}“ kommt doppelt vor — das zweite bekommt einen anderen Namen.",

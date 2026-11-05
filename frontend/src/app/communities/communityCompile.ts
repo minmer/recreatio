@@ -9,7 +9,7 @@ import { AREA_FORMAT } from '../areas/areaJson';
 import { DEFAULT_ENTRY } from '../calendar/appointmentsJson';
 import { t } from '../core/i18n';
 import {
-  councilOf, flatten, kindOf, levelOf, positionsOf, rankOf, slug, unitsOf, valueOf,
+  councilOf, flatten, kindOf, levelOf, pagesByOf, pagesOwner, positionsOf, rankOf, slug, unitsOf, valueOf,
   type CommunityDoc, type FlatUnit, type Level, type Position, type Unit
 } from './community';
 import type { CommunityState, Stored, UnitView } from './communityJson';
@@ -80,7 +80,7 @@ export interface Compiled {
 }
 
 /** DAS DOKUMENT DES BEREICHS einer Einheit — „recreatio/area", wie es `runAreaImport` nimmt. */
-export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new Date()): Compiled {
+export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new Date(), known: Readonly<Record<string, string>> = {}): Compiled {
   const u = flat.unit;
   const v = (path: string) => valueOf(doc, u.key, path);
   const on = (path: string) => v(path) === true;
@@ -123,6 +123,19 @@ export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new D
 
   /* Seiten. */
   const pages: Record<string, unknown>[] = [];
+  /* 2026-11-05 — wer die Adressen führt (`pagesBy`): eine eigene Position als "@schlüssel", eine darüber als Kennung ihrer Rolle. */
+  const by = pagesByOf(doc, u);
+  const ownerOf = (said: string | undefined): Record<string, string> => {
+    if (said === undefined) return {};
+    const o = pagesOwner(doc, u.key, said);
+    if (o === null) { says.push(t('communities.compile.saysOwnerUnknown', { said })); return {}; }
+    if (o.unit === u.key) return { owner: `@${o.position}` };
+    const id = known[roleKey(o.unit, o.position)];
+    if (id === undefined) { says.push(t('communities.compile.saysOwnerLater', { said })); return {}; }
+    return { owner: id };
+  };
+  const publicOwner = ownerOf(by?.public);
+  const insideOwner = ownerOf(by?.inside);
   const subforms: Record<string, unknown>[] = [];
   const signup = mode === 'signup' && intake !== undefined;
   const publicPage = on('public.page') || signup;
@@ -164,10 +177,10 @@ export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new D
       }
       says.push(limit > 0 ? t('communities.compile.saysSignupLimit', { count: limit }) : t('communities.compile.saysSignup'));
     }
-    pages.push({ key: 'main', path: '', main: true, access: 'public', page: { title: u.name, ...(description === '' ? {} : { lead: description.slice(0, 300) }), modules } });
+    pages.push({ key: 'main', path: '', main: true, access: 'public', ...publicOwner, page: { title: u.name, ...(description === '' ? {} : { lead: description.slice(0, 300) }), modules } });
     says.push(t('communities.compile.saysPublic'));
     if (on('public.reports') && v('life.duration') === 'limited') {
-      pages.push({ key: 'po', path: 'po', after: true, page: { title: t('communities.compile.afterTitle', { name: u.name }), modules: [{ id: 'relacja', kind: 'text', config: { title: t('communities.compile.afterHeading'), body: t('communities.compile.afterBody') } }] } });
+      pages.push({ key: 'po', path: 'po', after: true, ...publicOwner, page: { title: t('communities.compile.afterTitle', { name: u.name }), modules: [{ id: 'relacja', kind: 'text', config: { title: t('communities.compile.afterHeading'), body: t('communities.compile.afterBody') } }] } });
     }
   }
 
@@ -180,8 +193,8 @@ export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new D
   if (on('tools.askLeaders') && leads.length > 0) inside.push({ id: 'do-prowadzacych', kind: 'seat-ask', config: { title: t('communities.compile.askLeaders') }, answer: leads.map((p) => `@role:${p.key}`) });
   /* Ohne öffentliche Seite steht die Seite der Menschen AUF der Adresse der Einheit — so haben die Einheiten darunter eine Seite über sich. */
   pages.push(publicPage
-    ? { key: 'nasze', path: 'dla-nas', access: 'members', page: { title: t('communities.compile.forUsTitle', { name: u.name }), modules: inside } }
-    : { key: 'main', path: '', main: true, access: 'members', page: { title: u.name, modules: inside } });
+    ? { key: 'nasze', path: 'dla-nas', access: 'members', ...insideOwner, page: { title: t('communities.compile.forUsTitle', { name: u.name }), modules: inside } }
+    : { key: 'main', path: '', main: true, access: 'members', ...insideOwner, page: { title: u.name, modules: inside } });
 
   const chats: unknown[] = [];
   if (on('tools.chat')) chats.push(signupRef === null ? 'area' : { kind: 'area', forms: [signupRef] });
@@ -347,7 +360,7 @@ export function planLines(doc: CommunityDoc, before: Extract<Stored, { kind: 'co
     const c = councilOf(doc, u);
     if (c !== undefined && state?.councils[c.key] === undefined) out.push({ kind: 'unit', text: t('communities.plan.council', { name: c.name, unit: u.name }) });
     for (const p of positionsOf(doc, u)) if (state?.roles[roleKey(u.key, p.key)] === undefined) out.push({ kind: 'access', text: t(`communities.plan.role.${levelOf(p.rights)}`, { name: roleName(p, u) }) });
-    const compiled = compileUnit(doc, f);
+    const compiled = compileUnit(doc, f, new Date(), state?.roles ?? {});
     out.push({ kind: 'area', text: t('communities.plan.area', { name: u.name, says: compiled.says.filter((s) => !s.startsWith('role:')).join('; ') || t('communities.plan.forUsPage') }) });
   }
   for (const p of doc.persons) {

@@ -3,9 +3,18 @@
   "noAreaKey": "No area key — the community settings cannot be saved.",
   "linkLine": "Link — {name}: {url}",
   "count": {
-    "units": { "one": "{count} unit", "other": "{count} units" },
-    "persons": { "one": "{count} person", "other": "{count} people" },
-    "positions": { "one": "{count} position", "other": "{count} positions" }
+    "units": {
+      "one": "{count} unit",
+      "other": "{count} units"
+    },
+    "persons": {
+      "one": "{count} person",
+      "other": "{count} people"
+    },
+    "positions": {
+      "one": "{count} position",
+      "other": "{count} positions"
+    }
   },
   "list": {
     "unlockWhy": "Communities seal names and settings in this browser.",
@@ -36,7 +45,14 @@
     "slowKeys": "Each new role and link takes a dozen seconds or so of key computation in this browser — don't close the tab.",
     "save": "Save changes"
   },
-  "tabs": { "structure": "Structure", "unit": "Unit", "people": "People", "staffing": "Staffing", "json": "JSON", "history": "History" },
+  "tabs": {
+    "structure": "Structure",
+    "unit": "Unit",
+    "people": "People",
+    "staffing": "Staffing",
+    "json": "JSON",
+    "history": "History"
+  },
   "view": {
     "unreadable": "The settings of this community cannot be opened.",
     "notCommunity": "This area is not a community.",
@@ -88,7 +104,12 @@
     "unit": "Managed by the community <link>“{name}”</link> · unit “{unit}”. Manual changes to roles, pages and chats here may be overwritten by the next save of the community."
   },
   "mine": {
-    "level": { "read": "you read here", "write": "you write here", "admin": "you lead here", "reads": "you read here" },
+    "level": {
+      "read": "you read here",
+      "write": "you write here",
+      "admin": "you lead here",
+      "reads": "you read here"
+    },
     "area": "Area",
     "loading": "Opening your communities…",
     "noLink": "This browser has no personal link. Open the link you got from your leaders.",
@@ -171,7 +192,8 @@
     "oaza": "parish youth group (groups by stage automatically, schola, theatre)",
     "turnus": "retreat session (sign-up with a limit, groups, staffing)",
     "choir": "choir (voices as subgroups, rehearsals, performances)",
-    "learning": "learning group with Cogita (online, invitations)"
+    "learning": "learning group with Cogita (online, invitations)",
+    "dkKrakow": "Domestic Church: archdiocese → regions → circles (reference, no persons)"
   },
   "wizard": {
     "leader": "Leader",
@@ -224,13 +246,32 @@
     "viewNotSaved": "“{name}”: the unit view was not saved ({why})."
   },
   "rights": {
-    "lead": { "label": "Leading", "says": "changes everything in the unit and in all units below it; lets others in" },
-    "accompany": { "label": "Accompanying", "says": "sees everything in the unit and below it, changes nothing (e.g. a priest moderator)" },
-    "cooperate": { "label": "Cooperating", "says": "writes in the unit (dates, materials), e.g. an animator with their own group" },
-    "member": { "label": "Membership", "says": "belongs to the unit, writes in its chats and calendar" },
-    "participant": { "label": "Participation", "says": "reads what the unit shares, and talks" }
+    "lead": {
+      "label": "Leading",
+      "says": "changes everything in the unit and in all units below it; lets others in"
+    },
+    "accompany": {
+      "label": "Accompanying",
+      "says": "sees everything in the unit and below it, changes nothing (e.g. a priest moderator)"
+    },
+    "cooperate": {
+      "label": "Cooperating",
+      "says": "writes in the unit (dates, materials), e.g. an animator with their own group"
+    },
+    "member": {
+      "label": "Membership",
+      "says": "belongs to the unit, writes in its chats and calendar"
+    },
+    "participant": {
+      "label": "Participation",
+      "says": "reads what the unit shares, and talks"
+    }
   },
-  "assign": { "appointed": "appointed", "elected": "elected", "result": "result is entered" },
+  "assign": {
+    "appointed": "appointed",
+    "elected": "elected",
+    "result": "result is entered"
+  },
   "presets": {
     "voice": "Voice",
     "stage": "Formation stage",
@@ -248,89 +289,269 @@
     "s4": "Who joins and how?",
     "s5": "What do you use and who sees what?"
   },
-  "weekday": { "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat", "sun": "Sun" },
+  "weekday": {
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat",
+    "sun": "Sun"
+  },
   "settings": {
     "life": {
-      "duration": { "label": "How long", "choices": {
-        "permanent": { "label": "Permanently", "example": "choir, circle, class, youth group" },
-        "limited": { "label": "For a time — with a start and an end", "example": "retreat session, trip, concert project" } } },
-      "from": { "label": "From" },
-      "until": { "label": "Until" },
-      "place": { "label": "Where", "choices": {
-        "onsite": { "label": "On site", "example": "meetings in a room, rehearsals, lessons" },
-        "online": { "label": "Online", "example": "a group that mostly talks and learns online — no places or rooms" },
-        "both": { "label": "Both" } } },
-      "rhythm": { "label": "How often you meet", "choices": {
-        "weekly": { "label": "Every week", "example": "choir rehearsal, youth group meeting" },
-        "monthly": { "label": "Every month", "example": "circle meeting" },
-        "once": { "label": "Once", "example": "retreat session, trip" },
-        "asNeeded": { "label": "As needed", "example": "a group learning at its own pace" } } },
-      "weekday": { "label": "Meeting day" },
-      "time": { "label": "Time" },
-      "minutes": { "label": "Duration (minutes)" },
-      "location": { "label": "Meeting place" },
-      "yearFrom": { "label": "Working year from (MM-DD)", "hint": "e.g. 09-01 — past years are kept as an archive" },
-      "yearUntil": { "label": "Working year until (MM-DD)" },
-      "open": { "label": "Who can join", "choices": {
-        "anyone": { "label": "Anyone can join", "example": "parish choir, youth group, retreat with sign-ups" },
-        "invite": { "label": "By invitation only", "example": "class, learning group, circle" } } }
+      "duration": {
+        "label": "How long",
+        "choices": {
+          "permanent": {
+            "label": "Permanently",
+            "example": "choir, circle, class, youth group"
+          },
+          "limited": {
+            "label": "For a time — with a start and an end",
+            "example": "retreat session, trip, concert project"
+          }
+        }
+      },
+      "from": {
+        "label": "From"
+      },
+      "until": {
+        "label": "Until"
+      },
+      "place": {
+        "label": "Where",
+        "choices": {
+          "onsite": {
+            "label": "On site",
+            "example": "meetings in a room, rehearsals, lessons"
+          },
+          "online": {
+            "label": "Online",
+            "example": "a group that mostly talks and learns online — no places or rooms"
+          },
+          "both": {
+            "label": "Both"
+          }
+        }
+      },
+      "rhythm": {
+        "label": "How often you meet",
+        "choices": {
+          "weekly": {
+            "label": "Every week",
+            "example": "choir rehearsal, youth group meeting"
+          },
+          "monthly": {
+            "label": "Every month",
+            "example": "circle meeting"
+          },
+          "once": {
+            "label": "Once",
+            "example": "retreat session, trip"
+          },
+          "asNeeded": {
+            "label": "As needed",
+            "example": "a group learning at its own pace"
+          }
+        }
+      },
+      "weekday": {
+        "label": "Meeting day"
+      },
+      "time": {
+        "label": "Time"
+      },
+      "minutes": {
+        "label": "Duration (minutes)"
+      },
+      "location": {
+        "label": "Meeting place"
+      },
+      "yearFrom": {
+        "label": "Working year from (MM-DD)",
+        "hint": "e.g. 09-01 — past years are kept as an archive"
+      },
+      "yearUntil": {
+        "label": "Working year until (MM-DD)"
+      },
+      "open": {
+        "label": "Who can join",
+        "choices": {
+          "anyone": {
+            "label": "Anyone can join",
+            "example": "parish choir, youth group, retreat with sign-ups"
+          },
+          "invite": {
+            "label": "By invitation only",
+            "example": "class, learning group, circle"
+          }
+        }
+      }
     },
     "structure": {
-      "subgroups": { "label": "Subgroups", "choices": {
-        "manual": { "label": "Manually (you add them yourself)", "example": "formation groups, circles, classes" },
-        "byField": { "label": "Automatically, by a trait of the person", "example": "all tenors, everyone in ONŻ I°" } } },
-      "byField": { "label": "By field", "hint": "key of a field from step 4, e.g. “glos”" },
-      "council": { "label": "Council of the leaders of the units below", "hint": "e.g. a district circle: the district couple, the moderator and all animator couples — membership follows the staffing" },
-      "founders": { "label": "Who creates new units under this one", "choices": {
-        "admin": { "label": "Only the community administrator" },
-        "lead": { "label": "Also the leaders of this unit" } } }
+      "subgroups": {
+        "label": "Subgroups",
+        "choices": {
+          "manual": {
+            "label": "Manually (you add them yourself)",
+            "example": "formation groups, circles, classes"
+          },
+          "byField": {
+            "label": "Automatically, by a trait of the person",
+            "example": "all tenors, everyone in ONŻ I°"
+          }
+        }
+      },
+      "byField": {
+        "label": "By field",
+        "hint": "key of a field from step 4, e.g. “glos”"
+      },
+      "council": {
+        "label": "Council of the leaders of the units below",
+        "hint": "e.g. a district circle: the district couple, the moderator and all animator couples — membership follows the staffing"
+      },
+      "founders": {
+        "label": "Who creates new units under this one",
+        "choices": {
+          "admin": {
+            "label": "Only the community administrator"
+          },
+          "lead": {
+            "label": "Also the leaders of this unit"
+          }
+        }
+      }
     },
     "intake": {
-      "mode": { "label": "How people join", "choices": {
-        "leaders": { "label": "A leader adds people", "example": "class, circle, learning group — everyone gets a personal link" },
-        "link": { "label": "Invitation by link", "example": "one link for all new choir members" },
-        "signup": { "label": "Public sign-up through a form", "example": "retreat session, youth group with enrolment" } } },
-      "limit": { "label": "Number of places" },
-      "waitlist": { "label": "Waiting list once places run out" },
-      "requires": { "label": "Requirements (e.g. a stage in the given year)" },
-      "confirm": { "label": "A leader confirms admission", "hint": "the personal link comes only after admission" },
-      "minors": { "label": "There are minors (parental consent)" },
-      "health": { "label": "We collect health data (leaders only)" }
+      "mode": {
+        "label": "How people join",
+        "choices": {
+          "leaders": {
+            "label": "A leader adds people",
+            "example": "class, circle, learning group — everyone gets a personal link"
+          },
+          "link": {
+            "label": "Invitation by link",
+            "example": "one link for all new choir members"
+          },
+          "signup": {
+            "label": "Public sign-up through a form",
+            "example": "retreat session, youth group with enrolment"
+          }
+        }
+      },
+      "limit": {
+        "label": "Number of places"
+      },
+      "waitlist": {
+        "label": "Waiting list once places run out"
+      },
+      "requires": {
+        "label": "Requirements (e.g. a stage in the given year)"
+      },
+      "confirm": {
+        "label": "A leader confirms admission",
+        "hint": "the personal link comes only after admission"
+      },
+      "minors": {
+        "label": "There are minors (parental consent)"
+      },
+      "health": {
+        "label": "We collect health data (leaders only)"
+      }
     },
     "tools": {
-      "chat": { "label": "Chat for everyone" },
-      "announcements": { "label": "Announcements (written by leaders)" },
-      "askLeaders": { "label": "Everyone can write privately to the leaders" },
-      "calendar": { "label": "Calendar (dates above are visible below)" },
-      "forms": { "label": "Forms and invitations" },
-      "polls": { "label": "Polls for the units below" },
-      "attendance": { "label": "Attendance" },
-      "lessons": { "label": "Materials and lessons" },
-      "cogita": { "label": "Learning with Cogita" },
-      "notes": { "label": "Private notes of the leaders" },
-      "tables": { "label": "Own categories and tables (e.g. grades)" },
-      "staffing": { "label": "Staffing plan (where someone is missing)" }
+      "chat": {
+        "label": "Chat for everyone"
+      },
+      "announcements": {
+        "label": "Announcements (written by leaders)"
+      },
+      "askLeaders": {
+        "label": "Everyone can write privately to the leaders"
+      },
+      "calendar": {
+        "label": "Calendar (dates above are visible below)"
+      },
+      "forms": {
+        "label": "Forms and invitations"
+      },
+      "polls": {
+        "label": "Polls for the units below"
+      },
+      "attendance": {
+        "label": "Attendance"
+      },
+      "lessons": {
+        "label": "Materials and lessons"
+      },
+      "cogita": {
+        "label": "Learning with Cogita"
+      },
+      "notes": {
+        "label": "Private notes of the leaders"
+      },
+      "tables": {
+        "label": "Own categories and tables (e.g. grades)"
+      },
+      "staffing": {
+        "label": "Staffing plan (where someone is missing)"
+      }
     },
     "talk": {
-      "direct": { "label": "People also write to each other, one to one" }
+      "direct": {
+        "label": "People also write to each other, one to one"
+      }
     },
     "visibility": {
-      "default": { "label": "Who sees new content by default", "choices": {
-        "me": { "label": "Only me" },
-        "persons": { "label": "Chosen people" },
-        "position": { "label": "One position (e.g. all animators)" },
-        "unit": { "label": "This unit" },
-        "subtree": { "label": "This unit with everything below it" },
-        "public": { "label": "Public" } } },
-      "subunitsSee": { "label": "Units below see this unit (its dates, materials)", "hint": "e.g. all districts and circles see the diocese's dates" }
+      "default": {
+        "label": "Who sees new content by default",
+        "choices": {
+          "me": {
+            "label": "Only me"
+          },
+          "persons": {
+            "label": "Chosen people"
+          },
+          "position": {
+            "label": "One position (e.g. all animators)"
+          },
+          "unit": {
+            "label": "This unit"
+          },
+          "subtree": {
+            "label": "This unit with everything below it"
+          },
+          "public": {
+            "label": "Public"
+          }
+        }
+      },
+      "subunitsSee": {
+        "label": "Units below see this unit (its dates, materials)",
+        "hint": "e.g. all districts and circles see the diocese's dates"
+      }
     },
     "public": {
-      "page": { "label": "Public page" },
-      "description": { "label": "Description" },
-      "meetings": { "label": "Meetings (times)" },
-      "contact": { "label": "Contact (e-mail or phone)" },
-      "events": { "label": "Public dates on the page" },
-      "reports": { "label": "“After” page (report after the event)" }
+      "page": {
+        "label": "Public page"
+      },
+      "description": {
+        "label": "Description"
+      },
+      "meetings": {
+        "label": "Meetings (times)"
+      },
+      "contact": {
+        "label": "Contact (e-mail or phone)"
+      },
+      "events": {
+        "label": "Public dates on the page"
+      },
+      "reports": {
+        "label": "“After” page (report after the event)"
+      }
     }
   },
   "source": {
@@ -360,7 +581,10 @@
     "signupForm": "Sign-up — {name}",
     "leadersData": "Data for the leaders only",
     "saysSignup": "public sign-up",
-    "saysSignupLimit": { "one": "public sign-up ({count} place)", "other": "public sign-up ({count} places)" },
+    "saysSignupLimit": {
+      "one": "public sign-up ({count} place)",
+      "other": "public sign-up ({count} places)"
+    },
     "saysPublic": "public page",
     "afterTitle": "After: {name}",
     "afterHeading": "How it went",
@@ -370,7 +594,9 @@
     "askLeaders": "Write to the leaders",
     "forUsTitle": "{name} — for us",
     "linkLabel": "Personal link · {position} · {unit}",
-    "linkPerson": "person"
+    "linkPerson": "person",
+    "saysOwnerUnknown": "pagesBy “{said}”: no such position here or above — the address stays with whoever imports",
+    "saysOwnerLater": "pages go to “{said}” of the unit above once its role exists (this save)"
   },
   "access": {
     "leadsBelow": "{position} ({unit}) — leads below",

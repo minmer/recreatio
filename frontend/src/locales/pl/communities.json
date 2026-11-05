@@ -3,9 +3,24 @@
   "noAreaKey": "Brak klucza obszaru — nie można zapisać ustawień wspólnoty.",
   "linkLine": "Link — {name}: {url}",
   "count": {
-    "units": { "one": "{count} jednostka", "few": "{count} jednostki", "many": "{count} jednostek", "other": "{count} jednostki" },
-    "persons": { "one": "{count} osoba", "few": "{count} osoby", "many": "{count} osób", "other": "{count} osoby" },
-    "positions": { "one": "{count} pozycja", "few": "{count} pozycje", "many": "{count} pozycji", "other": "{count} pozycji" }
+    "units": {
+      "one": "{count} jednostka",
+      "few": "{count} jednostki",
+      "many": "{count} jednostek",
+      "other": "{count} jednostki"
+    },
+    "persons": {
+      "one": "{count} osoba",
+      "few": "{count} osoby",
+      "many": "{count} osób",
+      "other": "{count} osoby"
+    },
+    "positions": {
+      "one": "{count} pozycja",
+      "few": "{count} pozycje",
+      "many": "{count} pozycji",
+      "other": "{count} pozycji"
+    }
   },
   "list": {
     "unlockWhy": "Wspólnoty pieczętują imiona i ustawienia w tej przeglądarce.",
@@ -36,7 +51,14 @@
     "slowKeys": "Nowe role i linki to kilkanaście sekund liczenia kluczy w tej przeglądarce każdy — nie zamykaj karty.",
     "save": "Zapisz zmiany"
   },
-  "tabs": { "structure": "Struktura", "unit": "Jednostka", "people": "Osoby", "staffing": "Obsada", "json": "JSON", "history": "Historia" },
+  "tabs": {
+    "structure": "Struktura",
+    "unit": "Jednostka",
+    "people": "Osoby",
+    "staffing": "Obsada",
+    "json": "JSON",
+    "history": "Historia"
+  },
   "view": {
     "unreadable": "Nie można otworzyć ustawień tej wspólnoty.",
     "notCommunity": "Ten obszar nie jest wspólnotą.",
@@ -88,7 +110,12 @@
     "unit": "Zarządzane przez wspólnotę <link>„{name}”</link> · jednostka „{unit}”. Ręczne zmiany ról, stron i rozmów tutaj następny zapis wspólnoty może nadpisać."
   },
   "mine": {
-    "level": { "read": "tu czyta", "write": "tu pisze", "admin": "tu prowadzi", "reads": "tu czytasz" },
+    "level": {
+      "read": "tu czyta",
+      "write": "tu pisze",
+      "admin": "tu prowadzi",
+      "reads": "tu czytasz"
+    },
     "area": "Obszar",
     "loading": "Otwieranie Twoich wspólnot…",
     "noLink": "Ta przeglądarka nie ma osobistego linku. Otwórz link, który dostałeś od prowadzących.",
@@ -171,7 +198,8 @@
     "oaza": "oaza w parafii (grupy według stopnia same, schola, teatr)",
     "turnus": "turnus rekolekcji (zapisy z limitem, grupy, obsada)",
     "choir": "chór (głosy jako podgrupy, próby, występy)",
-    "learning": "grupa ucząca się z Cogitą (online, zaproszenia)"
+    "learning": "grupa ucząca się z Cogitą (online, zaproszenia)",
+    "dkKrakow": "Domowy Kościół: archidiecezja → rejony → kręgi (wzorzec, bez osób)"
   },
   "wizard": {
     "leader": "Prowadzący",
@@ -224,13 +252,32 @@
     "viewNotSaved": "„{name}”: widok jednostki nie zapisany ({why})."
   },
   "rights": {
-    "lead": { "label": "Prowadzenie", "says": "zmienia wszystko w jednostce i we wszystkich jednostkach pod nią; wpuszcza innych" },
-    "accompany": { "label": "Towarzyszenie", "says": "widzi wszystko w jednostce i pod nią, niczego nie zmienia (np. ksiądz moderator)" },
-    "cooperate": { "label": "Współpraca", "says": "pisze w jednostce (terminy, materiały), np. animator z własną grupą" },
-    "member": { "label": "Członkostwo", "says": "należy do jednostki, pisze w jej rozmowach i kalendarzu" },
-    "participant": { "label": "Uczestnictwo", "says": "czyta, co jednostka udostępnia, i rozmawia" }
+    "lead": {
+      "label": "Prowadzenie",
+      "says": "zmienia wszystko w jednostce i we wszystkich jednostkach pod nią; wpuszcza innych"
+    },
+    "accompany": {
+      "label": "Towarzyszenie",
+      "says": "widzi wszystko w jednostce i pod nią, niczego nie zmienia (np. ksiądz moderator)"
+    },
+    "cooperate": {
+      "label": "Współpraca",
+      "says": "pisze w jednostce (terminy, materiały), np. animator z własną grupą"
+    },
+    "member": {
+      "label": "Członkostwo",
+      "says": "należy do jednostki, pisze w jej rozmowach i kalendarzu"
+    },
+    "participant": {
+      "label": "Uczestnictwo",
+      "says": "czyta, co jednostka udostępnia, i rozmawia"
+    }
   },
-  "assign": { "appointed": "mianowana", "elected": "wybierana", "result": "wpisuje się wynik" },
+  "assign": {
+    "appointed": "mianowana",
+    "elected": "wybierana",
+    "result": "wpisuje się wynik"
+  },
   "presets": {
     "voice": "Głos",
     "stage": "Stopień formacji",
@@ -248,89 +295,269 @@
     "s4": "Kto dołącza i jak?",
     "s5": "Z czego korzystacie i kto co widzi?"
   },
-  "weekday": { "mon": "pn", "tue": "wt", "wed": "śr", "thu": "cz", "fri": "pt", "sat": "so", "sun": "nd" },
+  "weekday": {
+    "mon": "pn",
+    "tue": "wt",
+    "wed": "śr",
+    "thu": "cz",
+    "fri": "pt",
+    "sat": "so",
+    "sun": "nd"
+  },
   "settings": {
     "life": {
-      "duration": { "label": "Jak długo", "choices": {
-        "permanent": { "label": "Na stałe", "example": "chór, krąg, klasa, oaza" },
-        "limited": { "label": "Na czas — z początkiem i końcem", "example": "turnus rekolekcji, wyjazd, projekt koncertowy" } } },
-      "from": { "label": "Od" },
-      "until": { "label": "Do" },
-      "place": { "label": "Gdzie", "choices": {
-        "onsite": { "label": "Na miejscu", "example": "spotkania w salce, próby, lekcje" },
-        "online": { "label": "Online", "example": "grupa, która głównie rozmawia i uczy się w sieci — bez miejsc i pokoi" },
-        "both": { "label": "Jedno i drugie" } } },
-      "rhythm": { "label": "Jak często się spotykacie", "choices": {
-        "weekly": { "label": "Co tydzień", "example": "próba chóru, spotkanie oazy" },
-        "monthly": { "label": "Co miesiąc", "example": "spotkanie kręgu" },
-        "once": { "label": "Jednorazowo", "example": "turnus, wyjazd" },
-        "asNeeded": { "label": "W miarę potrzeby", "example": "grupa ucząca się w swoim tempie" } } },
-      "weekday": { "label": "Dzień spotkań" },
-      "time": { "label": "Godzina" },
-      "minutes": { "label": "Ile trwa (minuty)" },
-      "location": { "label": "Miejsce spotkań" },
-      "yearFrom": { "label": "Rok pracy od (MM-DD)", "hint": "np. 09-01 — stare lata zostają jako archiwum" },
-      "yearUntil": { "label": "Rok pracy do (MM-DD)" },
-      "open": { "label": "Kto może dołączyć", "choices": {
-        "anyone": { "label": "Każdy może dołączyć", "example": "chór parafialny, oaza, rekolekcje z zapisami" },
-        "invite": { "label": "Tylko z zaproszenia", "example": "klasa, grupa ucząca się, krąg" } } }
+      "duration": {
+        "label": "Jak długo",
+        "choices": {
+          "permanent": {
+            "label": "Na stałe",
+            "example": "chór, krąg, klasa, oaza"
+          },
+          "limited": {
+            "label": "Na czas — z początkiem i końcem",
+            "example": "turnus rekolekcji, wyjazd, projekt koncertowy"
+          }
+        }
+      },
+      "from": {
+        "label": "Od"
+      },
+      "until": {
+        "label": "Do"
+      },
+      "place": {
+        "label": "Gdzie",
+        "choices": {
+          "onsite": {
+            "label": "Na miejscu",
+            "example": "spotkania w salce, próby, lekcje"
+          },
+          "online": {
+            "label": "Online",
+            "example": "grupa, która głównie rozmawia i uczy się w sieci — bez miejsc i pokoi"
+          },
+          "both": {
+            "label": "Jedno i drugie"
+          }
+        }
+      },
+      "rhythm": {
+        "label": "Jak często się spotykacie",
+        "choices": {
+          "weekly": {
+            "label": "Co tydzień",
+            "example": "próba chóru, spotkanie oazy"
+          },
+          "monthly": {
+            "label": "Co miesiąc",
+            "example": "spotkanie kręgu"
+          },
+          "once": {
+            "label": "Jednorazowo",
+            "example": "turnus, wyjazd"
+          },
+          "asNeeded": {
+            "label": "W miarę potrzeby",
+            "example": "grupa ucząca się w swoim tempie"
+          }
+        }
+      },
+      "weekday": {
+        "label": "Dzień spotkań"
+      },
+      "time": {
+        "label": "Godzina"
+      },
+      "minutes": {
+        "label": "Ile trwa (minuty)"
+      },
+      "location": {
+        "label": "Miejsce spotkań"
+      },
+      "yearFrom": {
+        "label": "Rok pracy od (MM-DD)",
+        "hint": "np. 09-01 — stare lata zostają jako archiwum"
+      },
+      "yearUntil": {
+        "label": "Rok pracy do (MM-DD)"
+      },
+      "open": {
+        "label": "Kto może dołączyć",
+        "choices": {
+          "anyone": {
+            "label": "Każdy może dołączyć",
+            "example": "chór parafialny, oaza, rekolekcje z zapisami"
+          },
+          "invite": {
+            "label": "Tylko z zaproszenia",
+            "example": "klasa, grupa ucząca się, krąg"
+          }
+        }
+      }
     },
     "structure": {
-      "subgroups": { "label": "Podgrupy", "choices": {
-        "manual": { "label": "Ręcznie (dodajesz je sam)", "example": "grupy formacyjne, kręgi, klasy" },
-        "byField": { "label": "Same, według cechy osoby", "example": "wszystkie tenory, wszyscy z ONŻ I°" } } },
-      "byField": { "label": "Według pola", "hint": "klucz pola z kroku 4, np. „glos”" },
-      "council": { "label": "Grono prowadzących jednostek niżej", "hint": "np. krąg rejonowy: para rejonowa, moderator i wszystkie pary animatorskie — skład liczy się sam z obsady" },
-      "founders": { "label": "Kto zakłada nowe jednostki pod tą", "choices": {
-        "admin": { "label": "Tylko administrator wspólnoty" },
-        "lead": { "label": "Także prowadzący tej jednostki" } } }
+      "subgroups": {
+        "label": "Podgrupy",
+        "choices": {
+          "manual": {
+            "label": "Ręcznie (dodajesz je sam)",
+            "example": "grupy formacyjne, kręgi, klasy"
+          },
+          "byField": {
+            "label": "Same, według cechy osoby",
+            "example": "wszystkie tenory, wszyscy z ONŻ I°"
+          }
+        }
+      },
+      "byField": {
+        "label": "Według pola",
+        "hint": "klucz pola z kroku 4, np. „glos”"
+      },
+      "council": {
+        "label": "Grono prowadzących jednostek niżej",
+        "hint": "np. krąg rejonowy: para rejonowa, moderator i wszystkie pary animatorskie — skład liczy się sam z obsady"
+      },
+      "founders": {
+        "label": "Kto zakłada nowe jednostki pod tą",
+        "choices": {
+          "admin": {
+            "label": "Tylko administrator wspólnoty"
+          },
+          "lead": {
+            "label": "Także prowadzący tej jednostki"
+          }
+        }
+      }
     },
     "intake": {
-      "mode": { "label": "Jak się dołącza", "choices": {
-        "leaders": { "label": "Prowadzący wpisuje osoby", "example": "klasa, krąg, grupa ucząca się — każdy dostaje osobisty link" },
-        "link": { "label": "Zaproszenie linkiem", "example": "jeden link dla wszystkich nowych członków chóru" },
-        "signup": { "label": "Publiczne zapisy przez formularz", "example": "turnus rekolekcji, oaza z naborem" } } },
-      "limit": { "label": "Liczba miejsc" },
-      "waitlist": { "label": "Lista rezerwowa po wyczerpaniu miejsc" },
-      "requires": { "label": "Warunki (np. stopień w danym roku)" },
-      "confirm": { "label": "Prowadzący potwierdza przyjęcie", "hint": "osobisty link dopiero po przyjęciu" },
-      "minors": { "label": "Są niepełnoletni (zgody rodziców)" },
-      "health": { "label": "Zbieramy dane o zdrowiu (tylko prowadzący)" }
+      "mode": {
+        "label": "Jak się dołącza",
+        "choices": {
+          "leaders": {
+            "label": "Prowadzący wpisuje osoby",
+            "example": "klasa, krąg, grupa ucząca się — każdy dostaje osobisty link"
+          },
+          "link": {
+            "label": "Zaproszenie linkiem",
+            "example": "jeden link dla wszystkich nowych członków chóru"
+          },
+          "signup": {
+            "label": "Publiczne zapisy przez formularz",
+            "example": "turnus rekolekcji, oaza z naborem"
+          }
+        }
+      },
+      "limit": {
+        "label": "Liczba miejsc"
+      },
+      "waitlist": {
+        "label": "Lista rezerwowa po wyczerpaniu miejsc"
+      },
+      "requires": {
+        "label": "Warunki (np. stopień w danym roku)"
+      },
+      "confirm": {
+        "label": "Prowadzący potwierdza przyjęcie",
+        "hint": "osobisty link dopiero po przyjęciu"
+      },
+      "minors": {
+        "label": "Są niepełnoletni (zgody rodziców)"
+      },
+      "health": {
+        "label": "Zbieramy dane o zdrowiu (tylko prowadzący)"
+      }
     },
     "tools": {
-      "chat": { "label": "Rozmowa wszystkich" },
-      "announcements": { "label": "Ogłoszenia (piszą prowadzący)" },
-      "askLeaders": { "label": "Każdy może napisać prywatnie do prowadzących" },
-      "calendar": { "label": "Kalendarz (terminy wyżej widać niżej)" },
-      "forms": { "label": "Formularze i zaproszenia" },
-      "polls": { "label": "Ankiety do jednostek niżej" },
-      "attendance": { "label": "Obecność" },
-      "lessons": { "label": "Materiały i lekcje" },
-      "cogita": { "label": "Nauka z Cogitą" },
-      "notes": { "label": "Prywatne notatki prowadzących" },
-      "tables": { "label": "Własne kategorie i tabele (np. oceny)" },
-      "staffing": { "label": "Planowanie obsady (gdzie kogoś brakuje)" }
+      "chat": {
+        "label": "Rozmowa wszystkich"
+      },
+      "announcements": {
+        "label": "Ogłoszenia (piszą prowadzący)"
+      },
+      "askLeaders": {
+        "label": "Każdy może napisać prywatnie do prowadzących"
+      },
+      "calendar": {
+        "label": "Kalendarz (terminy wyżej widać niżej)"
+      },
+      "forms": {
+        "label": "Formularze i zaproszenia"
+      },
+      "polls": {
+        "label": "Ankiety do jednostek niżej"
+      },
+      "attendance": {
+        "label": "Obecność"
+      },
+      "lessons": {
+        "label": "Materiały i lekcje"
+      },
+      "cogita": {
+        "label": "Nauka z Cogitą"
+      },
+      "notes": {
+        "label": "Prywatne notatki prowadzących"
+      },
+      "tables": {
+        "label": "Własne kategorie i tabele (np. oceny)"
+      },
+      "staffing": {
+        "label": "Planowanie obsady (gdzie kogoś brakuje)"
+      }
     },
     "talk": {
-      "direct": { "label": "Osoby piszą też między sobą, jedna do drugiej" }
+      "direct": {
+        "label": "Osoby piszą też między sobą, jedna do drugiej"
+      }
     },
     "visibility": {
-      "default": { "label": "Kto domyślnie widzi nowe treści", "choices": {
-        "me": { "label": "Tylko ja" },
-        "persons": { "label": "Wybrane osoby" },
-        "position": { "label": "Jedna pozycja (np. wszyscy animatorzy)" },
-        "unit": { "label": "Ta jednostka" },
-        "subtree": { "label": "Ta jednostka ze wszystkimi pod nią" },
-        "public": { "label": "Publicznie" } } },
-      "subunitsSee": { "label": "Jednostki niżej widzą tę jednostkę (jej terminy, materiały)", "hint": "np. terminy diecezji widzą wszystkie rejony i kręgi" }
+      "default": {
+        "label": "Kto domyślnie widzi nowe treści",
+        "choices": {
+          "me": {
+            "label": "Tylko ja"
+          },
+          "persons": {
+            "label": "Wybrane osoby"
+          },
+          "position": {
+            "label": "Jedna pozycja (np. wszyscy animatorzy)"
+          },
+          "unit": {
+            "label": "Ta jednostka"
+          },
+          "subtree": {
+            "label": "Ta jednostka ze wszystkimi pod nią"
+          },
+          "public": {
+            "label": "Publicznie"
+          }
+        }
+      },
+      "subunitsSee": {
+        "label": "Jednostki niżej widzą tę jednostkę (jej terminy, materiały)",
+        "hint": "np. terminy diecezji widzą wszystkie rejony i kręgi"
+      }
     },
     "public": {
-      "page": { "label": "Strona publiczna" },
-      "description": { "label": "Opis" },
-      "meetings": { "label": "Spotkania (godziny)" },
-      "contact": { "label": "Kontakt (e-mail albo telefon)" },
-      "events": { "label": "Publiczne terminy na stronie" },
-      "reports": { "label": "Strona „po” (relacja po wydarzeniu)" }
+      "page": {
+        "label": "Strona publiczna"
+      },
+      "description": {
+        "label": "Opis"
+      },
+      "meetings": {
+        "label": "Spotkania (godziny)"
+      },
+      "contact": {
+        "label": "Kontakt (e-mail albo telefon)"
+      },
+      "events": {
+        "label": "Publiczne terminy na stronie"
+      },
+      "reports": {
+        "label": "Strona „po” (relacja po wydarzeniu)"
+      }
     }
   },
   "source": {
@@ -360,7 +587,12 @@
     "signupForm": "Zapisy — {name}",
     "leadersData": "Dane tylko dla prowadzących",
     "saysSignup": "zapisy publiczne",
-    "saysSignupLimit": { "one": "zapisy publiczne ({count} miejsce)", "few": "zapisy publiczne ({count} miejsca)", "many": "zapisy publiczne ({count} miejsc)", "other": "zapisy publiczne ({count} miejsca)" },
+    "saysSignupLimit": {
+      "one": "zapisy publiczne ({count} miejsce)",
+      "few": "zapisy publiczne ({count} miejsca)",
+      "many": "zapisy publiczne ({count} miejsc)",
+      "other": "zapisy publiczne ({count} miejsca)"
+    },
     "saysPublic": "strona publiczna",
     "afterTitle": "Po: {name}",
     "afterHeading": "Jak było",
@@ -370,7 +602,9 @@
     "askLeaders": "Napisz do prowadzących",
     "forUsTitle": "{name} — dla nas",
     "linkLabel": "Osobisty link · {position} · {unit}",
-    "linkPerson": "osoba"
+    "linkPerson": "osoba",
+    "saysOwnerUnknown": "pagesBy „{said}”: nie ma takiej pozycji tu ani wyżej — adres zostaje przy osobie, która importuje",
+    "saysOwnerLater": "strony przejmie „{said}” jednostki wyżej, gdy powstanie jej rola (przy tym zapisie)"
   },
   "access": {
     "leadsBelow": "{position} ({unit}) — prowadzi niżej",

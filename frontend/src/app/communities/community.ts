@@ -242,6 +242,8 @@ export interface Unit {
   readonly positions?: readonly string[];
   readonly settings?: Settings;
   readonly council?: Council;
+  /** 2026-11-05 — wer die Adressen der Einheit führt (siehe `PagesBy`). */
+  readonly pagesBy?: PagesBy;
   readonly units?: readonly Unit[];
   /** Adresse der Seiten der Einheit (z. B. "dk/rejon-13"); weggelassen — Adresse der Einheit darüber + Schlüssel. */
   readonly address?: string;
@@ -260,6 +262,7 @@ export interface Blueprint {
   readonly positions?: readonly string[];
   readonly settings?: Settings;
   readonly council?: Council;
+  readonly pagesBy?: PagesBy;
   readonly extra?: Readonly<Record<string, unknown>>;
 }
 
@@ -326,6 +329,27 @@ export function positionsOf(doc: CommunityDoc, unit: Unit): Position[] {
 
 export const kindOf = (doc: CommunityDoc, unit: Unit): ProfileKind => unit.kind ?? blueprintOf(doc, unit)?.kind ?? 'group';
 export const councilOf = (doc: CommunityDoc, unit: Unit): Council | undefined => unit.council ?? blueprintOf(doc, unit)?.council;
+
+/**
+ * 2026-11-05 — WER DIE ADRESSEN EINER EINHEIT FÜHRT (`Access.OfAsync`: bearbeiten, Unterseiten öffnen, öffentlich machen).
+ * `inside`: die Seite „dla nas" (ohne öffentliche Seite: die Adresse der Einheit selbst); `public`: die öffentliche Seite
+ * auf der Adresse der Einheit (und „po"). Wert: Schlüssel einer Position DIESER Einheit, oder mit `^` davor die Position
+ * der Einheit darüber (`^^` zwei darüber). Fehlt: wer importiert (wie bisher). Erbt nur aus dem Bauplan.
+ */
+export interface PagesBy { readonly inside?: string; readonly public?: string }
+export const PAGES_BY = /^\^{0,8}[a-z0-9][a-z0-9_-]{0,31}$/;
+export const pagesByOf = (doc: CommunityDoc, unit: Unit): PagesBy | undefined => unit.pagesBy ?? blueprintOf(doc, unit)?.pagesBy;
+
+/** Die Einheit und Position, die ein `pagesBy`-Wert meint — `null`: es gibt sie nicht (zu hoch, unbekannte Position). */
+export function pagesOwner(doc: CommunityDoc, unitKey: string, said: string): { readonly unit: string; readonly position: string } | null {
+  const up = said.length - said.replace(/^\^+/, '').length;
+  const position = said.slice(up);
+  const here = flatten(doc.unit).find((u) => u.unit.key === unitKey);
+  if (here === undefined || up >= here.path.length) return null;
+  const unit = here.path[here.path.length - 1 - up];
+  const flat = flatten(doc.unit).find((u) => u.unit.key === unit)!;
+  return positionsOf(doc, flat.unit).some((p) => p.key === position) ? { unit, position } : null;
+}
 
 /* -- Erben ----------------------------------------------------------------------------- */
 

@@ -116,6 +116,71 @@ const dkRejon1 = () => doc({
   ]
 });
 
+/**
+ * 2026-11-05 — REFERENZ: Domowy Kościół, Archidiecezja krakowska unter der schon geführten Adresse `dk` (dk/krakow/rejon-5/…).
+ * Rejon V mit zehn Kręgi aus dem Bauplan, Rejon VI mit einem; Krąg rejonowy je Rejon (Pary animatorskie + Moderatorzy);
+ * Rozmowa + Ogłoszenia im Rejon, Kręgi ohne eigene Rozmowa (ihre Leitung legt sie bei Bedarf im Bereich an);
+ * Seiten „dla nas" der Kręgi führt ihre Para animatorska (`pagesBy`), keine öffentliche Seite der Kręgi. Ohne Personen:
+ * echte Namen trägt der Mensch später ein (`persons` / `people`).
+ */
+const dkKrakow = () => doc({
+  name: 'Domowy Kościół — Archidiecezja krakowska',
+  positions: [
+    { key: 'administrator', name: 'Administrator archidiecezjalny', rights: 'lead', assign: 'appointed' },
+    { key: 'para-rejonowa', name: 'Para rejonowa', rights: 'lead', pair: true, assign: 'elected', term: '3 lata' },
+    { key: 'moderator-rejonu', name: 'Moderator rejonu', rights: 'accompany', assign: 'appointed' },
+    { key: 'para-animatorska', name: 'Para animatorska', rights: 'lead', pair: true, assign: 'elected', term: '1 rok' },
+    { key: 'moderator-kregu', name: 'Moderator kręgu', rights: 'accompany', assign: 'appointed' },
+    { key: 'czlonek', name: 'Członek kręgu', rights: 'participant' }
+  ],
+  fields: [],
+  blueprints: [
+    {
+      key: 'rejon', name: 'Rejon', kind: 'organisation', positions: ['para-rejonowa', 'moderator-rejonu'],
+      pagesBy: { inside: 'para-rejonowa', public: 'para-rejonowa' },
+      settings: {
+        structure: { council: true },
+        tools: { chat: true, announcements: true },
+        visibility: { subunitsSee: true },
+        public: { page: true, events: true, description: 'Rejon Domowego Kościoła — kręgi rodzin Ruchu Światło-Życie.' }
+      }
+    },
+    {
+      key: 'krag', name: 'Krąg', kind: 'group', positions: ['para-animatorska', 'moderator-kregu', 'czlonek'],
+      pagesBy: { inside: 'para-animatorska' },
+      settings: { tools: { chat: false, announcements: false, askLeaders: true } }
+    }
+  ],
+  unit: {
+    key: 'krakow', name: 'Domowy Kościół — Archidiecezja krakowska', kind: 'organisation', address: 'dk/krakow',
+    positions: ['administrator'],
+    settings: {
+      life: { duration: 'permanent', place: 'onsite', rhythm: 'monthly', open: 'invite', yearFrom: '09-01', yearUntil: '06-30' },
+      intake: { mode: 'leaders' },
+      tools: { chat: false, announcements: false, calendar: true, forms: true },
+      visibility: { default: 'unit', subunitsSee: true }
+    },
+    units: [
+      {
+        key: 'rejon-5', name: 'Rejon V — Nowa Huta–Mistrzejowice', from: 'rejon',
+        council: { key: 'krag-rejonowy-5', name: 'Krąg rejonowy V', own: ['para-rejonowa', 'moderator-rejonu'], below: ['para-animatorska', 'moderator-kregu'] },
+        units: [
+          ['maksymilian-mistrzejowice', 'Krąg Maksymilian Mistrzejowice'], ['bulwarowa', 'Krąg Bulwarowa'],
+          ['kalinowe-1', 'Krąg Kalinowe 1'], ['kalinowe-2', 'Krąg Kalinowe 2'], ['kalinowe-3', 'Krąg Kalinowe 3'], ['kalinowe-4', 'Krąg Kalinowe 4'],
+          ['bohaterow-wrzesnia-3', 'Krąg Bohaterów Września 3'], ['bohaterow-wrzesnia-4', 'Krąg Bohaterów Września 4'],
+          ['bohaterow-wrzesnia-5', 'Krąg Bohaterów Września 5'], ['arka-pana', 'Krąg Arka Pana']
+        ].map(([key, name]) => ({ key, name, from: 'krag' }))
+      },
+      {
+        key: 'rejon-6', name: 'Rejon VI — Śródmieście', from: 'rejon',
+        council: { key: 'krag-rejonowy-6', name: 'Krąg rejonowy VI', own: ['para-rejonowa', 'moderator-rejonu'], below: ['para-animatorska', 'moderator-kregu'] },
+        units: [{ key: 'grzegorzki-1', name: 'Krąg Grzegórzki 1', from: 'krag' }]
+      }
+    ]
+  },
+  persons: []
+});
+
 /** Szenario 2c: Oaza w parafii — grupy formacyjne według stopnia (same), schola, teatr; strona publiczna. */
 const oaza = () => doc({
   name: 'Oaza parafialna',
@@ -255,6 +320,7 @@ export const EXAMPLES: readonly Example[] = [
   example('szkola', 'school', school),
   example('dk-rejon-13', 'dkRejon13', dkRejon13),
   example('dk-rejon-1', 'dkRejon1', dkRejon1),
+  example('dk-krakow', 'dkKrakow', dkKrakow),
   example('oaza', 'oaza', oaza),
   example('turnus', 'turnus', turnus),
   example('chor', 'choir', choir),

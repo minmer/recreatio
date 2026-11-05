@@ -40,7 +40,8 @@
     "personNoField": "Person “{key}”: field “{field}” is not in \"fields\" — skipped.",
     "peopleNoPosition": "Unit “{unit}”: \"people\" — there is no position “{position}”; skipped.",
     "peopleNoPerson": "Unit “{unit}”: person “{name}” is not in \"persons\" — skipped.",
-    "personNoPair": "Person “{key}”: partner “{pair}” is not in \"persons\"."
+    "personNoPair": "Person “{key}”: partner “{pair}” is not in \"persons\".",
+    "pagesBy": "{where}: \"pagesBy.{key}\" is the key of a position, optionally with \"^\" in front (the unit above) — skipped."
   },
   "desc": {
     "title": "Community as JSON (\"{format}\", version 1)",
@@ -98,7 +99,8 @@
       "address": "address of the unit's pages, e.g. \"dk/rejon-13\"; omitted — address of the unit above + \"/\" + key (at the top: from the community name)",
       "area": "id of an EXISTING area that becomes this unit and is moved to this place (e.g. two districts under a new diocese) — only deliberately",
       "remove": "true — dissolved: the community stops managing it (removes the access it gave); the area and its content stay",
-      "extra": "additional parts of the area document — \"appointments\", \"pages\", \"subforms\", \"card\", \"category\", \"listings\", \"chats\", \"publish\" — exactly as in the “area” format"
+      "extra": "additional parts of the area document — \"appointments\", \"pages\", \"subforms\", \"card\", \"category\", \"listings\", \"chats\", \"publish\" — exactly as in the “area” format",
+      "pagesBy": "{ \"inside\": POSITION, \"public\": POSITION } — who LEADS the unit's addresses (edits the page, opens subpages, can make them public). \"inside\": the members' page (\"dla-nas\"; without a public page the unit's address itself); \"public\": the public page on the unit's address (and \"po\"). A position of this unit (\"para-animatorska\") or, with \"^\", of the unit above (\"^para-rejonowa\"; \"^^\" two up). Omitted: whoever imports keeps the address. Inherited only from the blueprint. Leading an address = being able to publish under it: give \"public\" (or a unit without a public page) only to who may publish"
     },
     "settings": {
       "step": "Step {step} — {title}",

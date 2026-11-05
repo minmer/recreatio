@@ -40,7 +40,8 @@
     "personNoField": "Osoba „{key}”: pola „{field}” nie ma w \"fields\" — pominięte.",
     "peopleNoPosition": "Jednostka „{unit}”: \"people\" — pozycji „{position}” nie ma; pominięte.",
     "peopleNoPerson": "Jednostka „{unit}”: osoby „{name}” nie ma w \"persons\" — pominięta.",
-    "personNoPair": "Osoba „{key}”: pary „{pair}” nie ma w \"persons\"."
+    "personNoPair": "Osoba „{key}”: pary „{pair}” nie ma w \"persons\".",
+    "pagesBy": "{where}: \"pagesBy.{key}\" to klucz pozycji, ewentualnie z \"^\" na początku (jednostka wyżej) — pominięte."
   },
   "desc": {
     "title": "Wspólnota jako JSON (\"{format}\", wersja 1)",
@@ -98,7 +99,8 @@
       "address": "adres stron jednostki, np. \"dk/rejon-13\"; pominięty — adres jednostki wyżej + \"/\" + klucz (na górze: z nazwy wspólnoty)",
       "area": "identyfikator ISTNIEJĄCEGO obszaru, który staje się tą jednostką i zostaje przeniesiony w to miejsce (np. dwa rejony pod nową diecezję) — tylko świadomie",
       "remove": "true — rozwiązana: wspólnota przestaje nią zarządzać (zdejmuje dostępy, które dała); obszar i treści zostają",
-      "extra": "dodatkowe części dokumentu obszaru — \"appointments\", \"pages\", \"subforms\", \"card\", \"category\", \"listings\", \"chats\", \"publish\" — dokładnie jak w formacie „area”"
+      "extra": "dodatkowe części dokumentu obszaru — \"appointments\", \"pages\", \"subforms\", \"card\", \"category\", \"listings\", \"chats\", \"publish\" — dokładnie jak w formacie „area”",
+      "pagesBy": "{ \"inside\": POZYCJA, \"public\": POZYCJA } — kto PROWADZI adresy jednostki (edytuje stronę, otwiera podstrony, może je upublicznić). \"inside\": strona dla członków (\"dla-nas\"; bez strony publicznej — sam adres jednostki); \"public\": strona publiczna pod adresem jednostki (i \"po\"). Pozycja tej jednostki (\"para-animatorska\") albo, z \"^\", jednostki wyżej (\"^para-rejonowa\"; \"^^\" dwie wyżej). Pominięte: adres zostaje przy osobie, która importuje. Dziedziczy się tylko z planu budowy. Prowadzić adres = móc pod nim publikować: \"public\" (albo jednostkę bez strony publicznej) dawaj tylko temu, kto może publikować"
     },
     "settings": {
       "step": "Krok {step} — {title}",

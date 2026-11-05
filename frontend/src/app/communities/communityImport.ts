@@ -180,7 +180,7 @@ export async function runCommunityImport(input: {
     const u = f.unit;
     const areaId = s.units[u.key];
     if (u.remove === true || areaId === undefined) continue;
-    const compiled = compileUnit(full, f);
+    const compiled = compileUnit(full, f, new Date(), s.roles);
     homes.set(u.key, compiled.home);
     try {
       await run(areaId, u.name, compiled.doc, addressOf(full, u.key), t('communities.run.quoted', { name: u.name }));

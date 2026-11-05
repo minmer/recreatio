@@ -13,8 +13,8 @@ import { describe, keyLines, pretty, textNode, type JsonNode } from '../core/jso
 import { PROFILE_KINDS, type ProfileKind } from '../areas/profile';
 import { t } from '../core/i18n';
 import {
-  ASSIGN_WORD, COMMUNITY_FORMAT, FIELD_KINDS, flatten, isRights, KEY, RIGHTS, SETTINGS, settingDef, slug, STEP_TITLES,
-  type Assign, type Blueprint, type CommunityDoc, type Council, type FieldDef, type FieldKind, type Person, type PersonPlace,
+  ASSIGN_WORD, COMMUNITY_FORMAT, FIELD_KINDS, flatten, isRights, KEY, PAGES_BY, RIGHTS, SETTINGS, settingDef, slug, STEP_TITLES,
+  type Assign, type Blueprint, type CommunityDoc, type Council, type FieldDef, type FieldKind, type PagesBy, type Person, type PersonPlace,
   type Position, type Settings, type Unit
 } from './community';
 import { EXAMPLES } from './communityExamples';
@@ -125,6 +125,18 @@ function readCouncil(raw: unknown, where: string, warnings: string[]): Council |
   return { key, name: name.slice(0, 120), own: list(r.own).map(str).filter((k) => k !== ''), below: list(r.below).map(str).filter((k) => k !== '') };
 }
 
+function readPagesBy(raw: unknown, where: string, warnings: string[]): PagesBy | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const r = rec(raw);
+  const out: { inside?: string; public?: string } = {};
+  for (const k of ['inside', 'public'] as const) {
+    if (!has(r, k)) continue;
+    const v = str(r[k]);
+    if (PAGES_BY.test(v)) out[k] = v; else warnings.push(t('communitiesJson.read.pagesBy', { where, key: k }));
+  }
+  return Object.keys(out).length === 0 ? undefined : out;
+}
+
 function readExtra(raw: unknown, where: string, warnings: string[]): Readonly<Record<string, unknown>> | undefined {
   if (raw === undefined) return undefined;
   if (!isRecord(raw)) { warnings.push(t('communitiesJson.read.extraObject', { where })); return undefined; }
@@ -166,6 +178,7 @@ function readUnit(raw: unknown, where: string, warnings: string[], seen: Set<str
   }
   const settings = readSettings(r.settings, at, warnings);
   const council = readCouncil(r.council, at, warnings);
+  const pagesBy = readPagesBy(r.pagesBy, at, warnings);
   const extra = readExtra(r.extra, at, warnings);
   return {
     key, name: name.slice(0, 120),
@@ -174,6 +187,7 @@ function readUnit(raw: unknown, where: string, warnings: string[], seen: Set<str
     ...(has(r, 'positions') ? { positions: list(r.positions).map(str).filter((k) => k !== '') } : {}),
     ...(settings === undefined ? {} : { settings }),
     ...(council === undefined ? {} : { council }),
+    ...(pagesBy === undefined ? {} : { pagesBy }),
     ...(units.length === 0 ? {} : { units }),
     ...(address === '' || !address.split('/').every((s) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s)) ? {} : { address }),
     ...(/^[0-9a-f-]{36}$/i.test(area) ? { area: area.toLowerCase() } : {}),
@@ -242,6 +256,7 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
     const at = t('communitiesJson.read.blueprintAt', { key });
     const settings = readSettings(r.settings, at, warnings);
     const council = readCouncil(r.council, at, warnings);
+    const pagesBy = readPagesBy(r.pagesBy, at, warnings);
     const extra = readExtra(r.extra, at, warnings);
     blueprints.push({
       key, name: name.slice(0, 120),
@@ -249,6 +264,7 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
       ...(has(r, 'positions') ? { positions: list(r.positions).map(str).filter((k) => k !== '') } : {}),
       ...(settings === undefined ? {} : { settings }),
       ...(council === undefined ? {} : { council }),
+      ...(pagesBy === undefined ? {} : { pagesBy }),
       ...(extra === undefined ? {} : { extra })
     });
   }
@@ -334,6 +350,7 @@ function unitOut(u: Unit, names: ReadonlyMap<string, string>): Record<string, un
     ...(u.positions === undefined ? {} : { positions: u.positions }),
     ...settingsOut(u.settings),
     ...(u.council === undefined ? {} : { council: u.council }),
+    ...(u.pagesBy === undefined ? {} : { pagesBy: u.pagesBy }),
     ...(u.address === undefined ? {} : { address: u.address }),
     ...(u.remove === true ? { remove: true } : {}),
     ...(u.extra === undefined ? {} : { extra: u.extra }),
@@ -387,7 +404,7 @@ const FIELDS = (): string => t(`communitiesJson.desc.fields.text`, { keys: keyLi
 }) });
 
 const UNITS = (): string => t(`communitiesJson.desc.units.text`, { keys: keyLines(keysOf('units',
-  ['key', 'name', 'kind', 'from', 'positions', 'settings', 'council', 'people', 'units', 'address', 'area', 'remove', 'extra'],
+  ['key', 'name', 'kind', 'from', 'positions', 'settings', 'council', 'pagesBy', 'people', 'units', 'address', 'area', 'remove', 'extra'],
   {
     kind: { kinds: PROFILE_KINDS.map((k) => `"${k.kind}" (${k.label})`).join(', ') },
     people: { slot: `<${t('communitiesJson.desc.slotPosition')}>` }

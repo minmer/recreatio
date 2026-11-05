@@ -153,7 +153,9 @@
     "listingAsked": "List “{path}”: {state}.",
     "listingCatalogue": "List “{path}”: {state} (catalogue — the operator decides).",
     "listingFailed": "List “{path}”: {error}.",
-    "stageAreaCalendar": "Area calendar…"
+    "stageAreaCalendar": "Area calendar…",
+    "ownerFailed": "{label}: the address could not be given to the role ({error}).",
+    "ownerUnknown": "{label}: owner “{owner}” is not a role of this document — the address stays with you."
   },
   "path": {
     "empty": "an empty address is the recreatio.pl home page — the area's page can't be there",
@@ -220,7 +222,8 @@
     "askAnswer": "{where}: \"answer\" is a list of roles — skipped.",
     "askAnswerRole": "{where}: \"answer\" are roles of this document (\"@role:key\") — “{said}” skipped.",
     "askForms": "{where}: \"forms\" is a list of forms — skipped.",
-    "askForm": "{where}: the form “{said}” is \"@form:page/module\" — skipped."
+    "askForm": "{where}: the form “{said}” is \"@form:page/module\" — skipped.",
+    "pageOwner": "Page “{key}”: \"owner\" is \"@<role key>\" or a role id — ignored."
   },
   "prep": {
     "moduleTwice": "Page “{page}”: module “{id}” repeats — the second gets another name.",

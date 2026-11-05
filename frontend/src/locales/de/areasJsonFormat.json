@@ -69,7 +69,8 @@
     "publish": "nur \"form\": \"area\", \"auto\" oder die Kennung eines Bereichs — wo die Fragen liegen (ein öffentliches Formular in einem privaten Bereich: Fragen unter dem Schlüssel eines öffentlichen Bereichs, Antworten hier); weggelassen — wie \"publish\" des Bereichs",
     "answer": "nur \"seat-ask\" („Schreib uns“): wer antwortet — Rollen aus \"roles\", z. B. [\"@role:organizatorzy\"]; weggelassen — Rollen mit \"level\": \"admin\" (ohne sie nur, wer importiert); eine Person mit Link liest „Schreib an: …“ mit ihren Namen",
     "forms": "nur \"seat-ask\": wessen Personen ein Gespräch beginnen können — Formulare aus diesem Dokument, z. B. [\"@form:main/zapisy\"]; weggelassen — alle Formulare der Seiten des Dokuments",
-    "tail": "\"module\" wird im Dokument eines Bereichs übergangen, \"answersTo\" von Fragen ebenso (Antworten gehen in diesen Bereich). Eine Seite, die schon existiert, aber keine Seite dieses Bereichs ist, wird nicht geändert, außer wer importiert, erlaubt es."
+    "tail": "\"module\" wird im Dokument eines Bereichs übergangen, \"answersTo\" von Fragen ebenso (Antworten gehen in diesen Bereich). Eine Seite, die schon existiert, aber keine Seite dieses Bereichs ist, wird nicht geändert, außer wer importiert, erlaubt es.",
+    "owner": "wer die Adresse führt: \"@KEY\" einer Rolle aus \"roles\" (oder die Kennung einer Rolle, die du hältst); fehlt — deine eigene Person. Führen = Seite bearbeiten, Unterseiten öffnen und öffentlich machen. Gilt für neue und vorhandene Adressen, die du führst"
   },
   "subforms": {
     "lead": "Ein Eintrag in \"subforms\" — ein Formular, das ein Formular einer Seite erweitert (Einwilligungen, Umfrage nach der Veranstaltung, Gesundheitsbogen):",

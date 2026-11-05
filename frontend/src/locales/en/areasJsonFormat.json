@@ -69,7 +69,8 @@
     "publish": "only \"form\": \"area\", \"auto\" or an area id — where the questions lie (a public form in a private area: questions under the key of a public area, answers here); omitted — like the area's \"publish\"",
     "answer": "only \"seat-ask\" (“Write to us”): who answers — roles from \"roles\", e.g. [\"@role:organizatorzy\"]; omitted — roles with \"level\": \"admin\" (without them only the person importing); a person with a link reads “Write to: …” with their names",
     "forms": "only \"seat-ask\": whose people can start a chat — forms from this document, e.g. [\"@form:main/zapisy\"]; omitted — all forms of the document's pages",
-    "tail": "\"module\" is ignored in an area document, and so is \"answersTo\" of questions (answers go to this area). A page that already exists but isn't a page of this area won't be changed unless the person importing allows it."
+    "tail": "\"module\" is ignored in an area document, and so is \"answersTo\" of questions (answers go to this area). A page that already exists but isn't a page of this area won't be changed unless the person importing allows it.",
+    "owner": "who leads the address: \"@KEY\" of a role in \"roles\" (or the id of a role you hold); omitted — your own person. Leading = editing the page, opening subpages and making them public. Applied to new and existing addresses you lead"
   },
   "subforms": {
     "lead": "An entry in \"subforms\" — a form that extends a form from a page (consents, a post-event survey, a health card):",

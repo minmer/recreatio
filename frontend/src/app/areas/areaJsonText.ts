@@ -88,6 +88,7 @@ ${keyLines({
   main: t('areasJsonFormat.pages.main'),
   after: t('areasJsonFormat.pages.after'),
   access: t('areasJsonFormat.pages.access'),
+  owner: t('areasJsonFormat.pages.owner'),
   page: t('areasJsonFormat.pages.page')
 })}
 ${t('areasJsonFormat.pages.modulesLead')}

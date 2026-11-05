@@ -29,6 +29,7 @@ public static class Access
          * Rumpf beziehungsweise in der Abfrage.
          */
         app.MapPost("/workspace/subpage", OpenAsync);
+        app.MapPost("/workspace/slug/owner", OwnerAsync);
     }
 
     /* -- Was jemand an einer Adresse darf ----------------------------------- */
@@ -196,6 +197,66 @@ public static class Access
         }
 
         await ctx.Response.WriteAsJsonAsync(new { path, roleId = Ids.ToText(roleId), claimedAt = now });
+    }
+
+    /* -- Eine Adresse übergeben (2026-11-05) -------------------------------- */
+
+    public sealed record OwnerRequest(string Path, string RoleId);
+
+    /// <summary>
+    /// EINE ADRESSE EINER ANDEREN EIGENEN ROLLE GEBEN — z. B. die Adresse eines Krąg der Rolle
+    /// „Para animatorska · Krąg“, damit sie dort Seiten bearbeitet und Unterseiten öffnet. Wer die
+    /// Adresse führt (die nächste übernommene darüber oder sie selbst), gibt sie einer Rolle, die er
+    /// SELBST hält — wie beim Öffnen einer Unterseite: niemand verteilt, was er nicht hat. Der Inhalt
+    /// bleibt; wer sie danach führt, bestimmt <see cref="OfAsync"/> wie immer (die nächste gewinnt).
+    /// Wiederholbar: dieselbe Rolle noch einmal ändert nichts (der Import der Wspólnoty ruft es so).
+    /// </summary>
+    private static async Task OwnerAsync(HttpContext ctx, Db db, OwnerRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        var path = Slug.Normalise(body.Path);
+        if (!Slug.IsWellFormed(path) || !Guid.TryParse(body.RoleId, out var roleId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny adres albo rola.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        if (!mine.Any(r => r.Id == roleId))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "To nie jest Twoja rola.");
+            return;
+        }
+        if (Workspace.IsAccount(mine, roleId))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
+            return;
+        }
+
+        var grip = await OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+        if (!grip.MayCertify)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            return;
+        }
+
+        await using var update = new SqlCommand("""
+            UPDATE app.slug SET claimed_by_role_id = @role, claimed_by_account_id = @account, claimed_at = @now
+            WHERE path = @path AND (claimed_by_role_id IS NULL OR claimed_by_role_id <> @role);
+            SELECT COUNT(*) FROM app.slug WHERE path = @path;
+            """, connection);
+        update.Parameters.AddWithValue("@role", roleId);
+        update.Parameters.AddWithValue("@account", who.Value.AccountId);
+        update.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        update.Parameters.AddWithValue("@path", path);
+        if ((int)(await update.ExecuteScalarAsync(ctx.RequestAborted) ?? 0) == 0)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego adresu nie ma.");
+            return;
+        }
+        await ctx.Response.WriteAsJsonAsync(new { path, roleId = Ids.ToText(roleId) });
     }
 
     private static Task Fail(HttpContext ctx, int status, string message)

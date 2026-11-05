@@ -176,4 +176,61 @@ const fakeState = (doc) => {
   ok(!('error' in again), 'merged document exports and reads');
 }
 
+/* 7. 2026-11-05 — Wzorzec Domowy Kościół (dk/krakow): Personen-Rechte aus dem Baum, Rozmowy, Seiten und wer sie führt. */
+{
+  const dk = docs['dk-krakow'];
+  const circles5 = m.flatten(dk.unit).filter((f) => f.parent === 'rejon-5').map((f) => f.unit.key);
+  ok(circles5.length === 10 && m.flatten(dk.unit).filter((f) => f.parent === 'rejon-6').length === 1 && dk.persons.length === 0, 'DK: ten kręgi in Rejon V, one in VI, no invented persons');
+  ok(m.addressOf(dk, 'kalinowe-1') === 'dk/krakow/rejon-5/kalinowe-1' && m.addressOf(dk, 'rejon-6') === 'dk/krakow/rejon-6', 'DK: addresses under the held dk/krakow');
+  const st = fakeState(dk);
+  const { joins } = m.desiredAccess(dk, st);
+  const level = (area, role) => joins.find((j) => j.areaId === `area-${area}` && j.roleId === role)?.level ?? null;
+  const reaches = (role) => joins.filter((j) => j.roleId === role).map((j) => `${j.areaId.slice(5)}:${j.level}`);
+  /* Persona: Administrator archidiecezjalny — admin everywhere below. */
+  ok(['rejon-5', 'rejon-6', 'kalinowe-1', 'grzegorzki-1', 'arka-pana'].every((a) => level(a, 'role-krakow-administrator') === 'admin'), 'persona administrator: admin in every unit below');
+  /* Persona: Para rejonowa V — admin in its ten kręgi, nothing in Rejon VI. */
+  const pr5 = 'role-rejon-5-para-rejonowa';
+  ok(circles5.every((c) => level(c, pr5) === 'admin'), 'persona para rejonowa V: admin (calendars, pages of the area, chat) in all ten kręgi');
+  ok(level('rejon-6', pr5) === null && level('grzegorzki-1', pr5) === null, 'persona para rejonowa V: nothing in Rejon VI');
+  ok(level('krag-rejonowy-5', pr5) === 'admin' && level('krakow', pr5) === 'read', 'persona para rejonowa V: leads the Krąg rejonowy, reads the archdiocese');
+  /* Persona: Para animatorska Kalinowe 1 — its krąg is its own area; no access to Kalinowe 2. */
+  const pa = 'role-kalinowe-1-para-animatorska';
+  ok(level('kalinowe-2', pa) === null && level('bulwarowa', pa) === null, 'persona animator Kalinowe 1: nothing in Kalinowe 2 or other kręgi');
+  ok(level('krag-rejonowy-5', pa) === 'write' && level('rejon-5', pa) === 'read' && level('krakow', pa) === 'read', 'persona animator Kalinowe 1: writes in the Krąg rejonowy, reads Rejon V and the archdiocese');
+  ok(!reaches(pa).some((r) => r.endsWith(':admin')), 'persona animator Kalinowe 1: admin nowhere outside its own krąg');
+  /* Persona: Członek Kalinowe 1 — reads up the tree, never sideways, not the council. */
+  const cz = 'role-kalinowe-1-czlonek';
+  ok(JSON.stringify(reaches(cz).sort()) === JSON.stringify(['krakow:read', 'rejon-5:read']), 'persona member Kalinowe 1: reads Rejon V and the archdiocese — nothing else');
+  ok(m.levelOf(dk.positions.find((p) => p.key === 'czlonek').rights) === 'read', 'persona member: participant = read in the own krąg (no calendar writing)');
+  ok(level('kalinowe-2', 'role-rejon-5-moderator-rejonu') === 'read' && level('krag-rejonowy-5', 'role-kalinowe-1-moderator-kregu') === 'write', 'moderators: read below; moderator kręgu sits in the Krąg rejonowy');
+  /* Rozmowy: Rejon = Rozmowa + Ogłoszenia, krąg none; the council is an area with its own chat. */
+  const area = (key, known = {}) => m.compileUnit(dk, m.flatten(dk.unit).find((f) => f.unit.key === key), NOW, known).doc;
+  ok(JSON.stringify(area('rejon-5').chats) === JSON.stringify(['area', 'channel']) && area('kalinowe-1').chats.length === 0 && area('krakow').chats.length === 0, 'chats: rejon chat + channel, no krąg chat, no archdiocese chat');
+  ok(JSON.stringify(m.compileCouncil('Krąg rejonowy V').chats) === JSON.stringify(['area']), 'council: its own area with one chat');
+  /* Seiten: wer sie führt. */
+  const k1 = area('kalinowe-1');
+  ok(k1.pages.length === 1 && k1.pages[0].access === 'members' && k1.pages[0].owner === '@para-animatorska', 'krąg: one members page on its address, led by its para animatorska');
+  const r5 = area('rejon-5');
+  ok(r5.pages.every((p) => p.owner === '@para-rejonowa') && r5.pages.some((p) => p.access === 'public'), 'rejon: public page and dla-nas led by the para rejonowa');
+  ok(area('krakow').pages.every((p) => p.owner === undefined), 'archdiocese: pages stay with whoever imports');
+  ok(m.pagesOwner(dk, 'kalinowe-1', '^para-rejonowa')?.unit === 'rejon-5' && m.pagesOwner(dk, 'kalinowe-1', '^^administrator')?.unit === 'krakow'
+    && m.pagesOwner(dk, 'kalinowe-1', '^^^administrator') === null && m.pagesOwner(dk, 'kalinowe-1', '^nope') === null, 'pagesBy: ^ walks up, unknown or too high is refused');
+  const viaUp = { ...dk, blueprints: dk.blueprints.map((b) => (b.key === 'krag' ? { ...b, pagesBy: { inside: '^para-rejonowa' } } : b)) };
+  const upPage = m.compileUnit(viaUp, m.flatten(viaUp.unit).find((f) => f.unit.key === 'kalinowe-1'), NOW, st.roles).doc.pages[0];
+  ok(upPage.owner === pr5, 'pagesBy ^: the role of the unit above, by its id');
+  const noRole = m.compileUnit(viaUp, m.flatten(viaUp.unit).find((f) => f.unit.key === 'kalinowe-1'), NOW, {});
+  ok(noRole.doc.pages[0].owner === undefined && noRole.says.some((s) => s.includes('^para-rejonowa')), 'pagesBy ^ before the role exists: no owner, said in the plan');
+  /* Jede Einheit als Bereichsdokument, mit "owner" ohne Warnung. */
+  for (const f of m.flatten(dk.unit)) {
+    const read = m.readAreaDocument(m.compileUnit(dk, f, NOW, st.roles).doc);
+    ok(!('error' in read) && read.warnings.length === 0, `DK ${f.unit.key}: a clean area document`);
+  }
+  const owned = m.readAreaDocument({ format: 'recreatio/area', version: 1, name: 'x', pages: [{ key: 'a', owner: 'nie-tak', page: { title: 'a' } }] });
+  ok(!('error' in owned) && owned.warnings.length === 1 && owned.doc.pages[0].owner === undefined, 'area: a malformed owner is warned and ignored');
+  const back = m.readCommunity(JSON.parse(JSON.stringify(m.exportCommunity(dk))));
+  ok(!('error' in back) && back.doc.blueprints.find((b) => b.key === 'krag').pagesBy.inside === 'para-animatorska', 'pagesBy survives export → read');
+  const bad = m.readCommunity({ ...m.exportCommunity(dk), unit: { ...m.exportCommunity(dk).unit, pagesBy: { inside: 'Zła Pozycja' } } });
+  ok(!('error' in bad) && bad.warnings.some((w) => w.includes('pagesBy')), 'pagesBy: a malformed value is warned');
+}
+
 console.log(`community JSON: ${checks} checks pass.`);
