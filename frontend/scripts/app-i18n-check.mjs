@@ -132,7 +132,7 @@ const hasEnGroup = (prefix) => {
 };
 
 const used = new Set();
-const KEY_CALL = /(?<![\w$.])(?:t|tIn\([^,()]+,|tOr|hasKey|tFor\([^()]*\))\(\s*(['"`])([a-z][A-Za-z0-9]*\.[^'"`\n]*?)\1/g;
+const KEY_CALL = /(?<![\w$.])(?:t|tOr|hasKey)\(\s*(['"`])([a-z][A-Za-z0-9]*\.[^'"`\n]*?)\1/g;
 const KEY_CALL2 = /(?<![\w$])(?:tIn)\(\s*[^,()]+,\s*(['"`])([a-z][A-Za-z0-9]*\.[^'"`\n]*?)\1/g;
 for (const [file, text] of code) {
   const rel = relative(SRC, file);
