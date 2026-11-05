@@ -36,6 +36,7 @@ All tools are read-only (`readOnlyHint: true`, `destructiveHint: false`, `idempo
 | tool | input | returns |
 |---|---|---|
 | `list_collections` | — | every authorized collection: id, part (`books`/`writing`/`knowledge`), name, area, entry count, kinds with counts, number of full texts, when its snapshot was made, `ready` |
+| `get_access_overview` | — | (0138) the authorized areas as a tree: each area (checked on its own) with its nearest **authorized** parent, children, link expiry, whole-area flag, permissions (always `read`), collections with snapshot state, and links between knowledge bases (handle, `linksToBase`, shared here or not); `access` = `connection` (managed, with `manageUrl`), `token` (old fixed list) or `link` (path form). Areas outside the authorization never appear, not even their names; no learner data (`AiMcpOverview.cs`) |
 | `get_schema` | `collection?` (id or name) | the kinds of each collection with their fields: key, label, type, `says`, `to` (reference targets), `multi`, options, locator |
 | `search_entries` | `query?`, `collection?`, `kind?`, `limit` 1–50, `offset` | `total`, `nextOffset`, results with id, title, kind, text type, key, collection, area, snippet, url |
 | `get_entry` | `id` (UUID or citation key) | the stored data, its kinds' fields, `links` (each reference with field, title and locator), `linkedFrom` (who refers to it, by field), a readable `text`, and for a work its `fullTexts` |
@@ -96,8 +97,28 @@ All tools are read-only (`readOnlyHint: true`, `destructiveHint: false`, `idempo
   (`Crypto.InfoAiOAuthCode`, AAD field `ai_oauth_code`), and the code itself is kept only as a hash; after
   redemption nothing is kept. Codes last five minutes and work once; a wrong PKCE verifier burns the code.
 - **Everything of the link stays in force.** Only its collections; only while it exists, has not expired and its
-  creator still leads the area; read-only. The token lives as long as the shortest of its links (`expires_in`).
-  Every call checks each link again.
+  creator still leads the area; read-only. Every call checks each link again.
+- **One connection, many areas (0138, 2026-11-05).** Before 0138 the access token WAS the list of links ticked at
+  consent — fixed forever, so an assistant connected once with "CogitaTemp" never saw any other area, even when
+  those areas had working AI links. Now consent creates a **connection** (`app.ai_mcp_connection`,
+  `backend/Api/Library/AiMcpConnections.cs`) and the token is `rcm~<secret>` (valid a year). The connection has an
+  RSA-4096 pair: the public key lies open, the private key is sealed under HKDF(token) (`Crypto.InfoAiMcpConnection`,
+  AAD `ai_mcp_connection`). Each area is a row in `app.ai_mcp_link` holding that area's link secret RSA-wrapped to the
+  connection (AAD `ai_mcp_link`, bound to connection AND link) — so the service can **add** an area without knowing
+  the token, and opens it only while a call carries the token. The database alone opens nothing.
+  - The owner (who consented) manages it in the app: **Account → AI access** (`#/workspace/account/dostep-ai`,
+    `frontend/src/app/aiAccess/AiConnections.tsx`): add an area — optionally with every area below it that they
+    lead — after a review of the collections and the link used (an existing working link, or a new whole-area one),
+    renew an area's link, remove an area, disconnect the assistant. **No OAuth re-authorization** for any of these:
+    the change shows at the assistant's next call.
+  - Every call checks every area on its own: the link works (ready, not expired, creator leads the area) AND the
+    owner still leads the area. A connection with no working area stays connected: `list_collections` answers an
+    empty list with the address where areas are added (no 401, so no re-sign-in is forced).
+  - Service endpoints (owner's session): `GET /workspace/ai-connections`, `POST …/{id}/links {secret}`,
+    `DELETE …/{id}/links/{accessId}`, `DELETE …/{id}`. A connection holds at most 20 areas, one link per area.
+    A deleted link leaves every connection (ON DELETE CASCADE).
+  - Old tokens (a dot-joined list of link secrets) and `/mcp/<link>` keep working unchanged; they cannot be extended
+    — reconnect once. Without migration 0138 the service issues old-style tokens as before.
 - **Without OAuth**, a client can use `https://api.recreatio.pl/mcp/<link secret>` (the same secret as the AI link):
   for MCP Inspector or a ChatGPT server set up with "No authentication". The path then holds the secret, so host
   access logs may record it — prefer OAuth.
@@ -117,17 +138,27 @@ All tools are read-only (`readOnlyHint: true`, `destructiveHint: false`, `idempo
 3. ChatGPT opens Recreatio's consent page: sign in, tick the links, **Zezwól**. ChatGPT returns with the connection.
 4. In a chat (Work mode), type `@` and choose the plugin, then ask, e.g. "Find all comments on John 21 and summarize
    their arguments and objections."
+5. More areas later: Account → **AI access** → the connection → **Add area** → choose the area (and, if wanted, the
+   areas below it) → review the collections and read-only permissions → confirm. ChatGPT sees them at its next
+   `list_collections`, next to the areas it already reads.
 
-Revoking: delete the link (area → Dostęp → Dostęp dla AI → Usuń) — the token stops at the next call. Removing the
-plugin in ChatGPT forgets the token on ChatGPT's side.
+Revoking: Account → AI access → **Remove from connection** (one area) or **Disconnect assistant** (all), or delete
+the link (area → Dostęp → Dostęp dla AI → Usuń) — each takes effect at the next call. Removing the plugin in ChatGPT
+forgets the token on ChatGPT's side.
 
 ## Testing and troubleshooting
 
 - **Inspector**: `npx @modelcontextprotocol/inspector --cli https://api.recreatio.pl/mcp/<link secret> --transport http --method tools/list`
   (or the Inspector UI with OAuth against `https://api.recreatio.pl/mcp`).
 - `401` without `invalid_token`: the client sent no token — the OAuth connection is missing.
-- `401 invalid_token`: every authorized link was deleted, expired, or its creator no longer leads the area — make a
-  link and re-connect.
+- `401 invalid_token`: the connection was disconnected or has expired (a year), or — for an old token — every
+  authorized link was deleted, expired, or its creator no longer leads the area — re-connect.
+- Only one area shows (e.g. only „CogitaTemp”): the assistant holds an old token, or its connection has only that
+  area. `get_access_overview` says which (`access: "token"` = old, fixed list). Reconnect once if old, then add
+  areas in Account → AI access.
+- Drive for 0138: `scratchpad/mc/connections-e2e.mjs` of session 719fcce1 (33 checks on LocalDB `rc_mc`: OAuth →
+  connection, add/remove areas on the same client, hierarchy over an unauthorized middle area, another account
+  refused, deleted links leave, empty connection stays connected, old tokens and the path form, revoke → 401).
 - `ready: false` in `list_collections`: the collection's snapshot is not built yet; someone who writes in the area
   opens Recreatio (the Dostęp tab refreshes stale snapshots). A collection created after the link appears this way
   at once when the link follows the whole area; the browser that created it builds its first snapshot.

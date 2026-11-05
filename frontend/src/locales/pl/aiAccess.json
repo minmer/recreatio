@@ -1,0 +1,119 @@
+{
+  "title": "Dostęp dla AI",
+  "lede": "Asystenci, tacy jak ChatGPT czy Claude, połączeni z Recreatio (MCP), czytają obszary swojego połączenia — tylko czytają, i tylko Bibliotekę, Skryptorium i bazy wiedzy. Tutaj dodajesz, przedłużasz i usuwasz obszary.",
+  "onlyYou": "Tylko Ty",
+  "manage": "Zarządzaj połączeniami AI",
+  "manageHint": "Asystent jest już połączony? Dodaj ten obszar do jego połączenia bez ponownego logowania:",
+  "connectLater": "Kolejne obszary dodasz do tego połączenia później, bez ponownego łączenia:",
+  "unlockWhy": "Linki dostępu otwierają się tylko u Ciebie — podaj hasło.",
+  "none": "Żaden asystent nie jest jeszcze połączony. W ChatGPT albo Claude dodaj własny serwer MCP z adresem powyżej i OAuth; Recreatio zapyta Cię wtedy, które obszary może czytać. Potem jego połączenie pojawi się tutaj i dodasz kolejne obszary.",
+  "older": "Połączenia sprzed 5 listopada 2026 działają dalej z obszarami wybranymi wtedy, ale nie ma ich tutaj i nie da się ich rozszerzyć. Połącz takiego asystenta jeszcze raz; od tej pory obszary dodajesz tutaj.",
+  "how": {
+    "title": "Jak to działa",
+    "server": "Adres serwera dla asystenta:",
+    "noReconnect": "Dodanie, przedłużenie albo usunięcie obszaru nie wymaga ponownego logowania: asystent widzi zmianę przy następnym wywołaniu (list_collections).",
+    "reconnect": "Zaloguj się ponownie z asystenta tylko dla nowego asystenta, starszego połączenia albo połączenia odwołanego lub wygasłego.",
+    "readOnly": "Zawsze tylko odczyt: asystent może przeszukiwać i czytać zbiory swoich obszarów. Niczego nie zmieni i nigdy nie widzi postępów w nauce, odpowiedzi, rozmów, formularzy ani kalendarzy."
+  },
+  "connection": {
+    "until": "aktywne do {date}",
+    "since": "połączone {date}",
+    "used": "ostatnio użyte {date}",
+    "neverUsed": "jeszcze nie użyte",
+    "noAreas": "To połączenie nie czyta teraz żadnego obszaru. Dodaj obszar — asystent pozostaje połączony."
+  },
+  "status": {
+    "ok": "czytany",
+    "expired": "link wygasł",
+    "pending": "link niedokończony",
+    "notLeader": "już go nie prowadzisz",
+    "creatorLeft": "twórca linku odszedł"
+  },
+  "statusHelp": {
+    "ok": "Asystent czyta ten obszar.",
+    "expired": "Link dostępu tego obszaru wygasł. Przedłuż go, a asystent znów będzie go czytał.",
+    "pending": "Link dostępu tego obszaru nie został dokończony. Usuń obszar i dodaj go ponownie.",
+    "notLeader": "Nie prowadzisz już tego obszaru, więc to połączenie go nie czyta.",
+    "creatorLeft": "Osoba, która utworzyła ten link dostępu, nie prowadzi już obszaru. Usuń obszar i dodaj go ponownie — powstanie nowy link."
+  },
+  "area": {
+    "until": "link ważny do {date}",
+    "whole": "Cały obszar — także zbiory, które dojdą później.",
+    "notReady": "odpis jeszcze nie gotowy",
+    "fresh": "odpis aktualny",
+    "stale": "odpis do odświeżenia",
+    "noCollections": "W tym linku nie ma zbiorów."
+  },
+  "part": {
+    "books": "Biblioteka",
+    "writing": "Skryptorium",
+    "knowledge": "Baza wiedzy"
+  },
+  "days": {
+    "30": "miesiąc",
+    "90": "3 miesiące",
+    "365": "rok"
+  },
+  "renew": {
+    "for": "Przedłuż o",
+    "open": "Przedłuż",
+    "working": "Przedłużam…",
+    "done": "{area}: czytany do {date}."
+  },
+  "remove": {
+    "open": "Usuń z połączenia",
+    "ask": "Usunąć „{area}” z tego połączenia?",
+    "body": "Asystent przestanie czytać ten obszar przy następnym wywołaniu. Pozostałe obszary zostają połączone, a sam link dostępu obszaru zostaje.",
+    "confirm": "Usuń",
+    "working": "Usuwam…",
+    "done": "{area} usunięty z połączenia."
+  },
+  "revoke": {
+    "open": "Odłącz asystenta",
+    "ask": "Odłączyć {client}?",
+    "body": "Asystent przy następnym wywołaniu traci dostęp do wszystkich obszarów tego połączenia. Linki dostępu obszarów zostają. Aby połączyć go ponownie, zaloguj się z asystenta.",
+    "confirm": "Odłącz",
+    "working": "Odłączam…",
+    "done": "Asystent odłączony."
+  },
+  "add": {
+    "open": "Dodaj obszar",
+    "title": "Dodaj obszar do {client}",
+    "area": "Obszar",
+    "areaPlaceholder": "Wybierz obszar, który prowadzisz",
+    "already": "już połączony",
+    "subtree": {
+      "one": "Także {count} obszar poniżej, który prowadzisz",
+      "few": "Także {count} obszary poniżej, które prowadzisz",
+      "many": "Także {count} obszarów poniżej, które prowadzisz",
+      "other": "Także {count} obszaru poniżej, które prowadzisz"
+    },
+    "days": "Nowy link dostępu ważny przez",
+    "review": "Sprawdź",
+    "checking": "Sprawdzam obszary…",
+    "reviewLede": "{client} będzie mógł czytać:",
+    "newLink": "Powstanie nowy link dostępu tylko do odczytu dla całego obszaru, ważny przez {days}.",
+    "existing": "Używa linku dostępu obszaru, ważnego do {date}.",
+    "existingWhole": "Używa linku dostępu dla całego obszaru, ważnego do {date}.",
+    "permissions": "Uprawnienia:",
+    "permissionsText": "tylko odczyt. Asystent może przeszukiwać i czytać te zbiory i ich pełne teksty. Niczego nie zmieni i nie widzi postępów w nauce, odpowiedzi, rozmów, formularzy ani kalendarzy.",
+    "noReconnect": "Bez ponownego logowania: obszary pojawią się u asystenta przy następnym wywołaniu, obok tych, które już czyta.",
+    "confirm": {
+      "one": "Zezwól na czytanie {count} obszaru",
+      "few": "Zezwól na czytanie {count} obszarów",
+      "many": "Zezwól na czytanie {count} obszarów",
+      "other": "Zezwól na czytanie {count} obszaru"
+    },
+    "adding": "Dodaję {area} ({n}/{total})…",
+    "snapshots": "{area}: przygotowuję odpisy {done}/{total}…",
+    "noKey": "{area}: jego linku dostępu nie da się otworzyć na tym urządzeniu (brak klucza obszaru).",
+    "done": "Dodano: {areas}.",
+    "nothing": "Nie prowadzisz żadnego obszaru z biblioteką, skryptorium albo bazą wiedzy."
+  },
+  "error": {
+    "link_not_allowed": "Link dostępu tego obszaru nie działa albo nie prowadzisz obszaru.",
+    "too_many": "To połączenie czyta już najwięcej obszarów, ile może (20). Najpierw usuń jeden.",
+    "not_found": "Tego połączenia już nie ma.",
+    "not_ready": "Usługa nie jest jeszcze zaktualizowana — spróbuj później."
+  }
+}

@@ -44,7 +44,8 @@ const staticEntries = (t: T): readonly SearchEntry[] => [
   { id: 'notify', label: t('shell.account.notifications'), kind: t('shell.nav.settings'), href: viewPath('account', 'widok'), hint: t('shell.search.hint.notify') },
   { id: 'language', label: 'Język / Sprache / Language', kind: t('shell.nav.settings'), href: viewPath('account', 'jezyk'), hint: 'język sprache language english deutsch polski' }, // i18n-ignore
   { id: 'security', label: t('shell.account.security'), kind: t('shell.nav.settings'), href: viewPath('account', 'bezpieczenstwo'), hint: t('shell.search.hint.security') },
-  { id: 'transfer', label: t('shell.account.transfer'), kind: t('shell.nav.settings'), href: viewPath('account', 'przeniesienie'), hint: t('shell.search.hint.transfer') }
+  { id: 'transfer', label: t('shell.account.transfer'), kind: t('shell.nav.settings'), href: viewPath('account', 'przeniesienie'), hint: t('shell.search.hint.transfer') },
+  { id: 'ai-access', label: t('shell.account.aiAccess'), kind: t('shell.nav.settings'), href: viewPath('account', 'dostep-ai'), hint: t('shell.search.hint.aiAccess') }
 ];
 
 /** Hört auf Ctrl K und das Ereignis; zeigt das Fenster. Einmal im Kopf der Seite. */

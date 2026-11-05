@@ -226,6 +226,70 @@ export const approveConnect = (grant: string, secrets: readonly string[]): Promi
 export const denyConnect = (grant: string): Promise<{ redirect: string }> =>
   call('/oauth/deny', { method: 'POST', body: JSON.stringify({ grant }) });
 
+/* -- 0138: Verbindungen, die Bereiche dazubekommen (`backend/Api/Library/AiMcpConnections.cs`) ----------- */
+
+/** Warum ein Bereich einer Verbindung gerade (nicht) gelesen wird. */
+export type McpAreaStatus = 'ok' | 'expired' | 'pending' | 'notLeader' | 'creatorLeft';
+
+export interface McpArea {
+  readonly accessId: string;
+  readonly areaId: string;
+  /** Der Name, wie der Dienst ihn kennt — der Browser nimmt lieber seinen eigenen. */
+  readonly areaName: string;
+  readonly expiresAt: string;
+  readonly wholeArea: boolean;
+  readonly addedAt: string;
+  readonly status: McpAreaStatus;
+}
+
+export interface McpConnection {
+  readonly id: string;
+  readonly client: string;
+  readonly createdAt: string;
+  readonly expiresAt: string;
+  readonly lastUsedAt: string | null;
+  readonly areas: readonly McpArea[];
+  readonly max: number;
+}
+
+const connections = '/workspace/ai-connections';
+
+export const loadMcpConnections = (): Promise<{ readonly connections: readonly McpConnection[] }> => call(connections);
+
+/** Einen Bereich hinzufügen: das Geheimnis eines seiner Links (nur wer ihn prowadzi, öffnet es). Ersetzt einen anderen Link desselben Bereichs. */
+export const addMcpArea = (connectionId: string, secret: string): Promise<{ readonly added: boolean; readonly accessId: string }> =>
+  call(`${connections}/${enc(connectionId)}/links`, { method: 'POST', body: JSON.stringify({ secret }) });
+
+export const removeMcpArea = (connectionId: string, accessId: string): Promise<{ readonly removed: boolean }> =>
+  call(`${connections}/${enc(connectionId)}/links/${enc(accessId)}`, { method: 'DELETE' });
+
+export const revokeMcpConnection = (connectionId: string): Promise<{ readonly revoked: boolean }> =>
+  call(`${connections}/${enc(connectionId)}`, { method: 'DELETE' });
+
+/**
+ * DER LINK, DEN EIN BEREICH EINER VERBINDUNG GIBT: ein geltender, der dem ganzen Bereich folgt, sonst irgendein
+ * geltender; keiner — `null` (dann legt `ensureAreaLink` einen an). Nur Links, deren Geheimnis ich öffnen kann.
+ */
+export const bestAreaLink = (list: AiAccessList): AiAccessRow | null =>
+  list.accesses.filter((a) => a.works && a.tokenSealed !== null).sort((a, b) => Number(b.wholeArea === true) - Number(a.wholeArea === true) || b.expiresAt.localeCompare(a.expiresAt))[0] ?? null;
+
+/**
+ * Das Geheimnis des Links, den ein Bereich einer Verbindung gibt — ein vorhandener (`bestAreaLink`) oder ein neuer
+ * für den ganzen Bereich (`days` Tage). `made`: ob einer angelegt wurde.
+ */
+export async function ensureAreaLink(
+  ring: Ring, areaId: string, libraries: readonly string[], days: number, progress?: (done: number, total: number) => void
+): Promise<{ readonly secret: string | null; readonly made: boolean }> {
+  const found = bestAreaLink(await loadAiAccess(areaId));
+  if (found !== null) {
+    const secret = await aiSecretOf(ring, areaId, found);
+    if (secret !== null) return { secret, made: false };
+  }
+  const created = await createAiAccess(ring, areaId, libraries, days, progress, true);
+  const row = (await loadAiAccess(areaId)).accesses.find((a) => a.id === created.id);
+  return { secret: row === undefined ? null : await aiSecretOf(ring, areaId, row), made: true };
+}
+
 /** Die Adresse des MCP-Servers (für die Anleitung in der Karte). */
 export function mcpUrl(): string {
   const origin = /^https?:\/\//.test(API) ? API : `${window.location.origin}${API}`;

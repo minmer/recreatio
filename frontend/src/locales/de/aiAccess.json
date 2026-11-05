@@ -1,0 +1,115 @@
+{
+  "title": "KI-Zugang",
+  "lede": "Assistenten wie ChatGPT oder Claude, die du mit Recreatio verbunden hast (MCP), lesen die Bereiche ihrer Verbindung — nur lesen, und nur Bibliothek, Skriptorium und Wissensbasen. Hier fügst du Bereiche hinzu, verlängerst oder entfernst sie.",
+  "onlyYou": "Nur du",
+  "manage": "KI-Verbindungen verwalten",
+  "manageHint": "Schon einen Assistenten verbunden? Füge diesen Bereich seiner Verbindung hinzu, ohne dich neu anzumelden:",
+  "connectLater": "Weitere Bereiche kannst du dieser Verbindung später hinzufügen, ohne neu zu verbinden:",
+  "unlockWhy": "Zugangslinks öffnen sich nur auf deinem Gerät — gib dein Passwort ein.",
+  "none": "Noch ist kein Assistent verbunden. Füge in ChatGPT oder Claude einen eigenen MCP-Server mit der Adresse oben und OAuth hinzu; Recreatio fragt dich dann, welche Bereiche er lesen darf. Danach erscheint seine Verbindung hier, und du kannst weitere Bereiche hinzufügen.",
+  "older": "Verbindungen von vor dem 5. November 2026 funktionieren weiter mit den damals gewählten Bereichen, stehen aber nicht hier und lassen sich nicht erweitern. Verbinde einen solchen Assistenten einmal neu; danach fügst du Bereiche hier hinzu.",
+  "how": {
+    "title": "So funktioniert es",
+    "server": "Serveradresse für den Assistenten:",
+    "noReconnect": "Einen Bereich hinzufügen, verlängern oder entfernen braucht keine neue Anmeldung: der Assistent sieht die Änderung bei seinem nächsten Aufruf (list_collections).",
+    "reconnect": "Neu anmelden musst du dich vom Assistenten aus nur für einen neuen Assistenten, eine ältere Verbindung oder eine widerrufene oder abgelaufene Verbindung.",
+    "readOnly": "Immer nur lesen: der Assistent kann die Sammlungen seiner Bereiche durchsuchen und lesen. Er kann nichts ändern und sieht nie Lernstände, Antworten, Chats, Formulare oder Kalender."
+  },
+  "connection": {
+    "until": "aktiv bis {date}",
+    "since": "verbunden am {date}",
+    "used": "zuletzt genutzt {date}",
+    "neverUsed": "noch nicht genutzt",
+    "noAreas": "Diese Verbindung liest gerade keinen Bereich. Füge einen hinzu — der Assistent bleibt verbunden."
+  },
+  "status": {
+    "ok": "lesbar",
+    "expired": "Link abgelaufen",
+    "pending": "Link unfertig",
+    "notLeader": "du leitest ihn nicht mehr",
+    "creatorLeft": "Ersteller des Links fehlt"
+  },
+  "statusHelp": {
+    "ok": "Der Assistent liest diesen Bereich.",
+    "expired": "Der Zugangslink dieses Bereichs ist abgelaufen. Verlängere ihn, dann liest der Assistent ihn wieder.",
+    "pending": "Der Zugangslink dieses Bereichs wurde nie fertig. Entferne den Bereich und füge ihn neu hinzu.",
+    "notLeader": "Du leitest diesen Bereich nicht mehr, darum liest ihn diese Verbindung nicht.",
+    "creatorLeft": "Die Person, die diesen Zugangslink erstellt hat, leitet den Bereich nicht mehr. Entferne den Bereich und füge ihn neu hinzu — dabei entsteht ein neuer Link."
+  },
+  "area": {
+    "until": "Link gültig bis {date}",
+    "whole": "Ganzer Bereich — später angelegte Sammlungen kommen dazu.",
+    "notReady": "Abschrift noch nicht fertig",
+    "fresh": "Abschrift aktuell",
+    "stale": "Abschrift wird aufgefrischt",
+    "noCollections": "Keine Sammlungen in diesem Link."
+  },
+  "part": {
+    "books": "Bibliothek",
+    "writing": "Skriptorium",
+    "knowledge": "Wissensbasis"
+  },
+  "days": {
+    "30": "einen Monat",
+    "90": "3 Monate",
+    "365": "ein Jahr"
+  },
+  "renew": {
+    "for": "Verlängern um",
+    "open": "Verlängern",
+    "working": "Wird verlängert…",
+    "done": "{area}: lesbar bis {date}."
+  },
+  "remove": {
+    "open": "Aus der Verbindung entfernen",
+    "ask": "„{area}” aus dieser Verbindung entfernen?",
+    "body": "Der Assistent liest diesen Bereich ab seinem nächsten Aufruf nicht mehr. Die anderen Bereiche bleiben verbunden, und der Zugangslink des Bereichs selbst bleibt bestehen.",
+    "confirm": "Entfernen",
+    "working": "Wird entfernt…",
+    "done": "{area} aus der Verbindung entfernt."
+  },
+  "revoke": {
+    "open": "Assistenten trennen",
+    "ask": "{client} trennen?",
+    "body": "Der Assistent verliert ab seinem nächsten Aufruf den Zugang zu allen Bereichen dieser Verbindung. Die Zugangslinks der Bereiche bleiben bestehen. Um ihn wieder zu verbinden, melde dich vom Assistenten aus an.",
+    "confirm": "Trennen",
+    "working": "Wird getrennt…",
+    "done": "Der Assistent ist getrennt."
+  },
+  "add": {
+    "open": "Bereich hinzufügen",
+    "title": "Einen Bereich zu {client} hinzufügen",
+    "area": "Bereich",
+    "areaPlaceholder": "Wähle einen Bereich, den du leitest",
+    "already": "schon verbunden",
+    "subtree": {
+      "one": "Auch den {count} Bereich darunter, den du leitest",
+      "other": "Auch die {count} Bereiche darunter, die du leitest"
+    },
+    "days": "Ein neuer Zugangslink gilt",
+    "review": "Prüfen",
+    "checking": "Die Bereiche werden geprüft…",
+    "reviewLede": "{client} kann dann lesen:",
+    "newLink": "Ein neuer Nur-Lese-Zugangslink für den ganzen Bereich wird angelegt, gültig für {days}.",
+    "existing": "Nutzt den Zugangslink des Bereichs, gültig bis {date}.",
+    "existingWhole": "Nutzt den Zugangslink des Bereichs für den ganzen Bereich, gültig bis {date}.",
+    "permissions": "Berechtigungen:",
+    "permissionsText": "nur lesen. Der Assistent kann diese Sammlungen und ihre Volltexte durchsuchen und lesen. Er kann nichts ändern und sieht keine Lernstände, Antworten, Chats, Formulare oder Kalender.",
+    "noReconnect": "Keine neue Anmeldung nötig: die Bereiche erscheinen für den Assistenten bei seinem nächsten Aufruf, neben denen, die er schon liest.",
+    "confirm": {
+      "one": "Lesen von {count} Bereich erlauben",
+      "other": "Lesen von {count} Bereichen erlauben"
+    },
+    "adding": "{area} wird hinzugefügt ({n}/{total})…",
+    "snapshots": "{area}: Abschriften werden vorbereitet {done}/{total}…",
+    "noKey": "{area}: sein Zugangslink lässt sich auf diesem Gerät nicht öffnen (der Schlüssel des Bereichs fehlt).",
+    "done": "Hinzugefügt: {areas}.",
+    "nothing": "Du leitest keinen Bereich mit Bibliothek, Skriptorium oder Wissensbasis."
+  },
+  "error": {
+    "link_not_allowed": "Der Zugangslink dieses Bereichs funktioniert nicht, oder du leitest den Bereich nicht.",
+    "too_many": "Diese Verbindung liest schon so viele Bereiche wie möglich (20). Entferne zuerst einen.",
+    "not_found": "Diese Verbindung gibt es nicht mehr.",
+    "not_ready": "Der Dienst ist noch nicht aktualisiert — versuche es später."
+  }
+}

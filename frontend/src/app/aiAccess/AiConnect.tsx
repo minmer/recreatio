@@ -19,6 +19,7 @@ import { libraryKindOf, loadLibraries, openLibraries, type LibraryKind } from '.
 import { viewPath } from '../routes';
 import { Unlock } from '../shell/Unlock';
 import { Loading } from '../ui/Loading';
+import { useT } from '../core/i18n';
 import {
   aiSecretOf, approveConnect, createAiAccess, denyConnect, loadAiAccess, loadConnectRequest,
   type AiAccessRow, type ConnectRequest
@@ -37,6 +38,7 @@ const said = (e: unknown): string => (e instanceof WorkspaceError || e instanceo
 const day = (iso: string): string => new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' });
 
 export function AiConnect({ grantId, who }: { grantId: string | null; who: Who }) {
+  const t = useT();
   const [request, setRequest] = useState<ConnectRequest | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
   const [ring, setRing] = useState<Ring | null | undefined>(undefined);
@@ -157,6 +159,8 @@ export function AiConnect({ grantId, who }: { grantId: string | null; who: Who }
         nic poza nimi, i niczego nie zmieni. To, co przeczyta, trafia do jego dostawcy. Odłączysz go, usuwając link
         (Obszar → Dostęp → Dostęp dla AI) — działa to od razu.
       </p>
+      {/* 0138 — die Verbindung bekommt später weitere Bereiche, ohne neue Anmeldung. */}
+      <p className="wk-hint">{t('aiAccess.connectLater')} <a href={viewPath('account', 'dostep-ai')}>{t('aiAccess.manage')}</a></p>
 
       {ring === undefined ? (
         <Loading lines={2} />

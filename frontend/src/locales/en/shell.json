@@ -38,6 +38,7 @@
     "notifications": "Notifications",
     "security": "Security and keys",
     "transfer": "Data transfer",
+    "aiAccess": "AI access",
     "workspace": "Workspace",
     "signOut": "Sign out"
   },
@@ -98,7 +99,8 @@
     "hint": {
       "notify": "bell order device phone",
       "security": "password key encryption",
-      "transfer": "old data migration transfer"
+      "transfer": "old data migration transfer",
+      "aiAccess": "ai mcp chatgpt claude assistant connection areas"
     },
     "placeholder": "Area, form, page, chat…",
     "label": "Search the workspace",

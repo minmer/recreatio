@@ -14,6 +14,8 @@ import type { Ring } from '../core/keys';
 import { plural } from '../core/plural';
 import { WorkspaceError } from '../core/session';
 import { libraryKindOf, loadLibraries, openLibraries, type LibraryKind } from '../library/library';
+import { useT } from '../core/i18n';
+import { viewPath } from '../routes';
 import { ask } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
 import {
@@ -127,6 +129,8 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
         Na stałe w ChatGPT (albo innym asystencie z MCP): dodaj własny serwer MCP <code>{mcpUrl()}</code> z logowaniem OAuth.
         Przy łączeniu zalogujesz się do Recreatio i wybierzesz, które z tych linków asystent dostanie.
       </p>
+      {/* 0138 — einen Bereich einer schon bestehenden Verbindung hinzufügen: ohne neue Anmeldung, auf der Seite der Verbindungen. */}
+      <ManageLink />
 
       {list === null ? (
         unavailable ? <p className="wk-empty">Dostęp dla AI jest teraz niedostępny — spróbuj później.</p> : error === null ? <Loading lines={2} /> : null
@@ -383,6 +387,12 @@ function PartsForm({ containers, chosen, whole: wholeAtStart = false, busy, labe
       </div>
     </form>
   );
+}
+
+/** 0138 — zur Seite der MCP-Verbindungen (im Konto), wo Bereiche ohne neue Anmeldung dazukommen. */
+function ManageLink() {
+  const t = useT();
+  return <p className="wk-hint">{t('aiAccess.manageHint')} <a href={viewPath('account', 'dostep-ai')}>{t('aiAccess.manage')}</a></p>;
 }
 
 export default AiAccessPanel;

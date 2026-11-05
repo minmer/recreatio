@@ -1,0 +1,115 @@
+{
+  "title": "AI access",
+  "lede": "Assistants such as ChatGPT or Claude that you connected to Recreatio (MCP) read the areas of their connection — only read, and only the Library, Scriptorium and knowledge bases. Add, renew or remove areas here.",
+  "onlyYou": "Only you",
+  "manage": "Manage AI connections",
+  "manageHint": "Already connected an assistant? Add this area to its connection without signing in again:",
+  "connectLater": "You can add more areas to this connection later, without connecting again:",
+  "unlockWhy": "Access links open only on your device — enter your password.",
+  "none": "No assistant is connected yet. In ChatGPT or Claude, add a custom MCP server with the address above and OAuth; Recreatio then asks you which areas it may read. After that, its connection appears here and you can add more areas.",
+  "older": "Connections made before 5 November 2026 keep working with the areas chosen back then, but they are not listed here and cannot be extended. Reconnect such an assistant once; from then on you add areas here.",
+  "how": {
+    "title": "How it works",
+    "server": "Server address for the assistant:",
+    "noReconnect": "Adding, renewing or removing an area needs no new sign-in: the assistant sees the change at its next call (list_collections).",
+    "reconnect": "Sign in again from the assistant only for a new assistant, an older connection, or a connection that was revoked or has expired.",
+    "readOnly": "Always read-only: the assistant can search and read the collections of its areas. It cannot change anything and never sees learner progress, answers, chats, forms or calendars."
+  },
+  "connection": {
+    "until": "active until {date}",
+    "since": "connected {date}",
+    "used": "last used {date}",
+    "neverUsed": "not used yet",
+    "noAreas": "This connection reads no area right now. Add one — the assistant stays connected."
+  },
+  "status": {
+    "ok": "readable",
+    "expired": "link expired",
+    "pending": "link unfinished",
+    "notLeader": "you no longer lead it",
+    "creatorLeft": "link creator left"
+  },
+  "statusHelp": {
+    "ok": "The assistant reads this area.",
+    "expired": "The access link of this area has expired. Renew it, and the assistant reads it again.",
+    "pending": "The access link of this area was never finished. Remove the area and add it again.",
+    "notLeader": "You no longer lead this area, so this connection does not read it.",
+    "creatorLeft": "The person who made this access link no longer leads the area. Remove the area and add it again — a new link is made."
+  },
+  "area": {
+    "until": "link valid until {date}",
+    "whole": "Whole area — collections created later are included.",
+    "notReady": "snapshot not ready yet",
+    "fresh": "snapshot up to date",
+    "stale": "snapshot being refreshed",
+    "noCollections": "No collections in this link."
+  },
+  "part": {
+    "books": "Library",
+    "writing": "Scriptorium",
+    "knowledge": "Knowledge base"
+  },
+  "days": {
+    "30": "a month",
+    "90": "3 months",
+    "365": "a year"
+  },
+  "renew": {
+    "for": "Renew for",
+    "open": "Renew",
+    "working": "Renewing…",
+    "done": "{area}: readable until {date}."
+  },
+  "remove": {
+    "open": "Remove from connection",
+    "ask": "Remove „{area}” from this connection?",
+    "body": "The assistant stops reading this area at its next call. Other areas stay connected, and the area's access link itself is kept.",
+    "confirm": "Remove",
+    "working": "Removing…",
+    "done": "{area} removed from the connection."
+  },
+  "revoke": {
+    "open": "Disconnect assistant",
+    "ask": "Disconnect {client}?",
+    "body": "The assistant loses access to every area of this connection at its next call. The areas' access links are kept. To connect it again, sign in from the assistant.",
+    "confirm": "Disconnect",
+    "working": "Disconnecting…",
+    "done": "The assistant is disconnected."
+  },
+  "add": {
+    "open": "Add area",
+    "title": "Add an area to {client}",
+    "area": "Area",
+    "areaPlaceholder": "Choose an area you lead",
+    "already": "already connected",
+    "subtree": {
+      "one": "Also the {count} area below it that you lead",
+      "other": "Also the {count} areas below it that you lead"
+    },
+    "days": "A new access link lasts",
+    "review": "Review",
+    "checking": "Checking the areas…",
+    "reviewLede": "{client} will be able to read:",
+    "newLink": "A new read-only access link for the whole area is made, valid for {days}.",
+    "existing": "Uses the area's access link, valid until {date}.",
+    "existingWhole": "Uses the area's access link for the whole area, valid until {date}.",
+    "permissions": "Permissions:",
+    "permissionsText": "read only. The assistant can search and read these collections and their full texts. It cannot change anything and sees no learner progress, answers, chats, forms or calendars.",
+    "noReconnect": "No new sign-in is needed: the areas appear for the assistant at its next call, next to the areas it already reads.",
+    "confirm": {
+      "one": "Allow reading {count} area",
+      "other": "Allow reading {count} areas"
+    },
+    "adding": "Adding {area} ({n}/{total})…",
+    "snapshots": "{area}: preparing snapshots {done}/{total}…",
+    "noKey": "{area}: its access link cannot be opened on this device (the area's key is missing).",
+    "done": "Added: {areas}.",
+    "nothing": "You lead no area with a Library, Scriptorium or knowledge base."
+  },
+  "error": {
+    "link_not_allowed": "This area's access link does not work, or you do not lead the area.",
+    "too_many": "This connection already reads the most areas it can (20). Remove one first.",
+    "not_found": "This connection no longer exists.",
+    "not_ready": "The service is not updated yet — try again later."
+  }
+}

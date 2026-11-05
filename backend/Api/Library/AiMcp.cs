@@ -36,7 +36,7 @@ public static class AiMcp
 
     public const string Instructions =
         "Recreatio: read-only access to the Library (sources), Scriptorium (own texts) and knowledge bases (Cogita) the user authorized. " +
-        "Start with list_collections, read entry types with get_schema, find entries with search_entries (all words; a short reference like \"J 21\" matches as a phrase), " +
+        "Start with list_collections (get_access_overview shows the authorized areas as a tree with their permissions — always read-only; areas the user adds in Recreatio appear at the next call, without reconnecting), read entry types with get_schema, find entries with search_entries (all words; a short reference like \"J 21\" matches as a phrase), " +
         "read full entries with get_entry and follow arguments with get_related (fields such as grounds/objections). " +
         "To read many entries in full (e.g. all questions of a base), call search_entries with kind and includeData true — pages of up to 200 with the data as stored; every entry and every id in its data comes with its lasting name (ref, names: id → \"@name\"), the same names an import uses; a reference value may be a UUID or \"@name\". " +
         "A reconstructed argument of a work: a field whose schema says \"structure\": \"up\" links a step to the step above it. Start at the leading question and call get_related with direction \"in\", fields [that field] and depth 3; continue with another call from every node at depth 3. If the result is truncated (at most 60 nodes per call), its edges still name the steps that did not fit: continue from those too. Order steps by the locator of their reference to the work. " +

@@ -220,6 +220,7 @@ function AccountMenu({ who, onSignOut }: { who: Who; onSignOut?: () => void }) {
         { label: t('i18n.title'), icon: 'globe', onSelect: () => { window.location.hash = viewPath('account', 'jezyk').slice(1); } },
         { label: t('shell.account.security'), icon: 'shield', onSelect: () => { window.location.hash = viewPath('account', 'bezpieczenstwo').slice(1); } },
         { label: t('shell.account.transfer'), icon: 'refresh', onSelect: () => { window.location.hash = viewPath('account', 'przeniesienie').slice(1); } },
+        { label: t('shell.account.aiAccess'), icon: 'key', onSelect: () => { window.location.hash = viewPath('account', 'dostep-ai').slice(1); } },
         onSignOut !== undefined && { label: t('shell.account.signOut'), icon: 'logout', onSelect: onSignOut }
       ]}
     />

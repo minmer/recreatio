@@ -19,7 +19,7 @@
  * Knopf, bevor er gedrückt wird.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { forgetKept, loadKept, setKeyKeeping, type KeptDevice } from '../core/keeping';
 import { knownDevice } from '../core/kept';
@@ -61,8 +61,13 @@ export function Account({ who, trail = [] }: { who: Who; trail?: readonly string
   if (trail[0] === SECURITY) return <SecurityPage who={who} />;
   if (trail[0] === TRANSFER) return <TransferPage who={who} />;
   if (trail[0] === LANGUAGE) return <LanguagePage />;
+  if (trail[0] === AI_ACCESS) return <Suspense fallback={<Loading />}><AiConnectionsPage who={who} /></Suspense>;
   return <AccountPage who={who} />;
 }
+
+/** 0138 — Dostęp dla AI: die MCP-Verbindungen und ihre Bereiche (`aiAccess/AiConnections.tsx`). */
+export const AI_ACCESS = 'dostep-ai';
+const AiConnectionsPage = lazy(() => import('../aiAccess/AiConnections').then((m) => ({ default: m.AiConnectionsPage })));
 
 /** Die Adresse der Seite über Schlüssel und Geräte (Menü des Kontos, Suche). */
 export const SECURITY = 'bezpieczenstwo';

@@ -40,6 +40,7 @@
     "notifications": "Powiadomienia",
     "security": "Bezpieczeństwo i klucze",
     "transfer": "Przeniesienie danych",
+    "aiAccess": "Dostęp dla AI",
     "workspace": "Warsztat",
     "signOut": "Wyloguj"
   },
@@ -100,7 +101,8 @@
     "hint": {
       "notify": "dzwonek kolejność urządzenie telefon",
       "security": "hasło klucz szyfrowanie",
-      "transfer": "stare dane migracja przeniesienie"
+      "transfer": "stare dane migracja przeniesienie",
+      "aiAccess": "ai mcp chatgpt claude asystent połączenie obszary"
     },
     "placeholder": "Obszar, formularz, strona, rozmowa…",
     "label": "Szukaj w warsztacie",

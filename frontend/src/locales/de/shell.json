@@ -38,6 +38,7 @@
     "notifications": "Benachrichtigungen",
     "security": "Sicherheit und Schlüssel",
     "transfer": "Datenübertragung",
+    "aiAccess": "KI-Zugang",
     "workspace": "Arbeitsplatz",
     "signOut": "Abmelden"
   },
@@ -98,7 +99,8 @@
     "hint": {
       "notify": "Glocke Reihenfolge Gerät Telefon",
       "security": "Passwort Schlüssel Verschlüsselung",
-      "transfer": "alte Daten Migration Übertragung"
+      "transfer": "alte Daten Migration Übertragung",
+      "aiAccess": "ki ai mcp chatgpt claude assistent verbindung bereiche"
     },
     "placeholder": "Bereich, Formular, Seite, Gespräch…",
     "label": "Im Arbeitsplatz suchen",
