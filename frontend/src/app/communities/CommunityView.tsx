@@ -15,7 +15,7 @@ import { useCrumbs } from '../shell/crumbTrail';
 import { JsonPanel } from '../ui/JsonPanel';
 import { Loading } from '../ui/Loading';
 import { PageHeader } from '../ui/PageHeader';
-import { flatten, findUnit, staffing, unitsOf, type CommunityDoc } from './community';
+import { flatten, findUnit, positionsOf, staffing, unitsOf, type CommunityDoc } from './community';
 import { planLines } from './communityCompile';
 import { addPeople, changed, moveUnit, removePerson, removeUnit, setPlaces, upsertPerson } from './communityEdit';
 import { COMMUNITY_JSON, exportCommunity, readCommunity, type StoredCommunity } from './communityJson';
@@ -159,11 +159,7 @@ export function CommunityView({ who, ring, areaId, tab, unitKey }: { who: Who; r
 function People({ doc, stored, ring, onChange, onRenew }: { doc: CommunityDoc; stored: StoredCommunity; ring: Ring; onChange: (d: CommunityDoc) => void; onRenew: (key: string) => void }) {
   const units = unitsOf(doc);
   const [unit, setUnit] = useState(units[0]?.unit.key ?? '');
-  const ps = (key: string) => {
-    const u = units.find((x) => x.unit.key === key)?.unit;
-    if (u === undefined) return [];
-    return [...new Map([...(doc.blueprints.find((b) => b.key === u.from)?.positions ?? []), ...(u.positions ?? [])].map((k) => [k, doc.positions.find((p) => p.key === k)])).values()].filter((p) => p !== undefined);
-  };
+  const ps = (key: string) => { const u = findUnit(doc, key)?.unit; return u === undefined ? [] : positionsOf(doc, u); };
   const [position, setPosition] = useState('');
   const [names, setNames] = useState('');
   const [links, setLinks] = useState<readonly LinkRow[]>([]);
@@ -185,7 +181,7 @@ function People({ doc, stored, ring, onChange, onRenew }: { doc: CommunityDoc; s
             <select value={unit} onChange={(e) => { setUnit(e.target.value); setPosition(''); }}>{units.map((f) => <option key={f.unit.key} value={f.unit.key}>{'· '.repeat(f.depth)}{f.unit.name}</option>)}</select>
           </label>
           <label className="wk-field"><span>Pozycja</span>
-            <select value={pos} onChange={(e) => setPosition(e.target.value)}>{ps(unit).map((p) => <option key={p!.key} value={p!.key}>{p!.name}</option>)}</select>
+            <select value={pos} onChange={(e) => setPosition(e.target.value)}>{ps(unit).map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}</select>
           </label>
         </div>
         <label className="wk-field"><span>Imię i nazwisko — jedna osoba w wierszu</span><textarea rows={4} value={names} onChange={(e) => setNames(e.target.value)} data-cm-names="" /></label>
@@ -215,7 +211,7 @@ function People({ doc, stored, ring, onChange, onRenew }: { doc: CommunityDoc; s
                   if (u && q) onChange(setPlaces(doc, p.key, [...p.places, { unit: u, position: q }]));
                 }}>
                   <option value="">+ miejsce…</option>
-                  {units.flatMap((f) => ps(f.unit.key).map((q) => <option key={`${f.unit.key}|${q!.key}`} value={`${f.unit.key}|${q!.key}`}>{f.unit.name} — {q!.name}</option>))}
+                  {units.flatMap((f) => ps(f.unit.key).map((q) => <option key={`${f.unit.key}|${q.key}`} value={`${f.unit.key}|${q.key}`}>{f.unit.name} — {q.name}</option>))}
                 </select>
               </div>
             </li>

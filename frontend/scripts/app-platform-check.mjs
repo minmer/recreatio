@@ -38,6 +38,8 @@
  *      Pliki przez link (0117): Kennung und Schlüssel aus dem Geheimnis, die Hülle, Fotos ohne den Ort;
  *      welche Karte ein Gespräch nimmt (gewählt, Gruppe, zuletzt, das Telefon).
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';

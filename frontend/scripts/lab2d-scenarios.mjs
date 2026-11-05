@@ -9,6 +9,8 @@
  * Die Szenen kommen aus den Voreinstellungen: ändert sich eine, schreibt dieser
  * Lauf die Seite neu.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

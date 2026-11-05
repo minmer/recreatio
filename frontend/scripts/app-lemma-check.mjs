@@ -5,6 +5,8 @@
  * Lücken (auch zum Wählen), Fragen mit Parametern, Beispiele einer Frage in Code — reine Rechnung, ohne Browser.
  * Alte Fragen müssen sich verhalten wie vorher: dieselben Karten, dieselben Fingerabdrücke.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

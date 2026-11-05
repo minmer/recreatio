@@ -10,6 +10,7 @@ import React, { type ReactNode } from 'react';
 import ReactDOM, { type Root } from 'react-dom/client';
 
 import { App } from './App';
+import { LangReady } from './core/i18n';
 import { keepFromAddress } from './seats/seatKeep';
 import { keepLinkFromAddress } from './links/linkKeep';
 import './app.css';
@@ -72,7 +73,7 @@ export function mountApp(node: HTMLElement, wrap: (app: ReactNode) => ReactNode 
   const root = ReactDOM.createRoot(node);
   root.render(
     <React.StrictMode>
-      {wrap(<App />)}
+      <LangReady>{wrap(<App />)}</LangReady>
     </React.StrictMode>
   );
   return root;

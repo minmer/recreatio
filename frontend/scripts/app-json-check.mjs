@@ -14,6 +14,8 @@
  *      der Seite folgt ihnen.
  *   5. Die Beschreibung nennt jede Art und jeden Schlüssel.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';

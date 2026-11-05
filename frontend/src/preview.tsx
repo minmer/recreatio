@@ -7,6 +7,10 @@
  */
 
 import './app/core/polyfills';
+import './locales';
+import { startI18n } from './app/core/i18n';
 import { startPreview } from './app/preview/PreviewApp';
 
-startPreview(document.getElementById('root')!);
+/* 2026-11-05 — die Sprache vor dem ersten Bild; `?lang=` wählt sie für die Vorschau. */
+const asked = new URLSearchParams(window.location.search).get('lang');
+void startI18n(asked === 'en' || asked === 'de' || asked === 'pl' ? asked : undefined).then(() => startPreview(document.getElementById('root')!));

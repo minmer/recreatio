@@ -8,6 +8,8 @@
  *
  *   node scripts/app-generator-check.mjs
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

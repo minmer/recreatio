@@ -16,6 +16,8 @@
  *      der Plan (Veröffentlichen, fremde Seiten, ein zweiter Import), die Beschreibung,
  *      der Auftrag für die KI.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';

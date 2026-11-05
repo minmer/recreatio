@@ -6,6 +6,8 @@
  * Hier steht, was die Kurve tun soll — flach am Anfang, 1 am Ende, und danach
  * ohne Obergrenze weiter, im Mass des eigenen Fensters.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

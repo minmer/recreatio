@@ -10,6 +10,8 @@
  *      welchen Bausteinen werden, was ausgelassen wird und warum.
  *   3. Das Einlesen eines GPX-Tracks und sein Vereinfachen.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';

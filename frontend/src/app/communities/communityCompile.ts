@@ -8,19 +8,18 @@
 import { AREA_FORMAT } from '../areas/areaJson';
 import { DEFAULT_ENTRY } from '../calendar/appointmentsJson';
 import {
-  councilOf, flatten, kindOf, levelOf, positionsOf, slug, unitsOf, valueOf,
+  councilOf, flatten, kindOf, levelOf, positionsOf, rankOf, slug, unitsOf, valueOf,
   type CommunityDoc, type FlatUnit, type Level, type Position, type Unit
 } from './community';
 import type { CommunityState, Stored, UnitView } from './communityJson';
 
-const RANK: Record<Level, number> = { read: 1, write: 2, admin: 3 };
 
 /** Wie die Rolle einer Position in einer Einheit heisst: „Para animatorska · Krąg 3". */
 export const roleName = (p: Position, u: Unit): string => `${p.name} · ${u.name}`.slice(0, 80);
 export const roleKey = (unitKey: string, positionKey: string): string => `${unitKey}/${positionKey}`;
 
 /** Wer über Zapisy hereinkommt: die erste Position mit Uczestnictwo, sonst mit Członkostwo. */
-export const intakePosition = (doc: CommunityDoc, u: Unit): Position | undefined => {
+const intakePosition = (doc: CommunityDoc, u: Unit): Position | undefined => {
   const ps = positionsOf(doc, u);
   return ps.find((p) => p.rights === 'participant') ?? ps.find((p) => p.rights === 'member');
 };
@@ -54,7 +53,7 @@ const endTime = (time: string, minutes: number): string => {
 };
 
 /** Das Ende des Arbeitsjahrs, das gerade läuft (oder kommt): „06-30" → „2027-06-30". */
-export function yearEnd(until: string, from: Date = new Date()): string {
+function yearEnd(until: string, from: Date = new Date()): string {
   const [m, d] = until.split('-').map(Number);
   const y = from.getMonth() + 1 > m || (from.getMonth() + 1 === m && from.getDate() > d) ? from.getFullYear() + 1 : from.getFullYear();
   return `${y}-${two(m)}-${two(d)}`;
@@ -234,7 +233,7 @@ export function desiredAccess(doc: CommunityDoc, state: Pick<CommunityState, 'un
     if (areaId === undefined || roleId === undefined) return;
     const k = `${areaId}|${roleId}`;
     const had = best.get(k);
-    if (had === undefined || RANK[level] > RANK[had.level]) best.set(k, { areaId, roleId, level, why });
+    if (had === undefined || rankOf(level) > rankOf(had.level)) best.set(k, { areaId, roleId, level, why });
   };
   const holds: Hold[] = [];
   for (const { unit } of units) {

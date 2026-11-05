@@ -20,6 +20,8 @@
  */
 
 import './app/core/polyfills';
+import './locales';
+import { startI18n } from './app/core/i18n';
 import { doneIn, gatherNews, readIn, replyIn, type GatherOptions } from './app/notify/notifyRich';
 import { whoIsThere, WorkspaceError } from './app/core/session';
 
@@ -71,7 +73,8 @@ async function perform(task: Task): Promise<unknown> {
 
 const bridge = window.RecreatioRunner;
 if (bridge !== undefined) {
-  let chain: Promise<void> = Promise.resolve();
+  /* 2026-11-05 — Meldungen in der Sprache der Anwendung: erst die Sprache, dann die Aufträge. */
+  let chain: Promise<void> = startI18n();
   window.__recreatioRunner = {
     run(json: string) {
       let task: Task;

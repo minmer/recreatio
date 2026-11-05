@@ -5,6 +5,8 @@
  * Der Python-Code des Arbeiters (`pythonCode.ts`) läuft hier wirklich — in Pyodide unter Node (das Paket liegt in
  * node_modules). Hängende Fälle spielt eine Attrappe nach: eine echte Endlosschleife hielte Node an.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

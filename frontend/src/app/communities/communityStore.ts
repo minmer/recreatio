@@ -15,7 +15,7 @@ export const setupAad = (areaId: string) => aad('area', 'setup', areaId, Field.A
 
 interface SealedSetup { readonly epoch: number; readonly sealed: string; readonly version: number; readonly updatedAt: string }
 
-export interface SetupRow { readonly stored: Stored | null; readonly version: number; readonly updatedAt: string | null; readonly missing: boolean; readonly unreadable: boolean }
+interface SetupRow { readonly stored: Stored | null; readonly version: number; readonly updatedAt: string | null; readonly missing: boolean; readonly unreadable: boolean }
 
 const loadRaw = (areaId: string): Promise<{ setup: SealedSetup | null; missing?: boolean }> =>
   call(`/workspace/area/${encodeURIComponent(areaId)}/setup`);

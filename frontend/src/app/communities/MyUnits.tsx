@@ -18,7 +18,7 @@ import { linkMe } from '../links/linkMe';
 import { pagePath, viewPath } from '../routes';
 import { Loading } from '../ui/Loading';
 import { PageHeader } from '../ui/PageHeader';
-import { rightsLabel, type Rights } from './community';
+import { rankOf, rightsLabel, type Rights } from './community';
 import type { UnitView } from './communityJson';
 import { loadSetup } from './communityStore';
 
@@ -51,10 +51,9 @@ export function MyUnits() {
       const roleIds = new Set(held.roles.map((r) => r.roleId));
       const linkRoles = new Set(held.links.map((l) => l.info?.roleId).filter((x): x is string => x !== undefined));
       const byArea = new Map<string, { name: string; capability: string }>();
-      const rank = (c: string) => ({ read: 1, write: 2, admin: 3 }[c] ?? 0);
       for (const r of held.roles) for (const a of r.areas) {
         const had = byArea.get(a.areaId);
-        if (had === undefined || rank(a.capability) > rank(had.capability)) byArea.set(a.areaId, { name: a.name || had?.name || '', capability: a.capability });
+        if (had === undefined || rankOf(a.capability) > rankOf(had.capability)) byArea.set(a.areaId, { name: a.name || had?.name || '', capability: a.capability });
       }
       const seen = readSeen();
       const chats = await linkChats().catch(() => []);

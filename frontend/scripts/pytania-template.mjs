@@ -9,6 +9,8 @@
  *   node scripts/pytania-template.mjs --check  sagt nur, ob sie stimmt (Exit 1, wenn nicht)
  */
 
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

@@ -32,6 +32,10 @@ Vor dem Einsatz: **Migration 0137 anwenden und den Dienst ausliefern** (Endpunkt
 
 ## 3. Allgemeine Anleitung
 
+**Vorher, zweimal von Hand** (der Plan erinnert daran):
+1. **Adresse beanspruchen.** Die oberste Einheit bekommt ihre Seiten unter EINER Adresse (`address` der obersten Einheit, sonst ein Wort aus dem Namen, z. B. `chor-parafialny`). Alle Einheiten darunter liegen unter ihr (`chor-parafialny/chor-tenor`). Diese eine Adresse beanspruchst du vor dem ersten Speichern: **Strony → „Zajmij adres“** mit dem Code, den du vom Betreiber bekommst. Ohne sie entstehen Struktur, Rollen und Links, aber keine Seiten.
+2. **Datenverantwortlichen setzen.** Nach dem ersten Speichern: **Obszary → die oberste Einheit → Ustawienia → „Administrator danych“** (Name, Anschrift, E-Mail, Aufsichtsbehörde: UODO oder KIOD). Die Einheiten darunter erben ihn. Dann in der Wspólnota noch einmal **„Zapisz zmiany“** (oder denselben JSON noch einmal importieren): jetzt entstehen Rozmowy, Ogłoszenia, Zapisy und die öffentliche Seite.
+
 **Anlegen.** Warsztat → **Wspólnoty** → **Nowa wspólnota**. Name, dann fünf Schritte; zu jeder Antwort steht „Pasuje np.: …“. Wer nur „Dalej“ drückt, bekommt: dauerhaft, vor Ort, wöchentlich, nur mit Einladung, Leitung trägt ein, Rozmowa + Kalender + „Napisz do prowadzących“. Statt leer kann man „Zacznij od przykładu“ wählen (Beispiel-Einstellungen, keine Typen). „Zobacz plan i utwórz“ zeigt die Änderungsliste; „Zapisz zmiany“ legt alles an und zeigt die **neuen Links — jetzt kopieren** (später: Reiter „Osoby“ → „Kopiuj link“).
 
 **Ändern.** Wspólnota öffnen:
@@ -48,6 +52,7 @@ Jede Änderung ist zuerst ein Entwurf; oben steht „Masz niezapisane zmiany“ 
 ## 4. Szenarien — so realisierst du das
 
 ### Szenario 1: Schule, Klassen, Lektionen
+**Zuerst:** Adresse `liceum-jp2` beanspruchen (Strony → „Zajmij adres“). **Nach dem ersten Speichern:** Datenverantwortlichen setzen in Obszary → „Liceum im. Jana Pawła II“ → Ustawienia → „Administrator danych“ (Schule: in der Regel die Schule selbst oder die Pfarrei/den Träger), dann „Zapisz zmiany“ noch einmal.
 1. Wspólnoty → Nowa wspólnota → „Zacznij od przykładu“ → *szkoła z klasami* (oder JSON-Import `example-community-szkola`). Namen der Schule, Klassen, Schüler anpassen (Osoby → Namen zeilenweise auf „Uczeń“ der Klasse).
 2. Zobacz plan i zapisz → Links der Schüler kopieren und verschicken.
 3. Lektionen: im **Skryptorium** der Schule ein Programm (Projekt) mit Lektionen (Texte); Quelltexte mit Absätzen 1a–9d als „Dzieło z tekstem“ in der **Bibliothek** (`work-with-text`), Karten/Fragen in **Cogita** (`knowledge-base`, Verweise auf Absätze über `locations`). Freigabe pro Klasse: Klasse → Reiter „Klasa“ → Programm verwirklichen (Wygłoszenie je Klasse, 0134); dieselbe Lektion für mehrere Klassen zu verschiedenen Zeiten.
@@ -55,6 +60,7 @@ Jede Änderung ist zuerst ein Entwurf; oben steht „Masz niezapisane zmiany“ 
 5. Neue Schuljahre: Klassen umbenennen (1a → 2a) oder neue Einheit aus dem Bauplan; alte als „Rozwiąż“ (bleibt als Archiv).
 
 ### Szenario 2a: Domowy Kościół — erst ein Rejon, dann zwei, dann die Diözese
+**Zuerst:** Adresse `dk-rejon-13` beanspruchen (und für den zweiten Rejon dk-rejon-1; für die Diözese beim Zusammenlegen eine eigene, z. B. dk-krakow) (Strony → „Zajmij adres“). **Nach dem ersten Speichern:** Datenverantwortlichen setzen in Obszary → „Rejon XIII (später: die Diözese — die Rejony erben ihn dann)“ → Ustawienia → „Administrator danych“ (meist die Diözese/der Ruch; Aufsicht: KIOD), dann „Zapisz zmiany“ noch einmal.
 1. JSON-Import `example-community-dk-rejon-13` (Rejon XIII, Bauplan „Krąg“, Krąg rejonowy, Pary, Moderator).
 2. Zweiter Rejon: `example-community-dk-rejon-1` als eigene Wspólnota.
 3. Wspólnoty → beide ankreuzen → „Połącz pod nową jednostką“ → „Archidiecezja krakowska“. Danach in der Diözese Positionen anlegen (Para diecezjalna = lead, Moderator diecezjalny = accompany), `structure.council` an mit „below: para-rejonowa“ = Krąg diecezjalny, `visibility.subunitsSee` an.
@@ -63,16 +69,43 @@ Jede Änderung ist zuerst ein Entwurf; oben steht „Masz niezapisane zmiany“ 
 6. Wahl im Juni: in „Osoby“ die neue Para animatorska eintragen, die alte austragen → beide bekommen neue Links; Inhalte bleiben beim Krąg.
 
 ### Szenario 2b: Oaza in der Pfarrei
+**Zuerst:** Adresse `oaza-parafia` beanspruchen (Strony → „Zajmij adres“). **Nach dem ersten Speichern:** Datenverantwortlichen setzen in Obszary → „Oaza przy parafii“ → Ustawienia → „Administrator danych“ (die Pfarrei; Aufsicht: KIOD), dann „Zapisz zmiany“ noch einmal.
 `example-community-oaza`: Grupy formacyjne entstehen selbst nach „Stopień“ (ODB/OND/ONŻ), Schola und Teatr als Einheiten, öffentliche Seite mit Zapisy (minors), Animator je 8 Teilnehmer in Obsada. Material pro Stufe: Seite der Untergruppe („dla nas“) um Module ergänzen.
 
 ### Szenario 2c: Rekolekcje-Turnus
+**Zuerst:** Adresse `oaza-2027-turnus-2` beanspruchen (Strony → „Zajmij adres“). **Nach dem ersten Speichern:** Datenverantwortlichen setzen in Obszary → „Turnus II — Krościenko 2027“ → Ustawienia → „Administrator danych“ (der Veranstalter (Diakonia/Pfarrei); Aufsicht: KIOD — ohne ihn nimmt die Anmeldung niemanden an), dann „Zapisz zmiany“ noch einmal.
 `example-community-turnus`: befristet (15.–29.07.), Zapisy öffentlich mit Limit 38, Warteliste, Voraussetzung, Bestätigung, minors + health; Diät und Elternkontakt nur Leitung (eigenes Unterformular); Gruppen aus Bauplan; Obsada zeigt „Animator grupy: brakuje N“ (38 / 4). Zimmereinteilung: weitere Einheiten (Zimmer) unter dem Turnus oder ein Feld „Pokój“. Bericht danach: Seite „po“ (`public.reports`). Achtung: das Limit wird nicht gezählt.
 
 ### Szenario 2d: Chor
+**Zuerst:** Adresse `chor-parafialny` beanspruchen (Strony → „Zajmij adres“). **Nach dem ersten Speichern:** Datenverantwortlichen setzen in Obszary → „Chór parafialny“ → Ustawienia → „Administrator danych“ (die Pfarrei; Aufsicht: KIOD), dann „Zapisz zmiany“ noch einmal.
 `example-community-chor`: Untergruppen nach Stimme automatisch, Proben donnerstags (wöchentlicher Termin), Pasterka und Odpust in `extra.appointments`, Zapisy per Einladungslink (`intake.mode: link`), Konzerte öffentlich. Noten je Stimme: Dateien auf der Seite „dla nas“ der Stimmgruppe.
 
 ### Szenario 3: Lerngruppe mit Cogita
+**Zuerst:** Adresse `grupa-grawitacja` beanspruchen (Strony → „Zajmij adres“). **Nach dem ersten Speichern:** Datenverantwortlichen setzen in Obszary → „Grupa: Grawitacja“ → Ustawienia → „Administrator danych“ (du selbst oder die Schule; Aufsicht: UODO (oder KIOD bei kirchlichem Träger)), dann „Zapisz zmiany“ noch einmal.
 1. `example-community-grupa-nauki` importieren (online, nach Bedarf, nur Einladung, Rozmowa + „Napisz do prowadzących“ + `talk.direct`).
 2. Cogita: Baza wiedzy „Grawitacja“ mit den zwölf Schritten (Prompt-/Import `knowledge-base`; der Leitfaden `guide-stories` beschreibt aufeinander aufbauende Schritte mit „Wymaga“).
 3. Kurs-Bereich: Reiter „Kurs“ → Baza wählen; auf der Seite „dla nas“ der Gruppe das Modul „Powtórka“ (cogita-revision) einsetzen; Lernanleitung als Text-Modul darüber (Reihenfolge, wie oft, bis wann, was vorher lesen).
 4. Fortschritt: Lehrer sieht „Postępy“ aller (Kurs-Reiter), Lernende nur ihren eigenen.
+
+## 5. Geprüft (2026-11-05, private LocalDB-Kopie, nie Produktion)
+
+Durchgespielt mit der echten App (Vite) und dem echten Dienst gegen eine eigene LocalDB; die Skripte liegen nicht im Repository.
+
+| Prüfung | Ergebnis |
+|---|---|
+| Import DK Rejon XIII: 4 Einheiten + Krąg rejonowy, 12 Rollen, 20 Zugänge, 7 Links; gleicher Import noch einmal | ändert nichts |
+| Zwei Rejony unter eine Diözese gelegt (Zusammenlegen), Krąg 3 von Rejon XIII nach Rejon I verschoben | Para rejonowa XIII verliert Krąg 3, Para rejonowa I führt ihn; die Pary animatorskie wechseln vom Krąg rejonowy XIII in den Krąg rejonowy I |
+| Mitglieds-Link ruft eine andere Einheit direkt auf (Einstellungen, Mitglieder, Seite „dla nas“) | vom Dienst abgelehnt („Takiego obszaru nie ma“ / „tylko dla osób, które mają dostęp“), nicht nur ausgeblendet |
+| Mitglieds-Link: eigene Einheit, Seite der Einheit darüber („Jednostki niżej widzą tę“) | lesbar |
+| Alter Link nach Umzug (Maria Lis → anderer Krąg) | neuer Link; der alte ist für den Dienst tot, kein Zugriff mehr |
+| Nachbar-Rejon | sieht Rejon XIII nicht, liest die gemeinsame Diözese |
+| Paar | zwei Links, beide halten dieselbe Positionsrolle; in Rozmowy schreibt jeder als „Imię Nazwisko (Rola)“ (0095) |
+| Moderator (Towarzyszenie) | in Rejon und allen Kręgi nur „read“ — der Dienst nimmt von ihm keine Änderung an |
+| Mitgliederseite ohne Link | abgelehnt (nicht öffentlich) |
+| Namen | keine Personennamen in Link-Etiketten, Import-Schlüsseln, Einheits-Schlüsseln oder Adressen |
+
+**Nur am Code geprüft:** „eigene Beiträge bleiben“ — das Zurücknehmen eines Links sperrt nur Einladung, Kanten und Schlüssel (`Roles.Invites.cs`), Nachrichten und Einträge werden nicht gelöscht; der Mensch kann sie mit dem alten Link aber nicht mehr lesen. Dass bei einem Paar der Autor einer Nachricht erkennbar ist, kommt aus 0095 (Person eines Links) und wurde hier nicht eigens durchgespielt.
+
+**Gefunden und behoben dabei:** Seiten brauchen eine Seite darüber (Mitgliederseite jetzt auf der Adresse der Einheit, wenn sie keine öffentliche hat); Kalender-Bausteine ohne Termine (der Bereichsimport holt den Kalender jetzt auch dann); nach dem Import kannte der Schlüsselbund die neuen Links nicht („Kopiuj link“ leer bis zum Neuladen).
+
+**Offen:** der Abnahmetest „Lektion aus vorhandenem Material“ (J 21, Auftrag Abschnitt 7) — die aktualisierte Auftragsdatei und der Ordner `beispiele/` lagen nicht vor.

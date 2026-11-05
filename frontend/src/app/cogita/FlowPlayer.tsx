@@ -37,7 +37,7 @@ import {
   chaptersLeft, detourRefused, follow, goalsReached, linesNow, markSaid, optionsOf, readFlow, resolveFlow, reviewOf, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext
 } from './flow';
-import { detourOf, detourState, openDetours, requiredOpen, type DetourConfig } from './detour';
+import { detourOf, detoursIn, detourState, openDetours, requiredOpen, type DetourConfig } from './detour';
 import { DetourCard, summaryField } from './DetourCard';
 import { branchesOf, type BranchContext } from './pathBranches';
 import type { EntriesOfStep } from './flowPath';
@@ -702,8 +702,10 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     const story = nextWork.get(id)?.flow;
     const work = nextWork.get(id)?.work ?? '';
     const names = (list: readonly string[]) => list.map((x) => (x === running.unit ? running.name : name(x))).slice(0, 4).join(', ');
+    const kept = story === undefined ? undefined : posOf(story.id);
+    const started = kept !== undefined && kept.done !== true && (kept.visited.length > 1 || (kept.inside?.length ?? 0) > 0);
     return {
-      id, label: story?.name ?? name(id), kind, ready, work, ...(note === undefined ? {} : { note }),
+      id, label: story?.name ?? name(id), kind, ready, work, ...(note === undefined ? {} : { note }), ...(started ? { state: 'started' as const } : {}),
       why: [missing.length > 0 ? W.needsFirst(names(missing)) : '', due.length > 0 ? W.dueFirst(names(due)) : ''].filter(Boolean),
       ...(ready ? { action: { label: kind === 'story' ? W.startStory : W.learn, run: () => { if (story !== undefined) startStory(story); else startTopic(id); } } } : {})
     };
@@ -724,7 +726,24 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       if (ahead.nearest !== null) list.unshift(nextStep(ahead.nearest.id, ahead.nearest.kind, true, [], [], W.nearest));
       else if (onClose !== undefined) list.unshift({ id: '~map', label: W.backToMap, kind: 'map', ready: true, action: { label: W.backToMap, run: onClose } });
     }
-    return [...detourNext, ...list];
+    /*
+      2026-11-05 — DANACH, WAS SCHON GETAN IST (vom Nutzer: „sehen, welche weiteren Geschichten ich schon gemacht habe"): die
+      ukończone Abstecher dieser Erzählung und die schon gelernten Nachfolger — grün mit ✓, zum Wiederholen.
+    */
+    const doneDetours: PathNext[] = [];
+    for (const d of detoursIn(running)) {
+      const f = d.optional && innerDone(d.flow) ? flowOf(d.flow) : undefined;
+      if (f === undefined || f.id === running.id || doneDetours.some((x) => x.id === `detour:${f.id}`)) continue;
+      doneDetours.push({ id: `detour:${f.id}`, label: f.name, kind: 'story', ready: true, state: 'done', work: innerWork(f), note: W.detourNote, action: { label: W.detourRemind, run: () => startFree(f) } });
+    }
+    const doneNext: PathNext[] = (ahead.done ?? []).flatMap((id): PathNext[] => {
+      const f = ahead.stories.get(id);
+      const story = f === undefined ? undefined : flowOf(f.id) ?? f;
+      if (story !== undefined && doneDetours.some((x) => x.id === `detour:${story.id}`)) return [];
+      return [{ id: `done:${id}`, label: story?.name ?? name(id), kind: story !== undefined ? 'story' : 'topic', ready: true, state: 'done',
+        action: { label: W.detourRemind, run: () => { if (story !== undefined) startStory(story); else startTopic(id); } } }];
+    });
+    return [...detourNext, ...list, ...doneDetours, ...doneNext];
   })();
 
   const withPath = (story: ReactNode): ReactNode => (pathModelNow.nodes.length < 2 ? story : (

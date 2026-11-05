@@ -18,6 +18,8 @@
  *   9. Kurz oder gehalten (2026-10-21): kurz der ganze Sygnał, gehalten so lange wie gedrückt (live im Telefon,
  *      losgelassen sofort; wartete er, danach so lange, wie gedrückt war), Stop; die Knöpfe ohne Limit.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';

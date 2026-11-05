@@ -7,6 +7,8 @@
  * Protokoll eines Laufs (erste Antwort, Podpowiedź, aktive Zeit) und das Tagesziel (verschiedene Karten je Tag, Serie,
  * Woche).
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

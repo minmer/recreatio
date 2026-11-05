@@ -46,6 +46,8 @@ export interface PathNext {
   /** Ein Satz darüber (z. B. „Najbliższe pole na mapie"). */
   readonly note?: string;
   readonly action?: { readonly label: string; readonly run: () => void };
+  /** 2026-11-05 — wie weit der Lernende dort schon ist: zu Ende („ukończone", grün mit ✓) oder begonnen. */
+  readonly state?: 'done' | 'started';
 }
 
 /**
@@ -250,7 +252,8 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
   const labelW = Math.max(colMin < 112 ? 60 : 96, cW - labelX - 4);
   useLayoutEffect(() => {
     const c = canvas.current;
-    if (c !== null) c.style.width = `${Math.ceil(cW)}px`;
+    /* 2026-11-05 — mindestens so breit wie die Karte; „Co dalej" darüber darf sie breiter machen (eine Fläche, ein Ziehen). */
+    if (c !== null) { c.style.width = ''; c.style.minWidth = `${Math.ceil(cW)}px`; }
     const p = plane.current;
     if (p !== null) { p.style.width = `${Math.ceil(cW)}px`; p.style.height = `${Math.ceil(gH)}px`; }
   }, [cW, gH, open, whole]);
@@ -291,6 +294,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
     setGlow(g);
   }, [litNow.key, memory]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const centered = useRef(false);
   /* „Jetzt dran" ins Bild, wenn die Karte im Rahmen rollt (vergrössert oder höher als er). */
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -298,10 +302,14 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
     const p = at[marks.current];
     if (p === undefined) return;
     const top = (canvas.current?.offsetHeight ?? 0) - gH + p.y;
+    /* 2026-11-05 — die Karte steht mittig unter „Co dalej" (das sie breiter machen kann): x in der ganzen Fläche. */
+    const x = (plane.current?.offsetLeft ?? 0) + p.x;
     const outY = el.scrollHeight > el.clientHeight + 1 && (top < el.scrollTop + 24 || top > el.scrollTop + el.clientHeight - 24);
-    const outX = el.scrollWidth > el.clientWidth + 1 && (p.x < el.scrollLeft + 16 || p.x > el.scrollLeft + el.clientWidth - 16);
-    if (outY || outX || zoom !== 0) el.scrollTo({ left: Math.max(0, p.x - el.clientWidth / 2), top: Math.max(0, top - el.clientHeight / 2) });
-  }, [zoom, marks.current, open, s, model]); // eslint-disable-line react-hooks/exhaustive-deps
+    const outX = el.scrollWidth > el.clientWidth + 1 && (x < el.scrollLeft + 16 || x > el.scrollLeft + el.clientWidth - 16);
+    const first = !centered.current && el.scrollWidth > el.clientWidth + 1;
+    centered.current = true;
+    if (outY || outX || first || zoom !== 0) el.scrollTo({ left: Math.max(0, x - el.clientWidth / 2), top: Math.max(0, top - el.clientHeight / 2) });
+  }, [zoom, marks.current, open, s, model, next?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Ganz: Escape schliesst. */
   useEffect(() => {
@@ -570,17 +578,18 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
       <span className="cg-pm-next-h">{T.whatNext}</span>
       <div className="cg-pm-next-list">
         {next.map((it) => (
-          <button key={it.id} type="button" className={`cg-pm-next-item${it.ready ? ' is-ready' : ' is-wait'}${it.kind === 'map' ? ' is-map' : ''}${shown === `${NEXT}${it.id}` ? ' is-on' : ''}`}
-            data-path-next-item={it.id} data-path-next-ready={it.ready ? '1' : '0'} data-path-next-kind={it.kind} aria-pressed={chosen === `${NEXT}${it.id}`} title={[plainOf(it.label), it.note, it.work].filter(Boolean).join(' · ')}
+          <button key={it.id} type="button" className={`cg-pm-next-item${it.state === 'done' ? ' is-done' : it.ready ? ' is-ready' : ' is-wait'}${it.state === 'started' ? ' is-started' : ''}${it.kind === 'map' ? ' is-map' : ''}${shown === `${NEXT}${it.id}` ? ' is-on' : ''}`}
+            data-path-next-item={it.id} data-path-next-ready={it.ready ? '1' : '0'} data-path-next-kind={it.kind} data-path-next-state={it.state ?? 'new'} aria-pressed={chosen === `${NEXT}${it.id}`} title={[plainOf(it.label), it.note, it.work].filter(Boolean).join(' · ')}
             onClick={() => pick(`${NEXT}${it.id}`)} onPointerEnter={enter} onPointerLeave={leave}>
             <svg className="cg-pm-next-icon" viewBox="-12 -12 24 24" aria-hidden>
               {it.kind === 'map' ? <circle className="cg-pm-hex" r={10} /> : <polygon className="cg-pm-hex" points={HEX(10.5)} />}
               <path className="cg-pm-icon" d={kindIcon(it.kind === 'map' ? 'map' : it.kind === 'story' ? 'read' : 'learn', 10)} />
-              {!it.ready && <circle className="cg-pm-due" cx={7} cy={-7} r={3.5} />}
+              {!it.ready && it.state !== 'done' && <circle className="cg-pm-due" cx={7} cy={-7} r={3.5} />}
+              {it.state === 'done' && <g className="cg-pm-next-check" transform="translate(7,-7)"><circle r={4.6} /><path d="M-2.2,0.1 L-0.6,1.8 L2.4,-1.6" /></g>}
             </svg>
             <span className="cg-pm-next-text">
               <span className="cg-pm-next-name"><TexText text={it.label} /></span>
-              <span className="cg-pm-next-kind">{[it.note, it.work, it.ready ? '' : T.nextNotYet].filter(Boolean).join(' · ')}</span>
+              <span className="cg-pm-next-kind">{[it.state === 'done' ? T.nextDone : it.state === 'started' ? T.nextStarted : '', it.note, it.work, it.ready || it.state === 'done' ? '' : T.nextNotYet].filter(Boolean).join(' · ')}</span>
             </span>
           </button>
         ))}

@@ -17,6 +17,8 @@
  *   8. Gezeichnet (ohne Browser): Kästen, ∎, Rysunek, Kod, Verweise; die Abschrift für den Dostęp dla AI.
  *   9. Der Zapis (Bazy wiedzy, Skryptorium, Cogita, Seiten): `$…$` wird ein Wzór, „5$" nicht; Klartext; LaTeX-Export.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';

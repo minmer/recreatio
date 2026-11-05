@@ -7,6 +7,8 @@
  * führende Rolle; eine ganze Seite kommt offen zurück, als wäre nichts — und
  * ohne Schlüssel leer und `locked`, nie als Hüllen.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

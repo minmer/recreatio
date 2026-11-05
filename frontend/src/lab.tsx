@@ -27,17 +27,10 @@ import { decodeLab, isolated } from './app/lab/particles/fullLab';
 import HelperWorker from './app/lab/particles/helper.worker?worker&inline';
 import './app/app.css';
 import './app/ui/ui.css';
+import './locales';
+import { startI18n } from './app/core/i18n';
 
 const RELOADED = 'recreatio.lab.reloaded';
-
-function language(): void {
-  try {
-    const stored = localStorage.getItem('recreatio.lang');
-    document.documentElement.lang = stored === 'en' || stored === 'de' || stored === 'pl' ? stored : 'pl';
-  } catch {
-    document.documentElement.lang = 'pl';
-  }
-}
 
 /** Einmal neu laden (mit Merker) — `true`, wenn die Seite gleich neu lädt. */
 function reloadOnce(): boolean {
@@ -79,7 +72,8 @@ async function isolate(): Promise<boolean> {
 }
 
 async function start(): Promise<void> {
-  language();
+  /* 2026-11-05 — die Sprache wie in der Anwendung (core/i18n.tsx). */
+  await startI18n();
   if (await isolate()) return;
   const [{ ParticleLab }, { BOILING_SCENE, PARTICLE_PRESETS }] = await Promise.all([
     import('./app/lab/particles/ParticleLab'),

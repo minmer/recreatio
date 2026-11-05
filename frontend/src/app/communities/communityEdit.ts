@@ -4,6 +4,7 @@
  * mit Vorschau wie ein JSON (`communityImport.ts`).
  */
 
+import { freeKey } from '../areas/areaJson';
 import { flatten, setSetting, slug, type Blueprint, type CommunityDoc, type Person, type PersonPlace, type Position, type Unit } from './community';
 
 /** Eine Einheit im Baum ändern. */
@@ -23,12 +24,8 @@ export const setUnitSetting = (doc: CommunityDoc, key: string, path: string, val
   });
 
 /** Ein freier Schlüssel: „krag-4", „krag-4-2" … */
-export function freeUnitKey(doc: CommunityDoc, name: string): string {
-  const taken = new Set(flatten(doc.unit).map((u) => u.unit.key));
-  const base = slug(name);
-  if (!taken.has(base)) return base;
-  for (let n = 2; n < 1000; n += 1) if (!taken.has(`${base}-${n}`.slice(0, 40))) return `${base}-${n}`.slice(0, 40);
-  return `${base.slice(0, 30)}-${Date.now() % 1e6}`;
+function freeUnitKey(doc: CommunityDoc, name: string): string {
+  return freeKey(slug(name), new Set(flatten(doc.unit).map((u) => u.unit.key)), 40);
 }
 
 export function addUnit(doc: CommunityDoc, parentKey: string, unit: Omit<Unit, 'key'> & { key?: string }): CommunityDoc {
@@ -63,9 +60,7 @@ export const removeUnit = (doc: CommunityDoc, key: string, remove = true): Commu
 export function saveAsBlueprint(doc: CommunityDoc, unitKey: string, name: string): CommunityDoc {
   const u = flatten(doc.unit).find((x) => x.unit.key === unitKey)?.unit;
   if (u === undefined) return doc;
-  const taken = new Set(doc.blueprints.map((b) => b.key));
-  let key = slug(name);
-  for (let n = 2; taken.has(key); n += 1) key = `${slug(name)}-${n}`;
+  const key = freeKey(slug(name), new Set(doc.blueprints.map((b) => b.key)), 40);
   const from = doc.blueprints.find((b) => b.key === u.from);
   const bp: Blueprint = {
     key, name,
@@ -90,11 +85,7 @@ export function upsertPosition(doc: CommunityDoc, position: Position): Community
 }
 
 export function freePositionKey(doc: CommunityDoc, name: string): string {
-  const base = slug(name, 28);
-  const taken = new Set(doc.positions.map((p) => p.key));
-  let key = base;
-  for (let n = 2; taken.has(key); n += 1) key = `${base}-${n}`;
-  return key;
+  return freeKey(slug(name, 32), new Set(doc.positions.map((p) => p.key)), 32);
 }
 
 /** Positionen einer Einheit: welche gelten (ohne die aus dem Plan doppelt zu schreiben). */
@@ -105,12 +96,7 @@ export const setUnitPositions = (doc: CommunityDoc, unitKey: string, keys: reado
   });
 
 export function upsertPerson(doc: CommunityDoc, person: Omit<Person, 'key'> & { key?: string }): CommunityDoc {
-  const key = person.key ?? (() => {
-    const taken = new Set(doc.persons.map((p) => p.key));
-    let k = slug(person.name);
-    for (let n = 2; taken.has(k); n += 1) k = `${slug(person.name)}-${n}`;
-    return k;
-  })();
+  const key = person.key ?? freeKey(slug(person.name), new Set(doc.persons.map((p) => p.key)), 40);
   const i = doc.persons.findIndex((p) => p.key === key);
   const persons = [...doc.persons];
   const next = { ...person, key };

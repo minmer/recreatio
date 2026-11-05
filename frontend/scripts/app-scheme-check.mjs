@@ -19,6 +19,8 @@
  *   6. Die Vorlagen selbst: jede Kante trifft einen Knoten, jede Bedingung hat
  *      „tak" und „nie", kein Knoten liegt auf einem anderen, JSON hin und zurück.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { isDeepStrictEqual } from 'node:util';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';

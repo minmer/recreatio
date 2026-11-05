@@ -24,7 +24,7 @@ import { forgetKeys, keysFor } from '../core/ringOf';
 import { WorkspaceError, type Who } from '../core/session';
 import { createLink, issuerIn, loadLinks, revokeLink } from '../links/linkAccess';
 import { addHolder } from '../roles/roles';
-import { councilOf, flatten, positionsOf, withAutoSubgroups, type CommunityDoc, type Unit } from './community';
+import { councilOf, flatten, positionsOf, rankOf, withAutoSubgroups, type CommunityDoc, type Unit } from './community';
 import { addressOf, compileCouncil, compileUnit, desiredAccess, joinMark, linkLabel, personRoles, roleKey, unitView } from './communityCompile';
 import { EMPTY_STATE, type LinkMark, type StoredCommunity } from './communityJson';
 import { loadSetup, saveSetup, setParent } from './communityStore';
@@ -45,7 +45,7 @@ export function carryOver(before: CommunityDoc | null, doc: CommunityDoc): Commu
   const persons = [...doc.persons];
   for (const p of before.persons) if (!persons.some((x) => x.key === p.key)) persons.push(p);
   const now = new Set(flatten(doc.unit).map((u) => u.unit.key));
-  const missing = flatten(before.unit).filter((u) => !now.has(u.unit.key) && (u.parent === null ? false : true));
+  const missing = flatten(before.unit).filter((u) => !now.has(u.unit.key) && u.parent !== null);
   if (missing.length === 0) return { ...doc, persons };
   const attach = (unit: Unit): Unit => {
     const own = missing.filter((m) => m.parent === unit.key && !now.has(m.unit.key));
@@ -212,20 +212,19 @@ export async function runCommunityImport(input: {
     if (m === undefined) { m = (await loadMembers(areaId)).members; members.set(areaId, m); }
     return m;
   };
-  const RANK = { read: 1, write: 2, admin: 3 } as const;
   const keepJoins: string[] = [];
   let joined = 0, dropped = 0;
   for (const j of joins) {
     try {
       const role = held.graph.roles.find((r) => r.id === j.roleId);
       const has = (await membersOf(j.areaId)).find((m) => m.roleId === j.roleId);
-      const top = Math.max(0, ...(has?.capabilities ?? []).map((c) => RANK[c as keyof typeof RANK] ?? 0));
+      const top = Math.max(0, ...(has?.capabilities ?? []).map(rankOf));
       const ours = s.joins.find((x) => x.startsWith(`${j.areaId}|${j.roleId}|`));
-      if (has !== undefined && ours !== undefined && ours !== joinMark(j) && top > RANK[j.level]) {
+      if (has !== undefined && ours !== undefined && ours !== joinMark(j) && top > rankOf(j.level)) {
         /* Weniger als bisher: erst hinaus, dann mit der neuen Stufe herein. */
         await dropFromArea(j.areaId, j.roleId);
         dropped += 1;
-      } else if (has !== undefined && top >= RANK[j.level]) { keepJoins.push(joinMark(j)); continue; }
+      } else if (has !== undefined && top >= rankOf(j.level)) { keepJoins.push(joinMark(j)); continue; }
       if (role === undefined) { warnings.push(`Dostęp (${j.why}): roli nie ma w Twoim koncie — pominięty.`); continue; }
       if (!issuers.has(j.areaId)) issuers.set(j.areaId, await issuerIn(ring, j.areaId));
       const issuer = issuers.get(j.areaId);
@@ -328,6 +327,8 @@ export async function runCommunityImport(input: {
     version = await saveSetup(ring, root, stored, version, null);
   } catch (e) { warnings.push(`Nie zapisano wspólnoty (${failure(e)}).`); }
 
+  /* Der Bund kennt die eben entstandenen Linkrollen sonst nicht („Kopiuj link“ bliebe leer bis zum Neuladen). */
+  forgetKeys();
   return { rootAreaId: root, lines, warnings, links };
 }
 

@@ -12,6 +12,8 @@
  *
  *   node scripts/app-json-bookings-check.mjs
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';

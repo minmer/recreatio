@@ -42,7 +42,9 @@ async function mount(): Promise<void> {
     await startShell();
   }
 
-  const { mountApp } = await import('./app/mount');
+  /* 2026-11-05 — die Sprache vor dem ersten Bild (core/i18n.tsx, src/locales/). */
+  const [{ mountApp }, { startI18n }] = await Promise.all([import('./app/mount'), import('./app/core/i18n'), import('./locales')]);
+  await startI18n();
   mountApp(document.getElementById('root')!);
 }
 

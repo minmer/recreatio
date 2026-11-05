@@ -210,6 +210,9 @@ export function words(lang: Lang) {
     nearest: L('Najbliższe pole na mapie', 'Nächstes Feld auf der Karte', 'Nearest field on the map'),
     nextReady: L('możesz zacząć teraz', 'du kannst jetzt beginnen', 'you can start now'),
     nextNotYet: L('jeszcze nie teraz', 'noch nicht', 'not yet'),
+    /* 2026-11-05 — in „Co dalej": was der Lernende dort schon getan hat. */
+    nextDone: L('ukończone', 'abgeschlossen', 'done'),
+    nextStarted: L('zaczęte', 'begonnen', 'started'),
     needsFirst: (names: string): string => L(`Najpierw poznaj: ${names}`, `Zuerst lernen: ${names}`, `Learn first: ${names}`),
     dueFirst: (names: string): string => L(`Najpierw powtórz: ${names}`, `Zuerst wiederholen: ${names}`, `Review first: ${names}`),
     startStory: L('Zacznij opowieść', 'Geschichte beginnen', 'Start the story'),

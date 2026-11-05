@@ -5,6 +5,8 @@
  * Podpowiedzi, die häufigste falsche Antwort), „Ćwicz to" als Powtórka — und dass ein Widok seinen Modus behält.
  * Ein kleiner Kurs: zwei Kapitel, drei Lektionen, vier Ideen (eine mit Wzór im Namen), Fragen über sie.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

@@ -24,12 +24,12 @@ const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const has = (r: Record<string, unknown>, k: string): boolean => Object.prototype.hasOwnProperty.call(r, k);
 
-/** Klucz pozycji idzie do dokumentu obszaru jako klucz roli — tam najwyżej 32 znaki. */
+/** Der Schlüssel der Position geht als Rollenschlüssel ins Dokument des Bereichs — dort höchstens 32 Zeichen. */
 const POSITION_KEY = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 const KINDS = new Set<string>(PROFILE_KINDS.map((k) => k.kind));
 
-export const MAX_UNITS = 300;
-export const MAX_PERSONS = 2000;
+const MAX_UNITS = 300;
+const MAX_PERSONS = 2000;
 
 /* -- Was die Wspólnota sich merkt ------------------------------------------------------- */
 
@@ -188,7 +188,7 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
   const known = new Set(['format', 'version', 'name', 'positions', 'fields', 'blueprints', 'unit', 'persons']);
   for (const k of Object.keys(value)) if (!known.has(k)) warnings.push(`Nieznany klucz "${k}" — pominięty.`);
 
-  /* Pozycje. */
+  /* Positionen. */
   const positions: Position[] = [];
   for (const [i, raw] of list(value.positions).entries()) {
     const r = rec(raw);
@@ -212,7 +212,7 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
     });
   }
 
-  /* Pola. */
+  /* Felder. */
   const fields: FieldDef[] = [];
   for (const [i, raw] of list(value.fields).entries()) {
     const r = rec(raw);
@@ -228,7 +228,7 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
     });
   }
 
-  /* Plany budowy. */
+  /* Baupläne. */
   const blueprints: Blueprint[] = [];
   for (const [i, raw] of list(value.blueprints).entries()) {
     const r = rec(raw);
@@ -250,13 +250,13 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
     });
   }
 
-  /* Jednostki. */
+  /* Einheiten. */
   const shorthand: Shorthand[] = [];
   const seen = new Set<string>();
   const unit = isRecord(value.unit) ? readUnit(value.unit, '"unit"', warnings, seen, shorthand, 0) : null;
   if (unit === null) return { error: 'Brakuje "unit" — jednostki na górze wspólnoty (z "key" i "name").' };
 
-  /* Sprawdzenia odwołań. */
+  /* Prüfung der Verweise. */
   const unitKeys = new Set(flatten(unit).map((u) => u.unit.key));
   for (const { unit: u } of flatten(unit)) {
     if (u.from !== undefined && !blueprints.some((b) => b.key === u.from)) warnings.push(`Jednostka „${u.key}”: planu „${u.from}” nie ma w "blueprints".`);
@@ -264,7 +264,7 @@ export function readCommunity(value: unknown): { doc: CommunityDoc; warnings: st
   }
   for (const b of blueprints) for (const p of b.positions ?? []) if (!positions.some((x) => x.key === p)) warnings.push(`Plan „${b.key}”: pozycji „${p}” nie ma w "positions".`);
 
-  /* Osoby — najpierw grupą ("people" w jednostce), potem pojedynczo. */
+  /* Personen — zuerst als Gruppe ("people" in der Einheit), dann einzeln. */
   const persons: Person[] = [];
   const add = (one: Person) => {
     const was = persons.findIndex((p) => p.key === one.key);

@@ -39,6 +39,8 @@
  *      den Punkten), LaTeX, das Polecenie, JSON ins offene Formular, das Archiv
  *      (Zeilen, Filter samt Oberthemen, Zahlen — im Browser gerechnet).
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';

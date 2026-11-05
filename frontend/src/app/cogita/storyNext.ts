@@ -45,6 +45,8 @@ export interface StoryNext {
   readonly next: readonly NextStep[];
   /** Ist keiner bereit: das nächste lernbare Feld der Karte (`null`: keins — zurück zur Karte). */
   readonly nearest: NextStep | null;
+  /** 2026-11-05 — die Nachfolger, die der Lernende schon kann (gelernt / zu Ende): „Co dalej" zeigt sie danach, als erledigt. */
+  readonly done?: readonly string[];
 }
 
 /** Was auf diesen Einträgen aufbaut: die ersten lernbaren dahinter (durch Einträge ohne Karten hindurch, bis 4 Schritte). */
@@ -81,7 +83,8 @@ export function storyNext(input: NextInput, limit = 6): StoryNext {
   };
   const steps = found.filter((id) => !input.learned(id)).sort(order).map(stepOf);
   const next = [...steps.filter((s) => s.ready), ...steps.filter((s) => !s.ready)].slice(0, limit);
-  if (next.some((s) => s.ready)) return { next, nearest: null };
+  const done = found.filter((id) => input.learned(id)).sort(order).slice(0, limit);
+  if (next.some((s) => s.ready)) return { next, nearest: null, done };
   /* Keiner bereit: das nächste lernbare Feld — Schritt für Schritt durch den Graphen des Lernens (beide Richtungen). */
   const starts = input.unit === null ? [...input.taught] : [input.unit];
   const seen = new Set<string>(starts);
@@ -90,11 +93,11 @@ export function storyNext(input: NextInput, limit = 6): StoryNext {
     const ring: string[] = [];
     for (const id of wave) for (const v of [...input.needs(id), ...input.builds(id)]) if (!seen.has(v)) { seen.add(v); ring.push(v); }
     const hits = ring.filter((v) => learnable(v) && !inside.has(v) && !input.learned(v)).sort(order).map(stepOf).filter((s) => s.ready);
-    if (hits.length > 0) return { next, nearest: hits[0] };
+    if (hits.length > 0) return { next, nearest: hits[0], done };
     wave = ring;
     if (seen.size > 5000) break;
   }
-  return { next, nearest: null };
+  return { next, nearest: null, done };
 }
 
 /** Was eine Erzählung bringt (ohne ihren Przegląd — er wiederholt): Bilder und die Fragen, die wirklich gefragt würden. */

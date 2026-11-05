@@ -13,6 +13,8 @@
  *   8. Schreiben mit Attrappen: Reihenfolge, was gespeichert ist, kommt zurück; ein Fehler hält an und sagt, wie weit.
  *   9. Die Beispiele zum Einsetzen importieren ohne ein Wort — und der Stand danach exportiert sich wieder ohne Änderung.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';

@@ -10,6 +10,8 @@
  * nicht mehr „diese Seite hat einen eigenen Eintrag", sondern „diese Seite
  * liegt unter einem" — genau das wird hier geprüft.
  */
+import { useLocale } from './i18n-node.mjs';
+await useLocale('pl');
 import { build } from 'esbuild';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

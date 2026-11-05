@@ -14,6 +14,7 @@
  * Vorschlag. Was nicht vererbt wird (Gliederung), gilt nur, wo es steht.
  */
 
+import { keyFrom } from '../areas/areaJson';
 import type { ProfileKind } from '../areas/profile';
 
 export const COMMUNITY_FORMAT = 'recreatio/community';
@@ -42,19 +43,19 @@ export interface Position {
   readonly key: string;
   readonly name: string;
   readonly rights: Rights;
-  /** Obsadza ją para (każde z dwojga dostaje własny link). */
+  /** Eine Position für ein Paar (jeder der beiden bekommt einen eigenen Link). */
   readonly pair?: boolean;
   readonly assign?: Assign;
-  /** Kadencja słowami, np. „3 lata, +2 możliwe”. */
+  /** Amtszeit in Worten, z. B. „3 lata, +2 możliwe”. */
   readonly term?: string;
-  /** Ilu potrzeba w jednostce (obsada). */
+  /** Wie viele in der Einheit gebraucht werden (Besetzung). */
   readonly need?: number;
-  /** Albo: jedna na tylu z innej pozycji — np. animator na 4 uczestników. */
+  /** Oder: einer auf so viele einer anderen Position — z. B. ein Animator auf 4 Teilnehmer. */
   readonly per?: { readonly count: number; readonly of: string };
   readonly note?: string;
 }
 
-/* -- Pola osób (krok 4) ------------------------------------------------------------- */
+/* -- Personenfelder (Schritt 4)------------------------------------------------------------- */
 
 export type FieldKind = 'line' | 'text' | 'choice' | 'date' | 'checkbox' | 'number';
 export const FIELD_KINDS: readonly FieldKind[] = ['line', 'text', 'choice', 'date', 'checkbox', 'number'];
@@ -64,11 +65,11 @@ export interface FieldDef {
   readonly label: string;
   readonly kind: FieldKind;
   readonly options?: readonly string[];
-  /** Widzą tylko prowadzący (zdrowie, dieta, kontakt do rodziców). */
+  /** Sehen nur die Leitenden (Gesundheit, Ernährung, Kontakt zu den Eltern). */
   readonly leadersOnly?: boolean;
 }
 
-/** Propozycje pól — do wyboru w kroku 4. */
+/** Vorschläge für Felder — zur Auswahl in Schritt 4. */
 export const FIELD_PRESETS: readonly FieldDef[] = [
   { key: 'glos', label: 'Głos', kind: 'choice', options: ['sopran', 'alt', 'tenor', 'bas'] },
   { key: 'stopien', label: 'Stopień formacji', kind: 'choice', options: ['ODB', 'OND', 'ONŻ I°', 'ONŻ II°', 'ONŻ III°'] },
@@ -100,11 +101,11 @@ export interface SettingDef {
   readonly kind: 'choice' | 'bool' | 'text' | 'number' | 'date' | 'day' | 'time';
   readonly choices?: readonly Choice[];
   readonly fallback: string | number | boolean | null;
-  /** Dziedziczy jednostka pod spodem? */
+  /** Vererbt die Einheit darunter? */
   readonly inherit: boolean;
-  /** Pokazywane tylko, gdy … */
+  /** Nur angezeigt, wenn … */
   readonly when?: (get: (path: string) => unknown) => boolean;
-  /** Ustawienie dla zaawansowanych — za „Więcej”. */
+  /** Einstellung für Fortgeschrittene — hinter „Więcej”. */
   readonly fine?: boolean;
   readonly hint?: string;
 }
@@ -112,7 +113,7 @@ export interface SettingDef {
 const WEEKDAYS: readonly Choice[] = ['pn', 'wt', 'śr', 'cz', 'pt', 'so', 'nd'].map((d) => ({ value: d, label: d }));
 
 export const SETTINGS: readonly SettingDef[] = [
-  /* Krok 1 */
+  /* Schritt 1 */
   { path: 'life.duration', step: 1, label: 'Jak długo', kind: 'choice', inherit: true, fallback: 'permanent', choices: [
     { value: 'permanent', label: 'Na stałe', example: 'chór, krąg, klasa, oaza' },
     { value: 'limited', label: 'Na czas — z początkiem i końcem', example: 'turnus rekolekcji, wyjazd, projekt koncertowy' }] },
@@ -141,7 +142,7 @@ export const SETTINGS: readonly SettingDef[] = [
     { value: 'anyone', label: 'Każdy może dołączyć', example: 'chór parafialny, oaza, rekolekcje z zapisami' },
     { value: 'invite', label: 'Tylko z zaproszenia', example: 'klasa, grupa ucząca się, krąg' }] },
 
-  /* Krok 2 — nie dziedziczy (dotyczy tej jednej jednostki) */
+  /* Schritt 2 — wird nicht vererbt (betrifft nur diese eine Einheit) */
   { path: 'structure.subgroups', step: 2, label: 'Podgrupy', kind: 'choice', inherit: false, fallback: 'manual', choices: [
     { value: 'manual', label: 'Ręcznie (dodajesz je sam)', example: 'grupy formacyjne, kręgi, klasy' },
     { value: 'byField', label: 'Same, według cechy osoby', example: 'wszystkie tenory, wszyscy z ONŻ I°' }] },
@@ -153,7 +154,7 @@ export const SETTINGS: readonly SettingDef[] = [
     { value: 'admin', label: 'Tylko administrator wspólnoty' },
     { value: 'lead', label: 'Także prowadzący tej jednostki' }] },
 
-  /* Krok 4 */
+  /* Schritt 4 */
   { path: 'intake.mode', step: 4, label: 'Jak się dołącza', kind: 'choice', inherit: true, fallback: 'leaders', choices: [
     { value: 'leaders', label: 'Prowadzący wpisuje osoby', example: 'klasa, krąg, grupa ucząca się — każdy dostaje osobisty link' },
     { value: 'link', label: 'Zaproszenie linkiem', example: 'jeden link dla wszystkich nowych członków chóru' },
@@ -166,7 +167,7 @@ export const SETTINGS: readonly SettingDef[] = [
   { path: 'intake.minors', step: 4, label: 'Są niepełnoletni (zgody rodziców)', kind: 'bool', inherit: true, fallback: false, fine: true },
   { path: 'intake.health', step: 4, label: 'Zbieramy dane o zdrowiu (tylko prowadzący)', kind: 'bool', inherit: true, fallback: false, fine: true },
 
-  /* Krok 5 — narzędzia */
+  /* Schritt 5 — Werkzeuge */
   { path: 'tools.chat', step: 5, label: 'Rozmowa wszystkich', kind: 'bool', inherit: true, fallback: true },
   { path: 'tools.announcements', step: 5, label: 'Ogłoszenia (piszą prowadzący)', kind: 'bool', inherit: true, fallback: false },
   { path: 'tools.askLeaders', step: 5, label: 'Każdy może napisać prywatnie do prowadzących', kind: 'bool', inherit: true, fallback: true },
@@ -180,7 +181,7 @@ export const SETTINGS: readonly SettingDef[] = [
   { path: 'tools.tables', step: 5, label: 'Własne kategorie i tabele (np. oceny)', kind: 'bool', inherit: true, fallback: false },
   { path: 'tools.staffing', step: 5, label: 'Planowanie obsady (gdzie kogoś brakuje)', kind: 'bool', inherit: true, fallback: false },
   { path: 'talk.direct', step: 5, label: 'Osoby piszą też między sobą, jedna do drugiej', kind: 'bool', inherit: true, fallback: false, fine: true },
-  /* Krok 5 — widoczność */
+  /* Schritt 5 — Sichtbarkeit */
   { path: 'visibility.default', step: 5, label: 'Kto domyślnie widzi nowe treści', kind: 'choice', inherit: true, fallback: 'unit', choices: [
     { value: 'me', label: 'Tylko ja' },
     { value: 'persons', label: 'Wybrane osoby' },
@@ -190,7 +191,7 @@ export const SETTINGS: readonly SettingDef[] = [
     { value: 'public', label: 'Publicznie' }] },
   { path: 'visibility.subunitsSee', step: 5, label: 'Jednostki niżej widzą tę jednostkę (jej terminy, materiały)', kind: 'bool', inherit: false, fallback: false,
     hint: 'np. terminy diecezji widzą wszystkie rejony i kręgi' },
-  /* Krok 5 — strona publiczna */
+  /* Schritt 5 — öffentliche Seite */
   { path: 'public.page', step: 5, label: 'Strona publiczna', kind: 'bool', inherit: false, fallback: false },
   { path: 'public.description', step: 5, label: 'Opis', kind: 'text', inherit: false, fallback: null, when: (g) => g('public.page') === true },
   { path: 'public.meetings', step: 5, label: 'Spotkania (godziny)', kind: 'text', inherit: false, fallback: null, when: (g) => g('public.page') === true },
@@ -201,7 +202,7 @@ export const SETTINGS: readonly SettingDef[] = [
 
 export const settingDef = (path: string): SettingDef | undefined => SETTINGS.find((s) => s.path === path);
 
-/** Ustawienia jednostki, jak w JSON: { "life": { "duration": "limited" }, "tools": { … } }. */
+/** Einstellungen der Einheit, wie im JSON: { "life": { "duration": "limited" }, "tools": { … } }. */
 export type Settings = Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 
 export function getSetting(settings: Settings | undefined, path: string): unknown {
@@ -211,7 +212,7 @@ export function getSetting(settings: Settings | undefined, path: string): unknow
   return g === undefined || !Object.prototype.hasOwnProperty.call(g, key) ? undefined : g[key];
 }
 
-/** `undefined` usuwa (wraca do dziedziczenia). */
+/** `undefined` entfernt (fällt zurück aufs Erben). */
 export function setSetting(settings: Settings | undefined, path: string, value: unknown): Settings {
   const [group, key] = path.split('.');
   const was = settings ?? {};
@@ -222,14 +223,14 @@ export function setSetting(settings: Settings | undefined, path: string, value: 
   return out;
 }
 
-/* -- Jednostki, plany budowy, osoby -------------------------------------------------- */
+/* -- Einheiten, Baupläne, Personen-------------------------------------------------- */
 
 export interface Council {
   readonly key: string;
   readonly name: string;
-  /** Pozycje tej jednostki w gronie (np. para rejonowa, moderator). */
+  /** Positionen dieser Einheit im Gremium (z. B. Bezirkspaar, Moderator). */
   readonly own: readonly string[];
-  /** Pozycje jednostek bezpośrednio pod nią (np. para animatorska każdego kręgu). */
+  /** Positionen der Einheiten direkt darunter (z. B. das Animatorenpaar jedes Kreises). */
   readonly below: readonly string[];
 }
 
@@ -237,20 +238,20 @@ export interface Unit {
   readonly key: string;
   readonly name: string;
   readonly kind?: ProfileKind;
-  /** Plan budowy, z którego jednostka bierze pozycje, ustawienia i pola. */
+  /** Bauplan, aus dem die Einheit Positionen, Einstellungen und Felder übernimmt. */
   readonly from?: string;
-  /** Pozycje w tej jednostce (bez planu — tylko te; z planem — dodatkowo). */
+  /** Positionen in dieser Einheit (ohne Plan — nur diese; mit Plan — zusätzlich). */
   readonly positions?: readonly string[];
   readonly settings?: Settings;
   readonly council?: Council;
   readonly units?: readonly Unit[];
-  /** Adres stron jednostki (np. "dk/rejon-13"); pominięty — adres jednostki wyżej + klucz. */
+  /** Adresse der Seiten der Einheit (z. B. "dk/rejon-13"); weggelassen — Adresse der Einheit darüber + Schlüssel. */
   readonly address?: string;
-  /** Istniejący obszar, który staje się tą jednostką (przeniesiony tutaj) — tylko świadomie, np. przy łączeniu. */
+  /** Ein bestehender Bereich, der zu dieser Einheit wird (hierher verschoben) — nur bewusst, z. B. beim Zusammenführen. */
   readonly area?: string;
-  /** Rozwiązana: obszar i treści zostają, wspólnota przestaje nim zarządzać. */
+  /** Aufgelöst: Bereich und Inhalte bleiben, die Gemeinschaft verwaltet ihn nicht mehr. */
   readonly remove?: boolean;
-  /** Dodatkowe części dokumentu obszaru (terminy, strony, podformularze) — jak w „recreatio/area”. */
+  /** Zusätzliche Teile des Bereichsdokuments (Termine, Seiten, Unterformulare) — wie in „recreatio/area”. */
   readonly extra?: Readonly<Record<string, unknown>>;
 }
 
@@ -271,9 +272,9 @@ export interface Person {
   readonly name: string;
   readonly places: readonly PersonPlace[];
   readonly fields?: Readonly<Record<string, string>>;
-  /** Druga osoba pary (np. małżonek) — każde ma własny link, oboje tę samą pozycję. */
+  /** Zweite Person des Paares (z. B. Ehepartner) — jeder hat einen eigenen Link, beide dieselbe Position. */
   readonly pair?: string;
-  /** Usunięta: jej link przestaje działać. */
+  /** Entfernt: ihr Link hört auf zu funktionieren. */
   readonly remove?: boolean;
 }
 
@@ -292,11 +293,11 @@ export interface FlatUnit {
   readonly unit: Unit;
   readonly parent: string | null;
   readonly depth: number;
-  /** Klucze od korzenia do tej jednostki. */
+  /** Schlüssel von der Wurzel bis zu dieser Einheit. */
   readonly path: readonly string[];
 }
 
-/** Jednostki w kolejności drzewa (rodzic przed dziećmi); rozwiązane — też, z `unit.remove`. */
+/** Einheiten in Baumreihenfolge (Eltern vor Kindern); aufgelöste — auch, mit `unit.remove`. */
 export function flatten(root: Unit): FlatUnit[] {
   const out: FlatUnit[] = [];
   const walk = (unit: Unit, parent: string | null, path: readonly string[]) => {
@@ -314,7 +315,7 @@ export const findUnit = (doc: CommunityDoc, key: string): FlatUnit | undefined =
 export const blueprintOf = (doc: CommunityDoc, unit: Unit): Blueprint | undefined =>
   unit.from === undefined ? undefined : doc.blueprints.find((b) => b.key === unit.from);
 
-/** Pozycje jednostki: z planu budowy i własne, bez powtórzeń, tylko znane. */
+/** Positionen der Einheit: aus dem Bauplan und eigene, ohne Doppelungen, nur bekannte. */
 export function positionsOf(doc: CommunityDoc, unit: Unit): Position[] {
   const keys = [...(blueprintOf(doc, unit)?.positions ?? []), ...(unit.positions ?? [])];
   const out: Position[] = [];
@@ -338,7 +339,7 @@ export type Source =
 
 export interface Resolved { readonly value: unknown; readonly source: Source }
 
-/** Wartość ustawienia w jednostce i skąd pochodzi. */
+/** Wert der Einstellung in der Einheit und woher er stammt. */
 export function resolveSetting(doc: CommunityDoc, unitKey: string, path: string): Resolved {
   const def = settingDef(path);
   const chain = flatten(doc.unit);
@@ -367,9 +368,9 @@ export function sourceWords(source: Source): string {
   }
 }
 
-/* -- Krok 1 podpowiada kroki 2–5 ------------------------------------------------------- */
+/* -- Schritt 1 schlägt die Schritte 2–5 vor------------------------------------------------------- */
 
-/** Ustawienia, które wynikają z odpowiedzi kroku 1 — wpisywane tylko tam, gdzie jeszcze nic nie ma. */
+/** Einstellungen, die aus den Antworten von Schritt 1 folgen — nur dort eingetragen, wo noch nichts steht. */
 export function suggestFrom(life: Readonly<Record<string, unknown>>): Settings {
   const online = life.place === 'online';
   const limited = life.duration === 'limited';
@@ -391,7 +392,7 @@ export function suggestFrom(life: Readonly<Record<string, unknown>>): Settings {
   };
 }
 
-/** Dopisuje propozycje tylko tam, gdzie jednostka nie ma własnej wartości. */
+/** Ergänzt Vorschläge nur dort, wo die Einheit keinen eigenen Wert hat. */
 export function withSuggestions(settings: Settings | undefined, suggested: Settings): Settings {
   let out: Settings = settings ?? {};
   for (const [group, values] of Object.entries(suggested)) {
@@ -402,7 +403,7 @@ export function withSuggestions(settings: Settings | undefined, suggested: Setti
   return out;
 }
 
-/* -- Obsada ------------------------------------------------------------------------------- */
+/* -- Besetzung------------------------------------------------------------------------------- */
 
 export interface Staffing {
   readonly unit: string;
@@ -413,11 +414,11 @@ export interface Staffing {
   readonly want: number;
 }
 
-/** Osoby (aktywne) na pozycji w jednostce. */
+/** Personen (aktiv) auf der Position in der Einheit. */
 export const holdersOf = (doc: CommunityDoc, unitKey: string, positionKey: string): Person[] =>
   doc.persons.filter((p) => p.remove !== true && p.places.some((pl) => pl.unit === unitKey && pl.position === positionKey));
 
-/** Gdzie kogoś brakuje — pozycje z "need" albo "per" (np. animator na 4 uczestników, przy limicie miejsc). */
+/** Wo jemand fehlt — Positionen mit "need" oder "per" (z. B. Animator auf 4 Teilnehmer, bei Platzlimit). */
 export function staffing(doc: CommunityDoc): Staffing[] {
   const out: Staffing[] = [];
   for (const { unit } of unitsOf(doc)) {
@@ -435,12 +436,12 @@ export function staffing(doc: CommunityDoc): Staffing[] {
   return out;
 }
 
-/* -- Podgrupy według cechy ------------------------------------------------------------------- */
+/* -- Untergruppen nach Merkmal------------------------------------------------------------------- */
 
 /**
- * Jednostka z "structure.subgroups": "byField" dostaje swoje podgrupy SAMA: jedną na każdą wartość
- * pola (bez wartości — nic), a osoby tej jednostki z tą wartością — na pozycję członka podgrupy.
- * Klucz podgrupy: "<jednostka>-<wartość>". Liczone przy imporcie; w dokumencie ich nie ma.
+ * Eine Einheit mit "structure.subgroups": "byField" bekommt ihre Untergruppen SELBST: eine für jeden Wert
+ * des Feldes (ohne Wert — keine), und die Personen dieser Einheit mit diesem Wert — auf die Position des Untergruppenmitglieds.
+ * Schlüssel der Untergruppe: "<Einheit>-<Wert>". Beim Import berechnet; im Dokument gibt es sie nicht.
  */
 export function withAutoSubgroups(doc: CommunityDoc): CommunityDoc {
   const memberish = (unit: Unit): Position | undefined => positionsOf(doc, unit).find((p) => p.rights === 'member' || p.rights === 'participant');
@@ -469,11 +470,10 @@ export function withAutoSubgroups(doc: CommunityDoc): CommunityDoc {
   return { ...doc, unit, persons };
 }
 
-/** „Rejon XIII” → „rejon-xiii” (do 40 znaków). */
-export function slug(name: string, max = 40): string {
-  const s = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, max).replace(/-+$/g, '');
-  return s === '' ? 'x' : s;
-}
+/** „Rejon XIII” → „rejon-xiii” — derselbe Schlüssel wie im Dokument eines Bereichs (`keyFrom`), hier bis 40 Zeichen. */
+export const slug = (name: string, max = 40): string => keyFrom(name, max);
+
+/** Die Stufen der Reihe nach — „wer darf mehr“. */
+export const rankOf = (level: string): number => ({ read: 1, write: 2, admin: 3 } as Record<string, number>)[level] ?? 0;
 
 export const KEY = /^[a-z0-9][a-z0-9_-]{0,39}$/;
