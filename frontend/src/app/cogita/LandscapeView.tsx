@@ -86,20 +86,6 @@ function useStand(client: LandscapeClient | null, input: LsInput, state: LsState
 }
 
 /** Ein kurzer Fingerabdruck der Themen und ihrer Kanten (dieselben: dieselben Gebiete, ohne neu zu rechnen). */
-/** 2026-11-04 (Prompt 15) — die gespeicherten Plätze eines Widoks (`landscape.layout`), oder null. */
-function readStoredLayout(raw: unknown): { key: string; at: Record<string, readonly [number, number]> } | null {
-  if (typeof raw !== 'object' || raw === null) return null;
-  const l = (raw as Record<string, unknown>).layout;
-  if (typeof l !== 'object' || l === null) return null;
-  const { key, at } = l as Record<string, unknown>;
-  if (typeof key !== 'string' || typeof at !== 'object' || at === null) return null;
-  const out: Record<string, readonly [number, number]> = {};
-  for (const [id, c] of Object.entries(at as Record<string, unknown>)) {
-    if (Array.isArray(c) && c.length === 2 && Number.isInteger(c[0]) && Number.isInteger(c[1])) out[id] = [c[0] as number, c[1] as number];
-  }
-  return { key, at: out };
-}
-
 function graphKey(tg: TopicGraph): string {
   let h = 5381;
   const add = (s: string) => { for (let i = 0; i < s.length; i += 1) h = ((h << 5) + h + s.charCodeAt(i)) | 0; };
@@ -387,18 +373,10 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   */
   const regionsMemKey = `cg-ls-regions:${lib.libraryId}:${viewKey}`;
   /*
-    2026-11-04 (Prompt 15, 1) — DIE PLÄTZE EINMAL JE BAZA: der Inhalt ist im Browser versiegelt (der Dienst kann nicht
-    rechnen), also rechnet der Browser eines Schreibenden, sobald sich die Struktur ändert, und legt die Plätze in den
-    Widok (`landscape.layout` = { key, at: { Thema: [q, r] } }); jeder Lernende liest sie von dort. `key`: genau die
-    Eingaben (Themen, Kanten, verschobene Themen, Fassung des Verfahrens). Passt er nicht, rechnet der Worker neu — mit den
-    alten Plätzen als Ausgang (Themen, die bleiben dürfen, bleiben).
+    2026-11-04 (Prompt 16; vom Nutzer, ersetzt Prompt 15) — DIE KARTE WIRD BEI JEDEM LADEN NEU GERECHNET, aus der Struktur
+    allein (keine gespeicherten Plätze: sonst blieben alte Plätze stehen und neue Themen kämen an den Rand). Während der
+    Benutzung rechnet nichts neu — der Worker behält das Ergebnis, solange sich die Struktur nicht ändert.
   */
-  const layoutKey = `r16:${graphKey(tg)}:${movesKey}`;
-  const storedLayout = useMemo(() => readStoredLayout(savedView === undefined ? undefined : (savedView.data as Record<string, unknown>).landscape), [savedView]);
-  const placesFit = storedLayout !== null && storedLayout.key === layoutKey;
-  const placesRef = useRef(storedLayout?.at);
-  /* 2026-11-04 (Prompt 16) — Plätze eines älteren Verfahrens sind kein Ausgang (sonst bliebe die alte Karte stehen). */
-  placesRef.current = storedLayout !== null && storedLayout.key.startsWith('r16:') ? storedLayout.at : undefined;
   useEffect(() => {
     if (client === null || nest !== null) return undefined;
     let alive = true;
@@ -414,8 +392,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       }
     } catch { /* ohne Speicher: neu gerechnet, aus der Struktur allein */ }
     /* 2026-11-04 (Prompt 13) — dazu die eine Landschaft (feste Plätze aller Themen), im Worker. */
-    const places = placesRef.current;
-    void client.world({ key: `${treeKey}:${placesFit ? 'kept' : 'new'}`, graph: tg.graph, lang, ...(edits?.moves === undefined ? {} : { overrides: { moves: edits.moves } }), ...(previous === undefined ? {} : { previous }), ...(places === undefined ? {} : { places }) })
+    void client.world({ key: treeKey, graph: tg.graph, lang, ...(edits?.moves === undefined ? {} : { overrides: { moves: edits.moves } }), ...(previous === undefined ? {} : { previous }) })
       .then(({ tree, world: made }) => {
         if (!alive) return;
         setComputed({ key: treeKey, tree, world: made });
@@ -423,16 +400,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         try { localStorage.setItem(regionsMemKey, JSON.stringify({ moves: edits?.moves ?? {}, assignment: tree.assignment })); } catch { /* zu gross oder ohne Speicher */ }
       }, (e: unknown) => { if (alive) setRegionsFailed(e instanceof Error ? e.message : String(e)); });
     return () => { alive = false; };
-  }, [client, treeKey, nest, placesFit]); // eslint-disable-line react-hooks/exhaustive-deps
-  /* Ein Schreibender legt neue Plätze ab (einmal je Änderung der Struktur). */
-  useEffect(() => {
-    if (!writes || nest !== null || computed === null || computed.key !== treeKey || placesFit || savedView === undefined) return;
-    const data = savedView.data as Record<string, unknown>;
-    const ls = (typeof data.landscape === 'object' && data.landscape !== null ? data.landscape : {}) as Record<string, unknown>;
-    const at: Record<string, [number, number]> = {};
-    computed.world.cells.forEach((c, t) => { at[tg.graph.ids[t]] = [c.q, c.r]; });
-    void lib.saveDoc('view', { ...data, landscape: { ...ls, layout: { key: layoutKey, at } } }, savedView.id).catch(() => undefined);
-  }, [writes, nest, computed, treeKey, placesFit, layoutKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [client, treeKey, nest]); // eslint-disable-line react-hooks/exhaustive-deps
   const tree = useMemo((): RegionTree | null => {
     if (nest !== null) return nestAsRegions(nest, tg, T.otherTopics, T.wholeMap);
     if (computed === null) return null;

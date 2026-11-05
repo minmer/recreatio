@@ -3594,3 +3594,31 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   `pieces:<view>` loses the topic; answers stay) or, on the goal piece's tile, „Zrezygnuj z tego celu" (goal cleared too).
 - Checks: tsc (only `worldLayout.ts` errors, edited in parallel), app-spacing, app-json (ImportFormats.json
   regenerated), app-landscape, app-style. Not tried in a browser.
+
+## C40 — House, foundation, wedges, view modes, column height (2026-11-05, Prompt 16)
+
+- Files: `worldLayout.ts` (start topic, first ring, foundation by transitive dependants, foundation sectors, wedges from
+  the foundation, territory growth per region and snake runs per sub-region, column placement, top-level repair, the
+  house tile at 0,0), `WorldMap.tsx` (house tile, flat house icon, no dot, Do odkrycia, note, column height, labels on
+  their area, one zoom band per region level, tooltip at the pointer), `worldView.ts` (`keepLabels` with spots and short
+  lines), `LandscapeView.tsx` (no stored layout — computed on each load), `landscapeWords.ts`, `landscape.css`,
+  `json.ts` (format text), `testGraphs.mjs` (`stern8`), `app-worldmap-check.mjs` (house tile, holes, islands, strays,
+  foundation size and shape, regions touching it).
+- Changed by the user during the work: the house on its own tile with a flat icon; a zoom band for every level of
+  sub-regions; no black dot; recompute the map on every load instead of storing it.
+- Layout measures (offline, `app-worldmap-check`):
+
+  | Base | Holes | Islands | Strays | Regions touching the foundation | Foundation | Regions in one piece | Neighbouring | ≤ 2 hexes |
+  |---|---|---|---|---|---|---|---|---|
+  | flat (59) | 0 | 1 | 0 | 8/8 | 13 | 100 % | 68 % | 91 % |
+  | star, Bosko-shaped (65) | 0 | 1 | 0 | 8/8 | 9 (start + 8 successors) | 100 % | 73 % | 88 % |
+  | Bosko-like chain (63) | 0 | 1 | 0 | 7/7 | 16 | 100 % | 62 % | 80 % |
+  | chain (64) | 0 | 1 | 0 | 8/8 | 16 | 100 % | 59 % | 84 % |
+  | branches (64) | 0 | 1 | 0 | 7/7 | 16 | 100 % | 60 % | 88 % |
+  | deep, LAAG-like (278) | 0 | 1 | 0 | 10/10 | 61 | 60 % (top 9/10) | 54 % | 68 % |
+  | 5 000 | 0 | 1 | 0 | 7/7 | 37 | 86 % (top 6/7) | 36 % | 56 % |
+
+- Not reached: in the deep and the 5 000-topic base not every sub-region (and one top region) is one piece.
+- LocalDB browser checks (`scratchpad/p16/f.mjs`, 13 each): star, deep, 5 000 (dark) at 1400 px and flat at 390 px; the
+  Prompt 14 test with the new tilt direction (18/18) and the Prompt 15 test (18/18); dragging 5 000 topics 16.7 ms per
+  frame.

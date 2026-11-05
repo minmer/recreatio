@@ -1098,6 +1098,39 @@ Phones stay awake.
   that no longer exists resumes at the first step not yet visited. The player restores the place when the learner
   arrives late and never writes a place on mere opening. The daily limit is 2000.
 
+### House, foundation, wedges, view modes, column height (2026-11-04/05, Prompt 16)
+
+Wins over Prompt 15 where they differ. Layout in `worldLayout.ts`, drawing in `WorldMap.tsx`.
+
+- **The house** has its own tile at 0,0 (no topic on it): a light flat hexagon with a simple flat house outline lying on it
+  like the names (rotated and foreshortened with the tile), drawn in depth order. Tapping it selects the start topic;
+  "Przywróć widok" centres on it. The old "you are here" dot is gone (changed by the user mid-way).
+- **Step 1, the start**: the start topic is the root (no prerequisites) that most of the base builds on; the first ring is
+  the other roots and the topics that need only the start (at most 12, the most carrying first).
+- **Step 2, the foundation**: how much of the base goes through each topic (transitive dependants, bit sets). The foundation
+  is the start, the first ring and every topic at least half of the base builds on (with what they need), at most a
+  quarter of the base; a leaf region that is half in it comes in whole. In deep (or very large) bases it grows until its
+  rim has room for every top region. Placed as a round disc around the house, split into one contiguous sector per region
+  (angle runs or grown sectors, whichever has fewer split sectors), in the order of the regions' connections.
+- **Step 3, the wedges**: each other top region gets a direction from the foundation topics its topics draw from (directly
+  or through others) and a width by its size; its land grows from its own foundation cells (or the foundation rim on that
+  side) outward.
+- **Step 4, one solid area**: the disc has exactly the rings the base needs. All top regions grow at the same time, ring by
+  ring, each only onto cells next to its own land, the smaller ones finish first (wedges get wider, not longer); an
+  enclosed region takes a rim cell from a neighbour that can still grow elsewhere. Inside each land the sub-regions split
+  it into runs of a snake over its rings (inner first, so what comes earlier lies further in), down to the leaves. Then
+  every topic, in level order across all regions, takes a cell of its own leaf's land, as close to home as allowed, next
+  to what it needs. Afterwards: neighbour swaps, repair of cut-off pieces (leaf and top level), hole filling.
+- **Computed on every page load** from the structure alone; nothing is stored and nothing is recomputed while the page is
+  open (the worker keeps the result). This replaces the stored layout of Prompt 15: stored places kept old cells and
+  pushed the start topic to the rim (changed by the user).
+- **Labels**: far away every top region is named on its own area; a short line only when the area is too small. Each level
+  of sub-regions has its own zoom band between far and the names in the tiles (changed by the user).
+- **View modes**: Ogólny, Co umiem (only known land in colour, orange-red outline), Do odkrycia (only learnable-now topics
+  in colour, light-yellow outline, known land faint around them), Do powtórki (only due topics; "Nic do powtórki" when none).
+- **Column height**: niskie / średnie / wysokie next to the tilt control, ×0.5 / ×1 / ×2 of the base's step, saved with the
+  view in this browser (`cg-wm-height:<key>`).
+
 ### Radial landscape, labels, rings, view modes (2026-11-04, Prompt 15)
 
 Wins over Prompts 13 and 14 where they differ.
