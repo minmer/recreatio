@@ -176,7 +176,10 @@ export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new D
   if (on('tools.calendar')) inside.push({ id: 'kalendarz', kind: 'calendar', config: { title: 'Terminy', calendars: `@${DEFAULT_ENTRY}` } });
   if (on('tools.chat')) inside.push({ id: 'rozmowa', kind: 'seat-chat', config: { title: 'Rozmowa' } });
   if (on('tools.askLeaders') && leads.length > 0) inside.push({ id: 'do-prowadzacych', kind: 'seat-ask', config: { title: 'Napisz do prowadzących' }, answer: leads.map((p) => `@role:${p.key}`) });
-  pages.push({ key: 'nasze', path: 'dla-nas', access: 'members', page: { title: `${u.name} — dla nas`, modules: inside } });
+  /* Ohne öffentliche Seite steht die Seite der Menschen AUF der Adresse der Einheit — so haben die Einheiten darunter eine Seite über sich. */
+  pages.push(publicPage
+    ? { key: 'nasze', path: 'dla-nas', access: 'members', page: { title: `${u.name} — dla nas`, modules: inside } }
+    : { key: 'main', path: '', main: true, access: 'members', page: { title: u.name, modules: inside } });
 
   const chats: unknown[] = [];
   if (on('tools.chat')) chats.push(signupRef === null ? 'area' : { kind: 'area', forms: [signupRef] });
@@ -204,7 +207,7 @@ export function compileUnit(doc: CommunityDoc, flat: FlatUnit, now: Date = new D
     chats: Array.isArray(extra.chats) ? extra.chats : chats,
     ...(Array.isArray(extra.listings) ? { listings: extra.listings } : {})
   };
-  return { doc: area, says, home: `${address}/dla-nas` };
+  return { doc: area, says, home: publicPage ? `${address}/dla-nas` : address };
 }
 
 /** Das Gremium: ein Bereich unter der Einheit, mit eigener Rozmowa — seine Menschen gibt die Wspólnota (`desiredAccess`). */
@@ -318,6 +321,10 @@ export interface PlanLine { readonly kind: 'unit' | 'person' | 'access' | 'area'
 /** Was ein Import ändern würde — aus dem Dokument und dem, was die Wspólnota schon weiss. */
 export function planLines(doc: CommunityDoc, before: Extract<Stored, { kind: 'community' }> | null, areaNames: ReadonlyMap<string, string>): PlanLine[] {
   const out: PlanLine[] = [];
+  if (before === null) {
+    out.push({ kind: 'warn', text: `Adres stron „${addressOf(doc, doc.unit.key)}” trzeba najpierw zająć (Strony → Zajmij adres) — bez niego strony jednostek nie powstaną; adresy jednostek niżej są pod nim.` });
+    out.push({ kind: 'warn', text: 'Rozmowy i zapisy powstaną dopiero, gdy obszar na górze ma administratora danych (Obszary → obszar → Ustawienia) — po jego wskazaniu zapisz wspólnotę jeszcze raz.' });
+  }
   const state = before?.state;
   const old = before === null ? [] : flatten(before.doc.unit);
   for (const f of flatten(doc.unit)) {

@@ -69,7 +69,7 @@ const dkRejon13 = () => doc({
   fields: [],
   blueprints: [dkBlueprint],
   unit: {
-    key: 'rejon-13', name: 'Rejon XIII', kind: 'organisation', address: 'dk/rejon-13',
+    key: 'rejon-13', name: 'Rejon XIII', kind: 'organisation', address: 'dk-rejon-13',
     positions: ['para-rejonowa', 'para-lacznikowa', 'moderator-rejonu'],
     council: { key: 'krag-rejonowy-13', name: 'Krąg rejonowy XIII', own: ['para-rejonowa', 'moderator-rejonu'], below: ['para-animatorska'] },
     settings: dkRejonSettings,
@@ -97,7 +97,7 @@ const dkRejon1 = () => doc({
   fields: [],
   blueprints: [dkBlueprint],
   unit: {
-    key: 'rejon-1', name: 'Rejon I Bieżanów', kind: 'organisation', address: 'dk/rejon-1',
+    key: 'rejon-1', name: 'Rejon I Bieżanów', kind: 'organisation', address: 'dk-rejon-1',
     positions: ['para-rejonowa', 'moderator-rejonu'],
     council: { key: 'krag-rejonowy-1', name: 'Krąg rejonowy I', own: ['para-rejonowa', 'moderator-rejonu'], below: ['para-animatorska'] },
     settings: dkRejonSettings,
