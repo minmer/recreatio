@@ -120,7 +120,7 @@ export function BadgesPage({ rules, answers, rename, keys, values, extra, now, r
           <span className="cg-rw-chip is-badges"><RewardIcon name="medal" className="is-medal" /><span className="cg-sr">{W.badges}: </span>{W.badgesOf(earnedN, state.badges.length)}</span>
         )}
       </p>
-      <NextGoals state={state} W={W} />
+      {(rules.levels.length > 0 || state.badges.length > 0) && <NextGoals state={state} W={W} />}
       <Levels state={state} W={W} readOnly={readOnly} />
       <Badges state={state} W={W} readOnly={readOnly} date={date} />
       <History state={state} W={W} />

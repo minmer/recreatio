@@ -308,15 +308,25 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   const finished = state !== null && (state.session.current === null || stopped || complete);
   /* 2026-11-03 — von selbst zu Ende: einmal weitergeben (`onDone`); nach „Zakończ" nicht. */
   const doneFor = useRef<object | null>(null);
+  /*
+    2026-11-05 (Durchsicht) — der Zeitgeber hängt nicht mehr am Effekt: eine neue `onDone`-Funktion des Elternteils (bei
+    jedem Rendern) räumte ihn ab, und der Lauf blieb auf „handing" stehen. Jetzt gilt die letzte `onDone`, und nur das
+    Verlassen räumt ab.
+  */
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+  const hasDone = onDone !== undefined;
+  const doneTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(doneTimer.current), []);
   useEffect(() => {
-    if (onDone === undefined || state === null || !ownEnd || doneFor.current === state) return undefined;
+    if (!hasDone || state === null || !ownEnd || doneFor.current === state) return;
     doneFor.current = state;
     void learner?.flush().catch(() => undefined);
     /* 2026-11-04 — kurz sagen, dass sie zu Ende ist, dann gleich weiter zum Thema, das sie verlangt hat (nicht zur Karte). */
     setHanding(true);
-    const timer = window.setTimeout(onDone, 1300);
-    return () => window.clearTimeout(timer);
-  }, [state, ownEnd, onDone, learner]);
+    window.clearTimeout(doneTimer.current);
+    doneTimer.current = window.setTimeout(() => onDoneRef.current?.(), 1300);
+  }, [state, ownEnd, hasDone, learner]);
   useEffect(() => {
     if (!finished || learner === null || state === null) return;
     void (async () => {
