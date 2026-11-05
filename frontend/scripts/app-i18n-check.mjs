@@ -154,11 +154,13 @@ for (const [file, text] of code) {
 
 /* -- 5: die Sperrklinke ------------------------------------------------------ */
 
-const strip = (text) => { const raw = text.split('
-'); return text
-  .replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
-  .replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1')
-  .split('\n').map((line, i, all) => (/i18n-ignore/.test(text.split('\n')[i] ?? '') ? '' : line)).join('\n');
+const strip = (text) => {
+  const raw = text.split('\n');
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1')
+    .split('\n').map((line, i) => (/i18n-ignore/.test(raw[i] ?? '') ? '' : line)).join('\n');
+};
 
 const DIACRITIC = /(['"`])((?:\\.|(?!\1)[^\\\n])*?[ąćęłńóśźżĄĆĘŁŃÓŚŹŻäöüßÄÖÜ](?:\\.|(?!\1)[^\\\n])*?)\1/g;
 const JSX_TEXT = /(?<![=\-])>\s*([^<>{}=;()&|]*?[A-Za-zÀ-ž]{2,}[^<>{}=;()&|]*?)\s*(?=<\/?[A-Za-z]|\{)/g;

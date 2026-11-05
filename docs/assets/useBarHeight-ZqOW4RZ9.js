@@ -1,1 +1,0 @@
-import{r as n}from"./vendor-BMOWVYiU.js";function i(){const[o,s]=n.useState(56);return n.useEffect(()=>{const e=document.querySelector("[data-app-head]");if(e===null)return;const t=()=>s(Math.round(e.getBoundingClientRect().height));if(t(),typeof ResizeObserver>"u")return;const r=new ResizeObserver(t);return r.observe(e),()=>r.disconnect()},[]),o}export{i as u};
