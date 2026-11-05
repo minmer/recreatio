@@ -142,8 +142,11 @@ check('einmal richtig: sechs Monate lang jeden Tag „znane", nie fällig', neve
 check('mit der Vorgabe dagegen nach 15 Min. fällig', K.dueAt(once) - t0, 15 * MIN);
 const relearn = [{ at: t0, correctness: 0 }, { at: t0 + 5 * MIN, correctness: 1 }];
 check('falsch, dann (nach 5 Min.) richtig: auch ein Jahr', K.dueAt(relearn, ONCE) - (t0 + 5 * MIN), 365 * DAY);
-const twice = [{ at: t0, correctness: 1 }, { at: t0 + 366 * DAY, correctness: 1 }];
-check('zweimal richtig: dann 1000 × der vergangene Abstand', K.dueAt(twice, ONCE) - (t0 + 366 * DAY), 366 * DAY * 1000);
+const twice = [{ at: t0, correctness: 1 }, { at: t0 + 300 * DAY, correctness: 1 }];
+check('zweimal richtig: dann 1000 × der vergangene Abstand', K.dueAt(twice, ONCE) - (t0 + 300 * DAY), 300 * DAY * 1000);
+/* 2026-11-05 (Durchsicht) — nie mehr als tausend Jahre (sonst läge der Termin hinter dem Ende des Datumsbereichs). */
+const late = [{ at: t0, correctness: 1 }, { at: t0 + 366 * DAY, correctness: 1 }];
+check('höchstens tausend Jahre', K.dueAt(late, ONCE) - (t0 + 366 * DAY), K.MAX_INTERVAL);
 check('falsch bleibt falsch: zurück auf 5 Min.', K.dueAt([{ at: t0, correctness: 1 }, { at: t0 + DAY, correctness: 0 }], ONCE) - (t0 + DAY), 5 * MIN);
 const lighter = K.PRESET_SPACING.lighter;
 check('„Lżej": längere Abstände als Standard', [K.dueAt(once, lighter) - t0 > K.dueAt(once) - t0, lighter.growth > K.DEFAULT_SPACING.growth], [true, true]);

@@ -150,3 +150,30 @@ export function waveDelays(cells: readonly { readonly q: number; readonly r: num
   for (const i of late) out[i] = dist[i] < 0 ? 300 : Math.min(300, 120 + 60 * Math.max(0, dist[i] - 1));
   return out;
 }
+
+/**
+ * 2026-11-05 (Prompt 17) — DIE PUNKTE IN DER LUFT, als kleiner Speicher: der Zähler oben liest ihn (`useSyncExternalStore`),
+ * nur er zeichnet neu, wenn eine Zahl ankommt — nicht die ganze Landschaft (bei 5 000 Themen ein spürbarer Ruck).
+ */
+export interface HoldStore {
+  readonly get: () => number;
+  readonly subscribe: (f: () => void) => () => void;
+  /** Vor dem ersten Zeichnen setzen (ohne Meldung): der Zähler beginnt gleich beim alten Stand. */
+  prime: (id: number, n: number) => void;
+  set: (n: number) => void;
+  /** Für welches Abspielen zuletzt gesetzt. */
+  readonly forId: () => number;
+}
+
+export function holdStore(): HoldStore {
+  let value = 0;
+  let id = 0;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    subscribe: (f) => { listeners.add(f); return () => { listeners.delete(f); }; },
+    prime: (forId, n) => { id = forId; value = Math.max(0, n); },
+    set: (n) => { const next = Math.max(0, n); if (next === value) return; value = next; for (const f of listeners) f(); },
+    forId: () => id
+  };
+}

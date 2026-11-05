@@ -1015,6 +1015,8 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-answer.is-revealed .cg-option.is-wrong.is-hit { animation: cg-hit-wrong 0.6s var(--cg-d, 0s) ease-out both, cg-shake 0.32s var(--cg-d, 0s) ease-in-out both; }
 .cg-answer.is-revealed .cg-option.is-right.is-answer { animation: cg-hit-right 0.9s calc(var(--cg-d, 0s) + 0.35s) ease-out both; }
 .cg-answer.is-revealed .cg-option.is-missed { animation: cg-hit-near 0.65s var(--cg-d, 0s) ease-out both; }
+/* 2026-11-05 (Prompt 17) — eine Fiszka „Częściowo“: wie halb richtig. */
+.cg-answer.is-revealed .cg-option.is-on.is-hit { animation: cg-hit-near 0.65s ease-out both; }
 .cg-answer.is-revealed .cg-option.is-left { animation: cg-part-in 0.34s var(--cg-d, 0s) ease-out both; }
 .cg-answer.is-revealed .cg-option.is-right .cg-option-mark,
 .cg-answer.is-revealed .cg-match-row.is-right .cg-option-mark { display: inline-block; animation: cg-tick-draw 0.42s calc(var(--cg-d, 0s) + 0.08s) ease-out both; }

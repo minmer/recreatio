@@ -28,7 +28,7 @@ import { Loading } from '../ui/Loading';
 import { PasswordInput } from '../ui/PasswordInput';
 import { holderOfMe } from './holders';
 import { Learner, targetOf } from './learn';
-import { holderOfCopy, keepAnswers, offlineList, offlineSource, openOffline, type CopyKey, type OfflineRevision } from './offline';
+import { holderOfCopy, keepAnswers, offlineList, offlineSource, openOffline, spacingOfCopy, type CopyKey, type OfflineRevision } from './offline';
 import { RevisionRun } from './RevisionRun';
 import { TexText } from '../ui/tex/Tex';
 import './cogita.css';
@@ -259,6 +259,11 @@ function AwayRun({ by, me, chosen }: { by: CopyKey; me: Me | null; chosen: strin
       const fresh = copy.target === null ? null : await targetOf(copy.target.areaId).catch(() => null);
       const target = copy.target === null ? null : { areaId: copy.target.areaId, intake: fresh?.intake ?? (kept === null ? null : fromBase64Url(kept)) };
       made = new Learner(copy.libraryId, holder, target);
+      /*
+       * 2026-11-05 (Durchsicht) — die Abstände, die beim Ablegen galten, an Stelle der Ustawienia der Baza (die gibt es hier
+       * nicht): ohne Netz gelten sie; lädt er seine eigenen (mit Netz), gelten die — ausser der Bereich legt fest.
+       */
+      made.areaSpacing = spacingOfCopy(copy);
       await made.load().catch(() => undefined);
       /* Was schon beantwortet war — der Dienst ist ohne Netz nicht zu erreichen. */
       made.remember(copy.answers ?? []);

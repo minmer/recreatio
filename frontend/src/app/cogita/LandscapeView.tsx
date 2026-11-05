@@ -39,7 +39,12 @@ import { countsAsStep, pathMarks } from './pathLayout';
 import { practiseGraph, practiseIds } from './quilt';
 import { planOf, readPlan, type Plan } from './revision';
 import { RevisionRun, type RunSource } from './RevisionRun';
-import { rewardsFor, type RewardRules } from './rewards';
+import { awardsOf, cleanDays, freshAwards, rewardsFor, type RewardRules } from './rewards';
+import { RewardBoard, useRewards } from './RewardViews';
+import { diffShown, keepShown, newlyConquered, pointsSince, readShown, shownKey, shownOf, type ShownState } from './landscapeShown';
+import { keepMapMeasures } from './mapMeasures';
+import { motionWords } from './motionWords';
+import { holdStore, playPoints, type PlaybackEvent, type WorldPlayback } from './worldPlay';
 import { HomeFull, HomePanel } from './LandscapeHome';
 import type { Graph } from './graph';
 import { entityNameTex, useCtx } from './ui';
@@ -61,6 +66,9 @@ import './landscape.css';
 /** Die Worte der Baza — gesetzt am Anfang jeder Zeichnung; alles darunter zeichnet im selben Durchgang. */
 let W: Words = words('pl');
 let T: LandscapeWords = landscapeWords('pl');
+/* 2026-11-05 (Prompt 17) — oben auf der Karte nur die Punkte (dorthin fliegen sie), die Stufe und die Abzeichen. */
+const POINTS_HIDDEN: ReadonlySet<string> = new Set(['streak', 'goal', 'feed']);
+const POINTS_HIDDEN_SMALL: ReadonlySet<string> = new Set(['streak', 'goal', 'feed', 'level', 'badges']);
 
 
 /* -- Daten ------------------------------------------------------------------------------------------------------- */
@@ -587,9 +595,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     void learner.keepPosition({ flow: piecesKey, step: '', visited: list, at: Date.now() }).catch(() => undefined);
   };
 
-  /* Erobertes: einmal gesagt, wenn es neu ist. */
-  const [won, setWon] = useState<string | null>(null);
-  const wonKey = `cg-ls-won:${lib.libraryId}:${viewKey}:${learner === null ? 'me' : holderKey(learner.holder)}`;
+  /* Erobertes: gesagt, wenn das Abspielen dort ankommt (2026-11-05, Prompt 17: mit den Punkten darin). */
+  const [won, setWon] = useState<{ readonly names: readonly string[]; readonly points: number } | null>(null);
 
   const [note, setNote] = useState<string | null>(null);
   /* 2026-11-05 — das Haus: ein Klick zeigt den eigenen Stand daneben, ein Doppelklick alles im ganzen Fenster (`LandscapeHome.tsx`). */
@@ -717,19 +724,118 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     return m;
   }, [world, worldTopics]);
   const conquered = useMemo(() => new Set([...regionStats].filter(([, s]) => s.all > 0 && s.known === s.all).map(([k]) => k)), [regionStats]);
-  /* Erobert: neu seit dem letzten Mal? (die obersten Gebiete) */
-  const wonNow = (world?.top ?? []).filter((k) => conquered.has(k)).sort().join('|');
+  /* Die Figuren auf der Karte: die begonnenen Themen (bis sie gekonnt sind) und eine auf dem Weg zum Ziel (das nächste zu lernende). */
+  /* 2026-11-05 (Durchsicht) — der erste offene Schritt, der auf DIESER Karte liegt (ein gefilterter Widok zeigt nicht alle). */
+  const goalOnMap = goal === null ? undefined : goalOpen.find((x) => topicIndex.has(x));
+  const goalPieceT = goalOnMap === undefined ? null : topicIndex.get(goalOnMap) ?? null;
+  const mapPieces: WorldPiece[] = [
+    ...storedPieces.map((id) => topicIndex.get(id)).filter((x): x is number => x !== undefined && x !== goalPieceT && worldTopics[x]?.band !== 'known' && worldTopics[x]?.band !== 'due').map((x) => ({ t: x, kind: 'single' as const })),
+    ...(goalPieceT === null ? [] : [{ t: goalPieceT, kind: 'goal' as const }])
+  ];
+  const piecesKey2 = mapPieces.map((x) => `${x.kind}:${x.t}`).join('|');
+
+  /*
+    2026-11-05 (Prompt 17) — WAS SICH SEIT DEM LETZTEN ZEIGEN ÄNDERTE (`landscapeShown.ts`): der letzte gezeigte Stand je
+    Lernendem, Baza und Widok. Kommt er zurück (nach einem Lauf, nach dem Laden), spielt die Karte den Unterschied ab — mit
+    den Punkten, die seither kamen, je Feld (`WorldMap`, `worldPlay.ts`). Ändert sich etwas, während die Karte zu sehen
+    ist (ein Baustein daneben): dasselbe ohne Kamera und ohne fliegende Punkte. Beim ersten Mal steigen die Säulen nur auf.
+  */
+  const MW = motionWords(lang);
+  const pointsRules = useMemo(() => rewards ?? rewardsFor(lib.docs('reward'), null, lib.settings().rewards ?? null).rules, [rewards, lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rw = useRewards(learner, pointsRules, { rename });
+  const mapShown = running === null && keep.unit === null && tree !== null && standFits && boxWidth > 0 && world !== null && tg.graph.ids.length > 0 && (fresh.failed ?? regionsFailed) === null;
+  const back = useRef(true);
+  if (!mapShown) back.current = true;
+  const shownStore = shownKey(lib.libraryId, viewKey, learner === null ? 'me' : holderKey(learner.holder));
+  const shownMem = useRef<{ key: string; state: ShownState | null } | null>(null);
+  if (shownMem.current === null || shownMem.current.key !== shownStore) { shownMem.current = { key: shownStore, state: readShown(shownStore) }; back.current = true; }
+  const shownTopics = useMemo(() => worldTopics.map((x) => ({ id: x.id, band: x.band, due: x.due, share: x.share, steps: x.steps })), [worldTopics]);
+  const piecesNow = useMemo(() => mapPieces.map((x) => ({ kind: x.kind, id: tg.graph.ids[x.t] ?? '' })), [piecesKey2, tg]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* Welche Karte zu welchem Feld gehört (für die Punkte je Feld). */
+  const cardTopic = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of cards) for (const e of cardEntities(c)) { const t = topicIndex.get(e); if (t !== undefined) { m.set(c.key, t); break; } }
+    return m;
+  }, [cards, topicIndex]);
+  const events = rw.state?.events ?? null;
+  const playSeq = useRef(0);
+  const playback = useMemo((): WorldPlayback | null => {
+    /* Ohne Lernenden (noch nicht geladen, oder ein Leser ohne Lernen): nichts gemerkt, nichts abgespielt. */
+    if (!mapShown || !standNow || world === null || learner === null) return null;
+    const was = shownMem.current?.state ?? null;
+    if (was === null) { playSeq.current += 1; return { id: playSeq.current, kind: 'first', before: [], learned: [], reviewed: [], opened: [], lowered: [], moved: [], fresh: [], points: [], rest: 0, conquered: [], walks: [], leaving: [] }; }
+    const kind: WorldPlayback['kind'] = back.current ? 'return' : 'live';
+    const d = diffShown(was, shownTopics);
+    /* Punkte nur, wo sie zählen (die Läufe hier zeigen sie): sonst kein Zähler und nichts fliegt. */
+    const pts = kind === 'return' && rewards !== null && events !== null ? pointsSince(events, was.at, (k) => cardTopic.get(k) ?? (rename === undefined ? undefined : cardTopic.get(rename(k)))) : null;
+    const conq = newlyConquered(world.regions, d.before, (t) => { const b = worldTopics[t]?.band; return b === 'known' || b === 'due'; });
+    /* Die Figur zum Ziel geht weiter; eine Figur, deren Thema jetzt gekonnt ist, geht. */
+    const wasGoal = was.pieces.find((x) => x[0] === 1)?.[1];
+    const nowGoal = piecesNow.find((x) => x.kind === 'goal')?.id;
+    const a = wasGoal === undefined ? undefined : topicIndex.get(wasGoal);
+    const b = nowGoal === undefined ? undefined : topicIndex.get(nowGoal);
+    const walks = a !== undefined && b !== undefined && a !== b ? [{ from: a, to: b, kind: 'goal' as const }] : [];
+    const nowIds = new Set(piecesNow.map((x) => x.id));
+    const leaving = was.pieces.filter((x) => !nowIds.has(x[1]) && !(x[0] === 1 && b !== undefined)).map((x) => ({ t: topicIndex.get(x[1]), kind: x[0] === 1 ? 'goal' as const : 'single' as const })).filter((x): x is { t: number; kind: 'single' | 'goal' } => x.t !== undefined);
+    const points = pts === null ? [] : [...pts.byTopic].map(([t, n]) => ({ t, n }));
+    const rest = pts?.rest ?? 0;
+    if (!d.any && points.length === 0 && rest === 0 && conq.length === 0 && walks.length === 0 && leaving.length === 0) return null;
+    playSeq.current += 1;
+    return { id: playSeq.current, kind, before: d.before, learned: d.learned, reviewed: d.reviewed, opened: d.opened, lowered: d.lowered, moved: d.moved, fresh: d.fresh, points, rest, conquered: conq, walks, leaving };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- der gemerkte Stand ändert sich nur nach dem Zeigen (unten)
+  }, [mapShown, standNow, world, shownTopics, events, piecesNow, cardTopic, learner]);
+  /* Gezeigt ist gezeigt: der Stand von jetzt wird der letzte (gleich gespeichert — auch wenn er gleich weitergeht). */
   useEffect(() => {
-    if (!standNow || world === null) return;
-    let had: string[] = [];
-    let first = false;
-    try { const raw = localStorage.getItem(wonKey); if (raw === null) first = true; else had = JSON.parse(raw) as string[]; } catch { first = true; }
-    const now = world.top.filter((k) => conquered.has(k));
-    const fresh2 = now.filter((k) => !had.includes(k));
-    if (fresh2.length > 0 && !first) setWon(tree?.regions.get(fresh2[0])?.name ?? null);
-    try { localStorage.setItem(wonKey, JSON.stringify([...new Set([...had, ...now])].slice(-400))); } catch { /* ohne Speicher */ }
+    if (!mapShown || !standNow || world === null || learner === null) return;
+    const now = shownOf(shownTopics, piecesNow, Date.now());
+    shownMem.current = { key: shownStore, state: now };
+    back.current = false;
+    keepShown(shownStore, now);
+  }, [mapShown, standNow, world, shownTopics, piecesNow, shownStore, learner]);
+  /* Die Punkte, die noch fliegen: so viel tiefer steht der Zähler oben, bis sie ankommen. */
+  /*
+    Das zuletzt errechnete Abspielen bleibt, bis die Karte es nimmt (sie beginnt erst, wenn sie ihre Farben kennt — ein
+    Rendern später; bis dahin hätte die Rechnung oben schon den neuen Stand als „gezeigt"). Ist die Karte weg, gilt es nicht mehr.
+  */
+  const lastPlay = useRef<WorldPlayback | null>(null);
+  if (!mapShown) lastPlay.current = null;
+  else if (playback !== null) lastPlay.current = playback;
+  /* Ein kleiner Speicher (nicht der Zustand hier): kommt eine Zahl an, zeichnet nur der Zähler neu. */
+  const held = useMemo(() => holdStore(), []);
+  const pb0 = lastPlay.current;
+  if (pb0 !== null && pb0.id !== held.forId()) held.prime(pb0.id, pb0.kind === 'return' ? playPoints(pb0) : 0);
+  const onPlayback = (e: PlaybackEvent) => {
+    if (e.kind === 'start') { held.prime(e.id, 0); held.set(e.points); }
+    else if (e.kind === 'points') held.set(held.get() - e.n);
+    else if (e.kind === 'end') held.set(0);
+    else {
+      const inside = new Set(e.keys.flatMap((k) => world?.regions.get(k)?.topics ?? []));
+      const pts = (lastPlay.current?.points ?? []).filter((x) => inside.has(x.t)).reduce((sum, x) => sum + x.n, 0);
+      setWon({ names: e.keys.map((k) => tree?.regions.get(k)?.name ?? k), points: pts });
+    }
+  };
+  /*
+    2026-11-05 (Prompt 17, §4) — DIE MASSE DER KARTE für die Abzeichen der Erkundung: wie viele oberste Gebiete erobert sind,
+    wie viel der Karte gekonnt ist, wie viele Tage nichts überfällig war. Gemerkt in diesem Browser (`mapMeasures.ts`); ein
+    eben erreichtes Abzeichen bekommt sein Datum beim Lernenden (`keepAwards` — dann steht es fest, auch bei der Lehrerin).
+  */
+  useEffect(() => {
+    if (!mapShown || !standNow || world === null || learner === null) return undefined;
+    const id = window.setTimeout(() => {
+      const land = worldTopics.filter((x) => x.band === 'known' || x.band === 'due').length;
+      const m = {
+        regions: world.top.filter((k) => conquered.has(k)).length,
+        map: worldTopics.length === 0 ? 0 : Math.floor((100 * land) / worldTopics.length),
+        clean: cleanDays(cards, (key) => learner.marks(key, fp.get(key), rename), Date.now(), learner.spacing)
+      };
+      keepMapMeasures(lib.libraryId, learner.holder, m);
+      if (rewards === null) return;
+      const add = freshAwards(rewards, m, awardsOf(learner.progress.values), Date.now());
+      if (Object.keys(add).length > 0) void learner.keepAwards(add).catch(() => undefined);
+    }, 700);
+    return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wonNow, standNow]);
+  }, [mapShown, standNow, world, worldTopics, learner, rewards]);
   const chosenT = chosenId === null ? null : topicIndex.get(chosenId) ?? null;
   /* 2026-11-05 (Durchsicht) — dieselben Objekte, solange sich nichts ändert (sonst zeichnete die Karte bei jedem Rendern neu). */
   const links = useMemo(() => (chosenT === null ? null : { needs: tg.graph.needs[chosenT] ?? [], opens: opensOf[chosenT] ?? [] }), [chosenT, tg, opensOf]);
@@ -757,7 +863,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       <div className="cg-ls-run" data-landscape-run={running.key.split(':')[0]}>
         {back}
         <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} rewards={rewards} closing={closingFor(running.origin ?? null)}
-          onClose={() => setRunning(null)} {...(running.then === undefined ? {} : { onDone: running.then })} />
+          onClose={() => setRunning(null)} backToMap={() => setRunning(null)} {...(running.then === undefined ? {} : { onDone: running.then })} />
       </div>
     );
   }
@@ -968,17 +1074,10 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       {dueHere.length > 0 && learner !== null && <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line" onClick={() => reviewCards(W.review + ": " + (here?.name ?? baseName), dueHere)} data-landscape-region-review={dueHere.length}>{T.reviewDue(dueHere.length)}</button></div>}
     </section>
   );
-  /* Die Figuren auf der Karte: die begonnenen Themen (bis sie gekonnt sind) und eine auf dem Weg zum Ziel (das nächste zu lernende). */
-  /* 2026-11-05 (Durchsicht) — der erste offene Schritt, der auf DIESER Karte liegt (ein gefilterter Widok zeigt nicht alle). */
-  const goalOnMap = goal === null ? undefined : goalOpen.find((x) => topicIndex.has(x));
-  const goalPieceT = goalOnMap === undefined ? null : topicIndex.get(goalOnMap) ?? null;
-  const mapPieces: WorldPiece[] = [
-    ...storedPieces.map((id) => topicIndex.get(id)).filter((x): x is number => x !== undefined && x !== goalPieceT && worldTopics[x]?.band !== 'known' && worldTopics[x]?.band !== 'due').map((x) => ({ t: x, kind: 'single' as const })),
-    ...(goalPieceT === null ? [] : [{ t: goalPieceT, kind: 'goal' as const }])
-  ];
   /* 2026-11-05 — das Haus: der eigene Stand (ein gewähltes Thema hat Vorrang). */
   const homeNumbers = { land: landCount, won: wonCount, regions: tops.length, ready: readyCount, due: dueCards.length, topics: worldTopics.length };
-  const homeRules = rewards ?? rewardsFor(lib.docs('reward'), null, lib.settings().rewards ?? null).rules;
+  /* 2026-11-05 (Prompt 17) — dieselben Regeln wie der Zähler oben (einmal gerechnet: sonst begann jede Tafel bei jedem Rendern neu). */
+  const homeRules = pointsRules;
   const homeReview = learner === null || dueCards.length === 0 ? null : () => { setHomeOpen(null); reviewCards(T.dueCards(dueCards.length), dueCards); };
   const homePanel = homeOpen === 'panel' && chosenId === null
     ? <HomePanel lib={lib} learner={learner} rules={homeRules} numbers={homeNumbers} onReview={homeReview} onAll={() => setHomeOpen('full')} onClose={() => setHomeOpen(null)} />
@@ -1005,12 +1104,13 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
             ))}
           </nav>
           <div className="wk-actions">
+            {learner !== null && rewards !== null && <RewardBoard learner={learner} rules={rewards} rename={rename} shape="strip" hidden={compact ? POINTS_HIDDEN_SMALL : POINTS_HIDDEN} live={false} hold={held} />}
             <button type="button" className="wk-btn wk-btn-line" onClick={toMe} data-landscape-me="">{T.toMe}</button>
             <button type="button" className="wk-btn wk-btn-line" onClick={whole} data-landscape-whole="">{T.wholeMap}</button>
           </div>
         </div>
         {nextLine}
-        {won !== null && <p className="wk-note cg-ls-conquered" role="status" data-landscape-won={won}>{T.conquered(won)} <button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={() => setWon(null)}>×</button></p>}
+        {won !== null && <p className="wk-note cg-ls-conquered" role="status" data-landscape-won={won.names.join('|')} data-landscape-won-points={won.points}><FlagIcon /> {T.conquered(won.names.slice(0, 2).join(', ') + (won.names.length > 2 ? ` +${won.names.length - 2}` : ''))}{won.points > 0 ? ` · ${MW.points(won.points)}` : ''} <button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={() => setWon(null)}>×</button></p>}
         {goalDone !== null && <p className="wk-note" role="status" data-landscape-goal-done={goalDone}>{W.goalDone(labelOf(goalDone))} <button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={() => setGoalDone(null)}>×</button></p>}
         {goal !== null && (
           <p className="cg-ls-goal" data-landscape-goal={goal} data-landscape-goal-steps={goalOpen.length}>
@@ -1031,6 +1131,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
               onPiece={(x) => { const id = tg.graph.ids[x]; const flow = storyUnit(id); if (flow !== undefined) openStory(flow, false); else learnEntry(id); }}
               onFlag={() => { if (goal !== null) selectTopic(goal); }}
               onHome={(double) => { setChosen(null); setHomeOpen(double ? 'full' : 'panel'); }}
+              playback={lastPlay.current} onPlayback={onPlayback} replayLabel={MW.replay}
               /* 2026-11-05 — Doppelklick: auf einen Berg — der Weg dorthin beginnt; sonst das Thema selbst. */
               onStart={(x) => { const id = tg.graph.ids[x]; setChosen(id); if (learner === null) return; if (infoById(id).band === 'mountain') leadTo(id); else startTopic(id); }} />
           )}

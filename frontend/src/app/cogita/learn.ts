@@ -679,9 +679,12 @@ interface LocalKept {
 }
 
 /** Das Behaltene in einen Stand: Antworten, Momentaufnahmen und Stellen kommen dazu; Werte und Sperren sind die behaltenen. */
-const withKept = (p: Progress, kept: LocalKept): Progress =>
-  absorb(absorb(absorb(p, { kind: 'answers', answers: kept.answers ?? [], snapshots: kept.snapshots ?? [], positions: kept.positions ?? [] }),
-    { kind: 'values', values: kept.values ?? {} }), { kind: 'suspend', suspended: kept.suspended ?? [] });
+function withKept(p: Progress, kept: LocalKept): Progress {
+  let out = absorb(p, { kind: 'answers', answers: kept.answers ?? [], snapshots: kept.snapshots ?? [], positions: kept.positions ?? [] });
+  if (kept.values !== undefined) out = absorb(out, { kind: 'values', values: kept.values });
+  if (kept.suspended !== undefined) out = absorb(out, { kind: 'suspend', suspended: kept.suspended });
+  return out;
+}
 
 /* -- 2026-11-02: dieselbe Person, mehrere Bausteine — live ----------------------------------------- */
 
@@ -1098,8 +1101,11 @@ export class Learner {
     if (this.holder.kind === 'local') { await this.writeLocal(); return; }
     if (this.target === null) return;
     const holder = this.holder;
+    const before = this.progress;
     const complete = await this.pull().catch(() => false);
-    if (!complete) { this.latestSoon(LATEST_RETRY); return; }
+    /* Was andere Geräte inzwischen schrieben, zeigt sich gleich (nicht erst beim nächsten Neuzeichnen). */
+    if (this.progress !== before) this.changed();
+    if (!complete) { this.retryLater(); return; }
     const waiting = readWaiting(this.waitKey());
     this.progress = withWaiting(this.progress, waiting);
     const bodies: BatchBody[] = [];
@@ -1117,12 +1123,20 @@ export class Learner {
       const went = (kind: BatchKind) => batches.some((b) => b.kind === kind && stored.has(b.batchId));
       dropWaiting(this.waitKey(), { values: went('values') ? waiting.values : {}, suspend: went('suspend') ? waiting.suspend : {} });
       if (places !== null) { if (went('position')) this.clearPendingSent(places); else this.positionsDirty = true; }
+      this.retry = LATEST_RETRY;
     } catch (e) {
       if (places !== null) this.positionsDirty = true;
       /* Der Dienst nimmt den Bereich nicht: zum Ausweichort — und gleich noch einmal dorthin. */
       if (refusedArea(e) && await this.retarget()) { await this.syncOnce(); return; }
-      this.latestSoon(LATEST_RETRY);
+      this.retryLater();
     }
+  }
+
+  /** Nach einem Fehlschlag später noch einmal — jedes Mal doppelt so spät, höchstens alle halbe Stunde (ein Tag am Limit fragt nicht jede Minute). */
+  private retry = LATEST_RETRY;
+  private retryLater(): void {
+    this.latestSoon(this.retry);
+    this.retry = Math.min(30 * 60_000, this.retry * 2);
   }
 
   /*
@@ -1143,8 +1157,8 @@ export class Learner {
   async keepValues(values: Readonly<Record<string, number>>): Promise<void> {
     /*
      * 2026-11-04 (Prompt 15) — die Werte der Anwendung (`~…`, die eigenen Abstände) bleiben, wie sie HIER stehen: eine
-     * Erzählung, die ihre Werte beim Öffnen las, schreibt sonst eine alte Einstellung zurück. 2026-11-05 (Durchsicht):
-     * auch von ihren eigenen Werten nur die, die sie ÄNDERT (die übrigen las sie beim Öffnen); gelöscht wird nichts.
+     * Erzählung, die ihre Werte beim Öffnen las, schreibt sonst eine alte Einstellung zurück. 2026-11-05 (Durchsicht): von
+     * ihren eigenen Werten nur die, die anders sind als hier (und auf den Stand des Dienstes gelegt); gelöscht wird nichts.
      */
     const changes: Record<string, number> = {};
     for (const [k, v] of Object.entries(values)) {

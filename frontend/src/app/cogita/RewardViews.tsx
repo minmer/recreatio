@@ -14,16 +14,19 @@
  * höfliche Live-Region einmal.
  */
 
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { plural } from '../core/plural';
 import { viewPath } from '../routes';
+import { later } from '../ui/later';
 import { motionLevel } from '../ui/motion';
 import { baseLang } from './lang';
 import type { Learner } from './learn';
 import { motionWords, type MotionWords } from './motionWords';
 import { answerSource, flyPoints } from './rewardBus';
-import { eventText, freshEvents, GOAL_UNIT_LABEL, lastDays, levelAt, rewardState, type BadgeIcon, type RewardDay, type RewardEvent, type RewardRules, type RewardState } from './rewards';
+import { mapExtra, mapMeasuresOf } from './mapMeasures';
+import { WRONG_BELOW } from './knowness';
+import { awardsOf, eventText, freshEvents, GOAL_UNIT_LABEL, lastDays, levelAt, rewardState, type BadgeIcon, type ExtraMeasures, type RewardDay, type RewardEvent, type RewardRules, type RewardState } from './rewards';
 import { pushToasts, type RewardToast } from './RewardToasts';
 import { CogitaContext } from './ui';
 import './rewards.css';
@@ -48,6 +51,8 @@ const DAY_NAME = new Intl.DateTimeFormat('pl-PL', { weekday: 'long', day: 'numer
 
 /* 2026-11-05 (Prompt 17) — die Wahl „Animacje" des Geräts (sonst das Betriebssystem): ograniczone und wyłączone zählen nicht hoch. */
 const reducedMotion = (): boolean => motionLevel() !== 'full';
+/* 2026-11-05 (Prompt 17) — „Odznaki i poziomy" unter einer Tafel (eine Seite, ein Link): erst geladen, wenn sie aufgeht. */
+const BadgesPageLater = later(() => import('./BadgesPage').then((m) => m.BadgesPage));
 const days = (n: number) => `${n} ${plural(n, 'dzień', 'dni', 'dni')}`;
 const pointsWord = (n: number) => plural(n, 'punkt', 'punkty', 'punktów');
 
@@ -66,6 +71,14 @@ export interface Fresh {
  */
 export function useRewards(learner: Learner | null, rules: RewardRules, { keys, rename, live = false }: { keys?: ReadonlySet<string>; rename?: (key: string) => string; live?: boolean } = {}): { readonly state: RewardState | null; readonly fresh: Fresh } {
   const answers = learner?.progress.answers ?? null;
+  /*
+    2026-11-05 (Prompt 17) — die Abzeichen der Karte: wann sie kamen, steht in den Werten des Lernenden (`~award.*`); was die
+    Karte zuletzt mass (Gebiete, Anteil, Tage ohne Rückstand), in diesem Browser (`mapMeasures.ts`).
+  */
+  const values = learner?.progress.values;
+  const awarded = useMemo(() => awardsOf(values), [values]);
+  const cgx = useContext(CogitaContext);
+  const libId = cgx?.lib.libraryId ?? null;
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setClock(Date.now()), 60_000);
@@ -77,7 +90,10 @@ export function useRewards(learner: Learner | null, rules: RewardRules, { keys, 
     return () => clearInterval(t);
   }, [live, learner]);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `answers` ist neu, sobald eine Antwort dazukommt
-  const state = useMemo(() => (answers === null ? null : rewardState(answers.values(), rules, Math.max(clock, Date.now()), { ...(keys === undefined ? {} : { keys }), ...(rename === undefined ? {} : { rename }) })), [answers, rules, clock, keys, rename]);
+  const extra = useExtra(libId, learner, values);
+  const extraKey = extra === undefined ? '' : JSON.stringify(extra);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `extraKey` steht für `extra`
+  const state = useMemo(() => (answers === null ? null : rewardState(answers.values(), rules, Math.max(clock, Date.now()), { ...(keys === undefined ? {} : { keys }), ...(rename === undefined ? {} : { rename }), awarded, ...(extra === undefined ? {} : { extra }) })), [answers, rules, clock, keys, rename, awarded, extraKey]);
   const known = useRef<{ readonly learner: Learner | null; readonly rules: RewardRules; readonly keys: ReadonlySet<string> | undefined; readonly ids: Set<string> } | null>(null);
   const [fresh, setFresh] = useState<Fresh>({ seq: 0, events: [] });
   useEffect(() => {
@@ -95,6 +111,21 @@ export function useRewards(learner: Learner | null, rules: RewardRules, { keys, 
   return { state, fresh };
 }
 
+/** 2026-11-05 (Prompt 17) — was die Karte zuletzt mass (neu gelesen, wenn sich die Werte des Lernenden ändern — die Karte schreibt beides zugleich). */
+function useExtra(libId: string | null, learner: Learner | null, values: unknown): ExtraMeasures | undefined {
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `values` zeigt an, dass neu gemessen wurde
+  return useMemo(() => (libId === null || learner === null ? undefined : mapExtra(mapMeasuresOf(libId, learner.holder))), [libId, learner, values]);
+}
+
+/** 2026-11-05 (Prompt 17) — was `hold` jetzt sagt: eine Zahl, oder der Wert eines Speichers (nur diese Tafel zeichnet dann neu). */
+export interface HoldSource { readonly get: () => number; readonly subscribe: (f: () => void) => () => void }
+const NO_HOLD: HoldSource = { get: () => 0, subscribe: () => () => undefined };
+function useHeld(hold: number | HoldSource): number {
+  const source = typeof hold === 'number' ? NO_HOLD : hold;
+  const fromStore = useSyncExternalStore(source.subscribe, source.get, source.get);
+  return typeof hold === 'number' ? hold : fromStore;
+}
+
 /* -- Kleine Bausteine -------------------------------------------------------------------------------------------------- */
 
 /** Eine Zahl, die zu ihrem neuen Wert hochzählt (ohne Bewegung: sofort). */
@@ -104,7 +135,8 @@ export function CountUp({ value, className, from }: { value: number; className?:
   useEffect(() => {
     const start = now.current;
     if (start === value) return undefined;
-    if (reducedMotion()) { now.current = value; setShown(value); return undefined; }
+    /* 2026-11-05 (Prompt 17) — hinunter nie gezählt (sofort): die Karte hält Punkte zurück, solange sie noch fliegen. */
+    if (reducedMotion() || value < start) { now.current = value; setShown(value); return undefined; }
     const t0 = performance.now();
     const span = Math.min(1400, 350 + Math.abs(value - start) * 6);
     let raf = 0;
@@ -215,7 +247,7 @@ type FloatItem = { readonly id: string; readonly points: number; readonly text: 
  */
 function floatsOf(fresh: Fresh, rules: RewardRules, flown: boolean): FloatItem[] {
   const out: FloatItem[] = [];
-  const paid = fresh.events.filter((e) => e.points > 0 && e.kind !== 'level' && e.kind !== 'badge');
+  const paid = fresh.events.filter((e) => celebrated(e) && e.kind !== 'level' && e.kind !== 'badge');
   if (paid.length > 0 && !flown) {
     const top = RANK.find((k) => paid.some((e) => e.kind === k)) ?? 'answer';
     const lead = paid.find((e) => e.kind === top)!;
@@ -353,16 +385,17 @@ function BadgesPart({ state, fresh, all, onOpen }: { state: RewardState; fresh: 
       <span className="cg-rw-label"><RewardIcon name="medal" className="is-medal" />Odznaki {earned} z {state.badges.length}</span>
       {shown.length === 0 ? <span className="cg-rw-sub">Pierwsza czeka: {state.badges[0]!.badge.name} — {state.badges[0]!.badge.says ?? ''}</span> : (
         <ul className="cg-rw-badge-list">
-          {shown.map(({ badge, at, value }) => {
+          {shown.map(({ badge, at, value, measured }) => {
             const got = at !== null;
-            const said = `${badge.name}${badge.says === undefined ? '' : ` — ${badge.says}`}${got ? ` (od ${DAY_NAME.format(new Date(at))})` : ` (${NUM.format(Math.min(value, badge.atLeast))} z ${NUM.format(badge.atLeast)})`}`;
+            /* 2026-11-05 (Prompt 17) — ein Abzeichen der Karte, die hier noch nie gemessen wurde: ohne Balken. */
+            const said = `${badge.name}${badge.says === undefined ? '' : ` — ${badge.says}`}${got ? ` (od ${DAY_NAME.format(new Date(at))})` : !measured ? ' (liczone na mapie)' : ` (${NUM.format(Math.min(value, badge.atLeast))} z ${NUM.format(badge.atLeast)})`}`;
             return (
               <li key={badge.id} className={`cg-rw-badge${got ? ' is-got' : ''}${pop && newIds.has(badge.id) ? ' is-new' : ''}`} title={said} data-rw-badge={badge.id} data-rw-badge-got={got ? '' : undefined}>
                 <span className="cg-rw-badge-icon"><RewardIcon name={badge.icon} /></span>
                 {/* 2026-11-05 (Prompt 17) — ein Abzeichen antippen: „Odznaki i poziomy". */}
                 {onOpen === undefined ? <span className="cg-rw-badge-name">{badge.name}</span>
                   : <button type="button" className="cg-rw-badge-name cg-rw-open" onClick={onOpen} data-rw-open="badge">{badge.name}</button>}
-                {!got && <Meter value={value / badge.atLeast} label={said} />}
+                {!got && measured && <Meter value={value / badge.atLeast} label={said} />}
                 <span className="cg-sr">{said}</span>
               </li>
             );
@@ -409,7 +442,9 @@ const onScreen = (el: Element): boolean => {
 };
 
 /** Punkte, die mit einer Antwort kamen (nicht Ziel, Serie, Abzeichen, Stufe — die sind Meldungen). */
-const paidOf = (f: Fresh): number => f.events.filter((e) => e.points > 0 && !FEED_KINDS.has(e.kind)).reduce((s, e) => s + e.points, 0);
+/* 2026-11-05 (Prompt 17) — eine falsche Antwort bringt (nach der Regel) vielleicht einen Punkt, gefeiert wird er nicht: kein „+N“. */
+const celebrated = (e: RewardEvent): boolean => e.points > 0 && !(e.kind === 'answer' && (e.value ?? 1) < WRONG_BELOW);
+const paidOf = (f: Fresh): number => f.events.filter((e) => celebrated(e) && !FEED_KINDS.has(e.kind)).reduce((s, e) => s + e.points, 0);
 
 /**
  * 2026-11-05 (Prompt 17) — DIE MELDUNGEN EINER GRUPPE: Ziel („Cel dnia osiągnięty! +50"), ein Tag der Serie, jedes Abzeichen
@@ -433,7 +468,7 @@ function toastsOf(fresh: Fresh, state: RewardState, MW: MotionWords, open: () =>
   return out;
 }
 
-export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live = true, onBadges, inline }: {
+export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live = true, onBadges, inline, hold = 0 }: {
   learner: Learner | null;
   rules: RewardRules;
   keys?: ReadonlySet<string>;
@@ -444,8 +479,10 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
   live?: boolean;
   /** 2026-11-05 (Prompt 17) — „Odznaki i poziomy" öffnen; fehlt es: im Arbeitsbereich die Adresse in der Nauka, sonst hier darunter. */
   onBadges?: () => void;
-  /** Die Seite der Abzeichen hier darunter (wo es keine Adresse dafür gibt — eine Seite, ein Link). */
+  /** Die Seite der Abzeichen hier darunter (wo es keine Adresse dafür gibt — eine Seite, ein Link); fehlt es: „Odznaki i poziomy" dieses Lernenden. */
   inline?: (close: () => void) => ReactNode;
+  /** 2026-11-05 (Prompt 17) — so viele Punkte sind noch unterwegs (die Karte spielt ab): der Zähler steht so viel tiefer. Eine Zahl oder ein Speicher (`worldPlay.ts` `holdStore`). */
+  hold?: number | HoldSource;
 }) {
   const { state, fresh } = useRewards(learner, rules, { ...(keys === undefined ? {} : { keys }), ...(rename === undefined ? {} : { rename }), live });
   const cg = useContext(CogitaContext);
@@ -456,7 +493,20 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
   /* „Odznaki i poziomy": im Arbeitsbereich die Adresse in der Nauka; auf einer Seite (ein Link, ein Platz) hier darunter. */
   const [open, setOpen] = useState(false);
   const inWorkspace = cg !== null && cg.me !== null && typeof window !== 'undefined' && window.location.hash.startsWith('#/workspace');
-  const openBadges = onBadges ?? (inWorkspace ? () => { window.location.hash = viewPath('learn', cg.lib.libraryId, 'nagrody', 'odznaki'); } : inline !== undefined ? () => setOpen(true) : undefined);
+  /* 2026-11-05 (Prompt 17) — ohne eigene Seite: „Odznaki i poziomy" desselben Lernenden hier darunter (die Daten der Karte mit). */
+  const extra = useExtra(cg?.lib.libraryId ?? null, learner, learner?.progress.values);
+  const inlineNow = inline ?? (learner === null ? undefined : (close: () => void) => (
+    <div className="cg-rw-inline-page" data-rw-inline-page="">
+      <div className="cg-row-between">
+        <strong>{MW.openBadges}</strong>
+        <button type="button" className="wk-link-btn" onClick={close} data-rw-inline-close="">{MW.dismiss}</button>
+      </div>
+      <BadgesPageLater rules={rules} answers={learner.progress.answers} values={learner.progress.values} lang={MW.lang} title=""
+        {...(rename === undefined ? {} : { rename })} {...(keys === undefined ? {} : { keys })} {...(extra === undefined ? {} : { extra })}
+        onAwards={(add) => { void learner.keepAwards(add).catch(() => undefined); }} />
+    </div>
+  ));
+  const openBadges = onBadges ?? (inWorkspace ? () => { window.location.hash = viewPath('learn', cg.lib.libraryId, 'nagrody', 'odznaki'); } : inlineNow !== undefined ? () => setOpen(true) : undefined);
   /*
     2026-11-05 (Prompt 17) — DIE PUNKTE DER EBEN GEGEBENEN ANTWORT fliegen von ihr zum Zähler: solange sie fliegen, steht er
     noch auf dem alten Stand, dann zählt er hoch. Nur, wenn die Antwort eben war und der Zähler zu sehen ist.
@@ -471,7 +521,8 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
   }, [fresh]);
   const [arrived, setArrived] = useState(0);
   const flying = flight !== null && arrived < flight.seq && counterEl.current !== null;
-  const shownTotal = state === null ? 0 : flying ? Math.max(0, state.total - flight.sum) : state.total;
+  const held = useHeld(hold);
+  const shownTotal = state === null ? 0 : Math.max(0, (flying ? state.total - flight.sum : state.total) - Math.max(0, held));
   useEffect(() => {
     if (state === null || fresh.seq === 0) return;
     const el = counterEl.current;
@@ -483,7 +534,7 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
   if (state === null) return <div className="cg-rw is-waiting" data-rw-shape={shape}><span className="cg-muted">Liczenie punktów…</span></div>;
   const badgesLink = openBadges !== undefined && show('badges') && (state.badges.length > 0 || state.rules.levels.length > 0)
     ? <button type="button" className="wk-link-btn cg-rw-badges-link" onClick={openBadges} data-rw-badges-open="">{MW.openBadges}</button> : null;
-  const inlinePage = open && inline !== undefined ? <div className="cg-rw-inline" data-rw-inline="">{inline(() => setOpen(false))}</div> : null;
+  const inlinePage = open && inlineNow !== undefined ? <div className="cg-rw-inline" data-rw-inline="">{inlineNow(() => setOpen(false))}</div> : null;
 
   if (shape === 'strip' || shape === 'compact') {
     return (

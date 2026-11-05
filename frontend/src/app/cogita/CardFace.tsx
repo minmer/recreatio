@@ -412,9 +412,10 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
           {/* 2026-10-27 — ein Block je Zeile, kein <p>: der Zapis bringt seine eigenen Absätze mit (<p> in <p> ist kein HTML). */}
           <div className="cg-flash-back">{a.back.map((b, i) => <div key={i}><Markup text={b} /></div>)}</div>
           <div className="cg-row">
-            <button type="button" className={`cg-option${reveal?.given === 'knew' ? ' is-right' : ''}`} disabled={shut} onClick={() => submit('knew')}>Umiałem</button>
-            <button type="button" className={`cg-option${reveal?.given === 'partly' ? ' is-on' : ''}`} disabled={shut} onClick={() => submit('partly')}>Częściowo</button>
-            <button type="button" className={`cg-option${reveal?.given === 'not' ? ' is-wrong' : ''}`} disabled={shut} onClick={() => submit('not')}>Nie umiałem</button>
+            {/* 2026-11-05 (Prompt 17) — die eigene Einschätzung zeigt sich wie eine Antwort: grün, rot mit kleinem Schütteln, teilweise. */}
+            <button type="button" className={`cg-option${reveal?.given === 'knew' ? ' is-right is-hit' : ''}`} disabled={shut} onClick={() => submit('knew')}>Umiałem</button>
+            <button type="button" className={`cg-option${reveal?.given === 'partly' ? ' is-on is-hit' : ''}`} disabled={shut} onClick={() => submit('partly')}>Częściowo</button>
+            <button type="button" className={`cg-option${reveal?.given === 'not' ? ' is-wrong is-hit' : ''}`} disabled={shut} onClick={() => submit('not')}>Nie umiałem</button>
           </div>
           {nextRow}
         </div>

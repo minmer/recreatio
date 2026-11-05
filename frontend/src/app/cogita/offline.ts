@@ -27,6 +27,7 @@ import type { AnswerRecord, Holder } from './learn';
 import { readCondition } from './logic';
 import { cardEntities, prerequisiteGraph } from './prerequisites';
 import { readPlan, type Plan } from './revision';
+import { readAreaSpacing, type AreaSpacing } from './spacing';
 
 export interface OfflineRevision {
   readonly libraryId: string;
@@ -48,8 +49,20 @@ export interface OfflineRevision {
    * ohne die Geschichte hielte „Najpierw podstawy" alles zurück, was schon sitzt. Nur zum Rechnen, nie gesendet.
    */
   readonly answers?: readonly AnswerRecord[];
+  /**
+   * 2026-11-05 (Durchsicht) — die Abstände der Wiederholungen, die beim Ablegen galten (`spacingFor`: die eigenen, die des
+   * Bereichs oder die Vorgabe), und ob der Bereich sie festlegt. Ohne Netz rechnet der Lauf damit (`spacingOfCopy`) —
+   * vorher immer mit der Vorgabe. Eine ältere Abschrift ohne sie: die Vorgabe.
+   */
+  readonly spacing?: AreaSpacing;
   readonly savedAt: number;
 }
+
+/**
+ * 2026-11-05 (Durchsicht) — die Abstände einer Abschrift, geprüft — für `Learner.areaSpacing` des Laufs ohne Netz: so gelten
+ * sie, wo der Lernende seine eigenen nicht laden kann; kann er es (mit Netz), gelten die eigenen, ausser der Bereich legt fest.
+ */
+export const spacingOfCopy = (copy: OfflineRevision): AreaSpacing | undefined => readAreaSpacing(copy.spacing);
 
 /** Womit sich die Abschriften eines Kontos öffnen: das Konto und der Schlüssel seiner Abschriften (`core/away.ts`). */
 export interface CopyKey {

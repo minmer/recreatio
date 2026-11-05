@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using Kernel;
 using Microsoft.Data.SqlClient;
@@ -50,6 +51,16 @@ public static partial class Cogita
 
     /// <summary>An die Autoren, ohne Halter [K4].</summary>
     private static readonly HashSet<string> Anonymous = new(StringComparer.Ordinal) { "flags", "counts" };
+
+    /// <summary>
+    /// 2026-11-05 (Durchsicht) — SO VIELE STAPEL JE SEITE. Vorher schnitt ein festes TOP ab, aufsteigend sortiert: nach 5000
+    /// Stapeln fehlten die JÜNGSTEN Antworten, Werte und Stellen. Jetzt sagt eine volle Seite `more` und `next` (nach
+    /// welchem Stapel die nächste beginnt), und `now` ist dann die Zeit ihres letzten Stapels — ein Browser, der nicht
+    /// weiterblättert (eine ältere Fassung), holt den Rest mit dem nächsten `since`.
+    /// </summary>
+    internal const int OwnPage = 5000;
+    internal const int AreaPage = 20000;
+    internal const int ReportPage = 10000;
 
     public static void Map(WebApplication app)
     {
@@ -284,16 +295,29 @@ public static partial class Cogita
         await ctx.Response.WriteAsJsonAsync(new { stored });
     }
 
-    private static async Task WriteBatchesAsync(HttpContext ctx, SqlCommand cmd, bool forArea)
+    /// <summary>
+    /// Eine Seite Stapel hinaus. Der Befehl liefert zuerst die Zeit der Datenbank (vor dem Lesen: was danach dazukommt, ist
+    /// jünger — der Browser fragt ab ihr weiter), dann bis zu <paramref name="page"/> + 1 Stapel nach (created_at, id).
+    /// 2026-11-05 (Durchsicht): ist die Seite voll, sagen <c>more</c> und <c>next</c>, wo die nächste beginnt.
+    /// </summary>
+    private static async Task WriteBatchesAsync(HttpContext ctx, SqlCommand cmd, bool forArea, int page)
     {
         var batches = new List<object>();
+        var now = DateTimeOffset.UtcNow;
+        (DateTimeOffset At, Guid Id)? last = null;
+        var more = false;
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
+            if (await reader.ReadAsync(ctx.RequestAborted)) now = reader.GetDateTimeOffset(0);
+            await reader.NextResultAsync(ctx.RequestAborted);
             while (await reader.ReadAsync(ctx.RequestAborted))
             {
+                if (batches.Count == page) { more = true; break; }
+                var id = reader.GetGuid(0);
+                var createdAt = reader.GetDateTimeOffset(8);
                 batches.Add(new
                 {
-                    batchId = Ids.ToText(reader.GetGuid(0)),
+                    batchId = Ids.ToText(id),
                     libraryId = Ids.ToText(reader.GetGuid(1)),
                     areaId = Ids.ToText(reader.GetGuid(2)),
                     holderRoleId = reader.IsDBNull(3) ? null : Ids.ToText(reader.GetGuid(3)),
@@ -301,13 +325,21 @@ public static partial class Cogita
                     kind = reader.GetString(5),
                     @sealed = Base64Url.Encode((byte[])reader[6]),
                     key = reader.IsDBNull(7) ? null : Base64Url.Encode((byte[])reader[7]),
-                    createdAt = reader.GetDateTimeOffset(8),
+                    createdAt,
                     /* 0136 — unter dem Epochenschlüssel des Bereichs versiegelt (sonst für seine Przyjęcia). */
                     areaEpoch = reader.FieldCount > 9 && !reader.IsDBNull(9) ? reader.GetInt32(9) : (int?)null
                 });
+                last = (createdAt, id);
             }
         }
-        await ctx.Response.WriteAsJsonAsync(new { now = DateTimeOffset.UtcNow, forArea, batches });
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            now = more ? last!.Value.At : now,
+            forArea,
+            batches,
+            more,
+            next = more ? CursorOf(last!.Value.At, last.Value.Id) : null
+        });
     }
 
     private static bool SinceOf(string? since, out DateTimeOffset? from)
@@ -319,43 +351,78 @@ public static partial class Cogita
         return true;
     }
 
-    /// <summary>Die eigenen Stapel — aller Personen dieses Kontos, mit ihrem Schlüssel für den Halter.</summary>
-    private static async Task MyBatchesAsync(HttpContext ctx, Db db, string? libraryId, string? since)
+    /// <summary>
+    /// 2026-11-05 (Durchsicht) — WO EINE SEITE BEGINNT: nach diesem Stapel, Zeit UND Kennung — Stapel mit derselben Zeit an
+    /// der Grenze gehen so weder verloren noch kommen sie zweimal. Der Browser gibt <c>next</c> unverändert zurück.
+    /// </summary>
+    internal static string CursorOf(DateTimeOffset at, Guid id) => $"{at.ToString("O", CultureInfo.InvariantCulture)}_{Ids.ToText(id)}";
+
+    internal static bool AfterOf(string? after, out (DateTimeOffset At, Guid Id)? cursor)
+    {
+        cursor = null;
+        if (string.IsNullOrWhiteSpace(after)) return true;
+        var cut = after.LastIndexOf('_');
+        if (cut <= 0
+            || !DateTimeOffset.TryParseExact(after[..cut], "O", CultureInfo.InvariantCulture, DateTimeStyles.None, out var at)
+            || !Guid.TryParse(after[(cut + 1)..], out var id)) return false;
+        cursor = (at, id);
+        return true;
+    }
+
+    /// <summary>Die Bedingung „nach der Stelle" (leer ohne) — die Seite ist nach (created_at, id) geordnet.</summary>
+    private static string AfterSql((DateTimeOffset At, Guid Id)? cursor) =>
+        cursor is null ? "" : "AND (created_at > @afterAt OR (created_at = @afterAt AND id > @afterId))";
+
+    private static void AddAfter(SqlCommand cmd, (DateTimeOffset At, Guid Id)? cursor)
+    {
+        if (cursor is null) return;
+        cmd.Parameters.Add(new SqlParameter("@afterAt", System.Data.SqlDbType.DateTimeOffset) { Scale = 7, Value = cursor.Value.At });
+        cmd.Parameters.Add("@afterId", System.Data.SqlDbType.UniqueIdentifier).Value = cursor.Value.Id;
+    }
+
+    /// <summary>
+    /// Die eigenen Stapel — aller Personen dieses Kontos, mit ihrem Schlüssel für den Halter. 2026-11-05 (Durchsicht):
+    /// seitenweise (<c>after</c> = <c>next</c> der vorigen Seite).
+    /// </summary>
+    private static async Task MyBatchesAsync(HttpContext ctx, Db db, string? libraryId, string? since, string? after)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-        if (!SinceOf(since, out var from)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan."); return; }
+        if (!SinceOf(since, out var from) || !AfterOf(after, out var cursor)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan."); return; }
         Guid? library = Guid.TryParse(libraryId, out var l) ? l : null;
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var mine = (await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted)).Select(r => r.Id).ToList();
-        if (mine.Count == 0) { await ctx.Response.WriteAsJsonAsync(new { now = DateTimeOffset.UtcNow, forArea = false, batches = Array.Empty<object>() }); return; }
+        if (mine.Count == 0) { await ctx.Response.WriteAsJsonAsync(new { now = DateTimeOffset.UtcNow, forArea = false, batches = Array.Empty<object>(), more = false, next = (string?)null }); return; }
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
         await using var cmd = new SqlCommand($"""
-            SELECT TOP 5000 id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_holder, created_at{(await Schema.LearnEpochAsync(connection, ctx.RequestAborted) ? ", area_epoch" : "")}
+            SELECT SYSDATETIMEOFFSET();
+            SELECT TOP ({OwnPage + 1}) id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_holder, created_at{(await Schema.LearnEpochAsync(connection, ctx.RequestAborted) ? ", area_epoch" : "")}
             FROM app.learn_batch
             WHERE holder_role_id IN ({names})
               {(library is null ? "" : "AND library_id = @library")}
               {(from is null ? "" : "AND created_at >= @since")}
-            ORDER BY created_at;
+              {AfterSql(cursor)}
+            ORDER BY created_at, id;
             """, connection);
         for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
         if (library is not null) cmd.Parameters.AddWithValue("@library", library.Value);
         if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
-        await WriteBatchesAsync(ctx, cmd, forArea: false);
+        AddAfter(cmd, cursor);
+        await WriteBatchesAsync(ctx, cmd, forArea: false, OwnPage);
     }
 
     /// <summary>
     /// FÜR DIE KANZLEI, die Lehrerin [E10]: was in einem Bereich liegt, den sie
     /// liest — mit dem Schlüssel für die Annahme. Öffnen kann es nur, wer die
-    /// Rolle hält, für die die Annahme gemacht wurde.
+    /// Rolle hält, für die die Annahme gemacht wurde. 2026-11-05 (Durchsicht): seitenweise (<c>after</c>).
     /// </summary>
-    private static async Task AreaBatchesAsync(HttpContext ctx, Db db, Guid areaId, string? libraryId, string? since)
+    private static async Task AreaBatchesAsync(HttpContext ctx, Db db, Guid areaId, string? libraryId, string? since, string? after)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-        if (!SinceOf(since, out var from)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan."); return; }
+        if (!SinceOf(since, out var from) || !AfterOf(after, out var cursor)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan."); return; }
         Guid? library = Guid.TryParse(libraryId, out var l) ? l : null;
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
@@ -388,17 +455,20 @@ public static partial class Cogita
         var inAreas = string.Join(", ", areas.Select((_, i) => $"@a{i}"));
 
         await using var cmd = new SqlCommand($"""
-            SELECT TOP 20000 id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_area, created_at{(epoch ? ", area_epoch" : "")}
+            SELECT SYSDATETIMEOFFSET();
+            SELECT TOP ({AreaPage + 1}) id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_area, created_at{(epoch ? ", area_epoch" : "")}
             FROM app.learn_batch
             WHERE area_id IN ({inAreas}) AND key_for_area IS NOT NULL AND kind NOT IN (N'flags', N'counts')
               {(library is null ? "" : "AND library_id = @library")}
               {(from is null ? "" : "AND created_at >= @since")}
-            ORDER BY created_at;
+              {AfterSql(cursor)}
+            ORDER BY created_at, id;
             """, connection);
         for (var i = 0; i < areas.Count; i++) cmd.Parameters.AddWithValue($"@a{i}", areas[i]);
         if (library is not null) cmd.Parameters.AddWithValue("@library", library.Value);
         if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
-        await WriteBatchesAsync(ctx, cmd, forArea: true);
+        AddAfter(cmd, cursor);
+        await WriteBatchesAsync(ctx, cmd, forArea: true, AreaPage);
     }
 
     /// <summary>
@@ -617,12 +687,12 @@ public static partial class Cogita
         await StoreReportAsync(ctx, connection, id, area.Value, body);
     }
 
-    /// <summary>Die Hinweise einer Bibliothek — für wer dort schreibt (die Autoren).</summary>
-    private static async Task ReportsAsync(HttpContext ctx, Db db, Guid id, string? since)
+    /// <summary>Die Hinweise einer Bibliothek — für wer dort schreibt (die Autoren). 2026-11-05 (Durchsicht): seitenweise.</summary>
+    private static async Task ReportsAsync(HttpContext ctx, Db db, Guid id, string? since, string? after)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-        if (!SinceOf(since, out var from)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan."); return; }
+        if (!SinceOf(since, out var from) || !AfterOf(after, out var cursor)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan."); return; }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var area = await LibraryAreaAsync(connection, id, ctx.RequestAborted);
@@ -633,15 +703,18 @@ public static partial class Cogita
         }
 
         await using var cmd = new SqlCommand($"""
-            SELECT TOP 10000 id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_area, created_at
+            SELECT SYSDATETIMEOFFSET();
+            SELECT TOP ({ReportPage + 1}) id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_area, created_at
             FROM app.learn_batch
             WHERE library_id = @library AND kind IN (N'flags', N'counts')
               {(from is null ? "" : "AND created_at >= @since")}
-            ORDER BY created_at;
+              {AfterSql(cursor)}
+            ORDER BY created_at, id;
             """, connection);
         cmd.Parameters.AddWithValue("@library", id);
         if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
-        await WriteBatchesAsync(ctx, cmd, forArea: true);
+        AddAfter(cmd, cursor);
+        await WriteBatchesAsync(ctx, cmd, forArea: true, ReportPage);
     }
 
     /* -- Für einen Platz (ein Mensch ohne Konto, über sein Formular) ------------------------------- */
@@ -699,9 +772,10 @@ public static partial class Cogita
         await ctx.Response.WriteAsJsonAsync(new { stored });
     }
 
-    private static async Task SeatBatchesAsync(HttpContext ctx, Db db, string token, string? libraryId, string? since)
+    /// <summary>Die eigenen Stapel eines Platzes. 2026-11-05 (Durchsicht): seitenweise (<c>after</c>).</summary>
+    private static async Task SeatBatchesAsync(HttpContext ctx, Db db, string token, string? libraryId, string? since, string? after)
     {
-        if (!SinceOf(since, out var from)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan."); return; }
+        if (!SinceOf(since, out var from) || !AfterOf(after, out var cursor)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan."); return; }
         Guid? library = Guid.TryParse(libraryId, out var l) ? l : null;
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
@@ -709,17 +783,20 @@ public static partial class Cogita
         if (seat is null) { await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma."); return; }
 
         await using var cmd = new SqlCommand($"""
-            SELECT TOP 5000 id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_holder, created_at{(await Schema.LearnEpochAsync(connection, ctx.RequestAborted) ? ", area_epoch" : "")}
+            SELECT SYSDATETIMEOFFSET();
+            SELECT TOP ({OwnPage + 1}) id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_holder, created_at{(await Schema.LearnEpochAsync(connection, ctx.RequestAborted) ? ", area_epoch" : "")}
             FROM app.learn_batch
             WHERE holder_access_id = @seat
               {(library is null ? "" : "AND library_id = @library")}
               {(from is null ? "" : "AND created_at >= @since")}
-            ORDER BY created_at;
+              {AfterSql(cursor)}
+            ORDER BY created_at, id;
             """, connection);
         cmd.Parameters.AddWithValue("@seat", seat.Value.Id);
         if (library is not null) cmd.Parameters.AddWithValue("@library", library.Value);
         if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
-        await WriteBatchesAsync(ctx, cmd, forArea: false);
+        AddAfter(cmd, cursor);
+        await WriteBatchesAsync(ctx, cmd, forArea: false, OwnPage);
     }
 
     private static async Task SeatDueAsync(HttpContext ctx, Db db, string token, DueRequest body)

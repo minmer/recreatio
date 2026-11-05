@@ -17,6 +17,8 @@ import { NotifySettingsPanel } from './NotifyBell';
 import { current, subscribe } from './notify';
 import type { Who } from '../core/session';
 import { PageHeader } from '../ui/PageHeader';
+import { MotionChoice } from '../ui/MotionChoice';
+import { motionWords } from '../cogita/motionWords';
 
 export function WorkspaceLook({ who }: { who: Who }) {
   const state = useSyncExternalStore(subscribe, current);
@@ -38,6 +40,8 @@ export function WorkspaceLook({ who }: { who: Who }) {
       <section aria-labelledby="look-device">
         <h2 className="wk-h2" id="look-device">Na tym urządzeniu</h2>
         <NotifySettingsPanel who={who} settings={state.settings} />
+        {/* 2026-11-05 (Prompt 17) — wie viel sich bewegt (Punkte, Karte, Antworten): für dieses Gerät. */}
+        <MotionChoice words={motionWords('pl')} />
       </section>
     </div>
   );

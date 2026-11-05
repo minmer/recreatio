@@ -103,10 +103,11 @@ export function effectiveSpacing(area: AreaSpacing | undefined, own: Spacing | u
 
 /** Was eine Baza und ein Lernender brauchen, um zu wissen, was gilt. */
 export interface SpacingLib { settings(): { readonly spacing?: AreaSpacing } }
-export interface SpacingLearner { readonly progress: { readonly values: Readonly<Record<string, number>> } }
+/** 2026-11-05 (Durchsicht) — `areaSpacing`: was der Bereich einstellt, wenn keine Baza da ist (offline: aus der Kopie). */
+export interface SpacingLearner { readonly progress: { readonly values: Readonly<Record<string, number>> }; readonly areaSpacing?: AreaSpacing | undefined }
 
 export const effectiveFor = (lib: SpacingLib | null | undefined, learner: SpacingLearner | null | undefined): EffectiveSpacing =>
-  effectiveSpacing(lib?.settings().spacing, ownSpacing(learner?.progress.values));
+  effectiveSpacing(lib == null ? learner?.areaSpacing : lib.settings().spacing, ownSpacing(learner?.progress.values));
 
 /** Die Abstände, die für diesen Lernenden in dieser Baza gelten — für jede Rechnung der Kenntnis. */
 export const spacingFor = (lib: SpacingLib | null | undefined, learner: SpacingLearner | null | undefined): Spacing => effectiveFor(lib, learner).spacing;

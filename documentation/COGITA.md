@@ -779,6 +779,10 @@ Phones stay awake.
   fetch other devices' answers every 30 s. Only events whose stable id is new are animated („+15”, flame ignites,
   ring fills, level burst, badge pop); `prefers-reduced-motion` turns motion off.
 - No leaderboards (K7 stands).
+- *2026-11-05 (Prompt 17)*: badges have a kind (start, consistency, accuracy, volume, goals, exploration; derived from
+  the measure when not given), four map badges measured by the landscape (regions, map %, days with nothing overdue,
+  dated in the learner's values `~award.*`), the page „Odznaki i poziomy", toasts for bonuses only, and motion per
+  device — see *Motion and rewards* under the landscape.
 
 ### Generated exercises (2026-11-03)
 
@@ -1097,6 +1101,70 @@ Phones stay awake.
   (`positionFor`): a story imported again under a new id finds its place. `startRun` restores the visited steps; a step
   that no longer exists resumes at the first step not yet visited. The player restores the place when the learner
   arrives late and never writes a place on mere opening. The daily limit is 2000.
+
+### Motion and rewards: the landscape plays back, answers react, badges and levels (2026-11-05, Prompt 17)
+
+Motion explains a real change and nothing else. Each part lasts 300–800 ms; a whole playback is usually under 3 s
+(about 4 s when a region is conquered). Nothing blocks input: any click, key or wheel anywhere skips the rest and the
+final state stands at once. Several changes play as one ordered sequence: at most 4 single "+N", the rest as one sum.
+
+- **Animacje** (`ui/motion.ts`, `ui/MotionChoice.tsx`): jak w systemie (prefers-reduced-motion) / pełne / ograniczone /
+  wyłączone, per device (`rc-motion` in this browser), set as `data-motion` on `<html>`. Ograniczone = fades only;
+  wyłączone = instant. No sound anywhere. The choice is on Powiadomienia → Na tym urządzeniu and in the landscape's home
+  window (Ustawienia).
+- **The last-shown state** (`landscapeShown.ts`): per learner, base and view, in this browser (`cg-ls-shown:<base>:<view>:
+  <holder>`, at most 16 kept, the oldest go). Per topic one packed number — band, due, ring share in percent, height —
+  under a 32-bit hash of the topic id (5 000 topics ≈ 70 KB), plus the time it was shown and where the pieces stood.
+  Written every time the map shows an exact state. The diff, topic by topic: learned (now in the valley, before not),
+  review done (land both times, due before, not now), newly learnable (mountain → ring), lowered, otherwise changed,
+  new on the map. Newly conquered regions are computed from the diff (only the topmost of them). Points since then come
+  from the reward events after the stored time (`pointsSince`), per field through the card's topic.
+- **The playback** (`worldPlay.ts` timing, `WorldMap.tsx` drawing): camera glides to fit the changes (tilt and
+  rotation kept; not closer than names-in-tiles, not further than the whole map; it stays there) → learned columns sink
+  (ease-out 600 ms), their colour fills and the ring fills clockwise; neighbours that got lower sink in a wave just after
+  (+60 ms per hex, at most 0.3 s); a done review closes its ring, the amber dot fades and the tile pulses once in its
+  region colour (in Do powtórki it turns grey with that pulse) → the orange-red land outline draws itself along the new
+  border, the old border fades; newly learnable topics draw their light-yellow outline and a shimmer runs over the top →
+  the goal piece walks on, pieces on now-known topics fade → "+N" rises from each field and flies to the points counter
+  in the landscape head, which holds those points back and counts up as they arrive → a conquered region raises its flag
+  at the label, glows once, and "Obszar zdobyty: … · +N pkt" appears.
+- **5 000 topics stay smooth**: with many topics the camera glides over one picture of the old state (the projection is
+  linear, so a zoom and pan is an exact image transform; names and pieces step back meanwhile); once it stands, the
+  current state is one still picture and each frame redraws only the area that changes (a grid of tiles around the
+  changed columns, their neighbours and a small conquered region), there everything touching it from back to front. A
+  big conquered region glows at its border only. A first visit of more than 1 500 topics fades in instead of rising.
+  The points counter reads a small store, so arriving points repaint only the counter. Measured on the 5 000-topic test
+  base after learning one topic: 8.7 ms per frame while the camera glides, 8.6 ms afterwards (p90 17 ms); with changes
+  spread over the whole map about 35 ms.
+- **Kinds**: `return` (the map shows again: after a run, after a reload) plays all of it; `live` (the map stayed visible,
+  e.g. a review module next to it) plays the columns, rings and outlines without camera and without flying points;
+  `first` (nothing stored) only lets all columns rise from the ground (0.75 s, a wave from the house outwards).
+  Ograniczone: the old picture (old camera, old state) fades into the new one in 0.5 s. Wyłączone: the new state at once.
+- **Pokaż zmiany** stands over the map for 60 s after a return playback; it replays the same change.
+- **Answers** (`CardFace.tsx`, `cogita.css`): right — green flash (600 ms) and the ✓ draws itself, "+N" floats from the
+  button to the counter; wrong — red flash and a small shake (300 ms), then the right option glows softly, no points;
+  partly right — option states one after another, then the share counts up. A card that becomes utrwalona (the rewards'
+  rule: next review at least `known.days` away) shows a star burst "Utrwalone" (`knownNow.ts`). "N z rzędu" stands by the
+  progress from 3 on, glowing at 5, 10 and 20. The end of a run is a summary card (`SessionSummary.tsx`): cards, right,
+  points (counting up), topics learned, reviews done, daily goal, and "Wróć do mapy" when the run came from the landscape
+  (which then plays back).
+- **Toasts** (`RewardToasts.tsx`): at the edge (top right; at the bottom on phones), never over the question, one at a
+  time, 3.6 s (a level 2.6 s), Esc or a tap closes; three or more badges at once merge ("+3 odznaki"). Only bonuses are
+  toasted (daily goal "+50", streak day, badge, level) — never points per answer. A badge tapped opens "Odznaki i
+  poziomy". Every toasted kind is also in "Ostatnie nagrody". Shown once per event (stable ids).
+- **Odznaki i poziomy** (`BadgesPage.tsx`): Nauka → Nagrody → Odznaki (`…/nagrody/odznaki`), from the points panel, a
+  badge or the level chip; on a page or a link it opens under the board. Levels as a vertical path with the points
+  needed, where the learner stands, points to the next and its title; badges grouped by kind (start, consistency,
+  accuracy, volume, goals, exploration), earned with date / in progress with a bar and what is left / not started, tiers
+  in one row; next goals (the 2–3 closest) on top; the full "Ostatnie nagrody" filterable by day. A teacher sees the same
+  page read-only per learner (Postępy).
+- **Map badges** (exploration): first region conquered, half the map, the whole map, a week with nothing overdue. The
+  landscape measures them (`mapMeasures.ts`, this browser) and stores the date a badge was reached in the learner's
+  values (`~award.<id>`, the earliest wins), so it stands on every device and for the teacher.
+- **Embedded Widok** (page module `view`): no mode tabs and no search unless the owner sets `switch: tak`
+  („Przełączanie i szukanie"); `u`/`q` of an old address are ignored then. The landscape's own controls stay.
+- Checks: `app-playback-check.mjs` (pack/diff/conquests/points/timing/wave/storage/5 000 topics/words),
+  `app-rewards-check.mjs` (badges and levels).
 
 ### House, foundation, wedges, view modes, column height (2026-11-04/05, Prompt 16)
 

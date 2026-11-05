@@ -23,7 +23,7 @@ import { cellPx, deepestS, depthOf, detailPx, fitCam, fitInfo, FORE_MAX, keepLab
 import type { LandscapeWords } from './landscapeWords';
 import { motionLevel, useMotion, type MotionLevel } from '../ui/motion';
 import { flyPoints } from './rewardBus';
-import { clamp01, easeInOut, easeOut, FLY_GAP, FLY_MS, FLY_SINGLE, LINE_MS, playPoints, playTimes, PULSE_MS, REGION_MS, SHIMMER_MS, WALK_MS, waveDelays, type PlaybackEvent, type PlayTimes, type WorldPlayback } from './worldPlay';
+import { clamp01, easeInOut, easeOut, FADE_MS, FLY_GAP, FLY_MS, FLY_SINGLE, LINE_MS, playPoints, playTimes, PULSE_MS, REGION_MS, SHIMMER_MS, WALK_MS, waveDelays, type PlaybackEvent, type PlayTimes, type WorldPlayback } from './worldPlay';
 
 /** 2026-11-04 (Prompt 15, 4b) — was die Karte zeigt: alles, nur das Gekonnte (mit dem Rand), nur das Fällige. */
 export type WorldMode = 'all' | 'known' | 'discover' | 'due';
@@ -337,6 +337,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const lastPb = useRef<WorldPlayback | null>(null);
   const [phase, setPhase] = useState<PlayPhase | null>(null);
   const [replayUntil, setReplayUntil] = useState(0);
+  /* Gleitet die Kamera über ein Bild, treten Namen und Figuren zurück (sie stünden sonst am alten Platz). */
+  const [gliding, setGliding] = useState(false);
   const onPlaybackRef = useRef(onPlayback);
   onPlaybackRef.current = onPlayback;
   const emit = (e: PlaybackEvent) => onPlaybackRef.current?.(e);
@@ -490,6 +492,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   }, [proj, world, topics, n]);
   const screenRef = useRef(screen);
   screenRef.current = screen;
+  if (playRef.current !== null) playRef.current.renders += 1;
 
   /* -- 2026-11-05 (Prompt 17): das Abspielen ------------------------------------------------------------------------ */
   /** Nah genug, dass die Namen in den Kacheln stehen (wie `topicCam`) — weiter hinein geht das Abspielen nie. */
@@ -511,9 +514,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     }
     if (!Number.isFinite(x0)) return null;
     const far = fitWhole(camRef.current).s;
-    if (seen && camRef.current.s >= far * 0.98 && cellPx(camRef.current) >= 6) return null;
     const fit = fitCam(camRef.current, width, height, (x0 + x1) / 2, (y0 + y1) / 2, Math.max(2.6, Math.max(x1 - x0, y1 - y0) / 2 + 1.2));
-    return clamp({ ...fit, s: Math.max(far, Math.min(fit.s, Math.max(nearS, far))) });
+    const s = Math.max(far, Math.min(fit.s, Math.max(nearS, far)));
+    /* Schon im Bild und nicht viel kleiner als es geht: bleiben (sonst hin — ein Feld unter 5 000 sähe man nicht sinken). */
+    if (seen && s <= camRef.current.s * 1.3) return null;
+    return clamp({ ...fit, s });
   };
   const camDiffers = (a: WorldCam, b: WorldCam): boolean => Math.abs(Math.log(b.s / a.s)) > 0.1 || Math.hypot(b.cx - a.cx, b.cy - a.cy) * a.s > Math.min(width, height) * 0.1;
   /** „+N" von den Feldern zum Zähler (die grössten einzeln, der Rest als eine Summe aus der Mitte der übrigen). */
@@ -545,11 +550,15 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     skipOff.current?.();
     skipOff.current = null;
     if (skipped && A.camTo !== null) { stop(); setCam(clamp(A.camTo)); }
+    if (A.glidePic !== null) { A.glidePic = null; setCam(clamp(A.camTo ?? camRef.current)); }
+    setGliding(false);
     if (!A.sentPoints) { A.sentPoints = true; const left = playPoints(A.pb); if (left > 0) emit({ kind: 'points', id: A.pb.id, n: left }); } else A.finishFlights?.();
     if (!A.sentRegions) { A.sentRegions = true; if (A.regions.length > 0) emit({ kind: 'regions', id: A.pb.id, keys: A.regions }); }
     walks.current.clear();
     setPhase(null);
     emit({ kind: 'end', id: A.pb.id, skipped });
+    /* Für Prüfungen: wie lange ein Bild beim Abspielen im Mittel brauchte. */
+    if (box.current !== null) { box.current.dataset.wmPlayMs = (A.drawMs / Math.max(1, A.frames)).toFixed(1); box.current.dataset.wmPlayFrames = String(A.frames); box.current.dataset.wmPlayDyn = String(A.dyn === null ? -1 : A.dyn.reduce((sum, x) => sum + x, 0)); box.current.dataset.wmPlayRects = String(A.rects === null ? 0 : A.rects.length / 4); box.current.dataset.wmPlayStats = JSON.stringify(Object.fromEntries(Object.entries(A.stats).map(([k, v]) => [k, [v.n, +(v.ms / Math.max(1, v.n)).toFixed(1), +v.max.toFixed(0)]]))); box.current.dataset.wmPlayRenders = String(A.renders); }
     if (A.pb.kind === 'return' && A.motion !== 'off') setReplayUntil(Date.now() + 60_000);
     paintRef.current();
   };
@@ -581,6 +590,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     for (const i of pb.reviewed) if (i < N) mark[i] = 1;
     for (const i of pb.opened) if (i < N) mark[i] = 2;
     for (const key of pb.conquered) for (const i of world.regions.get(key)?.topics ?? []) if (i < N) glow[i] = 1;
+    let glowN = 0;
+    for (let i = 0; i < N; i += 1) glowN += glow[i];
     const late = pb.kind === 'first' ? [] : [...pb.lowered, ...pb.moved, ...pb.fresh].filter((i) => i < N && !Number.isNaN(h0[i]));
     const delay = waveDelays(world.cells, pb.kind, pb.learned.length > 0 ? pb.learned : pb.opened, late);
     let wave = 0;
@@ -590,12 +601,18 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const camTo = target !== null && camDiffers(camFrom, target) ? target : null;
     const flights = pb.kind === 'return' ? Math.min(FLY_SINGLE + 1, pb.points.length + (pb.rest > 0 ? 1 : 0)) : 0;
     const times = playTimes({ kind: pb.kind, motion, camMove: camTo !== null, wave, lines: pb.learned.length + pb.opened.length + pb.fresh.length > 0, pulses: pb.reviewed.length > 0, walks: pb.walks.length > 0, flights, regions: pb.conquered.length > 0 });
-    const A: Play = { pb, t0: performance.now(), times, motion, delay, h0, s0, b0, d0, land0, ready0, mark, glow, regions: pb.conquered, camFrom, camTo, fade: null, raf: 0, sentPoints: pb.kind !== 'return', sentRegions: false, finishFlights: null, left: false };
+    const A: Play = { pb, t0: performance.now(), times, motion, delay, h0, s0, b0, d0, land0, ready0, mark, glow, regions: pb.conquered, camFrom, camTo, fade: null, after: null, still: null, dyn: null, rects: null, glidePic: null, glowSmall: glowN <= GLOW_TILES, stats: {}, renders: 0, drawMs: 0, frames: 0, raf: 0, sentPoints: pb.kind !== 'return', sentRegions: false, finishFlights: null, left: false };
     playRef.current = A;
+    /* Für Prüfungen: wann es begann und wann die Teile kommen. */
+    if (box.current !== null) { box.current.dataset.wmPlayT0 = A.t0.toFixed(1); box.current.dataset.wmPlayTimes = `${times.cam1},${times.col0},${times.end}`; }
     emit({ kind: 'start', id: pb.id, points: pb.kind === 'return' ? playPoints(pb) : 0 });
     if (motion === 'off') { if (camTo !== null) setCam(clamp(camTo)); finishPlay(false); return; }
-    /* „ograniczone": nur eine Überblendung — das alte Bild (alte Kamera, alter Stand), darüber vergehend. */
-    if (motion === 'reduced') {
+    /*
+      „ograniczone": nur eine Überblendung — das alte Bild (alte Kamera, alter Stand), darüber vergehend. Ebenso der erste
+      Besuch einer sehr grossen Baza (5 000 Säulen in jedem Bild aufsteigen zu lassen, wäre nicht flüssig): ein sanftes
+      Auftauchen aus dem flachen Boden.
+    */
+    if (motion === 'reduced' || (pb.kind === 'first' && n > BIG_RISE)) {
       const el = canvas.current;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const off = document.createElement('canvas');
@@ -606,9 +623,16 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         for (let i = 0; i < n; i += 1) { const c = world.cells[i]; const [x, y] = toScreen(proj, c.x, c.y, stepsAt(A, i, topics[i]?.steps ?? 0, -1)); scr[i * 3] = x; scr[i * 3 + 1] = y; scr[i * 3 + 2] = depthOf(proj, c.x, c.y); }
         draw(octx, dpr, proj, scr, width, height, -1);
         A.fade = off;
+        if (motion !== 'reduced') A.times = { ...A.times, fade: FADE_MS, end: FADE_MS, col0: 0, colMs: 0, col1: 0 };
       }
       if (camTo !== null) setCam(clamp(camTo));
     }
+    /*
+      Bei vielen Säulen gleitet die Kamera über ein Bild: der alte Stand einmal gezeichnet (mit Rand), dann nur verschoben und
+      vergrössert — die Abbildung ist linear, also genau dasselbe Bild; Namen und Figuren treten so lange zurück.
+    */
+    if (motion === 'full' && camTo !== null && n >= LAYER_FROM && palette !== null) A.glidePic = glidePicture(A, camTo);
+    if (A.glidePic !== null) setGliding(true);
     walks.current.clear();
     if (motion === 'full') for (const w of pb.walks) walks.current.set(w.to, { from: w.from, at: A.t0 + times.walk0, ms: WALK_MS });
     setPhase({ id: pb.id, flags: false, hide: new Set(pb.conquered), rise: new Set(pb.conquered), leaving: pb.leaving, left: false });
@@ -618,7 +642,13 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       if (topics.length !== A.h0.length && topicsRef.current.length !== A.h0.length) { finishPlay(true); return; }
       const tau = performance.now() - A.t0;
       let rendered = false;
-      if (A.camTo !== null && A.times.cam1 > 0 && tau <= A.times.cam1 + 40) { setCam(lerpCam(A.camFrom, A.camTo, easeInOut(clamp01(tau / A.times.cam1)))); rendered = true; }
+      if (A.camTo !== null && A.times.cam1 > 0) {
+        const c = lerpCam(A.camFrom, A.camTo, easeInOut(clamp01(tau / A.times.cam1)));
+        if (A.glidePic !== null) {
+          /* Am Ende des Gleitens die wirkliche Kamera (und Namen, Figuren) — auch wenn ein langsames Bild das Ende übersprang. */
+          if (tau >= A.times.cam1) { A.glidePic = null; setGliding(false); setCam(A.camTo); rendered = true; } else camRef.current = c;
+        } else if (tau <= A.times.cam1 + 40) { setCam(c); rendered = true; }
+      }
       if (!A.sentPoints && tau >= A.times.pts0) { A.sentPoints = true; A.finishFlights = flyAll(A); }
       if (!A.left && tau >= A.times.walk0) { A.left = true; if (A.pb.leaving.length > 0) { setPhase((ph) => (ph === null ? ph : { ...ph, left: true })); rendered = true; } }
       if (!A.sentRegions && tau >= A.times.reg0) {
@@ -638,17 +668,159 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   topicsRef.current = topics;
   /** Ein Bild beim Abspielen: die Säulen auf ihrer Höhe von jetzt — „ograniczone": das neue Bild, das alte vergeht darüber. */
   const drawPlay = (ctx: CanvasRenderingContext2D, dpr: number, A: Play) => {
+    const started = performance.now();
+    let kind = 'full';
+    try { kind = drawPlayNow(ctx, dpr, A); } finally { const ms = performance.now() - started; A.drawMs += ms; A.frames += 1; const st = A.stats[kind] ?? (A.stats[kind] = { n: 0, ms: 0, max: 0 }); st.n += 1; st.ms += ms; st.max = Math.max(st.max, ms); }
+  };
+  const drawPlayNow = (ctx: CanvasRenderingContext2D, dpr: number, A: Play): string => {
     const tau = performance.now() - A.t0;
+    if (A.glidePic !== null && A.camTo !== null && tau < A.times.cam1) {
+      /* Das Bild des alten Standes, so verschoben und vergrössert, wie die Kamera jetzt steht. */
+      const g = A.glidePic;
+      const cur = camRef.current;
+      const k = cur.s / A.camFrom.s;
+      const a = (A.camFrom.rot * Math.PI) / 180;
+      const dx = A.camFrom.cx - cur.cx; const dy = A.camFrom.cy - cur.cy;
+      const rx = dx * Math.cos(a) - dy * Math.sin(a); const ry = dx * Math.sin(a) + dy * Math.cos(a);
+      const fore = Math.max(FORE_MIN, Math.min(FORE_MAX, A.camFrom.fore));
+      const tx = cur.s * rx; const ty = -cur.s * ry * fore;
+      const x0 = width / 2 + k * (-g.margin - width / 2) + tx;
+      const y0 = height / 2 + k * (-g.margin - height / 2) + ty;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, Math.round(width * dpr), Math.round(height * dpr));
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(g.canvas, x0 * dpr, y0 * dpr, g.canvas.width * k * (dpr / g.dpr), g.canvas.height * k * (dpr / g.dpr));
+      return 'glide';
+    }
+    const fits = (c: HTMLCanvasElement | null) => c !== null && c.width === Math.round(width * dpr) && c.height === Math.round(height * dpr);
+    const blit = (c: HTMLCanvasElement, alpha = 1) => { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = alpha; ctx.drawImage(c, 0, 0); ctx.globalAlpha = 1; };
     if (A.fade !== null) {
-      draw(ctx, dpr);
+      /* Das neue Bild einmal gezeichnet (nicht in jedem Schritt), das alte vergeht darüber. */
+      if (!fits(A.after)) { const off = document.createElement('canvas'); off.width = Math.round(width * dpr); off.height = Math.round(height * dpr); const octx = off.getContext('2d'); if (octx !== null) { draw(octx, dpr); A.after = off; } }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, Math.round(width * dpr), Math.round(height * dpr));
+      if (A.after !== null) blit(A.after); else draw(ctx, dpr);
       const k = clamp01(tau / Math.max(1, A.times.fade));
-      if (k < 1) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - k; ctx.drawImage(A.fade, 0, 0); ctx.globalAlpha = 1; }
-      return;
+      if (k < 1) blit(A.fade, 1 - k);
+      return 'fade';
     }
     let scr = playScr.current;
     if (scr === null || scr.length !== n * 3) { scr = new Float32Array(n * 3); playScr.current = scr; }
     for (let i = 0; i < n; i += 1) { const c = world.cells[i]; const [x, y] = toScreen(proj, c.x, c.y, stepsAt(A, i, topics[i]?.steps ?? 0, tau)); scr[i * 3] = x; scr[i * 3 + 1] = y; scr[i * 3 + 2] = depthOf(proj, c.x, c.y); }
+    /*
+      2026-11-05 (Prompt 17) — SOBALD DIE KAMERA STEHT: das Bild von jetzt einmal als stilles Bild; in jedem Schritt wird nur
+      die Fläche neu gezeichnet, in der sich etwas ändert (die geänderten Säulen, ihre Nachbarn — ihr Rand ändert sich mit —,
+      ein erobertes Gebiet), dort aber alles, was sie berührt, von hinten nach vorn. So bleiben auch 5 000 Säulen flüssig.
+      Ein erster Besuch (alles steigt) zeichnet alles.
+    */
+    if (A.pb.kind !== 'first' && n >= LAYER_FROM && tau >= A.times.col0) {
+      if (A.dyn === null) { const area = changingArea(A, scr); A.dyn = area.touch; A.rects = area.rects; }
+      if (!fits(A.still)) {
+        const off = document.createElement('canvas'); off.width = Math.round(width * dpr); off.height = Math.round(height * dpr);
+        const octx = off.getContext('2d');
+        if (octx !== null) { draw(octx, dpr); A.still = off; }
+      }
+      if (A.still !== null && A.rects !== null) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, Math.round(width * dpr), Math.round(height * dpr));
+        blit(A.still);
+        draw(ctx, dpr, proj, scr, width, height, tau, 'moving');
+        return 'moving';
+      }
+    }
     draw(ctx, dpr, proj, scr, width, height, tau);
+    return 'full';
+  };
+  /**
+   * Das Bild für das Gleiten: der alte Stand bei der alten Kamera, mit einem Rand ringsum, so gross, dass auch das Ziel darin
+   * liegt (sonst `null` — dann wird jedes Bild gezeichnet).
+   */
+  const glidePicture = (A: Play, to: WorldCam): { canvas: HTMLCanvasElement; margin: number; dpr: number } | null => {
+    /* In halber Auflösung, wo der Schirm doppelt hat: es bewegt sich und wird vergrössert — und braucht ein Viertel des Speichers. */
+    const dpr = 1;
+    const from = A.camFrom;
+    /* Wo das Ziel im alten Bild liegt: seine Ecken auf dem Boden, im alten Blick. */
+    const pFrom = projection(from, width, height, stepNow);
+    let need = 0;
+    for (const [sx, sy] of [[0, 0], [width, 0], [0, height], [width, height]] as const) {
+      const [gx, gy] = toGround(to, width, height, sx, sy);
+      const [x, y] = toScreen(pFrom, gx, gy);
+      need = Math.max(need, -x, x - width, -y, y - height);
+    }
+    const margin = Math.ceil(Math.max(0, need) + 24);
+    if (margin > Math.max(width, height) * 1.2) return null;
+    const cw = width + 2 * margin; const ch = height + 2 * margin;
+    if (cw * ch * dpr * dpr > 12e6) return null;
+    const off = document.createElement('canvas');
+    off.width = Math.round(cw * dpr); off.height = Math.round(ch * dpr);
+    const octx = off.getContext('2d');
+    if (octx === null) return null;
+    const p2 = projection(from, cw, ch, stepNow);
+    const scr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i += 1) { const c = world.cells[i]; const [x, y] = toScreen(p2, c.x, c.y, stepsAt(A, i, topics[i]?.steps ?? 0, -1)); scr[i * 3] = x; scr[i * 3 + 1] = y; scr[i * 3 + 2] = depthOf(p2, c.x, c.y); }
+    draw(octx, dpr, p2, scr, cw, ch, -1);
+    return { canvas: off, margin, dpr };
+  };
+  /**
+   * Die Fläche, in der sich beim Abspielen etwas ändert: je geänderter Säule, je Nachbar (der Rand des Landes läuft durch
+   * sie) und je Thema eines eroberten Gebiets ein Rechteck über ihre ganze Höhe (die alte oder neue, die grössere; mit Rand
+   * für den Puls) — und jede Säule, die eines davon berührt (sie wird dort mitgezeichnet).
+   */
+  const changingArea = (A: Play, scr: Float32Array): { touch: Uint8Array; rects: Float32Array } => {
+    const N = n;
+    const per = proj.lift * proj.step * proj.s;
+    const half = proj.s * 0.62;
+    const face = proj.s * 0.62 * Math.max(0.2, proj.fore);
+    const at = byCell.current;
+    const pick = new Uint8Array(N);
+    for (let i = 0; i < N; i += 1) {
+      const t = topics[i];
+      if (t === undefined) continue;
+      const landNow = t.band === 'known' || t.band === 'due' ? 1 : 0;
+      const readyNow = t.band === 'ring' ? 1 : 0;
+      /* Ein grosses erobertes Gebiet leuchtet nur an seinem Rand (über allem gezeichnet), nicht Säule für Säule. */
+      const glows = A.glow[i] !== 0 && A.glowSmall;
+      const changed = !Number.isNaN(A.h0[i]) || A.b0[i] !== 255 || !Number.isNaN(A.s0[i]) || A.d0[i] !== (t.due ? 1 : 0) || A.mark[i] !== 0 || glows || A.land0[i] !== landNow || A.ready0[i] !== readyNow;
+      if (!changed) continue;
+      pick[i] = 1;
+      const c = world.cells[i];
+      for (const [dq, dr] of EDGE_DIR) { const j = at.get(`${c.q + dq},${c.r + dr}`); if (j !== undefined) pick[j] = 1; }
+    }
+    /* Oberkante (bei der grösseren Höhe) und Unterkante jeder Säule auf dem Schirm. */
+    const tall = (i: number) => Math.max(topics[i]?.steps ?? 0, Number.isNaN(A.h0[i]) ? 0 : A.h0[i]);
+    const topOf = (i: number) => scr[i * 3 + 1] - (tall(i) - (topics[i]?.steps ?? 0)) * per - face;
+    const baseOf = (i: number) => scr[i * 3 + 1] + (topics[i]?.steps ?? 0) * per + face;
+    /* Ein Raster aus Kacheln (wenige Rechtecke statt eines je Säule): jede Kachel, die eine geänderte Säule berührt. */
+    const T = 28;
+    const cols = Math.max(1, Math.ceil(width / T)); const rows = Math.max(1, Math.ceil(height / T));
+    const tile = new Uint8Array(cols * rows);
+    const mark = (x0: number, y0: number, x1: number, y1: number) => {
+      const c0 = Math.max(0, Math.floor(x0 / T)); const c1 = Math.min(cols - 1, Math.floor(x1 / T));
+      const r0 = Math.max(0, Math.floor(y0 / T)); const r1 = Math.min(rows - 1, Math.floor(y1 / T));
+      for (let r = r0; r <= r1; r += 1) for (let c = c0; c <= c1; c += 1) tile[r * cols + c] = 1;
+    };
+    for (let i = 0; i < N; i += 1) if (pick[i] === 1) mark(scr[i * 3] - half, topOf(i), scr[i * 3] + half, baseOf(i));
+    const rects: number[] = [];
+    for (let r = 0; r < rows; r += 1) {
+      let c = 0;
+      while (c < cols) {
+        if (tile[r * cols + c] === 0) { c += 1; continue; }
+        let e = c;
+        while (e + 1 < cols && tile[r * cols + e + 1] === 1) e += 1;
+        rects.push(c * T, r * T, (e - c + 1) * T, T);
+        c = e + 1;
+      }
+    }
+    /* Jede Säule, die eine der Kacheln berührt, wird dort mitgezeichnet. */
+    const touch = new Uint8Array(N);
+    for (let j = 0; j < N; j += 1) {
+      if (pick[j] === 1) { touch[j] = 1; continue; }
+      const c0 = Math.max(0, Math.floor((scr[j * 3] - half) / T)); const c1 = Math.min(cols - 1, Math.floor((scr[j * 3] + half) / T));
+      const r0 = Math.max(0, Math.floor(topOf(j) / T)); const r1 = Math.min(rows - 1, Math.floor(baseOf(j) / T));
+      if (c1 < 0 || r1 < 0 || c0 >= cols || r0 >= rows) continue;
+      search: for (let r = r0; r <= r1; r += 1) for (let c = c0; c <= c1; c += 1) if (tile[r * cols + c] === 1) { touch[j] = 1; break search; }
+    }
+    return { touch, rects: new Float32Array(rects) };
   };
   /* Der Knopf „Pokaż zmiany" geht nach einer Weile. */
   useEffect(() => {
@@ -657,13 +829,25 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     return () => window.clearTimeout(id);
   }, [replayUntil]);
 
-  function draw(ctx: CanvasRenderingContext2D, dpr: number, p: Projection = proj, scr: Float32Array = screen, cw = width, ch = height, tauAt?: number) {
+  function draw(ctx: CanvasRenderingContext2D, dpr: number, p: Projection = proj, scr: Float32Array = screen, cw = width, ch = height, tauAt?: number, layer?: 'moving') {
     const P = palette!;
     /* 2026-11-05 (Prompt 17) — beim Abspielen: wie weit jeder Teil ist (`tauAt`, ms seit dem Anfang; -1: der alte Stand). */
     const A = tauAt === undefined ? null : playRef.current;
     const tau = tauAt ?? 0;
     const kOf = (i: number): number => (A === null ? 1 : easeOut(colK(A, i, tau)));
+    /*
+      2026-11-05 (Prompt 17) — `moving`: nur in der Fläche, in der sich etwas ändert (`changingArea`), dort aber Boden, Haus
+      und jede Säule, die sie berührt, von hinten nach vorn (über dem stillen Bild des Ganzen).
+    */
+    const dyn = layer === 'moving' && A !== null ? A.dyn : null;
+    const skipCol = (i: number): boolean => dyn !== null && dyn[i] !== 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (layer === 'moving' && A !== null && A.rects !== null) {
+      ctx.save();
+      ctx.beginPath();
+      for (let k = 0; k < A.rects.length; k += 4) ctx.rect(A.rects[k], A.rects[k + 1], A.rects[k + 2], A.rects[k + 3]);
+      ctx.clip();
+    }
     ctx.clearRect(0, 0, cw, ch);
     const corners = p.corners;
     const margin = Math.max(30, p.s * 2);
@@ -675,10 +859,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     ctx.fill();
     /* Von hinten nach vorn. */
     const order: number[] = [];
-    for (let i = 0; i < n; i += 1) { const x = scr[i * 3]; const y = scr[i * 3 + 1]; if (x < -margin || x > cw + margin || y < -margin - 400 || y > ch + margin + 200) continue; order.push(i); }
+    for (let i = 0; i < n; i += 1) { if (dyn !== null && dyn[i] !== 1) continue; const x = scr[i * 3]; const y = scr[i * 3 + 1]; if (x < -margin || x > cw + margin || y < -margin - 400 || y > ch + margin + 200) continue; order.push(i); }
     order.sort((a, b) => scr[a * 3 + 2] - scr[b * 3 + 2]);
     const lift = p.lift * p.step * p.s;
-    const now = performance.now();
     /* Welche Seiten nach vorn zeigen (ihre Mitte liegt unter der Mitte der Kachel). */
     const front = [0, 1, 2, 3, 4, 5].filter((k) => (corners[k][1] + corners[(k + 1) % 6][1]) / 2 > 1e-6);
     /* Dieselben Seiten als zusammenhängende Folge (über die Ecke 5→0 hinweg), für die eine Fläche fern. */
@@ -814,6 +997,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const t = topics[i];
       if (t === undefined) continue;
       if (!homeDrawn && scr[i * 3 + 2] > homeDepth) drawHome();
+      if (skipCol(i)) continue;
       const x = scr[i * 3];
       const top = scr[i * 3 + 1];
       const h = (A === null ? t.steps : stepsAt(A, i, t.steps, tau)) * lift;
@@ -828,7 +1012,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const grayK = A === null || g0 === g1 ? g1 : g0 + (g1 - g0) * (A.mark[i] === 1 && mode === 'due' ? pulseK(A, i, tau) : kOf(i));
       if (grayK > 0) { const l = face[0] * 0.3 + face[1] * 0.59 + face[2] * 0.11; const grey = mix([l, l, l], P.haze, 0.45); face = mix(face, mode === 'discover' && isLand(i) ? mix(grey, face, 0.4) : grey, grayK); }
       /* Ein eben erobertes Gebiet leuchtet einmal. */
-      if (A !== null && A.glow[i] === 1 && regionK > 0 && regionK < 1) face = mix(face, P.surface, 0.3 * Math.sin(Math.PI * regionK));
+      if (A !== null && A.glow[i] === 1 && (A.glowSmall || layer === undefined) && regionK > 0 && regionK < 1) face = mix(face, P.surface, 0.3 * Math.sin(Math.PI * regionK));
       /* 2026-11-04 (Prompt 15, 3) — ein Gebiet unter dem Zeiger leuchtet, die anderen treten zurück. */
       if (regionHi !== null) face = (world.chain[i] ?? []).includes(regionHi) ? mix(face, P.surface, 0.16) : mix(face, P.haze, 0.6);
       /* Die Seiten (eine Fläche je sichtbarer Seite, dunkler). */
@@ -934,6 +1118,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         strokeEdges(mix(P.ready, P.surface, 0.3), Math.max(0.7, line * 0.33), 0.9);
       }
     }
+    /* Über dem stillen Bild: der Rest (das Leuchten eines Gebiets, Wege) nicht mehr auf die Fläche beschränkt. */
+    if (layer === 'moving') { ctx.restore(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
     /* 2026-11-05 (Prompt 17) — das eroberte Gebiet: sein Rand leuchtet einmal auf. */
     if (A !== null && A.regions.length > 0 && regionK > 0 && regionK < 1) {
       const a = Math.sin(Math.PI * regionK);
@@ -988,7 +1174,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     }
     /* 2026-11-04 (Prompt 16) — kein Punkt „hier bist du“ mehr (das Haus und die Figuren zeigen, wo man ist). */
     /* Für Prüfungen: was im sichtbaren Bild steht. */
-    {
+    if (layer === undefined) {
       const el = box.current;
       if (el !== null) {
         el.dataset.wmInfo = String(drawnText); el.dataset.wmInfoIn = String(insideText); el.dataset.wmInfoHidden = String(hiddenText); el.dataset.wmRings = String(rings);
@@ -1222,6 +1408,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   /* -- Was das Bild füllt (Brotkrumen), wenn die Kamera ruht ---------------------------------------------------- */
   const viewChain = useRef<readonly string[]>([]);
   useEffect(() => {
+    /* 2026-11-05 (Prompt 17) — während des Abspielens nicht (die ganze Landschaft zeichnete neu, mitten in der Bewegung); danach einmal. */
+    if (phase !== null) return undefined;
     const id = window.setTimeout(() => {
       /* Das Thema nächst der Mitte; seine Gebiete, solange sie das Bild füllen. */
       let best = -1; let bd = Infinity;
@@ -1233,7 +1421,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     }, 220);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cam, screen]);
+  }, [cam, screen, phase === null]);
 
   const measured = useRef(new Map<string, [number, number]>());
   /* Neu gemessene Namen: einmal neu verteilen (sonst blieben Schätzungen stehen, bis die Kamera sich bewegt). */
@@ -1360,7 +1548,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const tiltPct = Math.round(((cam.fore - FORE_MIN) / (FORE_MAX - FORE_MIN)) * 100);
 
   return (
-    <div ref={box} className={`cg-wm${compact ? ' is-compact' : ''}`} tabIndex={-1} onKeyDown={keys} data-wm-scale={cam.s.toFixed(2)} data-wm-px={px.toFixed(1)} data-wm-rot={rotNow} data-wm-fore={cam.fore.toFixed(2)}
+    <div ref={box} className={`cg-wm${compact ? ' is-compact' : ''}${gliding ? ' is-gliding' : ''}`} tabIndex={-1} onKeyDown={keys} data-wm-scale={cam.s.toFixed(2)} data-wm-px={px.toFixed(1)} data-wm-rot={rotNow} data-wm-fore={cam.fore.toFixed(2)}
       data-wm-far={far ? '1' : '0'} data-wm-level={levelNow} data-wm-tops={world.top.length} data-wm-hot={hoverRegion ?? ''} data-wm-cells={n} data-wm-step={stepNow.toFixed(3)} data-wm-height={height3} data-wm-home={world.home} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')} data-wm-playing={phase === null ? '' : String(phase.id)} data-wm-played={lastPb.current?.id ?? ''} data-wm-played-kind={lastPb.current?.kind ?? ''}>
       <div className="cg-wm-modes" role="group" aria-label={T.modeLabel} data-wm-modes={mode}>
         {(['all', 'known', 'discover', 'due'] as const).map((m) => (
@@ -1376,7 +1564,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           const rk = isRegion ? l.key.slice(2) : null;
           return (
             <span key={l.key} className={`cg-wm-label${isRegion ? ' is-region' : ' is-topic'}${l.shown ? ' is-shown' : ''}${rk !== null && rk === hoverRegion ? ' is-hot' : ''}${rk !== null && world.regions.get(rk)?.parent === null ? ' is-top' : ''}${rk !== null && phase !== null && phase.flags && phase.rise.has(rk) ? ' is-rising' : ''}`} data-wm-leader={l.leader === undefined ? undefined : ''} data-wm-label={l.key} data-wm-box={[l.x - l.w / 2, l.y - l.h / 2, l.w, l.h].map((v) => v.toFixed(0)).join(',')}
-              ref={(el) => { if (el !== null) { const sk = `${l.key}|${l.text}`; if (!measured.current.has(sk) && el.offsetWidth > 0) { measured.current.set(sk, [el.offsetWidth, el.offsetHeight]); if (measureSoon.current === 0) measureSoon.current = window.setTimeout(() => { measureSoon.current = 0; setMeasureTick((x) => x + 1); }, 60); } if (rk !== null) el.style.setProperty('--wm-label-c', labelColour(rk)); el.style.left = `${l.x.toFixed(1)}px`; el.style.top = `${l.y.toFixed(1)}px`; el.style.width = `${l.w.toFixed(0)}px`; el.style.opacity = l.shown ? String(Math.min(1, l.alpha)) : '0'; } }}>
+              ref={(el) => { if (el !== null) { const sk = `${l.key}|${l.text}`; if (!measured.current.has(sk) && el.offsetWidth > 0) { measured.current.set(sk, [el.offsetWidth, el.offsetHeight]); if (measureSoon.current === 0) measureSoon.current = window.setTimeout(() => { measureSoon.current = 0; setMeasureTick((x) => x + 1); }, playRef.current === null ? 60 : 2600); } if (rk !== null) el.style.setProperty('--wm-label-c', labelColour(rk)); el.style.left = `${l.x.toFixed(1)}px`; el.style.top = `${l.y.toFixed(1)}px`; el.style.width = `${l.w.toFixed(0)}px`; el.style.opacity = l.shown ? String(Math.min(1, l.alpha)) : '0'; } }}>
               {rk !== null && conquered.has(rk) && !(phase !== null && phase.hide.has(rk)) && <FlagIcon />}{l.text}
             </span>
           );
@@ -1468,7 +1656,6 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 interface Play {
   readonly pb: WorldPlayback;
   readonly t0: number;
-  readonly times: PlayTimes;
   readonly motion: MotionLevel;
   /** Je Thema: wann seine Säule beginnt (die Welle). */
   readonly delay: Float32Array;
@@ -1486,8 +1673,24 @@ interface Play {
   readonly regions: readonly string[];
   readonly camFrom: WorldCam;
   readonly camTo: WorldCam | null;
-  /** „ograniczone": das alte Bild. */
+  /** „ograniczone": das alte Bild — und das neue (einmal gezeichnet). */
   fade: HTMLCanvasElement | null;
+  after: HTMLCanvasElement | null;
+  /** Sobald die Kamera steht: was sich nicht ändert (ein Bild) und was sich ändert (je Thema 1). */
+  still: HTMLCanvasElement | null;
+  dyn: Uint8Array | null;
+  /** Die Fläche, die sich ändert (je Rechteck x, y, Breite, Höhe auf dem Schirm). */
+  rects: Float32Array | null;
+  /** Das Bild, über das die Kamera gleitet (viele Säulen), mit seinem Rand. */
+  glidePic: { canvas: HTMLCanvasElement; margin: number; dpr: number } | null;
+  /** Für Prüfungen: Bilder je Art (Gleiten, ganz, nur die Fläche, Überblendung). */
+  readonly stats: Record<string, { n: number; ms: number; max: number }>;
+  renders: number;
+  /** Ein erobertes Gebiet ist klein genug, dass jede seiner Säulen aufleuchtet (sonst nur sein Rand). */
+  readonly glowSmall: boolean;
+  times: PlayTimes;
+  drawMs: number;
+  frames: number;
   raf: number;
   sentPoints: boolean;
   sentRegions: boolean;
@@ -1507,6 +1710,10 @@ interface PlayPhase {
 }
 
 const BAND_IX: Readonly<Record<string, number>> = { mountain: 1, ring: 2, due: 3, known: 4 };
+/** Ab so vielen Themen zeichnet das Abspielen in zwei Schichten (still und bewegt); ab so vielen taucht ein erster Besuch nur auf. */
+const LAYER_FROM = 600;
+const GLOW_TILES = 60;
+const BIG_RISE = 1500;
 const BAND_OF: readonly (LsBand | null)[] = [null, 'mountain', 'ring', 'due', 'known'];
 
 /** Wie weit die Säule i ist (0–1, ohne Glättung). */

@@ -493,3 +493,36 @@
 .cg-wm-height svg path { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; }
 .cg-wm-height:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
 .cg-wm-note { position: absolute; left: 50%; top: var(--wk-space-3); transform: translateX(-50%); padding: 0.3rem 0.8rem; border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-sm); background: var(--wk-surface); color: var(--wk-ink); font-size: var(--wk-text-sm); pointer-events: none; max-width: calc(100% - 2rem); text-align: center; }
+
+/* -- 2026-11-05 (Prompt 17): das Abspielen auf der Karte ------------------------------------------------------------ */
+/* „Pokaż zmiany": eine Weile nach dem Zurückkommen, links oben über der Karte. */
+.cg-wm-replay {
+  position: absolute; left: var(--wk-space-2); top: var(--wk-space-2); display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.25rem 0.7rem; border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-pill); background: var(--wk-surface);
+  color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); cursor: pointer; box-shadow: var(--wk-shadow-pop);
+  animation: cg-wm-replay-in 300ms ease-out both;
+}
+.cg-wm-replay:hover { border-color: var(--wk-accent); }
+.cg-wm-replay:focus-visible { outline: 2px solid var(--wk-ring); outline-offset: 2px; }
+.cg-wm-replay svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+@keyframes cg-wm-replay-in { from { opacity: 0; } to { opacity: 1; } }
+/* Ein eben erobertes Gebiet: seine Fahne steigt am Namen auf. */
+.cg-wm-label.is-rising .cg-wm-flag { animation: cg-wm-flag-rise 700ms cubic-bezier(.2,.9,.3,1.2) both; transform-origin: 50% 100%; }
+.cg-wm-label.is-rising { animation: cg-wm-label-glow 900ms ease-out both; }
+@keyframes cg-wm-flag-rise { from { transform: translateY(0.6em) scaleY(0.2); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cg-wm-label-glow { 0% { box-shadow: 0 0 0 0 var(--wm-label-c); } 40% { box-shadow: 0 0 0 4px var(--wm-label-c), 0 0 14px var(--wm-label-c); } 100% { box-shadow: 0 0 0 0 transparent; } }
+/* Eine Figur, deren Thema jetzt gekonnt ist, vergeht. */
+.cg-wm-leaving { pointer-events: none; }
+.cg-wm-leaving.is-going { animation: cg-wm-leave 420ms ease-out forwards; }
+@keyframes cg-wm-leave { to { opacity: 0; } }
+/* „ograniczone": nur Überblendungen; „wyłączone": nichts bewegt sich. */
+:root[data-motion='reduced'] .cg-wm-label.is-rising .cg-wm-flag { animation: cg-wm-replay-in 400ms ease-out both; }
+:root[data-motion='reduced'] .cg-wm-label.is-rising { animation: none; }
+:root[data-motion='off'] .cg-wm-replay, :root[data-motion='off'] .cg-wm-label.is-rising, :root[data-motion='off'] .cg-wm-label.is-rising .cg-wm-flag, :root[data-motion='off'] .cg-wm-leaving.is-going { animation: none; }
+/* 2026-11-05 (Prompt 17) — der Punktezähler oben in der Zeile der Karte: so breit wie sein Inhalt (als Container wäre er
+   in einer Flex-Zeile 0 breit, die Chips stünden übereinander über den Knöpfen). */
+.cg-ls-headrow .cg-rw.is-strip { container-type: normal; flex: 0 0 auto; }
+.cg-ls-headrow .cg-rw.is-strip .cg-rw-line { flex-wrap: nowrap; }
+/* 2026-11-05 (Prompt 17) — gleitet die Kamera beim Abspielen über ein Bild, treten Namen und Figuren kurz zurück. */
+.cg-wm.is-gliding .cg-wm-over, .cg-wm.is-gliding .cg-wm-pieces, .cg-wm.is-gliding .cg-wm-leaders { opacity: 0; transition: opacity 120ms ease-out; }
+.cg-wm .cg-wm-over, .cg-wm .cg-wm-pieces { transition: opacity 200ms ease-in; }

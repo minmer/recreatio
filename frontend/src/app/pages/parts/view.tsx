@@ -41,7 +41,7 @@ const ViewView = later(() => import('./viewViews').then((m) => m.ViewView));
 
 export const viewPart = definePart<ViewConfig>({
   kind: 'view',
-  example: { title: 'Tajemnice i okresy', library: '<id-bazy-wiedzy>', view: '<id-widoku>', mode: 'macierz', answers: '<id-obszaru-kursu>', rewards: '<id-nagród albo puste>' },
+  example: { title: 'Tajemnice i okresy', library: '<id-bazy-wiedzy>', view: '<id-widoku>', mode: 'macierz', answers: '<id-obszaru-kursu>', rewards: '<id-nagród albo puste>', switch: 'nie' },
   label: 'Widok',
   use: 'Zapisany widok bazy wiedzy (Nauka → baza → Wpisy → „Zapisz jako widok"): wybrane wpisy — także kazania i komentarze z bibliotek, z których baza korzysta — jako tabela, drzewo z grupami, macierz (np. 20 tajemnic × 12 okresów; pole otwiera swoje wpisy), mapa nauki, mapa postępów (kafelki w kolorze tego, jak dobrze odwiedzający zna każdy wpis — klik pokazuje tekst, pytania i „Ćwicz to") albo krajobraz (przed odwiedzającym pierścień tego, czego może się uczyć teraz, dalej góry — tym wyższe, im więcej kroków brakuje, za nim dolina tego, co umie; klik: czytać, uczyć się, powtórzyć, ustawić cel); kliknięty wpis otwiera się pod spodem (komentarz, całe kazanie), droga zostaje w adresie. „Ucz się tego" pyta o pokazane wpisy. Widzi go ten, kto może czytać bazę.',
   box: { colSpan: 6, rowSpan: 4 },

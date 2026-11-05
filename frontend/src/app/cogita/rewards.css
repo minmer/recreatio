@@ -272,13 +272,14 @@
 .cg-rw-burst.is-ring { inset: -0.4rem; }
 .cg-rw-inline { border-top: 1px solid var(--wk-line); padding-top: var(--wk-space-3); }
 
+/* 2026-11-05 (Prompt 17) — am <body> (ausserhalb der Anwendung): ihre Schrift ausdrücklich (sonst die Serifenschrift des Browsers). */
 .cg-rw-fly {
-  position: fixed; z-index: var(--wk-z-pop); pointer-events: none; transform: translate(-50%, -50%);
+  position: fixed; z-index: var(--wk-z-pop); pointer-events: none; transform: translate(-50%, -50%); font-family: var(--wk-font);
   font-weight: 800; font-size: var(--wk-text-lg); font-variant-numeric: tabular-nums; color: var(--cg-rw-gold-ink);
   text-shadow: 0 0 0.35rem var(--wk-surface), 0 0 0.15rem var(--wk-surface); white-space: nowrap;
 }
 
-.cg-rw-toasts { position: fixed; z-index: var(--wk-z-pop); top: calc(var(--wk-space-4) + 3.25rem); right: var(--wk-space-4); width: min(22rem, calc(100vw - 2rem)); pointer-events: none; display: grid; justify-items: end; }
+.cg-rw-toasts { font-family: var(--wk-font); font-size: var(--wk-text-md, 1rem); line-height: 1.4; position: fixed; z-index: var(--wk-z-pop); top: calc(var(--wk-space-4) + 3.25rem); right: var(--wk-space-4); width: min(22rem, calc(100vw - 2rem)); pointer-events: none; display: grid; justify-items: end; }
 .cg-rw-toast {
   pointer-events: auto; appearance: none; font: inherit; color: var(--wk-ink); text-align: left; cursor: pointer;
   display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--wk-space-3); align-items: center; width: 100%;

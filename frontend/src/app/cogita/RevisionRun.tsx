@@ -225,6 +225,8 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
       target: made.target === null ? null : { areaId: made.target.areaId, intake: made.target.intake === null ? null : toBase64Url(made.target.intake) },
       holder: { roleId: made.holder.roleId, wrapPublicKey: toBase64Url(made.holder.wrapPublicKey) },
       answers: answersFor(cards, made.progress.answers.values(), rename),
+      /* 2026-11-05 (Durchsicht) — die Abstände, die jetzt gelten (ohne Netz rechnete der Lauf sonst mit der Vorgabe). */
+      spacing: { ...spacingFor(lib, made), locked: lib.settings().spacing?.locked === true },
       savedAt: Date.now()
     };
     keptCopy.current = { copy, who: keeper };
@@ -281,8 +283,11 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
         const session = start({
           plan, all: all.length > 0 ? all : plan.cards, deps: source.deps ?? lib?.dependencies() ?? [], now: Date.now(), seed,
           marks: (key) => learner?.marks(key, fp.get(key), rename) ?? [],
-          /* 2026-11-04 (Prompt 15) — die Abstände, die für diesen Lernenden gelten: jeder Schritt im Lauf rechnet mit ihnen. */
-          spacing: spacingFor(lib, learner)
+          /*
+           * 2026-11-04 (Prompt 15) — die Abstände, die für diesen Lernenden gelten: jeder Schritt im Lauf rechnet mit ihnen.
+           * 2026-11-05 (Durchsicht) — ohne Baza (die Abschrift ohne Netz): die des Lernenden — `areaSpacing` aus der Abschrift.
+           */
+          spacing: lib === null && learner !== null ? learner.spacing : spacingFor(lib, learner)
         });
         if (alive) {
           setState({ session, all: all.length > 0 ? all : plan.cards });

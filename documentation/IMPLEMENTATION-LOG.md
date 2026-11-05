@@ -3622,3 +3622,48 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
 - LocalDB browser checks (`scratchpad/p16/f.mjs`, 13 each): star, deep, 5 000 (dark) at 1400 px and flat at 390 px; the
   Prompt 14 test with the new tilt direction (18/18) and the Prompt 15 test (18/18); dragging 5 000 topics 16.7 ms per
   frame.
+
+## C41 — Motion and rewards: playback on the landscape, live answers, badges and levels (2026-11-05, Prompt 17)
+
+- Review first (four parallel reviews of everything built in Prompts 11–16, then fixes):
+  - Layout and map (`worldLayout.ts`, `WorldMap.tsx`): crash on small bases (the house cell read as a topic), stealing
+    into the foundation, pinch end, double tap during a glide, covered pieces catching taps, canvas scaling, stale paint
+    loop, 45° label, long spins, stale world, first-change rebuild — fixed; fuzz 3 000 random graphs, 0 throws.
+  - Landscape view: stale world after a base change, locks behind unreviewable page cards, wrong saved stand clearing a
+    goal, story units started as cards, owner tools without a saved view, goal piece off a filtered map, goals that left
+    the view, `[object Object]` keys, rename box carried over, the topic list rendered while closed (5 000 rows), new
+    objects every render redrawing the map, a goal stored without steps (route fetched once), region edits lost on
+    „Zapisz" in Wpisy — fixed.
+  - Learner and spacing: a revision inside a story stuck on its end screen (`onDone` in a ref), statistics and module
+    cards with the default spacing, a fixed view mode overridden from the address, Polish-only aria labels, intervals
+    capped at 1 000 years (Date range), the default schedule bit-exact again after a lapse — fixed. Learner values
+    overwritten across instances and devices, the 5 000-batch history cut, stale queued positions, offline spacing:
+    see the learner-sync part below.
+  - Stories (FlowPlayer and flow.ts, edited in parallel by the owner): reported, not changed — chapter end after a
+    resume ends the story, presentation detours pass straight through, opening a story saves a position, chapters keyed
+    by hub id only, lock re-evaluated mid-story, story templates (import blocked, identity, re-resolve), „Przebieg"
+    conditions without the lasting ref, required detours to missing stories, a late learner overwriting the place.
+- Prompt 17 files: `ui/motion.ts` (Animacje), `ui/MotionChoice.tsx`, `cogita/motionWords.ts`, `cogita/rewardBus.ts`
+  (answer source, flights with a finish handle, utrwalone), `cogita/RewardToasts.tsx`, `cogita/knownNow.ts`,
+  `cogita/SessionSummary.tsx`, `cogita/landscapeShown.ts` (last-shown state and diff), `cogita/worldPlay.ts` (playback
+  timing and wave), `WorldMap.tsx` (playback drawing, Pokaż zmiany), `LandscapeView.tsx` (snapshot, diff, points per
+  field, counter, map measures and awards), `RewardViews.tsx` (counter hold, map badges, badges page under a board),
+  `CardFace.tsx`/`cogita.css` (answer motion), `RevisionRun.tsx` (streak, summary, Wróć do mapy), `pages/parts/view.tsx`
+  + `viewViews.tsx` (`switch`), `notify/WorkspaceLook.tsx` and `LandscapeHome.tsx` (Animacje), `landscape.css`,
+  `rewards.css`; badges and levels by a helper: `rewards.ts` (kinds, map measures, `cleanDays`, awards), `BadgesPage.tsx`,
+  `badges.css`, `mapMeasures.ts`, `RewardsEditor.tsx` (route `nagrody/odznaki`), `Progress.tsx` (teacher view).
+- „Co dalej" after a story: the successors stand in one row (same level), joined by a bar; wider than the map — the row
+  scrolls sideways (changed by the user mid-way).
+- Learner sync (a helper, `learn.ts`, `Cogita.cs`, `offline.ts`, `AwayLearn.tsx`): latest-only kinds (values, positions,
+  suspensions) are written as per-key changes on top of a fresh pull (`cg-wait:<lib>:<holder>`, shared by every Learner of
+  that person and base, broadcast through `tell`/`hear`), never replayed from the outbox; batch reads are paged
+  (`?after`, response `more`/`next`, cursor created_at + id; 5 000 / 20 000 / 10 000 per page); the offline copy keeps the
+  area's spacing; `postDue` clamps dates. Old client ↔ new API both work.
+- Checks: `app-playback-check.mjs` (new, 44), `app-learn-sync-check.mjs` (new, 31), `app-rewards-check.mjs` (130),
+  `app-spacing-check.mjs` (35, a 1 000-year cap added), tsc, style ratchet; Api.Tests 585.
+- LocalDB browser drives (`scratchpad/p17/`): `real.mjs` learns three topics through the app (a review first, then two
+  topics), restores the state from before and reloads — one playback, "+N" fly (counter 1 130 → 1 170), over in 2.8 s,
+  Pokaż zmiany, a badge toast „Celny" (12 checks, the one miss: the review happened inside the first run); `answers.mjs`
+  — wrong/partly/right, „5 z rzędu" glowing, daily goal / streak / level toasts once each, „Poziom 5: Mistrz", the
+  summary card; `badges.mjs` — 8 levels with the learner's place, badges got / going / not started / on the map, six
+  kinds, three next goals, history (8/8); `smoke.mjs` on 5 000 topics (dark) and 64 topics (phone, reduced, off).

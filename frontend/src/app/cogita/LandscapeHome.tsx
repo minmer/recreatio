@@ -20,6 +20,8 @@ import { SpacingChoice, StackChoice } from './SpacingSettings';
 import { effectiveStackFor } from './spacing';
 import type { CogitaLibrary } from './store';
 import { Fullscreen } from '../ui/Modal';
+import { MotionChoice } from '../ui/MotionChoice';
+import { motionWords } from './motionWords';
 
 export interface HomeNumbers {
   readonly land: number;
@@ -126,6 +128,8 @@ export function HomeFull({ lib, learner, rules, cards, numbers, onReview, onClos
               <h3>{H.settings}</h3>
               <SpacingChoice lib={lib} learner={learner} />
               <StackChoice lib={lib} learner={learner} />
+              {/* 2026-11-05 (Prompt 17) — wie viel sich bewegt, auf diesem Gerät (gilt überall). */}
+              <MotionChoice words={motionWords(baseLang(lib))} />
             </section>
           </>
         )}
