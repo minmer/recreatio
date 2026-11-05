@@ -526,3 +526,28 @@
 /* 2026-11-05 (Prompt 17) — gleitet die Kamera beim Abspielen über ein Bild, treten Namen und Figuren kurz zurück. */
 .cg-wm.is-gliding .cg-wm-over, .cg-wm.is-gliding .cg-wm-pieces, .cg-wm.is-gliding .cg-wm-leaders { opacity: 0; transition: opacity 120ms ease-out; }
 .cg-wm .cg-wm-over, .cg-wm .cg-wm-pieces { transition: opacity 200ms ease-in; }
+
+/* -- 2026-11-05 (Weg): der Weg zum gewählten Thema in Schritten (WorldMap `paintWay`, worldWay.ts) ------------------- */
+/* Eine eigene Leinwand über der Karte (nimmt keine Klicks); gleitet die Kamera beim Abspielen über ein Bild, tritt sie zurück. */
+.cg-wm-way { position: absolute; left: 0; top: 0; pointer-events: none; }
+.cg-wm.is-gliding .cg-wm-way { opacity: 0; }
+/* Unten links auf der Karte (`--cg-wm-h` ist die Höhe der Leinwand — darunter liegt die Kamera): wie viele Schritte, ein Klick zeigt sie noch einmal (beim Laufen: der Schritt, ein Klick überspringt). */
+.cg-wm-waybtn {
+  position: absolute; left: var(--wk-space-2); top: calc(var(--cg-wm-h, 20rem) - 2.55rem); display: inline-flex; align-items: center; gap: 0.35rem;
+  max-width: calc(100% - 4.5rem); padding: 0.2rem 0.65rem; border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-pill);
+  background: color-mix(in oklab, var(--wk-surface) 92%, transparent); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm);
+  font-variant-numeric: tabular-nums; cursor: pointer; box-shadow: var(--wk-shadow-pop);
+}
+.cg-wm-waybtn:hover { border-color: var(--cg-ls-goal); }
+.cg-wm-waybtn:focus-visible { outline: 2px solid var(--wk-ring); outline-offset: 2px; }
+.cg-wm-waybtn.is-playing { border-color: var(--cg-ls-goal); box-shadow: 0 0 0 2px color-mix(in oklab, var(--cg-ls-goal) 30%, transparent); }
+.cg-wm-waybtn.is-still { cursor: default; box-shadow: none; }
+.cg-wm-way-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Schmal (Telefon): unten liegt das Blatt des gewählten Themas — der Knopf oben links (unter „Pokaż zmiany", wenn es steht). */
+.cg-wm.is-narrow .cg-wm-waybtn { top: var(--wk-space-2); }
+.cg-wm.is-narrow .cg-wm-stage:has(.cg-wm-replay) .cg-wm-waybtn { top: 2.9rem; }
+/* Während die Punkte springen, treten die Namen der Gebiete zurück (sonst deckten sie die Felder, auf denen sie landen). */
+.cg-wm.is-waying .cg-wm-over { opacity: 0.28; }
+.cg-wm-way-icon { width: 1.4rem; height: 0.95rem; flex: none; overflow: visible; }
+.cg-wm-way-icon-arc { fill: none; stroke: var(--cg-ls-goal); stroke-width: 1.6; stroke-dasharray: 2.6 2.4; stroke-linecap: round; }
+.cg-wm-way-icon-dot { fill: var(--cg-ls-goal); stroke: var(--wk-surface); stroke-width: 1.2; }

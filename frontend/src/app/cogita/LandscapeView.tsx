@@ -45,6 +45,7 @@ import { diffShown, keepShown, newlyConquered, pointsSince, readShown, shownKey,
 import { keepMapMeasures } from './mapMeasures';
 import { motionWords } from './motionWords';
 import { holdStore, playPoints, type PlaybackEvent, type WorldPlayback } from './worldPlay';
+import { wayPlan } from './worldWay';
 import { HomeFull, HomePanel } from './LandscapeHome';
 import type { Graph } from './graph';
 import { entityNameTex, useCtx } from './ui';
@@ -57,7 +58,7 @@ import { landscapeWords, type LandscapeWords } from './landscapeWords';
 import { globalDepth, nestAsRegions, topicGraphOf, type TopicGraph } from './levelMap';
 import { stepFor } from './worldView';
 import { worldLayout, type WorldLayout } from './worldLayout';
-import { FlagIcon, GoalFlagIcon, PieceIcon, WorldMap, type WorldCommand, type WorldPiece, type WorldTopic } from './WorldMap';
+import { FlagIcon, GoalFlagIcon, PieceIcon, WayIcon, WorldMap, type WorldCommand, type WorldPiece, type WorldTopic } from './WorldMap';
 import type { RegionTree } from './regions';
 import './landscape.css';
 
@@ -556,7 +557,6 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* Der Weg (eine Liste von Themen in der Reihenfolge des Lernens, das Ziel zuletzt) — für das gewählte Thema oder das Ziel. */
   const { chosen, setChosen } = keep;
   const [routeOf, setRouteOf] = useState<{ id: string; list: string[] } | null>(null);
-  const [routeShown, setRouteShown] = useState<string | null>(null);
   const chosenId = chosen !== null && topicIndex.has(chosen) ? chosen : null;
   useEffect(() => {
     let alive = true;
@@ -567,8 +567,6 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosenId, client, stand]);
-  /* 2026-11-04 (Prompt 12) — ein gewähltes Thema zeigt seinen Weg gleich (auf der Karte und daneben). */
-  useEffect(() => { setRouteShown(chosenId); }, [chosenId]);
   const goalOpen = goalSteps.filter((x) => { const b = bandOf(x); return b !== 'known' && b !== 'due'; });
   /*
     2026-11-04 (Prompt 14, 1) — DIE SPIELFIGUREN, gemerkt mit dem Fortschritt des Lernenden (eine Stelle `pieces:<widok>`: die
@@ -839,12 +837,16 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const chosenT = chosenId === null ? null : topicIndex.get(chosenId) ?? null;
   /* 2026-11-05 (Durchsicht) — dieselben Objekte, solange sich nichts ändert (sonst zeichnete die Karte bei jedem Rendern neu). */
   const links = useMemo(() => (chosenT === null ? null : { needs: tg.graph.needs[chosenT] ?? [], opens: opensOf[chosenT] ?? [] }), [chosenT, tg, opensOf]);
-  /* Der Weg auf der Karte: zum gewählten Thema, sonst zum Ziel. */
-  const routeIds: readonly string[] | null = routeShown !== null && routeOf !== null && routeOf.id === routeShown ? routeOf.list.filter((x) => { const b = bandOf(x); return b !== 'known' && b !== 'due'; })
-    : goal !== null && goalOpen.length > 0 ? goalOpen : null;
-  const routeKey = routeIds === null ? null : routeIds.join('|');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const routeT = useMemo(() => (routeIds === null ? null : routeIds.map((x) => topicIndex.get(x)).filter((x): x is number => x !== undefined)), [routeKey, topicIndex]);
+  /*
+    Der Weg auf der Karte: zum gewählten Thema (2026-11-04, Prompt 12: gleich beim Wählen), sonst zum Ziel.
+    2026-11-05 (Weg) — als Schritte (`worldWay.ts`): von dem, was jetzt lernbar ist, je Schritt eine Stufe höher bis dorthin;
+    beim Wählen springen Punkte ihn entlang (`WorldMap`). Ein gewähltes Thema ohne Weg (gekonnt, jetzt lernbar) zeigt keinen.
+  */
+  const wayTarget = chosenT !== null ? chosenT : goal !== null ? topicIndex.get(goal) ?? null : null;
+  const way = useMemo(() => (wayTarget === null ? null : wayPlan({
+    target: wayTarget, needs: tg.graph.needs, opens: opensOf,
+    open: (t) => { const b = worldTopics[t]?.band; return b === 'ring' || b === 'mountain'; }
+  })), [wayTarget, tg, opensOf, worldTopics]);
   const regionName = useMemo(() => (key: string) => tree?.regions.get(key)?.name ?? key, [tree]);
 
   /* Immer in einer Hülle, deren Breite gemessen wird. */
@@ -1084,7 +1086,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     : null;
   /* Die Legende sagt nur, was gerade gilt. */
   const legend = () => (
-    <Legend show={{ land: landCount > 0, glow: readyCount > 0, flag: conquered.size > 0, links: links !== null, piece: mapPieces.some((p) => p.kind === 'single'), goal: goal !== null }} folded={compact || !wide} />
+    <Legend show={{ land: landCount > 0, glow: readyCount > 0, flag: conquered.size > 0, links: links !== null, piece: mapPieces.some((p) => p.kind === 'single'), goal: goal !== null, way: way !== null }} folded={compact || !wide} />
   );
 
   return host(
@@ -1124,7 +1126,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       <div className="cg-ls-body">
         <div ref={mainRef} className="cg-ls-main">
           {world !== null && (
-            <WorldMap world={world} topics={worldTopics} regionName={regionName} conquered={conquered} chosen={chosenT} flash={flashT} home={next?.t ?? null} links={links} route={routeT}
+            <WorldMap world={world} topics={worldTopics} regionName={regionName} conquered={conquered} chosen={chosenT} flash={flashT} home={next?.t ?? null} links={links} way={way}
               width={mapWidth} compact={compact} T={T} memoryKey={`${lib.libraryId}:${viewKey}:${learner === null ? 'me' : holderKey(learner.holder)}`} command={command}
               onPickTopic={pick} onView={setViewChain} onBackground={() => setChosen(null)} legend={legend}
               step={step} pieces={mapPieces} goalFlag={goal === null ? null : topicIndex.get(goal) ?? null}
@@ -1157,7 +1159,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
 
 /* -- Die Legende: nur, was gerade gilt; im Engen zu „Legende" gefaltet ------------------------------------------ */
 
-function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'land' | 'glow' | 'flag' | 'links' | 'piece' | 'goal', boolean>> }) {
+function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'land' | 'glow' | 'flag' | 'links' | 'piece' | 'goal' | 'way', boolean>> }) {
   const [open, setOpen] = useState(!folded);
   useEffect(() => { setOpen(!folded); }, [folded]);
   const body = (
@@ -1170,6 +1172,7 @@ function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'land
       {show.goal && <li data-landscape-legend-mark="goal"><svg className="cg-ls-legend-icon" viewBox="-12 -16 24 18" aria-hidden><g transform="translate(-5,0)"><PieceIcon kind="goal" h={15} /></g><g transform="translate(5,0)"><GoalFlagIcon h={14} /></g></svg>{T.legendGoalPiece}</li>}
       <li data-landscape-legend-mark="ring"><svg className="cg-ls-legend-icon" viewBox="-10 -10 20 20" aria-hidden><path className="cg-ls-legend-ringrest" d="M0,-8 L6.9,-4 L6.9,4 L0,8 L-6.9,4 L-6.9,-4 Z" /><path className="cg-ls-legend-ringdone" d="M0,-8 L6.9,-4 L6.9,4 L0,8" /><circle className="cg-ls-legend-ringdue" cx={0} cy={-8} r={2} /></svg>{T.legendTileRing}</li>
       {show.flag && <li data-landscape-legend-mark="flag"><FlagIcon size={14} />{T.legendFlag}</li>}
+      {show.way && <li data-landscape-legend-mark="way"><WayIcon />{T.legendWay}</li>}
       {show.links && <li data-landscape-legend-mark="links"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><path className="cg-ls-legend-needs" d="M-10,4 Q-4,-6 2,2" /><path className="cg-ls-legend-opens" d="M2,2 Q6,-4 11,-2" /></svg>{T.legendNeeds} · {T.legendOpens}</li>}
     </ul>
   );

@@ -21,6 +21,10 @@
  *  15. `cleanDays`: überfällig gestern beendet die Reihe, die erste Antwort, jetzt überfällig, Zeitumstellung, höchstens 60.
  *  16. Die gemerkten Daten (`withAwards` behält das früheste), `Learner.keepAwards`, `keepValues` lässt sie stehen.
  *
+ * 2026-11-05 (Odznaki) — Kategorien mit Stufen aus Stoffen:
+ *  17. Die eingebaute Regel: 5 Kategorien × 5 Stufen, Holz → Diamant nach der Schwelle; Stand und nächste Stufe je Kategorie;
+ *      `tier` gelesen, begrenzt, geschrieben; Leitern mit einer, sieben Stufen, zwei Massen; `materialsOf`.
+ *
  *   node scripts/app-rewards-check.mjs
  */
 import { build } from 'esbuild';
@@ -391,23 +395,28 @@ try {
 
   /* ── 13. Arten der Abzeichen, die neuen Masse, die Rahmen ────────────────────────── */
   {
+    /* 2026-11-05 (Odznaki) — fünf Kategorien zu fünf Stufen. */
     const want = {
-      'pierwszy-krok': 'start', 'dziesiec-dobrych': 'accuracy', celny: 'accuracy', 'pierwsza-utrwalona': 'start', 'piecdziesiat-utrwalonych': 'volume',
-      'trzy-dni': 'consistency', tydzien: 'consistency', miesiac: 'consistency', 'cel-piec': 'goals', tysiac: 'volume',
-      'pierwszy-obszar': 'exploration', 'pol-mapy': 'exploration', 'cala-mapa': 'exploration', 'czysty-tydzien': 'exploration'
+      'trzy-dni': 'consistency', tydzien: 'consistency', 'dwa-tygodnie': 'consistency', miesiac: 'consistency', 'sto-dni': 'consistency',
+      'piec-z-rzedu': 'accuracy', celny: 'accuracy', 'dwadziescia-piec-z-rzedu': 'accuracy', 'piecdziesiat-z-rzedu': 'accuracy', 'sto-z-rzedu': 'accuracy',
+      'pierwsza-utrwalona': 'volume', 'utrwalone-25': 'volume', 'utrwalone-100': 'volume', 'utrwalone-500': 'volume', 'utrwalone-2000': 'volume',
+      'pierwszy-cel': 'goals', 'cel-piec': 'goals', 'cele-20': 'goals', 'cele-50': 'goals', 'cele-150': 'goals',
+      'mapa-10': 'exploration', 'cwierc-mapy': 'exploration', 'pol-mapy': 'exploration', 'trzy-czwarte-mapy': 'exploration', 'cala-mapa': 'exploration'
     };
     check('13 every default badge names its kind', Object.fromEntries(R.DEFAULT_REWARDS.badges.map((x) => [x.id, x.kind])), want);
     check('13 badgeKindOf of every default badge', Object.fromEntries(R.DEFAULT_REWARDS.badges.map((x) => [x.id, R.badgeKindOf(x)])), want);
     check('13 derived from the measure alone, the defaults keep their kinds', R.DEFAULT_REWARDS.badges.map((x) => R.badgeKindOf({ measure: x.measure, atLeast: x.atLeast })), R.DEFAULT_REWARDS.badges.map((x) => x.kind));
     const derive = [['answers', 1], ['answers', 10], ['answers', 11], ['known', 1], ['known', 2], ['cards', 1], ['cards', 50], ['points', 5], ['streak', 3], ['best', 9], ['days', 1],
       ['correct', 1], ['combo', 5], ['goals', 1], ['level', 3], ['regions', 1], ['map', 50], ['clean', 7]];
-    check('13 derived kinds: small counts start, larger volume; streak/best/days, correct/combo, goals/level, the map', derive.map(([measure, atLeast]) => R.badgeKindOf({ measure, atLeast })), [
-      'start', 'start', 'volume', 'start', 'volume', 'start', 'volume', 'volume', 'consistency', 'consistency', 'consistency',
+    /* 2026-11-05 (Odznaki) — nur aus dem Mass (eine Leiter bleibt eine Kategorie); „start" nur, wenn genannt. */
+    check('13 derived kinds from the measure alone: counts are volume; streak/best/days, correct/combo, goals/level, the map', derive.map(([measure, atLeast]) => R.badgeKindOf({ measure, atLeast })), [
+      'volume', 'volume', 'volume', 'volume', 'volume', 'volume', 'volume', 'volume', 'consistency', 'consistency', 'consistency',
       'accuracy', 'accuracy', 'goals', 'goals', 'exploration', 'exploration', 'exploration'
     ]);
+    check('13 start only when named', R.badgeKindOf({ measure: 'answers', atLeast: 1, kind: 'start' }), 'start');
     check('13 an explicit kind wins over the measure', R.badgeKindOf({ measure: 'points', atLeast: 5, kind: 'exploration' }), 'exploration');
-    check('13 the four map badges of the defaults', R.DEFAULT_REWARDS.badges.filter((x) => R.isExtraMeasure(x.measure)).map((x) => [x.id, x.measure, x.atLeast, x.points]), [
-      ['pierwszy-obszar', 'regions', 1, 0], ['pol-mapy', 'map', 50, 0], ['cala-mapa', 'map', 100, 0], ['czysty-tydzien', 'clean', 7, 0]
+    check('13 the five map steps of the defaults', R.DEFAULT_REWARDS.badges.filter((x) => R.isExtraMeasure(x.measure)).map((x) => [x.id, x.measure, x.atLeast, x.points]), [
+      ['mapa-10', 'map', 10, 0], ['cwierc-mapy', 'map', 25, 0], ['pol-mapy', 'map', 50, 0], ['trzy-czwarte-mapy', 'map', 75, 0], ['cala-mapa', 'map', 100, 0]
     ]);
     check('13 the new measures are measures with labels', ['regions', 'map', 'clean'].map((m) => R.REWARD_MEASURES.includes(m) && typeof R.MEASURE_LABEL[m] === 'string' && R.MEASURE_LABEL[m] !== ''), [true, true, true]);
     const k = R.readRewards({ badges: [
@@ -426,7 +435,14 @@ try {
 
   /* ── 14. Die Abzeichen der Karte: extra und awarded ──────────────────────────────── */
   {
-    const r = R.DEFAULT_REWARDS;
+    /* 2026-11-05 (Odznaki) — die vier Abzeichen der Karte von vorher (alle drei Masse), hinter den übrigen eingebauten. */
+    const r = R.readRewards({ ...R.rewardsData(R.DEFAULT_REWARDS), badges: [
+      ...R.DEFAULT_REWARDS.badges.filter((x) => !R.isExtraMeasure(x.measure)),
+      { id: 'pierwszy-obszar', name: 'Pierwszy obszar zdobyty', icon: 'rocket', measure: 'regions', atLeast: 1, points: 0, kind: 'exploration' },
+      { id: 'pol-mapy', name: 'Pół mapy', icon: 'target', measure: 'map', atLeast: 50, points: 0, kind: 'exploration' },
+      { id: 'cala-mapa', name: 'Cała mapa', icon: 'crown', measure: 'map', atLeast: 100, points: 0, kind: 'exploration' },
+      { id: 'czysty-tydzien', name: 'Tydzień bez zaległości', icon: 'check', measure: 'clean', atLeast: 7, points: 0, kind: 'exploration' }
+    ] });
     const list = [A('e1', at(10, 9), 1), A('e2', at(10, 9, 5), 1), A('e1', at(11, 9), 1)];
     const now = at(11, 12);
     const map4 = (s) => s.badges.filter((x) => R.isExtraMeasure(x.badge.measure)).map((x) => [x.badge.id, x.at, x.value, x.measured]);
@@ -449,13 +465,16 @@ try {
     check('14 a stored date puts the badge at that time, between the answers', [pos > ids.indexOf(`a:${list[0].id}`), pos < ids.indexOf(`a:${list[1].id}`), kept.events[pos]?.at, kept.badges.find((x) => x.badge.id === 'pierwszy-obszar').at], [true, true, t, t]);
     check('14 events stay in time order and the totals add up', [kept.events.every((e, i, all) => i === 0 || all[i - 1].at <= e.at), kept.events.every((e, i, all) => e.total === (i === 0 ? 0 : all[i - 1].total) + e.points), kept.total === kept.events[kept.events.length - 1].total], [true, true, true]);
     check('14 a measure missing from extra is not measured (value 0)', [kept.badges.find((x) => x.badge.id === 'czysty-tydzien').measured, kept.badges.find((x) => x.badge.id === 'czysty-tydzien').value, kept.badges.find((x) => x.badge.id === 'pol-mapy').measured], [false, 0, true]);
-    check('14 a stored date counts without the measure (the teacher)', map4(R.rewardState(list, r, now, { awarded: { 'cala-mapa': at(11, 10) } })), [
-      ['pierwszy-obszar', null, 0, false], ['pol-mapy', null, 0, false], ['cala-mapa', at(11, 10), 0, false], ['czysty-tydzien', null, 0, false]
+    /* 2026-11-05 (Odznaki) — und eine gemerkte höhere Schwelle schliesst die niedrigere desselben Masses ein (zur selben Zeit). */
+    check('14 a stored date counts without the measure (the teacher) and implies the lower threshold of its measure', map4(R.rewardState(list, r, now, { awarded: { 'cala-mapa': at(11, 10) } })), [
+      ['pierwszy-obszar', null, 0, false], ['pol-mapy', at(11, 10), 0, false], ['cala-mapa', at(11, 10), 0, false], ['czysty-tydzien', null, 0, false]
     ]);
+    check('14 a lower stored date stays when it is earlier than the higher one', R.rewardState(list, r, now, { awarded: { 'pol-mapy': at(10, 8), 'cala-mapa': at(11, 10) } }).badges.find((x) => x.badge.id === 'pol-mapy').at, at(10, 8));
+    check('14 a higher threshold is not implied by a lower one', R.rewardState(list, r, now, { awarded: { 'pol-mapy': at(10, 8) } }).badges.find((x) => x.badge.id === 'cala-mapa').at, null);
     check('14 a stored date stays, even when the measure fell below the threshold', R.rewardState(list, r, now, { extra: { map: 40 }, awarded: { 'pol-mapy': at(10, 20) } }).badges.find((x) => x.badge.id === 'pol-mapy').at, at(10, 20));
     const odd = R.rewardState(list, r, now, { extra: { map: Number.NaN, regions: 'x' }, awarded: { 'cala-mapa': at(12, 9), 'pol-mapy': Number.POSITIVE_INFINITY } });
-    check('14 junk: non-numbers are not measured, a date after now is now, an endless date is none', [map4(odd), odd.events.every((e) => e.at <= now)], [[
-      ['pierwszy-obszar', null, 0, false], ['pol-mapy', null, 0, false], ['cala-mapa', now, 0, false], ['czysty-tydzien', null, 0, false]
+    check('14 junk: non-numbers are not measured, a date after now is now, an endless date is none (the higher one still implies it, at now)', [map4(odd), odd.events.every((e) => e.at <= now)], [[
+      ['pierwszy-obszar', null, 0, false], ['pol-mapy', now, 0, false], ['cala-mapa', now, 0, false], ['czysty-tydzien', null, 0, false]
     ], true]);
 
     /* Ein Abzeichen der Karte mit Punkten: seine Punkte zu seiner Zeit, die Stufe und ein Abzeichen der Punkte danach. */
@@ -478,6 +497,60 @@ try {
 
     check('14 freshAwards: reached and not yet stored, with the given time', R.freshAwards(r, { regions: 2, map: 100, clean: 0 }, { 'pol-mapy': 5 }, now), { 'pierwszy-obszar': now, 'cala-mapa': now });
     check('14 freshAwards: nothing without measures, nothing already stored', [R.freshAwards(r, undefined, {}, now), R.freshAwards(r, { map: 100 }, { 'pol-mapy': 1, 'cala-mapa': 2 }, now), R.freshAwards(r, { clean: 7 }, undefined, now)], [{}, {}, { 'czysty-tydzien': now }]);
+  }
+
+  /* ── 17. Kategorien und Stufen aus Stoffen (2026-11-05, Odznaki) ─────────────────── */
+  {
+    const empty = R.badgeCategories(R.rewardState([], R.DEFAULT_REWARDS, at(12, 12)).badges);
+    check('17 the defaults: five categories of five steps each, in the order of the kinds, nothing yet', empty.map((c) => [c.kind, c.ladders.length, c.total, c.earned, c.top]), [
+      ['consistency', 1, 5, 0, null], ['accuracy', 1, 5, 0, null], ['volume', 1, 5, 0, null], ['goals', 1, 5, 0, null], ['exploration', 1, 5, 0, null]
+    ]);
+    check('17 every ladder runs wood to diamond by its thresholds', empty.map((c) => c.ladders[0].steps.map((x) => [x.badge.atLeast, x.material])), [
+      [[3, 0], [7, 1], [14, 2], [30, 3], [100, 4]], [[5, 0], [10, 1], [25, 2], [50, 3], [100, 4]], [[1, 0], [25, 1], [100, 2], [500, 3], [2000, 4]],
+      [[1, 0], [5, 1], [20, 2], [50, 3], [150, 4]], [[10, 0], [25, 1], [50, 2], [75, 3], [100, 4]]
+    ]);
+    check('17 25 unique ids; the ids whose threshold stayed are kept (stored map dates still count)', [new Set(R.DEFAULT_REWARDS.badges.map((x) => x.id)).size,
+      ['trzy-dni', 'tydzien', 'miesiac', 'celny', 'pierwsza-utrwalona', 'cel-piec', 'pol-mapy', 'cala-mapa'].every((id) => R.DEFAULT_REWARDS.badges.some((x) => x.id === id))], [25, true]);
+    check('17 without map measures the next map step is not measured (share 0)', [empty[4].next.badge.id, empty[4].next.measured, empty[4].share], ['mapa-10', false, 0]);
+    /* Sechs gute hintereinander (5 z rzędu: Holz), eine Karte nach 9 Stunden wieder (utrwalona: Holz), 30 % der Karte (Holz, Bronze). */
+    const list = [0, 1, 2, 3, 4, 5].map((i) => A(`m${i}`, at(13, 9, i), 1)).concat([A('m0', at(13, 18), 1)]);
+    const st = R.rewardState(list, R.DEFAULT_REWARDS, at(13, 19), { extra: { map: 30 } });
+    const cats = R.badgeCategories(st.badges);
+    check('17 per category: earned, top material, the next step, its material, value and share', cats.map((c) => [c.kind, c.earned, c.top, c.next?.badge.id ?? null, c.next?.material ?? null, c.next?.value ?? null, +c.share.toFixed(2)]), [
+      ['consistency', 0, null, 'trzy-dni', 0, 0, 0], ['accuracy', 1, 0, 'celny', 1, 6, 0.6], ['volume', 1, 0, 'utrwalone-25', 1, 1, 0.04],
+      ['goals', 0, null, 'pierwszy-cel', 0, 0, 0], ['exploration', 2, 1, 'pol-mapy', 2, 30, 0.6]
+    ]);
+    const all = R.badgeCategories(R.rewardState([], R.DEFAULT_REWARDS, at(13, 19), { extra: { map: 100 } }).badges)[4];
+    check('17 all steps reached: diamond, no next step, share 1', [all.earned, all.top, all.next, all.share], [5, 4, null, 1]);
+
+    const tiers = R.readRewards({ badges: [
+      { id: 'a', name: 'A', measure: 'streak', atLeast: 3, tier: 5 },
+      { id: 'b', name: 'B', measure: 'streak', atLeast: 7 },
+      { id: 'c', name: 'C', measure: 'streak', atLeast: 9, tier: 0 },
+      { id: 'd', name: 'D', measure: 'streak', atLeast: 11, tier: 6 },
+      { id: 'e', name: 'E', measure: 'streak', atLeast: 13, tier: 2.5 },
+      { id: 'f', name: 'F', measure: 'streak', atLeast: 15, tier: '3' }
+    ] });
+    check('17 tier read: whole numbers 1-5 only (a string number too)', tiers.badges.map((x) => x.tier ?? null), [5, null, null, null, null, 3]);
+    check('17 tier written and read back unchanged', JSON.stringify(R.readRewards(R.rewardsData(tiers))), JSON.stringify(tiers));
+    const tm = R.materialsOf(tiers.badges);
+    check('17 a named tier sets the material; the others by rank (from the fifth on diamond)', ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => tm.get(id)), [4, 1, 2, 3, 4, 2]);
+    const mixed = R.readRewards({ badges: [
+      { id: 'x1', name: 'X1', measure: 'correct', atLeast: 100 },
+      { id: 'one', name: 'Eins', measure: 'answers', atLeast: 1, kind: 'start' },
+      { id: 'x2', name: 'X2', measure: 'combo', atLeast: 5 },
+      { id: 'x0', name: 'X0', measure: 'correct', atLeast: 10 },
+      { id: 'p1', name: 'P1', measure: 'points', atLeast: 1 }, { id: 'p2', name: 'P2', measure: 'points', atLeast: 2 }, { id: 'p3', name: 'P3', measure: 'points', atLeast: 3 },
+      { id: 'p4', name: 'P4', measure: 'points', atLeast: 4 }, { id: 'p5', name: 'P5', measure: 'points', atLeast: 5 }, { id: 'p6', name: 'P6', measure: 'points', atLeast: 6 }, { id: 'p7', name: 'P7', measure: 'points', atLeast: 7 }
+    ] });
+    const mc = R.badgeCategories(R.rewardState([], mixed, at(13, 19)).badges);
+    check('17 owner rules: categories present only, start first; two measures in one kind are two ladders; one badge is one wood step; seven steps end in diamond', mc.map((c) => [c.kind, c.ladders.map((l) => [l.measure, l.steps.map((x) => [x.badge.id, x.material])])]), [
+      ['start', [['answers', [['one', 0]]]]],
+      ['accuracy', [['correct', [['x0', 0], ['x1', 1]]], ['combo', [['x2', 0]]]]],
+      ['volume', [['points', [['p1', 0], ['p2', 1], ['p3', 2], ['p4', 3], ['p5', 4], ['p6', 4], ['p7', 4]]]]]
+    ]);
+    check('17 materialsOf on the defaults', ['trzy-dni', 'tydzien', 'celny', 'utrwalone-2000', 'cala-mapa'].map((id) => R.materialsOf(R.DEFAULT_REWARDS.badges).get(id)), [0, 1, 1, 4, 4]);
+    check('17 the materials and the frames of the levels are one scale', [R.BADGE_MATERIALS.length, R.levelFrame(0, 8), R.levelFrame(7, 8)], [5, 0, 4]);
   }
 
   /* ── 15. cleanDays ─────────────────────────────────────────────────────────────── */
@@ -523,7 +596,8 @@ try {
     await l.keepValues({ story: 3 });
     check('16 keepValues of a story keeps the dates (values of the app)', [R.awardsOf(l.progress.values), l.progress.values.story], [{ 'pol-mapy': 500, 'cala-mapa': 3000 }, 3]);
     const s = R.rewardState([], R.DEFAULT_REWARDS, at(12, 12), { awarded: R.awardsOf(l.progress.values) });
-    check('16 the stored dates are the badges of the map', s.badges.filter((x) => x.at !== null).map((x) => [x.badge.id, x.at]), [['pol-mapy', 500], ['cala-mapa', 3000]]);
+    /* 2026-11-05 (Odznaki) — die neuen unteren Stufen der Karte zur Zeit der gemerkten höheren. */
+    check('16 the stored dates are the badges of the map (the lower steps implied)', s.badges.filter((x) => x.at !== null).map((x) => [x.badge.id, x.at]), [['mapa-10', 500], ['cwierc-mapy', 500], ['pol-mapy', 500], ['trzy-czwarte-mapy', 3000], ['cala-mapa', 3000]]);
     off();
   }
 } finally {

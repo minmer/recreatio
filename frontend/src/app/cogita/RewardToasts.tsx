@@ -12,8 +12,8 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import type { BadgeIcon } from './rewards';
-import { RewardIcon } from './RewardViews';
+import type { BadgeIcon, BadgeMaterial } from './rewards';
+import { BadgeMedal, RewardIcon } from './RewardViews';
 import { motionLevel } from '../ui/motion';
 
 export interface RewardToast {
@@ -23,6 +23,8 @@ export interface RewardToast {
   readonly title: string;
   readonly line?: string;
   readonly icon?: BadgeIcon;
+  /** 2026-11-05 (Odznaki) — ein Abzeichen: der Stoff seiner Stufe (die Medaille darin). */
+  readonly material?: BadgeMaterial;
   readonly points?: number;
   /** Eine neue Stufe: von wo der Balken voll läuft (0–1). */
   readonly level?: { readonly from: number };
@@ -67,8 +69,10 @@ export function pushToasts(list: readonly RewardToast[]): void {
   for (const t of fresh) seen.add(t.id);
   const badges = fresh.filter((t) => t.kind === 'badge');
   const rest = fresh.filter((t) => t.kind !== 'badge');
+  /* 2026-11-05 (Odznaki) — zusammengefasst: die Medaille im höchsten Stoff unter ihnen. */
+  const best = badges.reduce<RewardToast | null>((a, b) => (a === null || (b.material ?? -1) > (a.material ?? -1) ? b : a), null);
   const merged: RewardToast[] = badges.length >= 3
-    ? [{ id: `badges:${badges.map((b) => b.id).join('+')}`, kind: 'badges', title: `+${badges.length}`, line: badges.map((b) => b.title).join(' · '), icon: badges[0]!.icon ?? 'medal', ...(badges[0]!.open === undefined ? {} : { open: badges[0]!.open, openLabel: badges[0]!.openLabel }) }]
+    ? [{ id: `badges:${badges.map((b) => b.id).join('+')}`, kind: 'badges', title: `+${badges.length}`, line: badges.map((b) => b.title).join(' · '), icon: best?.icon ?? 'medal', ...(best?.material === undefined ? {} : { material: best.material }), ...(badges[0]!.open === undefined ? {} : { open: badges[0]!.open, openLabel: badges[0]!.openLabel }) }]
     : badges;
   const rank: Readonly<Record<RewardToast['kind'], number>> = { region: 0, bonus: 1, goal: 1, streak: 2, badge: 3, badges: 3, level: 4 };
   queue.push(...[...rest, ...merged].sort((a, b) => rank[a.kind] - rank[b.kind]));
@@ -123,7 +127,8 @@ function ToastCard({ toast }: { toast: RewardToast }) {
   return (
     <button type="button" className={`cg-rw-toast is-${toast.kind}`} onClick={activate} data-rw-toast={toast.kind} data-rw-toast-id={toast.id}
       aria-label={`${toast.title}${toast.line === undefined ? '' : ` — ${toast.line}`}${toast.open !== undefined && toast.openLabel !== undefined ? ` (${toast.openLabel})` : ''}`}>
-      <span className="cg-rw-toast-icon" aria-hidden><RewardIcon name={icon} /></span>
+      {toast.material !== undefined ? <span className="cg-rw-toast-icon is-medal" aria-hidden><BadgeMedal material={toast.material} icon={icon} /></span>
+        : <span className="cg-rw-toast-icon" aria-hidden><RewardIcon name={icon} /></span>}
       <span className="cg-rw-toast-body">
         <strong>{toast.title}{toast.points !== undefined && toast.points > 0 ? <span className="cg-rw-toast-pts"> +{toast.points}</span> : null}</strong>
         {toast.line !== undefined && <span className="cg-rw-toast-line">{toast.line}</span>}

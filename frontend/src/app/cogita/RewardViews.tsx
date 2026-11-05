@@ -20,13 +20,13 @@ import { plural } from '../core/plural';
 import { viewPath } from '../routes';
 import { later } from '../ui/later';
 import { motionLevel } from '../ui/motion';
-import { baseLang } from './lang';
+import { baseLang, rewardWords, type RewardWords } from './lang';
 import type { Learner } from './learn';
 import { motionWords, type MotionWords } from './motionWords';
 import { answerSource, flyPoints } from './rewardBus';
 import { mapExtra, mapMeasuresOf } from './mapMeasures';
 import { WRONG_BELOW } from './knowness';
-import { awardsOf, eventText, freshEvents, GOAL_UNIT_LABEL, lastDays, levelAt, rewardState, type BadgeIcon, type ExtraMeasures, type RewardDay, type RewardEvent, type RewardRules, type RewardState } from './rewards';
+import { awardsOf, badgeCategories, eventText, freshEvents, GOAL_UNIT_LABEL, lastDays, levelAt, materialsOf, rewardState, type BadgeIcon, type BadgeMaterial, type ExtraMeasures, type RewardDay, type RewardEvent, type RewardRules, type RewardState } from './rewards';
 import { pushToasts, type RewardToast } from './RewardToasts';
 import { CogitaContext } from './ui';
 import './rewards.css';
@@ -195,6 +195,29 @@ export function RewardIcon({ name, className }: { name: BadgeIcon; className?: s
     <svg viewBox="0 0 24 24" width={24} height={24} className={`cg-rw-icon${className === undefined ? '' : ` ${className}`}`} aria-hidden focusable="false">
       <path d={ICON_PATHS[name]} />
     </svg>
+  );
+}
+
+/**
+ * 2026-11-05 (Odznaki) — EINE MEDAILLE AUS EINEM STOFF: Holz, Bronze, Silber, Gold, Diamant (`BADGE_MATERIALS`) — Farbe, Glanz
+ * und Gestalt (Holz gemasert, Silber doppelt gerandet, Gold mit Schein, Diamant geschliffen), nie die Farbe allein: das Wort
+ * steht daneben. `ghost`: noch nicht erreicht (nur der Umriss im Stoff); `material` null: noch kein Stoff (grau).
+ * Statt des Zeichens ein Inhalt (`children`, etwa die Nummer einer Stufe).
+ */
+export function BadgeMedal({ material, icon, ghost = false, size = 'md', children }: { material: BadgeMaterial | null; icon?: BadgeIcon; ghost?: boolean; size?: 'sm' | 'md' | 'lg'; children?: ReactNode }) {
+  return (
+    <span className={`cg-rw-medal ${material === null ? 'is-none' : `is-m${material}`}${ghost ? ' is-ghost' : ''} is-${size}`} aria-hidden data-rw-material={material ?? ''}>
+      {children ?? (icon === undefined ? null : <RewardIcon name={icon} />)}
+    </span>
+  );
+}
+
+/** 2026-11-05 (Odznaki) — die Stufen einer Kategorie als Punkte: erreichte in ihrem Stoff, offene als Ring (Diamant als Raute). */
+export function MaterialPips({ steps }: { steps: readonly { readonly material: BadgeMaterial; readonly at: number | null }[] }) {
+  return (
+    <span className="cg-rw-pips" aria-hidden data-rw-pips={`${steps.filter((s) => s.at !== null).length}/${steps.length}`}>
+      {steps.map((s, i) => <i key={i} className={`is-m${s.material}${s.at !== null ? ' is-on' : ''}`} />)}
+    </span>
   );
 }
 
@@ -374,34 +397,35 @@ function GoalPart({ state, fresh, hero }: { state: RewardState; fresh: Fresh; he
   );
 }
 
-function BadgesPart({ state, fresh, all, onOpen }: { state: RewardState; fresh: Fresh; all: boolean; onOpen?: () => void }) {
+/**
+ * 2026-11-05 (Odznaki) — DIE ABZEICHEN DER TAFEL als Kategorien (statt jedes Abzeichens einzeln): je Kategorie die Medaille
+ * im höchsten erreichten Stoff, ihr Name, die Stufen als Punkte. Antippen öffnet „Odznaki i poziomy" (dort die Stufen).
+ */
+function BadgesPart({ state, fresh, onOpen, RW }: { state: RewardState; fresh: Fresh; onOpen?: () => void; RW: RewardWords }) {
   const newIds = new Set(fresh.events.filter((e) => e.kind === 'badge').map((e) => e.badge));
   const pop = useFlash(newIds.size > 0, fresh.seq, 2000);
+  const cats = useMemo(() => badgeCategories(state.badges), [state]);
   if (state.badges.length === 0) return null;
   const earned = state.badges.filter((x) => x.at !== null).length;
-  const shown = all ? state.badges : state.badges.filter((x) => x.at !== null).slice(-6);
   return (
     <section className="cg-rw-part cg-rw-badges" data-rw-part="badges" data-rw-badges={`${earned}/${state.badges.length}`}>
-      <span className="cg-rw-label"><RewardIcon name="medal" className="is-medal" />Odznaki {earned} z {state.badges.length}</span>
-      {shown.length === 0 ? <span className="cg-rw-sub">Pierwsza czeka: {state.badges[0]!.badge.name} — {state.badges[0]!.badge.says ?? ''}</span> : (
-        <ul className="cg-rw-badge-list">
-          {shown.map(({ badge, at, value, measured }) => {
-            const got = at !== null;
-            /* 2026-11-05 (Prompt 17) — ein Abzeichen der Karte, die hier noch nie gemessen wurde: ohne Balken. */
-            const said = `${badge.name}${badge.says === undefined ? '' : ` — ${badge.says}`}${got ? ` (od ${DAY_NAME.format(new Date(at))})` : !measured ? ' (liczone na mapie)' : ` (${NUM.format(Math.min(value, badge.atLeast))} z ${NUM.format(badge.atLeast)})`}`;
-            return (
-              <li key={badge.id} className={`cg-rw-badge${got ? ' is-got' : ''}${pop && newIds.has(badge.id) ? ' is-new' : ''}`} title={said} data-rw-badge={badge.id} data-rw-badge-got={got ? '' : undefined}>
-                <span className="cg-rw-badge-icon"><RewardIcon name={badge.icon} /></span>
-                {/* 2026-11-05 (Prompt 17) — ein Abzeichen antippen: „Odznaki i poziomy". */}
-                {onOpen === undefined ? <span className="cg-rw-badge-name">{badge.name}</span>
-                  : <button type="button" className="cg-rw-badge-name cg-rw-open" onClick={onOpen} data-rw-open="badge">{badge.name}</button>}
-                {!got && measured && <Meter value={value / badge.atLeast} label={said} />}
-                <span className="cg-sr">{said}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <span className="cg-rw-label"><RewardIcon name="medal" className="is-medal" />{RW.badges} {RW.stepsOf(earned, state.badges.length)}</span>
+      <ul className="cg-rw-cats" data-rw-cats={cats.length}>
+        {cats.map((c) => {
+          const name = RW.kinds[c.kind];
+          const isNew = pop && c.ladders.some((l) => l.steps.some((s) => newIds.has(s.badge.id)));
+          const said = `${name}: ${c.top === null ? RW.noMaterial : RW.material[c.top]} (${RW.stepsOf(c.earned, c.total)})`;
+          return (
+            <li key={c.kind} className={`cg-rw-cat${isNew ? ' is-new' : ''}`} title={said} data-rw-cat={c.kind} data-rw-cat-material={c.top ?? ''}>
+              <BadgeMedal material={c.top} icon={c.icon} ghost={c.top === null} size="sm" />
+              {onOpen === undefined ? <span className="cg-rw-cat-name">{name}</span>
+                : <button type="button" className="cg-rw-cat-name cg-rw-open" onClick={onOpen} data-rw-open="badge">{name}</button>}
+              <MaterialPips steps={c.ladders.flatMap((l) => l.steps)} />
+              <span className="cg-sr">{said}</span>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -450,16 +474,20 @@ const paidOf = (f: Fresh): number => f.events.filter((e) => celebrated(e) && !FE
  * 2026-11-05 (Prompt 17) — DIE MELDUNGEN EINER GRUPPE: Ziel („Cel dnia osiągnięty! +50"), ein Tag der Serie, jedes Abzeichen
  * (antippen öffnet „Odznaki i poziomy"), eine neue Stufe (der Balken läuft von dort voll, wo er stand).
  */
-function toastsOf(fresh: Fresh, state: RewardState, MW: MotionWords, open: () => void): RewardToast[] {
+function toastsOf(fresh: Fresh, state: RewardState, MW: MotionWords, RW: RewardWords, open: () => void): RewardToast[] {
   const out: RewardToast[] = [];
   const first = fresh.events[0];
   const before = first === undefined ? state.total : first.total - first.points;
+  const materials = fresh.events.some((e) => e.kind === 'badge') ? materialsOf(state.rules.badges) : null;
   for (const e of fresh.events) {
     if (e.kind === 'goal') out.push({ id: e.id, kind: 'goal', title: MW.goalReached, ...(e.points > 0 ? { points: e.points } : {}) });
     else if (e.kind === 'streak') out.push({ id: e.id, kind: 'streak', title: MW.streakDay(e.value ?? 1), ...(e.points > 0 ? { points: e.points } : {}) });
     else if (e.kind === 'badge') {
       const b = state.rules.badges.find((x) => x.id === e.badge);
-      out.push({ id: e.id, kind: 'badge', title: b?.name ?? MW.badge, line: b?.says ?? MW.badge, icon: b?.icon ?? 'medal', ...(e.points > 0 ? { points: e.points } : {}), open, openLabel: MW.openBadges });
+      /* 2026-11-05 (Odznaki) — die Medaille in ihrem Stoff, das Wort des Stoffes vor dem Grund („Brąz · Seria: 7 dni z rzędu."). */
+      const material = materials?.get(e.badge ?? '');
+      const why = b === undefined ? MW.badge : b.says ?? RW.says(b.measure, b.atLeast);
+      out.push({ id: e.id, kind: 'badge', title: b?.name ?? MW.badge, line: material === undefined ? why : `${RW.material[material]} · ${why}`, icon: b?.icon ?? 'medal', ...(material === undefined ? {} : { material }), ...(e.points > 0 ? { points: e.points } : {}), open, openLabel: MW.openBadges });
     } else if (e.kind === 'level') {
       const n = e.value ?? 1;
       out.push({ id: e.id, kind: 'level', title: MW.level(n, state.rules.levels[n - 1]?.name ?? ''), line: MW.levelUp, level: { from: levelAt(state.rules.levels, before).share }, open, openLabel: MW.openBadges });
@@ -487,6 +515,8 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
   const { state, fresh } = useRewards(learner, rules, { ...(keys === undefined ? {} : { keys }), ...(rename === undefined ? {} : { rename }), live });
   const cg = useContext(CogitaContext);
   const MW = motionWords(cg === null ? 'pl' : baseLang(cg.lib));
+  /* 2026-11-05 (Odznaki) — die Worte der Abzeichen (Kategorien, Stoffe) in der Sprache der Baza. */
+  const RW = useMemo(() => rewardWords(MW.lang), [MW.lang]);
   const show = (p: RewardPiece) => hidden === undefined || !hidden.has(p);
   const now = Date.now();
   const list = useMemo(() => (state === null ? null : lastDays(state, now, shape === 'full' ? 28 : 7)), [state, shape]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -528,7 +558,7 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
     const el = counterEl.current;
     if (flight !== null && el !== null && el.isConnected && onScreen(el)) flyPoints([{ n: flight.sum, x: flight.x, y: flight.y }], el, () => setArrived(flight.seq));
     else if (flight !== null) setArrived(flight.seq);
-    pushToasts(toastsOf(fresh, state, MW, openBadges ?? (() => undefined)));
+    pushToasts(toastsOf(fresh, state, MW, RW, openBadges ?? (() => undefined)));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- je neuer Gruppe einmal
   }, [fresh]);
   if (state === null) return <div className="cg-rw is-waiting" data-rw-shape={shape}><span className="cg-muted">Liczenie punktów…</span></div>;
@@ -573,7 +603,7 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
           <span className="cg-rw-sub">✓ dzień serii, ◐ była nauka, · nic</span>
         </section>
       )}
-      {show('badges') && (shape === 'full' || pieces.length === 0) && <BadgesPart state={state} fresh={fresh} all={shape === 'full'} {...(openBadges === undefined ? {} : { onOpen: openBadges })} />}
+      {show('badges') && (shape === 'full' || pieces.length === 0) && <BadgesPart state={state} fresh={fresh} RW={RW} {...(openBadges === undefined ? {} : { onOpen: openBadges })} />}
       {show('feed') && (shape === 'full' || pieces.length === 0) && <FeedPart state={state} n={shape === 'full' ? 12 : 6} />}
       {badgesLink}
       <Floaters fresh={fresh} rules={rules} flown={flight !== null} />

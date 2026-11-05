@@ -24,6 +24,8 @@ export function landscapeWords(lang: Lang) {
   const stufen = (n: number) => count(lang, n, ['stopień', 'stopnie', 'stopni'], ['Stufe', 'Stufen'], ['level', 'levels']);
   const themen = (n: number) => count(lang, n, ['temat', 'tematy', 'tematów'], ['Thema', 'Themen'], ['topic', 'topics']);
   const gebiete = (n: number) => count(lang, n, ['obszar', 'obszary', 'obszarów'], ['Gebiet', 'Gebiete'], ['region', 'regions']);
+  /* 2026-11-05 (Weg) — die Schritte des Weges zu einem Thema (je Schritt eine Stufe höher). */
+  const kroki = (n: number) => count(lang, n, ['krok', 'kroki', 'kroków'], ['Schritt', 'Schritte'], ['step', 'steps']);
   return {
     stufen,
     themen,
@@ -111,6 +113,14 @@ export function landscapeWords(lang: Lang) {
     legendLand: L('twój obszar: to, co umiesz (ciepły kolor)', 'dein Gebiet: was du kannst (warme Farbe)', 'your land: what you know (warm colour)'),
     legendRegion: L('kolor: obszar (tematy, które do siebie należą)', 'Farbe: Gebiet (Themen, die zusammengehören)', 'colour: region (topics that belong together)'),
     legendNeeds: L('czego wymaga (ciemniej)', 'was es braucht (dunkler)', 'what it needs (darker)'),
+    /* 2026-11-05 (Weg) — die springenden Punkte: der Weg zum gewählten Thema in Schritten (`worldWay.ts`). */
+    wayStep: (k: number, n: number) => L(`Krok ${k} z ${n}`, `Schritt ${k} von ${n}`, `Step ${k} of ${n}`),
+    wayStart: L('Start: tego możesz uczyć się już teraz', 'Start: das kannst du jetzt lernen', 'Start: what you can learn now'),
+    wayShow: (n: number) => L(`Pokaż drogę · ${kroki(n)}`, `Weg zeigen · ${kroki(n)}`, `Show the way · ${kroki(n)}`),
+    wayInfo: (n: number) => L(`Droga: ${kroki(n)}`, `Weg: ${kroki(n)}`, `Way: ${kroki(n)}`),
+    wayLabel: (n: number) => L(`Pokaż jeszcze raz, jak dojść do tego tematu (${kroki(n)})`, `Noch einmal zeigen, wie du zu diesem Thema kommst (${kroki(n)})`, `Show again how to get to this topic (${kroki(n)})`),
+    waySkip: L('Pomiń', 'Überspringen', 'Skip'),
+    legendWay: L('droga do wybranego tematu: kropki skaczą krok po kroku od tego, czego możesz uczyć się teraz; gdy temat potrzebuje kilku, spotykają się na nim w tym samym kroku', 'Weg zum gewählten Thema: Punkte springen Schritt für Schritt von dem, was du jetzt lernen kannst; braucht ein Thema mehrere, treffen sie dort im selben Schritt ein', 'way to the chosen topic: dots jump step by step from what you can learn now; where a topic needs several, they meet there in the same step'),
     legendOpens: L('co otwiera (jaśniej)', 'was es öffnet (heller)', 'what it opens (lighter)'),
     /* 2026-11-05 — über einem Lauf (Powtórka, Erzählung) aus dem Krajobraz: zurück zur Karte; die Antworten bleiben. */
     backToMap: L('‹ Wróć do mapy', '‹ Zurück zur Karte', '‹ Back to the map'),

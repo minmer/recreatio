@@ -145,21 +145,77 @@
   100% { transform: scale(1); }
 }
 
-/* Abzeichen */
-.cg-rw-badge-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); gap: var(--wk-space-2); }
-.cg-rw-badge { display: grid; justify-items: center; align-content: start; gap: 0.25rem; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); text-align: center; color: var(--wk-muted); }
-.cg-rw-badge .cg-rw-meter { width: 100%; height: 0.3rem; }
-.cg-rw-badge-icon { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--wk-sunk); opacity: 0.55; }
-.cg-rw-badge-icon .cg-rw-icon { width: 1.5rem; height: 1.5rem; }
-.cg-rw-badge.is-got { color: var(--wk-ink); border-color: var(--cg-rw-gold); }
-.cg-rw-badge.is-got .cg-rw-badge-icon { background: var(--cg-rw-gold-soft); color: var(--cg-rw-gold-ink); opacity: 1; }
-.cg-rw-badge.is-new { animation: cg-rw-badge 1.4s cubic-bezier(0.2, 1.6, 0.4, 1); }
+/*
+ * 2026-11-05 (Odznaki) — DIE STOFFE DER STUFEN: Holz, Bronze, Silber, Gold, Diamant (m0–m4) — dieselben für Abzeichen und die
+ * Rahmen der Stufen. Je Stoff Grundton, Glanz, Rand, Zeichen; im Dunkeln heller gerandet. Nie die Farbe allein: Holz ist
+ * gemasert, Silber doppelt gerandet, Gold hat einen Schein, Diamant ist geschliffen (eine andere Gestalt) — und das Wort
+ * des Stoffes steht daneben.
+ */
+.cg-rw, .cg-live-stats, .cg-rewards, .cg-rw-toasts, .cg-rw-fly, .cg-face {
+  --cg-rw-m0: #b9864f; --cg-rw-m0-hi: #e6c094; --cg-rw-m0-edge: #6e4622; --cg-rw-m0-ink: #fff6ea;
+  --cg-rw-m1: #c07436; --cg-rw-m1-hi: #f2b882; --cg-rw-m1-edge: #7a4115; --cg-rw-m1-ink: #fff3e6;
+  --cg-rw-m2: #a7b1bc; --cg-rw-m2-hi: #f6f8fb; --cg-rw-m2-edge: #5d6773; --cg-rw-m2-ink: #222b35;
+  --cg-rw-m3: #e3aa10; --cg-rw-m3-hi: #fff1a6; --cg-rw-m3-edge: #8d5f05; --cg-rw-m3-ink: #3f2a00;
+  --cg-rw-m4: #79d4ee; --cg-rw-m4-hi: #f3fdff; --cg-rw-m4-edge: #1c86a6; --cg-rw-m4-ink: #08394a;
+}
+@media (prefers-color-scheme: dark) {
+  .cg-rw, .cg-live-stats, .cg-rewards, .cg-rw-toasts, .cg-rw-fly, .cg-face {
+    --cg-rw-m0: #a8774a; --cg-rw-m0-hi: #dcb486; --cg-rw-m0-edge: #e2b98c;
+    --cg-rw-m1: #b8692c; --cg-rw-m1-hi: #f0b27a; --cg-rw-m1-edge: #f0a466;
+    --cg-rw-m2: #9aa5b1; --cg-rw-m2-hi: #eef2f6; --cg-rw-m2-edge: #d3dbe4;
+    --cg-rw-m3: #d9a00c; --cg-rw-m3-hi: #ffeb94; --cg-rw-m3-edge: #ffd34a;
+    --cg-rw-m4: #5fc6e4; --cg-rw-m4-hi: #e9fbff; --cg-rw-m4-edge: #94e8ff;
+  }
+}
+.cg-rw-medal {
+  --m: var(--cg-rw-m0); --m-hi: var(--cg-rw-m0-hi); --m-edge: var(--cg-rw-m0-edge); --m-ink: var(--cg-rw-m0-ink);
+  position: relative; display: inline-grid; place-items: center; flex: none; box-sizing: border-box; width: 2.6rem; height: 2.6rem;
+  border-radius: 50%; border: 0.14rem solid var(--m-edge); color: var(--m-ink); font-weight: 700; font-variant-numeric: tabular-nums;
+  background: radial-gradient(circle at 34% 28%, var(--m-hi) 0, var(--m) 58%, var(--m-edge) 100%);
+}
+.cg-rw-medal .cg-rw-icon { width: 54%; height: 54%; }
+.cg-rw-medal.is-sm { width: 1.7rem; height: 1.7rem; border-width: 0.1rem; font-size: var(--wk-text-xs); }
+.cg-rw-medal.is-lg { width: 3.4rem; height: 3.4rem; border-width: 0.18rem; }
+.cg-rw-medal.is-m1 { --m: var(--cg-rw-m1); --m-hi: var(--cg-rw-m1-hi); --m-edge: var(--cg-rw-m1-edge); --m-ink: var(--cg-rw-m1-ink); }
+.cg-rw-medal.is-m2 { --m: var(--cg-rw-m2); --m-hi: var(--cg-rw-m2-hi); --m-edge: var(--cg-rw-m2-edge); --m-ink: var(--cg-rw-m2-ink); border-style: double; border-width: 0.24rem; }
+.cg-rw-medal.is-m2.is-sm { border-width: 0.18rem; }
+.cg-rw-medal.is-m3 { --m: var(--cg-rw-m3); --m-hi: var(--cg-rw-m3-hi); --m-edge: var(--cg-rw-m3-edge); --m-ink: var(--cg-rw-m3-ink); border-width: 0.2rem; box-shadow: 0 0 0 0.12rem color-mix(in oklab, var(--m) 40%, transparent), 0 0 0.7rem color-mix(in oklab, var(--m) 60%, transparent); }
+.cg-rw-medal.is-m4 { --m: var(--cg-rw-m4); --m-hi: var(--cg-rw-m4-hi); --m-edge: var(--cg-rw-m4-edge); --m-ink: var(--cg-rw-m4-ink); }
+/* Holz: die Maserung über dem Glanz. */
+.cg-rw-medal.is-m0:not(.is-ghost) { background: repeating-linear-gradient(104deg, transparent 0 0.22rem, color-mix(in oklab, var(--m-edge) 22%, transparent) 0.22rem 0.3rem), radial-gradient(circle at 34% 28%, var(--m-hi) 0, var(--m) 60%, var(--m-edge) 100%); }
+/* Diamant: geschliffen — ein Stein statt einer Scheibe, Facetten als Licht. */
+.cg-rw-medal.is-m4:not(.is-ghost) {
+  border: 0; border-radius: 0; padding-bottom: 14%;
+  clip-path: polygon(24% 6%, 76% 6%, 98% 34%, 50% 98%, 2% 34%);
+  background: conic-gradient(from 210deg at 50% 36%, var(--m-hi), var(--m) 14%, var(--m-edge) 26%, var(--m-hi) 38%, var(--m) 52%, var(--m-hi) 64%, var(--m-edge) 78%, var(--m) 90%, var(--m-hi));
+}
+/* Noch nicht erreicht: nur der Umriss im Stoff; noch gar kein Stoff: grau. */
+.cg-rw-medal.is-ghost { background: var(--wk-sunk); border-style: dashed; border-width: 0.12rem; color: var(--m-edge); box-shadow: none; }
+.cg-rw-medal.is-ghost .cg-rw-icon { opacity: 0.75; }
+.cg-rw-medal.is-m4.is-ghost { border-radius: 0; border: 0; padding-bottom: 14%; clip-path: polygon(24% 6%, 76% 6%, 98% 34%, 50% 98%, 2% 34%); background: color-mix(in oklab, var(--m) 26%, var(--wk-sunk)); }
+.cg-rw-medal.is-none { --m-edge: var(--wk-line-strong); background: var(--wk-sunk); border-style: dashed; border-width: 0.12rem; color: var(--wk-muted); }
+
+/* Die Stufen als Punkte: erreichte im Stoff, offene als Ring; der Diamant als Raute. */
+.cg-rw-pips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.22rem; }
+.cg-rw-pips i { width: 0.62rem; height: 0.62rem; box-sizing: border-box; border-radius: 50%; border: 0.1rem solid var(--wk-line-strong); background: transparent; }
+.cg-rw-pips i.is-m4 { border-radius: 0; transform: rotate(45deg) scale(0.86); }
+.cg-rw-pips i.is-on.is-m0 { background: var(--cg-rw-m0); border-color: var(--cg-rw-m0-edge); }
+.cg-rw-pips i.is-on.is-m1 { background: var(--cg-rw-m1); border-color: var(--cg-rw-m1-edge); }
+.cg-rw-pips i.is-on.is-m2 { background: var(--cg-rw-m2); border-color: var(--cg-rw-m2-edge); }
+.cg-rw-pips i.is-on.is-m3 { background: var(--cg-rw-m3); border-color: var(--cg-rw-m3-edge); }
+.cg-rw-pips i.is-on.is-m4 { background: var(--cg-rw-m4); border-color: var(--cg-rw-m4-edge); }
+
+/* Abzeichen der Tafel: je Kategorie die Medaille im höchsten Stoff, ihr Name, die Stufen. */
+.cg-rw-cats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr)); gap: var(--wk-space-2); }
+.cg-rw-cat { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: var(--wk-space-2); row-gap: 0.15rem; align-items: center; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); min-width: 0; }
+.cg-rw-cat > .cg-rw-medal { grid-row: span 2; }
+.cg-rw-cat-name { font-size: var(--wk-text-sm); font-weight: 600; overflow-wrap: anywhere; color: var(--wk-ink); }
+.cg-rw-cat.is-new { animation: cg-rw-badge 1.4s cubic-bezier(0.2, 1.6, 0.4, 1); }
 @keyframes cg-rw-badge {
-  0% { transform: scale(0.4) rotate(-18deg); }
-  55% { transform: scale(1.18) rotate(6deg); box-shadow: 0 0 0 0.3rem var(--cg-rw-gold-soft); }
+  0% { transform: scale(0.6) rotate(-10deg); }
+  55% { transform: scale(1.08) rotate(3deg); box-shadow: 0 0 0 0.3rem var(--cg-rw-gold-soft); }
   100% { transform: scale(1) rotate(0deg); }
 }
-.cg-rw-badge-name { font-size: var(--wk-text-xs); font-weight: 600; overflow-wrap: anywhere; }
 
 /* Was zuletzt kam */
 .cg-rw-feed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; font-size: var(--wk-text-sm); }
@@ -252,8 +308,7 @@
 .cg-reward-num > span { font-size: var(--wk-text-sm); }
 .cg-reward-badge-row { flex-wrap: wrap; align-items: flex-end; gap: var(--wk-space-2); padding-bottom: var(--wk-space-2); border-bottom: 1px dashed var(--wk-line); }
 .cg-reward-badge-row .cg-reward-num { width: 7rem; }
-.cg-reward-badge-preview { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%; background: var(--cg-rw-gold-soft, #fbefcf); color: var(--cg-rw-gold-ink, #7a4f00); align-self: center; }
-.cg-reward-badge-preview .cg-rw-icon { width: 1.4rem; height: 1.4rem; }
+.cg-reward-badge-preview { display: grid; place-items: center; align-self: center; }
 .cg-reward-says { flex: 1 1 14rem; }
 .cg-reward-json textarea { width: 100%; font-family: var(--wk-mono); font-size: var(--wk-text-sm); }
 .cg-reward-preview { display: grid; gap: var(--wk-space-2); padding-top: var(--wk-space-3); border-top: 1px solid var(--wk-line); }
@@ -295,6 +350,9 @@
 .cg-rw-toast-icon { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%; background: var(--cg-rw-gold-soft); color: var(--cg-rw-gold); }
 .cg-rw-toast-icon .cg-rw-icon { width: 1.5rem; height: 1.5rem; }
 .cg-rw-toast.is-badge .cg-rw-toast-icon, .cg-rw-toast.is-badges .cg-rw-toast-icon { color: var(--cg-rw-medal); animation: cg-rw-pop-in 0.55s 0.12s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+/* 2026-11-05 (Odznaki) — ein Abzeichen: die Medaille in ihrem Stoff statt des Kreises. */
+.cg-rw-toast-icon.is-medal { background: none; }
+.cg-rw-toast-icon.is-medal .cg-rw-medal { width: 2.4rem; height: 2.4rem; }
 .cg-rw-toast.is-streak .cg-rw-toast-icon { color: var(--cg-rw-flame); background: var(--cg-rw-flame-soft); }
 .cg-rw-toast.is-level .cg-rw-toast-icon { width: 3rem; height: 3rem; color: var(--cg-rw-crown); animation: cg-rw-crown 1.6s 0.2s ease-out both; }
 .cg-rw-toast.is-level .cg-rw-toast-icon .cg-rw-icon { width: 2rem; height: 2rem; }

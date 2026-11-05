@@ -1,100 +1,91 @@
 /*
- * 2026-11-05 (Prompt 17) — ODZNAKI I POZIOMY (BadgesPage.tsx): die nächsten Ziele, der Weg der Stufen mit ihren Rahmen,
- * die Abzeichen nach Art (Stufen eines Masses in einer Zeile), der Verlauf. Die Seite trägt `cg-rw`: die Farben der
- * Nagrody (`--cg-rw-*`, hell und dunkel, rewards.css), Balken `cg-rw-meter`, ohne Bewegung bei „prefers-reduced-motion".
- * Nichts nur mit Farbe — Zeichen (✓ ★ ○ ◇) und Worte stehen daneben; die Rahmen unterscheiden sich auch in der Gestalt.
+ * 2026-11-05 (Prompt 17) — ODZNAKI I POZIOMY (BadgesPage.tsx). 2026-11-05 (Odznaki): kompakt — die Stufen in einer Zeile,
+ * die Abzeichen als Kategorien (Kacheln) mit Stufen aus Stoffen (Holz … Diamant; die Medaillen und Punkte: rewards.css,
+ * `.cg-rw-medal`, `.cg-rw-pips`), aufgeklappt eine Zeile der Stufen; der Verlauf zugeklappt. Die Seite trägt `cg-rw`: die
+ * Farben der Nagrody (hell und dunkel), Balken `cg-rw-meter`, und ist ein Container (schmal: untereinander).
+ * Nichts nur mit Farbe — Zeichen (✓ ★ ○ ◇), das Wort des Stoffes und die Gestalt der Medaille stehen daneben.
  */
 
 /* In einer Zeile der Tabelle „Postępy" erbt die Seite sonst `nowrap` und die kleine Schrift. */
-.cg-bp { gap: var(--wk-space-4); white-space: normal; font-size: var(--wk-text-md); text-align: start; }
+.cg-bp { gap: var(--wk-space-3); white-space: normal; font-size: var(--wk-text-md); text-align: start; }
 .cg-bp-title { margin: 0; font-size: var(--wk-text-lg); }
 .cg-bp-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); margin: 0; }
-.cg-bp-section { display: grid; gap: var(--wk-space-3); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); min-width: 0; }
-.cg-bp-section > h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); margin: 0; font-size: var(--wk-text-md); }
+.cg-bp-section { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); min-width: 0; }
 .cg-bp-section > p { margin: 0; }
+.cg-bp-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--wk-space-1) var(--wk-space-2); min-width: 0; }
+.cg-bp-h { margin: 0; font-size: var(--wk-text-md); }
 .cg-bp-count { font-size: var(--wk-text-sm); font-weight: 400; color: var(--wk-muted); }
 .cg-bp-left { font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
 .cg-bp-meter { width: 100%; }
-
-/* -- Najbliższe cele -- */
-.cg-bp-goals { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); }
-.cg-bp-goal { display: grid; grid-template-columns: 2.4rem minmax(0, 1fr); gap: var(--wk-space-2); align-items: center; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); }
-.cg-bp-goal-icon { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%; background: var(--cg-rw-gold-soft); color: var(--cg-rw-gold-ink); }
-.cg-bp-goal-icon .cg-rw-icon { width: 1.4rem; height: 1.4rem; }
-.cg-bp-goal-body { display: grid; gap: 0.3rem; min-width: 0; }
-.cg-bp-goal-body > strong { overflow-wrap: anywhere; }
-
-/* -- Poziomy: ein Weg von oben nach unten -- */
-.cg-bp-levels { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
-.cg-bp-level, .cg-bp-here { position: relative; display: grid; grid-template-columns: 2.75rem minmax(0, 1fr); gap: var(--wk-space-3); }
-.cg-bp-level { align-items: start; }
-.cg-bp-here { align-items: center; }
-/* Die Linie zur nächsten Stufe (durch das Zeichen „hier" hindurch): golden, soweit schon gegangen. */
-.cg-bp-level:not(:last-child)::after, .cg-bp-here::after {
-  content: ""; position: absolute; left: 1.375rem; top: 2.75rem; bottom: calc(-1 * var(--wk-space-2)); width: 0.2rem; margin-left: -0.1rem;
-  background: var(--wk-line);
-}
-.cg-bp-here::after { top: 0; }
-.cg-bp-level.is-past::after, .cg-bp-level.is-now::after { background: var(--cg-rw-gold); }
-.cg-bp-frame {
-  position: relative; z-index: 1; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; box-sizing: border-box;
-  border-radius: 50%; border: 2px solid var(--wk-line-strong); background: var(--wk-surface); color: var(--wk-muted);
-  font-weight: 700; font-variant-numeric: tabular-nums;
-}
-.cg-bp-frame .cg-rw-icon { width: 1.35rem; height: 1.35rem; color: var(--cg-rw-crown); }
-/* Die Rahmen je Rang: Bronze einfach, Silber doppelt, Gold breit mit Schein, Diamant doppelt mit zweitem Ring. */
-.cg-bp-frame.is-f1 { border: 3px solid var(--cg-rw-flame); }
-.cg-bp-frame.is-f2 { border: 4px double var(--wk-muted); }
-.cg-bp-frame.is-f3 { border: 4px solid var(--cg-rw-gold); box-shadow: 0 0 0 2px var(--cg-rw-gold-soft); }
-.cg-bp-frame.is-f4 { border: 5px double var(--cg-rw-medal); box-shadow: 0 0 0 2px var(--cg-rw-crown), 0 0 0 4px var(--cg-rw-gold-soft); }
-.cg-bp-level.is-past .cg-bp-frame, .cg-bp-level.is-now .cg-bp-frame { background: var(--cg-rw-gold-soft); color: var(--cg-rw-gold-ink); }
-.cg-bp-level.is-now .cg-bp-frame { outline: 2px solid var(--wk-accent); outline-offset: 3px; }
-.cg-bp-level.is-ahead .cg-bp-frame { opacity: 0.75; }
-.cg-bp-level-body, .cg-bp-here-body { display: grid; gap: 0.1rem; min-width: 0; }
-.cg-bp-level-name { overflow-wrap: anywhere; }
-.cg-bp-level.is-now .cg-bp-level-name { font-size: var(--wk-text-lg); }
-.cg-bp-level.is-ahead .cg-bp-level-name { color: var(--wk-ink-2); }
-.cg-bp-level-meta { font-size: var(--wk-text-xs); color: var(--wk-muted); }
-.cg-bp-level-state { font-size: var(--wk-text-sm); color: var(--wk-muted); }
-.cg-bp-level-state.is-past { color: var(--wk-ok); }
-.cg-bp-level-state.is-now { color: var(--wk-ink); font-weight: 600; }
-.cg-bp-here { padding: var(--wk-space-2) 0; }
-.cg-bp-here-dot { position: relative; z-index: 1; justify-self: center; width: 0.9rem; height: 0.9rem; border-radius: 50%; background: var(--wk-accent); box-shadow: 0 0 0 0.25rem var(--wk-ring); }
-.cg-bp-here-body { gap: 0.3rem; padding: var(--wk-space-2) var(--wk-space-3); border: 1px dashed var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); }
-.cg-bp-brings { font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
-
-/* -- Odznaki -- */
-.cg-bp-group { display: grid; gap: var(--wk-space-2); }
-.cg-bp-group > h5 { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); margin: 0; font-size: var(--wk-text-sm); }
-.cg-bp-badges { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); }
-.cg-bp-badge { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); gap: var(--wk-space-2); align-items: start; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); }
-.cg-bp-badge-body { display: grid; gap: 0.25rem; min-width: 0; }
-.cg-bp-badge-icon { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--wk-sunk); color: var(--wk-muted); }
-.cg-bp-badge-icon .cg-rw-icon { width: 1.5rem; height: 1.5rem; }
-.cg-bp-badge-name { overflow-wrap: anywhere; }
-.cg-bp-says { font-size: var(--wk-text-sm); color: var(--wk-muted); overflow-wrap: anywhere; }
-.cg-bp-bonus { color: var(--cg-rw-gold-ink); font-weight: 600; white-space: nowrap; }
 .cg-bp-status { font-size: var(--wk-text-sm); color: var(--wk-muted); }
 .cg-bp-status.is-got { color: var(--wk-ok); font-weight: 600; }
+.cg-bp-status.is-now { color: var(--wk-ink); font-weight: 600; }
 .cg-bp-status.is-going { color: var(--wk-ink-2); }
-.cg-bp-status.is-map { font-style: italic; }
-/* Zdobyta: in Farbe; sonst grau. */
-.cg-bp-badge.is-got, .cg-bp-tier.is-got { border-color: var(--cg-rw-gold); }
-.cg-bp-badge.is-got .cg-bp-badge-icon, .cg-bp-tier.is-got .cg-bp-badge-icon { background: var(--cg-rw-gold-soft); color: var(--cg-rw-gold-ink); }
-.cg-bp-badge:not(.is-got) .cg-bp-badge-name, .cg-bp-tier:not(.is-got) .cg-bp-badge-name { color: var(--wk-ink-2); }
-.cg-bp-badge:not(.is-got) .cg-bp-badge-icon, .cg-bp-tier:not(.is-got) .cg-bp-badge-icon { opacity: 0.7; }
-.cg-bp-badge.is-map, .cg-bp-tier.is-map { border-style: dashed; }
+.cg-bp-status.is-map, .cg-bp-left.is-map { font-style: italic; }
+.cg-bp-left.is-done { color: var(--wk-ok); font-weight: 600; }
+.cg-bp-bonus { color: var(--cg-rw-gold-ink); font-weight: 600; white-space: nowrap; }
 
-/* Stufen eines Masses: eine Zeile über die ganze Breite */
-.cg-bp-tiers { grid-column: 1 / -1; display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-sunk); min-width: 0; }
-.cg-bp-tiers-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--wk-space-2); }
-.cg-bp-tier-list { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--wk-space-2); }
-.cg-bp-tier { display: grid; justify-items: center; align-content: start; gap: 0.25rem; padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); text-align: center; min-width: 0; }
-.cg-bp-tier .cg-bp-says { font-size: var(--wk-text-xs); }
-.cg-bp-tier .cg-bp-status { font-size: var(--wk-text-xs); }
-.cg-bp-tiers-next { display: grid; gap: 0.25rem; }
+/* -- Poziomy: die Medaillen in einer Zeile, die Linie golden bis hierher -- */
+.cg-bp-track { position: relative; list-style: none; margin: 0; padding: 0.35rem 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: center; justify-items: center; }
+.cg-bp-track::before, .cg-bp-track::after {
+  content: ""; position: absolute; top: 50%; left: calc(50% / var(--cg-bp-n, 8)); height: 0.2rem; margin-top: -0.1rem; border-radius: var(--wk-radius-pill);
+}
+.cg-bp-track::before { right: calc(50% / var(--cg-bp-n, 8)); background: var(--wk-line); }
+.cg-bp-track::after { width: calc((100% - 100% / var(--cg-bp-n, 8)) * var(--cg-bp-done, 0)); background: var(--cg-rw-gold); }
+.cg-bp-node { position: relative; z-index: 1; display: grid; place-items: center; }
+.cg-bp-node.is-now .cg-rw-medal { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.cg-bp-node-n { font-size: var(--wk-text-xs); line-height: 1; }
+.cg-bp-level-now { display: grid; gap: 0.25rem; min-width: 0; }
+.cg-bp-level-name strong { font-size: var(--wk-text-lg); }
+.cg-bp-brings { font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
+.cg-bp-more { justify-self: start; }
+.cg-bp-level-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem var(--wk-space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
+.cg-bp-level-row { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--wk-space-2); align-items: center; font-size: var(--wk-text-sm); min-width: 0; }
+.cg-bp-level-row > .cg-rw-medal { grid-row: span 2; }
+.cg-bp-level-row-name { overflow-wrap: anywhere; }
+.cg-bp-level-row .cg-bp-status { font-size: var(--wk-text-xs); }
 
-/* -- Historia -- */
+/* -- Odznaki: je Kategorie eine Kachel -- */
+.cg-bp-cats { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr)); }
+.cg-bp-cats > li { display: grid; min-width: 0; }
+.cg-bp-cat {
+  appearance: none; font: inherit; color: var(--wk-ink); cursor: pointer; position: relative;
+  display: grid; justify-items: center; align-content: start; gap: 0.35rem; min-width: 0;
+  padding: var(--wk-space-3) var(--wk-space-2) var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface); text-align: center;
+}
+.cg-bp-cat:hover { border-color: var(--wk-line-strong); background: var(--wk-sunk); }
+.cg-bp-cat:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.cg-bp-cat.is-open { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }
+.cg-bp-cat.is-closest:not(.is-open) { border-color: var(--cg-rw-gold); }
+.cg-bp-cat-name { font-weight: 700; overflow-wrap: anywhere; }
+.cg-bp-cat-tier { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.2rem 0.4rem; font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
+.cg-bp-cat.is-empty .cg-bp-cat-mat { color: var(--wk-muted); }
+.cg-bp-cat-next { display: grid; gap: 0.2rem; width: 100%; }
+.cg-bp-cat .cg-bp-left { font-size: var(--wk-text-xs); overflow-wrap: anywhere; }
+.cg-bp-closest { position: absolute; top: 0.3rem; left: 0.3rem; padding: 0 0.4rem; border-radius: var(--wk-radius-pill); background: var(--cg-rw-gold-soft); color: var(--cg-rw-gold-ink); font-size: var(--wk-text-xs); font-weight: 600; }
+.cg-bp-chev { position: absolute; top: 0.3rem; right: 0.45rem; color: var(--wk-muted); font-size: var(--wk-text-xs); }
+
+/* -- Aufgeklappt: die Stufen einer Kategorie in einer Zeile (breit: unter allen Kacheln) -- */
+.cg-bp-cats > .cg-bp-detail-li { grid-column: 1 / -1; order: 1; }
+.cg-bp-detail { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3) var(--wk-space-3); border: 1px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-sunk); min-width: 0; }
+.cg-bp-ladder { display: grid; gap: 0.3rem; min-width: 0; }
+.cg-bp-ladder-name { font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-ink-2); }
+.cg-bp-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--wk-space-2); }
+.cg-bp-step { display: grid; justify-items: center; align-content: start; gap: 0.3rem; min-width: 0; padding: var(--wk-space-2) 0.35rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); text-align: center; }
+.cg-bp-step.is-got { border-color: color-mix(in oklab, var(--cg-rw-gold) 55%, var(--wk-line)); }
+.cg-bp-step.is-next { border-color: var(--wk-accent); }
+.cg-bp-step.is-later .cg-bp-step-mat, .cg-bp-step.is-map .cg-bp-step-mat { color: var(--wk-ink-2); }
+.cg-bp-step-body { display: grid; gap: 0.15rem; justify-items: center; width: 100%; min-width: 0; }
+.cg-bp-step-mat { font-size: var(--wk-text-sm); }
+.cg-bp-step-name { font-size: var(--wk-text-xs); color: var(--wk-ink-2); overflow-wrap: anywhere; }
+.cg-bp-step-goal { font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.cg-bp-step .cg-bp-status { font-size: var(--wk-text-xs); }
+.cg-bp-step .cg-bp-meter { height: 0.3rem; }
+
+/* -- Historia: zugeklappt -- */
+.cg-bp-history-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); cursor: pointer; }
+.cg-bp-history-box:not([open]) { padding-block: var(--wk-space-2); }
 .cg-bp-day { max-width: 22rem; }
 .cg-bp-history { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-3); }
 .cg-bp-history h5 { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--wk-space-2); margin: 0 0 var(--wk-space-1); padding-bottom: 0.15rem; border-bottom: 1px solid var(--wk-line); font-size: var(--wk-text-sm); }
@@ -114,13 +105,26 @@
 /* Der Editor der Regel (RewardsEditor.tsx): der Hinweis zu einem Mass der Karte unter der Zeile des Abzeichens */
 .cg-reward-map-note { flex-basis: 100%; margin: 0; }
 
-/* Schmal (Telefon): die Stufen eines Masses dichter, der Verlauf mit schmaleren Spalten */
-@container (max-width: 26rem) {
+/* Mittel: die Stufen einer Kategorie untereinander (Medaille links, Worte rechts) */
+@container (max-width: 36rem) {
+  .cg-bp-steps { grid-auto-flow: row; grid-auto-columns: auto; gap: var(--wk-space-1); }
+  .cg-bp-step { grid-template-columns: auto minmax(0, 1fr); justify-items: start; align-items: center; column-gap: var(--wk-space-3); text-align: start; padding: var(--wk-space-1) var(--wk-space-2); }
+  .cg-bp-step-body { justify-items: start; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--wk-space-2); align-items: baseline; }
+  .cg-bp-step-mat, .cg-bp-step-name { grid-column: 1; }
+  .cg-bp-step-goal { grid-column: 2; grid-row: 1; justify-self: end; }
+  .cg-bp-step-body > .cg-bp-status, .cg-bp-step-body > .cg-bp-meter { grid-column: 1 / -1; }
+}
+
+/* Schmal (Telefon): die Kategorien als Zeilen (Medaille links), der Verlauf mit schmaleren Spalten */
+@container (max-width: 30rem) {
   .cg-bp-section { padding: var(--wk-space-2); }
-  .cg-bp-tier-list { gap: var(--wk-space-1); }
-  .cg-bp-tier { padding: var(--wk-space-1); }
-  .cg-bp-tier .cg-bp-badge-icon { width: 2rem; height: 2rem; }
-  .cg-bp-tier .cg-bp-badge-icon .cg-rw-icon { width: 1.15rem; height: 1.15rem; }
-  .cg-bp-tier .cg-bp-badge-name { font-size: var(--wk-text-sm); }
+  .cg-bp-cats { grid-template-columns: minmax(0, 1fr); gap: var(--wk-space-1); }
+  /* Am Telefon gleich unter der angetippten Kachel (Kacheln 0, 2, 4 …, die Stufen ungerade). */
+  .cg-bp-cats > li, .cg-bp-cats > .cg-bp-detail-li { order: var(--cg-bp-i, 0); }
+  .cg-bp-cat { grid-template-columns: auto minmax(0, 1fr); justify-items: start; align-items: center; column-gap: var(--wk-space-3); row-gap: 0.15rem; text-align: start; padding: var(--wk-space-2) 2rem var(--wk-space-2) var(--wk-space-2); }
+  .cg-bp-cat > .cg-rw-medal { grid-row: 1 / span 3; align-self: center; width: 2.8rem; height: 2.8rem; }
+  .cg-bp-cat-tier { justify-content: flex-start; }
+  .cg-bp-closest { top: 0.3rem; left: auto; right: 1.6rem; }
+  .cg-bp-chev { top: 50%; margin-top: -0.5rem; }
   .cg-bp-events li { grid-template-columns: 2.9rem 3rem minmax(0, 1fr); gap: var(--wk-space-1); }
 }

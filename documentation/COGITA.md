@@ -783,6 +783,13 @@ Phones stay awake.
   the measure when not given), four map badges measured by the landscape (regions, map %, days with nothing overdue,
   dated in the learner's values `~award.*`), the page „Odznaki i poziomy", toasts for bonuses only, and motion per
   device — see *Motion and rewards* under the landscape.
+- *2026-11-05 (Odznaki) — categories with material steps*: a category is the badge kind; badges of one kind with the
+  same measure are the steps of one ladder, ordered by threshold — wood, bronze, silver, gold, diamond (`tier` 1–5 sets
+  it; from the fifth step on diamond; `badgeKindOf` derives the kind from the measure only, `start` only when named).
+  Built-in rule: 5 categories × 5 steps — Seria (streak 3/7/14/30/100 days), Celność (combo 5/10/25/50/100 in a row),
+  Wiedza (utrwalone 1/25/100/500/2000), Cele (days with the goal 1/5/20/50/150), Mapa (map % 10/25/50/75/100); ids of
+  former badges with the same threshold kept. A stored higher map step implies the lower ones. Level frames use the
+  same scale (frame 0 wood). Toasts and the history name the material; the editor shows it and offers `tier`.
 
 ### Generated exercises (2026-11-03)
 
@@ -1153,18 +1160,50 @@ final state stands at once. Several changes play as one ordered sequence: at mos
   toasted (daily goal "+50", streak day, badge, level) — never points per answer. A badge tapped opens "Odznaki i
   poziomy". Every toasted kind is also in "Ostatnie nagrody". Shown once per event (stable ids).
 - **Odznaki i poziomy** (`BadgesPage.tsx`): Nauka → Nagrody → Odznaki (`…/nagrody/odznaki`), from the points panel, a
-  badge or the level chip; on a page or a link it opens under the board. Levels as a vertical path with the points
-  needed, where the learner stands, points to the next and its title; badges grouped by kind (start, consistency,
-  accuracy, volume, goals, exploration), earned with date / in progress with a bar and what is left / not started, tiers
-  in one row; next goals (the 2–3 closest) on top; the full "Ostatnie nagrody" filterable by day. A teacher sees the same
-  page read-only per learner (Postępy).
-- **Map badges** (exploration): first region conquered, half the map, the whole map, a week with nothing overdue. The
-  landscape measures them (`mapMeasures.ts`, this browser) and stores the date a badge was reached in the learner's
-  values (`~award.<id>`, the earliest wins), so it stands on every device and for the teacher.
+  badge or the level chip; on a page or a link it opens under the board. *Since 2026-11-05 (Odznaki), compact:* summary
+  chips; the levels as one row of medals (the current one with a crown), a bar and the points to the next title, the full
+  list on „Wszystkie poziomy"; the badge categories as tiles (medal in the highest material reached, five pips, the
+  material's name, a bar to the next step; the category closest to its next step marked „najbliżej"); a tap opens the
+  category's steps (one row; on phones a list under the tile), each with threshold, date or what is left; one category
+  open at a time; „Historia nagród" folded, filterable by day. A teacher sees the same page read-only per learner
+  (Postępy).
+- **Map badges** (exploration, the category Mapa): steps by the share of the map known (10/25/50/75/100 %). The landscape
+  measures them (`mapMeasures.ts`, this browser) and stores the date a step was reached in the learner's values
+  (`~award.<id>`, the earliest wins), so it stands on every device and for the teacher. The measures `regions` and
+  `clean` stay available for owner-defined badges.
 - **Embedded Widok** (page module `view`): no mode tabs and no search unless the owner sets `switch: tak`
   („Przełączanie i szukanie"); `u`/`q` of an old address are ignored then. The landscape's own controls stay.
 - Checks: `app-playback-check.mjs` (pack/diff/conquests/points/timing/wave/storage/5 000 topics/words),
   `app-rewards-check.mjs` (badges and levels).
+
+### The way to a chosen topic, in steps (2026-11-05)
+
+Dots show how to get to a topic: they appear on what can be learned now and jump, one step at a time, up to the chosen
+topic (`worldWay.ts` plans it, `WorldMap.tsx` draws it on its own canvas over the map).
+
+- **The way**: the chosen topic and every topic still to learn before it — also behind known topics (what is missing
+  before a known topic is still missing, as the column heights count it). A jump goes from a topic to every topic on the
+  way that needs it, directly or through known ones; topics that need each other (a cycle) are one step, nothing jumps
+  between them and each of them sends its dot on.
+- **The steps**: 0 = learnable now (the dots appear there); otherwise one more than the latest step before it — the
+  longest chain of what is missing, i.e. the column's level above the learnable ring, so every jump climbs one level. A
+  topic that needs several gets all their dots IN THE SAME STEP (it is due only when the last of them is learned); a dot
+  ready earlier hops on the spot in time with the others until then. A dot splits where a topic opens several on the
+  way; where dots meet, a ring; at the goal the dot grows and two rings spread.
+- **Timing**: the dots appear (0.42 s), then one jump per step (280–600 ms each, all steps together at most about 4.8 s),
+  the goal lights up (0.7 s), the dots fade; the way stays drawn as dashed arcs (when near enough — it replaces the old
+  route line). It plays once when a topic is chosen (the camera stays where it is); „Pokaż drogę · N kroków" at the
+  lower left of the map (top left on phones, where the topic sheet covers the bottom) plays it again — first the camera
+  glides out (never in) if part of the way is outside the picture; a click while it plays skips the rest. While it plays
+  the region names step back; the step stands on the button („Krok 2 z 6").
+- **Motion**: ograniczone — per step the dots of the topics reached fade in, nothing jumps; wyłączone — only the dashed
+  way and „Droga: N kroków".
+- The goal (no topic chosen) shows its way drawn, not played. The chosen topic's own "needs" links show only what is
+  already known (the rest is the way). Legend: „droga do wybranego tematu".
+- 5 000 topics: the map is not redrawn while the dots jump (about 0.1 ms per frame for the dots).
+- Check: `app-way-check.mjs` (same-step arrival, waiting, split and meet, through known topics, cycles, no way,
+  timing, a 5 000-topic random graph, words). Test hooks on the map: `data-wm-way` (target:steps:jumps),
+  `data-wm-way-playing`, `-beat`, `-plays`, `-ms`, `-hops`, `-tiles`.
 
 ### House, foundation, wedges, view modes, column height (2026-11-04/05, Prompt 16)
 

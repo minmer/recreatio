@@ -423,17 +423,41 @@ export function rewardWords(lang: Lang) {
     brings: (name: string, frame: string) => L(`Następny poziom daje tytuł „${name}” i ${frame}.`, `Die nächste Stufe bringt den Titel „${name}“ und ${frame}.`, `The next level brings the title “${name}” and ${frame}.`),
     top: L('Najwyższy poziom — dalej już tylko punkty.', 'Die höchste Stufe — weiter geht es nur mit Punkten.', 'The top level — from here on it is just points.'),
     noLevels: L('Te zasady nie mają poziomów.', 'Diese Regeln haben keine Stufen.', 'These rules have no levels.'),
-    /** Die Rahmen der Stufen (`levelFrame`): als Name und als das, was eine Stufe bringt. */
-    frame: L(['zwykła ramka', 'brązowa ramka', 'srebrna ramka', 'złota ramka', 'diamentowa ramka'], ['einfacher Rahmen', 'Bronzerahmen', 'Silberrahmen', 'Goldrahmen', 'Diamantrahmen'], ['plain frame', 'bronze frame', 'silver frame', 'gold frame', 'diamond frame']),
-    frameGives: L(['zwykłą ramkę', 'brązową ramkę', 'srebrną ramkę', 'złotą ramkę', 'diamentową ramkę'], ['einen einfachen Rahmen', 'einen Bronzerahmen', 'einen Silberrahmen', 'einen Goldrahmen', 'einen Diamantrahmen'], ['a plain frame', 'a bronze frame', 'a silver frame', 'a gold frame', 'a diamond frame']),
+    /** Die Rahmen der Stufen (`levelFrame`): als Name und als das, was eine Stufe bringt. 2026-11-05 (Odznaki): die erste aus Holz. */
+    frame: L(['drewniana ramka', 'brązowa ramka', 'srebrna ramka', 'złota ramka', 'diamentowa ramka'], ['Holzrahmen', 'Bronzerahmen', 'Silberrahmen', 'Goldrahmen', 'Diamantrahmen'], ['wooden frame', 'bronze frame', 'silver frame', 'gold frame', 'diamond frame']),
+    frameGives: L(['drewnianą ramkę', 'brązową ramkę', 'srebrną ramkę', 'złotą ramkę', 'diamentową ramkę'], ['einen Holzrahmen', 'einen Bronzerahmen', 'einen Silberrahmen', 'einen Goldrahmen', 'einen Diamantrahmen'], ['a wooden frame', 'a bronze frame', 'a silver frame', 'a gold frame', 'a diamond frame']),
+    /** 2026-11-05 (Odznaki) — die Stoffe der Stufen (`BADGE_MATERIALS`): Name, und „do srebra" (Polnisch im Genitiv). */
+    material: L(['Drewno', 'Brąz', 'Srebro', 'Złoto', 'Diament'], ['Holz', 'Bronze', 'Silber', 'Gold', 'Diamant'], ['Wood', 'Bronze', 'Silver', 'Gold', 'Diamond']),
+    toMaterial: (m: number, left: string) => L(
+      `do ${['drewna', 'brązu', 'srebra', 'złota', 'diamentu'][m] ?? ''}: ${left}`,
+      `bis ${['Holz', 'Bronze', 'Silber', 'Gold', 'Diamant'][m] ?? ''}: ${left}`,
+      `to ${['wood', 'bronze', 'silver', 'gold', 'diamond'][m] ?? ''}: ${left}`
+    ),
+    noMaterial: L('jeszcze bez stopnia', 'noch keine Stufe', 'no tier yet'),
+    /** Beim besten Lauf guter Antworten zählt der Rekord (nicht „noch N"): „rekord 6 z 10". */
+    comboLeft: (value: number, goal: number) => L(`rekord ${num(value)} z ${num(goal)}`, `Rekord ${num(value)} von ${num(goal)}`, `best ${num(value)} of ${num(goal)}`),
+    onMapShort: L('liczy krajobraz — otwórz go', 'zählt die Landschaft — öffne sie', 'counted on the landscape — open it'),
+    onMapShortOther: L('liczy krajobraz uczącego się', 'zählt die Landschaft der Person', "counted on the learner's landscape"),
+    closest: L('najbliżej', 'am nächsten', 'closest'),
+    categories: L('Kategorie', 'Kategorien', 'Categories'),
+    /** Die Kachel einer Kategorie: was ein Antippen tut (für Vorleser; sichtbar steht die Kategorie selbst). */
+    showSteps: (name: string) => L(`${name}: pokaż stopnie`, `${name}: Stufen zeigen`, `${name}: show the tiers`),
+    stepsOf: (k: number, n: number) => L(`${k} z ${n}`, `${k} von ${n}`, `${k} of ${n}`),
+    later: L('później', 'später', 'later'),
+    levelOf: (i: number, n: number) => L(`poziom ${i} z ${n}`, `Stufe ${i} von ${n}`, `level ${i} of ${n}`),
+    allLevels: L('Wszystkie poziomy', 'Alle Stufen', 'All levels'),
+    historyDays: (n: number) => L(`${n} ${plPlural(n, 'dzień', 'dni', 'dni')}`, `${n} ${n === 1 ? 'Tag' : 'Tage'}`, `${n} ${n === 1 ? 'day' : 'days'}`),
+    /* Der Editor: der Stoff einer Stufe */
+    editorTier: L('Stopień', 'Stufe', 'Tier'),
+    editorTierAuto: (m: string) => L(`sam: ${m}`, `automatisch: ${m}`, `automatic: ${m}`),
     badges: L('Odznaki', 'Abzeichen', 'Badges'),
     badgesOf: (k: number, n: number) => L(`${k} z ${n} zdobytych`, `${k} von ${n} erhalten`, `${k} of ${n} earned`),
     noBadges: L('Te zasady nie mają odznak.', 'Diese Regeln haben keine Abzeichen.', 'These rules have no badges.'),
-    /** Die Arten der Abzeichen (`BADGE_KINDS`), als Überschriften. */
+    /** Die Arten der Abzeichen (`BADGE_KINDS`) — 2026-11-05 (Odznaki): die Kategorien, kurz (sie stehen auf Kacheln). */
     kinds: L(
-      { start: 'Pierwsze kroki', consistency: 'Systematyczność', accuracy: 'Celność', volume: 'Ilość nauki', goals: 'Cele i poziomy', exploration: 'Odkrywanie mapy' },
-      { start: 'Erste Schritte', consistency: 'Beständigkeit', accuracy: 'Treffsicherheit', volume: 'Lernmenge', goals: 'Ziele und Stufen', exploration: 'Erkundung der Karte' },
-      { start: 'First steps', consistency: 'Consistency', accuracy: 'Accuracy', volume: 'Volume', goals: 'Goals and levels', exploration: 'Exploring the map' }
+      { start: 'Pierwsze kroki', consistency: 'Seria', accuracy: 'Celność', volume: 'Wiedza', goals: 'Cele', exploration: 'Mapa' },
+      { start: 'Erste Schritte', consistency: 'Serie', accuracy: 'Treffsicherheit', volume: 'Wissen', goals: 'Ziele', exploration: 'Erkundung' },
+      { start: 'First steps', consistency: 'Streak', accuracy: 'Accuracy', volume: 'Knowledge', goals: 'Goals', exploration: 'Map' }
     ),
     /** Die Masse als Überschrift einer Reihe von Stufen eines Abzeichens. */
     measure: L<Readonly<Record<string, string>>>(
@@ -441,7 +465,7 @@ export function rewardWords(lang: Lang) {
       { points: 'Punkte', streak: 'Serie', best: 'Längste Serie', known: 'Gefestigte Karten', cards: 'Verschiedene Karten', answers: 'Antworten', correct: 'Richtige Antworten', days: 'Lerntage', combo: 'Richtige in Folge', goals: 'Tage mit Tagesziel', level: 'Stufe', regions: 'Eroberte Gebiete', map: 'Gelernte Karte', clean: 'Tage ohne Überfälliges' },
       { points: 'Points', streak: 'Streak', best: 'Longest streak', known: 'Retained cards', cards: 'Different cards', answers: 'Answers', correct: 'Correct answers', days: 'Days of learning', combo: 'Correct in a row', goals: 'Days with the daily goal', level: 'Level', regions: 'Regions conquered', map: 'Map learned', clean: 'Days with nothing overdue' }
     ),
-    tiers: (k: number, n: number) => L(`${k} z ${n} stopni`, `${k} von ${n} Stufen`, `${k} of ${n} tiers`),
+    tiers: (k: number, n: number) => L(`${k} z ${n} stopni`, `${k} von ${n} erreicht`, `${k} of ${n} tiers`),
     allTiers: L('wszystkie stopnie zdobyte', 'alle Stufen erhalten', 'all tiers earned'),
     earned: (date: string) => L(`zdobyta ${date}`, `erhalten am ${date}`, `earned on ${date}`),
     notStarted: L('jeszcze nie zaczęta', 'noch nicht begonnen', 'not started yet'),

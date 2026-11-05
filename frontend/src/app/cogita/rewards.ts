@@ -25,6 +25,11 @@
  * Ein solches Abzeichen kommt, wenn das Mass die Schwelle hat; WANN es kam, merkt sich die Anwendung in den Werten des
  * Lernenden (`~award.<id>`, `withAwards`, `Learner.keepAwards`) und gibt es als `awarded` zurück — so steht es zu seiner
  * Zeit in den Ereignissen, auch bei der Lehrerin, die die Karte ihrer Klasse nicht misst.
+ *
+ * <b>2026-11-05 (Odznaki) — Kategorien und Stufen aus Stoffen.</b> Die Art ist die Kategorie; die Abzeichen einer Art
+ * mit demselben Mass sind die Stufen EINER Leiter, nach der Schwelle: Holz, Bronze, Silber, Gold, Diamant (`BADGE_MATERIALS`;
+ * ab der fünften Diamant; `tier` 1–5 setzt den Stoff ausdrücklich). Die eingebaute Regel: fünf Kategorien × fünf Stufen
+ * (`DEFAULT_REWARDS`); was die Seite daraus zeigt, rechnet `badgeCategories`.
  */
 
 import { DEFAULT_SPACING, gradeOf, step, type CardState, type Spacing } from './knowness';
@@ -76,6 +81,18 @@ export type BadgeIcon = (typeof BADGE_ICONS)[number];
 export const BADGE_KINDS = ['start', 'consistency', 'accuracy', 'volume', 'goals', 'exploration'] as const;
 export type BadgeKind = (typeof BADGE_KINDS)[number];
 
+/**
+ * 2026-11-05 (Odznaki) — DIE STOFFE DER STUFEN, vom niedrigsten zum höchsten (0–4). Dieselbe Folge tragen die Rahmen der
+ * Stufen (`levelFrame`): Holz ist der Anfang, Diamant das Höchste.
+ */
+export const BADGE_MATERIALS = ['wood', 'bronze', 'silver', 'gold', 'diamond'] as const;
+export type BadgeMaterial = 0 | 1 | 2 | 3 | 4;
+/** Die Stoffe auf Polnisch (`eventText`; die Oberfläche hat ihre Worte in `lang.ts`). */
+export const MATERIAL_LABEL: readonly string[] = ['drewno', 'brąz', 'srebro', 'złoto', 'diament'];
+
+/** 2026-11-05 (Odznaki) — das Zeichen einer Kategorie (auf ihrer Kachel; jede Stufe trägt ihr eigenes). */
+export const KIND_ICON: Readonly<Record<BadgeKind, BadgeIcon>> = { start: 'star', consistency: 'flame', accuracy: 'bolt', volume: 'book', goals: 'target', exploration: 'rocket' };
+
 export interface RewardLevel {
   /** Ab wie vielen Punkten. */
   readonly at: number;
@@ -93,18 +110,19 @@ export interface RewardBadge {
   readonly points: number;
   /** 2026-11-05 (Prompt 17) — die Art; ohne sie folgt sie aus dem Mass (`badgeKindOf`). */
   readonly kind?: BadgeKind;
+  /** 2026-11-05 (Odznaki) — der Stoff ausdrücklich (1 Holz … 5 Diamant); ohne ihn: der Rang in seiner Leiter. */
+  readonly tier?: 1 | 2 | 3 | 4 | 5;
 }
 
 /**
- * 2026-11-05 (Prompt 17) — DIE ART EINES ABZEICHENS: die genannte, sonst aus dem Mass — kleine Schwellen der Anzahl (bis 10
- * Antworten, die erste utrwalona oder erste Karte) sind der Anfang, grössere die Menge.
+ * 2026-11-05 (Prompt 17) — DIE ART EINES ABZEICHENS: die genannte, sonst aus dem Mass. 2026-11-05 (Odznaki): nur aus dem Mass
+ * (nicht mehr aus der Schwelle) — sonst fiele die erste Stufe einer Leiter (1 utrwalona) in eine andere Kategorie als die
+ * übrigen; „Pierwsze kroki" (`start`) gibt es nur, wenn ein Abzeichen es nennt.
  */
 export function badgeKindOf(b: Pick<RewardBadge, 'measure' | 'atLeast' | 'kind'>): BadgeKind {
   if (b.kind !== undefined && (BADGE_KINDS as readonly string[]).includes(b.kind)) return b.kind;
   switch (b.measure) {
-    case 'answers': return b.atLeast <= 10 ? 'start' : 'volume';
-    case 'known': case 'cards': return b.atLeast <= 1 ? 'start' : 'volume';
-    case 'points': return 'volume';
+    case 'answers': case 'known': case 'cards': case 'points': return 'volume';
     case 'streak': case 'best': case 'days': return 'consistency';
     case 'correct': case 'combo': return 'accuracy';
     case 'goals': case 'level': return 'goals';
@@ -150,7 +168,12 @@ const DEFAULT_LEVELS: readonly RewardLevel[] = [
 const b = (id: string, name: string, icon: BadgeIcon, measure: RewardMeasure, atLeast: number, kind: BadgeKind, says?: string): RewardBadge =>
   ({ id, name, icon, measure, atLeast, points: 0, ...(says === undefined ? {} : { says }), kind });
 
-/** Die Regel, wenn nichts anderes gewählt ist — „Punkty, seria i poziomy". */
+/**
+ * Die Regel, wenn nichts anderes gewählt ist — „Punkty, seria i poziomy". 2026-11-05 (Odznaki): fünf Kategorien, je eine
+ * Leiter aus fünf Stufen (Holz, Bronze, Silber, Gold, Diamant) — Seria, Celność, Wiedza, Cele, Mapa. Die Kennungen der
+ * früheren Abzeichen mit derselben Schwelle bleiben (`trzy-dni`, `tydzien`, `miesiac`, `celny`, `pierwsza-utrwalona`,
+ * `cel-piec`, `pol-mapy`, `cala-mapa`): die gemerkten Daten der Karte (`~award.`) gelten weiter.
+ */
 export const DEFAULT_REWARDS: RewardRules = {
   name: 'Punkty, seria i poziomy',
   points: { correct: 10, partial: 5, wrong: 1, first: 5, known: 20, fast: 0, combo: 15, goal: 50, streak: 5 },
@@ -161,21 +184,36 @@ export const DEFAULT_REWARDS: RewardRules = {
   streak: { counts: 'goal', grace: 0, max: 10 },
   levels: DEFAULT_LEVELS,
   badges: [
-    b('pierwszy-krok', 'Pierwszy krok', 'star', 'answers', 1, 'start', 'Pierwsza odpowiedź.'),
-    b('dziesiec-dobrych', 'Dziesiątka', 'check', 'correct', 10, 'accuracy', '10 dobrych odpowiedzi.'),
-    b('celny', 'Celny', 'bolt', 'combo', 10, 'accuracy', '10 dobrych odpowiedzi z rzędu.'),
-    b('pierwsza-utrwalona', 'Pierwsza utrwalona', 'leaf', 'known', 1, 'start', 'Karta, którą pamiętasz co najmniej dzień.'),
-    b('piecdziesiat-utrwalonych', 'Pięćdziesiąt', 'book', 'known', 50, 'volume', '50 utrwalonych kart.'),
+    /* Seria: dni z rzędu */
     b('trzy-dni', 'Trzy dni z rzędu', 'flame', 'streak', 3, 'consistency'),
     b('tydzien', 'Tydzień z rzędu', 'flame', 'streak', 7, 'consistency'),
-    b('miesiac', 'Miesiąc z rzędu', 'crown', 'streak', 30, 'consistency'),
-    b('cel-piec', 'Pięć celów', 'target', 'goals', 5, 'goals', 'Cel dnia osiągnięty pięć razy.'),
-    b('tysiac', 'Tysiąc punktów', 'medal', 'points', 1000, 'volume'),
-    /* 2026-11-05 (Prompt 17) — vier für die Karte: sie zählen, sobald der Krajobraz die Masse kennt (`extra`). */
-    b('pierwszy-obszar', 'Pierwszy obszar zdobyty', 'rocket', 'regions', 1, 'exploration', 'Obszar mapy, który umiesz w całości.'),
-    b('pol-mapy', 'Pół mapy', 'target', 'map', 50, 'exploration', 'Umiesz połowę tematów mapy.'),
-    b('cala-mapa', 'Cała mapa', 'crown', 'map', 100, 'exploration', 'Umiesz wszystkie tematy mapy.'),
-    b('czysty-tydzien', 'Tydzień bez zaległości', 'check', 'clean', 7, 'exploration', 'Siedem dni z rzędu bez kart po terminie powtórki.')
+    b('dwa-tygodnie', 'Dwa tygodnie z rzędu', 'flame', 'streak', 14, 'consistency'),
+    b('miesiac', 'Miesiąc z rzędu', 'flame', 'streak', 30, 'consistency'),
+    b('sto-dni', 'Sto dni z rzędu', 'flame', 'streak', 100, 'consistency'),
+    /* Celność: najwięcej dobrych z rzędu */
+    b('piec-z-rzedu', 'Pięć z rzędu', 'bolt', 'combo', 5, 'accuracy'),
+    b('celny', 'Dziesięć z rzędu', 'bolt', 'combo', 10, 'accuracy'),
+    b('dwadziescia-piec-z-rzedu', 'Dwadzieścia pięć z rzędu', 'bolt', 'combo', 25, 'accuracy'),
+    b('piecdziesiat-z-rzedu', 'Pięćdziesiąt z rzędu', 'bolt', 'combo', 50, 'accuracy'),
+    b('sto-z-rzedu', 'Sto z rzędu', 'bolt', 'combo', 100, 'accuracy'),
+    /* Wiedza: utrwalone karty */
+    b('pierwsza-utrwalona', 'Pierwsza utrwalona', 'book', 'known', 1, 'volume'),
+    b('utrwalone-25', '25 utrwalonych', 'book', 'known', 25, 'volume'),
+    b('utrwalone-100', '100 utrwalonych', 'book', 'known', 100, 'volume'),
+    b('utrwalone-500', '500 utrwalonych', 'book', 'known', 500, 'volume'),
+    b('utrwalone-2000', '2000 utrwalonych', 'book', 'known', 2000, 'volume'),
+    /* Cele: dni z osiągniętym celem dnia */
+    b('pierwszy-cel', 'Pierwszy cel dnia', 'target', 'goals', 1, 'goals'),
+    b('cel-piec', 'Pięć celów', 'target', 'goals', 5, 'goals'),
+    b('cele-20', 'Dwadzieścia celów', 'target', 'goals', 20, 'goals'),
+    b('cele-50', 'Pięćdziesiąt celów', 'target', 'goals', 50, 'goals'),
+    b('cele-150', 'Sto pięćdziesiąt celów', 'target', 'goals', 150, 'goals'),
+    /* Mapa: procent tematów mapy — liczy krajobraz (`extra`), data zostaje zapisana (`~award.`) */
+    b('mapa-10', 'Dziesiąta część mapy', 'rocket', 'map', 10, 'exploration'),
+    b('cwierc-mapy', 'Ćwierć mapy', 'rocket', 'map', 25, 'exploration'),
+    b('pol-mapy', 'Pół mapy', 'rocket', 'map', 50, 'exploration'),
+    b('trzy-czwarte-mapy', 'Trzy czwarte mapy', 'rocket', 'map', 75, 'exploration'),
+    b('cala-mapa', 'Cała mapa', 'rocket', 'map', 100, 'exploration')
   ]
 };
 
@@ -254,11 +292,14 @@ export function readRewards(raw: unknown): RewardRules {
       const says = str(x.says).slice(0, 200);
       /* 2026-11-05 (Prompt 17) — die Art nur, wenn es eine bekannte ist (sonst folgt sie aus dem Mass). */
       const kind = str(x.kind);
+      /* 2026-11-05 (Odznaki) — der Stoff nur als ganze Zahl 1–5 (sonst: der Rang in der Leiter). */
+      const tier = typeof x.tier === 'number' || (typeof x.tier === 'string' && x.tier.trim() !== '') ? Number(x.tier) : Number.NaN;
       return [{
         id, name, icon: (BADGE_ICONS as readonly string[]).includes(str(x.icon)) ? (str(x.icon) as BadgeIcon) : 'star',
         measure: measure as RewardMeasure, atLeast: int(x.atLeast, 1, 1, 100_000_000), points: int(x.points, 0, 0, 10_000),
         ...(says === '' ? {} : { says }),
-        ...((BADGE_KINDS as readonly string[]).includes(kind) ? { kind: kind as BadgeKind } : {})
+        ...((BADGE_KINDS as readonly string[]).includes(kind) ? { kind: kind as BadgeKind } : {}),
+        ...(Number.isInteger(tier) && tier >= 1 && tier <= 5 ? { tier: tier as 1 | 2 | 3 | 4 | 5 } : {})
       }];
     })
     : base.badges;
@@ -529,11 +570,23 @@ export function rewardState(answers: Iterable<RewardAnswer>, rules: RewardRules,
    * bringen (eine Stufe, ein Abzeichen der Punkte), kommt zur selben Zeit.
    */
   const pending: { readonly badge: RewardBadge; readonly at: number }[] = [];
+  const keptAt = (id: string): number | undefined => { const t = awarded?.[id]; return typeof t === 'number' && Number.isFinite(t) ? t : undefined; };
   for (const badge of rules.badges) {
     if (!isExtraMeasure(badge.measure)) continue;
-    const kept = awarded?.[badge.id];
+    const kept = keptAt(badge.id);
     const value = extraOf(badge.measure);
-    if (typeof kept === 'number' && Number.isFinite(kept)) pending.push({ badge, at: Math.min(kept, now) });
+    /*
+     * 2026-11-05 (Odznaki) — eine höhere Schwelle desselben Masses, schon gemerkt, schliesst diese ein (wer die halbe Karte
+     * konnte, konnte ein Zehntel): sie kam spätestens damals — so hat eine Leiter keine Lücke unter einer erreichten Stufe,
+     * auch bevor der Krajobraz die neue untere Stufe misst, und auch bei der Lehrerin.
+     */
+    let implied: number | undefined;
+    for (const other of rules.badges) {
+      if (other === badge || other.measure !== badge.measure || other.atLeast < badge.atLeast) continue;
+      const t = keptAt(other.id);
+      if (t !== undefined) implied = implied === undefined ? t : Math.min(implied, t);
+    }
+    if (kept !== undefined || implied !== undefined) pending.push({ badge, at: Math.min(kept ?? Number.POSITIVE_INFINITY, implied ?? Number.POSITIVE_INFINITY, now) });
     else if (value !== undefined && value >= badge.atLeast) pending.push({ badge, at: now });
   }
   /* Stabil: gleiche Zeiten in der Folge der Regel. */
@@ -730,17 +783,109 @@ export function freshAwards(rules: RewardRules, extra: ExtraMeasures | undefined
   return out;
 }
 
-/** Der Rahmen einer Stufe: 0 schlicht, 1 Bronze, 2 Silber, 3 Gold, 4 Diamant. */
-export type LevelFrame = 0 | 1 | 2 | 3 | 4;
+/** Der Rahmen einer Stufe: 0 Holz (2026-11-05, Odznaki: vorher „schlicht"), 1 Bronze, 2 Silber, 3 Gold, 4 Diamant — die Stoffe der Abzeichen. */
+export type LevelFrame = BadgeMaterial;
 
 /**
- * DIE RAHMEN DER STUFEN, je Rang: die erste schlicht, die oberste (ab drei Stufen) Diamant, dazwischen gleich verteilt
+ * DIE RAHMEN DER STUFEN, je Rang: die erste aus Holz, die oberste (ab drei Stufen) Diamant, dazwischen gleich verteilt
  * Bronze, Silber, Gold — bei den acht eingebauten 0 1 1 2 2 3 3 4.
  */
 export function levelFrame(index: number, count: number): LevelFrame {
   if (index <= 0 || count < 2) return 0;
   if (index >= count - 1 && count >= 3) return 4;
   return Math.max(1, Math.min(3, 1 + Math.floor(((index - 1) * 3) / Math.max(1, count - 2)))) as LevelFrame;
+}
+
+/* -- 2026-11-05 (Odznaki): Kategorien, Leitern, Stoffe --------------------------------------------------------------- */
+
+/** Ein Abzeichen als Stufe seiner Leiter: sein Stoff und (aus `rewardState`) wann es kam, wie weit das Mass ist. */
+export interface BadgeStep {
+  readonly badge: RewardBadge;
+  readonly material: BadgeMaterial;
+  readonly at: number | null;
+  readonly value: number;
+  readonly measured: boolean;
+}
+
+/** Eine Leiter: die Abzeichen einer Art mit demselben Mass, nach der Schwelle. */
+export interface BadgeLadder {
+  readonly kind: BadgeKind;
+  readonly measure: RewardMeasure;
+  readonly steps: readonly BadgeStep[];
+}
+
+/** Eine Kategorie (die Art): ihre Leitern, wie viel erreicht ist, der höchste Stoff, die nächste Stufe. */
+export interface BadgeCategory {
+  readonly kind: BadgeKind;
+  readonly icon: BadgeIcon;
+  readonly ladders: readonly BadgeLadder[];
+  readonly earned: number;
+  readonly total: number;
+  /** Der höchste erreichte Stoff (`null`: noch keine Stufe). */
+  readonly top: BadgeMaterial | null;
+  /** Die nächste Stufe (je Leiter die unterste offene; davon die anteilig nächste, gemessene zuerst); `null`: alles erreicht. */
+  readonly next: BadgeStep | null;
+  /** Wie weit die nächste ist (0–1; ungemessen 0). */
+  readonly share: number;
+}
+
+const ladderKey = (b: RewardBadge): string => `${badgeKindOf(b)}|${b.measure}`;
+
+/** Der Stoff einer Stufe: genannt (`tier`), sonst ihr Rang in der Leiter (ab dem fünften Diamant). */
+const materialAt = (b: RewardBadge, rank: number): BadgeMaterial => (b.tier !== undefined ? (b.tier - 1) as BadgeMaterial : Math.min(4, rank) as BadgeMaterial);
+
+/** Die Leitern einer Regel, in der Folge der Arten (`BADGE_KINDS`), darin in der Folge der Regel; je Leiter nach der Schwelle. */
+function laddersOf<T extends { readonly badge: RewardBadge }>(rows: readonly T[]): { readonly kind: BadgeKind; readonly measure: RewardMeasure; readonly rows: readonly (T & { readonly material: BadgeMaterial })[] }[] {
+  const byKey = new Map<string, T[]>();
+  for (const x of rows) {
+    const k = ladderKey(x.badge);
+    const had = byKey.get(k);
+    if (had === undefined) byKey.set(k, [x]); else had.push(x);
+  }
+  const out: { kind: BadgeKind; measure: RewardMeasure; rows: (T & { material: BadgeMaterial })[] }[] = [];
+  for (const kind of BADGE_KINDS) {
+    for (const [k, list] of byKey) {
+      if (!k.startsWith(`${kind}|`)) continue;
+      /* Stabil: gleiche Schwellen in der Folge der Regel. */
+      const sorted = list.map((x, i) => ({ x, i })).sort((a, b) => a.x.badge.atLeast - b.x.badge.atLeast || a.i - b.i).map((e) => e.x);
+      out.push({ kind, measure: sorted[0]!.badge.measure, rows: sorted.map((x, rank) => ({ ...x, material: materialAt(x.badge, rank) })) });
+    }
+  }
+  return out;
+}
+
+/** Der Stoff jedes Abzeichens einer Regel (für Meldungen, den Verlauf, den Editor). */
+export function materialsOf(badges: readonly RewardBadge[]): ReadonlyMap<string, BadgeMaterial> {
+  const out = new Map<string, BadgeMaterial>();
+  for (const l of laddersOf(badges.map((badge) => ({ badge })))) for (const r of l.rows) out.set(r.badge.id, r.material);
+  return out;
+}
+
+/**
+ * DIE KATEGORIEN DER SEITE „ODZNAKI I POZIOMY": je Art (in der Folge `BADGE_KINDS`, nur die vorkommenden) ihre Leitern mit
+ * den Stoffen, wie viel erreicht ist, der höchste Stoff und die nächste Stufe — aus `rewardState(…).badges`.
+ */
+export function badgeCategories(rows: RewardState['badges']): BadgeCategory[] {
+  const ladders = laddersOf(rows);
+  const out: BadgeCategory[] = [];
+  for (const kind of BADGE_KINDS) {
+    const mine = ladders.filter((l) => l.kind === kind);
+    if (mine.length === 0) continue;
+    const steps = mine.map((l): BadgeLadder => ({ kind, measure: l.measure, steps: l.rows.map((r) => ({ badge: r.badge, material: r.material, at: r.at, value: r.value, measured: r.measured })) }));
+    const all = steps.flatMap((l) => l.steps);
+    const got = all.filter((s) => s.at !== null);
+    let top: BadgeMaterial | null = null;
+    for (const s of got) if (top === null || s.material > top) top = s.material;
+    const shareOf = (s: BadgeStep): number => (s.measured ? Math.max(0, Math.min(1, s.value / Math.max(1, s.badge.atLeast))) : -1);
+    let next: BadgeStep | null = null;
+    for (const l of steps) {
+      const open = l.steps.find((s) => s.at === null);
+      if (open === undefined) continue;
+      if (next === null || shareOf(open) > shareOf(next)) next = open;
+    }
+    out.push({ kind, icon: KIND_ICON[kind], ladders: steps, earned: got.length, total: all.length, top, next, share: next === null ? 1 : Math.max(0, shareOf(next)) });
+  }
+  return out;
 }
 
 /* -- Für die Anzeige ------------------------------------------------------------------------------------------------- */
@@ -788,6 +933,10 @@ export function eventText(e: RewardEvent, rules: RewardRules): string {
     case 'goal': return 'cel dnia osiągnięty';
     case 'streak': return e.value === 1 ? 'pierwszy dzień serii' : `seria: ${e.value ?? 0}. dzień z rzędu`;
     case 'level': return `nowy poziom: ${rules.levels[(e.value ?? 1) - 1]?.name ?? e.value ?? ''}`;
-    case 'badge': return `odznaka: ${rules.badges.find((x) => x.id === e.badge)?.name ?? e.badge ?? ''}`;
+    case 'badge': {
+      /* 2026-11-05 (Odznaki) — mit dem Stoff der Stufe. */
+      const m = materialsOf(rules.badges).get(e.badge ?? '');
+      return `odznaka: ${rules.badges.find((x) => x.id === e.badge)?.name ?? e.badge ?? ''}${m === undefined ? '' : ` · ${MATERIAL_LABEL[m]}`}`;
+    }
   }
 }

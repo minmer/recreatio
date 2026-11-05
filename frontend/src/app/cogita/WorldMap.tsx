@@ -24,6 +24,7 @@ import type { LandscapeWords } from './landscapeWords';
 import { motionLevel, useMotion, type MotionLevel } from '../ui/motion';
 import { flyPoints } from './rewardBus';
 import { clamp01, easeInOut, easeOut, FADE_MS, FLY_GAP, FLY_MS, FLY_SINGLE, LINE_MS, playPoints, playTimes, PULSE_MS, REGION_MS, SHIMMER_MS, WALK_MS, waveDelays, type PlaybackEvent, type PlayTimes, type WorldPlayback } from './worldPlay';
+import { beatAt, beatStart, wayTimes, wayWaits, type WayHop, type WayPlan, type WayTimes } from './worldWay';
 
 /** 2026-11-04 (Prompt 15, 4b) — was die Karte zeigt: alles, nur das Gekonnte (mit dem Rand), nur das Fällige. */
 export type WorldMode = 'all' | 'known' | 'discover' | 'due';
@@ -70,7 +71,7 @@ export function FlagIcon({ size = 12 }: { size?: number }) {
 
 /* -- Farben aus dem Stil (hell und dunkel) -------------------------------------------------------------------------- */
 
-interface Palette { readonly c: readonly number[][]; readonly cx: number[]; readonly light: number[]; readonly haze: number[]; readonly floor: number[]; readonly warm: number[]; readonly glow: number[]; readonly ink: number[]; readonly accent: number[]; readonly surface: number[]; readonly land: number[]; readonly ready: number[] }
+interface Palette { readonly c: readonly number[][]; readonly cx: number[]; readonly light: number[]; readonly haze: number[]; readonly floor: number[]; readonly warm: number[]; readonly glow: number[]; readonly ink: number[]; readonly accent: number[]; readonly surface: number[]; readonly land: number[]; readonly ready: number[]; readonly goal: number[] }
 function parseColour(v: string): number[] {
   const s = v.trim();
   if (s.startsWith('#')) {
@@ -96,7 +97,9 @@ function readPalette(el: Element): Palette {
     c: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => get(`--cg-ls-c${i}`, '#8899aa')), cx: get('--cg-ls-cx', '#999999'), light: get('--cg-ls-light', '#ffffff'),
     haze: get('--cg-ls-haze', '#f6f4ef'), floor: get('--cg-ls-floor', '#f3f0ea'), warm: get('--cg-ls-warm', '#f0a020'), glow: get('--cg-ls-glow', '#fff6c2'),
     ink: get('--wk-ink', '#222222'), accent: get('--wk-accent', '#7a5a2f'), surface: get('--wk-surface', '#ffffff'),
-    land: get('--cg-ls-land', '#e0482a'), ready: get('--cg-ls-ready', '#ffe46b')
+    land: get('--cg-ls-land', '#e0482a'), ready: get('--cg-ls-ready', '#ffe46b'),
+    /* 2026-11-05 (Weg) — die Farbe des Ziels (Figur, Fahne): auch die springenden Punkte und der gezeichnete Weg. */
+    goal: get('--cg-ls-goal', '#2f7fd0')
   };
   probe.remove();
   return out;
@@ -161,6 +164,16 @@ export function PieceIcon({ kind, h, count = 1 }: { kind: 'single' | 'goal'; h: 
     </g>
   );
 }
+/** 2026-11-05 (Weg) — zwei Punkte und ein gestrichelter Bogen dazwischen (der Knopf „Pokaż drogę", die Legende). */
+export function WayIcon() {
+  return (
+    <svg className="cg-wm-way-icon" viewBox="-12 -9 24 15" aria-hidden>
+      <path className="cg-wm-way-icon-arc" d="M-8,4 Q0,-12 8,4" />
+      <circle className="cg-wm-way-icon-dot" cx={-8} cy={4} r={2.7} />
+      <circle className="cg-wm-way-icon-dot" cx={8} cy={4} r={2.7} />
+    </svg>
+  );
+}
 export function GoalFlagIcon({ h }: { h: number }) {
   return (
     <g className="cg-wm-goalflag">
@@ -172,7 +185,7 @@ export function GoalFlagIcon({ h }: { h: number }) {
 
 /* -- Die Karte ------------------------------------------------------------------------------------------------- */
 
-export function WorldMap({ world, topics, regionName, conquered, chosen, flash, home, links, route, width, compact, T, memoryKey, command, onPickTopic, onView, onBackground, legend, step, pieces, goalFlag, onPiece, onFlag, onStart, onHome, playback = null, onPlayback, replayLabel }: {
+export function WorldMap({ world, topics, regionName, conquered, chosen, flash, home, links, way, width, compact, T, memoryKey, command, onPickTopic, onView, onBackground, legend, step, pieces, goalFlag, onPiece, onFlag, onStart, onHome, playback = null, onPlayback, replayLabel }: {
   world: WorldLayout;
   /** Die Höhe eines Schrittes dieser Baza (`stepFor`). */
   step: number;
@@ -205,8 +218,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   home: number | null;
   /** Die eigenen Verbindungen des gewählten Themas. */
   links: { readonly needs: readonly number[]; readonly opens: readonly number[] } | null;
-  /** Der Weg zum Ziel (nur, wenn nah genug). */
-  route: readonly number[] | null;
+  /**
+   * 2026-11-05 (Weg) — der Weg zum gewählten Thema (sonst zum Ziel) in Schritten (`worldWay.ts`): gestrichelt gezeichnet
+   * (nah genug); wird ein Thema gewählt, springen die Punkte ihn einmal entlang.
+   */
+  way: WayPlan | null;
   width: number;
   compact: boolean;
   T: LandscapeWords;
@@ -347,6 +363,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 
   /* -- Zeichnen ------------------------------------------------------------------------------------------------- */
   const canvas = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const [hoverRegion, setHoverRegion] = useState<string | null>(null);
   const [hoverTopic, setHoverTopic] = useState<number | null>(null);
   /* Die Mitte der Gebiete einer Ebene, die gerade benannt wird (für Klicks fern): je Thema das Gebiet, das den Namen trägt. */
@@ -374,7 +391,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   /* 2026-11-05 (Durchsicht) — das grosse Bild nur neu, wenn die Kamera ruht (nicht schon beim ersten Schritt einer Bewegung). */
   const rebuild = useRef(false);
   const dataTick = useRef(0);
-  const dataSig = useMemo(() => { dataTick.current += 1; return dataTick.current; }, [topics, chosen, flash, links, route, home, hoverRegion, palette, world, mode, focusTop]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dataSig = useMemo(() => { dataTick.current += 1; return dataTick.current; }, [topics, chosen, flash, links, way, home, hoverRegion, palette, world, mode, focusTop]); // eslint-disable-line react-hooks/exhaustive-deps
   const paint = () => {
     const el = canvas.current;
     if (el === null || palette === null) return;
@@ -429,7 +446,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const paintRef = useRef(paint);
   paintRef.current = paint;
   /* Die Leinwand so gross, wie gerechnet (sonst stauchte die Seite sie, Namen und Tipps lägen daneben). */
-  useLayoutEffect(() => { const el = canvas.current; if (el !== null) { el.style.width = `${width}px`; el.style.height = `${height}px`; } }, [width, height]);
+  useLayoutEffect(() => {
+    for (const el of [canvas.current, wayCanvas.current]) if (el !== null) { el.style.width = `${width}px`; el.style.height = `${height}px`; }
+    /* 2026-11-05 (Weg) — die Höhe der Karte für das, was an ihrem unteren Rand steht (der Knopf des Weges; darunter liegt die Kamera). */
+    stageRef.current?.style.setProperty('--cg-wm-h', `${height}px`);
+  }, [width, height]);
   /*
     2026-11-04 (Prompt 15, 4/4c) — WAS IN DEN KACHELN STEHT, gezeichnet mit ihrer Säule (`draw`): eine Säule davor deckt es zu.
     Gemessen wird einmal je Thema, Grösse und Ebene.
@@ -472,7 +493,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     startPlay(playback, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playback?.id, palette, n]);
-  useLayoutEffect(() => { paint(); });
+  /* 2026-11-05 (Weg) — mit jedem Bild auch der Weg darüber (er folgt der Kamera; beim Abspielen zeichnet er sich selbst). */
+  useLayoutEffect(() => { paint(); paintWayRef.current(); });
   useEffect(() => () => {
     const A = playRef.current;
     playRef.current = null;
@@ -561,9 +583,14 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     if (box.current !== null) { box.current.dataset.wmPlayMs = (A.drawMs / Math.max(1, A.frames)).toFixed(1); box.current.dataset.wmPlayFrames = String(A.frames); box.current.dataset.wmPlayDyn = String(A.dyn === null ? -1 : A.dyn.reduce((sum, x) => sum + x, 0)); box.current.dataset.wmPlayRects = String(A.rects === null ? 0 : A.rects.length / 4); box.current.dataset.wmPlayStats = JSON.stringify(Object.fromEntries(Object.entries(A.stats).map(([k, v]) => [k, [v.n, +(v.ms / Math.max(1, v.n)).toFixed(1), +v.max.toFixed(0)]]))); box.current.dataset.wmPlayRenders = String(A.renders); }
     if (A.pb.kind === 'return' && A.motion !== 'off') setReplayUntil(Date.now() + 60_000);
     paintRef.current();
+    /* 2026-11-05 (Weg) — der Weg, der auf das Abspielen wartete, kommt jetzt (sonst steht er wieder gezeichnet). */
+    const w = wayNow.current;
+    if (wayPending.current && w !== null) { wayPending.current = false; startWay(w, false); } else { wayPending.current = false; paintWayRef.current(); }
   };
   const startPlay = (pb: WorldPlayback, replay: boolean) => {
     if (playRef.current !== null) finishPlay(true);
+    /* 2026-11-05 (Weg) — die springenden Punkte machen Platz (der Weg steht danach wieder gezeichnet). */
+    if (wayRun.current !== null) finishWay(true);
     const motion = motionLevel();
     lastPb.current = pb;
     const N = topics.length;
@@ -828,6 +855,236 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const id = window.setTimeout(() => setReplayUntil(0), Math.max(0, replayUntil - Date.now()) + 50);
     return () => window.clearTimeout(id);
   }, [replayUntil]);
+
+  /*
+    2026-11-05 (Weg) — DER WEG ZUM GEWÄHLTEN THEMA IN SCHRITTEN (`worldWay.ts`), auf einer eigenen Leinwand über der Karte
+    (die grosse zeichnet dabei nicht neu — auch 5 000 Säulen bleiben ruhig). Punkte erscheinen auf dem, was jetzt lernbar
+    ist, und springen je Schritt eine Stufe höher bis zum gewählten Thema; braucht ein Thema mehrere, landen ihre Punkte im
+    selben Schritt (ein früher fertiger hüpft so lange auf der Stelle), treffen sie sich, leuchtet ein Ring. Danach bleibt der
+    Weg gestrichelt stehen. Beim Wählen eines Themas einmal (die Kamera bleibt); der Knopf „Pokaż drogę" zeigt ihn noch einmal
+    — liegt etwas davon ausserhalb des Bildes, gleitet die Kamera dafür erst hinaus (nie hinein); ein Klick auf ihn während
+    des Laufs überspringt den Rest.
+  */
+  const wayCanvas = useRef<HTMLCanvasElement>(null);
+  const wayRun = useRef<WayRun | null>(null);
+  const wayLabel = useRef<HTMLSpanElement>(null);
+  const [wayPlaying, setWayPlaying] = useState(false);
+  /* Ein Abspielen (Prompt 17) läuft gerade: der Weg kommt danach. */
+  const wayPending = useRef(false);
+  const wayNow = useRef(way);
+  wayNow.current = way;
+  /** Alles vom Weg im Bild — sonst die Kamera, die ihn zeigt (nur hinaus und verschoben; Neigung und Drehung bleiben). */
+  const wayCam = (plan: WayPlan): WorldCam | null => {
+    const scr = screenRef.current;
+    let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
+    let seen = true;
+    for (const t of plan.tiles) {
+      const c = world.cells[t];
+      if (c === undefined) continue;
+      x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y);
+      const sx = scr[t * 3]; const sy = scr[t * 3 + 1];
+      if (!(sx >= 24 && sx <= width - 24 && sy >= 36 && sy <= height - 24)) seen = false;
+    }
+    if (seen || !Number.isFinite(x0)) return null;
+    const fit = fitCam(camRef.current, width, height, (x0 + x1) / 2, (y0 + y1) / 2, Math.max(1.6, Math.max(x1 - x0, y1 - y0) / 2 + 1.1));
+    return clamp({ ...fit, s: Math.min(camRef.current.s, fit.s) });
+  };
+  const finishWay = (skipped: boolean) => {
+    const run = wayRun.current;
+    if (run === null) return;
+    wayRun.current = null;
+    if (run.raf !== 0) cancelAnimationFrame(run.raf);
+    setWayPlaying(false);
+    const el = box.current;
+    if (el !== null) {
+      el.dataset.wmWayPlaying = '';
+      el.dataset.wmWayPlays = String(Number(el.dataset.wmWayPlays ?? '0') + 1);
+      el.dataset.wmWaySkipped = skipped ? '1' : '0';
+      el.dataset.wmWayMs = (run.ms / Math.max(1, run.frames)).toFixed(2);
+      el.dataset.wmWayFrames = String(run.frames);
+    }
+    if (wayLabel.current !== null && wayNow.current !== null) wayLabel.current.textContent = T.wayShow(wayNow.current.beats);
+    paintWayRef.current();
+  };
+  const startWay = (plan: WayPlan, fit: boolean) => {
+    finishWay(true);
+    const motion2 = motionLevel();
+    if (motion2 === 'off') { paintWayRef.current(); return; }
+    if (playRef.current !== null) { wayPending.current = true; return; }
+    let delay = 0;
+    if (fit) {
+      const c = wayCam(plan);
+      if (c !== null) { glide(c, 560); if (motion2 === 'full') delay = 600; }
+    }
+    const byBeat: WayHop[][] = Array.from({ length: plan.beats + 2 }, () => []);
+    for (const h of plan.hops) byBeat[h.beat]?.push(h);
+    const waits = wayWaits(plan);
+    const meets: number[][] = Array.from({ length: plan.beats + 2 }, () => []);
+    plan.tiles.forEach((t, i) => { if ((waits.arriving.get(t) ?? 0) >= 2 && t !== plan.target) meets[plan.tileBeat[i]]?.push(t); });
+    const joins: number[][] = Array.from({ length: plan.beats + 2 }, () => []);
+    const joinSet = new Set(plan.joins);
+    plan.tiles.forEach((t, i) => { if (joinSet.has(t)) joins[plan.tileBeat[i]]?.push(t); });
+    const run: WayRun = { plan, byBeat, waits, meets, joins, times: wayTimes(plan.beats, motion2), motion: motion2, t0: performance.now() + delay, raf: 0, shown: -1, frames: 0, ms: 0 };
+    wayRun.current = run;
+    setWayPlaying(true);
+    if (box.current !== null) { box.current.dataset.wmWayPlaying = String(plan.target); box.current.dataset.wmWayBeat = ''; box.current.dataset.wmWayTimes = `${run.times.pop},${run.times.beat},${run.times.jump},${run.times.end},${delay}`; }
+    const loop = () => {
+      if (wayRun.current !== run) return;
+      if (performance.now() - run.t0 >= run.times.end) { finishWay(false); return; }
+      paintWayRef.current();
+      run.raf = requestAnimationFrame(loop);
+    };
+    run.raf = requestAnimationFrame(loop);
+  };
+  /* Ein neu gewähltes Thema mit Weg: einmal abspielen (nicht die Wahl, mit der die Karte kam; nicht das Ziel ohne Wahl). */
+  const wayChosen = useRef<number | null>(chosen);
+  useEffect(() => {
+    const fresh = wayChosen.current !== chosen;
+    wayChosen.current = chosen;
+    if (way === null) { wayPending.current = false; finishWay(true); return; }
+    if (wayRun.current !== null && wayRun.current.plan.target !== way.target) finishWay(true);
+    /* Beim Wählen bleibt die Kamera, wo sie ist (sie gehört dem Lernenden); den ganzen Weg zeigt der Knopf. */
+    if (fresh && chosen !== null && way.target === chosen) startWay(way, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [way, chosen]);
+  useEffect(() => () => { const run = wayRun.current; wayRun.current = null; if (run !== null && run.raf !== 0) cancelAnimationFrame(run.raf); }, []);
+  /** Die Leinwand des Weges: gestrichelt der Weg (nah genug), beim Abspielen die Punkte. */
+  const paintWay = () => {
+    const el = wayCanvas.current;
+    if (el === null) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w2 = Math.round(width * dpr); const h2 = Math.round(height * dpr);
+    if (el.width !== w2 || el.height !== h2) { el.width = w2; el.height = h2; }
+    const ctx = el.getContext('2d');
+    if (ctx === null) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w2, h2);
+    const run = wayRun.current;
+    const plan = run?.plan ?? wayNow.current;
+    if (plan === null || palette === null || playRef.current !== null) return;
+    if (run === null && px < RING_PX) return;
+    const started = performance.now();
+    const tau = run === null ? Number.POSITIVE_INFINITY : started - run.t0;
+    const P = palette;
+    const scr = screenRef.current;
+    const r = Math.max(3.6, Math.min(8.5, px * 0.1));
+    const pos = (t: number): [number, number] => [scr[t * 3], scr[t * 3 + 1] - r * 0.5];
+    /* Ein Sprung ist ein Bogen: je weiter, desto höher (die Spitze `h` über der Mitte der Sehne). */
+    const ctrlOf = (ax: number, ay: number, bx: number, by: number): [number, number] => {
+      const h = Math.max(8, Math.min(58, Math.hypot(bx - ax, by - ay) * 0.24 + 5));
+      return [(ax + bx) / 2, (ay + by) / 2 - 2 * h];
+    };
+    const quad = (a: number, c: number, b: number, u: number): number => (1 - u) * (1 - u) * a + 2 * u * (1 - u) * c + u * u * b;
+    const k = run === null ? plan.beats + 1 : beatAt(run.times, plan.beats, tau);
+    const full = run !== null && run.motion === 'full';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(1.6, Math.min(2.6, px / 22));
+    ctx.setLineDash([5, 5]);
+    /* Die Spur: was schon gesprungen ist, ganz; der laufende Sprung bis zu seinem Punkt („ograniczone": er blendet ein). */
+    const trail = (list: readonly WayHop[], u: number, alpha: number) => {
+      if (list.length === 0 || u <= 0) return;
+      ctx.beginPath();
+      for (const hop of list) {
+        const [ax, ay] = pos(hop.from); const [bx, by] = pos(hop.to);
+        const [cx, cy] = ctrlOf(ax, ay, bx, by);
+        ctx.moveTo(ax, ay);
+        if (u >= 1 || !full) ctx.quadraticCurveTo(cx, cy, bx, by);
+        else ctx.quadraticCurveTo(ax + (cx - ax) * u, ay + (cy - ay) * u, quad(ax, cx, bx, u), quad(ay, cy, by, u));
+      }
+      ctx.strokeStyle = css(P.goal, full || u >= 1 ? alpha : alpha * u);
+      ctx.stroke();
+    };
+    const inBeat = run === null || k < 1 || k > plan.beats ? 0 : tau - beatStart(run.times, k);
+    const u = run === null || k < 1 || k > plan.beats ? 1 : full ? clamp01(inBeat / Math.max(1, run.times.jump)) : clamp01(inBeat / 260);
+    if (run === null || k > plan.beats) trail(plan.hops, 1, run === null ? 0.62 : 0.55);
+    else {
+      for (let b = 1; b < k; b += 1) trail(run.byBeat[b] ?? [], 1, 0.55);
+      if (k >= 1) trail(run.byBeat[k] ?? [], u, 0.55);
+    }
+    ctx.setLineDash([]);
+    if (run !== null && tau < run.times.end) {
+      /* Die Punkte (je Deckkraft eine Fläche: wenige Aufrufe auch bei vielen Punkten). */
+      const fade = clamp01((run.times.end - tau) / Math.max(1, run.times.fade));
+      const groups = new Map<number, number[]>();
+      const dot = (x: number, y: number, s: number, a: number) => {
+        const key = Math.round(a * fade * 20) / 20;
+        if (key <= 0 || s <= 0.05) return;
+        let list = groups.get(key);
+        if (list === undefined) { list = []; groups.set(key, list); }
+        list.push(x, y, s);
+      };
+      const rings: [number, number, number, number][] = [];
+      if (full) {
+        if (k === 0) {
+          /* Sie erscheinen auf dem, was jetzt lernbar ist (ein kleines Überschwingen). */
+          const e = clamp01(tau / Math.max(1, run.times.pop));
+          const s = e < 1 ? 1 + 2.2 * (e - 1) ** 3 + 1.2 * (e - 1) ** 2 : 1;
+          for (const t of plan.byBeat[0] ?? []) { const [x, y] = pos(t); dot(x, y, Math.max(0, s), 1); }
+        } else if (k <= plan.beats) {
+          const e = 0.5 - 0.5 * Math.cos(Math.PI * u);
+          for (const hop of run.byBeat[k] ?? []) {
+            const [ax, ay] = pos(hop.from); const [bx, by] = pos(hop.to);
+            const [cx, cy] = ctrlOf(ax, ay, bx, by);
+            dot(quad(ax, cx, bx, e), quad(ay, cy, by, e), 1, 1);
+          }
+          /* Wer auf einen späteren Schritt wartet, hüpft im Takt auf der Stelle. */
+          const hs = Math.max(4, Math.min(11, r * 1.4));
+          for (const t of run.waits.waiting[k] ?? []) { const [x, y] = pos(t); dot(x, y - hs * 4 * u * (1 - u), 1, 1); }
+          /* Wo sich Punkte treffen: ein Ring, sobald sie gelandet sind. */
+          const lk = (inBeat - run.times.jump) / 420;
+          if (lk > 0 && lk < 1) for (const t of run.meets[k] ?? []) { const [x, y] = pos(t); rings.push([x, y, r * (1.3 + 2.4 * lk), 0.85 * (1 - lk)]); }
+          /* Ein Thema eines Kreises ohne eigenen Sprung dorthin: sein Punkt erscheint, wenn die anderen landen. */
+          if (lk > 0) for (const t of run.joins[k] ?? []) { const [x, y] = pos(t); dot(x, y, Math.min(1, lk * 2.5), 1); }
+        }
+        if (k > plan.beats || (k === plan.beats && u >= 1)) {
+          /* Am Ziel: der Punkt wächst kurz, zwei Ringe. */
+          const ak = clamp01((tau - beatStart(run.times, plan.beats) - run.times.jump) / Math.max(1, run.times.arrive + run.times.beat - run.times.jump));
+          for (const t of plan.byBeat[plan.beats] ?? []) {
+            const [x, y] = pos(t);
+            if (k > plan.beats) dot(x, y, 1 + 0.45 * Math.sin(Math.PI * Math.min(1, ak * 1.5)), 1);
+            for (const d of [0, 0.28]) { const q = (ak - d) / 0.72; if (q > 0 && q < 1) rings.push([x, y, r * (1.4 + 4.2 * q), 0.9 * (1 - q)]); }
+          }
+        }
+      } else {
+        /* „ograniczone": je Schritt blenden die Punkte der erreichten Themen ein — nichts springt. */
+        plan.tiles.forEach((t, i) => {
+          const b = plan.tileBeat[i];
+          const a = b === 0 ? clamp01(tau / Math.max(1, run.times.pop)) : clamp01((tau - beatStart(run.times, b)) / 260);
+          if (a <= 0) return;
+          const [x, y] = pos(t);
+          dot(x, y, 1, a);
+        });
+      }
+      ctx.lineWidth = 1.5;
+      for (const [a, list] of groups) {
+        ctx.beginPath();
+        for (let i = 0; i < list.length; i += 3) { const rr = r * list[i + 2]; ctx.moveTo(list[i] + rr, list[i + 1]); ctx.arc(list[i], list[i + 1], rr, 0, Math.PI * 2); }
+        ctx.globalAlpha = a;
+        ctx.fillStyle = css(P.goal);
+        ctx.fill();
+        ctx.strokeStyle = css(P.surface, 0.95);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      for (const [x, y, rr, a] of rings) { ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.strokeStyle = css(P.goal, a * fade); ctx.lineWidth = 2; ctx.stroke(); }
+      /* Der Schritt in Worten am Knopf (nur, wenn er sich ändert — ohne die Karte neu zu zeichnen). */
+      const shown = Math.min(k, plan.beats);
+      if (shown !== run.shown) {
+        run.shown = shown;
+        if (wayLabel.current !== null) wayLabel.current.textContent = shown === 0 ? T.wayStart : T.wayStep(shown, plan.beats);
+        if (box.current !== null) box.current.dataset.wmWayBeat = String(shown);
+      }
+      run.frames += 1;
+      run.ms += performance.now() - started;
+    }
+  };
+  const paintWayRef = useRef(paintWay);
+  paintWayRef.current = paintWay;
+  /* Der Knopf zeigt, wie viele Schritte es sind (beim Abspielen schreibt die Leinwand selbst hinein). */
+  useLayoutEffect(() => {
+    if (wayRun.current === null && wayLabel.current !== null && way !== null) wayLabel.current.textContent = T.wayShow(way.beats);
+  });
 
   function draw(ctx: CanvasRenderingContext2D, dpr: number, p: Projection = proj, scr: Float32Array = screen, cw = width, ch = height, tauAt?: number, layer?: 'moving') {
     const P = palette!;
@@ -1160,18 +1417,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         ctx.stroke();
       };
       draw1(links.opens, mix(P.accent, P.light, 0.45), 0.75);
-      draw1(links.needs, P.ink, 0.6);
+      /* 2026-11-05 (Weg) — was noch fehlt, zeigt der Weg (gestrichelt, mit den Punkten); hier nur das schon Gekonnte. */
+      const viaWay = way !== null && way.target === chosen ? new Set(way.hops.filter((h) => h.to === chosen).map((h) => h.from)) : null;
+      draw1(viaWay === null ? links.needs : links.needs.filter((j) => !viaWay.has(j)), P.ink, 0.6);
     }
-    /* Der Weg zum Ziel: erst, wenn nah genug. */
-    if (route !== null && route.length > 1 && px >= RING_PX) {
-      ctx.beginPath();
-      route.forEach((j, k) => { const x = scr[j * 3]; const y = scr[j * 3 + 1]; if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
-      ctx.setLineDash([6, 5]);
-      ctx.strokeStyle = css(P.accent, 0.85);
-      ctx.lineWidth = 2.2;
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    /* 2026-11-05 (Weg) — der Weg zum Ziel steht auf einer eigenen Leinwand darüber (`paintWay`), nicht mehr hier. */
     /* 2026-11-04 (Prompt 16) — kein Punkt „hier bist du“ mehr (das Haus und die Figuren zeigen, wo man ist). */
     /* Für Prüfungen: was im sichtbaren Bild steht. */
     if (layer === undefined) {
@@ -1548,16 +1798,21 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const tiltPct = Math.round(((cam.fore - FORE_MIN) / (FORE_MAX - FORE_MIN)) * 100);
 
   return (
-    <div ref={box} className={`cg-wm${compact ? ' is-compact' : ''}${gliding ? ' is-gliding' : ''}`} tabIndex={-1} onKeyDown={keys} data-wm-scale={cam.s.toFixed(2)} data-wm-px={px.toFixed(1)} data-wm-rot={rotNow} data-wm-fore={cam.fore.toFixed(2)}
-      data-wm-far={far ? '1' : '0'} data-wm-level={levelNow} data-wm-tops={world.top.length} data-wm-hot={hoverRegion ?? ''} data-wm-cells={n} data-wm-step={stepNow.toFixed(3)} data-wm-height={height3} data-wm-home={world.home} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')} data-wm-playing={phase === null ? '' : String(phase.id)} data-wm-played={lastPb.current?.id ?? ''} data-wm-played-kind={lastPb.current?.kind ?? ''}>
+    <div ref={box} className={`cg-wm${compact ? ' is-compact' : ''}${gliding ? ' is-gliding' : ''}${wayPlaying ? ' is-waying' : ''}${width < 560 ? ' is-narrow' : ''}`} tabIndex={-1} onKeyDown={keys} data-wm-scale={cam.s.toFixed(2)} data-wm-px={px.toFixed(1)} data-wm-rot={rotNow} data-wm-fore={cam.fore.toFixed(2)}
+      data-wm-far={far ? '1' : '0'} data-wm-level={levelNow} data-wm-tops={world.top.length} data-wm-hot={hoverRegion ?? ''} data-wm-cells={n} data-wm-step={stepNow.toFixed(3)} data-wm-height={height3} data-wm-home={world.home} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')} data-wm-playing={phase === null ? '' : String(phase.id)} data-wm-played={lastPb.current?.id ?? ''} data-wm-played-kind={lastPb.current?.kind ?? ''}
+      data-wm-way={way === null ? '' : `${way.target}:${way.beats}:${way.hops.length}`}
+      data-wm-way-hops={way === null || way.hops.length > 200 ? '' : way.hops.map((h) => `${topics[h.from]?.label ?? h.from}>${topics[h.to]?.label ?? h.to}@${h.beat}`).join('|')}
+      data-wm-way-tiles={way === null || way.tiles.length > 200 ? '' : way.tiles.map((t, i) => `${topics[t]?.label ?? t}@${way.tileBeat[i]}`).join('|')}>
       <div className="cg-wm-modes" role="group" aria-label={T.modeLabel} data-wm-modes={mode}>
         {(['all', 'known', 'discover', 'due'] as const).map((m) => (
           <button key={m} type="button" className={`cg-wm-mode${mode === m ? ' is-on' : ''}`} aria-pressed={mode === m} onClick={() => setMode(m)} data-wm-mode={m}>{m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : T.modeDue}</button>
         ))}
       </div>
-      <div className="cg-wm-stage">
+      <div ref={stageRef} className="cg-wm-stage">
       <canvas ref={canvas} className="cg-wm-canvas" width={width} height={height} aria-label={T.mapLabel} role="img"
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onContextMenu={(e) => e.preventDefault()} onPointerLeave={() => { setHoverRegion(null); setHoverTopic(null); }} data-landscape-svg="" />
+      {/* 2026-11-05 (Weg) — der Weg in Schritten und seine springenden Punkte, über der Karte (`paintWay`). */}
+      <canvas ref={wayCanvas} className="cg-wm-way" width={width} height={height} aria-hidden data-wm-way-canvas="" />
       <div className="cg-wm-over" aria-hidden>
         {labels.map((l) => {
           const isRegion = l.key.startsWith('r:');
@@ -1612,6 +1867,15 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       )}
       {mode === 'due' && !topics.some((t) => t.due) && <div className="cg-wm-note" role="status" data-wm-note="due">{T.nothingDue}</div>}
       {mode === 'discover' && !topics.some((t) => t.band === 'ring') && <div className="cg-wm-note" role="status" data-wm-note="discover">{T.nothingReady}</div>}
+      {/* 2026-11-05 (Weg) — wie viele Schritte zum gewählten Thema; ein Klick zeigt sie noch einmal (beim Laufen: der Schritt, ein Klick überspringt). */}
+      {way !== null && phase === null && (motion === 'off'
+        ? <span className="cg-wm-waybtn is-still" data-wm-way-btn="off"><WayIcon />{T.wayInfo(way.beats)}</span>
+        : (
+          <button type="button" className={`cg-wm-waybtn${wayPlaying ? ' is-playing' : ''}`} onClick={() => { if (wayRun.current !== null) finishWay(true); else startWay(way, true); }}
+            aria-label={wayPlaying ? T.waySkip : T.wayLabel(way.beats)} title={wayPlaying ? T.waySkip : T.wayLabel(way.beats)} data-wm-way-btn={wayPlaying ? 'playing' : 'ready'}>
+            <WayIcon /><span ref={wayLabel} className="cg-wm-way-text" />
+          </button>
+        ))}
       {replayLabel !== undefined && replayUntil > 0 && phase === null && lastPb.current !== null && (
         <button type="button" className="cg-wm-replay" onClick={() => { const pb = lastPb.current; if (pb !== null) startPlay(pb, true); }} data-wm-replay="">
           <svg viewBox="-8 -8 16 16" aria-hidden><path d="M5.2,-2.6 A6,6 0 1 0 6,1.4 M5.2,-2.6 L1.6,-3.2 M5.2,-2.6 L5.8,0.8" /></svg>{replayLabel}
@@ -1696,6 +1960,24 @@ interface Play {
   sentRegions: boolean;
   left: boolean;
   finishFlights: (() => void) | null;
+}
+
+/** 2026-11-05 (Weg) — ein laufender Weg: je Schritt seine Sprünge, wer wartet, wo sich Punkte treffen. */
+interface WayRun {
+  readonly plan: WayPlan;
+  readonly byBeat: readonly (readonly WayHop[])[];
+  readonly waits: ReturnType<typeof wayWaits>;
+  readonly meets: readonly (readonly number[])[];
+  /** Je Schritt die Themen eines Kreises, deren Punkt beim Landen der anderen erscheint. */
+  readonly joins: readonly (readonly number[])[];
+  readonly times: WayTimes;
+  readonly motion: MotionLevel;
+  readonly t0: number;
+  raf: number;
+  /** Der Schritt, der am Knopf steht. */
+  shown: number;
+  frames: number;
+  ms: number;
 }
 
 /** Was die Oberfläche beim Abspielen braucht (Fahnen, Figuren, die gehen). */

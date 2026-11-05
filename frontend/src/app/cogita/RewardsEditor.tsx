@@ -24,10 +24,10 @@ import type { Learner } from './learn';
 import { holderKey, renamer } from './learn';
 import { mapMeasuresOf } from './mapMeasures';
 import {
-  BADGE_ICONS, BADGE_KINDS, badgeKindOf, describeRewards, GOAL_UNIT_LABEL, GOAL_UNITS, isExtraMeasure, MEASURE_LABEL, POINT_KINDS, POINT_LABEL, readRewards, REWARD_MEASURES,
+  BADGE_ICONS, BADGE_KINDS, badgeKindOf, describeRewards, GOAL_UNIT_LABEL, GOAL_UNITS, isExtraMeasure, materialsOf, MEASURE_LABEL, POINT_KINDS, POINT_LABEL, readRewards, REWARD_MEASURES,
   REWARD_PRESETS, rewardsData, rewardsFor, type BadgeIcon, type BadgeKind, type ExtraMeasures, type GoalUnit, type PointKind, type RewardBadge, type RewardMeasure, type RewardRules
 } from './rewards';
-import { RewardBoard, RewardIcon } from './RewardViews';
+import { BadgeMedal, RewardBoard, RewardIcon } from './RewardViews';
 import type { CogitaLibrary } from './store';
 import { OriginTag, useBusy, useCtx } from './ui';
 
@@ -221,6 +221,10 @@ function RewardEditor({ id, data, active, isDefault, learner, onGone }: {
   const setPoint = (k: PointKind, v: number) => setDraft((d) => ({ ...d, points: { ...d.points, [k]: v } }));
   const setLevel = (i: number, patch: Partial<RewardRules['levels'][number]>) => setDraft((d) => ({ ...d, levels: d.levels.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
   const setBadge = (i: number, patch: Partial<RewardBadge>) => setDraft((d) => ({ ...d, badges: d.badges.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
+  /* 2026-11-05 (Odznaki) — der Stoff jeder Stufe (genannt oder nach dem Rang in ihrer Leiter) — und der, den der Rang allein gäbe. */
+  const byIndex = (list: readonly RewardBadge[]) => list.map((x, i) => ({ ...x, id: `#${i}` }));
+  const materials = useMemo(() => materialsOf(byIndex(draft.badges)), [draft.badges]);
+  const autoMaterials = useMemo(() => materialsOf(byIndex(draft.badges).map((x) => ({ ...x, tier: undefined }))), [draft.badges]);
   const save = (rules: RewardRules) => run(async () => {
     await lib.saveDoc('reward', { ...metaOf(data), ...rewardsData(readRewards(rewardsData(rules))) }, id);
     setSaved(true);
@@ -294,7 +298,7 @@ function RewardEditor({ id, data, active, isDefault, learner, onGone }: {
         {draft.badges.length === 0 && <p className="cg-muted">Bez odznak.</p>}
         {draft.badges.map((x, i) => (
           <div key={i} className="cg-row cg-reward-badge-row">
-            <span className="cg-reward-badge-preview" aria-hidden><RewardIcon name={x.icon} /></span>
+            <span className="cg-reward-badge-preview" aria-hidden data-reward-badge-material={materials.get(`#${i}`) ?? 0}><BadgeMedal material={materials.get(`#${i}`) ?? 0} icon={x.icon} /></span>
             <label className="wk-field"><span>Nazwa</span><input value={x.name} maxLength={60} onChange={(e) => setBadge(i, { name: e.target.value })} /></label>
             <label className="wk-field">
               <span>Znak</span>
@@ -312,6 +316,14 @@ function RewardEditor({ id, data, active, isDefault, learner, onGone }: {
               <select value={x.kind ?? ''} data-reward-badge-kind={i} onChange={(e) => setBadge(i, { kind: (BADGE_KINDS as readonly string[]).includes(e.target.value) ? e.target.value as BadgeKind : undefined })}>
                 <option value="">{EDITOR_WORDS.editorKindAuto(EDITOR_WORDS.kinds[badgeKindOf({ measure: x.measure, atLeast: x.atLeast })])}</option>
                 {BADGE_KINDS.map((k) => <option key={k} value={k}>{EDITOR_WORDS.kinds[k]}</option>)}
+              </select>
+            </label>
+            {/* 2026-11-05 (Odznaki) — der Stoff dieser Stufe; leer: nach dem Rang in ihrer Leiter (gleiche Art und Miara). */}
+            <label className="wk-field">
+              <span>{EDITOR_WORDS.editorTier}</span>
+              <select value={x.tier === undefined ? '' : String(x.tier)} data-reward-badge-tier={i} onChange={(e) => { const v = Number(e.target.value); setBadge(i, { tier: v >= 1 && v <= 5 ? (v as 1 | 2 | 3 | 4 | 5) : undefined }); }}>
+                <option value="">{EDITOR_WORDS.editorTierAuto(EDITOR_WORDS.material[autoMaterials.get(`#${i}`) ?? 0] ?? '')}</option>
+                {[1, 2, 3, 4, 5].map((t) => <option key={t} value={String(t)}>{EDITOR_WORDS.material[t - 1]}</option>)}
               </select>
             </label>
             <label className="wk-field cg-reward-says"><span>Opis</span><input value={x.says ?? ''} maxLength={200} onChange={(e) => setBadge(i, { says: e.target.value })} /></label>

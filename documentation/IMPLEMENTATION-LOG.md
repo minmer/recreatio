@@ -3667,3 +3667,39 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   — wrong/partly/right, „5 z rzędu" glowing, daily goal / streak / level toasts once each, „Poziom 5: Mistrz", the
   summary card; `badges.mjs` — 8 levels with the learner's place, badges got / going / not started / on the map, six
   kinds, three next goals, history (8/8); `smoke.mjs` on 5 000 topics (dark) and 64 topics (phone, reduced, off).
+
+## C42 — Badges as categories with material steps (2026-11-05)
+
+- The owner: the badges page had become bulky — categories with steps you can click, from wood up to diamond, about
+  5 × 5. `rewards.ts`: `BADGE_MATERIALS` (wood, bronze, silver, gold, diamond), optional `tier` 1–5, `materialsOf`,
+  `badgeCategories` (category = badge kind; one ladder per measure, ordered by threshold, material by rank), 25 built-in
+  badges (Seria streak 3/7/14/30/100, Celność combo 5/10/25/50/100, Wiedza utrwalone 1/25/100/500/2000, Cele goals
+  1/5/20/50/150, Mapa map % 10/25/50/75/100; ids with the same threshold kept), a stored higher map step implies the lower
+  ones, `badgeKindOf` from the measure only; level frames on the same scale (frame 0 wood).
+- `BadgesPage.tsx` and `badges.css` rewritten (levels as one row of medals; category tiles with medal, pips, bar and
+  „najbliżej"; a tap opens the steps — a row, on phones a list; history folded); `RewardViews.tsx` (BadgeMedal,
+  MaterialPips, the board shows the categories), `RewardToasts.tsx` (material in the toast), `RewardsEditor.tsx`
+  (material and `tier`), `lang.ts` (rewardWords), `json.ts` (format text) → `ImportFormats.json` and
+  `templates/cogita/ksiazka-AI.md` regenerated (the API needs a deploy for MCP).
+- Checks: `app-rewards-check.mjs` 145 (§17 new); drive `scratchpad/p18/badges2.mjs` 19/19 (1280 light, 390 dark); page
+  height at 1280 from about 1 750 px to 650 px.
+
+## C43 — The way to a chosen topic, in steps: jumping dots (2026-11-05)
+
+- The owner: an animation of the steps to a topic one wants to learn — dots jump from the available tiles to the chosen
+  one, synchronized so that where a tile needs several, their dots arrive there in the same step.
+- `worldWay.ts` (new): the way = the topic and every topic still open before it (through known topics; a known
+  foundation is never walked), jumps to every topic on the way that needs it, cycles as one step (Tarjan, no recursion;
+  every member sends a dot on, members without an own jump join when the others land); step = longest chain of the
+  open before it (= the column level above the ring); timing (`wayTimes`: appear 0.42 s, 280–600 ms per step, at most
+  ~4.8 s for all steps, goal 0.7 s, fade), waiting (`wayWaits`: a dot hops on the spot until its jump).
+- `WorldMap.tsx`: own canvas `cg-wm-way` over the map (`paintWay`; the map is not redrawn), auto-play once on choosing a
+  topic (camera stays), the button „Pokaż drogę · N kroków" (replays, glides out first if needed; a click while playing
+  skips; „Krok k z n" while playing), rings where dots meet and at the goal, labels fade while it plays, waits for and
+  yields to the Prompt 17 playback, ograniczone fades per step, wyłączone draws only; the polyline route is gone; the
+  chosen topic's needs links show only known ones. `LandscapeView.tsx`: the plan for the chosen topic, else the goal
+  (`routeShown`/`routeT` removed), legend „droga". `landscapeWords.ts` (way words, `kroki`), `landscape.css`.
+- Checks: `app-way-check.mjs` (new, 482: same-step arrival, waiting, split/meet, through known, cycles, no way, timing,
+  5 000-topic random graph under 60 ms per way, words) in `app:check`. Drives (`scratchpad/p18/way.mjs`, LocalDB): kette
+  1280 light (13-step and 6-step ways), 390 dark, ograniczone, wyłączone, the 5 000-topic base — 12/12 each (8/8 off);
+  0.1 ms per frame for the dots, 60 fps.
