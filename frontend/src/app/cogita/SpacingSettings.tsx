@@ -10,7 +10,7 @@ import type { Spacing } from './knowness';
 import { baseLang, spacingWords, type SpacingWords } from './lang';
 import type { Learner } from './learn';
 import {
-  effectiveFor, FIRST_MAX, FIRST_MIN, GROWTH_MAX, GROWTH_MIN, PRESET_SPACING, presetOf, readSpacing, SPACING_PRESETS, SPACING_UNITS, UNIT_MS, unitOf,
+  DEFAULT_STACK, effectiveFor, effectiveStackFor, STACK_MAX, STACK_MIN, STACK_PRESETS, FIRST_MAX, FIRST_MIN, GROWTH_MAX, GROWTH_MIN, PRESET_SPACING, presetOf, readSpacing, SPACING_PRESETS, SPACING_UNITS, UNIT_MS, unitOf,
   type SpacingUnit
 } from './spacing';
 import type { CogitaLibrary } from './store';
@@ -111,6 +111,8 @@ export function SpacingLine({ lib, learner }: { lib: CogitaLibrary; learner: Lea
               <p className="cg-muted">{W.recompute}</p>
             </>
           )}
+          {/* 2026-11-05 — und wie viele Karten eine Wiederholung zugleich hat. */}
+          <StackChoice lib={lib} learner={learner} />
         </section>
       )}
     </div>
@@ -185,6 +187,89 @@ export function AreaSpacingSettings({ lib, busy, onSave }: { lib: CogitaLibrary;
       </label>
       {area !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onSave(undefined)} data-spacing-clear="">{W.areaClear}</button>}
       <p className="cg-muted">{W.recompute}</p>
+    </section>
+  );
+}
+
+/* -- 2026-11-05: wie viele Karten auf einmal ------------------------------------------------------------------- */
+
+/** Eine Zahl zwischen den Grenzen eingeben und übernehmen (für „Inna liczba"). */
+function StackNumber({ value, disabled, apply, onApply }: { value: number; disabled: boolean; apply: string; onApply: (n: number) => void }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => { setText(String(value)); }, [value]);
+  const n = Number(text);
+  const ok = Number.isFinite(n) && n >= STACK_MIN && n <= STACK_MAX;
+  return (
+    <span className="cg-row">
+      <input type="number" inputMode="numeric" min={STACK_MIN} max={STACK_MAX} step={1} value={text} disabled={disabled} onChange={(e) => setText(e.target.value)} className="cg-stack-input" data-stack-number="" />
+      <button type="button" className="wk-btn wk-btn-line is-small" disabled={disabled || !ok} onClick={() => onApply(n)} data-stack-apply="">{apply}</button>
+    </span>
+  );
+}
+
+/**
+ * DER LERNENDE: „Ile kart naraz: 10 · 15 · 20 · 30 · Inna liczba" — wie viele Karten eine Wiederholung zugleich hat
+ * (`spacing.ts`, Stapel). Nur wenn er darf; sonst steht da, was gilt.
+ */
+export function StackChoice({ lib, learner }: { lib: CogitaLibrary; learner: Learner | null }) {
+  const W = spacingWords(baseLang(lib));
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (learner === null) return null;
+  const eff = effectiveStackFor(lib, learner);
+  if (!eff.changeable) return <p className="cg-muted" data-stack-choice="locked">{W.stackAsk}: {eff.size} <span>({W.fromArea})</span></p>;
+  const keep = (n: number | null) => {
+    setBusy(true);
+    void learner.keepStack(n).catch(() => undefined).finally(() => setBusy(false));
+  };
+  const preset = STACK_PRESETS.includes(eff.size);
+  const from = eff.from === 'own' ? null : eff.from === 'area' ? W.fromArea : W.fromDefault;
+  return (
+    <div className="cg-spacing-choice" data-stack-choice={eff.size} data-stack-from={eff.from}>
+      <div className="cg-row">
+        <span className="cg-muted">{W.stackAsk}:</span>
+        <span className="cg-subtabs" role="radiogroup" aria-label={W.stackAsk}>
+          {STACK_PRESETS.map((n) => (
+            <button key={n} type="button" role="radio" aria-checked={eff.size === n} className={eff.size === n ? 'is-on' : ''} disabled={busy}
+              onClick={() => { if (eff.size !== n) keep(n); }} data-stack-preset={n}>{n}</button>
+          ))}
+          <button type="button" className={preset ? '' : 'is-on'} aria-expanded={open} onClick={() => setOpen(!open)} data-stack-other="">{preset ? W.stackOther : `${eff.size}`}</button>
+        </span>
+      </div>
+      <p className="cg-muted">{W.stackSays(eff.size)}{from !== null && <> <span>({from})</span></>}</p>
+      {open && (
+        <div className="cg-row" data-stack-own="">
+          <StackNumber value={eff.size} disabled={busy} apply={W.apply} onApply={(n) => { keep(n); setOpen(false); }} />
+          {eff.from === 'own' && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => keep(null)} data-stack-reset="">{lib.settings().stack === undefined ? W.useDefault : W.useArea}</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** DER BEREICH (Ustawienia der Baza): wie viele Karten eine Wiederholung zugleich hat — und ob die Lernenden es ändern dürfen. */
+export function AreaStackSettings({ lib, busy, onSave }: { lib: CogitaLibrary; busy: boolean; onSave: (stack: unknown) => void }) {
+  const W = spacingWords(baseLang(lib));
+  const area = lib.settings().stack;
+  const size = area?.size ?? DEFAULT_STACK;
+  const locked = area?.locked === true;
+  return (
+    <section className="cg-card" data-settings-stack={area === undefined ? 'none' : area.size}>
+      <h3>{W.stackAreaTitle}</h3>
+      <p className="cg-muted">{W.stackSays(size)}</p>
+      <div className="cg-row">
+        <span className="cg-subtabs" role="radiogroup" aria-label={W.stackAsk}>
+          {STACK_PRESETS.map((n) => (
+            <button key={n} type="button" role="radio" aria-checked={size === n} className={size === n ? 'is-on' : ''} disabled={busy} onClick={() => onSave({ size: n, locked })} data-stack-area-preset={n}>{n}</button>
+          ))}
+        </span>
+        <StackNumber value={size} disabled={busy} apply={W.apply} onApply={(n) => onSave({ size: n, locked })} />
+      </div>
+      <label className="pe-check">
+        <input type="checkbox" checked={!locked} disabled={busy} onChange={(e) => onSave({ size, locked: !e.target.checked })} data-stack-may-change="" />
+        <span>{W.stackMayChange}</span>
+      </label>
+      {area !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onSave(undefined)} data-stack-clear="">{W.stackAreaClear}</button>}
     </section>
   );
 }

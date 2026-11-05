@@ -39,14 +39,15 @@ import { countsAsStep, pathMarks } from './pathLayout';
 import { practiseGraph, practiseIds } from './quilt';
 import { planOf, readPlan, type Plan } from './revision';
 import { RevisionRun, type RunSource } from './RevisionRun';
-import type { RewardRules } from './rewards';
+import { rewardsFor, type RewardRules } from './rewards';
+import { HomeFull, HomePanel } from './LandscapeHome';
 import type { Graph } from './graph';
 import { entityNameTex, useCtx } from './ui';
 import { needsKnowing, readLandscape, viewList, withKnowing, type LandscapeRegionEdits, type ViewDoc } from './views';
 import { TexText } from '../ui/tex/Tex';
 import { baseLang, words, type Words } from './lang';
 import { skipStep } from './flowAsk';
-import { spacingFor } from './spacing';
+import { spacingFor, stackFor } from './spacing';
 import { landscapeWords, type LandscapeWords } from './landscapeWords';
 import { globalDepth, nestAsRegions, topicGraphOf, type TopicGraph } from './levelMap';
 import { stepFor } from './worldView';
@@ -591,6 +592,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const wonKey = `cg-ls-won:${lib.libraryId}:${viewKey}:${learner === null ? 'me' : holderKey(learner.holder)}`;
 
   const [note, setNote] = useState<string | null>(null);
+  /* 2026-11-05 — das Haus: ein Klick zeigt den eigenen Stand daneben, ein Doppelklick alles im ganzen Fenster (`LandscapeHome.tsx`). */
+  const [homeOpen, setHomeOpen] = useState<'panel' | 'full' | null>(null);
   const [said, setSaid] = useState('');
   const [command, setCommand] = useState<WorldCommand | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -607,7 +610,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const learnParts = (title: string, ids: readonly string[], endWhenDone = true) => {
     setNote(null);
     void (async () => {
-      const plan = await planFrom(practiseGraph([...new Set(ids.flatMap((x) => practiseIds(cards, x)))], endWhenDone));
+      const plan = await planFrom(practiseGraph([...new Set(ids.flatMap((x) => practiseIds(cards, x)))], endWhenDone, stackFor(lib, learner)));
       if (plan !== null) setRunning({ key: `learn:${title}:${Date.now()}`, source: { plan, cards, title } });
     })();
   };
@@ -615,14 +618,14 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     setNote(null);
     addPiece(id);
     void (async () => {
-      const plan = await planFrom(practiseGraph(practiseIds(cards, id), endWhenDone));
+      const plan = await planFrom(practiseGraph(practiseIds(cards, id), endWhenDone, stackFor(lib, learner)));
       if (plan !== null) setRunning({ key: `learn:${id}:${Date.now()}`, source: { plan, cards, title: labelOf(id) } });
     })();
   };
   const reviewCards = (title: string, list: readonly Card[]) => {
     setNote(null);
     if (list.length === 0) { setNote(T.nothingNext); return; }
-    setRunning({ key: `review:${title}:${Date.now()}`, source: { plan: readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true }), cards, title } });
+    setRunning({ key: `review:${title}:${Date.now()}`, source: { plan: readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: stackFor(lib, learner), endWhenDone: true }), cards, title } });
   };
   const reviewFirst = (id: string, after?: () => void) => {
     setNote(null);
@@ -631,7 +634,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const list = groups.flatMap((g) => g.cards).filter((c) => !(learner?.progress.suspended.has(c.key) ?? false));
     const nextUp = after ?? (() => learnEntry(id));
     if (list.length === 0) { nextUp(); return; }
-    const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true });
+    const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: stackFor(lib, learner), endWhenDone: true });
     setRunning({ key: `review:${id}:${Date.now()}`, source: { plan, cards, title: `${W.reviewFirstWhat}: ${labelOf(id)}` }, then: nextUp, origin: id });
   };
   const lockCount = (id: string): number => lockCards(gauge, lib.prerequisites(), id, cards).reduce((s, g) => s + g.cards.length, 0);
@@ -957,6 +960,13 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     ...storedPieces.map((id) => topicIndex.get(id)).filter((x): x is number => x !== undefined && x !== goalPieceT && worldTopics[x]?.band !== 'known' && worldTopics[x]?.band !== 'due').map((x) => ({ t: x, kind: 'single' as const })),
     ...(goalPieceT === null ? [] : [{ t: goalPieceT, kind: 'goal' as const }])
   ];
+  /* 2026-11-05 — das Haus: der eigene Stand (ein gewähltes Thema hat Vorrang). */
+  const homeNumbers = { land: landCount, won: wonCount, regions: tops.length, ready: readyCount, due: dueCards.length, topics: worldTopics.length };
+  const homeRules = rewards ?? rewardsFor(lib.docs('reward'), null, lib.settings().rewards ?? null).rules;
+  const homeReview = learner === null || dueCards.length === 0 ? null : () => { setHomeOpen(null); reviewCards(T.dueCards(dueCards.length), dueCards); };
+  const homePanel = homeOpen === 'panel' && chosenId === null
+    ? <HomePanel lib={lib} learner={learner} rules={homeRules} numbers={homeNumbers} onReview={homeReview} onAll={() => setHomeOpen('full')} onClose={() => setHomeOpen(null)} />
+    : null;
   /* Die Legende sagt nur, was gerade gilt. */
   const legend = () => (
     <Legend show={{ land: landCount > 0, glow: readyCount > 0, flag: conquered.size > 0, links: links !== null, piece: mapPieces.some((p) => p.kind === 'single'), goal: goal !== null }} folded={compact || !wide} />
@@ -1003,20 +1013,24 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
               step={step} pieces={mapPieces} goalFlag={goal === null ? null : topicIndex.get(goal) ?? null}
               onPiece={(x) => { const id = tg.graph.ids[x]; const flow = storyUnit(id); if (flow !== undefined) openStory(flow, false); else learnEntry(id); }}
               onFlag={() => { if (goal !== null) selectTopic(goal); }}
+              onHome={(double) => { setChosen(null); setHomeOpen(double ? 'full' : 'panel'); }}
               /* 2026-11-05 — Doppelklick: auf einen Berg — der Weg dorthin beginnt; sonst das Thema selbst. */
               onStart={(x) => { const id = tg.graph.ids[x]; setChosen(id); if (learner === null) return; if (infoById(id).band === 'mountain') leadTo(id); else startTopic(id); }} />
           )}
           {!wide && topicPanel !== null && chosenId !== null && <SheetBox label={labelOf(chosenId)} questKey={chosenId}>{topicPanel}</SheetBox>}
+          {!wide && homePanel !== null && <SheetBox label="⌂" questKey="~home">{homePanel}</SheetBox>}
           {!wide && regionPanel}
         </div>
         {wide && (
           <aside className="cg-ls-side" aria-label={W.goal} data-landscape-side="">
             {topicPanel !== null && <div className="cg-ls-quest is-side" role="region" aria-label={chosenId === null ? '' : labelOf(chosenId)} data-landscape-quest={chosenId ?? ''}>{topicPanel}</div>}
+            {homePanel !== null && <div className="cg-ls-quest is-side" role="region" aria-label="⌂" data-landscape-quest="~home">{homePanel}</div>}
             {regionPanel}
           </aside>
         )}
       </div>
       {more}
+      {homeOpen === 'full' && <HomeFull lib={lib} learner={learner} rules={homeRules} cards={cards} numbers={homeNumbers} onReview={homeReview} onClose={() => setHomeOpen(null)} />}
       <p className="cg-sr" aria-live="polite">{said}</p>
       {!compact && <TopicList topics={worldTopics} onChoose={(x) => selectTopic(tg.graph.ids[x])} />}
     </div>

@@ -383,7 +383,7 @@ export const cogitaLiveStatsPart = definePart<LiveStatsConfig>({
 
 /** „Co pokazuje" — was der Baustein weglassen darf. */
 const LANDSCAPE_BITS = [
-  { value: 'spacing', label: 'Wybór „Jak często pytać” (gdy uczący się może go zmienić)' },
+  { value: 'spacing', label: 'Wybór „Jak często pytać” i „Ile kart naraz” (gdy uczący się może je zmienić)' },
   { value: 'learner', label: 'Kto się uczy i gdzie zostają postępy' },
   { value: 'search', label: 'Szukaj (w pełnym widoku)' }
 ] as const;
@@ -392,7 +392,8 @@ export interface LandscapeConfig {
   readonly title: string;
   readonly library: string;
   /** Ein gespeicherter Widok (leer: die ganze Baza — wie der Krajobraz in „Wpisy"). */
-  readonly view: string;
+  /** 2026-11-05 — ein oder mehrere gespeicherte Widoki (Feld `view`, mit Komma); mehrere: der Besucher wählt oben. Leer: die ganze Baza. */
+  readonly views: readonly string[];
   readonly answers: string;
   readonly rewards: string;
   readonly hidden: ReadonlySet<string>;
@@ -400,20 +401,20 @@ export interface LandscapeConfig {
 
 export const cogitaLandscapePart = definePart<LandscapeConfig>({
   kind: 'cogita-landscape',
-  example: { title: 'Krajobraz wiedzy', library: '<id-bazy-wiedzy>', view: '<id-widoku albo puste>', answers: '<id-obszaru-kursu>', rewards: '<id-nagród albo puste>', hide: 'search' },
+  example: { title: 'Krajobraz wiedzy', library: '<id-bazy-wiedzy>', view: '<id-widoku>,<id-drugiego-widoku> (albo puste)', answers: '<id-obszaru-kursu>', rewards: '<id-nagród albo puste>', hide: 'search' },
   label: 'Krajobraz wiedzy',
-  use: 'Krajobraz wiedzy z bazy (Cogita): w środku „Ty”, wokół pola tego, czego możesz się uczyć teraz, dalej góry — tym wyższe, im więcej brakuje; to, co umiesz, staje się lądem. Klik w pole: czytać, uczyć się, powtórzyć, ustawić cel. Uczący się wybiera tu, jak często wracają pytania — częściej, standardowo, rzadziej albo „Raz i gotowe” (raz dobrze i koniec) — o ile prowadzący nie ustalił tego dla wszystkich w ustawieniach bazy. Bez widoku — cała baza; z widokiem — tylko jego wpisy. Widzi go ten, kto może czytać bazę.',
+  use: 'Krajobraz wiedzy z bazy (Cogita): w środku „Ty”, wokół pola tego, czego możesz się uczyć teraz, dalej góry — tym wyższe, im więcej brakuje; to, co umiesz, staje się lądem. Klik w pole: czytać, uczyć się, powtórzyć, ustawić cel. Uczący się wybiera tu, jak często wracają pytania — częściej, standardowo, rzadziej albo „Raz i gotowe” (raz dobrze i koniec) — o ile prowadzący nie ustalił tego dla wszystkich w ustawieniach bazy. Bez widoku — cała baza; z widokiem — tylko jego wpisy; z kilkoma widokami uczący się wybiera nad mapą, który krajobraz ogląda. Kliknięcie domu w środku pokazuje statystyki i nagrody, dwuklik — wszystkie naraz. Widzi go ten, kto może czytać bazę.',
   box: { colSpan: 6, rowSpan: 5 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa widoku albo „Krajobraz wiedzy”' },
     { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
-    { key: 'view', label: 'Który widok', kind: 'libraryEntry', of: 'library', entryKinds: ['view'], optional: true, none: 'cała baza wiedzy' },
+    { key: 'view', label: 'Które widoki (do wyboru)', kind: 'libraryEntry', of: 'library', entryKinds: ['view'], optional: true, none: 'cała baza wiedzy', multi: true, hint: 'puste: cała baza; kilka — uczący się wybiera' },
     ANSWERS,
     REWARDS_IN_RUN,
     { key: 'hide', label: 'Co pokazuje', kind: 'hide', options: LANDSCAPE_BITS }
   ],
   read: (raw: RawConfig): LandscapeConfig => ({
-    title: text(raw, 'title'), library: text(raw, 'library'), view: text(raw, 'view'), answers: text(raw, 'answers'), rewards: text(raw, 'rewards'), hidden: hiddenSet(raw)
+    title: text(raw, 'title'), library: text(raw, 'library'), views: text(raw, 'view').split(',').map((x) => x.trim()).filter((x) => x !== ''), answers: text(raw, 'answers'), rewards: text(raw, 'rewards'), hidden: hiddenSet(raw)
   }),
   hasContent: (c) => c.library !== '',
   missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : null),

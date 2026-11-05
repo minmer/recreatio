@@ -44,7 +44,7 @@ import { PickChat } from '../chat/PickChat';
 import { PickResource } from '../bookings/PickResource';
 import type { DraftPart } from './page';
 import { PartJson } from './PageJsonPanel';
-import { PickLibrary, PickLibraryEntry } from '../library/LibraryPick';
+import { PickLibrary, PickLibraryEntries, PickLibraryEntry } from '../library/LibraryPick';
 import { WidgetEmbed } from './WidgetEmbed';
 import { AudienceField, useSeenAreas } from './PartAudience';
 
@@ -643,6 +643,8 @@ function Fields({ part, size, busy, onSet, path }: {
               <PickChat value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'library' || field.kind === 'knowledge' || field.kind === 'scriptorium' ? (
               <PickLibrary kind={field.kind === 'knowledge' ? 'knowledge' : field.kind === 'scriptorium' ? 'writing' : 'books'} value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
+            ) : field.kind === 'libraryEntry' && field.multi === true ? (
+              <PickLibraryEntries library={part.config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} onPick={(ids) => onSet({ [field.key]: ids })} />
             ) : field.kind === 'libraryEntry' ? (
               <PickLibraryEntry library={part.config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} none={field.none} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'resource' ? (

@@ -16,7 +16,7 @@ import { deleteLibrary, libraryKindOf, loadLibraries, openLibraries, renameLibra
 import { viewPath } from '../routes';
 import { BASES_CHANGED } from './sources';
 import { BaseVisibility } from './BaseWho';
-import { AreaSpacingSettings } from './SpacingSettings';
+import { AreaSpacingSettings, AreaStackSettings } from './SpacingSettings';
 import { DEPENDENCY_KINDS, DEPENDENCY_LABEL, type DependencyKind } from './knowness';
 import { intakeOf } from './learn';
 import { DEFAULT_DAILY_GOAL, readDailyGoal } from './lessons';
@@ -89,6 +89,8 @@ export function CogitaSettings() {
 
       {/* 2026-11-04 (Prompt 15) — die Abstände der Wiederholungen für alle, die hier lernen (und ob sie sie ändern dürfen). */}
       <AreaSpacingSettings lib={lib} busy={busy} onSave={(spacing) => void save({ spacing })} />
+      {/* 2026-11-05 — wie viele Karten eine Wiederholung zugleich hat. */}
+      <AreaStackSettings lib={lib} busy={busy} onSave={(stack) => void save({ stack })} />
 
       {/* 2026-11-04 (Prompt 9) — die Sprache der Lernbildschirme (Krajobraz, Ścieżka, Powtórka); ohne Wahl erkannt aus der Baza. */}
       <section className="cg-card" data-settings-language="">

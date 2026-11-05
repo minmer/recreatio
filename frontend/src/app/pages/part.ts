@@ -172,6 +172,9 @@ export interface FieldDef {
   /** Darf leer bleiben (dann: alle) — der Wähler bietet „wszystkie" an. */
   readonly optional?: boolean;
 
+  /** 2026-11-05 — bei `libraryEntry`: mehrere Einträge (gespeichert mit Komma getrennt), z. B. Widoki zur Wahl im Baustein. */
+  readonly multi?: boolean;
+
   /** 2026-11-02 — bei `optional`: was „leer" hier heisst, wenn nicht „wszystkie" (etwa „domyślne"). */
   readonly none?: string;
 

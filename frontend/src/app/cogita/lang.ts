@@ -301,6 +301,13 @@ export function spacingWords(lang: Lang) {
     /* 2026-11-05 — die kurze Wahl im Baustein „Krajobraz" (`SpacingChoice`). */
     ask: L('Jak często pytać', 'Wie oft fragen', 'How often to ask'),
     other: L('Inne…', 'Andere…', 'Other…'),
+    /* 2026-11-05 — der Stapel: wie viele Karten eine Wiederholung zugleich hat. */
+    stackAsk: L('Ile kart naraz', 'Wie viele Karten auf einmal', 'Cards at once'),
+    stackSays: (n: number) => L(`W powtórce krąży ${n} kart naraz: źle odpowiedziana wraca, dobrze odpowiedziana odchodzi — dopiero wtedy dochodzi jedna nowa.`, `In einer Wiederholung sind ${n} Karten zugleich im Umlauf: eine falsch beantwortete kommt wieder, eine richtig beantwortete geht — erst dann kommt eine neue dazu.`, `A review keeps ${n} cards in play: a wrong one comes back, a right one leaves — only then is one new card added.`),
+    stackOther: L('Inna liczba', 'Andere Zahl', 'Other number'),
+    stackAreaTitle: L('Ile kart naraz w powtórce', 'Wie viele Karten auf einmal in einer Wiederholung', 'Cards at once in a review'),
+    stackMayChange: L('Uczący się mogą to zmienić dla siebie', 'Lernende dürfen es für sich ändern', 'Learners may change it for themselves'),
+    stackAreaClear: L('Usuń ustawienie obszaru (domyślnie 20)', 'Einstellung des Bereichs entfernen (Vorgabe 20)', 'Remove the area setting (default 20)'),
     choiceSays: L('Dotyczy Twojej nauki z tej bazy — wszędzie, nie tylko tutaj.', 'Gilt für dein Lernen mit dieser Baza — überall, nicht nur hier.', 'Applies to your learning from this base — everywhere, not only here.'),
     advanced: L('Zaawansowane', 'Erweitert', 'Advanced'),
     first: L('Pierwszy odstęp', 'Erster Abstand', 'First interval'),

@@ -21,7 +21,7 @@ import { LearnerLine, usePageLearner } from '../../cogita/pageLearner';
 import { usePageBase } from '../../cogita/pageBase';
 import { usePageRewards } from '../../cogita/pageRewards';
 import { rewardsFor } from '../../cogita/rewards';
-import { SpacingChoice, SpacingLine } from '../../cogita/SpacingSettings';
+import { SpacingChoice, SpacingLine, StackChoice } from '../../cogita/SpacingSettings';
 import { CogitaContext, useAsyncKeep } from '../../cogita/ui';
 import { readView } from '../../cogita/views';
 import { later } from '../../ui/later';
@@ -66,7 +66,7 @@ export function LandscapeModuleView({ config, ctx }: { config: LandscapeConfig; 
   return (
     <CogitaContext.Provider value={cg}>
       <h2 className="wk-card-title">{title}</h2>
-      {!config.hidden.has('spacing') && <SpacingChoice lib={lib} learner={visitor.learner} />}
+      {!config.hidden.has('spacing') && <><SpacingChoice lib={lib} learner={visitor.learner} /><StackChoice lib={lib} learner={visitor.learner} /></>}
       {showSearch && (
         <div className="cg-row">
           <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder="Szukaj w krajobrazie…" aria-label={`Szukaj: ${title}`} />
@@ -100,7 +100,7 @@ export function LearnSettingsView({ config, ctx }: { config: LearnSettingsConfig
       {ctx.size.height === 'strip' && ctx.whole !== true ? <SpacingLine lib={lib} learner={visitor.learner} /> : (
         <>
           <h2 className="wk-card-title">{title}</h2>
-          {visitor.learner === null ? <Loading /> : <SpacingChoice lib={lib} learner={visitor.learner} />}
+          {visitor.learner === null ? <Loading /> : <><SpacingChoice lib={lib} learner={visitor.learner} /><StackChoice lib={lib} learner={visitor.learner} /></>}
           {!config.hidden.has('learner') && <LearnerLine learner={visitor} lib={lib} />}
         </>
       )}

@@ -227,6 +227,31 @@ export function PickLibraryEntry(props: EntryPickProps) {
   return openedLibraryKind(props.library) === 'knowledge' ? <PickBaseEntry {...props} /> : <PickBooksEntry {...props} />;
 }
 
+/**
+ * 2026-11-05 — MEHRERE EINTRÄGE (ein Feld mit `multi`): einer je Zeile, mit „×", darunter „+ Dodaj". Gespeichert mit Komma
+ * getrennt, in dieser Reihenfolge (der erste ist der, mit dem ein Baustein beginnt).
+ */
+export function PickLibraryEntries({ library, kinds, value, busy, onPick }: Omit<EntryPickProps, 'optional' | 'none'>) {
+  const ids = value.split(',').map((x) => x.trim()).filter((x) => x !== '');
+  const [adding, setAdding] = useState(false);
+  const set = (next: readonly string[]) => onPick(next.join(','));
+  return (
+    <div className="lib-pick-many" data-pick-entries={ids.length}>
+      {ids.map((id, i) => (
+        <div key={`${id}:${i}`} className="cg-row">
+          <PickLibraryEntry library={library} kinds={kinds} value={id} busy={busy} onPick={(x) => set(x === '' ? ids.filter((_, j) => j !== i) : ids.map((y, j) => (j === i ? x : y)))} />
+          <button type="button" className="wk-link-btn" disabled={busy} aria-label="Usuń" onClick={() => set(ids.filter((_, j) => j !== i))} data-pick-entry-remove={i}>×</button>
+        </div>
+      ))}
+      {adding ? (
+        <PickLibraryEntry library={library} kinds={kinds} value="" busy={busy} optional none="— wybierz —" onPick={(x) => { if (x !== '' && !ids.includes(x)) set([...ids, x]); setAdding(false); }} />
+      ) : (
+        <button type="button" className="wk-link-btn" disabled={busy || library === ''} onClick={() => setAdding(true)} data-pick-entry-add="">+ Dodaj</button>
+      )}
+    </div>
+  );
+}
+
 function PickBooksEntry({ library, kinds, value, busy, optional, onPick }: EntryPickProps) {
   const { store, revision, state } = usePageLibrary(library === '' ? null : library);
   const items = useMemo(() => (store === null ? [] : kinds.flatMap((kind) => store.ofKind(kind))

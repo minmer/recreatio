@@ -135,3 +135,57 @@ export function unitOf(ms: number): { readonly amount: number; readonly unit: Sp
   for (const unit of [...SPACING_UNITS].reverse()) if (ms / UNIT_MS[unit] >= 1) return { amount: Math.round((ms / UNIT_MS[unit]) * 100) / 100, unit };
   return { amount: Math.round((ms / MINUTE) * 100) / 100, unit: 'minute' };
 }
+
+/* -- 2026-11-05: wie viele Karten auf einmal (der Stapel einer Wiederholung) ----------------------------------- */
+
+/**
+ * DER STAPEL: so viele Karten sind in einer Wiederholung zugleich „in der Hand" (`revision.ts`, `plan.stackSize`). Eine
+ * falsch beantwortete bleibt darin und kommt wieder; eine richtig beantwortete geht — erst dann rückt EINE neue nach.
+ * Bei 50 fälligen und 15 im Stapel arbeitet man also an 15, nicht an allen 50 zugleich.
+ * <code>
+ *   Bereich     Ustawienia der Baza, Feld `stack`: {size, locked}
+ *   Lernender   eigene Werte, Schlüssel `~stack` (wie `~spacing.*`)
+ * </code>
+ * Es gilt: das eigene, wenn erlaubt — sonst das des Bereichs — sonst `DEFAULT_STACK` (wie bisher: 20).
+ */
+export const DEFAULT_STACK = 20;
+export const STACK_MIN = 3;
+export const STACK_MAX = 100;
+export const STACK_PRESETS: readonly number[] = [10, 15, 20, 30];
+export const OWN_STACK = '~stack';
+
+const clampStack = (n: number): number => Math.max(STACK_MIN, Math.min(STACK_MAX, Math.round(n)));
+
+export interface AreaStack { readonly size: number; readonly locked: boolean }
+
+export function readAreaStack(raw: unknown): AreaStack | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const { size, locked } = raw as Record<string, unknown>;
+  return finite(size) ? { size: clampStack(size), locked: locked === true } : undefined;
+}
+
+export const ownStack = (values: Readonly<Record<string, number>> | undefined): number | undefined =>
+  values === undefined || !finite(values[OWN_STACK]) ? undefined : clampStack(values[OWN_STACK]);
+
+/** Die Werte mit (oder, `null`, ohne) eigener Grösse des Stapels. */
+export function withOwnStack(values: Readonly<Record<string, number>>, size: number | null): Record<string, number> {
+  const { [OWN_STACK]: _s, ...rest } = values;
+  return size === null ? rest : { ...rest, [OWN_STACK]: clampStack(size) };
+}
+
+export interface EffectiveStack { readonly size: number; readonly from: 'own' | 'area' | 'default'; readonly changeable: boolean }
+
+export function effectiveStack(area: AreaStack | undefined, own: number | undefined): EffectiveStack {
+  if (area?.locked === true) return { size: area.size, from: 'area', changeable: false };
+  if (own !== undefined) return { size: own, from: 'own', changeable: true };
+  if (area !== undefined) return { size: area.size, from: 'area', changeable: true };
+  return { size: DEFAULT_STACK, from: 'default', changeable: true };
+}
+
+export interface StackLib { settings(): { readonly stack?: AreaStack } }
+
+export const effectiveStackFor = (lib: StackLib | null | undefined, learner: SpacingLearner | null | undefined): EffectiveStack =>
+  effectiveStack(lib?.settings().stack, ownStack(learner?.progress.values));
+
+/** Wie viele Karten dieser Lernende in dieser Baza zugleich wiederholt. */
+export const stackFor = (lib: StackLib | null | undefined, learner: SpacingLearner | null | undefined): number => effectiveStackFor(lib, learner).size;

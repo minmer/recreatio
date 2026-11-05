@@ -36,7 +36,7 @@ import type { Dependency, DependencyKind, Mark, Spacing } from './knowness';
 import type { RevisionContext } from './revision';
 import type { FlowFacts } from './logic';
 import { DEPENDENCY_KINDS } from './knowness';
-import { readAreaSpacing, spacingFor, type AreaSpacing } from './spacing';
+import { readAreaSpacing, readAreaStack, spacingFor, type AreaSpacing, type AreaStack } from './spacing';
 import { readDailyGoal } from './lessons';
 import { fieldDependencies, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
@@ -95,6 +95,8 @@ export interface CogitaSettings {
    * selbst ändern dürfen (`locked`); fehlt es: die Vorgabe (oder die eigene Einstellung des Lernenden).
    */
   readonly spacing?: AreaSpacing;
+  /** 2026-11-05 — wie viele Karten eine Wiederholung zugleich hat (`spacing.ts`, Stapel), und ob die Lernenden es ändern dürfen. */
+  readonly stack?: AreaStack;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -125,7 +127,8 @@ export function readSettings(raw: unknown): CogitaSettings {
     ...(str(d.joinPage).trim() === '' ? {} : { joinPage: str(d.joinPage).trim().replace(/^#?\/+/, '') }),
     sources: readSources(d.sources),
     ...(d.language === 'pl' || d.language === 'de' || d.language === 'en' ? { language: d.language } : {}),
-    ...(readAreaSpacing(d.spacing) === undefined ? {} : { spacing: readAreaSpacing(d.spacing)! })
+    ...(readAreaSpacing(d.spacing) === undefined ? {} : { spacing: readAreaSpacing(d.spacing)! }),
+    ...(readAreaStack(d.stack) === undefined ? {} : { stack: readAreaStack(d.stack)! })
   };
 }
 

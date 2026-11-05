@@ -170,7 +170,7 @@ export function GoalFlagIcon({ h }: { h: number }) {
 
 /* -- Die Karte ------------------------------------------------------------------------------------------------- */
 
-export function WorldMap({ world, topics, regionName, conquered, chosen, flash, home, links, route, width, compact, T, memoryKey, command, onPickTopic, onView, onBackground, legend, step, pieces, goalFlag, onPiece, onFlag, onStart }: {
+export function WorldMap({ world, topics, regionName, conquered, chosen, flash, home, links, route, width, compact, T, memoryKey, command, onPickTopic, onView, onBackground, legend, step, pieces, goalFlag, onPiece, onFlag, onStart, onHome }: {
   world: WorldLayout;
   /** Die Höhe eines Schrittes dieser Baza (`stepFor`). */
   step: number;
@@ -182,6 +182,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   onPiece: (t: number) => void;
   /** Die Fahne angetippt: das Ziel mit seinem Weg. */
   onFlag: () => void;
+  /** 2026-11-05 — das Haus in der Mitte: ein Klick (`false`) oder ein Doppelklick (`true`); fehlt es, wählt das Haus das Startthema. */
+  onHome?: (double: boolean) => void;
   /** Ein Doppelklick auf ein Thema (nah): zum Lernen öffnen. */
   onStart: (t: number) => void;
   topics: readonly WorldTopic[];
@@ -738,6 +740,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   };
 
   /** Ein Tippen auf eine Figur, die Fahne oder den Namen eines Gebiets — „true", wenn es etwas traf. */
+  /* 2026-11-05 — wann das Haus zuletzt angetippt wurde (der zweite Tipp kurz danach: alles im ganzen Fenster). */
+  const homeTap = useRef<number | null>(null);
   const tapOverlay = (x: number, y: number): boolean => {
     for (const p of [...shownPieces].reverse()) {
       const [px0, py0] = p.region !== null ? (() => { const r = world.regions.get(p.region!); return r === undefined ? placeOf(p.t) : toScreen(proj, r.x, r.y); })() : placeOf(p.t);
@@ -755,7 +759,14 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     /* Das Feld des Hauses: wählt das Startthema (wenn keine Säule davor steht). */
     if (world.home >= 0 && world.home < n && hit(x, y) === null) {
       const [gx, gy] = toGround(camRef.current, width, height, x, y);
-      if (Math.hypot(gx, gy) <= 0.5) { onPickTopic(world.home); return true; }
+      if (Math.hypot(gx, gy) <= 0.5) {
+        if (onHome === undefined) { onPickTopic(world.home); return true; }
+        const now = performance.now();
+        const double = homeTap.current !== null && now - homeTap.current < 380;
+        homeTap.current = double ? null : now;
+        onHome(double);
+        return true;
+      }
     }
     for (const l of labels) {
       if (!l.shown || !l.key.startsWith('r:')) continue;

@@ -24,7 +24,7 @@ import type { Card } from './cardBasics';
 import { TopicIntro, SourceOpen } from './EntityReading';
 import { gaugeFromMarks, type Gauge } from './knowing';
 import { shareOf, type Spacing } from './knowness';
-import { spacingFor } from './spacing';
+import { spacingFor, stackFor } from './spacing';
 import { answerIndex } from './measures';
 import { renamer, type AnswerRecord, type Learner } from './learn';
 import { cardsAbout } from './prerequisites';
@@ -169,7 +169,7 @@ export function QuiltView({ view, cards, answers, learner = null, list, onOpen, 
       const fp = new Map(cards.map((c) => [c.key, c.fingerprint] as const));
       const rename = renamer(lib.merges());
       const ctx = lib.revisionContext(cards, (key) => learner.marks(key, fp.get(key), rename), Date.now(), learnerFlows(lib, learner.progress.positions), spacingFor(lib, learner));
-      const made = await planOf(practiseGraph(practiseIds(cards, tile.id), tile.band !== 'known'), ctx);
+      const made = await planOf(practiseGraph(practiseIds(cards, tile.id), tile.band !== 'known', stackFor(lib, learner)), ctx);
       const plan = made.plan === null ? null : { ...made.plan, cards: made.plan.cards.filter((c) => !learner.progress.suspended.has(c.key)) };
       if (plan === null || plan.cards.length === 0) { setNote(made.problems[0] ?? 'Do tego wpisu nie ma jeszcze pytań.'); return; }
       const e = lib.entity(tile.id);

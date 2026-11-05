@@ -26,7 +26,7 @@ import { call, Unreachable, WorkspaceError } from '../core/session';
 import { readParams, readSeed, type Card, type ParamValue } from './cardBasics';
 import { dueAt, snapshotOf, type Mark, type Snapshot, type Spacing } from './knowness';
 import { withAwards } from './rewards';
-import { effectiveSpacing, OWN_PREFIX, ownSpacing, withOwnSpacing, type AreaSpacing } from './spacing';
+import { effectiveSpacing, OWN_PREFIX, ownSpacing, withOwnSpacing, withOwnStack, type AreaSpacing } from './spacing';
 
 /* -- Was gespeichert wird ---------------------------------------------------------------- */
 
@@ -850,6 +850,14 @@ export class Learner {
     const was = this.progress.values;
     const next = withAwards(was, add);
     if (!Object.entries(next).some(([k, v]) => was[k] !== v)) return;
+    this.progress = { ...this.progress, values: next };
+    this.changed();
+    await this.send({ v: 1, kind: 'values', values: next });
+  }
+
+  /** 2026-11-05 — die eigene Grösse des Stapels (wie viele Karten eine Wiederholung zugleich hat); `null`: keine eigene. */
+  async keepStack(size: number | null): Promise<void> {
+    const next = withOwnStack(this.progress.values, size);
     this.progress = { ...this.progress, values: next };
     this.changed();
     await this.send({ v: 1, kind: 'values', values: next });

@@ -289,11 +289,11 @@ export function practiseIds(cards: readonly Card[], entryId: string): string[] {
  * temporal, das Allgemeine zuerst, streng die nächste). Sitzt alles schon, endet sie nicht von selbst (sonst gäbe es
  * nichts zu üben) — sonst, sobald alles gekonnt ist.
  */
-export function practiseGraph(ids: readonly string[], endWhenDone = true): Graph {
+export function practiseGraph(ids: readonly string[], endWhenDone = true, stackSize = 20): Graph {
   return {
     nodes: [
       { id: 'wpis', type: 'source.list', x: 40, y: 40, config: { ids: [...ids] } },
-      { id: 'plan', type: 'strategy', x: 300, y: 40, config: { mode: 'temporal', stackSize: 20, order: 'general', pick: 'next', ...(endWhenDone ? { endWhenDone: true } : {}) } }
+      { id: 'plan', type: 'strategy', x: 300, y: 40, config: { mode: 'temporal', stackSize, order: 'general', pick: 'next', ...(endWhenDone ? { endWhenDone: true } : {}) } }
     ],
     edges: [{ id: 'e1', from: 'wpis', out: 'cards', to: 'plan', in: 'cards' }]
   };

@@ -43,7 +43,7 @@ import { PickPage } from '../pages/PickPage';
 import { PickArea } from '../pages/PickArea';
 import { HideField } from '../pages/HideField';
 import { PickResource } from '../bookings/PickResource';
-import { PickLibrary, PickLibraryEntry } from '../library/LibraryPick';
+import { PickLibrary, PickLibraryEntries, PickLibraryEntry } from '../library/LibraryPick';
 import { PickCalendar, PickCalendarItem } from '../calendar/PickCalendar';
 import { DependencyMap } from './DependencyMap';
 import { FORM_MAP, FormList } from '../forms/FormList';
@@ -539,6 +539,8 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
             onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
         ) : field.kind === 'library' || field.kind === 'knowledge' || field.kind === 'scriptorium' ? (
           <PickLibrary kind={field.kind === 'knowledge' ? 'knowledge' : field.kind === 'scriptorium' ? 'writing' : 'books'} value={value} busy={busy} onPick={(id) => void save(field.key, id)} />
+        ) : field.kind === 'libraryEntry' && field.multi === true ? (
+          <PickLibraryEntries library={config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} onPick={(ids) => void save(field.key, ids)} />
         ) : field.kind === 'libraryEntry' ? (
           <PickLibraryEntry library={config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} none={field.none} onPick={(id) => void save(field.key, id)} />
         ) : field.kind === 'resource' ? (
