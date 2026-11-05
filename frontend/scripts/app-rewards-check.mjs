@@ -15,6 +15,12 @@
  *  11. Die letzten Tage und die Linie von heute.
  *  12. Zwei Lernende derselben Person in derselben Baza hören einander (nur aufnehmen, nicht senden); andere nicht.
  *
+ * 2026-11-05 (Prompt 17) — „Odznaki i poziomy":
+ *  13. Arten der Abzeichen (genannt und aus dem Mass), die neuen Masse, `kind` gelesen und geschrieben, die Rahmen der Stufen.
+ *  14. Die Abzeichen der Karte mit `extra` und `awarded`: wann, wo in den Ereignissen, Summen, ungemessen, die Lehrerin.
+ *  15. `cleanDays`: überfällig gestern beendet die Reihe, die erste Antwort, jetzt überfällig, Zeitumstellung, höchstens 60.
+ *  16. Die gemerkten Daten (`withAwards` behält das früheste), `Learner.keepAwards`, `keepValues` lässt sie stehen.
+ *
  *   node scripts/app-rewards-check.mjs
  */
 import { build } from 'esbuild';
@@ -381,6 +387,144 @@ try {
     const fromLearner = R.rewardState(a.progress.answers.values(), rules({}), t0 + 5000);
     check('12 rewards read a learner\'s answers directly (q4 came with q1: no points of its own)', ofKind(fromLearner, 'answer').map((e) => e.card), ['q1', 'q2', 'q3']);
     offA(); offO(); offE();
+  }
+
+  /* ── 13. Arten der Abzeichen, die neuen Masse, die Rahmen ────────────────────────── */
+  {
+    const want = {
+      'pierwszy-krok': 'start', 'dziesiec-dobrych': 'accuracy', celny: 'accuracy', 'pierwsza-utrwalona': 'start', 'piecdziesiat-utrwalonych': 'volume',
+      'trzy-dni': 'consistency', tydzien: 'consistency', miesiac: 'consistency', 'cel-piec': 'goals', tysiac: 'volume',
+      'pierwszy-obszar': 'exploration', 'pol-mapy': 'exploration', 'cala-mapa': 'exploration', 'czysty-tydzien': 'exploration'
+    };
+    check('13 every default badge names its kind', Object.fromEntries(R.DEFAULT_REWARDS.badges.map((x) => [x.id, x.kind])), want);
+    check('13 badgeKindOf of every default badge', Object.fromEntries(R.DEFAULT_REWARDS.badges.map((x) => [x.id, R.badgeKindOf(x)])), want);
+    check('13 derived from the measure alone, the defaults keep their kinds', R.DEFAULT_REWARDS.badges.map((x) => R.badgeKindOf({ measure: x.measure, atLeast: x.atLeast })), R.DEFAULT_REWARDS.badges.map((x) => x.kind));
+    const derive = [['answers', 1], ['answers', 10], ['answers', 11], ['known', 1], ['known', 2], ['cards', 1], ['cards', 50], ['points', 5], ['streak', 3], ['best', 9], ['days', 1],
+      ['correct', 1], ['combo', 5], ['goals', 1], ['level', 3], ['regions', 1], ['map', 50], ['clean', 7]];
+    check('13 derived kinds: small counts start, larger volume; streak/best/days, correct/combo, goals/level, the map', derive.map(([measure, atLeast]) => R.badgeKindOf({ measure, atLeast })), [
+      'start', 'start', 'volume', 'start', 'volume', 'start', 'volume', 'volume', 'consistency', 'consistency', 'consistency',
+      'accuracy', 'accuracy', 'goals', 'goals', 'exploration', 'exploration', 'exploration'
+    ]);
+    check('13 an explicit kind wins over the measure', R.badgeKindOf({ measure: 'points', atLeast: 5, kind: 'exploration' }), 'exploration');
+    check('13 the four map badges of the defaults', R.DEFAULT_REWARDS.badges.filter((x) => R.isExtraMeasure(x.measure)).map((x) => [x.id, x.measure, x.atLeast, x.points]), [
+      ['pierwszy-obszar', 'regions', 1, 0], ['pol-mapy', 'map', 50, 0], ['cala-mapa', 'map', 100, 0], ['czysty-tydzien', 'clean', 7, 0]
+    ]);
+    check('13 the new measures are measures with labels', ['regions', 'map', 'clean'].map((m) => R.REWARD_MEASURES.includes(m) && typeof R.MEASURE_LABEL[m] === 'string' && R.MEASURE_LABEL[m] !== ''), [true, true, true]);
+    const k = R.readRewards({ badges: [
+      { name: 'A', measure: 'map', atLeast: 50, kind: 'exploration' },
+      { name: 'B', measure: 'points', atLeast: 5, kind: 'nope' },
+      { name: 'C', measure: 'clean', atLeast: 3, kind: ' consistency ' },
+      { name: 'D', measure: 'regions', atLeast: 2 }
+    ] });
+    check('13 readRewards reads the new measures and kind (unknown kinds dropped)', k.badges.map((x) => [x.id, x.measure, x.kind ?? null, R.badgeKindOf(x)]), [
+      ['a', 'map', 'exploration', 'exploration'], ['b', 'points', null, 'volume'], ['c', 'clean', 'consistency', 'consistency'], ['d', 'regions', null, 'exploration']
+    ]);
+    check('13 rewardsData writes kind: the rule reads back unchanged', JSON.stringify(R.readRewards(R.rewardsData(k))), JSON.stringify(k));
+    check('13 frames of the 8 default levels', R.DEFAULT_REWARDS.levels.map((_, i, all) => R.levelFrame(i, all.length)), [0, 1, 1, 2, 2, 3, 3, 4]);
+    check('13 frames with few levels', [[0, 1], [1, 2], [1, 3], [2, 3], [1, 4], [2, 4], [3, 4]].map(([i, n]) => R.levelFrame(i, n)), [0, 1, 1, 4, 1, 2, 4]);
+  }
+
+  /* ── 14. Die Abzeichen der Karte: extra und awarded ──────────────────────────────── */
+  {
+    const r = R.DEFAULT_REWARDS;
+    const list = [A('e1', at(10, 9), 1), A('e2', at(10, 9, 5), 1), A('e1', at(11, 9), 1)];
+    const now = at(11, 12);
+    const map4 = (s) => s.badges.filter((x) => R.isExtraMeasure(x.badge.measure)).map((x) => [x.badge.id, x.at, x.value, x.measured]);
+    const plain = R.rewardState(list, r, now);
+    check('14 without map measures: not earned, not measured, value 0 (other badges measured)', [map4(plain), plain.badges.filter((x) => !R.isExtraMeasure(x.badge.measure)).every((x) => x.measured)], [[
+      ['pierwszy-obszar', null, 0, false], ['pol-mapy', null, 0, false], ['cala-mapa', null, 0, false], ['czysty-tydzien', null, 0, false]
+    ], true]);
+    check('14 without map measures: no map badge among the events', plain.events.some((e) => e.kind === 'badge' && ['pierwszy-obszar', 'pol-mapy', 'cala-mapa', 'czysty-tydzien'].includes(e.badge)), false);
+    const ext = R.rewardState(list, r, now, { extra: { regions: 1, map: 60, clean: 3 } });
+    check('14 with map measures: reached ones earned now, the others measured with their value', map4(ext), [
+      ['pierwszy-obszar', now, 1, true], ['pol-mapy', now, 60, true], ['cala-mapa', null, 60, true], ['czysty-tydzien', null, 3, true]
+    ]);
+    check('14 the measures carry the map values', [ext.measures.regions, ext.measures.map, ext.measures.clean, plain.measures.map], [1, 60, 3, 0]);
+    check('14 the map badges come last (now), in the order of the rule; everything before is unchanged', [ext.events.slice(-2).map((e) => [e.id, e.at, e.total]), JSON.stringify(ext.events.slice(0, -2)) === JSON.stringify(plain.events), ext.total],
+      [[['b:pierwszy-obszar', now, plain.total], ['b:pol-mapy', now, plain.total]], true, plain.total]);
+    const t = at(10, 9, 2);
+    const kept = R.rewardState(list, r, now, { extra: { regions: 1, map: 60 }, awarded: { 'pierwszy-obszar': t } });
+    const ids = kept.events.map((e) => e.id);
+    const pos = ids.indexOf('b:pierwszy-obszar');
+    check('14 a stored date puts the badge at that time, between the answers', [pos > ids.indexOf(`a:${list[0].id}`), pos < ids.indexOf(`a:${list[1].id}`), kept.events[pos]?.at, kept.badges.find((x) => x.badge.id === 'pierwszy-obszar').at], [true, true, t, t]);
+    check('14 events stay in time order and the totals add up', [kept.events.every((e, i, all) => i === 0 || all[i - 1].at <= e.at), kept.events.every((e, i, all) => e.total === (i === 0 ? 0 : all[i - 1].total) + e.points), kept.total === kept.events[kept.events.length - 1].total], [true, true, true]);
+    check('14 a measure missing from extra is not measured (value 0)', [kept.badges.find((x) => x.badge.id === 'czysty-tydzien').measured, kept.badges.find((x) => x.badge.id === 'czysty-tydzien').value, kept.badges.find((x) => x.badge.id === 'pol-mapy').measured], [false, 0, true]);
+    check('14 a stored date counts without the measure (the teacher)', map4(R.rewardState(list, r, now, { awarded: { 'cala-mapa': at(11, 10) } })), [
+      ['pierwszy-obszar', null, 0, false], ['pol-mapy', null, 0, false], ['cala-mapa', at(11, 10), 0, false], ['czysty-tydzien', null, 0, false]
+    ]);
+    check('14 a stored date stays, even when the measure fell below the threshold', R.rewardState(list, r, now, { extra: { map: 40 }, awarded: { 'pol-mapy': at(10, 20) } }).badges.find((x) => x.badge.id === 'pol-mapy').at, at(10, 20));
+    const odd = R.rewardState(list, r, now, { extra: { map: Number.NaN, regions: 'x' }, awarded: { 'cala-mapa': at(12, 9), 'pol-mapy': Number.POSITIVE_INFINITY } });
+    check('14 junk: non-numbers are not measured, a date after now is now, an endless date is none', [map4(odd), odd.events.every((e) => e.at <= now)], [[
+      ['pierwszy-obszar', null, 0, false], ['pol-mapy', null, 0, false], ['cala-mapa', now, 0, false], ['czysty-tydzien', null, 0, false]
+    ], true]);
+
+    /* Ein Abzeichen der Karte mit Punkten: seine Punkte zu seiner Zeit, die Stufe und ein Abzeichen der Punkte danach. */
+    const pr = rules({
+      levels: [{ at: 0, name: 'A' }, { at: 100, name: 'B' }], points: { first: 0 },
+      badges: [{ id: 'mapa', name: 'Mapa', measure: 'map', atLeast: 50, points: 100 }, { id: 'pkt', name: 'Pkt', measure: 'points', atLeast: 110 }]
+    });
+    const two = [A('p1', at(12, 9), 1), A('p2', at(12, 11), 1)];
+    const pt = R.rewardState(two, pr, at(12, 12), { extra: { map: 50 }, awarded: { mapa: at(12, 10) } });
+    check('14 a map badge with points: its points at its time, then the level and a points badge at the same time', pt.events.map((e) => [e.id.replace(/x\d+/, '_'), e.at, e.points, e.total]), [
+      ['a:_', at(12, 9), 10, 10], ['b:mapa', at(12, 10), 100, 110], ['l:1', at(12, 10), 0, 110], ['b:pkt', at(12, 10), 0, 110], ['a:_', at(12, 11), 10, 120]
+    ]);
+    check('14 the total and the level follow', [pt.total, pt.level.name, pt.badges.map((x) => x.at)], [120, 'B', [at(12, 10), at(12, 10)]]);
+    check('14 the day keeps only answer points (badge points are not the daily goal)', [...pt.days.values()].map((d) => d.points), [20]);
+    const same = R.rewardState(two, pr, at(12, 11), { extra: { map: 50 }, awarded: { mapa: at(12, 11) } });
+    check('14 the same time as an answer: after it', same.events.map((e) => e.id.replace(/x\d+/, '_')), ['a:_', 'a:_', 'b:mapa', 'l:1', 'b:pkt']);
+    const before = R.rewardState(two, pr, at(12, 12), { awarded: { mapa: at(12, 8) } });
+    check('14 a date before the first answer: first', before.events.map((e) => e.id.replace(/x\d+/, '_')).slice(0, 3), ['b:mapa', 'l:1', 'a:_']);
+    check('14 fixed ids: a stored badge is not new again', R.freshEvents(new Set(pt.events.map((e) => e.id)), R.rewardState(two, pr, at(12, 13), { extra: { map: 50 }, awarded: { mapa: at(12, 10) } })).length, 0);
+
+    check('14 freshAwards: reached and not yet stored, with the given time', R.freshAwards(r, { regions: 2, map: 100, clean: 0 }, { 'pol-mapy': 5 }, now), { 'pierwszy-obszar': now, 'cala-mapa': now });
+    check('14 freshAwards: nothing without measures, nothing already stored', [R.freshAwards(r, undefined, {}, now), R.freshAwards(r, { map: 100 }, { 'pol-mapy': 1, 'cala-mapa': 2 }, now), R.freshAwards(r, { clean: 7 }, undefined, now)], [{}, {}, { 'czysty-tydzien': now }]);
+  }
+
+  /* ── 15. cleanDays ─────────────────────────────────────────────────────────────── */
+  {
+    const DAYMS = 24 * HOUR;
+    const sp = { first: 3 * DAYMS, growth: 3 };
+    const cd = (byKey, now, spacing = sp) => R.cleanDays([...byKey.keys()].map((key) => ({ key })), (key) => byKey.get(key) ?? [], now, spacing);
+    const right = (t) => ({ at: t, correctness: 1 });
+    const wrong = (t) => ({ at: t, correctness: 0 });
+    check('15 no answers: 0', [cd(new Map(), at(22, 12)), R.cleanDays([{ key: 'x' }], () => [], at(22, 12))], [0, 0]);
+    const a = new Map([['A', [right(at(20, 10))]]]);
+    check('15 nothing overdue since the first answer: today, yesterday and the day of the first answer (not before)', cd(a, at(22, 12)), 3);
+    check('15 the first answer today: today counts', cd(new Map([['A', [right(at(22, 11))]]]), at(22, 12)), 1);
+    const b = new Map([...a, ['B', [wrong(at(21, 8)), right(at(22, 9))]]]);
+    check('15 a card overdue at the end of yesterday stops the count (today is clean)', cd(b, at(22, 12)), 1);
+    check('15 a day later the run grows; the overdue day still ends it', cd(b, at(23, 9)), 2);
+    check('15 a card overdue now: 0', [cd(b, at(23, 11)), cd(new Map([['C', [wrong(at(22, 8))]]]), at(22, 12))], [0, 0]);
+    check('15 the default spacing: right 20 minutes ago is overdue (15 min), 10 minutes ago not', [
+      R.cleanDays([{ key: 'F' }], () => [right(at(22, 11, 40))], at(22, 12)), R.cleanDays([{ key: 'F' }], () => [right(at(22, 11, 50))], at(22, 12))
+    ], [0, 1]);
+    check('15 across the change of time (25.10.): 24.–27.', cd(new Map([['D', [right(at(24, 10))]]]), at(27, 12), { first: 5 * DAYMS, growth: 3 }), 4);
+    check('15 answers after now do not count', cd(new Map([['G', [right(at(20, 10)), wrong(at(22, 13))]]]), at(22, 12)), 3);
+    check('15 at most 60 days', R.cleanDays([{ key: 'E' }], () => [right(new Date(2026, 5, 1, 10).getTime())], at(30, 12), { first: 365 * DAYMS, growth: 3 }), R.CLEAN_DAYS_MAX);
+    check('15 marks in any order', cd(new Map([['B', [right(at(22, 9)), wrong(at(21, 8))]], ['A', [right(at(20, 10))]]]), at(22, 12)), 1);
+  }
+
+  /* ── 16. Die gemerkten Daten, Learner.keepAwards ──────────────────────────────────── */
+  {
+    check('16 withAwards adds new dates and keeps the earliest of a stored one, other values stay', R.withAwards({ '~award.a': 100, x: 1 }, { a: 200, b: 50 }), { '~award.a': 100, x: 1, '~award.b': 50 });
+    check('16 an earlier date wins', R.withAwards({ '~award.a': 100 }, { a: 40 }), { '~award.a': 40 });
+    check('16 junk is ignored', R.withAwards({}, { a: Number.NaN, '': 5, b: 'x' }), {});
+    check('16 awardsOf reads them back (nothing else)', [R.awardsOf({ '~award.a': 100, '~award.b': 50, '~spacing.first': 9, x: 1, '~award.': 3 }), R.awardsOf(undefined)], [{ a: 100, b: 50 }, {}]);
+    check('16 the prefix belongs to the app (~)', R.AWARD_PREFIX.startsWith('~'), true);
+    const l = new R.Learner('LIB-AW', { kind: 'local', id: 'aw' }, null);
+    let heard = 0;
+    const off = l.subscribe(() => { heard += 1; });
+    await l.keepAwards({ 'pol-mapy': 1000 });
+    const once = heard;
+    await l.keepAwards({ 'pol-mapy': 2000 });
+    check('16 keepAwards stores the date; a later one changes nothing and tells no one', [l.progress.values['~award.pol-mapy'], once > 0, heard], [1000, true, once]);
+    await l.keepAwards({ 'pol-mapy': 500, 'cala-mapa': 3000 });
+    check('16 keepAwards takes an earlier date and new ones', R.awardsOf(l.progress.values), { 'pol-mapy': 500, 'cala-mapa': 3000 });
+    await l.keepValues({ story: 3 });
+    check('16 keepValues of a story keeps the dates (values of the app)', [R.awardsOf(l.progress.values), l.progress.values.story], [{ 'pol-mapy': 500, 'cala-mapa': 3000 }, 3]);
+    const s = R.rewardState([], R.DEFAULT_REWARDS, at(12, 12), { awarded: R.awardsOf(l.progress.values) });
+    check('16 the stored dates are the badges of the map', s.badges.filter((x) => x.at !== null).map((x) => [x.badge.id, x.at]), [['pol-mapy', 500], ['cala-mapa', 3000]]);
+    off();
   }
 } finally {
   await rm(workspace, { recursive: true, force: true });

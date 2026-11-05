@@ -1813,4 +1813,16 @@ export function aiPrompt(lib: CogitaLibrary, what: 'entities' | 'statements' | '
     /* 2026-10-27 — ein Schema mit Rodzaje pytań, und die Reihenfolge: das Allgemeine vor dem Besonderen. */
     questions: 'Ułóż z tekstu pytania sprawdzające (jeden rodzaj "question"), w różnych rodzajach pytań ("form": text, one, many, truefalse, match, order, gap, flash…) — dobierz rodzaj do tego, o co pytasz (daty i ich wydarzenia: "match" z "show"; zdanie do oceny: "truefalse"). Najpierw pytania o rzeczy ogólne, potem szczegółowe: pytanie, do którego trzeba znać odpowiedź na inne, ma "needs": ["@tamto"]; "about" wskazuje wpisy, które pytanie sprawdza.',
     flow: `Ułóż przebieg (format ${FLOW_FORMAT}): kroki pokazujące wypowiedzi i pytania; wszystkie teksty to wypowiedzi (wpisy z polem "blocks"), a nie tekst przebiegu.`,
-    schema: 'Zaproponuj rodzaje (kinds) z polami, które opiszą takie wpis
+    schema: 'Zaproponuj rodzaje (kinds) z polami, które opiszą takie wpisy.'
+  }[what];
+  return `${task}
+Odpowiedz WYŁĄCZNIE dokumentem JSON w formacie "${what === 'flow' ? FLOW_FORMAT : what === 'schema' ? SCHEMA_FORMAT : ENTITIES_FORMAT}" (wersja 1), bez komentarzy.
+Używaj własnych nazw "ref" (np. "@dawid") i odwołuj się nimi między wpisami.
+
+${courseDescription(lib)}
+Tekst źródłowy:
+"""
+${source.trim()}
+"""
+`;
+}

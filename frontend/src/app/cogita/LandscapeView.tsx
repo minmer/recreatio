@@ -16,7 +16,7 @@
  * </code>
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { Card } from './cardBasics';
 import { cardKnowness, factsOf, gaugeFromMarks, withFlows, type Gauge } from './knowing';
@@ -704,11 +704,14 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wonNow, standNow]);
   const chosenT = chosenId === null ? null : topicIndex.get(chosenId) ?? null;
-  const links = chosenT === null ? null : { needs: tg.graph.needs[chosenT] ?? [], opens: opensOf[chosenT] ?? [] };
+  /* 2026-11-05 (Durchsicht) — dieselben Objekte, solange sich nichts ändert (sonst zeichnete die Karte bei jedem Rendern neu). */
+  const links = useMemo(() => (chosenT === null ? null : { needs: tg.graph.needs[chosenT] ?? [], opens: opensOf[chosenT] ?? [] }), [chosenT, tg, opensOf]);
   /* Der Weg auf der Karte: zum gewählten Thema, sonst zum Ziel. */
   const routeIds: readonly string[] | null = routeShown !== null && routeOf !== null && routeOf.id === routeShown ? routeOf.list.filter((x) => { const b = bandOf(x); return b !== 'known' && b !== 'due'; })
     : goal !== null && goalOpen.length > 0 ? goalOpen : null;
-  const routeT = routeIds === null ? null : routeIds.map((x) => topicIndex.get(x)).filter((x): x is number => x !== undefined);
+  const routeKey = routeIds === null ? null : routeIds.join('|');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const routeT = useMemo(() => (routeIds === null ? null : routeIds.map((x) => topicIndex.get(x)).filter((x): x is number => x !== undefined)), [routeKey, topicIndex]);
   const regionName = useMemo(() => (key: string) => tree?.regions.get(key)?.name ?? key, [tree]);
 
   /* Immer in einer Hülle, deren Breite gemessen wird. */
@@ -1156,11 +1159,19 @@ function TopicList({ topics, onChoose }: { topics: readonly WorldTopic[]; onChoo
     { band: 'ring', title: W.listBands[0] }, { band: 'due', title: W.listBands[1] },
     { band: 'mountain', title: W.listBands[2] }, { band: 'known', title: W.listBands[3] }
   ];
+  /* 2026-11-05 (Durchsicht) — die Liste erst, wenn sie offen ist (5 000 Themen sortiert man nicht bei jeder Zeichnung). */
+  const [open, setOpen] = useState(false);
+  const sorted = useMemo(() => {
+    if (!open) return null;
+    const collator = new Intl.Collator(undefined, { sensitivity: 'base' });
+    return groups.map((g) => topics.map((x, i) => ({ x, i })).filter(({ x }) => x.band === g.band).sort((a, b) => a.x.steps - b.x.steps || collator.compare(a.x.label, b.x.label)).slice(0, 400));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, topics]);
   return (
-    <details className="cg-ls-list" data-landscape-list="">
+    <details className="cg-ls-list" data-landscape-list="" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
       <summary>{W.asList(topics.length)}</summary>
-      {groups.map((g) => {
-        const of = topics.map((x, i) => ({ x, i })).filter(({ x }) => x.band === g.band).sort((a, b) => a.x.steps - b.x.steps || a.x.label.localeCompare(b.x.label)).slice(0, 400);
+      {sorted !== null && groups.map((g, k) => {
+        const of = sorted[k] ?? [];
         if (of.length === 0) return null;
         return (
           <section key={g.band}>
