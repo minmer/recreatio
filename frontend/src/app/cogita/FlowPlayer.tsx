@@ -29,7 +29,7 @@
 
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 
-import { CardFace, CardPrompt, Verdict } from './CardFace';
+import { AnswerInput, CardFace, CardPrompt, givenText, Verdict } from './CardFace';
 import type { Outcome } from './check';
 import { questionCard } from './cards';
 import { type Card } from './cardBasics';
@@ -714,10 +714,16 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       case 'question': {
         const card = entry.answer?.card ?? askedCardOf(node, content.card);
         if (card === null) return null;
+        const a = entry.answer;
+        /* Wahl, Prawda/Fałsz, Reihenfolge, Paare zeichnen die gegebene Antwort selbst (gesperrt, mit Marken); sonst als Satz. */
+        const drawn = a !== undefined && (card.answer.form === 'one' || card.answer.form === 'truefalse' || card.answer.form === 'order' || card.answer.form === 'match');
+        const said = a === undefined || drawn ? '' : givenText(card, a.given);
         return (
-          <section className="cg-face is-past" data-card={card.key} data-flow-past-answer={entry.answer === undefined ? '' : entry.answer.outcome.correct ? 'right' : 'wrong'}>
+          <section className="cg-face is-past" data-card={card.key} data-flow-past-answer={a === undefined ? '' : a.outcome.correct ? 'right' : 'wrong'}>
             <CardPrompt parts={card.prompt} />
-            {entry.answer !== undefined && <Verdict card={card} outcome={entry.answer.outcome} given={entry.answer.given} showGiven marked />}
+            {drawn && <AnswerInput card={card} autoFocus={false} lang={W.lang} reveal={{ outcome: a.outcome, given: a.given }} onSubmit={() => undefined} />}
+            {said !== '' && <p className="cg-flow-past-given"><span className="cg-muted">{W.yourAnswer}:</span> {said}</p>}
+            {a !== undefined && <Verdict card={card} outcome={a.outcome} given={a.given} showGiven={false} marked />}
           </section>
         );
       }

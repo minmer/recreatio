@@ -121,7 +121,7 @@ export function ringShare(knowness: readonly number[]): number {
  * DER STAND DES BETRACHTERS: Kenntnis je Eintrag (mit dem, was darauf aufbaut), schwache beantwortete Karten — und
  * 2026-11-03 (C) je Eintrag, wie viele seiner Karten sitzen, von wie vielen (der Ring des Fortschritts einer Einheit).
  */
-export function landscapeState(input: Pick<LsInput, 'ids'>, gauge: Gauge, lowered?: ReadonlySet<string>): LsState {
+export function landscapeState(input: Pick<LsInput, 'ids'>, gauge: Gauge, lowered?: ReadonlySet<string>, reviewable?: ReadonlySet<string>): LsState {
   const n = input.ids.length;
   const knowness = new Float64Array(n);
   const weak = new Uint8Array(n);
@@ -139,7 +139,8 @@ export function landscapeState(input: Pick<LsInput, 'ids'>, gauge: Gauge, lowere
     for (const t of testing) {
       const known = gauge.states.has(t.key) ? cardKnowness(gauge, t.key) : 0;
       if (known >= 1) cardsKnown[i] = Math.min(65535, cardsKnown[i] + 1);
-      if (gauge.states.has(t.key) && known < 1) weak[i] = 1;
+      /* 2026-11-05 (Durchsicht) — nur Karten, die man hier wiederholen kann (eine Antwort einer Seite sperrt nichts). */
+      if (gauge.states.has(t.key) && known < 1 && (reviewable === undefined || reviewable.has(t.key))) weak[i] = 1;
     }
   }
   return { knowness, weak, cardsKnown, cardsTotal, cardsMean };

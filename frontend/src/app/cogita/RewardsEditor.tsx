@@ -8,21 +8,31 @@
  * je Ereignis, wann eine Karte utrwalona ist, Tagesziel und Einheit, was einen Tag der Serie macht, Stufen, Abzeichen —
  * und dasselbe als JSON. Darunter, live, die eigenen Punkte nach der Regel, wie sie gerade im Editor steht.
  * „Użyj w Nauce" macht sie zur Regel der Nauka; Bausteine auf Seiten wählen ihre eigene.
+ *
+ * 2026-11-05 (Prompt 17) — <b>„Odznaki i poziomy"</b> (`nagrody/odznaki`, `BadgesPage.tsx`): statt Tafel und Dokumenten die
+ * Seite der eigenen Abzeichen und Stufen — mit den zuletzt gemessenen Massen der Karte (`mapMeasures.ts`); was davon eben
+ * erreicht ist, bekommt sein Datum (`Learner.keepAwards`). Im Editor: die Masse der Karte und die Art eines Abzeichens.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { askText } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
+import { BadgesPage } from './BadgesPage';
+import { baseLang, rewardWords, type Lang } from './lang';
 import type { Learner } from './learn';
-import { renamer } from './learn';
+import { holderKey, renamer } from './learn';
+import { mapMeasuresOf } from './mapMeasures';
 import {
-  BADGE_ICONS, describeRewards, GOAL_UNIT_LABEL, GOAL_UNITS, MEASURE_LABEL, POINT_KINDS, POINT_LABEL, readRewards, REWARD_MEASURES,
-  REWARD_PRESETS, rewardsData, rewardsFor, type BadgeIcon, type GoalUnit, type PointKind, type RewardBadge, type RewardMeasure, type RewardRules
+  BADGE_ICONS, BADGE_KINDS, badgeKindOf, describeRewards, GOAL_UNIT_LABEL, GOAL_UNITS, isExtraMeasure, MEASURE_LABEL, POINT_KINDS, POINT_LABEL, readRewards, REWARD_MEASURES,
+  REWARD_PRESETS, rewardsData, rewardsFor, type BadgeIcon, type BadgeKind, type ExtraMeasures, type GoalUnit, type PointKind, type RewardBadge, type RewardMeasure, type RewardRules
 } from './rewards';
 import { RewardBoard, RewardIcon } from './RewardViews';
 import type { CogitaLibrary } from './store';
 import { OriginTag, useBusy, useCtx } from './ui';
+
+/** 2026-11-05 (Prompt 17) — das Wort der Seite „Odznaki i poziomy" in der Adresse (`nagrody/odznaki`) — keine Kennung eines Dokuments. */
+export const BADGES_SLUG = 'odznaki';
 
 /* -- Welche Regel in der Nauka gilt ----------------------------------------------------------------------------------- */
 
@@ -56,10 +66,14 @@ export function useRunRewards(): RewardRules | null {
 /* -- Der Reiter -------------------------------------------------------------------------------------------------------- */
 
 export function RewardsTab({ learner, chosen, go }: { learner: Learner | null; chosen: string | null; go: (...tail: string[]) => void }) {
-  const { lib, writes } = useCtx();
+  const { lib, writes, href } = useCtx();
   const base = useBaseRewards();
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
   const { busy, failed, run } = useBusy();
+  const lang = baseLang(lib);
+  const RW = rewardWords(lang);
+  /* 2026-11-05 (Prompt 17) — „Odznaki i poziomy" statt Tafel und Dokumenten. */
+  if (chosen === BADGES_SLUG) return <OwnBadges learner={learner} rules={base.rules} rename={rename} lang={lang} />;
   return (
     <div className="cg cg-rewards" data-rewards-tab="">
       <section className="cg-card">
@@ -71,10 +85,42 @@ export function RewardsTab({ learner, chosen, go }: { learner: Learner | null; c
           </div>
         )}
         <p className="cg-muted">Zasady: <strong>{base.rules.name}</strong>{base.id === null ? ' (wbudowane)' : ''} — {describeRewards(base.rules)}.</p>
+        {/* 2026-11-05 (Prompt 17) — der Eingang zu „Odznaki i poziomy". */}
+        <div className="wk-actions">
+          <a className="wk-btn wk-btn-quiet" href={href('nagrody', BADGES_SLUG)} data-rewards-badges-link=""><RewardIcon name="medal" className="is-medal" />{RW.title}</a>
+          <span className="cg-muted">{RW.openSays}</span>
+        </div>
         <RewardBoard learner={learner} rules={base.rules} rename={rename} shape="full" />
         {failed !== null && <p className="wk-error">{failed}</p>}
       </section>
       {writes && <RewardDocs chosen={chosen} active={base.on ? base.id : null} go={go} learner={learner} />}
+    </div>
+  );
+}
+
+/**
+ * 2026-11-05 (Prompt 17) — „ODZNAKI I POZIOMY" FÜR SICH SELBST: die eigenen Antworten und Werte, dazu die Masse der Karte,
+ * die der Krajobraz in diesem Browser zuletzt mass. Was davon eben erreicht ist, bekommt sein Datum — über Geräte hinweg.
+ */
+function OwnBadges({ learner, rules, rename, lang }: { learner: Learner | null; rules: RewardRules; rename: ((key: string) => string) | undefined; lang: Lang }) {
+  const { lib, href } = useCtx();
+  const RW = rewardWords(lang);
+  const measured = learner === null ? null : mapMeasuresOf(lib.libraryId, holderKey(learner.holder));
+  const regions = measured?.regions;
+  const map = measured?.map;
+  const clean = measured?.clean;
+  const extra = useMemo<ExtraMeasures | undefined>(() => (regions === undefined || map === undefined || clean === undefined ? undefined : { regions, map, clean }), [regions, map, clean]);
+  const keep = useCallback((add: Readonly<Record<string, number>>) => { void learner?.keepAwards(add).catch(() => undefined); }, [learner]);
+  return (
+    <div className="cg cg-rewards" data-rewards-tab="" data-rewards-badges="">
+      <div className="cg-row">
+        <a className="wk-link" href={href('nagrody')} data-rewards-back="">{RW.back}</a>
+      </div>
+      <section className="cg-card">
+        {learner === null ? <p className="cg-muted">{RW.counting}</p> : (
+          <BadgesPage rules={rules} answers={learner.progress.answers} values={learner.progress.values} rename={rename} extra={extra} lang={lang} onAwards={keep} />
+        )}
+      </section>
     </div>
   );
 }
@@ -85,7 +131,8 @@ function RewardDocs({ chosen, active, go, learner }: { chosen: string | null; ac
   const { busy, failed, run } = useBusy();
   const [preset, setPreset] = useState(REWARD_PRESETS[0]!.id);
   const docs = lib.docs('reward');
-  const doc = chosen === null ? undefined : docs.find((e) => e.id === chosen);
+  /* `odznaki` ist die Seite „Odznaki i poziomy", kein Dokument. */
+  const doc = chosen === null || chosen === BADGES_SLUG ? undefined : docs.find((e) => e.id === chosen);
   const settings = lib.settings();
   return (
     <>
@@ -160,6 +207,8 @@ function RewardEditor({ id, data, active, isDefault, learner, onGone }: {
 }) {
   const { lib } = useCtx();
   const { busy, failed, run } = useBusy();
+  /* 2026-11-05 (Prompt 17) — die neuen Worte des Editors (er bleibt polnisch wie die übrigen). */
+  const EDITOR_WORDS = rewardWords('pl');
   const [draft, setDraft] = useState<RewardRules>(() => readRewards(data));
   const [json, setJson] = useState<string | null>(null);
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -253,12 +302,21 @@ function RewardEditor({ id, data, active, isDefault, learner, onGone }: {
             </label>
             <label className="wk-field">
               <span>Za</span>
-              <select value={x.measure} onChange={(e) => setBadge(i, { measure: e.target.value as RewardMeasure })}>{REWARD_MEASURES.map((m) => <option key={m} value={m}>{MEASURE_LABEL[m]}</option>)}</select>
+              <select value={x.measure} data-reward-badge-measure={i} onChange={(e) => setBadge(i, { measure: e.target.value as RewardMeasure })}>{REWARD_MEASURES.map((m) => <option key={m} value={m}>{MEASURE_LABEL[m]}</option>)}</select>
             </label>
-            <Num label="Od" value={x.atLeast} min={1} max={100_000_000} onChange={(v) => setBadge(i, { atLeast: v })} />
+            <Num label="Od" value={x.atLeast} min={1} max={x.measure === 'map' ? 100 : 100_000_000} onChange={(v) => setBadge(i, { atLeast: v })} />
             <Num label="Punkty" value={x.points} max={10_000} onChange={(v) => setBadge(i, { points: v })} />
+            {/* 2026-11-05 (Prompt 17) — die Art (die Gruppe auf „Odznaki i poziomy"); leer: aus dem Mass. */}
+            <label className="wk-field">
+              <span>{EDITOR_WORDS.editorKind}</span>
+              <select value={x.kind ?? ''} data-reward-badge-kind={i} onChange={(e) => setBadge(i, { kind: (BADGE_KINDS as readonly string[]).includes(e.target.value) ? e.target.value as BadgeKind : undefined })}>
+                <option value="">{EDITOR_WORDS.editorKindAuto(EDITOR_WORDS.kinds[badgeKindOf({ measure: x.measure, atLeast: x.atLeast })])}</option>
+                {BADGE_KINDS.map((k) => <option key={k} value={k}>{EDITOR_WORDS.kinds[k]}</option>)}
+              </select>
+            </label>
             <label className="wk-field cg-reward-says"><span>Opis</span><input value={x.says ?? ''} maxLength={200} onChange={(e) => setBadge(i, { says: e.target.value })} /></label>
             <button type="button" className="wk-link-btn" aria-label={`Usuń odznakę ${x.name}`} onClick={() => set({ badges: draft.badges.filter((_, j) => j !== i) })}>×</button>
+            {isExtraMeasure(x.measure) && <p className="cg-muted cg-reward-map-note" data-reward-map-note={i}>{EDITOR_WORDS.editorMapNote}</p>}
           </div>
         ))}
         <button type="button" className="wk-link-btn" data-reward-add-badge="" onClick={() => set({ badges: [...draft.badges, { id: '', name: `Odznaka ${draft.badges.length + 1}`, icon: 'star', measure: 'points', atLeast: 100, points: 0 }] })}>+ odznaka</button>

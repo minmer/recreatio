@@ -10,13 +10,12 @@
 import { useMemo } from 'react';
 
 import type { Card } from './cardBasics';
-import { dueAt, knownessOf, type Mark } from './knowness';
+import { dueAt, knownessOf, type Mark, type Spacing } from './knowness';
 import type { Learner } from './learn';
 import type { MotionWords } from './motionWords';
 import { cardEntities } from './prerequisites';
 import { rewardState, type RewardRules } from './rewards';
 import { CountUp } from './RewardViews';
-import type { Spacing } from './spacing';
 
 export function SessionSummary({ learner, cards, asked, startedAt, answered, correct, rewards, rename, spacing, onBackToMap, MW }: {
   learner: Learner | null;

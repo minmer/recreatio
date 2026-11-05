@@ -9,7 +9,7 @@
 /* -- Kopfzeile ------------------------------------------------------------------------------- */
 .cg-story-head { display: grid; gap: var(--wk-space-2); min-width: 0; }
 .cg-story-headline { display: flex; align-items: center; gap: var(--wk-space-3); min-width: 0; }
-.cg-story-back { flex: 0 1 auto; max-width: 12rem; min-width: 0; display: inline-flex; gap: 0.25rem; white-space: nowrap; font-weight: 600; }
+.cg-story-back { flex: none; max-width: 12rem; min-width: 0; display: inline-flex; gap: 0.25rem; white-space: nowrap; font-weight: 600; }
 .cg-story-back > span { overflow: hidden; text-overflow: ellipsis; }
 .cg-story-crumbs { flex: 1 1 auto; min-width: 0; }
 .cg-story-crumbs ol { display: flex; align-items: center; gap: 0.375rem; margin: 0; padding: 0; list-style: none; min-width: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }

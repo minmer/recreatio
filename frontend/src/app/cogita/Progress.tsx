@@ -20,7 +20,10 @@ import { adoptLocal, areaProgress, loadAnswerAreas, localProgress, marksOf, rena
 import { answerIndex, answersOf, cardStats, holdsText, MODELS, spanText, summarize as statsOf, type CardStat, type Model } from './measures';
 import { ClassKnowledge, KnowledgeStats } from './KnowCharts';
 import { AnswerLog, cardLine } from './AnswerLog';
+import { BadgesPage } from './BadgesPage';
+import { baseLang, rewardWords } from './lang';
 import { planFor } from './RevisionRun';
+import { useBaseRewards } from './RewardsEditor';
 import { ClassMaps, ClassQuestions, QuiltMaps, useQuiltViews } from './QuiltView';
 import { EntityTitle, entityNameTex } from './ui';
 import { TexText } from '../ui/tex/Tex';
@@ -240,6 +243,8 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
   const learners = useMemo(() => (rows ?? []).map((r) => ({ id: r.holder, name: nameOf(r), answers: answerIndex(r.progress, rename), spacing: spacingFor(lib, r) })), [rows, names, rename, lib, lib.revision]);
   /* 2026-11-01 — die Mapy postępów der Baza (Widoki im Modus „Mapa postępów"): die Klasse zusammen und jeder für sich. */
   const quilts = useQuiltViews();
+  /* 2026-11-05 (Prompt 17) — die Nagrody der Nauka: „Odznaki i poziomy" jedes Uczący się. */
+  const rewards = useBaseRewards();
   if (failed !== null) return <p className="wk-hint">{failed}</p>;
   if (rows === null || cards === null) return <p className="wk-hint">Otwieranie postępów…</p>;
   if (rows.length === 0) return <p className="wk-empty">Nikt jeszcze nie odpowiadał w tym obszarze.</p>;
@@ -295,6 +300,11 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
                             <QuiltMaps cards={cards} answers={learners.find((l) => l.id === r.holder)?.answers ?? (() => [])} spacing={spacingFor(lib, r)} />
                           </details>
                         )}
+                        {/* 2026-11-05 (Prompt 17) — seine Abzeichen und Stufen: dieselbe Seite, die er selbst sieht, ohne Handlungen. */}
+                        <details className="cg-card" data-learner-badges={r.holder}>
+                          <summary>{rewardWords(baseLang(lib)).titleOf(nameOf(r))}</summary>
+                          <BadgesPage readOnly rules={rewards.rules} answers={r.progress.answers} values={r.progress.values} rename={rename} lang={baseLang(lib)} title="" />
+                        </details>
                         {/* 2026-11-01 — was er geantwortet hat, Antwort für Antwort. */}
                         <details className="cg-card" open data-learner-answers={r.holder}>
                           <summary>Odpowiedzi — co odpowiedział(a)</summary>

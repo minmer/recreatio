@@ -24,7 +24,7 @@ import { learnerFlows, reviewStart, storyStage, type StoryStage } from './flowFa
 import { BAND_CODE, liftOf, type LsBand, type LsInput, type LsStand, type LsState } from './landscape';
 import { landscapeClient, type LandscapeClient } from './landscapeClient';
 import { landscapeInput, landscapeState, lockCards } from './landscapeData';
-import { answeredCards, positionFor, renamer, type Learner } from './learn';
+import { answeredCards, holderKey, positionFor, renamer, type Learner } from './learn';
 import { gaugeKnow, pathOfEntries, unitMembers } from './PathLearn';
 import { readNest } from './landscapeNest';
 import { cardEntities, cardsAbout, questionIds } from './prerequisites';
@@ -65,8 +65,9 @@ let T: LandscapeWords = landscapeWords('pl');
 /* -- Daten ------------------------------------------------------------------------------------------------------- */
 
 /** Der Stand je Knoten aus dem Motor — der Graph nur, wenn er neu ist; der Stand nach jeder Antwort; veraltetes verworfen. */
-function useStand(client: LandscapeClient | null, input: LsInput, state: LsState): { stand: LsStand | null; failed: string | null; pending: boolean } {
-  const [stand, setStand] = useState<LsStand | null>(null);
+function useStand(client: LandscapeClient | null, input: LsInput, state: LsState): { stand: LsStand | null; exact: boolean; failed: string | null; pending: boolean } {
+  /* 2026-11-05 (Durchsicht) — mit dem, wofür er gerechnet wurde: Entscheidungen (Ziel erreicht, erobert) nur mit dem Stand von JETZT. */
+  const [stand, setStand] = useState<{ readonly stand: LsStand; readonly input: LsInput; readonly state: LsState } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const sent = useRef<{ client: LandscapeClient | null; input: LsInput | null; state: LsState | null }>({ client: null, input: null, state: null });
@@ -80,9 +81,9 @@ function useStand(client: LandscapeClient | null, input: LsInput, state: LsState
     sent.current = { client, input, state };
     setPending(true);
     client.stand({ ...(freshInput === undefined ? {} : { input: freshInput }), ...(freshState === undefined ? {} : { state: freshState }) })
-      .then((r) => { if (my === seq.current) { setStand(r); setFailed(null); setPending(false); } }, (e: unknown) => { if (my === seq.current) { setFailed(e instanceof Error ? e.message : String(e)); setPending(false); } });
+      .then((r) => { if (my === seq.current) { setStand({ stand: r, input, state }); setFailed(null); setPending(false); } }, (e: unknown) => { if (my === seq.current) { setFailed(e instanceof Error ? e.message : String(e)); setPending(false); } });
   }, [client, input, state]);
-  return { stand, failed, pending };
+  return { stand: stand?.stand ?? null, exact: stand !== null && stand.input === input && stand.state === state, failed, pending };
 }
 
 /** Ein kurzer Fingerabdruck der Themen und ihrer Kanten (dieselben: dieselben Gebiete, ohne neu zu rechnen). */
@@ -336,7 +337,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const shownAskable = useMemo(() => (stories.length === 0 ? gauge : { ...gauge, askable: new Set([...gauge.askable, ...stories.map((x) => x.flow.unit!)]) }), [gauge, stories]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const input = useMemo(() => landscapeInput({ select: lib.selectContext(), deps: lib.dependencies(), label: (e) => lib.label(e) }, list, view.group, shownAskable), [lib, lib.revision, listKey, groupKey, cards, stories]);
-  const state = useMemo(() => landscapeState(input, gauge, lowered), [input, gauge, lowered]);
+  const reviewable = useMemo(() => new Set(fp.keys()), [fp]);
+  const state = useMemo(() => landscapeState(input, gauge, lowered, reviewable), [input, gauge, lowered, reviewable]);
   const asks = useMemo(() => questionIds(cards), [cards]);
   /* 2026-11-04 (Prompt 11) — die Themen (nie Pytania) und ihre Kanten: daraus die Gebiete. */
   const tg = useMemo(() => topicGraphOf(input, (id) => asks.has(id)), [input, asks]);
@@ -348,6 +350,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     return () => { made.dispose(); setClient((was) => (was === made ? null : was)); };
   }, []);
   const [boxRef, boxWidth] = useWidth(keep.mem.width);
+  /* 2026-11-05 (Durchsicht) — die Breite der Spalte der Karte, gemessen (die Seitenleiste wächst mit der Schrift der Seite). */
+  const [mainRef, mainWidth] = useWidth(0);
   useEffect(() => { if (boxWidth > 0) keep.mem.width = boxWidth; }, [boxWidth, keep.mem]);
 
   /* Der Stand je Knoten (im Worker); bis er da ist, der letzte. */
@@ -355,6 +359,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   useEffect(() => { if (fresh.stand !== null) keep.mem.stand = fresh.stand; }, [fresh.stand, keep.mem]);
   const stand = fresh.stand ?? keep.mem.stand;
   const standFits = stand !== null && stand.band.length === input.ids.length;
+  /* Der Stand genau dieser Themen und dieses Lernenden (nicht der gemerkte von vorhin). */
+  const standNow = fresh.exact && standFits;
 
   /* Die Gebiete: aus den Verbindungen (im Worker, einmal je Baza), oder aus den Daten (`nest`). Was der Besitzer geändert hat,
      steht im gespeicherten Widok (gleich nach dem Speichern, auch wenn der Gastgeber noch seine Abschrift zeigt). */
@@ -403,17 +409,18 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   }, [client, treeKey, nest]); // eslint-disable-line react-hooks/exhaustive-deps
   const tree = useMemo((): RegionTree | null => {
     if (nest !== null) return nestAsRegions(nest, tg, T.otherTopics, T.wholeMap);
-    if (computed === null) return null;
+    /* 2026-11-05 (Durchsicht) — nur die Gebiete DIESER Themen (nach einer Änderung der Baza wartet das Bild auf die neuen). */
+    if (computed === null || computed.key !== treeKey) return null;
     return withOwnerNames(computed.tree, tg, edits);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nest, tg, computed, edits, lang]);
+  }, [nest, tg, computed, edits, lang, treeKey]);
 
   /* 2026-11-04 (Prompt 13) — DIE EINE LANDSCHAFT: feste Plätze (aus dem Worker; ein verschachtelter Krajobraz hier gerechnet). */
   const world = useMemo((): WorldLayout | null => {
     if (tree === null) return null;
-    if (nest !== null) return worldLayout(tree, tg);
-    return computed?.world ?? null;
-  }, [tree, nest, tg, computed]);
+    if (nest !== null) { try { return worldLayout(tree, tg); } catch { return null; } }
+    return computed !== null && computed.key === treeKey ? computed.world : null;
+  }, [tree, nest, tg, computed, treeKey]);
 
   const goalKey = `landscape:${viewKey}`;
   const [localGoal, setLocalGoal] = useState<string | null>(null);
@@ -441,7 +448,9 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const infoById = (id: string): TopicInfo => infoOfNode(inputIndex.get(id));
   const bandOf = (id: string): LsBand | null => infoById(id).band;
   useEffect(() => {
-    if (goal === null || !standFits) return;
+    if (goal === null || !standNow) return;
+    /* 2026-11-05 (Durchsicht) — ein Ziel, das es in diesem Widok nicht mehr gibt, ist kein Ziel mehr. */
+    if (!inputIndex.has(goal)) { setGoal(null); return; }
     const b = bandOf(goal);
     if (b === 'known' || b === 'due') { setGoalDone(goal); setGoal(null); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -571,7 +580,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
 
   /* Erobertes: einmal gesagt, wenn es neu ist. */
   const [won, setWon] = useState<string | null>(null);
-  const wonKey = `cg-ls-won:${lib.libraryId}:${viewKey}:${learner?.holder ?? 'me'}`;
+  const wonKey = `cg-ls-won:${lib.libraryId}:${viewKey}:${learner === null ? 'me' : holderKey(learner.holder)}`;
 
   const [note, setNote] = useState<string | null>(null);
   const [said, setSaid] = useState('');
@@ -684,7 +693,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* Erobert: neu seit dem letzten Mal? (die obersten Gebiete) */
   const wonNow = (world?.top ?? []).filter((k) => conquered.has(k)).sort().join('|');
   useEffect(() => {
-    if (!standFits || world === null) return;
+    if (!standNow || world === null) return;
     let had: string[] = [];
     let first = false;
     try { const raw = localStorage.getItem(wonKey); if (raw === null) first = true; else had = JSON.parse(raw) as string[]; } catch { first = true; }
@@ -693,7 +702,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     if (fresh2.length > 0 && !first) setWon(tree?.regions.get(fresh2[0])?.name ?? null);
     try { localStorage.setItem(wonKey, JSON.stringify([...new Set([...had, ...now])].slice(-400))); } catch { /* ohne Speicher */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wonNow, standFits]);
+  }, [wonNow, standNow]);
   const chosenT = chosenId === null ? null : topicIndex.get(chosenId) ?? null;
   const links = chosenT === null ? null : { needs: tg.graph.needs[chosenT] ?? [], opens: opensOf[chosenT] ?? [] };
   /* Der Weg auf der Karte: zum gewählten Thema, sonst zum Ziel. */
@@ -814,7 +823,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const go = (steps: readonly string[]) => {
       const first = steps.find((x) => x !== id && bandOf(x) === 'ring');
       if (first === undefined) return;
-      if (infoById(first).locked) reviewFirst(first); else learnEntry(first);
+      /* 2026-11-05 (Durchsicht) — wie „Zacznij“: eine Erzählung öffnet sich als Erzählung, nicht als Karten. */
+      startTopic(first);
     };
     if (list !== undefined) { go(list); return; }
     if (client === null) return;
@@ -829,7 +839,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
 
   /* -- Die Zeile über der Karte: zuerst das eigene Land ----------------------------------------------------- */
   const wide = !compact && boxWidth >= 860;
-  const mapWidth = wide ? Math.max(320, boxWidth - 352) : boxWidth;
+  const mapWidth = mainWidth > 0 ? Math.max(280, Math.floor(mainWidth)) : wide ? Math.max(320, boxWidth - 352) : boxWidth;
   const nextName = next === null ? null : tg.graph.labels[next.t];
   const landCount = worldTopics.filter((x) => x.band === 'known' || x.band === 'due').length;
   const readyCount = worldTopics.filter((x) => x.band === 'ring').length;
@@ -867,17 +877,17 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const leafStats = leaf === undefined ? undefined : regionStats.get(leaf);
     const dueHereN = dueCards.filter((c) => cardEntities(c).includes(chosenId)).length;
     return (
-      <TopicPanel id={chosenId} info={chosenInfo} missing={missing} missingKnown={list !== null} opens={opensOf[chosenT].map((u) => tg.graph.ids[u])} story={story} dueCount={dueHereN}
+      <TopicPanel key={chosenId} id={chosenId} info={chosenInfo} missing={missing} missingKnown={list !== null} opens={opensOf[chosenT].map((u) => tg.graph.ids[u])} story={story} dueCount={dueHereN}
         region={leafRegion === undefined || leafStats === undefined ? null : { name: leafRegion.name, all: leafStats.all, known: leafStats.known, key: leafRegion.key }}
         canLearn={learner !== null} note={note} lockCount={lockCount} bandOf={bandOf} stepsOf={(x) => infoById(x).steps}
-        onLearnNow={(x) => { const i = infoById(x); if (i.band === 'ring' && i.locked) reviewFirst(x); else learnEntry(x); }}
+        onLearnNow={(x) => startTopic(x)}
         onStart={() => startTopic(chosenId)}
         onLead={() => leadTo(chosenId, missing)}
         /* 2026-11-05 — zurücktreten: trägt das Feld die Figur des Ziels, wird das Ziel aufgegeben; sonst geht die eigene Figur. */
         resign={goal !== null && goalOpen[0] === chosenId ? { kind: 'goal', onResign: () => { setGoal(null); removePiece(chosenId); } }
           : storedPieces.includes(chosenId) && chosenInfo.band !== 'known' && chosenInfo.band !== 'due' ? { kind: 'piece', onResign: () => removePiece(chosenId) } : null}
         onShow={showTopic} onPath={() => keep.setUnit(chosenId)} onClose={() => setChosen(null)} onRegion={(k) => zoomTo(k)}
-        owner={writes ? {
+        owner={writes && viewDoc !== undefined ? {
           ...(onOpen === undefined ? {} : { open: () => onOpen(chosenId) }),
           ...(nest === null && tree.levels > 0 ? {
             move: {
@@ -902,7 +912,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     <section className="cg-ls-region" data-landscape-region={here?.key ?? ''}>
       <div className="cg-row-between">
         <p className="cg-ls-qtitle"><strong>{here === null ? (baseName || T.wholeMap) : here.name}</strong>{here !== null && conquered.has(here.key) && <> <FlagIcon /></>}</p>
-        {writes && here !== null && nest === null && editing !== here.key && <button type="button" className="wk-link-btn" onClick={() => setEditing(here.key)} data-landscape-rename="">{T.rename}</button>}
+        {writes && viewDoc !== undefined && here !== null && nest === null && editing !== here.key && <button type="button" className="wk-link-btn" onClick={() => setEditing(here.key)} data-landscape-rename="">{T.rename}</button>}
       </div>
       {editing !== null && here !== null && editing === here.key && (
         <RenameBox name={here.name} onSave={(name) => { saveEdits((was) => ({ ...was, names: { ...(was.names ?? {}), [here.key]: { name, topics: here.topics.map((x) => tg.graph.ids[x]) } } })); setEditing(null); }} onCancel={() => setEditing(null)} />
@@ -929,7 +939,9 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     </section>
   );
   /* Die Figuren auf der Karte: die begonnenen Themen (bis sie gekonnt sind) und eine auf dem Weg zum Ziel (das nächste zu lernende). */
-  const goalPieceT = goal !== null && goalOpen.length > 0 ? topicIndex.get(goalOpen[0]) ?? null : null;
+  /* 2026-11-05 (Durchsicht) — der erste offene Schritt, der auf DIESER Karte liegt (ein gefilterter Widok zeigt nicht alle). */
+  const goalOnMap = goal === null ? undefined : goalOpen.find((x) => topicIndex.has(x));
+  const goalPieceT = goalOnMap === undefined ? null : topicIndex.get(goalOnMap) ?? null;
   const mapPieces: WorldPiece[] = [
     ...storedPieces.map((id) => topicIndex.get(id)).filter((x): x is number => x !== undefined && x !== goalPieceT && worldTopics[x]?.band !== 'known' && worldTopics[x]?.band !== 'due').map((x) => ({ t: x, kind: 'single' as const })),
     ...(goalPieceT === null ? [] : [{ t: goalPieceT, kind: 'goal' as const }])
@@ -972,10 +984,10 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       </div>
       {query.trim() !== '' && <SearchHits query={query} ids={tg.graph.ids} bandOf={bandOf} label={labelOf} goal={goal} onShow={selectTopic} onGoal={(id) => { setGoal(id); setSaid(W.goalSet(labelOf(id))); }} />}
       <div className="cg-ls-body">
-        <div className="cg-ls-main">
+        <div ref={mainRef} className="cg-ls-main">
           {world !== null && (
             <WorldMap world={world} topics={worldTopics} regionName={regionName} conquered={conquered} chosen={chosenT} flash={flashT} home={next?.t ?? null} links={links} route={routeT}
-              width={mapWidth} compact={compact} T={T} memoryKey={`${lib.libraryId}:${viewKey}:${learner?.holder ?? 'me'}`} command={command}
+              width={mapWidth} compact={compact} T={T} memoryKey={`${lib.libraryId}:${viewKey}:${learner === null ? 'me' : holderKey(learner.holder)}`} command={command}
               onPickTopic={pick} onView={setViewChain} onBackground={() => setChosen(null)} legend={legend}
               step={step} pieces={mapPieces} goalFlag={goal === null ? null : topicIndex.get(goal) ?? null}
               onPiece={(x) => { const id = tg.graph.ids[x]; const flow = storyUnit(id); if (flow !== undefined) openStory(flow, false); else learnEntry(id); }}
@@ -1176,19 +1188,19 @@ function SheetBox({ label, questKey, children }: { label: string; questKey: stri
 
 /* -- Masse ---------------------------------------------------------------------------------------------------- */
 
-function useWidth(initial = 0): [RefObject<HTMLDivElement>, number] {
-  const ref = useRef<HTMLDivElement>(null);
+function useWidth(initial = 0): [(el: HTMLDivElement | null) => void, number] {
+  /* 2026-11-05 (Durchsicht) — über das Element selbst: erscheint es später (erst „Wczytywanie“), wird es dann gemessen. */
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(initial);
   useEffect(() => {
-    const el = ref.current;
     if (el === null) return undefined;
     const measure = () => setWidth(Math.floor(el.clientWidth));
     measure();
     const watch = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     watch?.observe(el);
     return () => watch?.disconnect();
-  }, []);
-  return [ref, width];
+  }, [el]);
+  return [setEl, width];
 }
 
 /** Treffer der Suche: zeigen — oder als Ziel. */

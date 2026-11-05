@@ -256,6 +256,7 @@ export function words(lang: Lang) {
     tells: (name: string) => L(`Opowiada: ${name}`, `Es erzählt: ${name}`, `Told by: ${name}`),
     pastStep: L('Już za Tobą — tylko do przejrzenia.', 'Schon erledigt — nur zum Ansehen.', 'Already done — for viewing only.'),
     chosenHere: L('wybrane', 'gewählt', 'chosen'),
+    yourAnswer: L('Twoja odpowiedź', 'Deine Antwort', 'Your answer'),
     detourEntered: L('Wszedłeś tutaj.', 'Du bist hineingegangen.', 'You went in here.'),
     learnWithBasics: L('Ucz się z podstawami', 'Mit den Grundlagen lernen', 'Learn with the basics'),
     goOn: L('Dalej', 'Weiter', 'Next'),
@@ -333,3 +334,142 @@ export function spacingWords(lang: Lang) {
   };
 }
 export type SpacingWords = ReturnType<typeof spacingWords>;
+
+/**
+ * 2026-11-05 (Prompt 17) — DIE WORTE DER SEITE „ODZNAKI I POZIOMY" (`BadgesPage.tsx`) und ihres Eingangs in den Nagrody.
+ * Die Namen der Stufen und Abzeichen sind Daten der Regel; die Ereignisse sagt auf Polnisch `eventText` (`rewards.ts`) —
+ * hier (`event`) nur Deutsch und Englisch, auf Polnisch `null`.
+ */
+export function rewardWords(lang: Lang) {
+  const L = <T>(pl: T, de: T, en: T): T => (lang === 'de' ? de : lang === 'en' ? en : pl);
+  const locale = L('pl-PL', 'de-DE', 'en-GB');
+  const fmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
+  const num = (n: number): string => fmt.format(n);
+  /* Eine Zahl mit ihrem Wort — auf Polnisch in drei Formen (1, 2–4, 5+). */
+  const n3 = (n: number, pl: readonly [string, string, string], de: readonly [string, string], en: readonly [string, string]): string =>
+    `${num(n)} ${lang === 'pl' ? plPlural(n, ...pl) : lang === 'de' ? (n === 1 ? de[0] : de[1]) : n === 1 ? en[0] : en[1]}`;
+  const days = (n: number) => n3(n, ['dzień', 'dni', 'dni'], ['Tag', 'Tage'], ['day', 'days']);
+  /** So viel von einem Mass, in Worten: „2 dni", „120 pkt", „3 utrwalone karty". */
+  const amount = (m: string, n: number): string => {
+    switch (m) {
+      case 'points': return L(`${num(n)} pkt`, `${num(n)} ${n === 1 ? 'Punkt' : 'Punkte'}`, `${num(n)} ${n === 1 ? 'point' : 'points'}`);
+      case 'streak': case 'best': return days(n);
+      case 'days': return n3(n, ['dzień nauki', 'dni nauki', 'dni nauki'], ['Lerntag', 'Lerntage'], ['day of learning', 'days of learning']);
+      case 'clean': return L(`${days(n)} bez zaległości`, `${days(n)} ohne Überfälliges`, `${days(n)} with nothing overdue`);
+      case 'known': return n3(n, ['utrwalona karta', 'utrwalone karty', 'utrwalonych kart'], ['gefestigte Karte', 'gefestigte Karten'], ['retained card', 'retained cards']);
+      case 'cards': return n3(n, ['karta', 'karty', 'kart'], ['Karte', 'Karten'], ['card', 'cards']);
+      case 'answers': return n3(n, ['odpowiedź', 'odpowiedzi', 'odpowiedzi'], ['Antwort', 'Antworten'], ['answer', 'answers']);
+      case 'correct': return n3(n, ['dobra odpowiedź', 'dobre odpowiedzi', 'dobrych odpowiedzi'], ['richtige Antwort', 'richtige Antworten'], ['correct answer', 'correct answers']);
+      case 'combo': return n3(n, ['dobra z rzędu', 'dobre z rzędu', 'dobrych z rzędu'], ['richtige in Folge', 'richtige in Folge'], ['correct in a row', 'correct in a row']);
+      case 'goals': return n3(n, ['dzień z celem', 'dni z celem', 'dni z celem'], ['Tag mit Tagesziel', 'Tage mit Tagesziel'], ['day with the daily goal', 'days with the daily goal']);
+      case 'level': return n3(n, ['poziom', 'poziomy', 'poziomów'], ['Stufe', 'Stufen'], ['level', 'levels']);
+      case 'regions': return n3(n, ['obszar', 'obszary', 'obszarów'], ['Gebiet', 'Gebiete'], ['region', 'regions']);
+      case 'map': return L(`${num(n)} % mapy`, `${num(n)} % der Karte`, `${num(n)} % of the map`);
+      default: return num(n);
+    }
+  };
+  /** Wie man ein Abzeichen ohne eigene Beschreibung bekommt — aus Mass und Schwelle. */
+  const says = (m: string, n: number): string => {
+    switch (m) {
+      case 'points': return L(`Zbierz ${num(n)} pkt.`, `Sammle ${num(n)} Punkte.`, `Collect ${num(n)} points.`);
+      case 'streak': return L(`Seria: ${days(n)} z rzędu.`, `Eine Serie von ${days(n)}.`, `A streak of ${days(n)}.`);
+      case 'best': return L(`Najdłuższa seria: ${days(n)}.`, `Längste Serie: ${days(n)}.`, `Longest streak: ${days(n)}.`);
+      case 'cards': return L(`Odpowiedz na ${n3(n, ['kartę', 'karty', 'kart'], ['', ''], ['', ''])}.`, `Beantworte ${num(n)} ${n === 1 ? 'Karte' : 'Karten'}.`, `Answer ${num(n)} ${n === 1 ? 'card' : 'cards'}.`);
+      case 'level': return L(`Dojdź do poziomu ${num(n)}.`, `Erreiche Stufe ${num(n)}.`, `Reach level ${num(n)}.`);
+      case 'regions': return L(`Obszary mapy, które umiesz w całości: ${num(n)}.`, `Gebiete der Karte, die du ganz kannst: ${num(n)}.`, `Map regions you know completely: ${num(n)}.`);
+      case 'map': return L(`Poznaj ${num(n)} % tematów mapy.`, `Lerne ${num(n)} % der Themen der Karte.`, `Learn ${num(n)} % of the map's topics.`);
+      case 'clean': return L(`${days(n)} z rzędu bez zaległości.`, `${days(n)} in Folge ohne Überfälliges.`, `${days(n)} in a row with nothing overdue.`);
+      default: return `${amount(m, n)}.`;
+    }
+  };
+  return {
+    lang,
+    locale,
+    num,
+    amount,
+    says,
+    /** Was noch fehlt: „jeszcze 2 dni" — beim besten Lauf guter Antworten (combo) der Rekord und das Ziel. */
+    left: (m: string, rest: number, value: number, goal: number): string => (m === 'combo'
+      ? L(`rekord: ${num(value)} z rzędu, cel: ${num(goal)}`, `Rekord: ${num(value)} in Folge, Ziel: ${num(goal)}`, `best: ${num(value)} in a row, goal: ${num(goal)}`)
+      : L(`jeszcze ${amount(m, rest)}`, `noch ${amount(m, rest)}`, `${amount(m, rest)} to go`)),
+    title: L('Odznaki i poziomy', 'Abzeichen und Stufen', 'Badges and levels'),
+    titleOf: (name: string) => L(`Odznaki i poziomy — ${name}`, `Abzeichen und Stufen — ${name}`, `Badges and levels — ${name}`),
+    openSays: L('wszystkie odznaki, droga przez poziomy i cała historia nagród', 'alle Abzeichen, der Weg durch die Stufen und der ganze Verlauf', 'all badges, the path through the levels and the whole history'),
+    back: L('‹ Nagrody', '‹ Belohnungen', '‹ Rewards'),
+    counting: L('Liczenie punktów…', 'Punkte werden gezählt…', 'Counting points…'),
+    nextGoals: L('Najbliższe cele', 'Nächste Ziele', 'Next goals'),
+    allDone: L('Wszystko zdobyte — gratulacje!', 'Alles erreicht — Glückwunsch!', 'Everything achieved — well done!'),
+    restOnMap: L('Pozostałe odznaki liczą się na krajobrazie.', 'Die übrigen Abzeichen zählt die Landschaft.', 'The remaining badges are counted on the landscape.'),
+    levels: L('Poziomy', 'Stufen', 'Levels'),
+    level: (n: number) => L(`Poziom ${n}`, `Stufe ${n}`, `Level ${n}`),
+    levelNamed: (name: string) => L(`Poziom „${name}”`, `Stufe „${name}“`, `Level “${name}”`),
+    from: (n: number) => L(`od ${num(n)} pkt`, `ab ${num(n)} Punkten`, `from ${num(n)} points`),
+    reached: L('osiągnięty', 'erreicht', 'reached'),
+    you: L('Twój poziom', 'deine Stufe', 'your level'),
+    current: L('obecny poziom', 'jetzige Stufe', 'current level'),
+    ahead: L('przed Tobą', 'noch vor dir', 'still ahead'),
+    notYet: L('jeszcze nie', 'noch nicht', 'not yet'),
+    beforeFirst: L('jeszcze przed pierwszym poziomem', 'noch vor der ersten Stufe', 'before the first level'),
+    here: (pct: number, name: string) => L(`Jesteś tutaj: ${pct} % drogi do „${name}”`, `Du bist hier: ${pct} % des Weges zu „${name}“`, `You are here: ${pct} % of the way to “${name}”`),
+    hereOther: (pct: number, name: string) => L(`Tutaj: ${pct} % drogi do „${name}”`, `Hier: ${pct} % des Weges zu „${name}“`, `Here: ${pct} % of the way to “${name}”`),
+    toNext: (n: number, name: string) => L(`do „${name}”: jeszcze ${num(n)} pkt`, `bis „${name}“: noch ${num(n)} Punkte`, `to “${name}”: ${num(n)} points to go`),
+    levelMeter: (name: string) => L(`Droga do poziomu „${name}”`, `Weg zur Stufe „${name}“`, `Way to the level “${name}”`),
+    brings: (name: string, frame: string) => L(`Następny poziom daje tytuł „${name}” i ${frame}.`, `Die nächste Stufe bringt den Titel „${name}“ und ${frame}.`, `The next level brings the title “${name}” and ${frame}.`),
+    top: L('Najwyższy poziom — dalej już tylko punkty.', 'Die höchste Stufe — weiter geht es nur mit Punkten.', 'The top level — from here on it is just points.'),
+    noLevels: L('Te zasady nie mają poziomów.', 'Diese Regeln haben keine Stufen.', 'These rules have no levels.'),
+    /** Die Rahmen der Stufen (`levelFrame`): als Name und als das, was eine Stufe bringt. */
+    frame: L(['zwykła ramka', 'brązowa ramka', 'srebrna ramka', 'złota ramka', 'diamentowa ramka'], ['einfacher Rahmen', 'Bronzerahmen', 'Silberrahmen', 'Goldrahmen', 'Diamantrahmen'], ['plain frame', 'bronze frame', 'silver frame', 'gold frame', 'diamond frame']),
+    frameGives: L(['zwykłą ramkę', 'brązową ramkę', 'srebrną ramkę', 'złotą ramkę', 'diamentową ramkę'], ['einen einfachen Rahmen', 'einen Bronzerahmen', 'einen Silberrahmen', 'einen Goldrahmen', 'einen Diamantrahmen'], ['a plain frame', 'a bronze frame', 'a silver frame', 'a gold frame', 'a diamond frame']),
+    badges: L('Odznaki', 'Abzeichen', 'Badges'),
+    badgesOf: (k: number, n: number) => L(`${k} z ${n} zdobytych`, `${k} von ${n} erhalten`, `${k} of ${n} earned`),
+    noBadges: L('Te zasady nie mają odznak.', 'Diese Regeln haben keine Abzeichen.', 'These rules have no badges.'),
+    /** Die Arten der Abzeichen (`BADGE_KINDS`), als Überschriften. */
+    kinds: L(
+      { start: 'Pierwsze kroki', consistency: 'Systematyczność', accuracy: 'Celność', volume: 'Ilość nauki', goals: 'Cele i poziomy', exploration: 'Odkrywanie mapy' },
+      { start: 'Erste Schritte', consistency: 'Beständigkeit', accuracy: 'Treffsicherheit', volume: 'Lernmenge', goals: 'Ziele und Stufen', exploration: 'Erkundung der Karte' },
+      { start: 'First steps', consistency: 'Consistency', accuracy: 'Accuracy', volume: 'Volume', goals: 'Goals and levels', exploration: 'Exploring the map' }
+    ),
+    /** Die Masse als Überschrift einer Reihe von Stufen eines Abzeichens. */
+    measure: L<Readonly<Record<string, string>>>(
+      { points: 'Punkty', streak: 'Seria dni', best: 'Najdłuższa seria', known: 'Utrwalone karty', cards: 'Różne karty', answers: 'Odpowiedzi', correct: 'Dobre odpowiedzi', days: 'Dni nauki', combo: 'Dobre z rzędu', goals: 'Dni z celem', level: 'Poziom', regions: 'Zdobyte obszary mapy', map: 'Poznana mapa', clean: 'Dni bez zaległości' },
+      { points: 'Punkte', streak: 'Serie', best: 'Längste Serie', known: 'Gefestigte Karten', cards: 'Verschiedene Karten', answers: 'Antworten', correct: 'Richtige Antworten', days: 'Lerntage', combo: 'Richtige in Folge', goals: 'Tage mit Tagesziel', level: 'Stufe', regions: 'Eroberte Gebiete', map: 'Gelernte Karte', clean: 'Tage ohne Überfälliges' },
+      { points: 'Points', streak: 'Streak', best: 'Longest streak', known: 'Retained cards', cards: 'Different cards', answers: 'Answers', correct: 'Correct answers', days: 'Days of learning', combo: 'Correct in a row', goals: 'Days with the daily goal', level: 'Level', regions: 'Regions conquered', map: 'Map learned', clean: 'Days with nothing overdue' }
+    ),
+    tiers: (k: number, n: number) => L(`${k} z ${n} stopni`, `${k} von ${n} Stufen`, `${k} of ${n} tiers`),
+    allTiers: L('wszystkie stopnie zdobyte', 'alle Stufen erhalten', 'all tiers earned'),
+    earned: (date: string) => L(`zdobyta ${date}`, `erhalten am ${date}`, `earned on ${date}`),
+    notStarted: L('jeszcze nie zaczęta', 'noch nicht begonnen', 'not started yet'),
+    onMap: L('Liczy się na krajobrazie — otwórz krajobraz tej bazy, a odznaka pojawi się tutaj.', 'Wird in der Landschaft gezählt — öffne die Landschaft dieser Baza, dann erscheint das Abzeichen hier.', "Counted on the landscape — open this base's landscape and the badge shows up here."),
+    onMapOther: L('Liczy się na krajobrazie uczącego się — widać ją tutaj, gdy ją zdobędzie.', 'Wird in der Landschaft der lernenden Person gezählt — sichtbar, sobald sie es erhält.', "Counted on the learner's landscape — shown here once earned."),
+    bonus: (n: number) => L(`+${num(n)} pkt`, `+${num(n)} Punkte`, `+${num(n)} points`),
+    meter: (name: string) => L(`Postęp: ${name}`, `Fortschritt: ${name}`, `Progress: ${name}`),
+    history: L('Historia nagród', 'Verlauf der Belohnungen', 'Reward history'),
+    day: L('Dzień', 'Tag', 'Day'),
+    allDays: (n: number) => L(`Wszystkie dni (${n})`, `Alle Tage (${n})`, `All days (${n})`),
+    dayTotal: (n: number) => L(`razem +${num(n)} pkt`, `zusammen +${num(n)} Punkte`, `total +${num(n)} points`),
+    noHistory: L('Jeszcze nic — pierwsza odpowiedź przyniesie punkty.', 'Noch nichts — die erste Antwort bringt Punkte.', 'Nothing yet — the first answer brings points.'),
+    more: (n: number) => L(`Pokaż więcej (jeszcze ${n})`, `Mehr zeigen (noch ${n})`, `Show more (${n} more)`),
+    /** Ein Ereignis in Worten auf Deutsch und Englisch — auf Polnisch `null` (dann `eventText`). `name`: der Stufe, des Abzeichens. */
+    event: (kind: string, value: number | undefined, name: string, every: number): string | null => {
+      if (lang === 'pl') return null;
+      const de = lang === 'de';
+      switch (kind) {
+        case 'answer': return (value ?? 0) >= 0.9 ? (de ? 'richtige Antwort' : 'correct answer') : (value ?? 0) >= 0.25 ? (de ? 'teilweise richtig' : 'partly correct') : (de ? 'für den Versuch' : 'for trying');
+        case 'first': return de ? 'neue Karte' : 'new card';
+        case 'fast': return de ? 'schnell!' : 'fast!';
+        case 'combo': return de ? `${value ?? every} richtige in Folge` : `${value ?? every} correct in a row`;
+        case 'known': return de ? 'gefestigte Karte' : 'retained card';
+        case 'goal': return de ? 'Tagesziel erreicht' : 'daily goal reached';
+        case 'streak': return value === 1 ? (de ? 'erster Tag der Serie' : 'first day of the streak') : de ? `Serie: ${value ?? 0}. Tag in Folge` : `streak: day ${value ?? 0} in a row`;
+        case 'level': return de ? `neue Stufe: ${name}` : `new level: ${name}`;
+        case 'badge': return de ? `Abzeichen: ${name}` : `badge: ${name}`;
+        default: return null;
+      }
+    },
+    /* Der Editor der Regel (`RewardsEditor.tsx`) */
+    editorKind: L('Rodzaj', 'Art', 'Kind'),
+    editorKindAuto: (kind: string) => L(`samo: ${kind}`, `automatisch: ${kind}`, `automatic: ${kind}`),
+    editorMapNote: L('Tę miarę liczy krajobraz: odznaka przychodzi, gdy uczący się go otworzy, a data jej zdobycia zostaje zapisana.', 'Dieses Mass zählt die Landschaft: das Abzeichen kommt, wenn die lernende Person sie öffnet, und sein Datum wird gespeichert.', 'The landscape counts this measure: the badge comes when the learner opens it, and the date is saved.')
+  };
+}
+export type RewardWords = ReturnType<typeof rewardWords>;
