@@ -161,7 +161,9 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   const wants = needsKnowing(saved);
   /* 2026-11-01 — die Mapa postępów braucht die Kenntnis des Besuchers immer (und seine Antworten je Karte). */
   /* 2026-11-05 (Durchsicht) — eine im Modul feste Art gewinnt über `u` der Adresse (dort gibt es keine Reiter zurück). */
-  const mode = modeOf(config.mode !== undefined && config.mode !== '' ? config.mode : state.u ?? config.mode, saved.mode);
+  /* 2026-11-05 (Prompt 17, §5) — ohne die Erlaubnis des Besitzers gilt nur seine Wahl (auch gegen `u`/`q` einer alten Adresse). */
+  const mode = modeOf(config.mode !== undefined && config.mode !== '' ? config.mode : config.switching ? state.u ?? config.mode : config.mode, saved.mode);
+  const query = config.switching ? state.q ?? '' : '';
   const learns = wants || mode === 'quilt' || mode === 'landscape';
   /* 2026-11-03 — wohin die Antworten gehen (wie in „Powtórka"): der Bereich, den der Baustein nennt, sonst die Baza. */
   const visitor = usePageLearner(learns ? lib : null, answersArea(config.answers));
@@ -254,7 +256,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
     );
   }
 
-  const words = fold(state.q ?? '').split(/\s+/).filter(Boolean);
+  const words = fold(query).split(/\s+/).filter(Boolean);
   const textOf = (e: Entity) => `${lib.label(e)} ${fieldsOf(e, lib.look).map((f) => cellText(lib, e, f.key)).join(' ')}`;
   const shown = words.length === 0 ? list : list.filter((e) => { const t = fold(textOf(e)); return words.every((w) => t.includes(w)); });
   const sortKey = state.s ?? '';
@@ -285,9 +287,9 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
       )}
       {/* 2026-11-05 — ein Krajobraz hat oben nichts davon (Suche, Gestalten, Zahl): die Karte selbst ist die Ansicht. */}
       {mode !== 'landscape' && <div className="cg-row">
-        <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder="Szukaj w widoku…" aria-label={`Szukaj: ${title}`} />
-        {/* 2026-11-05 — hat die Seite die Gestalt gewählt („Jak pokazać"), bleibt sie: keine Knöpfe zum Umschalten. */}
-        {config.mode.trim() === '' && <span className="cg-subtabs">
+        {config.switching && <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder="Szukaj w widoku…" aria-label={`Szukaj: ${title}`} data-view-search="" />}
+        {/* 2026-11-05 — hat die Seite die Gestalt gewählt („Jak pokazać"), bleibt sie: keine Knöpfe zum Umschalten (Prompt 17, §5: ohne Erlaubnis nie). */}
+        {config.switching && config.mode.trim() === '' && <span className="cg-subtabs" data-view-switch="">
           {(['table', 'tree', 'matrix', 'map', 'quilt', 'landscape'] as const).filter((m) => m !== 'matrix' || saved.matrix !== null || mode === 'matrix').map((m) => (
             <button key={m} type="button" className={mode === m ? 'is-on' : ''} onClick={() => setState({ u: MODE_WORD[m], c: null })}
               /* 2026-11-03 — die gewählte Gestalt bleibt in der (auf dem Telefon scrollenden) Reihe sichtbar — nur die Reihe scrollt, nie die Seite. */
@@ -359,7 +361,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
       {/* 2026-11-03 — der Krajobraz: die Suche oben zeigt Treffer (zum Zeigen, als Ziel); gelernt wird als die Person der Seite (Punkte, Statystyki). */}
       {mode === 'landscape' && (knowCards == null ? <Loading /> : (
         <>
-          <LandscapeView view={saved} cards={knowCards} learner={visitor.learner} onOpen={open} query={state.q ?? ''} viewKey={config.view} rewards={runRules} urlScope={`${scope}.`} busy={knowBusy} />
+          <LandscapeView view={saved} cards={knowCards} learner={visitor.learner} onOpen={open} query={query} viewKey={config.view} rewards={runRules} urlScope={`${scope}.`} busy={knowBusy} />
           <LearnerLine learner={visitor} lib={lib} />
         </>
       ))}

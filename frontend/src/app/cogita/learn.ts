@@ -25,7 +25,7 @@ import { newId } from '../core/ids';
 import { call, Unreachable, WorkspaceError } from '../core/session';
 import { readParams, readSeed, type Card, type ParamValue } from './cardBasics';
 import { dueAt, snapshotOf, type Mark, type Snapshot, type Spacing } from './knowness';
-import { withAwards } from './rewards';
+import { AWARD_PREFIX, withAwards } from './rewards';
 import { effectiveSpacing, OWN_PREFIX, ownSpacing, withOwnSpacing, withOwnStack, type AreaSpacing } from './spacing';
 
 /* -- Was gespeichert wird ---------------------------------------------------------------- */
@@ -405,8 +405,38 @@ export function postBatches(holder: Exclude<Holder, { kind: 'local' }>, batches:
   return call(path, { method: 'POST', body: JSON.stringify({ batches }) });
 }
 
-export function loadOwnBatches(holder: Exclude<Holder, { kind: 'local' }>, libraryId: string, since: string | null): Promise<{ now: string; batches: readonly StoredBatch[] }> {
-  const query = `?libraryId=${encodeURIComponent(libraryId)}${since === null ? '' : `&since=${encodeURIComponent(since)}`}`;
+/**
+ * 2026-11-05 (Durchsicht) — EINE SEITE DER STAPEL. Der Dienst gibt höchstens 5000 auf einmal (die Kanzlei 20000); hat er
+ * mehr, sagt er `more` und `next` (nach welchem Stapel die nächste Seite beginnt) und als `now` die Zeit des letzten.
+ * Vorher schnitt er stumm ab — und es fehlten die JÜNGSTEN Antworten, Werte und Stellen. Ein älterer Dienst sagt es nicht.
+ */
+export interface BatchPage {
+  readonly now: string;
+  readonly batches: readonly StoredBatch[];
+  readonly more?: boolean;
+  readonly next?: string | null;
+}
+
+/** Höchstens so viele Seiten nacheinander — ein Dienst, der nicht weiterkommt, hält den Browser nicht fest. */
+const MAX_PAGES = 400;
+
+/**
+ * 2026-11-05 (Durchsicht) — ALLE SEITEN NACHEINANDER; `take` nimmt jede gleich auf. `complete`: bis zum Ende gelesen.
+ * `now`: ab hier fragt das nächste Holen (nach einem Abbruch die Zeit des letzten gelesenen Stapels).
+ */
+export async function allPages(load: (after: string | null) => Promise<BatchPage>, take: (batches: readonly StoredBatch[]) => Promise<void> | void): Promise<{ readonly now: string; readonly complete: boolean }> {
+  let after: string | null = null;
+  for (let n = 1; ; n += 1) {
+    const page: BatchPage = await load(after);
+    await take(Array.isArray(page.batches) ? page.batches : []);
+    const next: string | null = page.more === true && typeof page.next === 'string' && page.next !== '' && page.next !== after ? page.next : null;
+    if (next === null || n >= MAX_PAGES) return { now: page.now, complete: page.more !== true };
+    after = next;
+  }
+}
+
+export function loadOwnBatches(holder: Exclude<Holder, { kind: 'local' }>, libraryId: string, since: string | null, after: string | null = null): Promise<BatchPage> {
+  const query = `?libraryId=${encodeURIComponent(libraryId)}${since === null ? '' : `&since=${encodeURIComponent(since)}`}${after === null ? '' : `&after=${encodeURIComponent(after)}`}`;
   return call(holder.kind === 'role' ? `/workspace/learn/batches${query}` : `${seatPath(holder.token)}/learn/batches${query}`);
 }
 
@@ -422,11 +452,16 @@ export interface AnswerArea {
 export const loadAnswerAreas = (libraryId: string): Promise<{ areas: readonly AnswerArea[] }> =>
   call(`/workspace/learn/library/${encodeURIComponent(libraryId)}/areas`);
 
-export const loadAreaBatches = (areaId: string, libraryId: string | null, since: string | null): Promise<{ now: string; batches: readonly StoredBatch[] }> =>
-  call(`/workspace/learn/area/${encodeURIComponent(areaId)}/batches?${libraryId === null ? '' : `libraryId=${encodeURIComponent(libraryId)}&`}${since === null ? '' : `since=${encodeURIComponent(since)}`}`);
+export const loadAreaBatches = (areaId: string, libraryId: string | null, since: string | null, after: string | null = null): Promise<BatchPage> =>
+  call(`/workspace/learn/area/${encodeURIComponent(areaId)}/batches?${libraryId === null ? '' : `libraryId=${encodeURIComponent(libraryId)}&`}${since === null ? '' : `since=${encodeURIComponent(since)}&`}${after === null ? '' : `after=${encodeURIComponent(after)}`}`);
 
-export function postDue(holder: Exclude<Holder, { kind: 'local' }>, libraryId: string, due: number | null, count: number): Promise<unknown> {
-  const body = JSON.stringify({ libraryId, ...(holder.kind === 'role' ? { holderRoleId: holder.roleId } : {}), dueAt: due === null ? null : new Date(due).toISOString(), dueCount: count });
+/** 2026-11-05 (Durchsicht) — der späteste Termin, den der Dienst trägt (datetimeoffset endet mit dem Jahr 9999). */
+const DUE_LAST = Date.UTC(9999, 0, 1);
+
+export async function postDue(holder: Exclude<Holder, { kind: 'local' }>, libraryId: string, due: number | null, count: number): Promise<unknown> {
+  /* 2026-11-05 (Durchsicht) — nie werfen, bevor es ein Versprechen gibt: ein Termin ausserhalb des Kalenders (NaN, ±∞, nach 9999) wird begrenzt oder fällt weg. */
+  const dueAt = due === null || !Number.isFinite(due) ? null : new Date(Math.min(DUE_LAST, Math.max(0, due))).toISOString();
+  const body = JSON.stringify({ libraryId, ...(holder.kind === 'role' ? { holderRoleId: holder.roleId } : {}), dueAt, dueCount: Number.isFinite(count) ? Math.max(0, Math.round(count)) : 0 });
   return call(holder.kind === 'role' ? '/workspace/learn/due' : `${seatPath(holder.token)}/learn/due`, { method: 'POST', body });
 }
 
@@ -457,9 +492,13 @@ export async function pending(holder: Holder): Promise<SealedBatch[]> {
   return out;
 }
 
-/** Hinausschicken, was wartet — was der Dienst angenommen hat, verlässt die Ablage. */
+/**
+ * Hinausschicken, was wartet — was der Dienst angenommen hat, verlässt die Ablage. 2026-11-05 (Durchsicht): nie ein
+ * Stapel „nur der jüngste" (Werte, Sperren, Stellen, `LATEST_KINDS`) — so, wie er wartete, ersetzte er beim Dienst, was
+ * ein anderes Gerät inzwischen schrieb. Solche (von einer älteren Fassung abgelegt) nimmt der Lernende beim Laden auf.
+ */
 export async function flushOutbox(holder: Exclude<Holder, { kind: 'local' }>): Promise<number> {
-  const waiting = await pending(holder);
+  const waiting = (await pending(holder)).filter((b) => !LATEST_KINDS.has(b.kind));
   let sent = 0;
   for (let at = 0; at < waiting.length; at += 40) {
     const chunk = waiting.slice(at, at + 40);
@@ -487,6 +526,162 @@ export async function flushWaiting(): Promise<number> {
   }
   return sent;
 }
+
+/* -- 2026-11-05 (Durchsicht): was nur in seinem jüngsten Stapel gilt ------------------------------------------ */
+
+/*
+ * WERTE, SPERREN, STELLEN: davon behält der Dienst je Halter, Baza und Bereich nur den JÜNGSTEN Stapel (Cogita.cs
+ * `Latest`) — jeder ist ein ganzer Stand und ersetzt den vorigen. Vorher schrieb jeder Baustein seinen eigenen, vielleicht
+ * alten Stand (eine Erzählung nahm die eben gewählten Abstände weg, die Wahl der Abstände die Punkte der Erzählung), und
+ * eine wartende Ablage überschrieb später, was ein anderes Gerät inzwischen schrieb. Jetzt merkt sich der Browser nur,
+ * WAS er änderte (je Schlüssel), holt vor dem Senden den Stand des Dienstes, legt seine Änderungen darauf und schickt den
+ * ganzen Stand — nur nach einem gelungenen Holen; sonst wartet die Änderung (nie ein alter ganzer Stand in der Ablage).
+ */
+export const LATEST_KINDS: ReadonlySet<string> = new Set(['position', 'values', 'suspend']);
+
+/** Wie lange nach einem Fehlschlag (kein Netz), bis es noch einmal versucht wird. */
+const LATEST_RETRY = 60_000;
+
+/** Was dieser Browser an Werten und Sperren änderte, aber noch nicht beim Dienst ist — je Schlüssel, mit der Zeit der Änderung. */
+interface Waiting {
+  /** Der neue Wert; `null`: gelöscht. */
+  readonly values: Readonly<Record<string, { readonly v: number | null; readonly at: number }>>;
+  /** `true`: gesperrt, `false`: wieder gefragt. */
+  readonly suspend: Readonly<Record<string, { readonly on: boolean; readonly at: number }>>;
+}
+
+const NOTHING_WAITS: Waiting = { values: {}, suspend: {} };
+const waits = (w: Waiting): boolean => Object.keys(w.values).length > 0 || Object.keys(w.suspend).length > 0;
+
+/*
+ * Ein kleiner Speicher, den alle Lernenden derselben Person und Baza in diesem Browser teilen: `localStorage` (übersteht
+ * Neuladen und Schliessen), und geht der nicht, das Gedächtnis dieses Fensters ('' heisst dort: nichts).
+ */
+const MEMORY = new Map<string, string>();
+function keptRead(key: string): string | null {
+  if (MEMORY.has(key)) return MEMORY.get(key) ?? null;
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function keptWrite(key: string, value: string | null): void {
+  try {
+    if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value);
+    MEMORY.delete(key);
+  } catch {
+    MEMORY.set(key, value ?? '');
+  }
+}
+
+function readWaiting(key: string): Waiting {
+  const raw = keptRead(key);
+  if (raw === null || raw === '') return NOTHING_WAITS;
+  try {
+    const d = JSON.parse(raw) as unknown;
+    if (!isObject(d)) return NOTHING_WAITS;
+    const values: Record<string, { v: number | null; at: number }> = {};
+    const suspend: Record<string, { on: boolean; at: number }> = {};
+    for (const [k, e] of Object.entries(isObject(d.values) ? d.values : {})) {
+      if (isObject(e) && typeof e.at === 'number' && (e.v === null || (typeof e.v === 'number' && Number.isFinite(e.v)))) values[k] = { v: e.v, at: e.at };
+    }
+    for (const [k, e] of Object.entries(isObject(d.suspend) ? d.suspend : {})) {
+      if (isObject(e) && typeof e.at === 'number' && typeof e.on === 'boolean') suspend[k] = { on: e.on, at: e.at };
+    }
+    return { values, suspend };
+  } catch {
+    return NOTHING_WAITS;
+  }
+}
+
+const writeWaiting = (key: string, w: Waiting): void => keptWrite(key, waits(w) ? JSON.stringify(w) : null);
+
+/** Änderungen dazu — je Schlüssel gilt die jüngste. */
+function addWaiting(key: string, values: Readonly<Record<string, number | null>>, suspend: Readonly<Record<string, boolean>>, at = Date.now()): void {
+  if (Object.keys(values).length === 0 && Object.keys(suspend).length === 0) return;
+  const had = readWaiting(key);
+  writeWaiting(key, {
+    values: { ...had.values, ...Object.fromEntries(Object.entries(values).map(([k, v]) => [k, { v, at }])) },
+    suspend: { ...had.suspend, ...Object.fromEntries(Object.entries(suspend).map(([k, on]) => [k, { on, at }])) }
+  });
+}
+
+/** Was mit `sent` beim Dienst ankam, wartet nicht mehr — ausser es änderte sich inzwischen noch einmal. */
+function dropWaiting(key: string, sent: Waiting): void {
+  if (!waits(sent)) return;
+  const had = readWaiting(key);
+  const values = { ...had.values };
+  const suspend = { ...had.suspend };
+  for (const [k, e] of Object.entries(sent.values)) if (values[k]?.at === e.at && values[k]?.v === e.v) delete values[k];
+  for (const [k, e] of Object.entries(sent.suspend)) if (suspend[k]?.at === e.at && suspend[k]?.on === e.on) delete suspend[k];
+  writeWaiting(key, { values, suspend });
+}
+
+/** Änderungen auf einen Stand: `null` löscht; das Datum eines Abzeichens (`~award.…`) bleibt das früheste, woher es auch kommt. */
+function withChanges(p: Progress, values: Readonly<Record<string, number | null>>, suspend: Readonly<Record<string, boolean>>): Progress {
+  const valueKeys = Object.keys(values);
+  const suspendKeys = Object.keys(suspend);
+  if (valueKeys.length === 0 && suspendKeys.length === 0) return p;
+  let nextValues = p.values;
+  if (valueKeys.length > 0) {
+    const next: Record<string, number> = { ...p.values };
+    for (const [k, v] of Object.entries(values)) {
+      if (v === null) { delete next[k]; continue; }
+      const had = next[k];
+      next[k] = k.startsWith(AWARD_PREFIX) && had !== undefined && Number.isFinite(had) ? Math.min(had, v) : v;
+    }
+    nextValues = next;
+  }
+  let nextSuspended = p.suspended;
+  if (suspendKeys.length > 0) {
+    const next = new Set(p.suspended);
+    for (const [k, on] of Object.entries(suspend)) if (on) next.add(k); else next.delete(k);
+    nextSuspended = next;
+  }
+  return { ...p, values: nextValues, suspended: nextSuspended };
+}
+
+const withWaiting = (p: Progress, w: Waiting): Progress => (!waits(w) ? p : withChanges(p,
+  Object.fromEntries(Object.entries(w.values).map(([k, e]) => [k, e.v])),
+  Object.fromEntries(Object.entries(w.suspend).map(([k, e]) => [k, e.on]))));
+
+/** Was sich von `was` zu `next` änderte: neue und andere Werte, `null` für weggefallene. */
+function valueChanges(was: Readonly<Record<string, number>>, next: Readonly<Record<string, number>>): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  for (const [k, v] of Object.entries(next)) if (was[k] !== v) out[k] = v;
+  for (const k of Object.keys(was)) if (!(k in next)) out[k] = null;
+  return out;
+}
+
+/** Wann eine Kennung entstand (UUIDv7: die ersten 48 Bit, ms) — 0, wenn sie es nicht sagt. */
+function idTime(id: string): number {
+  const n = Number.parseInt(id.replace(/-/g, '').slice(0, 12), 16);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/*
+ * Je Person und Baza schreibt in diesem Fenster immer nur einer (holen, zusammenlegen, senden; ohne Konto: lesen,
+ * zusammenlegen, schreiben) — zwei zugleich gingen vom selben Stand aus, und der später ankommende ersetzte den anderen.
+ */
+const IN_TURN = new Map<string, Promise<void>>();
+function inTurn(key: string, work: () => Promise<void>): Promise<void> {
+  const run = (IN_TURN.get(key) ?? Promise.resolve()).then(work, work);
+  const tail = run.catch(() => undefined);
+  IN_TURN.set(key, tail);
+  void tail.then(() => { if (IN_TURN.get(key) === tail) IN_TURN.delete(key); });
+  return run;
+}
+
+/** Was ein Browser ohne Konto behält (Ablage `progress`). */
+interface LocalKept {
+  readonly answers?: AnswerRecord[];
+  readonly snapshots?: Snapshot[];
+  readonly positions?: FlowPosition[];
+  readonly values?: Record<string, number>;
+  readonly suspended?: string[];
+}
+
+/** Das Behaltene in einen Stand: Antworten, Momentaufnahmen und Stellen kommen dazu; Werte und Sperren sind die behaltenen. */
+const withKept = (p: Progress, kept: LocalKept): Progress =>
+  absorb(absorb(absorb(p, { kind: 'answers', answers: kept.answers ?? [], snapshots: kept.snapshots ?? [], positions: kept.positions ?? [] }),
+    { kind: 'values', values: kept.values ?? {} }), { kind: 'suspend', suspended: kept.suspended ?? [] });
 
 /* -- 2026-11-02: dieselbe Person, mehrere Bausteine — live ----------------------------------------- */
 
@@ -527,7 +722,7 @@ function liveChannel(): BroadcastChannel | null {
   channel?.addEventListener('message', (e: MessageEvent) => {
     const d: unknown = e.data;
     if (!isObject(d) || typeof d.who !== 'string' || !Array.isArray(d.answers)) return;
-    for (const one of LIVE.get(d.who) ?? []) one.hear(d.answers, Array.isArray(d.snapshots) ? d.snapshots : [], Array.isArray(d.positions) ? d.positions : []);
+    for (const one of LIVE.get(d.who) ?? []) one.hear(d.answers, Array.isArray(d.snapshots) ? d.snapshots : [], Array.isArray(d.positions) ? d.positions : [], d.values, d.suspended);
   });
   return channel;
 }
@@ -607,20 +802,32 @@ export class Learner {
 
   private liveKey(): string { return `${this.libraryId}|${holderKey(this.holder)}`; }
 
-  /** 2026-11-02 — den anderen Lernenden derselben Person sagen, was eben dazukam (2026-11-03: auch eine neue Stelle). */
-  private tell(answers: readonly AnswerRecord[], snapshots: readonly Snapshot[], positions: readonly FlowPosition[] = []): void {
-    if (answers.length === 0 && positions.length === 0) return;
+  /**
+   * 2026-11-02 — den anderen Lernenden derselben Person sagen, was eben dazukam (2026-11-03: auch eine neue Stelle;
+   * 2026-11-05 (Durchsicht): auch geänderte Werte und Sperren — `null`: gelöscht).
+   */
+  private tell(answers: readonly AnswerRecord[], snapshots: readonly Snapshot[], positions: readonly FlowPosition[] = [],
+    values: Readonly<Record<string, number | null>> = {}, suspended: Readonly<Record<string, boolean>> = {}): void {
+    const changes = Object.keys(values).length > 0 || Object.keys(suspended).length > 0;
+    if (answers.length === 0 && positions.length === 0 && !changes) return;
     remember(this.liveKey(), { answers, snapshots, positions });
-    for (const other of LIVE.get(this.liveKey()) ?? []) if (other !== this) other.hear(answers, snapshots, positions);
-    try { liveChannel()?.postMessage({ who: this.liveKey(), answers, snapshots, positions }); } catch { /* ein anderer Tab hört es beim nächsten Laden */ }
+    for (const other of LIVE.get(this.liveKey()) ?? []) if (other !== this) other.hear(answers, snapshots, positions, values, suspended);
+    try { liveChannel()?.postMessage({ who: this.liveKey(), answers, snapshots, positions, ...(changes ? { values, suspended } : {}) }); } catch { /* ein anderer Tab hört es beim nächsten Laden */ }
   }
 
   /** 2026-11-02 — was ein anderer Lernender derselben Person festhielt: nur aufnehmen, nicht senden. */
-  hear(answers: readonly unknown[], snapshots: readonly unknown[], positions: readonly unknown[] = []): void {
+  hear(answers: readonly unknown[], snapshots: readonly unknown[], positions: readonly unknown[] = [], values?: unknown, suspended?: unknown): void {
     const fresh = answers.filter((a) => isObject(a) && typeof a.id === 'string' && !this.progress.answers.has(a.id));
     const moved = positions.filter((p) => isObject(p) && typeof p.flow === 'string' && typeof p.at === 'number' && (this.progress.positions.get(p.flow)?.at ?? -1) < p.at);
-    if (fresh.length === 0 && moved.length === 0) return;
-    this.progress = absorb(this.progress, { kind: 'answers', answers: fresh, snapshots, positions: moved });
+    /* 2026-11-05 (Durchsicht) — auch Werte und Sperren: sonst schriebe dieser Baustein beim nächsten Mal seinen alten Stand. */
+    const vals: Record<string, number | null> = {};
+    if (isObject(values)) for (const [k, v] of Object.entries(values)) if (v === null || (typeof v === 'number' && Number.isFinite(v))) vals[k] = v;
+    const sus: Record<string, boolean> = {};
+    if (isObject(suspended)) for (const [k, on] of Object.entries(suspended)) if (typeof on === 'boolean') sus[k] = on;
+    const next = withChanges(this.progress, vals, sus);
+    const changes = Object.keys(vals).some((k) => next.values[k] !== this.progress.values[k]) || Object.keys(sus).some((k) => next.suspended.has(k) !== this.progress.suspended.has(k));
+    if (fresh.length === 0 && moved.length === 0 && !changes) return;
+    this.progress = fresh.length === 0 && moved.length === 0 ? next : absorb(next, { kind: 'answers', answers: fresh, snapshots, positions: moved });
     this.changed();
   }
 
@@ -636,38 +843,64 @@ export class Learner {
 
   private localKey(): string { return `local:${this.libraryId}:${holderKey(this.holder)}`; }
 
-  /** Was der Dienst seit dem letzten Holen hat (alle Arten), in den Fortschritt. */
-  private async pull(): Promise<void> {
-    if (this.holder.kind === 'local') return;
+  /** 2026-11-05 (Durchsicht) — wo die geänderten Werte und Sperren warten (alle Lernenden dieser Person und Baza hier). */
+  private waitKey(): string { return `cg-wait:${this.libraryId}:${holderKey(this.holder)}`; }
+
+  /** 2026-11-05 (Durchsicht) — je Art „nur der jüngste": die Zeit des jüngsten Stapels, den das Holen sah (ms). */
+  private readonly latestAt = new Map<string, number>();
+
+  /**
+   * Was der Dienst seit dem letzten Holen hat (alle Arten), in den Fortschritt. 2026-11-05 (Durchsicht): ALLE SEITEN; Stapel
+   * für Stapel in den JETZIGEN Stand (eine Antwort, die während des Holens kam, bleibt), und auf Werte und Sperren des
+   * Dienstes gleich wieder, was hier noch wartet. `true`: bis zum Ende gelesen.
+   */
+  private async pull(): Promise<boolean> {
+    if (this.holder.kind === 'local') return true;
     const holder = this.holder;
-    const { now, batches } = await loadOwnBatches(holder, this.libraryId, this.since);
-    let progress = this.progress;
-    for (const batch of batches) progress = absorb(progress, await openOwn(holder, batch));
-    this.progress = progress;
+    const { now, complete } = await allPages((after) => loadOwnBatches(holder, this.libraryId, this.since, after), async (batches) => {
+      for (const batch of batches) {
+        const body = await openOwn(holder, batch);
+        if (body === null) continue;
+        this.progress = absorb(this.progress, body);
+        if (!LATEST_KINDS.has(batch.kind)) continue;
+        const at = Date.parse(batch.createdAt);
+        if (Number.isFinite(at) && at > (this.latestAt.get(batch.kind) ?? 0)) this.latestAt.set(batch.kind, at);
+        if (batch.kind !== 'position') this.progress = withWaiting(this.progress, readWaiting(this.waitKey()));
+      }
+    });
     this.since = now;
+    return complete;
   }
 
   /** Laden: was dieser Browser hat, dann was der Dienst seither hat, dann was noch wartet. */
   async load(): Promise<void> {
     if (this.holder.kind === 'local') {
-      const kept = await idbGet<{ answers: AnswerRecord[]; snapshots: Snapshot[]; positions?: FlowPosition[]; values?: Record<string, number>; suspended?: string[] }>('progress', this.localKey());
-      if (kept !== null) {
-        this.progress = absorb(absorb(absorb(EMPTY_PROGRESS, { kind: 'answers', answers: kept.answers, snapshots: kept.snapshots, positions: kept.positions }),
-          { kind: 'values', values: kept.values ?? {} }), { kind: 'suspend', suspended: kept.suspended ?? [] });
-      }
+      /* 2026-11-05 (Durchsicht) — in den jetzigen Stand (was ein anderer Baustein schon sagte, bleibt), dazu, was noch nicht abgelegt ist. */
+      const kept = await idbGet<LocalKept>('progress', this.localKey());
+      if (kept !== null) this.progress = withKept(this.progress, kept);
+      const places = this.pendingPositions();
+      if (places.length > 0) { this.progress = absorb(this.progress, { kind: 'position', positions: places }); this.positionsDirty = true; }
+      this.progress = withWaiting(this.progress, readWaiting(this.waitKey()));
       this.changed();
+      if (this.latestWaits()) void this.syncLatest().catch(() => undefined);
       return;
     }
     const holder = this.holder;
+    let pulled = false;
     try {
-      await this.pull();
+      pulled = await this.pull();
     } catch (e) {
       if (!(e instanceof WorkspaceError)) throw e;
       /* Ohne Netz: es bleibt, was schon da ist. */
     }
     for (const batch of await pending(holder)) {
+      /* 2026-11-05 (Durchsicht) — nur, was zu dieser Baza gehört: die Ablage hält die Stapel des Halters in allen Bazy. */
+      if (batch.libraryId !== this.libraryId) continue;
       const body = await openOwn(holder, { ...batch, holderRoleId: batch.holderRoleId ?? null, holderSeatId: null, key: batch.keyForHolder, createdAt: '' });
-      this.progress = absorb(this.progress, body);
+      if (body === null) continue;
+      if (!LATEST_KINDS.has(batch.kind)) { this.progress = absorb(this.progress, body); continue; }
+      this.adoptQueued(batch, body, pulled);
+      if (pulled) await idbDelete('outbox', outboxKey(holder, batch.batchId));
     }
     /* 2026-11-04 (Prompt 13) — Stellen, die dieser Browser festhielt, aber vielleicht noch nicht hinausgingen (Neuladen, Tab zu). */
     const kept = this.pendingPositions();
@@ -675,9 +908,44 @@ export class Learner {
     /* 2026-11-03 (G) — was in diesem Fenster schon festgehalten wurde (auch noch nicht hinaus). */
     const here = SESSION.get(this.liveKey());
     if (here !== undefined) this.progress = absorb(this.progress, { kind: 'answers', answers: here.answers, snapshots: here.snapshots, positions: here.positions });
+    this.progress = withWaiting(this.progress, readWaiting(this.waitKey()));
     this.waiting = (await pending(holder)).length;
     this.changed();
     void this.flush().catch(() => undefined);
+  }
+
+  /**
+   * 2026-11-05 (Durchsicht) — EIN ALTER STAPEL „NUR DER JÜNGSTE" IN DER ABLAGE (eine ältere Fassung legte ihn ab, als das
+   * Netz fehlte): er geht nie so hinaus. Was er änderte, wird zur wartenden Änderung — `pulled`: nach einem gelungenen
+   * Holen (dann verlässt er die Ablage); sonst nur hier gerechnet, und er wartet weiter. Stellen wachsen nur
+   * (`mergePosition`); Werte kommen dazu, andere ändert er nur, wenn er jünger ist als der Stand des Dienstes (ein
+   * Abzeichen: das früheste Datum); Sperren nur, wenn er jünger ist; gelöscht wird nichts.
+   */
+  private adoptQueued(batch: SealedBatch, body: unknown, pulled: boolean): void {
+    if (!isObject(body)) return;
+    const newer = !pulled || idTime(batch.batchId) > (this.latestAt.get(batch.kind) ?? 0);
+    if (batch.kind === 'position') {
+      const list = (Array.isArray(body.positions) ? body.positions : [])
+        .filter((p): p is FlowPosition => isObject(p) && typeof p.flow === 'string' && typeof p.step === 'string' && typeof p.at === 'number');
+      if (list.length === 0) return;
+      this.progress = absorb(this.progress, { kind: 'position', positions: list });
+      if (pulled) { for (const p of list) this.keepPending(p); this.positionsDirty = true; }
+      return;
+    }
+    const values: Record<string, number> = {};
+    const suspend: Record<string, boolean> = {};
+    if (batch.kind === 'values' && isObject(body.values)) {
+      for (const [k, v] of Object.entries(body.values)) {
+        if (typeof v !== 'number' || !Number.isFinite(v)) continue;
+        const had = this.progress.values[k];
+        if (had !== v && (had === undefined || newer || (k.startsWith(AWARD_PREFIX) && v < had))) values[k] = v;
+      }
+    }
+    if (batch.kind === 'suspend' && newer && Array.isArray(body.suspended)) {
+      for (const k of body.suspended) if (typeof k === 'string' && !this.progress.suspended.has(k)) suspend[k] = true;
+    }
+    if (pulled) addWaiting(this.waitKey(), values, suspend, idTime(batch.batchId) || Date.now());
+    this.progress = withChanges(this.progress, values, suspend);
   }
 
   /**
@@ -744,12 +1012,10 @@ export class Learner {
     return { answer, snapshot };
   }
 
+  /** 2026-11-05 (Durchsicht) — eine Karte nicht mehr fragen (oder wieder): als wartende Änderung, wie die Werte (`change`). */
   async suspend(key: string, on: boolean): Promise<void> {
-    const next = new Set(this.progress.suspended);
-    if (on) next.add(key); else next.delete(key);
-    this.progress = { ...this.progress, suspended: next };
-    this.changed();
-    await this.send({ v: 1, kind: 'suspend', suspended: [...next] });
+    if (this.progress.suspended.has(key) === on) return;
+    await this.change({}, { [key]: on });
   }
 
   /*
@@ -759,23 +1025,23 @@ export class Learner {
     Stelle sofort in diesen Browser (überlebt Neuladen und Schliessen), und hinaus geht EIN Stapel mit ALLEN Stellen —
     nachdem geholt ist, was andere Geräte seither schrieben (zusammengeführt mit `mergePosition`): höchstens einmal je
     Minute, gleich bei einem Ende oder einem Ziel, und wenn der Tab verschwindet (`flush`).
+    2026-11-05 (Durchsicht) — und nur nach einem GELUNGENEN Holen (`syncLatest`); vorher ging der Stapel auch ohne Netz in
+    die Ablage und ersetzte später beim Dienst, was ein anderes Gerät inzwischen erreichte. Ohne `localStorage`: im
+    Gedächtnis dieses Fensters.
   */
   private positionsDirty = false;
-  private positionTimer: ReturnType<typeof setTimeout> | null = null;
   private positionKey(): string { return `cg-pos:${this.libraryId}:${holderKey(this.holder)}`; }
   private pendingPositions(): FlowPosition[] {
     try {
-      const raw = localStorage.getItem(this.positionKey());
-      const list = raw === null ? [] : JSON.parse(raw) as unknown;
+      const raw = keptRead(this.positionKey());
+      const list = raw === null || raw === '' ? [] : JSON.parse(raw) as unknown;
       return Array.isArray(list) ? list.filter((p): p is FlowPosition => isObject(p) && typeof p.flow === 'string' && typeof p.step === 'string' && typeof p.at === 'number') : [];
     } catch { return []; }
   }
   private keepPending(position: FlowPosition): void {
-    try {
-      const list = this.pendingPositions().filter((p) => p.flow !== position.flow);
-      const merged = mergePosition(this.pendingPositions().find((p) => p.flow === position.flow), position);
-      localStorage.setItem(this.positionKey(), JSON.stringify([...list, merged].slice(-300)));
-    } catch { /* ohne Speicher: dann nur aus dem Gedächtnis */ }
+    const all = this.pendingPositions();
+    const merged = mergePosition(all.find((p) => p.flow === position.flow), position);
+    keptWrite(this.positionKey(), JSON.stringify([...all.filter((p) => p.flow !== position.flow), merged].slice(-300)));
   }
 
   async keepPosition(position: FlowPosition): Promise<void> {
@@ -788,47 +1054,103 @@ export class Learner {
     this.positionsDirty = true;
     const now = this.progress.positions.get(position.flow);
     const won = (now?.done === true && had?.done !== true) || (now?.goals?.length ?? 0) > (had?.goals?.length ?? 0) || position.reset === true;
-    this.positionsSoon(won ? 0 : 60_000);
+    this.latestSoon(won ? 0 : 60_000);
   }
 
-  private positionsSoon(ms: number): void {
-    if (this.positionTimer !== null) { if (ms > 0) return; clearTimeout(this.positionTimer); }
-    const timer = setTimeout(() => { this.positionTimer = null; void this.sendPositions().catch(() => undefined); }, ms);
+  private latestTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private latestSoon(ms: number): void {
+    if (this.latestTimer !== null) { if (ms > 0) return; clearTimeout(this.latestTimer); }
+    const timer = setTimeout(() => { this.latestTimer = null; void this.syncLatest().catch(() => undefined); }, ms);
     (timer as unknown as { unref?: () => void }).unref?.();
-    this.positionTimer = timer;
+    this.latestTimer = timer;
   }
 
-  /** Alle Stellen in einem Stapel hinaus — erst holen, was andere Geräte schrieben (der Stapel ersetzt den vorigen beim Dienst). */
+  /** Alle Stellen in einem Stapel hinaus (und was sonst wartet) — erst holen, was andere Geräte schrieben (der Stapel ersetzt den vorigen beim Dienst). */
   async sendPositions(): Promise<void> {
-    if (this.positionTimer !== null) { clearTimeout(this.positionTimer); this.positionTimer = null; }
-    if (!this.positionsDirty) return;
-    this.positionsDirty = false;
-    if (this.holder.kind === 'local') { await this.keepLocal(); this.clearPending(); return; }
-    try { await this.pull(); } catch { /* ohne Netz: was wir haben — die Ablage wartet */ }
-    const sentAt = Date.now();
-    const all = [...this.progress.positions.values()].map((p) => (p.visited.length > 400 ? { ...p, visited: p.visited.slice(-400) } : p));
-    await this.send({ v: 1, kind: 'position', positions: all });
-    this.clearPending(sentAt);
+    if (this.latestTimer !== null) { clearTimeout(this.latestTimer); this.latestTimer = null; }
+    await this.syncLatest();
   }
 
-  private clearPending(upTo = Number.POSITIVE_INFINITY): void {
+  /** 2026-11-05 (Durchsicht) — was hinausging, wartet nicht mehr: eine Stelle, deren gesendete Fassung mindestens so jung ist. */
+  private clearPendingSent(sent: Iterable<FlowPosition>): void {
+    const at = new Map<string, number>();
+    for (const p of sent) at.set(p.flow, p.at);
+    const left = this.pendingPositions().filter((p) => (at.get(p.flow) ?? Number.NEGATIVE_INFINITY) < p.at);
+    keptWrite(this.positionKey(), left.length === 0 ? null : JSON.stringify(left));
+  }
+
+  /** Wartet etwas, das nur in seinem jüngsten Stapel gilt (Werte, Sperren, Stellen)? */
+  private latestWaits(): boolean { return this.positionsDirty || waits(readWaiting(this.waitKey())); }
+
+  /** Werte, Sperren und Stellen hinaus — je Person und Baza in diesem Fenster einer nach dem anderen. */
+  private syncLatest(): Promise<void> {
+    return inTurn(this.liveKey(), () => this.syncOnce());
+  }
+
+  /**
+   * 2026-11-05 (Durchsicht) — ERST HOLEN, DANN DIE EIGENEN ÄNDERUNGEN DARAUF, DANN DER GANZE STAND HINAUS (ohne Konto: in
+   * diesen Browser, `writeLocal`). Gelingt das Holen nicht ganz, geht nichts hinaus — es wartet, und ein Zeitgeber
+   * versucht es wieder. Was der Dienst annahm, wartet nicht mehr.
+   */
+  private async syncOnce(): Promise<void> {
+    if (!this.latestWaits()) return;
+    if (this.holder.kind === 'local') { await this.writeLocal(); return; }
+    if (this.target === null) return;
+    const holder = this.holder;
+    const complete = await this.pull().catch(() => false);
+    if (!complete) { this.latestSoon(LATEST_RETRY); return; }
+    const waiting = readWaiting(this.waitKey());
+    this.progress = withWaiting(this.progress, waiting);
+    const bodies: BatchBody[] = [];
+    if (Object.keys(waiting.values).length > 0) bodies.push({ v: 1, kind: 'values', values: this.progress.values });
+    if (Object.keys(waiting.suspend).length > 0) bodies.push({ v: 1, kind: 'suspend', suspended: [...this.progress.suspended] });
+    const places = this.positionsDirty ? [...this.progress.positions.values()].map((p) => (p.visited.length > 400 ? { ...p, visited: p.visited.slice(-400) } : p)) : null;
+    if (places !== null) { this.positionsDirty = false; bodies.push({ v: 1, kind: 'position', positions: places }); }
+    if (bodies.length === 0) return;
+    const target = this.target;
+    const batches: SealedBatch[] = [];
+    for (const body of bodies) batches.push(await sealBatch(this.libraryId, holder, target, body));
     try {
-      const left = this.pendingPositions().filter((p) => p.at > upTo);
-      if (left.length === 0) localStorage.removeItem(this.positionKey()); else localStorage.setItem(this.positionKey(), JSON.stringify(left));
-    } catch { /* ohne Speicher */ }
+      const done = await postBatches(holder, batches);
+      const stored = new Set(done.stored);
+      const went = (kind: BatchKind) => batches.some((b) => b.kind === kind && stored.has(b.batchId));
+      dropWaiting(this.waitKey(), { values: went('values') ? waiting.values : {}, suspend: went('suspend') ? waiting.suspend : {} });
+      if (places !== null) { if (went('position')) this.clearPendingSent(places); else this.positionsDirty = true; }
+    } catch (e) {
+      if (places !== null) this.positionsDirty = true;
+      /* Der Dienst nimmt den Bereich nicht: zum Ausweichort — und gleich noch einmal dorthin. */
+      if (refusedArea(e) && await this.retarget()) { await this.syncOnce(); return; }
+      this.latestSoon(LATEST_RETRY);
+    }
+  }
+
+  /*
+    2026-11-05 (Durchsicht) — WERTE UND SPERREN ÄNDERN: nur, was sich ändert, wartet in diesem Browser (`addWaiting`), gilt
+    sofort hier und bei den anderen Lernenden derselben Person (`tell`) und geht nach dem Holen mit dem ganzen Stand hinaus
+    (`syncLatest`). Vorher schrieb jeder Baustein seinen eigenen ganzen Stand: eine Erzählung nahm die eben gewählten
+    Abstände weg, die Wahl der Abstände die Punkte der Erzählung.
+  */
+  private async change(values: Readonly<Record<string, number | null>>, suspend: Readonly<Record<string, boolean>> = {}): Promise<void> {
+    if (Object.keys(values).length === 0 && Object.keys(suspend).length === 0) return;
+    addWaiting(this.waitKey(), values, suspend);
+    this.progress = withChanges(this.progress, values, suspend);
+    this.changed();
+    this.tell([], [], [], values, suspend);
+    await this.syncLatest();
   }
 
   async keepValues(values: Readonly<Record<string, number>>): Promise<void> {
     /*
      * 2026-11-04 (Prompt 15) — die Werte der Anwendung (`~…`, die eigenen Abstände) bleiben, wie sie HIER stehen: eine
-     * Erzählung, die ihre Werte beim Öffnen las, schreibt sonst eine alte Einstellung zurück.
+     * Erzählung, die ihre Werte beim Öffnen las, schreibt sonst eine alte Einstellung zurück. 2026-11-05 (Durchsicht):
+     * auch von ihren eigenen Werten nur die, die sie ÄNDERT (die übrigen las sie beim Öffnen); gelöscht wird nichts.
      */
-    const next: Record<string, number> = {};
-    for (const [k, v] of Object.entries(values)) if (!k.startsWith(OWN_PREFIX)) next[k] = v;
-    for (const [k, v] of Object.entries(this.progress.values)) if (k.startsWith(OWN_PREFIX)) next[k] = v;
-    this.progress = { ...this.progress, values: next };
-    this.changed();
-    await this.send({ v: 1, kind: 'values', values: next });
+    const changes: Record<string, number> = {};
+    for (const [k, v] of Object.entries(values)) {
+      if (!k.startsWith(OWN_PREFIX) && typeof v === 'number' && Number.isFinite(v) && this.progress.values[k] !== v) changes[k] = v;
+    }
+    await this.change(changes);
   }
 
   /**
@@ -836,10 +1158,7 @@ export class Learner {
    * (dann die des Bereichs, sonst die Vorgabe). Mit den übrigen Werten in einem Stapel `values`.
    */
   async keepSpacing(sp: Spacing | null): Promise<void> {
-    const next = withOwnSpacing(this.progress.values, sp);
-    this.progress = { ...this.progress, values: next };
-    this.changed();
-    await this.send({ v: 1, kind: 'values', values: next });
+    await this.change(valueChanges(this.progress.values, withOwnSpacing(this.progress.values, sp)));
   }
 
   /**
@@ -847,20 +1166,12 @@ export class Learner {
    * früheste Datum bleibt) — mit den übrigen Werten in einem Stapel `values`; nichts Neues: nichts.
    */
   async keepAwards(add: Readonly<Record<string, number>>): Promise<void> {
-    const was = this.progress.values;
-    const next = withAwards(was, add);
-    if (!Object.entries(next).some(([k, v]) => was[k] !== v)) return;
-    this.progress = { ...this.progress, values: next };
-    this.changed();
-    await this.send({ v: 1, kind: 'values', values: next });
+    await this.change(valueChanges(this.progress.values, withAwards(this.progress.values, add)));
   }
 
   /** 2026-11-05 — die eigene Grösse des Stapels (wie viele Karten eine Wiederholung zugleich hat); `null`: keine eigene. */
   async keepStack(size: number | null): Promise<void> {
-    const next = withOwnStack(this.progress.values, size);
-    this.progress = { ...this.progress, values: next };
-    this.changed();
-    await this.send({ v: 1, kind: 'values', values: next });
+    await this.change(valueChanges(this.progress.values, withOwnStack(this.progress.values, size)));
   }
 
   /** 2026-11-04 (Prompt 15) — was der Bereich (die Baza) einstellt; setzt `useLearner` aus den Ustawienia der Baza. */
@@ -869,11 +1180,28 @@ export class Learner {
   /** 2026-11-04 (Prompt 15) — die Abstände, die für diesen Lernenden gelten (für Momentaufnahmen und den Termin). */
   get spacing(): Spacing { return effectiveSpacing(this.areaSpacing, ownSpacing(this.progress.values)).spacing; }
 
-  private async keepLocal(): Promise<void> {
-    await idbPut('progress', this.localKey(), {
-      answers: [...this.progress.answers.values()], snapshots: [...this.progress.snapshots.values()],
-      positions: [...this.progress.positions.values()], values: this.progress.values, suspended: [...this.progress.suspended]
+  /**
+   * Ohne Konto: der ganze Fortschritt in diesen Browser. 2026-11-05 (Durchsicht) — erst lesen, was dort liegt (ein anderer
+   * Baustein derselben Person schrieb vielleicht eben), zusammenlegen, dann schreiben, einer nach dem anderen; vorher
+   * schrieb jeder seinen eigenen Stand, auch alte Werte.
+   */
+  private keepLocal(): Promise<void> {
+    return inTurn(this.liveKey(), () => this.writeLocal());
+  }
+
+  private async writeLocal(): Promise<void> {
+    const kept = await idbGet<LocalKept>('progress', this.localKey());
+    const waiting = readWaiting(this.waitKey());
+    const p = withWaiting(kept === null ? this.progress : withKept(this.progress, kept), waiting);
+    this.progress = p;
+    const ok = await idbPut('progress', this.localKey(), {
+      answers: [...p.answers.values()], snapshots: [...p.snapshots.values()],
+      positions: [...p.positions.values()], values: p.values, suspended: [...p.suspended]
     });
+    if (!ok) return;
+    dropWaiting(this.waitKey(), waiting);
+    this.clearPendingSent(p.positions.values());
+    this.positionsDirty = this.pendingPositions().length > 0;
   }
 
   /** Einen Stapel versiegeln und hinaus — sonst in die Ablage. */
@@ -897,12 +1225,13 @@ export class Learner {
   /** Die gesammelten Antworten als Stapel hinaus (und was noch wartete). */
   async flush(): Promise<void> {
     if (this.idle !== null) { clearTimeout(this.idle); this.idle = null; }
-    if (this.positionsDirty) void this.sendPositions().catch(() => undefined);
     const answers = this.fresh;
     const snapshots = [...this.freshSnapshots.values()];
     this.fresh = [];
     this.freshSnapshots = new Map();
     if (this.holder.kind === 'local') { await this.keepLocal(); return; }
+    /* 2026-11-05 (Durchsicht) — Werte, Sperren und Stellen nach dem Holen (nie aus der Ablage, `syncLatest`). */
+    if (this.latestWaits()) void this.syncLatest().catch(() => undefined);
     if (answers.length > 0) await this.send({ v: 1, kind: 'answers', answers, snapshots });
     else {
       try { await flushOutbox(this.holder); } catch (e) { if (refusedArea(e) && await this.retarget()) return; /* sonst später */ }
@@ -973,22 +1302,24 @@ export async function areaProgress(
   areaId: string, libraryId: string | null, intakePrivate: Uint8Array | null,
   keyOf: (areaId: string, epoch: number) => Promise<Uint8Array | undefined> = () => Promise.resolve(undefined)
 ): Promise<LearnerProgress[]> {
-  const { batches } = await loadAreaBatches(areaId, libraryId, null);
   const by = new Map<string, { roleId: string | null; seatId: string | null; progress: Progress; lastAt: string }>();
-  for (const batch of batches) {
-    const epoch = batch.areaEpoch ?? null;
-    let body: unknown = null;
-    if (epoch !== null) {
-      const key = await keyOf(batch.areaId, epoch).catch(() => undefined);
-      body = key === undefined ? null : await openWithAreaKey(key, batch);
-    } else if (intakePrivate !== null) {
-      body = await openForArea(intakePrivate, batch);
+  /* 2026-11-05 (Durchsicht) — alle Seiten (vorher nach 20000 Stapeln abgeschnitten: die jüngsten fehlten). */
+  await allPages((after) => loadAreaBatches(areaId, libraryId, null, after), async (batches) => {
+    for (const batch of batches) {
+      const epoch = batch.areaEpoch ?? null;
+      let body: unknown = null;
+      if (epoch !== null) {
+        const key = await keyOf(batch.areaId, epoch).catch(() => undefined);
+        body = key === undefined ? null : await openWithAreaKey(key, batch);
+      } else if (intakePrivate !== null) {
+        body = await openForArea(intakePrivate, batch);
+      }
+      if (body === null) continue;
+      const holder = batch.holderRoleId !== null ? `r:${batch.holderRoleId}` : `s:${batch.holderSeatId ?? '?'}`;
+      const had = by.get(holder) ?? { roleId: batch.holderRoleId, seatId: batch.holderSeatId, progress: EMPTY_PROGRESS, lastAt: batch.createdAt };
+      by.set(holder, { ...had, progress: absorb(had.progress, body), lastAt: batch.createdAt > had.lastAt ? batch.createdAt : had.lastAt });
     }
-    if (body === null) continue;
-    const holder = batch.holderRoleId !== null ? `r:${batch.holderRoleId}` : `s:${batch.holderSeatId ?? '?'}`;
-    const had = by.get(holder) ?? { roleId: batch.holderRoleId, seatId: batch.holderSeatId, progress: EMPTY_PROGRESS, lastAt: batch.createdAt };
-    by.set(holder, { ...had, progress: absorb(had.progress, body), lastAt: batch.createdAt > had.lastAt ? batch.createdAt : had.lastAt });
-  }
+  });
   return [...by.entries()].map(([holder, one]) => ({ holder, ...one }));
 }
 
@@ -1020,11 +1351,13 @@ export async function sendReport(libraryId: string, libraryAreaId: string, kind:
 
 /** Die Hinweise einer Bibliothek — für die Autoren, mit dem privaten Schlüssel der Annahme. */
 export async function loadReports(libraryId: string, intakePrivate: Uint8Array): Promise<Report[]> {
-  const { batches } = await call<{ batches: readonly StoredBatch[] }>(`/workspace/learn/library/${encodeURIComponent(libraryId)}/reports`);
   const out: Report[] = [];
-  for (const batch of batches) {
-    const opened = await openForArea(intakePrivate, batch);
-    if (isObject(opened) && (opened.kind === 'flags' || opened.kind === 'counts')) out.push({ kind: opened.kind, body: opened.body, createdAt: batch.createdAt });
-  }
+  /* 2026-11-05 (Durchsicht) — alle Seiten (vorher nach 10000 abgeschnitten: die jüngsten Hinweise fehlten). */
+  await allPages((after) => call<BatchPage>(`/workspace/learn/library/${encodeURIComponent(libraryId)}/reports${after === null ? '' : `?after=${encodeURIComponent(after)}`}`), async (batches) => {
+    for (const batch of batches) {
+      const opened = await openForArea(intakePrivate, batch);
+      if (isObject(opened) && (opened.kind === 'flags' || opened.kind === 'counts')) out.push({ kind: opened.kind, body: opened.body, createdAt: batch.createdAt });
+    }
+  });
   return out;
 }

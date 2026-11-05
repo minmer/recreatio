@@ -34,12 +34,17 @@ const NUM = new Intl.NumberFormat('pl-PL');
 /**
  * „+N" je Stelle (`x`, `y` im Fenster) — höchstens fünf einzeln, sie fliegen nacheinander zum Zähler `to`; `onArrive`, wenn
  * die erste ankommt (der Zähler zählt dann hoch). Ohne Zähler steigen sie nur auf und vergehen.
+ *
+ * 2026-11-05 (Prompt 17) — `opts`: eigene Dauer und Abstand (die Karte: kürzer), `onEach(n)` je angekommener Zahl (der Zähler
+ * der Karte zählt Stück für Stück hoch). Zurück kommt `finish`: alles sofort am Ziel (ein Klick überspringt).
  */
-export function flyPoints(items: readonly { readonly n: number; readonly x: number; readonly y: number }[], to: Element | null, onArrive?: () => void): void {
+export function flyPoints(items: readonly { readonly n: number; readonly x: number; readonly y: number }[], to: Element | null, onArrive?: () => void, opts: { readonly ms?: number; readonly gap?: number; readonly onEach?: (n: number) => void } = {}): () => void {
   const level = motionLevel();
   const shown = items.filter((it) => it.n > 0);
-  if (shown.length === 0 || typeof document === 'undefined') { onArrive?.(); return; }
-  if (level === 'off') { onArrive?.(); return; }
+  const each = opts.onEach;
+  if (shown.length === 0 || typeof document === 'undefined' || level === 'off') { onArrive?.(); for (const it of shown) each?.(it.n); return () => undefined; }
+  const runs: Animation[] = [];
+  const pending: (() => void)[] = [];
   const target = to?.getBoundingClientRect() ?? null;
   const tx = target === null ? null : target.left + target.width / 2;
   const ty = target === null ? null : target.top + target.height / 2;
@@ -66,12 +71,16 @@ export function flyPoints(items: readonly { readonly n: number; readonly x: numb
         { opacity: 1, transform: 'translate(-50%, calc(-50% - 1.6rem)) scale(1.05)', offset: 0.28 },
         { opacity: 0.25, transform: `translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px)) scale(0.6)` }
       ];
-    const run = typeof el.animate === 'function' ? el.animate(frames, { duration: level === 'reduced' ? 700 : 950, delay: k * 110, easing: 'cubic-bezier(.4,.1,.3,1)', fill: 'both' }) : null;
-    const done = () => { el.remove(); arrive(); };
-    if (run === null) { window.setTimeout(done, 300); return; }
+    const run = typeof el.animate === 'function' ? el.animate(frames, { duration: level === 'reduced' ? 700 : opts.ms ?? 950, delay: k * (opts.gap ?? 110), easing: 'cubic-bezier(.4,.1,.3,1)', fill: 'both' }) : null;
+    let over = false;
+    const done = () => { if (over) return; over = true; el.remove(); arrive(); each?.(it.n); };
+    if (run === null) { const t = window.setTimeout(done, 300); pending.push(() => { window.clearTimeout(t); done(); }); return; }
     run.onfinish = done;
     run.oncancel = done;
+    runs.push(run);
+    pending.push(done);
   });
+  return () => { for (const r of runs) { try { r.finish(); } catch { /* schon vorbei */ } } for (const f of pending) f(); };
 }
 
 /* -- Eine Karte ist eben utrwalona ------------------------------------------------------------------------------------ */

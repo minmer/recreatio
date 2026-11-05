@@ -16,7 +16,7 @@
  * </code>
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { Card } from './cardBasics';
 import { cardKnowness, factsOf, gaugeFromMarks, withFlows, type Gauge } from './knowing';
@@ -594,6 +594,22 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const [note, setNote] = useState<string | null>(null);
   /* 2026-11-05 — das Haus: ein Klick zeigt den eigenen Stand daneben, ein Doppelklick alles im ganzen Fenster (`LandscapeHome.tsx`). */
   const [homeOpen, setHomeOpen] = useState<'panel' | 'full' | null>(null);
+  /*
+    2026-11-05 — SCROLLEN beim Wechsel zwischen Karte und Lauf (Erzählung, Powtórka): was sich öffnet, beginnt oben im Bild —
+    lag der Anfang über dem Fenster (die Karte war nach unten gescrollt), gleitet die Seite zu ihm; sonst bleibt alles stehen.
+  */
+  const hostEl = useRef<HTMLDivElement | null>(null);
+  const hostRef = useCallback((el: HTMLDivElement | null) => { boxRef(el); hostEl.current = el; }, [boxRef]);
+  const runSig = running?.key ?? '';
+  const seenRun = useRef(runSig);
+  useEffect(() => {
+    if (seenRun.current === runSig) return;
+    seenRun.current = runSig;
+    const el = hostEl.current;
+    if (el === null || el.getBoundingClientRect().top >= 0) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+    el.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+  }, [runSig]);
   const [said, setSaid] = useState('');
   const [command, setCommand] = useState<WorldCommand | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -726,7 +742,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const regionName = useMemo(() => (key: string) => tree?.regions.get(key)?.name ?? key, [tree]);
 
   /* Immer in einer Hülle, deren Breite gemessen wird. */
-  const host = (body: ReactNode) => <div ref={boxRef} className="cg-ls-host">{body}</div>;
+  const host = (body: ReactNode) => <div ref={hostRef} className="cg-ls-host">{body}</div>;
   if (running !== null) {
     /* 2026-11-05 — über einer Powtórka: zurück zur Karte; eine Erzählung hat es in ihrer Kopfzeile („‹ Mapa", Prompt 18). */
     const back = <p className="cg-ls-back"><button type="button" className="wk-link-btn" onClick={() => setRunning(null)} data-landscape-back="">{T.backToMap}</button></p>;

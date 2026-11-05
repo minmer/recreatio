@@ -302,6 +302,24 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     window.addEventListener('keydown', on);
     return () => window.removeEventListener('keydown', on);
   }, []);
+  /*
+    2026-11-05 — SCROLLEN: ein neuer Schritt (weiter, Wstecz, das Ende) beginnt oben — liegt der Kopf des Spielers über dem
+    Fenster (man hat in einem langen Slajd nach unten gelesen) oder weit darunter, gleitet die Seite zu ihm; steht er schon
+    im Bild, bewegt sich nichts.
+  */
+  const endRef = useRef<HTMLElement | null>(null);
+  const stepSig = `${run.state.flow}:${run.state.step ?? ''}:${run.state.ended ? 'e' : ''}:${backBy}`;
+  const firstSig = useRef(stepSig);
+  useEffect(() => {
+    if (firstSig.current === stepSig) return;
+    firstSig.current = '';
+    const el = stage.current ?? endRef.current;
+    if (el === null) return;
+    const top = el.getBoundingClientRect().top;
+    if (top >= 0 && top <= window.innerHeight * 0.5) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+    el.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+  }, [stepSig]);
   /* Jedes Zeichnen sagt neu, was die Tasten tun (Ende, Sperre: nichts). */
   keys.current = { next: null, back: null };
 
@@ -857,10 +875,16 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     const others = choices.filter((x) => x !== first && x.ready && x.action !== undefined);
     const waiting = choices.filter((x) => !x.ready);
     return withPath(
-      <section className={`cg-flow cg-flow-${look}`} data-flow-ended={running.id} data-flow-running={running.id} data-flow-step={state.step ?? ''} data-flow-visited={state.visited.length} data-flow-depth={state.stack.length} data-flow-kept-done={posOf(running.id)?.done === true ? '1' : '0'} data-flow-kept-goals={posOf(running.id)?.goals?.length ?? 0}>
+      <section ref={endRef} className={`cg-flow cg-flow-${look}`} data-flow-ended={running.id} data-flow-running={running.id} data-flow-step={state.step ?? ''} data-flow-visited={state.visited.length} data-flow-depth={state.stack.length} data-flow-kept-done={posOf(running.id)?.done === true ? '1' : '0'} data-flow-kept-goals={posOf(running.id)?.goals?.length ?? 0}>
+        {/*
+          2026-11-05 — DAS ENDE wie jeder Schritt: oben „‹ Mapa" (gross) und „⋯" (Od początku, Zapomnij postęp — nur dort);
+          darunter, was danach kommt, als EINE Liste untereinander: zuerst das Naheliegende, zuletzt „Od początku".
+        */}
+        <StoryHead W={W} back={onClose === undefined ? null : { label: backLabel ?? W.back, run: onClose }} crumbs={[{ label: running.name, id: running.id }, { label: W.storyEnd }]}
+          menu={{ fromStart: restart, ...(learner === null ? {} : { forget }) }} />
         <div className="cg-flow-step">
-          <h2 data-flow-title={running.id}>{W.storyEnd} — <TexText text={running.name} /></h2>
-          {running.goals.length > 0 && <Goals flow={running} reached={goalsHeld} />}
+          <h2 className="cg-flow-step-title" data-flow-title={running.id}>{W.storyEnd} — <TexText text={running.name} /></h2>
+          {running.goals.length > 1 && <Goals flow={running} reached={goalsHeld} />}
           {requiredLeft.length > 0 && (
             <p className="wk-note" data-flow-required-left={requiredLeft.length}>
               {W.requiredLeft(requiredLeft.map((s) => { const n = stepNode.get(s); const d = n === undefined ? null : detourOf(n); return `„${(d === null ? undefined : flowOf(d.flow))?.name ?? s}”`; }).join(', '))}
@@ -868,34 +892,35 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
             </p>
           )}
           {running.goals.length > 0 && (
-            <p className={reviewOpen ? 'wk-note' : 'cg-muted'} data-flow-review={reviewOpen ? 'open' : 'passed'}>
-              {reviewOpen ? W.reviewNotPassed : W.reviewPassed}
+            <p className={reviewOpen ? 'wk-note' : 'cg-flow-end-passed'} data-flow-review={reviewOpen ? 'open' : 'passed'}>
+              {reviewOpen ? W.reviewNotPassed : `✓ ${W.reviewPassed}`}
             </p>
           )}
-          {choices.length > 0 && (
-            <div className="cg-flow-next" data-flow-next={choices.length}>
-              <p className="cg-run-closing-h">{W.whatNext}</p>
-              <div className="wk-actions">
-                {reviewOpen && <button type="button" className="wk-btn" onClick={toReview} data-flow-review-again="">{W.reviewAgain}</button>}
-                {first !== undefined && (
+          <div className="cg-flow-next" data-flow-next={choices.length}>
+            {(choices.length > 0 || reviewOpen) && <p className="cg-run-closing-h">{W.whatNext}</p>}
+            <ul className="cg-flow-next-list">
+              {reviewOpen && <li><button type="button" className="wk-btn" onClick={toReview} data-flow-review-again="">{W.reviewAgain}</button></li>}
+              {first !== undefined && (
+                <li>
                   <button type="button" className={reviewOpen ? 'wk-btn wk-btn-line' : 'wk-btn cg-run-next'} onClick={first.action!.run} data-flow-next-go={first.id} data-flow-next-kind={first.kind}>
-                    {first.kind === 'map' ? first.label : W.nextGo(first.label)}{first.work !== undefined && first.kind !== 'map' ? <span className="cg-flow-next-work"> · {first.work}</span> : null}
+                    <span>{first.kind === 'map' ? first.label : W.nextGo(first.label)}</span>{first.work !== undefined && first.kind !== 'map' ? <span className="cg-flow-next-work">{first.work}</span> : null}
                   </button>
-                )}
-                {others.map((x) => <button key={x.id} type="button" className="wk-btn wk-btn-line" onClick={x.action!.run} data-flow-next-other={x.id}>{x.label}</button>)}
-              </div>
-              {waiting.length > 0 && (
-                <ul className="cg-flow-next-wait" data-flow-next-wait={waiting.length}>
-                  {waiting.map((x) => <li key={x.id} data-flow-next-wait-item={x.id}><strong>{x.label}</strong> <span className="cg-muted">· {x.work} · {(x.why ?? []).join(' · ')}</span></li>)}
-                </ul>
+                </li>
               )}
-            </div>
-          )}
-          <div className="wk-actions">
-            {reviewOpen && choices.length === 0 && <button type="button" className="wk-btn" onClick={toReview} data-flow-review-again="">{W.reviewAgain}</button>}
-            <button type="button" className={reviewOpen || first !== undefined ? 'wk-btn wk-btn-line' : 'wk-btn'} onClick={restart}>{W.fromStart}</button>
-            {learner !== null && <button type="button" className="wk-link-btn" onClick={forget} data-flow-forget="">{W.forgetStory}</button>}
-            {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>{W.back}</button>}
+              {others.map((x) => (
+                <li key={x.id}>
+                  <button type="button" className="wk-btn wk-btn-line" onClick={x.action!.run} data-flow-next-other={x.id}>
+                    <span>{x.label}</span>{x.work !== undefined && x.work !== '' ? <span className="cg-flow-next-work">{x.work}</span> : null}
+                  </button>
+                </li>
+              ))}
+              <li><button type="button" className="wk-btn wk-btn-line" onClick={restart} data-flow-restart-end="">{W.fromStart}</button></li>
+            </ul>
+            {waiting.length > 0 && (
+              <ul className="cg-flow-next-wait" data-flow-next-wait={waiting.length}>
+                {waiting.map((x) => <li key={x.id} data-flow-next-wait-item={x.id}><strong>{x.label}</strong> <span className="cg-muted">· {x.work} · {(x.why ?? []).join(' · ')}</span></li>)}
+              </ul>
+            )}
           </div>
         </div>
       </section>
@@ -1239,7 +1264,7 @@ function StoryHead({ W, back, crumbs, menu, progress }: {
     <header className="cg-story-head">
       <div className="cg-story-headline">
         {back !== null && (
-          <button type="button" className="wk-link-btn cg-story-back" onClick={back.run} title={back.label}
+          <button type="button" className="wk-btn wk-btn-line cg-story-back" onClick={back.run} title={back.label}
             {...(back.detour === undefined ? { 'data-flow-close': '' } : { 'data-flow-back-to': back.detour })}>‹ <span>{back.label}</span></button>
         )}
         <nav className="cg-story-crumbs" aria-label={W.crumbs} data-flow-crumbs={crumbs.length}>
