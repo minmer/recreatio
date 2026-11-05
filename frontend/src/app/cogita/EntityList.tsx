@@ -206,6 +206,16 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
     /* Ein neuer aus „Wpisy": gespeichert mit einem Namen aus dem Rodzaj — benannt und weiter gebaut wird er in den Schematy. */
     const name = design || !asNew ? view.name : view.name === 'Widok' ? `${kind?.name ?? 'Wpisy'} — widok` : view.name;
     const doc = viewJson({ ...view, name: name.trim() || 'Widok' });
+    /*
+      2026-11-05 (Durchsicht) — die Gebiete des Krajobraz (umbenannt, verschoben) schreibt die Landschaft selbst in den
+      gespeicherten Widok; dieser Zustand hier kennt sie nur vom Öffnen. Beim Speichern gelten die gespeicherten.
+    */
+    const stored = viewId === null ? undefined : lib.docs('view').find((d) => d.id === viewId);
+    const storedLs = (stored?.data as Record<string, unknown> | undefined)?.landscape as Record<string, unknown> | undefined;
+    if (!asNew && storedLs?.regions !== undefined) {
+      const ls = (typeof doc.landscape === 'object' && doc.landscape !== null ? doc.landscape : {}) as Record<string, unknown>;
+      doc.landscape = { ...ls, regions: storedLs.regions };
+    }
     const done = await lib.saveDoc('view', doc, asNew ? undefined : viewId ?? undefined);
     keepDraft(dKey, dBase, null);
     if (design) { toast('Zapisano sposób wyświetlania.'); onSaved?.(done.id); return; }

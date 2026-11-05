@@ -17,6 +17,8 @@ import { Columns, Figure, KnowledgeStats, Line, Tiles, type Point } from './Know
 import { dayStart } from './lessons';
 import type { Learner } from './learn';
 import { answerIndex } from './measures';
+/* 2026-11-05 (Durchsicht) — die Abstände dieses Lernenden, nicht die Vorgabe. */
+import { spacingFor } from './spacing';
 import { GOAL_UNIT_LABEL, lastDays, todayLine, type RewardDay, type RewardRules, type RewardState } from './rewards';
 import { useRewards } from './RewardViews';
 import type { CogitaLibrary } from './store';
@@ -148,7 +150,7 @@ export function LiveStats({ lib, learner, rules, cards, keys, rename, hidden, sh
         </Figure>
       )}
       {show('knowledge') && shape === 'full' && (
-        cards === null || byCard === null ? <Loading lines={2} label="Liczenie kart…" /> : <KnowledgeStats lib={lib} cards={cards} answers={byCard} />
+        cards === null || byCard === null ? <Loading lines={2} label="Liczenie kart…" /> : <KnowledgeStats lib={lib} cards={cards} answers={byCard} spacing={learner === null ? undefined : spacingFor(lib, learner)} />
       )}
     </div>
   );

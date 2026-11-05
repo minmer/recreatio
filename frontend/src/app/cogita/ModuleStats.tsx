@@ -12,6 +12,8 @@ import { useMemo } from 'react';
 import { AnswerLog } from './AnswerLog';
 import type { Card } from './cardBasics';
 import { KnowledgeStats } from './KnowCharts';
+/* 2026-11-05 (Durchsicht) — die Abstände dieses Lernenden, nicht die Vorgabe. */
+import { spacingFor } from './spacing';
 import { renamer, type Learner } from './learn';
 import { answerIndex } from './measures';
 import type { CogitaLibrary } from './store';
@@ -40,7 +42,7 @@ export function ModuleStats({ lib, learner, cards, title, onBack }: {
         : cards === null ? <p className="wk-card-muted">Liczenie kart…</p> : (
           <>
             {learner.holder.kind === 'local' && <p className="wk-card-muted">Bez konta liczą się odpowiedzi z tej przeglądarki.</p>}
-            <KnowledgeStats lib={lib} cards={cards} answers={byCard} />
+            <KnowledgeStats lib={lib} cards={cards} answers={byCard} spacing={spacingFor(lib, learner)} />
             <details className="cg-card" data-module-answers="">
               <summary>Moje odpowiedzi ({learner.progress.answers.size})</summary>
               <AnswerLog progress={learner.progress} cards={cards} shown={cards} />

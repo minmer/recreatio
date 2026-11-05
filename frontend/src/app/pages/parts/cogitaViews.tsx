@@ -167,7 +167,8 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
   }
   const plan = planned?.plan ?? null;
   const total = plan?.cards.length ?? 0;
-  const levels = learner === null || plan === null ? null : levelsOf(plan, (key) => learner.marks(key), Date.now());
+  /* 2026-11-05 (Durchsicht) — die Bänder mit den Abständen dieses Lernenden (sonst „nieznane“ bei „Raz i gotowe“). */
+  const levels = learner === null || plan === null ? null : levelsOf(plan, (key) => learner.marks(key), Date.now(), learner.spacing);
   return (
     <>
       <Head title={title} />
@@ -573,7 +574,7 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
     const at = marks.length === 0 ? null : dueAt(marks, learner.spacing);
     return at !== null && at <= now;
   }).length;
-  const levels = cards == null || learner === null ? null : levelsOf(readPlan(cards, {}), (key) => learner.marks(key), now);
+  const levels = cards == null || learner === null ? null : levelsOf(readPlan(cards, {}), (key) => learner.marks(key), now, learner.spacing);
   return (
     <CogitaContext.Provider value={ctx}>
       <p className="wk-card-muted">{name}{due !== null ? ` · na teraz: ${due} kart` : ''}</p>

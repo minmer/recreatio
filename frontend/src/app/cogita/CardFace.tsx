@@ -23,7 +23,7 @@ import { Markup, MediaView, percent } from './ui';
 import { StatementCard } from '../library/markupView';
 import { blocksField } from './statements';
 import { TexText } from '../ui/tex/Tex';
-import { CHOICE_CLASS, CHOICE_GLYPH, choiceMark, choiceWords, type ChoiceMark } from './choiceMarks';
+import { answerWords, CHOICE_CLASS, CHOICE_GLYPH, choiceMark, choiceWords, type ChoiceMark } from './choiceMarks';
 import { baseLang, type Lang } from './lang';
 import { motionWords } from './motionWords';
 import { noteAnswerSource, onKnown } from './rewardBus';
@@ -250,7 +250,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
     }
     return (
       <div className={`cg-option-said ${right ? 'is-right' : 'is-wrong'}`} data-option-said={right ? 'right' : 'wrong'}>
-        <span className="cg-option-mark" aria-label={right ? 'dobra odpowiedź' : 'zła odpowiedź'}>{right ? '✓' : '✗'}</span>
+        <span className="cg-option-mark" aria-label={right ? answerWords(lang).right : answerWords(lang).wrong}>{right ? '✓' : '✗'}</span>
         <Markup text={text} />
       </div>
     );
@@ -314,7 +314,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
               const button = (
                 <button key={i} type="button" role="radio" aria-checked={reveal?.given === i} className={`cg-option${mark(i === a.correct, reveal?.given === i)}`} disabled={shut} onClick={() => submit(i)}>
                   <span className="cg-option-text"><TexText text={a.options[i] ?? ''} /></span>
-                  {g !== '' && <span className="cg-option-mark" aria-label={g === '✓' ? 'dobra odpowiedź' : 'zła odpowiedź'}>{g}</span>}
+                  {g !== '' && <span className="cg-option-mark" aria-label={g === '✓' ? answerWords(lang).right : answerWords(lang).wrong}>{g}</span>}
                 </button>
               );
               /* 2026-11-01 — der Satz zur Möglichkeit steht unter ihr (in derselben Zelle — die Möglichkeiten bleiben gleich breit). */

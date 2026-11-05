@@ -160,7 +160,8 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   */
   const wants = needsKnowing(saved);
   /* 2026-11-01 — die Mapa postępów braucht die Kenntnis des Besuchers immer (und seine Antworten je Karte). */
-  const mode = modeOf(state.u ?? config.mode, saved.mode);
+  /* 2026-11-05 (Durchsicht) — eine im Modul feste Art gewinnt über `u` der Adresse (dort gibt es keine Reiter zurück). */
+  const mode = modeOf(config.mode !== undefined && config.mode !== '' ? config.mode : state.u ?? config.mode, saved.mode);
   const learns = wants || mode === 'quilt' || mode === 'landscape';
   /* 2026-11-03 — wohin die Antworten gehen (wie in „Powtórka"): der Bereich, den der Baustein nennt, sonst die Baza. */
   const visitor = usePageLearner(learns ? lib : null, answersArea(config.answers));

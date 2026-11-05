@@ -436,6 +436,14 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     if (id === null || client === null) { keepIt([]); return; }
     void client.route(id).then((r) => keepIt([...(r?.steps.flat() ?? []).filter((x) => !asks.has(x)), id]), () => keepIt([id]));
   };
+  /* 2026-11-05 (Durchsicht) — ein Ziel ohne Weg („Ustaw jako cel" in einer Erzählung speichert keinen): den Weg einmal holen. */
+  const routedGoal = useRef<string | null>(null);
+  useEffect(() => {
+    if (goal === null || goalSteps.length > 0 || client === null || routedGoal.current === goal) return;
+    routedGoal.current = goal;
+    setGoal(goal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goal, goalSteps.length, client]);
 
   const labelOf = (id: string): string => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); };
   const inputIndex = useMemo(() => new Map(input.ids.map((id, i) => [id, i] as const)), [input]);

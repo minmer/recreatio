@@ -37,3 +37,12 @@ export function choiceWords(lang: Lang): Readonly<Record<ChoiceMark, string>> {
     default: return { hit: 'dobrze zaznaczone', missed: 'pominięte — to też prawda', wrong: 'źle zaznaczone', left: 'słusznie pominięte' };
   }
 }
+
+/** 2026-11-05 (Durchsicht) — die Zeile unter einer Möglichkeit sagt dem Vorleser in der Sprache der Baza, ob sie stimmt. */
+export function answerWords(lang: Lang): { readonly right: string; readonly wrong: string } {
+  switch (lang) {
+    case 'de': return { right: 'richtige Antwort', wrong: 'falsche Antwort' };
+    case 'en': return { right: 'right answer', wrong: 'wrong answer' };
+    default: return { right: 'dobra odpowiedź', wrong: 'zła odpowiedź' };
+  }
+}

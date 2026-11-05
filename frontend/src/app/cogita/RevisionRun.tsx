@@ -450,7 +450,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
         {learner !== null && lib !== null && (
           <details className="cg-run-stats" data-run-stats="">
             <summary>Statystyki — co umiem w tej powtórce</summary>
-            <RunStats lib={lib} cards={state.all} answers={answerIndex(learner.progress, rename)} />
+            <RunStats lib={lib} cards={state.all} answers={answerIndex(learner.progress, rename)} spacing={spacingFor(lib, learner)} />
           </details>
         )}
       </section>

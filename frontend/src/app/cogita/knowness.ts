@@ -45,6 +45,11 @@ export const PARTIAL = 1 / 3;
 export const PARTIAL_FLOOR = DAY;
 /** Richtig gleich nach einem Fehler: 0,4 × der beste Abstand vor dem Fehler. */
 export const RELEARN = 0.4;
+/**
+ * 2026-11-05 (Durchsicht) — HÖCHSTENS TAUSEND JAHRE: extreme „Zaawansowane“-Werte (100 Jahre × 1 000 000) schoben den
+ * Termin über das Ende des Datumsbereichs (`toISOString` warf, „Invalid Date“). Mit allen Vorgaben nie erreicht.
+ */
+export const MAX_INTERVAL = 1000 * 365 * DAY;
 /** Ab dieser Richtigkeit ist eine Antwort richtig … */
 export const CORRECT_FROM = 0.9;
 /** … unter dieser falsch; dazwischen teilweise. */
@@ -117,7 +122,7 @@ export function step(state: CardState | null, mark: Mark, sp: Spacing = DEFAULT_
   const q = clamp01(mark.correctness);
   const grade = gradeOf(q);
   if (state === null) {
-    return { at: mark.at, interval: grade === 'correct' ? sp.first : MIN_INTERVAL, elapsed: 0, best: 0, q, lapsed: grade === 'wrong', answers: 1 };
+    return { at: mark.at, interval: grade === 'correct' ? Math.min(MAX_INTERVAL, sp.first) : MIN_INTERVAL, elapsed: 0, best: 0, q, lapsed: grade === 'wrong', answers: 1 };
   }
   const elapsed = Math.max(0, mark.at - state.at);
   const answers = state.answers + 1;
@@ -126,7 +131,7 @@ export function step(state: CardState | null, mark: Mark, sp: Spacing = DEFAULT_
     return { at: mark.at, interval: MIN_INTERVAL, elapsed, best: state.lapsed ? state.best : state.interval, q, lapsed: true, answers };
   }
   if (grade === 'partly') {
-    const interval = Math.max(MIN_INTERVAL, elapsed * PARTIAL, elapsed >= PARTIAL_FLOOR ? PARTIAL_FLOOR : 0);
+    const interval = Math.min(MAX_INTERVAL, Math.max(MIN_INTERVAL, elapsed * PARTIAL, elapsed >= PARTIAL_FLOOR ? PARTIAL_FLOOR : 0));
     return { at: mark.at, interval, elapsed, best: state.best, q, lapsed: state.lapsed, answers };
   }
   const grown = Math.max(MIN_INTERVAL, elapsed * sp.growth);
@@ -135,8 +140,9 @@ export function step(state: CardState | null, mark: Mark, sp: Spacing = DEFAULT_
    * Minuten (dem Abstand nach einem Fehler) geantwortet wurde. Mit der Vorgabe ist das nie mehr als `grown`
    * (15 Min. × t / 5 Min. = 3 · t), also genau wie vorher.
    */
-  const relearned = Math.max(grown, RELEARN * state.best, sp.first * Math.min(1, elapsed / MIN_INTERVAL));
-  const interval = state.lapsed ? relearned : Math.max(grown, state.interval);
+  /* 2026-11-05 (Durchsicht) — `min(first, first · t / 5 Min.)`: mit der Vorgabe bitgenau die alte Zahl (vorher 1 ulp darüber). */
+  const relearned = Math.max(grown, RELEARN * state.best, Math.min(sp.first, (sp.first * elapsed) / MIN_INTERVAL));
+  const interval = Math.min(MAX_INTERVAL, state.lapsed ? relearned : Math.max(grown, state.interval));
   return { at: mark.at, interval, elapsed, best: state.best, q, lapsed: false, answers };
 }
 
