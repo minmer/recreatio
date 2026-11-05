@@ -387,7 +387,8 @@ export function worldLayout(tree: RegionTree | null, tg: TopicGraph, previous?: 
         const [q, r] = unkey(k);
         for (const nk of neighbourKeys(q, r)) {
           const y = ownerOf.get(nk);
-          if (y === undefined || y === x.id) continue;
+          /* 2026-11-05 (Durchsicht) — nur ein Platz dieser Fläche: das Fundament (vorher vergeben) ist nie zu haben. */
+          if (y === undefined || y === x.id || !avail.has(nk)) continue;
           const theirs = out.get(y)!;
           /* Nur von einem, der anderswo weiterwachsen kann (sonst nähmen sich zwei denselben Platz hin und her). */
           if (theirs.size <= 1 || ![...(frontier.get(y) ?? [])].some((m) => m !== nk && !ownerOf.has(m))) continue;
@@ -569,13 +570,14 @@ export function worldLayout(tree: RegionTree | null, tg: TopicGraph, previous?: 
       }
     };
     const ownF = new Map<string, number[]>();
-    for (const t of foundation) { if (ringOf[t] < 0) continue; const l = ownF.get(outerOf(t)) ?? []; l.push(key(place[t * 2], place[t * 2 + 1])); ownF.set(outerOf(t), l); }
+    for (const t of foundation) { if (ringOf[t] < 0) continue; const g0 = groupAt(t, 0); const l = ownF.get(g0) ?? []; l.push(key(place[t * 2], place[t * 2 + 1])); ownF.set(g0, l); }
     /* Der Anfang eines Gebiets: neben seinen eigenen Themen im Fundament, sonst irgendwo am Fundament. */
     const placedNear = (k: number, id: string) => {
       const [q, r] = unkey(k);
       let any = false; let own = false;
-      for (const nk of neighbourKeys(q, r)) { const u = taken.get(nk); if (u === undefined) continue; any = true; if (outerOf(u) === id) own = true; }
-      const hasOwn = foundation.some((u) => outerOf(u) === id);
+      /* 2026-11-05 (Durchsicht) — das Haus (−1) ist kein Thema: es zählt als Karte, aber zu keinem Gebiet. */
+      for (const nk of neighbourKeys(q, r)) { const u = taken.get(nk); if (u === undefined) continue; any = true; if (u >= 0 && groupAt(u, 0) === id) own = true; }
+      const hasOwn = foundation.some((u) => groupAt(u, 0) === id);
       return own ? 0 : any ? (hasOwn ? 25 : 0) : 50;
     };
     split(free, order, 0, null, placedNear);

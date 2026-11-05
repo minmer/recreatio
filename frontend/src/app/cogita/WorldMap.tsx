@@ -21,6 +21,7 @@ import type { LsBand } from './landscape';
 import type { WorldLayout } from './worldLayout';
 import { cellPx, deepestS, depthOf, detailPx, fitCam, fitInfo, FORE_MAX, keepLabels, FORE_MIN, FORE_START, INFO_FORE, infoAngle, NAME_PX, PICK_PX, placeLabels, projection, RING_PX, toGround, toScreen, type LabelCandidate, type PlacedLabel, type Projection, type WorldCam } from './worldView';
 import type { LandscapeWords } from './landscapeWords';
+import { useMotion } from '../ui/motion';
 
 /** 2026-11-04 (Prompt 15, 4b) — was die Karte zeigt: alles, nur das Gekonnte (mit dem Rand), nur das Fällige. */
 export type WorldMode = 'all' | 'known' | 'discover' | 'due';
@@ -256,17 +257,21 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const frame = useRef(0);
   const stop = () => { if (frame.current !== 0) { cancelAnimationFrame(frame.current); frame.current = 0; } };
   useEffect(() => stop, []);
-  const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  /* 2026-11-05 (Prompt 17) — die Wahl „Animacje“ des Geräts (sonst das Betriebssystem): ohne volle Bewegung kein Gleiten. */
+  const motion = useMotion();
+  const reduced = motion !== 'full';
   const glide = (to: WorldCam, ms = 420) => {
     stop();
     const target = clamp(to);
     if (reduced) { setCam(target); return; }
     const from = camRef.current;
+    const turn = ((((target.rot - from.rot) % 360) + 540) % 360) - 180;
     const t0 = performance.now();
     const tick = (t: number) => {
       const k = Math.min(1, (t - t0) / ms);
       const e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
-      setCam({ s: from.s * (target.s / from.s) ** e, cx: from.cx + (target.cx - from.cx) * e, cy: from.cy + (target.cy - from.cy) * e, rot: from.rot + (target.rot - from.rot) * e, fore: from.fore + (target.fore - from.fore) * e });
+      /* 2026-11-05 (Durchsicht) — gedreht wird auf dem kürzeren Weg (350° → 0° sind 10°, nicht 350°). */
+      setCam({ s: from.s * (target.s / from.s) ** e, cx: from.cx + (target.cx - from.cx) * e, cy: from.cy + (target.cy - from.cy) * e, rot: from.rot + turn * e, fore: from.fore + (target.fore - from.fore) * e });
       frame.current = k < 1 ? requestAnimationFrame(tick) : 0;
     };
     frame.current = requestAnimationFrame(tick);
@@ -350,6 +355,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const cache = useRef<{ canvas: HTMLCanvasElement; cam: WorldCam; sig: string; margin: number } | null>(null);
   const lastChange = useRef(0);
   const idleRepaint = useRef(0);
+  /* 2026-11-05 (Durchsicht) — das grosse Bild nur neu, wenn die Kamera ruht (nicht schon beim ersten Schritt einer Bewegung). */
+  const rebuild = useRef(false);
   const dataTick = useRef(0);
   const dataSig = useMemo(() => { dataTick.current += 1; return dataTick.current; }, [topics, chosen, flash, links, route, home, hoverRegion, palette, world, mode, focusTop]); // eslint-disable-line react-hooks/exhaustive-deps
   const paint = () => {
@@ -369,13 +376,14 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       2026-11-04 (Prompt 14) — Drehen, Neigen, Zoomen ändern das Bild in jedem Schritt: dann direkt ins sichtbare Bild (das
       grosse mit Rand neu zu zeichnen kostete je Schritt das Vierfache); ruht die Kamera, wird das grosse wieder gebaut.
     */
-    if (c !== null && c.sig !== sig && performance.now() - lastChange.current < 260) {
+    if (c !== null && c.sig !== sig && !rebuild.current) {
       lastChange.current = performance.now();
       draw(ctx, dpr);
       if (idleRepaint.current !== 0) window.clearTimeout(idleRepaint.current);
-      idleRepaint.current = window.setTimeout(() => { idleRepaint.current = 0; lastChange.current = 0; paint(); }, 280);
+      idleRepaint.current = window.setTimeout(() => { idleRepaint.current = 0; lastChange.current = 0; rebuild.current = true; paintRef.current(); }, 280);
       return;
     }
+    rebuild.current = false;
     if (c === null || c.sig !== sig) lastChange.current = performance.now();
     if (c !== null && c.sig === sig) {
       const [ox, oy] = toScreen(proj, c.cam.cx, c.cam.cy);
@@ -400,6 +408,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     ctx.clearRect(0, 0, el.width, el.height);
     ctx.drawImage(c.canvas, Math.round((dx - c.margin) * dpr), Math.round((dy - c.margin) * dpr));
   };
+  /* 2026-11-05 (Durchsicht) — Zeitgeber und Schleifen zeichnen mit dem neuesten `paint` (Kamera, Zeiger, Daten von jetzt). */
+  const paintRef = useRef(paint);
+  paintRef.current = paint;
+  /* Die Leinwand so gross, wie gerechnet (sonst stauchte die Seite sie, Namen und Tipps lägen daneben). */
+  useLayoutEffect(() => { const el = canvas.current; if (el !== null) { el.style.width = `${width}px`; el.style.height = `${height}px`; } }, [width, height]);
   /*
     2026-11-04 (Prompt 15, 4/4c) — WAS IN DEN KACHELN STEHT, gezeichnet mit ihrer Säule (`draw`): eine Säule davor deckt es zu.
     Gemessen wird einmal je Thema, Grösse und Ebene.
@@ -440,7 +453,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     /* Solange das Land wächst: weiter zeichnen. */
     const growing = [...knownAt.current.values()].some((x) => performance.now() - x < 900);
     if (growing && animating.current === 0) {
-      const loop = () => { paint(); animating.current = [...knownAt.current.values()].some((x) => performance.now() - x < 900) ? requestAnimationFrame(loop) : 0; };
+      const loop = () => { paintRef.current(); animating.current = [...knownAt.current.values()].some((x) => performance.now() - x < 900) ? requestAnimationFrame(loop) : 0; };
       animating.current = requestAnimationFrame(loop);
     }
   });
@@ -728,6 +741,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const tapOverlay = (x: number, y: number): boolean => {
     for (const p of [...shownPieces].reverse()) {
       const [px0, py0] = p.region !== null ? (() => { const r = world.regions.get(p.region!); return r === undefined ? placeOf(p.t) : toScreen(proj, r.x, r.y); })() : placeOf(p.t);
+      /* 2026-11-05 (Durchsicht) — eine Figur hinter einer Säule (nur ein Punkt zu sehen) fängt keinen Tipp. */
+      if (p.region === null && coverAt(p.t, px0, py0, proj, screen) !== null) continue;
       if (Math.abs(x - px0) <= pieceH * 0.42 && y >= py0 - pieceH * 1.05 && y <= py0 + pieceH * 0.2) {
         if (p.region !== null) { const c = regionCam(p.region); if (c !== null) glide(c); } else onPiece(p.t);
         return true;
@@ -735,7 +750,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     }
     if (goalFlag !== null && goalFlag >= 0 && goalFlag < n) {
       const fx = screen[goalFlag * 3]; const fy = screen[goalFlag * 3 + 1];
-      if (x >= fx - 4 && x <= fx + pieceH * 0.75 && y >= fy - pieceH * 1.15 && y <= fy + 4) { onFlag(); return true; }
+      if (coverAt(goalFlag, fx, fy, proj, screen) === null && x >= fx - 4 && x <= fx + pieceH * 0.75 && y >= fy - pieceH * 1.15 && y <= fy + 4) { onFlag(); return true; }
     }
     /* Das Feld des Hauses: wählt das Startthema (wenn keine Säule davor steht). */
     if (world.home >= 0 && world.home < n && hit(x, y) === null) {
@@ -843,10 +858,15 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const [g1x, g1y] = toGround(d.cam, width, height, x, y);
     setCam(clamp({ ...camRef.current, cx: d.cam.cx - (g1x - g0x), cy: d.cam.cy - (g1y - g0y) }));
   };
-  const lastTap = useRef<{ at: number; x: number; y: number } | null>(null);
+  const lastTap = useRef<{ at: number; x: number; y: number; px: number } | null>(null);
   const up = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const d = drag.current;
     pointers.current.delete(e.pointerId);
+    /* 2026-11-05 (Durchsicht) — nach zwei Fingern einer: der Rest zieht von hier und vom Stand nach dem Kneifen weiter. */
+    if (pointers.current.size === 1 && d !== null && d.two !== null) {
+      const rest = [...pointers.current.values()][0]!;
+      drag.current = { ...d, x: rest.x, y: rest.y, cam: camRef.current, two: null, moved: true, orbit: false, vx: 0, vy: 0, t: performance.now() };
+    }
     if (pointers.current.size > 0) return;
     drag.current = null;
     if (d === null) return;
@@ -857,16 +877,17 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const t = hit(x, y);
       const now = performance.now();
       const double = lastTap.current !== null && now - lastTap.current.at < 380 && Math.hypot(lastTap.current.x - x, lastTap.current.y - y) < 12;
-      lastTap.current = { at: now, x, y };
+      const firstPx = lastTap.current?.px ?? px;
+      lastTap.current = { at: now, x, y, px };
       if (t === null) { onBackground(); return; }
       /* 2026-11-04 (Prompt 14) — ein Doppelklick auf ein Thema (nah): zum Lernen öffnen (stellt eine Figur darauf). */
-      if (double && px >= PICK_PX) { onStart(t); return; }
+      if (double && px >= PICK_PX && firstPx >= PICK_PX) { onStart(t); return; }
       if (double || px < PICK_PX) {
         /* Ein Gebiet (fern) oder ein Doppelklick: sanft auf das Gebiet, das hier hineinführt. */
         const chain = world.chain[t] ?? [];
         let target: string | null = null;
         for (const k of chain) { const r = world.regions.get(k); if (r !== undefined && fitCam(camRef.current, width, height, r.x, r.y, r.radius).s > camRef.current.s * 1.25) { target = k; break; } }
-        if (target !== null) { const c = regionCam(target); if (c !== null) { glide(c); return; } }
+        if (target !== null) { const c = regionCam(target); if (c !== null) { glide(c); lastTap.current = null; return; } }
         if (double) { glide(topicCam(t)); return; }
       }
       onPickTopic(t);

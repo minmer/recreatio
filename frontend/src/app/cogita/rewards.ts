@@ -17,9 +17,17 @@
  *
  * Mitgezählte Paare einer langen Liste (`lead`: die Antwort, mit der sie kamen) zählen für Karten, utrwalone Karten und
  * das Tagesziel in Karten — Punkte für die Antwort selbst, „nowa karta" und Serien gibt es nur einmal je Antwort.
+ *
+ * <b>2026-11-05 (Prompt 17) — Arten und Masse der Karte.</b> Jedes Abzeichen hat eine Art (`kind`, sonst aus dem Mass:
+ * `badgeKindOf`) — danach ordnet die Seite „Odznaki i poziomy" (`BadgesPage.tsx`). Drei Masse kommen nicht aus den
+ * Antworten allein, sondern aus dem Krajobraz (`regions` ganz gekonnte Gebiete der obersten Ebene, `map` Prozent der
+ * gekonnten Themen, `clean` Tage hintereinander ohne Überfälliges — `cleanDays`): `rewardState` nimmt sie als `extra`.
+ * Ein solches Abzeichen kommt, wenn das Mass die Schwelle hat; WANN es kam, merkt sich die Anwendung in den Werten des
+ * Lernenden (`~award.<id>`, `withAwards`, `Learner.keepAwards`) und gibt es als `awarded` zurück — so steht es zu seiner
+ * Zeit in den Ereignissen, auch bei der Lehrerin, die die Karte ihrer Klasse nicht misst.
  */
 
-import { gradeOf, step, type CardState } from './knowness';
+import { DEFAULT_SPACING, gradeOf, step, type CardState, type Spacing } from './knowness';
 import { dayAdd, dayStart } from './lessons';
 
 /* -- Die Regel ------------------------------------------------------------------------------------------------------ */
@@ -43,15 +51,30 @@ export const GOAL_UNITS = ['cards', 'answers', 'points', 'minutes'] as const;
 export type GoalUnit = (typeof GOAL_UNITS)[number];
 export const GOAL_UNIT_LABEL: Readonly<Record<GoalUnit, string>> = { cards: 'różnych kart', answers: 'odpowiedzi', points: 'punktów', minutes: 'minut nauki' };
 
-export const REWARD_MEASURES = ['points', 'streak', 'best', 'known', 'cards', 'answers', 'correct', 'days', 'combo', 'goals', 'level'] as const;
+export const REWARD_MEASURES = ['points', 'streak', 'best', 'known', 'cards', 'answers', 'correct', 'days', 'combo', 'goals', 'level', 'regions', 'map', 'clean'] as const;
 export type RewardMeasure = (typeof REWARD_MEASURES)[number];
 export const MEASURE_LABEL: Readonly<Record<RewardMeasure, string>> = {
   points: 'punkty', streak: 'dni serii', best: 'najdłuższa seria (dni)', known: 'utrwalone karty', cards: 'różne karty',
-  answers: 'odpowiedzi', correct: 'dobre odpowiedzi', days: 'dni nauki', combo: 'dobre z rzędu (najwięcej)', goals: 'dni z celem', level: 'poziom'
+  answers: 'odpowiedzi', correct: 'dobre odpowiedzi', days: 'dni nauki', combo: 'dobre z rzędu (najwięcej)', goals: 'dni z celem', level: 'poziom',
+  regions: 'zdobyte obszary mapy', map: 'poznana mapa (%)', clean: 'dni z rzędu bez zaległości'
 };
+
+/**
+ * 2026-11-05 (Prompt 17) — DIE MASSE DER KARTE: nicht aus den Antworten allein, sondern vom Krajobraz gemessen (er kennt die
+ * Karte; `mapMeasures.ts` merkt sich die letzten in diesem Browser) — ganz gekonnte Gebiete der obersten Ebene, Prozent
+ * (0–100) der gekonnten Themen, Tage hintereinander ohne Überfälliges (`cleanDays`).
+ */
+export const EXTRA_MEASURES = ['regions', 'map', 'clean'] as const;
+export type ExtraMeasure = (typeof EXTRA_MEASURES)[number];
+export type ExtraMeasures = Partial<Record<ExtraMeasure, number>>;
+export const isExtraMeasure = (m: string): m is ExtraMeasure => (EXTRA_MEASURES as readonly string[]).includes(m);
 
 export const BADGE_ICONS = ['star', 'flame', 'target', 'book', 'bolt', 'crown', 'medal', 'leaf', 'check', 'rocket'] as const;
 export type BadgeIcon = (typeof BADGE_ICONS)[number];
+
+/** 2026-11-05 (Prompt 17) — wofür ein Abzeichen steht; die Seite „Odznaki i poziomy" ordnet in dieser Folge. */
+export const BADGE_KINDS = ['start', 'consistency', 'accuracy', 'volume', 'goals', 'exploration'] as const;
+export type BadgeKind = (typeof BADGE_KINDS)[number];
 
 export interface RewardLevel {
   /** Ab wie vielen Punkten. */
@@ -68,6 +91,25 @@ export interface RewardBadge {
   readonly atLeast: number;
   /** Punkte dazu, wenn es kommt (meist 0). */
   readonly points: number;
+  /** 2026-11-05 (Prompt 17) — die Art; ohne sie folgt sie aus dem Mass (`badgeKindOf`). */
+  readonly kind?: BadgeKind;
+}
+
+/**
+ * 2026-11-05 (Prompt 17) — DIE ART EINES ABZEICHENS: die genannte, sonst aus dem Mass — kleine Schwellen der Anzahl (bis 10
+ * Antworten, die erste utrwalona oder erste Karte) sind der Anfang, grössere die Menge.
+ */
+export function badgeKindOf(b: Pick<RewardBadge, 'measure' | 'atLeast' | 'kind'>): BadgeKind {
+  if (b.kind !== undefined && (BADGE_KINDS as readonly string[]).includes(b.kind)) return b.kind;
+  switch (b.measure) {
+    case 'answers': return b.atLeast <= 10 ? 'start' : 'volume';
+    case 'known': case 'cards': return b.atLeast <= 1 ? 'start' : 'volume';
+    case 'points': return 'volume';
+    case 'streak': case 'best': case 'days': return 'consistency';
+    case 'correct': case 'combo': return 'accuracy';
+    case 'goals': case 'level': return 'goals';
+    case 'regions': case 'map': case 'clean': return 'exploration';
+  }
 }
 
 export interface RewardRules {
@@ -104,8 +146,9 @@ const DEFAULT_LEVELS: readonly RewardLevel[] = [
   { at: 1500, name: 'Mistrz' }, { at: 3000, name: 'Mędrzec' }, { at: 6000, name: 'Erudyta' }, { at: 12000, name: 'Legenda' }
 ];
 
-const b = (id: string, name: string, icon: BadgeIcon, measure: RewardMeasure, atLeast: number, says?: string): RewardBadge =>
-  ({ id, name, icon, measure, atLeast, points: 0, ...(says === undefined ? {} : { says }) });
+/* Die Folge der Schlüssel wie in `readRewards` — die eingebaute Regel liest sich unverändert zurück. */
+const b = (id: string, name: string, icon: BadgeIcon, measure: RewardMeasure, atLeast: number, kind: BadgeKind, says?: string): RewardBadge =>
+  ({ id, name, icon, measure, atLeast, points: 0, ...(says === undefined ? {} : { says }), kind });
 
 /** Die Regel, wenn nichts anderes gewählt ist — „Punkty, seria i poziomy". */
 export const DEFAULT_REWARDS: RewardRules = {
@@ -118,16 +161,21 @@ export const DEFAULT_REWARDS: RewardRules = {
   streak: { counts: 'goal', grace: 0, max: 10 },
   levels: DEFAULT_LEVELS,
   badges: [
-    b('pierwszy-krok', 'Pierwszy krok', 'star', 'answers', 1, 'Pierwsza odpowiedź.'),
-    b('dziesiec-dobrych', 'Dziesiątka', 'check', 'correct', 10, '10 dobrych odpowiedzi.'),
-    b('celny', 'Celny', 'bolt', 'combo', 10, '10 dobrych odpowiedzi z rzędu.'),
-    b('pierwsza-utrwalona', 'Pierwsza utrwalona', 'leaf', 'known', 1, 'Karta, którą pamiętasz co najmniej dzień.'),
-    b('piecdziesiat-utrwalonych', 'Pięćdziesiąt', 'book', 'known', 50, '50 utrwalonych kart.'),
-    b('trzy-dni', 'Trzy dni z rzędu', 'flame', 'streak', 3),
-    b('tydzien', 'Tydzień z rzędu', 'flame', 'streak', 7),
-    b('miesiac', 'Miesiąc z rzędu', 'crown', 'streak', 30),
-    b('cel-piec', 'Pięć celów', 'target', 'goals', 5, 'Cel dnia osiągnięty pięć razy.'),
-    b('tysiac', 'Tysiąc punktów', 'medal', 'points', 1000)
+    b('pierwszy-krok', 'Pierwszy krok', 'star', 'answers', 1, 'start', 'Pierwsza odpowiedź.'),
+    b('dziesiec-dobrych', 'Dziesiątka', 'check', 'correct', 10, 'accuracy', '10 dobrych odpowiedzi.'),
+    b('celny', 'Celny', 'bolt', 'combo', 10, 'accuracy', '10 dobrych odpowiedzi z rzędu.'),
+    b('pierwsza-utrwalona', 'Pierwsza utrwalona', 'leaf', 'known', 1, 'start', 'Karta, którą pamiętasz co najmniej dzień.'),
+    b('piecdziesiat-utrwalonych', 'Pięćdziesiąt', 'book', 'known', 50, 'volume', '50 utrwalonych kart.'),
+    b('trzy-dni', 'Trzy dni z rzędu', 'flame', 'streak', 3, 'consistency'),
+    b('tydzien', 'Tydzień z rzędu', 'flame', 'streak', 7, 'consistency'),
+    b('miesiac', 'Miesiąc z rzędu', 'crown', 'streak', 30, 'consistency'),
+    b('cel-piec', 'Pięć celów', 'target', 'goals', 5, 'goals', 'Cel dnia osiągnięty pięć razy.'),
+    b('tysiac', 'Tysiąc punktów', 'medal', 'points', 1000, 'volume'),
+    /* 2026-11-05 (Prompt 17) — vier für die Karte: sie zählen, sobald der Krajobraz die Masse kennt (`extra`). */
+    b('pierwszy-obszar', 'Pierwszy obszar zdobyty', 'rocket', 'regions', 1, 'exploration', 'Obszar mapy, który umiesz w całości.'),
+    b('pol-mapy', 'Pół mapy', 'target', 'map', 50, 'exploration', 'Umiesz połowę tematów mapy.'),
+    b('cala-mapa', 'Cała mapa', 'crown', 'map', 100, 'exploration', 'Umiesz wszystkie tematy mapy.'),
+    b('czysty-tydzien', 'Tydzień bez zaległości', 'check', 'clean', 7, 'exploration', 'Siedem dni z rzędu bez kart po terminie powtórki.')
   ]
 };
 
@@ -204,10 +252,13 @@ export function readRewards(raw: unknown): RewardRules {
       while (used.has(id)) id = `${id}-2`;
       used.add(id);
       const says = str(x.says).slice(0, 200);
+      /* 2026-11-05 (Prompt 17) — die Art nur, wenn es eine bekannte ist (sonst folgt sie aus dem Mass). */
+      const kind = str(x.kind);
       return [{
         id, name, icon: (BADGE_ICONS as readonly string[]).includes(str(x.icon)) ? (str(x.icon) as BadgeIcon) : 'star',
         measure: measure as RewardMeasure, atLeast: int(x.atLeast, 1, 1, 100_000_000), points: int(x.points, 0, 0, 10_000),
-        ...(says === '' ? {} : { says })
+        ...(says === '' ? {} : { says }),
+        ...((BADGE_KINDS as readonly string[]).includes(kind) ? { kind: kind as BadgeKind } : {})
       }];
     })
     : base.badges;
@@ -235,6 +286,7 @@ export function rewardsData(rules: RewardRules): Record<string, unknown> {
     goal: { ...rules.goal },
     streak: { ...rules.streak },
     levels: rules.levels.map((l) => ({ ...l })),
+    /* Mit `kind`, wenn genannt (2026-11-05, Prompt 17). */
     badges: rules.badges.map((x) => ({ ...x }))
   };
 }
@@ -344,8 +396,24 @@ export interface RewardState {
   /** Gute Antworten hintereinander jetzt (in der laufenden Sitzung). */
   readonly combo: number;
   readonly level: RewardLevelNow;
-  readonly badges: readonly { readonly badge: RewardBadge; readonly at: number | null; readonly value: number }[];
+  /**
+   * Jedes Abzeichen der Regel: wann es kam (`null`: noch nicht), der Wert seines Masses jetzt — und (2026-11-05, Prompt 17)
+   * ob das Mass bekannt ist (`false`: ein Mass der Karte, das hier niemand gemessen hat; der Wert ist dann 0).
+   */
+  readonly badges: readonly { readonly badge: RewardBadge; readonly at: number | null; readonly value: number; readonly measured: boolean }[];
   readonly measures: Readonly<Record<RewardMeasure, number>>;
+}
+
+/** Was `rewardState` ausser den Antworten nimmt. */
+export interface RewardOptions {
+  /** Nur Karten dieses Ortes zählen (eine Powtórka). */
+  readonly keys?: ReadonlySet<string>;
+  /** Zusammengeführte Einträge zählen als einer. */
+  readonly rename?: (key: string) => string;
+  /** 2026-11-05 (Prompt 17) — die Masse der Karte, soweit bekannt (`mapMeasures.ts`); was fehlt, ist nicht gemessen. */
+  readonly extra?: ExtraMeasures;
+  /** 2026-11-05 (Prompt 17) — wann ein Abzeichen eines Masses der Karte zuerst kam (`awardsOf` der Werte des Lernenden). */
+  readonly awarded?: Readonly<Record<string, number>>;
 }
 
 const MINUTE = 60_000;
@@ -373,9 +441,10 @@ export function levelAt(levels: readonly RewardLevel[], total: number): RewardLe
 
 /**
  * DIE NAGRODY EINES LERNENDEN — aus seinen Antworten und einer Regel, zum Zeitpunkt `now`. `keys`: nur Karten dieses
- * Ortes zählen (eine Powtórka); `rename`: zusammengeführte Einträge zählen als einer.
+ * Ortes zählen (eine Powtórka); `rename`: zusammengeführte Einträge zählen als einer. 2026-11-05 (Prompt 17): `extra`
+ * die Masse der Karte, `awarded` die gemerkten Daten ihrer Abzeichen — ohne beide genau wie vorher.
  */
-export function rewardState(answers: Iterable<RewardAnswer>, rules: RewardRules, now: number, { keys, rename }: { keys?: ReadonlySet<string>; rename?: (key: string) => string } = {}): RewardState {
+export function rewardState(answers: Iterable<RewardAnswer>, rules: RewardRules, now: number, { keys, rename, extra, awarded }: RewardOptions = {}): RewardState {
   const list: RewardAnswer[] = [];
   for (const a of answers) {
     if (!Number.isFinite(a.at) || a.at > now + MINUTE) continue;
@@ -404,6 +473,11 @@ export function rewardState(answers: Iterable<RewardAnswer>, rules: RewardRules,
   let best = 0;
   let levelIdx = -1;
   const earned = new Map<string, number>();
+  /* 2026-11-05 (Prompt 17) — ein Mass der Karte: bekannt nur als endliche Zahl. */
+  const extraOf = (m: ExtraMeasure): number | undefined => {
+    const v = extra?.[m];
+    return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+  };
 
   const measure = (m: RewardMeasure): number => {
     switch (m) {
@@ -418,6 +492,7 @@ export function rewardState(answers: Iterable<RewardAnswer>, rules: RewardRules,
       case 'combo': return bestCombo;
       case 'goals': return goals;
       case 'level': return levelIdx + 1;
+      case 'regions': case 'map': case 'clean': return extraOf(m) ?? 0;
     }
   };
 
@@ -437,7 +512,8 @@ export function rewardState(answers: Iterable<RewardAnswer>, rules: RewardRules,
         changed = true;
       }
       for (const badge of rules.badges) {
-        if (earned.has(badge.id) || measure(badge.measure) < badge.atLeast) continue;
+        /* Die Abzeichen der Karte kommen nicht aus den Antworten (`award` unten). */
+        if (isExtraMeasure(badge.measure) || earned.has(badge.id) || measure(badge.measure) < badge.atLeast) continue;
         earned.set(badge.id, at);
         emit({ id: `b:${badge.id}`, kind: 'badge', at, points: badge.points, badge: badge.id });
         changed = true;
@@ -446,10 +522,40 @@ export function rewardState(answers: Iterable<RewardAnswer>, rules: RewardRules,
     }
   };
 
+  /*
+   * 2026-11-05 (Prompt 17) — DIE ABZEICHEN DER KARTE: erreicht, wenn das Mass die Schwelle hat, oder schon früher gemerkt
+   * (`awarded` — das zählt auch ohne Mass: die Lehrerin misst die Karte ihrer Klasse nicht). Sie stehen zu ihrer Zeit
+   * (gemerkt, sonst jetzt) zwischen den Ereignissen der Antworten — ihre Punkte gehen in die Summe danach, und was sie
+   * bringen (eine Stufe, ein Abzeichen der Punkte), kommt zur selben Zeit.
+   */
+  const pending: { readonly badge: RewardBadge; readonly at: number }[] = [];
+  for (const badge of rules.badges) {
+    if (!isExtraMeasure(badge.measure)) continue;
+    const kept = awarded?.[badge.id];
+    const value = extraOf(badge.measure);
+    if (typeof kept === 'number' && Number.isFinite(kept)) pending.push({ badge, at: Math.min(kept, now) });
+    else if (value !== undefined && value >= badge.atLeast) pending.push({ badge, at: now });
+  }
+  /* Stabil: gleiche Zeiten in der Folge der Regel. */
+  pending.sort((x, y) => x.at - y.at);
+  let nextAward = 0;
+  /** Die Abzeichen der Karte vor `before` (dieselbe Zeit wie eine Antwort: nach ihr). */
+  const award = (before: number): void => {
+    while (nextAward < pending.length && pending[nextAward]!.at < before) {
+      const { badge, at } = pending[nextAward]!;
+      nextAward += 1;
+      earned.set(badge.id, at);
+      emit({ id: `b:${badge.id}`, kind: 'badge', at, points: badge.points, badge: badge.id });
+      settle(at);
+    }
+  };
+
   const unitOf = (d: Day): number => (rules.goal.unit === 'cards' ? d.cards.size : rules.goal.unit === 'answers' ? d.answers : rules.goal.unit === 'points' ? d.points : Math.floor(d.ms / MINUTE));
 
+  award(list[0]?.at ?? now);
   settle(list[0]?.at ?? now);
   for (const a of list) {
+    award(a.at);
     const key = rename === undefined ? a.key : rename(a.key);
     const dayAt = dayStart(a.at);
     let d = days.get(dayAt);
@@ -510,6 +616,8 @@ export function rewardState(answers: Iterable<RewardAnswer>, rules: RewardRules,
     }
     settle(a.at);
   }
+  /* Was nach der letzten Antwort kam (meist: jetzt). */
+  award(Number.POSITIVE_INFINITY);
 
   const today = dayStart(now);
   const alive = lastCounted !== null && daysBetween(lastCounted, today) <= rules.streak.grace + 1;
@@ -528,9 +636,111 @@ export function rewardState(answers: Iterable<RewardAnswer>, rules: RewardRules,
     best,
     combo: now - lastLead > SITTING_GAP ? 0 : combo,
     level: levelAt(rules.levels, total),
-    badges: rules.badges.map((badge) => ({ badge, at: earned.get(badge.id) ?? null, value: measures[badge.measure] })),
+    badges: rules.badges.map((badge) => ({
+      badge, at: earned.get(badge.id) ?? null, value: measures[badge.measure],
+      measured: !isExtraMeasure(badge.measure) || extraOf(badge.measure) !== undefined
+    })),
     measures
   };
+}
+
+/* -- 2026-11-05 (Prompt 17): Tage ohne Überfälliges, die Daten der Abzeichen der Karte, die Rahmen der Stufen ---------- */
+
+/** So viele Tage zählt `cleanDays` höchstens zurück. */
+export const CLEAN_DAYS_MAX = 60;
+
+/**
+ * TAGE HINTEREINANDER OHNE ÜBERFÄLLIGES, bis heute: an jedem war am Ende des Tages (heute: jetzt) keine beantwortete Karte
+ * überfällig (ihr Termin `at + interval` aus `step` mit diesen Abständen lag nicht davor). Die Reihe endet am ersten Tag
+ * mit einer überfälligen Karte und vor der allerersten Antwort; höchstens `CLEAN_DAYS_MAX` Tage. Je Karte einmal ihre
+ * Zustände, dann rückwärts durch die Tage: O(Antworten + Karten × Tage).
+ */
+export function cleanDays(cards: readonly { key: string }[], marksOf: (key: string) => readonly { at: number; correctness: number }[], now: number, spacing: Spacing = DEFAULT_SPACING): number {
+  const today = dayStart(now);
+  /* Das Ende jedes Tages, heute zuerst: heute jetzt, gestern der Anfang von heute, vorgestern der Anfang von gestern … */
+  const ends: number[] = [now];
+  for (let i = 0; i < CLEAN_DAYS_MAX - 1; i += 1) ends.push(dayAdd(today, -i));
+  const overdue = new Array<boolean>(ends.length).fill(false);
+  let first = Number.POSITIVE_INFINITY;
+  for (const card of cards) {
+    const marks = marksOf(card.key).filter((m) => Number.isFinite(m.at) && m.at <= now).sort((x, y) => x.at - y.at);
+    if (marks.length === 0) continue;
+    first = Math.min(first, marks[0]!.at);
+    const states: CardState[] = [];
+    let state: CardState | null = null;
+    for (const m of marks) { state = step(state, m, spacing); states.push(state); }
+    let j = states.length - 1;
+    for (let d = 0; d < ends.length; d += 1) {
+      const end = ends[d]!;
+      /* Was am Ende des Tages galt: die Antworten davor (heute: alle bis jetzt). */
+      if (d > 0) while (j >= 0 && marks[j]!.at >= end) j -= 1;
+      /* Vor ihrer ersten Antwort ist eine Karte nie überfällig — an keinem früheren Tag. */
+      if (j < 0) break;
+      const s = states[j]!;
+      if (s.at + s.interval < end) overdue[d] = true;
+    }
+  }
+  if (first === Number.POSITIVE_INFINITY) return 0;
+  let n = 0;
+  for (let d = 0; d < ends.length; d += 1) {
+    /* Ein Tag, der vor der ersten Antwort endete, zählt nicht mehr (heute zählt immer, wenn nichts überfällig ist). */
+    if (overdue[d] || (d > 0 && ends[d]! <= first)) break;
+    n += 1;
+  }
+  return n;
+}
+
+/** Unter diesem Zeichen stehen in den Werten des Lernenden die Daten der Abzeichen der Karte (`~`: Werte der Anwendung). */
+export const AWARD_PREFIX = '~award.';
+
+/** Die gemerkten Daten: Abzeichen → wann es zuerst kam. */
+export function awardsOf(values: Readonly<Record<string, number>> | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (values === undefined) return out;
+  for (const [k, v] of Object.entries(values)) {
+    if (k.length > AWARD_PREFIX.length && k.startsWith(AWARD_PREFIX) && typeof v === 'number' && Number.isFinite(v)) out[k.slice(AWARD_PREFIX.length)] = v;
+  }
+  return out;
+}
+
+/** Die Werte mit diesen Daten dazu — ein schon gemerktes Abzeichen behält das früheste Datum. */
+export function withAwards(values: Readonly<Record<string, number>>, add: Readonly<Record<string, number>>): Record<string, number> {
+  const next: Record<string, number> = { ...values };
+  for (const [id, at] of Object.entries(add)) {
+    if (id === '' || typeof at !== 'number' || !Number.isFinite(at)) continue;
+    const key = `${AWARD_PREFIX}${id}`;
+    const had = next[key];
+    if (had === undefined || !Number.isFinite(had) || at < had) next[key] = at;
+  }
+  return next;
+}
+
+/**
+ * WAS DIE ANWENDUNG MERKEN SOLL: die Abzeichen der Karte, deren Mass jetzt die Schwelle hat und die noch kein Datum haben —
+ * mit dem Datum `at` (wann gemessen). Für `Learner.keepAwards`, gleich nachdem der Krajobraz misst.
+ */
+export function freshAwards(rules: RewardRules, extra: ExtraMeasures | undefined, awarded: Readonly<Record<string, number>> | undefined, at: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (extra === undefined) return out;
+  for (const badge of rules.badges) {
+    if (!isExtraMeasure(badge.measure) || awarded?.[badge.id] !== undefined) continue;
+    const v = extra[badge.measure];
+    if (typeof v === 'number' && Number.isFinite(v) && v >= badge.atLeast) out[badge.id] = at;
+  }
+  return out;
+}
+
+/** Der Rahmen einer Stufe: 0 schlicht, 1 Bronze, 2 Silber, 3 Gold, 4 Diamant. */
+export type LevelFrame = 0 | 1 | 2 | 3 | 4;
+
+/**
+ * DIE RAHMEN DER STUFEN, je Rang: die erste schlicht, die oberste (ab drei Stufen) Diamant, dazwischen gleich verteilt
+ * Bronze, Silber, Gold — bei den acht eingebauten 0 1 1 2 2 3 3 4.
+ */
+export function levelFrame(index: number, count: number): LevelFrame {
+  if (index <= 0 || count < 2) return 0;
+  if (index >= count - 1 && count >= 3) return 4;
+  return Math.max(1, Math.min(3, 1 + Math.floor(((index - 1) * 3) / Math.max(1, count - 2)))) as LevelFrame;
 }
 
 /* -- Für die Anzeige ------------------------------------------------------------------------------------------------- */

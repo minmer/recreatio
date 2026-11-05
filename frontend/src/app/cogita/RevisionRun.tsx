@@ -37,8 +37,12 @@ import { TexText } from '../ui/tex/Tex';
 import { DailyGoal } from './DailyGoal';
 import { LessonSummary, MissedCards } from './LessonEnd';
 import { EMPTY_LOG, logAnswer, logSummary, logTick, nextLesson, type Missed, type RunLog } from './lessons';
-import type { RewardRules } from './rewards';
-import { RewardBoard, RewardHud } from './RewardViews';
+import { DEFAULT_REWARDS, type RewardRules } from './rewards';
+import { RewardBoard, RewardHud, RewardIcon } from './RewardViews';
+import { freshlyKnown } from './knownNow';
+import { motionWords } from './motionWords';
+import { celebrateKnown } from './rewardBus';
+import { SessionSummary } from './SessionSummary';
 
 /* 2026-10-31 — die Statystyki am Ende einer Powtórka: erst geladen, wenn man sie aufklappt. */
 const RunStats = later(() => import('./KnowCharts').then((m) => m.KnowledgeStats));
@@ -67,7 +71,7 @@ export async function planFor(lib: CogitaLibrary, revisionId: string, learner: L
   return { plan, problems: result.problems, cards };
 }
 
-export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone, closing }: {
+export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone, closing, backToMap }: {
   lib: CogitaLibrary | null;
   source: RunSource;
   learner: Learner | null;
@@ -104,6 +108,8 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
    * verlangt hat, der nächste Schritt zum Ziel, die Karte). Ohne: was diese Powtórka freigeschaltet hat, zum Üben hier.
    */
   closing?: Closing;
+  /** 2026-11-05 (Prompt 17) — zurück zur Landschaft (sie spielt dort ab, was sich änderte): „Wróć do mapy” am Ende. */
+  backToMap?: () => void;
 }) {
   const ctx = useContext(CogitaContext);
   /*
@@ -123,6 +129,10 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   const [state, setState] = useState<{ session: Session; all: readonly Card[] } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [stats, setStats] = useState({ answered: 0, correct: 0 });
+  /* 2026-11-05 (Prompt 17) — gute Antworten hintereinander in diesem Lauf („5 z rzędu”) und wann er begann (das Ende rechnet ab dort). */
+  const [inRow, setInRow] = useState(0);
+  const startedAt = useRef(Date.now());
+  const MW = motionWords(lib === null ? 'pl' : baseLang(lib));
   const [due, setDue] = useState<{ next: number | null; count: number } | null>(null);
   /* Die nächste Stelle des Laufs — erst nach „Dalej", damit das Urteil stehen bleibt. */
   const [pending, setPending] = useState<Session | null>(null);
@@ -246,6 +256,8 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
     setState(null);
     setFailed(null);
     setStats({ answered: 0, correct: 0 });
+    setInRow(0);
+    startedAt.current = Date.now();
     setDue(null);
     setStopped(false);
     setLog(EMPTY_LOG);
@@ -379,6 +391,11 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
     return (
       <section className="cg-face" data-run-end={ownEnd ? 'complete' : 'stopped'}>
         <h2 data-run-end-title="">{ownEnd ? W.runDone(askedKeys.current.size) : W.runStopped}</h2>
+        {/* 2026-11-05 (Prompt 17) — das Ende in einer Karte: Karten, richtig, Punkte, Themen, Wiederholungen, Tagesziel — und zur Karte. */}
+        {stats.answered > 0 && (
+          <SessionSummary learner={learner} cards={state.all} asked={[...askedKeys.current]} startedAt={startedAt.current} answered={stats.answered} correct={stats.correct}
+            rewards={rewards} rename={rename} spacing={spacingFor(lib, learner)} onBackToMap={backToMap ?? null} MW={MW} />
+        )}
         {ownEnd && lib !== null && (
           <RunClosing lib={lib} learner={learner} cards={state.all} asked={[...askedKeys.current]} closing={closing} W={W}
             onPractise={(id) => setPractice({ plan: readPlan(cardsAbout(state.all, id), { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true }), title: lib.label(lib.entity(id)!) })}
@@ -481,6 +498,8 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
               <span className="cg-muted">{p.total === null ? `${p.answered} odpowiedzi` : `${p.answered} z ${p.total}`}</span>
             </>
           )}
+          {/* 2026-11-05 (Prompt 17) — ab drei guten hintereinander ein leiser Zähler; bei 5, 10, 20 leuchtet er kurz. */}
+          {inRow >= 3 && <span key={inRow} className={`cg-run-streak${inRow === 5 || inRow === 10 || inRow === 20 ? ' is-glow' : ''}`} data-run-streak={inRow}><RewardIcon name="flame" />{MW.inRow(inRow)}</span>}
           <button type="button" className="wk-link-btn" data-run-stop="" onClick={() => { void learner?.flush(); setLog((l) => logTick(l, Date.now())); setStopped(true); }}>Zakończ</button>
         </span>
       </div>
@@ -524,6 +543,9 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
           tally.current.set(card.key, { asked: had.asked + 1, wrong: had.wrong + (outcome.correct ? 0 : 1) });
           onAnswer?.(card, outcome.correctness, given);
           setStats((s) => ({ answered: s.answered + 1, correct: s.correct + (outcome.correct ? 1 : 0) }));
+          setInRow((n) => (outcome.correct ? n + 1 : 0));
+          /* 2026-11-05 (Prompt 17) — eben utrwalona (wie „utrwalona karta” der Punkte): die Karte zeigt es einmal. */
+          if (learner !== null && outcome.correct && freshlyKnown(learner.marks(asked.key, asked.fingerprint, rename), (rewards ?? DEFAULT_REWARDS).known.days)) celebrateKnown(asked.key);
           /* 2026-11-01 — für das Ende: die erste Antwort je Karte, was nicht sass, die Zeit. */
           setLog((l) => logAnswer(l, card.key, outcome, Date.now()));
           setPending(answer(session, q, Date.now(), others.map((p) => ({ key: p.card.key, correctness: p.correctness }))).session);

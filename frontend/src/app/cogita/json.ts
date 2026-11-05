@@ -1656,6 +1656,9 @@ ${kindsSection()}
     zapis tekstu w akapicie i w polach "markup" (ten sam co w Skryptorium): akapity oddziela pusta linia, "## śródtytuł", **pogrubienie**, *kursywa*, [opis](https://…), ^[przypis], "> cytat", "- punkt";
     [[słowo|@wpis]] — link do wpisu (tej bazy, innej bazy albo biblioteki) z tymi słowami; nigdy przypis;
     [@dzielo, s. 23] — źródło: dzieło, cytat, osoba z biblioteki staje się przypisem; ten sam zapis na wypowiedź, wpis czy tekst daje w tekście link „(zob. etykieta)”
+    CYTAT — osobny akapit, każda linia od "> "; słowa w cudzysłowie, źródło jako przypis na końcu słów; ostatnia linia od "> — " to podpis (kto mówi) pod cytatem:
+      "> „Wszystkie następne lata zostały głęboko naznaczone tym snem.” [@bosco-biografia, s. 5]\\n> — Teresio Bosco"
+      — pokazany jako wyróżniony blok z podpisem; NIGDY „**Cytat (T. Bosco):** „…”” w zwykłym akapicie (wtedy to zwykły tekst); przypisy zbierają się same pod tekstem — nie pisz ich ręcznie ani listy „Przypisy”
 ${questionSection()}
     "interactive" — rysunek do poruszania: "drawing" (ten sam JSON co moduł strony „Animacja”: vars, let, sim, controls, rules z "goal": true, world, elements — jako tekst JSON),
     "goal" (wyrażenie celu, np. "abs(x - cel) < 0.5 && y <= 0"; puste — reguły rysunku z "goal"), "solution" ("kat = 45; v0 = sqrt(cel*g)" — rachunek z wartościami rysunku; w świecie także "w2.pos = 5"; puste — "task.solve" rysunku, a jego "task" losuje przy każdej próbie zadanie tak samo trudne);

@@ -185,6 +185,8 @@ button.lib-chip { cursor: pointer; }
 h4.lib-h { font-size: var(--wk-text-lg); }
 h5.lib-h { font-size: var(--wk-text-md); font-style: italic; }
 .lib-blockquote { margin: 0; padding: 0.125rem 0 0.125rem 1rem; border-left: 3px solid var(--wk-line); color: var(--wk-ink); display: grid; gap: 0.5rem; }
+/* 2026-11-05 — der Autor eines Zitats („> — T. Bosco, s. 5"): abgesetzt, nicht kursiv, rechts. */
+.lib-quote-by { margin: 0; font-style: normal; font-size: var(--wk-text-sm); color: var(--wk-muted); text-align: right; }
 .lib-hr { border: 0; border-top: 1px solid var(--wk-line); width: 30%; margin: 0.5rem auto; }
 .lib-missing { color: var(--wk-danger); font-family: "Segoe UI", system-ui, sans-serif; font-size: var(--wk-text-sm); }
 .lib-fnref { font-family: "Segoe UI", system-ui, sans-serif; font-size: 0.68em; line-height: 0; margin-left: 0.08em; }

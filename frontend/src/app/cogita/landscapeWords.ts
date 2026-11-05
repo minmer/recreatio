@@ -55,7 +55,7 @@ export function landscapeWords(lang: Lang) {
     zoomIn: L('Przybliż', 'Vergrößern', 'Zoom in'),
     zoomOut: L('Oddal', 'Verkleinern', 'Zoom out'),
     up: L('Wyżej', 'Hinauf', 'Up'),
-    rotate: L('Obróć o 60°', 'Um 60° drehen', 'Rotate by 60°'),
+    rotate: L('Obróć o 45°', 'Um 45° drehen', 'Rotate by 45°'),
     /* 2026-11-04 (Prompt 12) — was ein Klick tut (Hinweis beim Zeigen), was als Nächstes geht */
     hintZoom: L('przybliż', 'hineinzoomen', 'zoom in'),
     hintSelect: L('wybierz', 'auswählen', 'select'),
@@ -114,6 +114,7 @@ export function landscapeWords(lang: Lang) {
     legendOpens: L('co otwiera (jaśniej)', 'was es öffnet (heller)', 'what it opens (lighter)'),
     /* 2026-11-05 — über einem Lauf (Powtórka, Erzählung) aus dem Krajobraz: zurück zur Karte; die Antworten bleiben. */
     backToMap: L('‹ Wróć do mapy', '‹ Zurück zur Karte', '‹ Back to the map'),
+    mapShort: L('Mapa', 'Karte', 'Map'),
     /* 2026-11-05 — von einem begonnenen Feld zurücktreten: die Figur geht (die Antworten bleiben). */
     resignPiece: L('Zrezygnuj — zdejmij pionek', 'Aufgeben — Figur wegnehmen', 'Give up — remove the piece'),
     resignGoal: L('Zrezygnuj z tego celu', 'Dieses Ziel aufgeben', 'Give up this goal'),

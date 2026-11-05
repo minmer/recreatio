@@ -310,7 +310,7 @@ function FlowsTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   if (flow !== null && (trail[1] === 'graj' || !writes)) {
     if (content === null) return <p className="wk-hint">Przygotowywanie…</p>;
     /* 2026-11-04 — je Ablauf ein eigener Spieler: von einer Erzählung direkt zur nächsten bleibt nichts vom Stand der vorigen. */
-    return <FlowPlayer key={flow.id} flow={flow} content={content} learner={learner} onClose={() => go(writes ? 'przebiegi' : 'nauka')} jumpTo={jump} />;
+    return <FlowPlayer key={flow.id} flow={flow} content={content} learner={learner} onClose={() => go(writes ? 'przebiegi' : 'nauka')} backLabel={writes ? 'Przebiegi' : 'Nauka'} jumpTo={jump} />;
   }
   if (!writes) {
     return (

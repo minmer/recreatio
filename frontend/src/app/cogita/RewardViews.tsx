@@ -14,11 +14,18 @@
  * höfliche Live-Region einmal.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { plural } from '../core/plural';
+import { viewPath } from '../routes';
+import { motionLevel } from '../ui/motion';
+import { baseLang } from './lang';
 import type { Learner } from './learn';
-import { eventText, freshEvents, GOAL_UNIT_LABEL, lastDays, rewardState, type BadgeIcon, type RewardDay, type RewardEvent, type RewardRules, type RewardState } from './rewards';
+import { motionWords, type MotionWords } from './motionWords';
+import { answerSource, flyPoints } from './rewardBus';
+import { eventText, freshEvents, GOAL_UNIT_LABEL, lastDays, levelAt, rewardState, type BadgeIcon, type RewardDay, type RewardEvent, type RewardRules, type RewardState } from './rewards';
+import { pushToasts, type RewardToast } from './RewardToasts';
+import { CogitaContext } from './ui';
 import './rewards.css';
 
 /* -- Was eine Tafel zeigt --------------------------------------------------------------------------------------------- */
@@ -39,7 +46,8 @@ const TIME = new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '2-digi
 const WEEKDAY = new Intl.DateTimeFormat('pl-PL', { weekday: 'narrow' });
 const DAY_NAME = new Intl.DateTimeFormat('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
 
-const reducedMotion = (): boolean => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* 2026-11-05 (Prompt 17) — die Wahl „Animacje" des Geräts (sonst das Betriebssystem): ograniczone und wyłączone zählen nicht hoch. */
+const reducedMotion = (): boolean => motionLevel() !== 'full';
 const days = (n: number) => `${n} ${plural(n, 'dzień', 'dni', 'dni')}`;
 const pointsWord = (n: number) => plural(n, 'punkt', 'punkty', 'punktów');
 
@@ -90,9 +98,9 @@ export function useRewards(learner: Learner | null, rules: RewardRules, { keys, 
 /* -- Kleine Bausteine -------------------------------------------------------------------------------------------------- */
 
 /** Eine Zahl, die zu ihrem neuen Wert hochzählt (ohne Bewegung: sofort). */
-function CountUp({ value, className }: { value: number; className?: string }) {
-  const [shown, setShown] = useState(value);
-  const now = useRef(value);
+export function CountUp({ value, className, from }: { value: number; className?: string; /** 2026-11-05 (Prompt 17) — von hier zählen (sonst steht der Wert gleich da). */ from?: number }) {
+  const [shown, setShown] = useState(from ?? value);
+  const now = useRef(from ?? value);
   useEffect(() => {
     const start = now.current;
     if (start === value) return undefined;
@@ -182,6 +190,8 @@ function GoalRing({ now, goal, size = 'md', pop }: { now: number; goal: number; 
         <circle ref={ref} className="cg-rw-ring-fill" cx={18} cy={18} r={r} strokeDasharray={c.toFixed(2)} />
       </svg>
       <span className="cg-rw-ring-text">{met ? <svg viewBox="0 0 24 24" className="cg-rw-tick" aria-hidden focusable="false" data-rw-tick=""><path d="M5 12.5l4.5 4.5L19 7.5" /></svg> : <>{Math.min(now, goal)}<small>/{goal}</small></>}</span>
+      {/* 2026-11-05 (Prompt 17) — eben erreicht: der Ring schliesst sich zum Haken, ein kurzer Funkenkranz. */}
+      {met && pop && <span className="cg-rw-burst is-ring" aria-hidden>{Array.from({ length: 8 }, (_, i) => <i key={i} />)}</span>}
     </span>
   );
 }
@@ -199,39 +209,39 @@ const FLOAT_ICON: Partial<Record<RewardEvent['kind'], BadgeIcon>> = { streak: 'f
 
 type FloatItem = { readonly id: string; readonly points: number; readonly text: string; readonly kind: string; readonly icon: BadgeIcon };
 
-/** Die Blasen einer Gruppe: EINE für die Punkte (ihr wichtigster Grund im Wort), dazu je eine für Stufe und Abzeichen. */
-function floatsOf(fresh: Fresh, rules: RewardRules): FloatItem[] {
+/**
+ * Die Blase einer Gruppe: EINE für die Punkte (ihr wichtigster Grund im Wort). 2026-11-05 (Prompt 17): Stufe und Abzeichen
+ * sind Meldungen am Rand (`RewardToasts.tsx`); flogen die Punkte eben von der Antwort zum Zähler, gibt es keine Blase.
+ */
+function floatsOf(fresh: Fresh, rules: RewardRules, flown: boolean): FloatItem[] {
   const out: FloatItem[] = [];
   const paid = fresh.events.filter((e) => e.points > 0 && e.kind !== 'level' && e.kind !== 'badge');
-  if (paid.length > 0) {
+  if (paid.length > 0 && !flown) {
     const top = RANK.find((k) => paid.some((e) => e.kind === k)) ?? 'answer';
     const lead = paid.find((e) => e.kind === top)!;
     const text = top === 'answer' ? eventText(lead, rules) : top === 'combo' || top === 'streak' ? eventText(lead, rules) : SHORT[top] ?? eventText(lead, rules);
     out.push({ id: `p${fresh.seq}`, points: paid.reduce((s, e) => s + e.points, 0), text, kind: top, icon: FLOAT_ICON[top] ?? 'star' });
   }
-  for (const e of fresh.events) {
-    if (e.kind === 'level') out.push({ id: e.id, points: 0, text: eventText(e, rules), kind: 'level', icon: 'crown' });
-    else if (e.kind === 'badge') out.push({ id: e.id, points: e.points, text: eventText(e, rules), kind: 'badge', icon: rules.badges.find((x) => x.id === e.badge)?.icon ?? 'medal' });
-  }
   return out;
 }
 
 /**
- * „+N", das in der Ecke aufsteigt und vergeht — je Antwort eine Blase (alle Punkte zusammen), eine neue Stufe und ein
- * neues Abzeichen eigens. Höchstens `max` stehen zugleich (die neuesten); in einer Zeile nur eine.
+ * „+N", das in der Ecke aufsteigt und vergeht — je Antwort eine Blase (alle Punkte zusammen). Höchstens `max` stehen
+ * zugleich (die neuesten); in einer Zeile nur eine.
  */
-function Floaters({ fresh, rules, max = 3 }: { fresh: Fresh; rules: RewardRules; max?: number }) {
+function Floaters({ fresh, rules, max = 3, flown = false }: { fresh: Fresh; rules: RewardRules; max?: number; flown?: boolean }) {
   const [items, setItems] = useState<readonly FloatItem[]>([]);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
   useEffect(() => () => { for (const t of timers.current) clearTimeout(t); }, []);
   useEffect(() => {
     if (fresh.seq === 0 || fresh.events.length === 0) return;
-    const made = floatsOf(fresh, rules);
+    const made = floatsOf(fresh, rules, flown);
     if (made.length === 0) return;
     /* In einer Zeile nur eine Blase: die der Punkte (sie trägt die Antwort); sonst die neuesten. */
     setItems((was) => (max === 1 ? made.slice(0, 1) : [...was.filter((x) => !made.some((m) => m.id === x.id)), ...made].slice(-max)));
     const t = setTimeout(() => { timers.current.delete(t); setItems((was) => was.filter((x) => !made.includes(x))); }, reducedMotion() ? 3000 : 2400);
     timers.current.add(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `flown` gehört zu derselben Gruppe
   }, [fresh, rules, max]);
   return (
     <div className="cg-rw-floaters" aria-live="polite" data-rw-floaters={items.length}>
@@ -269,25 +279,27 @@ function DayStrip({ list, today, seq, live }: { list: readonly RewardDay[]; toda
 
 /* -- Die Teile der Tafel ----------------------------------------------------------------------------------------------- */
 
-function PointsPart({ state, fresh, hero }: { state: RewardState; fresh: Fresh; hero: boolean }) {
+function PointsPart({ state, fresh, hero, shownTotal, counter }: { state: RewardState; fresh: Fresh; hero: boolean; shownTotal: number; counter: (el: HTMLElement | null) => void }) {
   const bump = useFlash(fresh.events.some((e) => e.points > 0), fresh.seq, 900);
   return (
     <section className={`cg-rw-part cg-rw-points${hero ? ' is-hero' : ''}${bump ? ' is-bump' : ''}`} data-rw-part="points">
       <span className="cg-rw-label"><RewardIcon name="star" className="is-star" />Punkty</span>
-      <CountUp value={state.total} className="cg-rw-big" />
+      <span ref={counter} className="cg-rw-counter" data-rw-counter=""><CountUp value={shownTotal} className="cg-rw-big" /></span>
       <span className="cg-rw-sub">dziś +{NUM.format(state.today.points + state.events.filter((e) => e.at >= state.today.day && (e.kind === 'goal' || e.kind === 'streak' || e.kind === 'badge')).reduce((s, e) => s + e.points, 0))}</span>
     </section>
   );
 }
 
-function LevelPart({ state, fresh }: { state: RewardState; fresh: Fresh }) {
+function LevelPart({ state, fresh, onOpen }: { state: RewardState; fresh: Fresh; onOpen?: () => void }) {
   const up = useFlash(fresh.events.some((e) => e.kind === 'level'), fresh.seq, 2200);
   const l = state.level;
   if (state.rules.levels.length === 0) return null;
   return (
     <section className={`cg-rw-part cg-rw-level${up ? ' is-up' : ''}`} data-rw-part="level" data-rw-level={l.index + 1}>
       <span className="cg-rw-label"><RewardIcon name="crown" className="is-crown" />Poziom {l.index + 1}</span>
-      <strong className="cg-rw-level-name">{l.name ?? '—'}</strong>
+      {/* 2026-11-05 (Prompt 17) — die Stufe antippen: „Odznaki i poziomy". */}
+      {onOpen === undefined ? <strong className="cg-rw-level-name">{l.name ?? '—'}</strong>
+        : <button type="button" className="cg-rw-level-name cg-rw-open" onClick={onOpen} data-rw-open="level">{l.name ?? '—'}</button>}
       <Meter value={l.share} label={l.next === null ? 'Najwyższy poziom' : `Do poziomu „${l.next.name}”`} />
       <span className="cg-rw-sub">{l.next === null ? 'najwyższy poziom' : `do „${l.next.name}”: ${NUM.format(Math.max(0, l.next.at - state.total))} pkt`}</span>
       {up && <span className="cg-rw-burst" aria-hidden>{Array.from({ length: 8 }, (_, i) => <i key={i} />)}</span>}
@@ -330,7 +342,7 @@ function GoalPart({ state, fresh, hero }: { state: RewardState; fresh: Fresh; he
   );
 }
 
-function BadgesPart({ state, fresh, all }: { state: RewardState; fresh: Fresh; all: boolean }) {
+function BadgesPart({ state, fresh, all, onOpen }: { state: RewardState; fresh: Fresh; all: boolean; onOpen?: () => void }) {
   const newIds = new Set(fresh.events.filter((e) => e.kind === 'badge').map((e) => e.badge));
   const pop = useFlash(newIds.size > 0, fresh.seq, 2000);
   if (state.badges.length === 0) return null;
@@ -347,7 +359,9 @@ function BadgesPart({ state, fresh, all }: { state: RewardState; fresh: Fresh; a
             return (
               <li key={badge.id} className={`cg-rw-badge${got ? ' is-got' : ''}${pop && newIds.has(badge.id) ? ' is-new' : ''}`} title={said} data-rw-badge={badge.id} data-rw-badge-got={got ? '' : undefined}>
                 <span className="cg-rw-badge-icon"><RewardIcon name={badge.icon} /></span>
-                <span className="cg-rw-badge-name">{badge.name}</span>
+                {/* 2026-11-05 (Prompt 17) — ein Abzeichen antippen: „Odznaki i poziomy". */}
+                {onOpen === undefined ? <span className="cg-rw-badge-name">{badge.name}</span>
+                  : <button type="button" className="cg-rw-badge-name cg-rw-open" onClick={onOpen} data-rw-open="badge">{badge.name}</button>}
                 {!got && <Meter value={value / badge.atLeast} label={said} />}
                 <span className="cg-sr">{said}</span>
               </li>
@@ -359,8 +373,11 @@ function BadgesPart({ state, fresh, all }: { state: RewardState; fresh: Fresh; a
   );
 }
 
+/** 2026-11-05 (Prompt 17) — was als Meldung kam, steht auch hier: Ziel, Serie, Stufe, Abzeichen (auch ohne Punkte). */
+export const FEED_KINDS: ReadonlySet<RewardEvent['kind']> = new Set(['level', 'badge', 'goal', 'streak']);
+
 function FeedPart({ state, n }: { state: RewardState; n: number }) {
-  const list = state.events.filter((e) => e.points > 0 || e.kind === 'level' || e.kind === 'badge').slice(-n).reverse();
+  const list = state.events.filter((e) => e.points > 0 || FEED_KINDS.has(e.kind)).slice(-n).reverse();
   return (
     <section className="cg-rw-part cg-rw-feed" data-rw-part="feed">
       <span className="cg-rw-label">Ostatnie nagrody</span>
@@ -385,7 +402,38 @@ function FeedPart({ state, n }: { state: RewardState; n: number }) {
  * DIE TAFEL DER NAGRODY eines Lernenden. `hidden`: was wegbleibt (die Häkchen „Co pokazuje" eines Bausteins);
  * `shape`: eine Zeile, eine schmale Zeile über einer Powtórka, ein Block, das Ganze (hoch, im Vollbild).
  */
-export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live = true }: {
+/** Ist ein Element im Fenster zu sehen (dorthin fliegen die Punkte nur dann)? */
+const onScreen = (el: Element): boolean => {
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < window.innerHeight && r.left < window.innerWidth;
+};
+
+/** Punkte, die mit einer Antwort kamen (nicht Ziel, Serie, Abzeichen, Stufe — die sind Meldungen). */
+const paidOf = (f: Fresh): number => f.events.filter((e) => e.points > 0 && !FEED_KINDS.has(e.kind)).reduce((s, e) => s + e.points, 0);
+
+/**
+ * 2026-11-05 (Prompt 17) — DIE MELDUNGEN EINER GRUPPE: Ziel („Cel dnia osiągnięty! +50"), ein Tag der Serie, jedes Abzeichen
+ * (antippen öffnet „Odznaki i poziomy"), eine neue Stufe (der Balken läuft von dort voll, wo er stand).
+ */
+function toastsOf(fresh: Fresh, state: RewardState, MW: MotionWords, open: () => void): RewardToast[] {
+  const out: RewardToast[] = [];
+  const first = fresh.events[0];
+  const before = first === undefined ? state.total : first.total - first.points;
+  for (const e of fresh.events) {
+    if (e.kind === 'goal') out.push({ id: e.id, kind: 'goal', title: MW.goalReached, ...(e.points > 0 ? { points: e.points } : {}) });
+    else if (e.kind === 'streak') out.push({ id: e.id, kind: 'streak', title: MW.streakDay(e.value ?? 1), ...(e.points > 0 ? { points: e.points } : {}) });
+    else if (e.kind === 'badge') {
+      const b = state.rules.badges.find((x) => x.id === e.badge);
+      out.push({ id: e.id, kind: 'badge', title: b?.name ?? MW.badge, line: b?.says ?? MW.badge, icon: b?.icon ?? 'medal', ...(e.points > 0 ? { points: e.points } : {}), open, openLabel: MW.openBadges });
+    } else if (e.kind === 'level') {
+      const n = e.value ?? 1;
+      out.push({ id: e.id, kind: 'level', title: MW.level(n, state.rules.levels[n - 1]?.name ?? ''), line: MW.levelUp, level: { from: levelAt(state.rules.levels, before).share }, open, openLabel: MW.openBadges });
+    }
+  }
+  return out;
+}
+
+export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live = true, onBadges, inline }: {
   learner: Learner | null;
   rules: RewardRules;
   keys?: ReadonlySet<string>;
@@ -394,24 +442,65 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
   shape: RewardShape;
   /** Mit Konto oder Platz: alle 30 s holen, was andere Geräte sandten. */
   live?: boolean;
+  /** 2026-11-05 (Prompt 17) — „Odznaki i poziomy" öffnen; fehlt es: im Arbeitsbereich die Adresse in der Nauka, sonst hier darunter. */
+  onBadges?: () => void;
+  /** Die Seite der Abzeichen hier darunter (wo es keine Adresse dafür gibt — eine Seite, ein Link). */
+  inline?: (close: () => void) => ReactNode;
 }) {
   const { state, fresh } = useRewards(learner, rules, { ...(keys === undefined ? {} : { keys }), ...(rename === undefined ? {} : { rename }), live });
+  const cg = useContext(CogitaContext);
+  const MW = motionWords(cg === null ? 'pl' : baseLang(cg.lib));
   const show = (p: RewardPiece) => hidden === undefined || !hidden.has(p);
   const now = Date.now();
   const list = useMemo(() => (state === null ? null : lastDays(state, now, shape === 'full' ? 28 : 7)), [state, shape]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* „Odznaki i poziomy": im Arbeitsbereich die Adresse in der Nauka; auf einer Seite (ein Link, ein Platz) hier darunter. */
+  const [open, setOpen] = useState(false);
+  const inWorkspace = cg !== null && cg.me !== null && typeof window !== 'undefined' && window.location.hash.startsWith('#/workspace');
+  const openBadges = onBadges ?? (inWorkspace ? () => { window.location.hash = viewPath('learn', cg.lib.libraryId, 'nagrody', 'odznaki'); } : inline !== undefined ? () => setOpen(true) : undefined);
+  /*
+    2026-11-05 (Prompt 17) — DIE PUNKTE DER EBEN GEGEBENEN ANTWORT fliegen von ihr zum Zähler: solange sie fliegen, steht er
+    noch auf dem alten Stand, dann zählt er hoch. Nur, wenn die Antwort eben war und der Zähler zu sehen ist.
+  */
+  const counterEl = useRef<HTMLElement | null>(null);
+  const setCounter = (el: HTMLElement | null) => { counterEl.current = el; };
+  const flight = useMemo(() => {
+    if (fresh.seq === 0) return null;
+    const src = answerSource();
+    const sum = paidOf(fresh);
+    return src === null || sum <= 0 ? null : { x: src.x, y: src.y, sum, seq: fresh.seq };
+  }, [fresh]);
+  const [arrived, setArrived] = useState(0);
+  const flying = flight !== null && arrived < flight.seq && counterEl.current !== null;
+  const shownTotal = state === null ? 0 : flying ? Math.max(0, state.total - flight.sum) : state.total;
+  useEffect(() => {
+    if (state === null || fresh.seq === 0) return;
+    const el = counterEl.current;
+    if (flight !== null && el !== null && el.isConnected && onScreen(el)) flyPoints([{ n: flight.sum, x: flight.x, y: flight.y }], el, () => setArrived(flight.seq));
+    else if (flight !== null) setArrived(flight.seq);
+    pushToasts(toastsOf(fresh, state, MW, openBadges ?? (() => undefined)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- je neuer Gruppe einmal
+  }, [fresh]);
   if (state === null) return <div className="cg-rw is-waiting" data-rw-shape={shape}><span className="cg-muted">Liczenie punktów…</span></div>;
+  const badgesLink = openBadges !== undefined && show('badges') && (state.badges.length > 0 || state.rules.levels.length > 0)
+    ? <button type="button" className="wk-link-btn cg-rw-badges-link" onClick={openBadges} data-rw-badges-open="">{MW.openBadges}</button> : null;
+  const inlinePage = open && inline !== undefined ? <div className="cg-rw-inline" data-rw-inline="">{inline(() => setOpen(false))}</div> : null;
 
   if (shape === 'strip' || shape === 'compact') {
     return (
       <div className={`cg-rw is-${shape}`} data-rw-shape={shape} data-rw-total={state.total}>
         <span className="cg-rw-line">
-          {show('points') && <span className="cg-rw-chip is-points" title="Punkty"><RewardIcon name="star" className="is-star" /><CountUp value={state.total} className="cg-rw-chip-num" /><span className="cg-sr"> {pointsWord(state.total)}</span></span>}
-          {show('level') && state.rules.levels.length > 0 && <span className="cg-rw-chip is-level" title={`Poziom ${state.level.index + 1}`}><RewardIcon name="crown" className="is-crown" />{state.level.name ?? '—'}</span>}
+          {show('points') && <span className="cg-rw-chip is-points" title="Punkty"><RewardIcon name="star" className="is-star" /><span ref={setCounter} className="cg-rw-counter" data-rw-counter=""><CountUp value={shownTotal} className="cg-rw-chip-num" /></span><span className="cg-sr"> {pointsWord(state.total)}</span></span>}
+          {show('level') && state.rules.levels.length > 0 && (openBadges === undefined
+            ? <span className="cg-rw-chip is-level" title={`Poziom ${state.level.index + 1}`}><RewardIcon name="crown" className="is-crown" />{state.level.name ?? '—'}</span>
+            : <button type="button" className="cg-rw-chip is-level cg-rw-open" title={`Poziom ${state.level.index + 1} — ${MW.openBadges}`} onClick={openBadges} data-rw-open="level"><RewardIcon name="crown" className="is-crown" />{state.level.name ?? '—'}</button>)}
           {show('streak') && <StreakChip state={state} fresh={fresh} />}
           {show('goal') && <GoalChip state={state} fresh={fresh} />}
-          {show('badges') && state.badges.length > 0 && <span className="cg-rw-chip is-badges" title="Odznaki"><RewardIcon name="medal" className="is-medal" />{state.badges.filter((x) => x.at !== null).length}/{state.badges.length}</span>}
+          {show('badges') && state.badges.length > 0 && (openBadges === undefined
+            ? <span className="cg-rw-chip is-badges" title="Odznaki"><RewardIcon name="medal" className="is-medal" />{state.badges.filter((x) => x.at !== null).length}/{state.badges.length}</span>
+            : <button type="button" className="cg-rw-chip is-badges cg-rw-open" title={MW.openBadges} onClick={openBadges} data-rw-open="badges"><RewardIcon name="medal" className="is-medal" />{state.badges.filter((x) => x.at !== null).length}/{state.badges.length}</button>)}
         </span>
-        <Floaters fresh={fresh} rules={rules} max={1} />
+        <Floaters fresh={fresh} rules={rules} max={1} flown={flight !== null} />
+        {inlinePage}
       </div>
     );
   }
@@ -421,8 +510,8 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
   return (
     <div className={`cg-rw is-${shape}`} data-rw-shape={shape} data-rw-total={state.total}>
       <div className="cg-rw-grid" data-rw-pieces={pieces.length}>
-        {show('points') && <PointsPart state={state} fresh={fresh} hero={hero} />}
-        {show('level') && <LevelPart state={state} fresh={fresh} />}
+        {show('points') && <PointsPart state={state} fresh={fresh} hero={hero} shownTotal={shownTotal} counter={setCounter} />}
+        {show('level') && <LevelPart state={state} fresh={fresh} {...(openBadges === undefined ? {} : { onOpen: openBadges })} />}
         {show('streak') && <StreakPart state={state} fresh={fresh} hero={hero} list={list?.slice(-7) ?? null} />}
         {show('goal') && <GoalPart state={state} fresh={fresh} hero={hero} />}
       </div>
@@ -433,9 +522,11 @@ export function RewardBoard({ learner, rules, keys, rename, hidden, shape, live 
           <span className="cg-rw-sub">✓ dzień serii, ◐ była nauka, · nic</span>
         </section>
       )}
-      {show('badges') && (shape === 'full' || pieces.length === 0) && <BadgesPart state={state} fresh={fresh} all={shape === 'full'} />}
+      {show('badges') && (shape === 'full' || pieces.length === 0) && <BadgesPart state={state} fresh={fresh} all={shape === 'full'} {...(openBadges === undefined ? {} : { onOpen: openBadges })} />}
       {show('feed') && (shape === 'full' || pieces.length === 0) && <FeedPart state={state} n={shape === 'full' ? 12 : 6} />}
-      <Floaters fresh={fresh} rules={rules} />
+      {badgesLink}
+      <Floaters fresh={fresh} rules={rules} flown={flight !== null} />
+      {inlinePage}
     </div>
   );
 }

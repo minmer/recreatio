@@ -705,13 +705,12 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* Immer in einer Hülle, deren Breite gemessen wird. */
   const host = (body: ReactNode) => <div ref={boxRef} className="cg-ls-host">{body}</div>;
   if (running !== null) {
-    /* 2026-11-05 — immer sichtbar über dem Lauf: zurück zur Karte (die Antworten und die Stelle der Erzählung sind schon gespeichert). */
+    /* 2026-11-05 — über einer Powtórka: zurück zur Karte; eine Erzählung hat es in ihrer Kopfzeile („‹ Mapa", Prompt 18). */
     const back = <p className="cg-ls-back"><button type="button" className="wk-link-btn" onClick={() => setRunning(null)} data-landscape-back="">{T.backToMap}</button></p>;
     if (running.story !== undefined) {
       return host(
         <div className="cg-ls-run" data-landscape-run="story" data-landscape-run-flow={running.story.id}>
-          {back}
-          <FlowPlayer key={running.key} flow={running.story} content={contentOfLibrary(lib, cards)} learner={learner} onClose={() => setRunning(null)} jumpTo={running.jump} />
+          <FlowPlayer key={running.key} flow={running.story} content={contentOfLibrary(lib, cards)} learner={learner} onClose={() => setRunning(null)} backLabel={T.mapShort} jumpTo={running.jump} />
         </div>
       );
     }

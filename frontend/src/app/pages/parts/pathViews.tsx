@@ -152,7 +152,7 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
   if (story !== null) {
     return (
       <CogitaContext.Provider value={cg}>
-        <FlowPlayer key={`${story.flow.id}:${story.jump?.at ?? 0}`} flow={story.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={() => setStory(null)} jumpTo={story.jump} presentationAs="link" />
+        <FlowPlayer key={`${story.flow.id}:${story.jump?.at ?? 0}`} flow={story.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={() => setStory(null)} backLabel="Strona" jumpTo={story.jump} presentationAs="link" />
       </CogitaContext.Provider>
     );
   }

@@ -213,7 +213,7 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
         {!isTall(ctx) && <Head title={title} />}
         {isTall(ctx) && who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
         {isTall(ctx) && who.ready && <p className="cg-module-tools"><StatsButton line onOpen={() => setView('stats')} /></p>}
-        <FlowPlayer key={who.as ?? ''} flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setView(null)} presentationAs="link" />
+        <FlowPlayer key={who.as ?? ''} flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setView(null)} backLabel="Strona" presentationAs="link" />
       </CogitaContext.Provider>
     );
   }

@@ -245,7 +245,18 @@ export function words(lang: Lang) {
     fromStart: L('Od początku', 'Von vorn', 'From the start'),
     /* 2026-11-04 (Prompt 13) — das einzige, was „ukończona" und erreichte Ziele wegnimmt */
     forgetStory: L('Zapomnij postęp', 'Fortschritt vergessen', 'Forget progress'),
-    forgetAsk: (name: string) => L(`Zapomnieć cały postęp w opowieści „${name}”? Ukończenie i osiągnięte cele znikną (odpowiedzi na pytania zostają).`, `Den ganzen Fortschritt in „${name}“ vergessen? Abschluss und erreichte Ziele verschwinden (die Antworten bleiben).`, `Forget all progress in “${name}”? Completion and reached goals are removed (answers stay).`),
+    forgetAsk: (name: string) => L(`Zapomnieć postęp w opowieści „${name}”? Znikną: Twoje miejsce w tej opowieści, jej ukończenie i zdany przegląd. Odpowiedzi na pytania zostają.`, `Den Fortschritt in „${name}“ vergessen? Weg sind: deine Stelle in dieser Geschichte, ihr Abschluss und die bestandene Durchsicht. Die Antworten auf die Fragen bleiben.`, `Forget your progress in “${name}”? Removed: your place in this story, its completion and the passed review. Answers to the questions stay.`),
+    /* 2026-11-05 (Prompt 18) — der Kopf des Spielers: zurück, „⋯", Fortschritt, Wstecz, wer erzählt. */
+    stepBack: L('Wstecz', 'Zurück', 'Back'),
+    moreTools: L('Więcej', 'Mehr', 'More'),
+    progressOf: (done: number, all: number) => L(`${done} z ${all}`, `${done} von ${all}`, `${done} of ${all}`),
+    reviewProgress: (done: number, all: number) => L(`Przegląd: ${done} z ${all}`, `Durchsicht: ${done} von ${all}`, `Review: ${done} of ${all}`),
+    reviewPassedMark: L('Przegląd zdany ✓', 'Durchsicht bestanden ✓', 'Review passed ✓'),
+    reviewOpenMark: L('Przegląd jeszcze niezdany', 'Durchsicht noch nicht bestanden', 'Review not passed yet'),
+    tells: (name: string) => L(`Opowiada: ${name}`, `Es erzählt: ${name}`, `Told by: ${name}`),
+    pastStep: L('Już za Tobą — tylko do przejrzenia.', 'Schon erledigt — nur zum Ansehen.', 'Already done — for viewing only.'),
+    chosenHere: L('wybrane', 'gewählt', 'chosen'),
+    detourEntered: L('Wszedłeś tutaj.', 'Du bist hineingegangen.', 'You went in here.'),
     learnWithBasics: L('Ucz się z podstawami', 'Mit den Grundlagen lernen', 'Learn with the basics'),
     goOn: L('Dalej', 'Weiter', 'Next'),
     storyButton: {

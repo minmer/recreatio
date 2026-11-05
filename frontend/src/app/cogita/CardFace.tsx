@@ -25,6 +25,10 @@ import { blocksField } from './statements';
 import { TexText } from '../ui/tex/Tex';
 import { CHOICE_CLASS, CHOICE_GLYPH, choiceMark, choiceWords, type ChoiceMark } from './choiceMarks';
 import { baseLang, type Lang } from './lang';
+import { motionWords } from './motionWords';
+import { noteAnswerSource, onKnown } from './rewardBus';
+import { RewardIcon } from './RewardViews';
+import { motionLevel } from '../ui/motion';
 
 /* -- Die Frage ----------------------------------------------------------------------- */
 
@@ -195,8 +199,14 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
 }) {
   const a = card.answer;
   const shut = disabled === true || reveal !== undefined;
-  /* Grün, was richtig ist; rot, was gewählt und falsch ist. */
-  const mark = (right: boolean, chosen: boolean): string => (reveal === undefined ? '' : right ? ' is-right' : chosen ? ' is-wrong' : '');
+  /*
+    Grün, was richtig ist; rot, was gewählt und falsch ist. 2026-11-05 (Prompt 17): dazu, was gewählt war (`is-hit`: blitzt
+    kurz grün mit dem ✓, oder rot mit einem kleinen Schütteln) und die richtige, die nicht gewählt war (`is-answer`: leuchtet
+    danach sanft grün) — `cogita.css`.
+  */
+  const mark = (right: boolean, chosen: boolean): string => (reveal === undefined ? '' : right ? (chosen ? ' is-right is-hit' : ' is-right is-answer') : chosen ? ' is-wrong is-hit' : '');
+  /* 2026-11-05 (Prompt 17) — die Antwort ist geprüft: ihre Teile zeigen ihr Ergebnis (nacheinander, `cogita.css`). */
+  const revealed = reveal === undefined ? '' : ` is-revealed is-${reveal.outcome.correct ? 'right' : reveal.outcome.correctness > 0 ? 'partly' : 'wrong'}`;
   const [text, setText] = useState('');
   /* 2026-11-01 — eine Datumsantwort, die sich nicht lesen liess: gesagt, nicht gezählt. */
   const [unread, setUnread] = useState(false);
@@ -273,7 +283,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
       const reading = a.form === 'date' && text.trim() !== '' ? readDateAnswer(text) : null;
       const readText = reading === null ? '' : dateText(reading);
       return (
-        <form className="cg-answer" onSubmit={(e) => {
+        <form className={`cg-answer${revealed}`} onSubmit={(e) => {
           e.preventDefault();
           if (a.form === 'date' && text.trim() !== '' && reading === null) { setUnread(true); return; }
           submit(text);
@@ -297,7 +307,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
     }
     case 'one':
       return (
-        <div className="cg-answer">
+        <div className={`cg-answer${revealed}`}>
           <div className="cg-options" role="radiogroup">
             {view.options.map((i) => {
               const g = reveal === undefined ? '' : glyph(i === a.correct, reveal.given === i);
@@ -317,7 +327,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
       );
     case 'many':
       return (
-        <div className="cg-answer">
+        <div className={`cg-answer${revealed}`}>
           <div className="cg-options">
             {view.options.map((i) => {
               /* 2026-11-04 (Prompt 15) — nach der Prüfung die Entscheidung des Lernenden: übersehen ist bernsteinfarben, ohne ✓ (`choiceMarks.ts`). */
@@ -350,7 +360,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         );
       };
       return (
-        <div className="cg-answer">
+        <div className={`cg-answer${revealed}`}>
           <div className="cg-options cg-options-two">{tf(true, 'Prawda')}{tf(false, 'Fałsz')}</div>
           {nextRow}
         </div>
@@ -358,7 +368,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
     }
     case 'order':
       return (
-        <div className="cg-answer">
+        <div className={`cg-answer${revealed}`}>
           {/* Der Knopf steht zwischen der Liste und ihrem Ergebnis: „Dalej” bleibt genau dort, wo „Sprawdź” war. */}
           <OrderAnswer key={`${card.key}:${card.fingerprint}`} start={view.start} correct={a.items} locked={shut}
             {...(a.preview === undefined ? {} : { preview: a.preview, join: a.join ?? ' ' })}
@@ -383,7 +393,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         );
       };
       return (
-        <div className="cg-answer">
+        <div className={`cg-answer${revealed}`}>
           <p className="cg-muted">Wybierz pozycję z jednej strony, potem jej parę z drugiej. Ponowne wybranie rozłącza parę.</p>
           <div className="cg-match">
             {/* 2026-10-27 — was die Spalten sind („Rok” — „Wydarzenie”). 2026-10-31 — beide Spalten gemischt, jede für sich. */}
@@ -398,7 +408,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
     }
     case 'flash':
       return flipped || reveal !== undefined ? (
-        <div className="cg-answer">
+        <div className={`cg-answer${revealed}`}>
           {/* 2026-10-27 — ein Block je Zeile, kein <p>: der Zapis bringt seine eigenen Absätze mit (<p> in <p> ist kein HTML). */}
           <div className="cg-flash-back">{a.back.map((b, i) => <div key={i}><Markup text={b} /></div>)}</div>
           <div className="cg-row">
@@ -413,11 +423,11 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
       );
     case 'code':
       /* 2026-11-01 — eigene Datei: Beispiele vorher, die Fälle danach als Tabelle (`CodeAnswer.tsx`). */
-      return <div className="cg-answer"><CodeAnswer key={`${card.key}:${card.fingerprint}`} card={card} locked={shut} onSubmit={submit} next={next} /></div>;
+      return <div className={`cg-answer${revealed}`}><CodeAnswer key={`${card.key}:${card.fingerprint}`} card={card} locked={shut} onSubmit={submit} next={next} /></div>;
     case 'build':
       /* 2026-11-01 — aus Kacheln bauen, mit der Vorschau darüber (`BuildAnswer.tsx`). */
       return (
-        <div className="cg-answer">
+        <div className={`cg-answer${revealed}`}>
           <BuildAnswer key={`${card.key}:${card.fingerprint}`} card={card} locked={shut} autoFocus={autoFocus}
             {...(reveal === undefined ? {} : { given: Array.isArray(reveal.given) ? reveal.given.map(String) : [], outcome: reveal.outcome })}
             onSubmit={submit} action={next} />
@@ -425,7 +435,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
       );
     case 'point':
       return (
-        <div className="cg-answer">
+        <div className={`cg-answer${revealed}`}>
           {a.on === 'map' ? (
             <GeoMap zoom={6} center={{ lat: 51.9, lon: 19.1 }} marks={point === null ? [] : [{ ...point, kind: 'pin' }]} onPick={shut ? undefined : setPoint} />
           ) : <p className="cg-muted">Wskaż punkt na obrazie pytania.</p>}
@@ -433,7 +443,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         </div>
       );
     case 'interactive':
-      return <div className="cg-answer"><InteractiveAnswer card={card} disabled={shut} onSubmit={submit} />{nextRow}</div>;
+      return <div className={`cg-answer${revealed}`}><InteractiveAnswer card={card} disabled={shut} onSubmit={submit} />{nextRow}</div>;
   }
 }
 
@@ -449,7 +459,7 @@ function MatchResult({ card, given, leftOrder, next }: { card: Card; given: unkn
   const truth = new Map(a.pairs.map(([l, r]) => [l, r]));
   const right = a.pairs.filter(([l, r]) => mine.get(l) === r).length;
   return (
-    <div className="cg-answer">
+    <div className="cg-answer is-revealed">
       <p className="cg-order-count" data-match-count={right}>{right} z {a.pairs.length} {a.pairs.length === 1 ? 'pary' : 'par'} dobrze</p>
       {a.heads !== undefined && (a.heads[0] !== '' || a.heads[1] !== '') && <div className="cg-match-row is-head" aria-hidden><span /><span>{a.heads[0]}</span><span>{a.heads[1]}</span></div>}
       <ul className="cg-match-result" data-match-result="">
@@ -475,6 +485,28 @@ function MatchResult({ card, given, leftOrder, next }: { card: Card; given: unkn
 }
 
 /* -- Was richtig war ------------------------------------------------------------------------- */
+
+/**
+ * 2026-11-05 (Prompt 17) — DER ANTEIL ZÄHLT HOCH („75 %"), wenn die Teile der Antwort ihr Ergebnis gezeigt haben (`delay`);
+ * ohne volle Bewegung (Animacje) steht er gleich da.
+ */
+function CountPercent({ value, delay }: { value: number; delay: number }) {
+  const target = Math.max(0, Math.min(1, value));
+  const [shown, setShown] = useState(() => (motionLevel() === 'full' ? 0 : target));
+  useEffect(() => {
+    if (motionLevel() !== 'full') { setShown(target); return undefined; }
+    let raf = 0;
+    const t0 = performance.now() + delay;
+    const tick = (t: number) => {
+      const k = Math.max(0, Math.min(1, (t - t0) / 520));
+      setShown(target * (1 - (1 - k) ** 3));
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, delay]);
+  return <span className="cg-count" data-count={Math.round(target * 100)}>{percent(shown)}</span>;
+}
 
 /** Formen, deren Antwort nach der Prüfung mit ihren Marken stehen bleibt — dort steht das Ergebnis, nicht in einem langen Satz. */
 const MARKED_FORMS: ReadonlySet<string> = new Set(['one', 'many', 'truefalse', 'order', 'match', 'build', 'code']);
@@ -505,9 +537,12 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   const explainIds = lib === undefined ? [] : [...(card.about ?? []), ...card.explain];
   /* 2026-11-01 — richtig, aber mit Podpowiedź: das zählt weniger — und es steht da. */
   const hinted = outcome.correct && (outcome.hints ?? 0) > 0;
+  /* 2026-11-05 (Prompt 17) — teilweise richtig: der Anteil zählt hoch, nachdem die Teile ihr Ergebnis gezeigt haben. */
+  const parts = a.form === 'many' ? a.options.length : a.form === 'match' ? a.pairs.length : a.form === 'order' ? a.items.length : 0;
+  const share = <CountPercent value={outcome.correctness} delay={Math.min(700, parts * 90)} />;
   const box = (
     <div className={`cg-verdict ${hinted ? 'is-near' : level}`} role="status" data-verdict={outcome.correct ? 'right' : close ? 'near' : 'wrong'} data-hints={outcome.hints}>
-      <strong><span aria-hidden>{outcome.correct ? '✓ ' : close ? '≈ ' : '✗ '}</span>{hinted ? `Dobrze — z podpowiedzią (${percent(outcome.correctness)})` : outcome.correct ? 'Dobrze!' : close ? `Prawie (${percent(outcome.correctness)})` : outcome.answered ? (outcome.correctness > 0 ? `Niestety nie (${percent(outcome.correctness)}).` : 'Niestety nie.') : 'Bez odpowiedzi.'}</strong>
+      <strong><span aria-hidden>{outcome.correct ? '✓ ' : close ? '≈ ' : '✗ '}</span>{hinted ? <>Dobrze — z podpowiedzią ({share})</> : outcome.correct ? 'Dobrze!' : close ? <>Prawie ({share})</> : outcome.answered ? (outcome.correctness > 0 ? <>Niestety nie ({share}).</> : 'Niestety nie.') : 'Bez odpowiedzi.'}</strong>
       {/* 2026-11-01 — ein Datum Teil für Teil: was stimmt, was nah ist, was nicht. */}
       {outcome.dateParts !== undefined && !outcome.correct && <DateParts parts={outcome.dateParts} />}
       {/* Die richtige Antwort steht da, grün — auch nach einem Treffer, samt der anderen, die auch gelten; bei markierten Antworten auf ihnen selbst. */}
@@ -582,9 +617,26 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dal
   const started = useMemo(() => Date.now(), [card.key, card.fingerprint]);
   useEffect(() => { setDone(null); setHinted(0); }, [card.key, card.fingerprint]);
   const hints = card.hints ?? [];
+  /*
+    2026-11-05 (Prompt 17) — WOHER DIE ANTWORT KAM (der gedrückte Knopf, das Feld): von dort steigt „+N" zum Zähler auf
+    (`rewardBus.ts`). Und: wird diese Karte eben utrwalona, zeigt sie es einmal („Utrwalone", ein kleiner Stern).
+  */
+  const pressed = useRef<Element | null>(null);
+  const [burst, setBurst] = useState<number | null>(null);
+  useEffect(() => onKnown((key) => { if (key === card.key) setBurst(Date.now()); }), [card.key]);
+  useEffect(() => {
+    if (burst === null) return undefined;
+    const t = window.setTimeout(() => setBurst(null), 1700);
+    return () => window.clearTimeout(t);
+  }, [burst]);
+  const MW = motionWords(lang ?? (lib === undefined ? 'pl' : baseLang(lib)));
 
   return (
-    <section className="cg-face" aria-live="polite" data-card={card.key} data-form={card.answer.form}>
+    <section className="cg-face" aria-live="polite" data-card={card.key} data-form={card.answer.form}
+      onPointerDownCapture={(e) => { pressed.current = (e.target as Element | null)?.closest?.('button, input, textarea, [role="radio"]') ?? null; }}
+      onKeyDownCapture={(e) => { if (e.key === 'Enter' || e.key === ' ') pressed.current = e.target as Element; }}>
+      {burst !== null && <span key={burst} className="cg-known-burst" data-known-burst="" aria-hidden><RewardIcon name="star" />{MW.known}</span>}
+      {burst !== null && <span className="cg-sr" role="status">{MW.known}</span>}
       {head}
       <CardPrompt parts={card.prompt} />
       {/*
@@ -609,6 +661,7 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dal
       )}
       {/* Die Antwort bleibt, wo sie war — gesperrt, mit ihren Marken; „Sprawdź” wird an seiner Stelle „Dalej” (2026-10-31). */}
       <AnswerInput card={card} autoFocus={autoFocus} lang={lang ?? (lib === undefined ? 'pl' : baseLang(lib))} {...(done === null ? {} : { reveal: done })} onNext={onNext} nextLabel={nextLabel} onSubmit={(given) => {
+        noteAnswerSource(pressed.current?.isConnected === true ? pressed.current : document.activeElement, card.key);
         const outcome = withHints(checkCard(card, given, rule), hinted, HINT_COST);
         setDone({ outcome, given });
         onAnswered(outcome, given, Date.now() - started);

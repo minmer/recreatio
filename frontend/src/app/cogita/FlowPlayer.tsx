@@ -27,9 +27,10 @@
  * — wer neu lädt, steht wieder darin.
  */
 
-import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 
-import { CardFace } from './CardFace';
+import { CardFace, CardPrompt, Verdict } from './CardFace';
+import type { Outcome } from './check';
 import { questionCard } from './cards';
 import { type Card } from './cardBasics';
 import {
@@ -61,6 +62,7 @@ import { storyWork } from './storyNext';
 import { readView } from './views';
 import { Loading } from '../ui/Loading';
 import { TexText } from '../ui/tex/Tex';
+import './story.css';
 
 /* 2026-10-22 (Schritt 12) — erst geladen, wenn jemand ein Storyboard spielt (es bringt die Bausteine der Seiten mit). */
 const PresentationInNauka = lazy(() => import('../pages/presentation/PresentationInNauka'));
@@ -180,11 +182,13 @@ const FREE = 'cg-story-free:';
 const isFree = (flow: string): boolean => { try { return sessionStorage.getItem(FREE + flow) === '1'; } catch { return false; } };
 const keepFree = (flow: string): void => { try { sessionStorage.setItem(FREE + flow, '1'); } catch { /* ohne Speicher: mit Sperre */ } };
 
-export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play', gate = true }: {
+export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play', gate = true, backLabel }: {
   flow: Flow;
   content: FlowContent;
   learner: Learner | null;
   onClose?: () => void;
+  /** 2026-11-05 (Prompt 18) — wohin „‹ …" oben links zurückführt: „Mapa", „Strona", „Nauka" (sonst „Wróć"). */
+  backLabel?: string;
   /**
    * 2026-10-22 (Schritt 12) — ein Storyboard: hier spielen (Nauka) oder nur
    * hinführen (`link` — ein Baustein auf einer Seite: die Präsentation IST eine Seite).
@@ -259,6 +263,50 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const keepTimer = useRef<number | null>(null);
   const look: LookType = running.look;
 
+  /*
+    2026-11-05 (Prompt 18) — „WSTECZ": jeder gezeigte Schritt dieses Laufs wird gemerkt, wie er war (der Lauf, die Antwort, die
+    Wahl). Zurück heisst nur ANSEHEN: der Schritt steht gesperrt da (eine Frage mit der gegebenen Antwort und dem Urteil), der
+    Lauf selbst bleibt, wo er ist — Fortschritt, Zähler und Ziele ändern sich nie; „Dalej" führt bis dorthin zurück. Der laufende
+    Schritt bleibt dabei unsichtbar stehen (eine halb beantwortete Frage verliert nichts).
+  */
+  const [past, setPast] = useState<readonly PastStep[]>([]);
+  const [backBy, setBackBy] = useState(0);
+  const lastAnswer = useRef<PastStep['answer'] | null>(null);
+  const remember = (exit?: string) => {
+    const r = runRef.current;
+    const node = r.state.step === null ? undefined : flowOf(r.state.flow)?.graph.nodes.find((n) => n.id === r.state.step);
+    if (node === undefined || !SHOWN_STEPS.has(node.type)) return;
+    const answer = node.type === 'question' ? lastAnswer.current : null;
+    lastAnswer.current = null;
+    setPast((p) => [...p, { run: r, ...(answer == null ? {} : { answer }), ...(exit === undefined ? {} : { exit }) }].slice(-200));
+  };
+  const forgetPast = () => { setPast([]); setBackBy(0); lastAnswer.current = null; };
+  /* Wer erzählt — einmal je gezeigtem Schritt entschieden (am Anfang einer Erzählung und wenn er wechselt). */
+  const tellSeen = useRef<{ key: string; flow: string; id: string | null; show: boolean }>({ key: '', flow: '', id: null, show: false });
+  /*
+    Tastatur: → / Enter / Leertaste = Dalej, ← = Wstecz — nicht in Feldern; Enter und Leertaste nicht auf einem Knopf (der
+    tut es selbst). Nur, solange dieser Spieler zu sehen ist. Wischen nach links / rechts tut dasselbe.
+  */
+  const keys = useRef<{ next: (() => void) | null; back: (() => void) | null }>({ next: null, back: null });
+  const touchAt = useRef<{ x: number; y: number } | null>(null);
+  const stage = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      if (t !== null && (t.isContentEditable || t.closest('input, textarea, select, .cg-story-path-side, .cg-story-menu, [role="dialog"]') !== null)) return;
+      const onControl = t !== null && t.closest('button, a, summary') !== null;
+      const act = e.key === 'ArrowRight' || ((e.key === 'Enter' || e.key === ' ') && !onControl) ? keys.current.next : e.key === 'ArrowLeft' ? keys.current.back : null;
+      if (act === null || stage.current === null || !stage.current.isConnected || stage.current.offsetParent === null) return;
+      e.preventDefault();
+      act();
+    };
+    window.addEventListener('keydown', on);
+    return () => window.removeEventListener('keydown', on);
+  }, []);
+  /* Jedes Zeichnen sagt neu, was die Tasten tun (Ende, Sperre: nichts). */
+  keys.current = { next: null, back: null };
+
   /** Eine Erzählung ist eben zu Ende gegangen (ein Weg in ihr, eine Übergabe): gemerkt als ukończona, mit ihren Zielen. */
   const keepFinished = (list: readonly StoryFinished[], after: FlowState) => {
     for (const f of list) {
@@ -318,6 +366,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   useEffect(() => {
     if (jumpTo == null || !flow.graph.nodes.some((n) => n.id === jumpTo.step)) return;
     moved.current = true;
+    forgetPast();
     const s = runRef.current.state;
     const mine = s.flow === flow.id && s.stack.length === 0;
     commit({ run: { root: flow.id, outer: [], state: enterAt(flow, { ...s, flow: flow.id, stack: [], chapter: null, queue: undefined, visited: mine ? s.visited : [] }, jumpTo.step, ctx) }, finished: [] });
@@ -373,6 +422,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
 
   const go = (exit?: string) => {
     moved.current = true;
+    remember(exit);
+    setBackBy(0);
     setAnsweredOn(null);
     setVisit((v) => v + 1);
     const was = runRef.current.state.flow;
@@ -385,12 +436,12 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     commit({ ...step, run: { ...step.run, state: said } });
   };
   const lines = linesNow(running, state, facts(state));
-  const reached = reachedNow;
 
   /* Von vorn: die laufende Erzählung (eine gerufene: in ihr, die rufende wartet weiter). */
   const restart = () => {
     moved.current = true;
     setNotice(null);
+    forgetPast();
     const s = runRef.current.state;
     if (s.stack.length === 0) { commit({ run: startRun(running, { values: learner?.progress.values ?? s.values }, ctx), finished: [] }); return; }
     commit({ run: { ...runRef.current, state: enterAt(running, { ...s, visited: [], chapters: {}, chapter: null }, running.start, ctx) }, finished: [] });
@@ -399,6 +450,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const goBack = (depth: number) => {
     moved.current = true;
     setNotice(null);
+    forgetPast();
     setAnsweredOn(null);
     setVisit((v) => v + 1);
     commit({ run: backTo(runRef.current, flowOf, depth), finished: [] });
@@ -406,6 +458,9 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   /* „Wejdź" (dort, wo er in ihr war) / „Przypomnij" (von vorn). */
   const enterDetour = (inner: Flow, fresh: boolean) => {
     moved.current = true;
+    /* Die Karte des Abstechers bleibt hinter dem ersten Schritt darin: „Wstecz" führt aus ihm zurück in die rufende Erzählung. */
+    remember('enter');
+    setBackBy(0);
     setNotice(null);
     setAnsweredOn(null);
     setVisit((v) => v + 1);
@@ -433,6 +488,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const toReview = () => {
     if (reviewStep === null) { restart(); return; }
     setAnsweredOn(null);
+    forgetPast();
     const s = runRef.current.state;
     commit({ run: { ...runRef.current, state: enterAt(running, { ...s, chapter: null }, reviewStep, ctx) }, finished: [] });
   };
@@ -522,6 +578,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     if (step === null) return;
     const ch = chapterAt.get(step);
     setAnsweredOn(null);
+    forgetPast();
     setHovered(null);
     setNotice(null);
     const s = runRef.current.state;
@@ -546,6 +603,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     if (hash.includes(named) && next.id !== run.root) { window.location.hash = hash.replace(named, `/przebiegi/${next.id}/graj`); return; }
     setNotice(null);
     setAnsweredOn(null);
+    forgetPast();
     setUnlocked(isFree(next.id));
     setLockTick((n) => n + 1);
     const kept = posOf(next.id);
@@ -627,6 +685,78 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const narratorOf = (f: Facts): PublicEntity | null => {
     const one = narratorNow(running, f);
     return one === null ? null : content.entity(one.character);
+  };
+
+  /* Was ein Lese-Schritt zeigt (Bild, Eintrag) — derselbe für den laufenden und für einen, zu dem „Wstecz" zurückgeht. */
+  const showBody = (node: GraphNode, stItem: string | undefined): ReactNode => {
+    const k = node.config;
+    const id = typeof k.of === 'string' ? k.of : typeof k.explain === 'string' ? k.explain : stItem ?? '';
+    const media = typeof k.media === 'object' && k.media !== null ? k.media as MediaRef : null;
+    return (
+      <>
+        {node.type === 'opening' && <p className="cg-muted">{k.mode === 'discovery' ? 'Zanim przeczytasz — jak myślisz?' : 'Przypomnij sobie:'}</p>}
+        {media !== null && <MediaView media={media} />}
+        {id !== '' && <EntityView entity={content.entity(node.type === 'expand' && typeof k.explain === 'string' ? k.explain : id)} />}
+      </>
+    );
+  };
+  /*
+    2026-11-05 (Prompt 18) — EIN SCHRITT VON FRÜHER, nur zum Ansehen: eine Frage mit der gegebenen Antwort und dem Urteil (nie
+    wieder gefragt, nichts gezählt), eine Wahl mit der gewählten Möglichkeit, ein Abstecher mit dem, was er tat.
+  */
+  const pastBody = (node: GraphNode, entry: PastStep, stItem: string | undefined): ReactNode => {
+    const k = node.config;
+    switch (node.type) {
+      case 'show':
+      case 'expand':
+      case 'opening':
+        return showBody(node, stItem);
+      case 'question': {
+        const card = entry.answer?.card ?? askedCardOf(node, content.card);
+        if (card === null) return null;
+        return (
+          <section className="cg-face is-past" data-card={card.key} data-flow-past-answer={entry.answer === undefined ? '' : entry.answer.outcome.correct ? 'right' : 'wrong'}>
+            <CardPrompt parts={card.prompt} />
+            {entry.answer !== undefined && <Verdict card={card} outcome={entry.answer.outcome} given={entry.answer.given} showGiven marked />}
+          </section>
+        );
+      }
+      case 'choice':
+      case 'chapters': {
+        const list = node.type === 'choice' ? (Array.isArray(k.options) ? k.options : []) : (Array.isArray(k.chapters) ? k.chapters : []);
+        const prefix = node.type === 'choice' ? 'o' : 'c';
+        return (
+          <div className="cg-choices cg-choice-list" data-flow-past-choice={entry.exit ?? ''}>
+            {list.map((o, i) => {
+              const exit = `${prefix}${i}`;
+              const raw = typeof o === 'object' && o !== null ? (o as { label?: unknown; title?: unknown }) : null;
+              const label = (typeof raw?.label === 'string' ? raw.label : typeof raw?.title === 'string' ? raw.title : typeof o === 'string' ? o : '') || `${i + 1}`;
+              const chosen = entry.exit === exit;
+              return (
+                <button key={exit} type="button" className={`cg-option cg-choice-item${chosen ? ' is-chosen' : ''}`} disabled>
+                  <TexText text={label} />
+                  {chosen && <span className="cg-muted">{W.chosenHere}</span>}
+                </button>
+              );
+            })}
+          </div>
+        );
+      }
+      case 'detour': {
+        const d = detourOf(node);
+        const inner = d === null || d.flow === '' ? undefined : flowOf(d.flow);
+        return (
+          <div className="cg-detour" data-flow-past-detour={entry.exit ?? ''}>
+            {inner !== undefined && <p className="cg-detour-name"><TexText text={inner.name} /></p>}
+            <p className="cg-muted">{entry.exit === 'enter' || entry.exit === 'done' ? W.detourEntered : W.detourSkipped}</p>
+          </div>
+        );
+      }
+      case 'line':
+        return <Bubble who={typeof k.character === 'string' ? content.entity(k.character) : null} text={typeof k.of === 'string' ? content.entity(k.of) : null} mood={typeof k.mood === 'string' ? k.mood : null} />;
+      default:
+        return null;
+    }
   };
 
   if (topicRun !== null && cg !== null) {
@@ -777,28 +907,32 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const c = current.config;
   const title = typeof c.title === 'string' && c.title !== '' ? c.title : null;
   const item = state.item === undefined ? null : content.entity(state.item);
-  /* Mit einem Erzähler sagt er den Titel des Schritts an (er steht dann nicht noch einmal darunter). */
+  /* 2026-11-05 (Prompt 18) — wer erzählt: eine kleine Zeile über dem Titel, nur am Anfang einer Erzählung und wenn er wechselt. */
   const teller = narratorOf(facts(state));
+  const tellKey = `${running.id}:${state.step ?? ''}:${visit}`;
+  if (tellSeen.current.key !== tellKey) {
+    const id = teller?.id ?? null;
+    const prev = tellSeen.current;
+    tellSeen.current = { key: tellKey, flow: running.id, id, show: id !== null && (prev.flow !== running.id || prev.id !== id || state.visited.length <= 1) };
+  }
+  const tellNow = tellSeen.current.show ? teller : null;
+
+  /* 2026-11-05 (Prompt 18) — „Dalej" steht unten in der Leiste (`next` merkt, was er tut); die Tastatur nimmt dasselbe. */
+  let nextAct: (() => void) | null = null;
+  let keyNext: (() => void) | null = null;
+  const next = (act: () => void): null => { nextAct = act; return null; };
 
   const body = (() => {
     switch (current.type) {
       case 'show':
       case 'expand':
       case 'opening': {
-        const id = typeof c.of === 'string' ? c.of : typeof c.explain === 'string' ? c.explain : state.item ?? '';
-        const media = typeof c.media === 'object' && c.media !== null ? c.media as MediaRef : null;
-        return (
-          <>
-            {current.type === 'opening' && <p className="cg-muted">{c.mode === 'discovery' ? 'Zanim przeczytasz — jak myślisz?' : 'Przypomnij sobie:'}</p>}
-            {media !== null && <MediaView media={media} />}
-            {id !== '' && <EntityView entity={content.entity(current.type === 'expand' && typeof c.explain === 'string' ? c.explain : id)} />}
-            <Next label={W.goOn} onNext={() => go('next')} />
-          </>
-        );
+        next(() => go('next'));
+        return showBody(current, state.item);
       }
       case 'question': {
         const card = askedCardOf(current, content.card);
-        if (card === null) return <><p className="wk-hint">Tego pytania tu nie ma.</p><Next label={W.goOn} onNext={() => go('right')} /></>;
+        if (card === null) return <><p className="wk-hint">Tego pytania tu nie ma.</p>{next(() => go('right'))}</>;
         const left = questionsLeft(running, current.id, content.card, marksOf).left;
         /* Dieselbe Frage wie eben, nach einer falschen Antwort: erst ein Przerywnik (eine gekonnte), dann sie wieder. */
         /* Nur beim Wiederkommen — nicht, solange die Rückmeldung zur eben falschen Antwort steht. */
@@ -806,6 +940,13 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         const spacer = back && marksOf !== null && lastAsked !== null && lastAsked.key === card.key && lastAsked.wrong && spacerDone !== card.key
           ? pickSpacer(card, cardsInFlow(running, content.card), content.cards ?? [], marksOf) : null;
         const shown = spacer ?? card;
+        const afterAnswer = () => {
+          if (spacer !== null) { setSpacerDone(card.key); setAnsweredOn(null); return; }
+          setSpacerDone(null);
+          go(answeredOn?.correct === false ? 'wrong' : 'right');
+        };
+        /* Beantwortet: „Dalej" der Karte selbst; die Tastatur (→) tut dasselbe. */
+        if (answeredOn !== null) keyNext = afterAnswer;
         return (
           <>
             <AskHead W={W} left={left} done={askedHere} card={shown} spacer={spacer !== null} marks={marksOf} topic={(id) => content.label?.(id) ?? content.entity(id)?.label ?? id} story={running.name} />
@@ -816,15 +957,13 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
                 /* 2026-11-01 — mit der Antwort: Podpowiedzi und gezogene Werte (wie in einer Powtórka). */
                 learner?.record(card, outcome.correctness, { via: running.id, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(card.params === undefined ? {} : { params: card.params }) });
                 onAnswer?.(current.id, card, outcome.correctness, given);
+                /* 2026-11-05 (Prompt 18) — für „Wstecz": diese Antwort, wie sie war (gezeigt, nie wieder gefragt). */
+                lastAnswer.current = { card, outcome, given };
                 setAnsweredOn({ step: current.id, correct: outcome.correct });
                 setAskedHere((n) => n + 1);
                 setLastAsked({ key: card.key, wrong: !outcome.correct });
               }}
-              onNext={() => {
-                if (spacer !== null) { setSpacerDone(card.key); setAnsweredOn(null); return; }
-                setSpacerDone(null);
-                go(answeredOn?.correct === false ? 'wrong' : 'right');
-              }} />
+              onNext={afterAnswer} />
           </>
         );
       }
@@ -885,7 +1024,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         return (
           <>
             <p className="cg-muted" data-flow-merge={`${done}/${all}`}>Ukończono {mergeWords(done, all)}{left.length > 0 ? ' — wybierz następną (wszystkie, w dowolnej kolejności):' : '.'}</p>
-            {left.length === 0 ? <Next label={W.goOn} onNext={() => go('done')} /> : (
+            {left.length === 0 ? next(() => go('done')) : (
               <div className="cg-choices cg-choice-list">
                 {(Array.isArray(c.chapters) ? c.chapters : []).map((one, i) => {
                   const exit = `c${i}`;
@@ -910,15 +1049,15 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         return (
           <>
             <Bubble who={who} text={said} mood={typeof c.mood === 'string' ? c.mood : null} />
-            <Next label={W.goOn} onNext={() => go('next')} />
+            {next(() => go('next'))}
           </>
         );
       }
       /* Automatische Schritte hält der Spieler nie an (`enterAt`); steht er doch auf einem (alte Stelle): weiter, wie er ausgeht. */
       case 'condition':
-        return <Next label={W.goOn} onNext={() => go(holds(readCondition(c.condition), facts(state)) ? 'yes' : 'no')} />;
+        return next(() => go(holds(readCondition(c.condition), facts(state)) ? 'yes' : 'no'));
       case 'set':
-        return <Next label={W.goOn} onNext={() => go('next')} />;
+        return next(() => go('next'));
       /*
         2026-11-04 (Prompt 13) — EIN ABSTECHER: die andere Erzählung beim Namen, was dort wartet, „Wejdź" und „Dalej bez tego";
         schon ukończona — „już znasz", „Przypomnij" und „Dalej"; Pflicht ("optional": false) — nur „Wejdź".
@@ -927,7 +1066,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         const d = detourOf(current)!;
         const inner = d.flow === '' ? undefined : flowOf(d.flow);
         const on = (exit: 'done' | 'skip') => go(exit);
-        if (inner === undefined) return <><p className="wk-note" data-flow-detour-missing="">{W.detourMissing}</p><Next label={W.goOn} onNext={() => on(d.optional ? 'skip' : 'done')} /></>;
+        if (inner === undefined) return <><p className="wk-note" data-flow-detour-missing="">{W.detourMissing}</p>{next(() => on(d.optional ? 'skip' : 'done'))}</>;
         const refused = detourRefused(state, inner.id, flowOf);
         const known = innerDone(inner.id);
         const kept = posOf(inner.id);
@@ -940,7 +1079,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
             {refused !== null ? (
               <>
                 <p className="wk-note" data-flow-detour-refused={refused}>{refused === 'cycle' ? W.detourCycle : W.detourDeep}</p>
-                <Next label={W.goOn} onNext={() => on(d.optional ? 'skip' : 'done')} />
+                {next(() => on(d.optional ? 'skip' : 'done'))}
               </>
             ) : known ? (
               <div className="wk-actions">
@@ -966,51 +1105,189 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
           <>
             <p className="cg-muted">Scena prezentacji</p>
             {page !== '' && <a className="wk-link" href={`#/${page}`} target="_blank" rel="noopener">Otwórz prezentację</a>}
-            <Next label={W.goOn} onNext={() => go('next')} />
+            {next(() => go('next'))}
           </>
         );
       }
       default:
-        return <><p className="cg-muted">{STEP_LABEL[current.type as keyof typeof STEP_LABEL] ?? current.type}</p><Next label={W.goOn} onNext={() => go('next')} /></>;
+        return <><p className="cg-muted">{STEP_LABEL[current.type as keyof typeof STEP_LABEL] ?? current.type}</p>{next(() => go('next'))}</>;
     }
   })();
 
+  /*
+    2026-11-05 (Prompt 18) — EINE KOPFZEILE: links zurück (dorthin, woher er kam — im Abstecher in die rufende Erzählung), in der
+    Mitte, wo er ist (Erzählung › Schritt; rufende Erzählungen führen zurück), rechts „⋯" mit „Od początku" und „Zapomnij postęp".
+    Darunter der Fortschritt — dieselbe Zählung wie die Ścieżka daneben (`pathNow`), im Przegląd die des Przegląd.
+  */
+  const lookClass = `cg-flow cg-flow-${look === 'slides' || look === 'scenes' ? 'slides' : look === 'flashcards' ? 'cards' : 'reading'}`;
+  const inDetour = depths.length > 0 && trail.length > 0;
+  const backTarget = inDetour
+    ? { label: trail[trail.length - 1].name, run: () => goBack(depths[0]), detour: trail[trail.length - 1].id }
+    : onClose === undefined ? null : { label: backLabel ?? W.back, run: onClose };
+  const crumbsOf = (r: StoryRun, stepTitle: string | null, live: boolean): StoryCrumb[] => {
+    const outer = r.state.stack.map((x) => flowOf(x.flow)).filter((f): f is Flow => f !== undefined);
+    const can = live ? depths : [];
+    const story = flowOf(r.state.flow);
+    return [
+      ...outer.map((f, i) => ({ label: f.name, ...(can.includes(i) ? { run: () => goBack(i) } : {}) })),
+      ...(story === undefined ? [] : [{ label: story.name, id: story.id }]),
+      ...(stepTitle === null ? [] : [{ label: stepTitle }])
+    ];
+  };
+  const menu = { fromStart: restart, ...(learner === null ? {} : { forget }) };
+  const partNow = state.step === null ? undefined : sp.parts[sp.partOfStep.get(state.step) ?? -1];
+  const progress = (() => {
+    if (partNow?.kind === 'review') {
+      const cards = [...new Map(partNow.steps.map((s) => stepNode.get(s)).filter((n): n is GraphNode => n !== undefined)
+        .map((n) => askedCardOf(n, content.card)).filter((x): x is Card => x !== null).map((x) => [x.key, x] as const)).values()];
+      if (cards.length > 0) {
+        const known = marksOf === null ? 0 : cards.filter((x) => isKnown(x, marksOf)).length;
+        const mark = running.goals.length === 0 ? '' : ` · ${reviewOpen ? W.reviewOpenMark : W.reviewPassedMark}`;
+        return { label: `${W.reviewProgress(known, cards.length)}${mark}`, share: known / cards.length, review: true };
+      }
+    }
+    return { label: W.progressOf(pathNow.done, pathNow.total), share: pathNow.total === 0 ? 0 : pathNow.done / pathNow.total, review: false };
+  })();
+  const head = (crumbs: readonly StoryCrumb[]) => (
+    <StoryHead W={W} back={backTarget} crumbs={crumbs} menu={menu}
+      {...(pathNow.total > 0 || progress.review ? { progress } : {})} />
+  );
+
+  /* „Wstecz" und „Dalej" — auch für Tastatur und Wischen (`keys`). */
+  const canBack = past.length > backBy;
+  const stepBack = () => setBackBy((b) => Math.min(past.length, b + 1));
+  const stepForward = () => setBackBy((b) => Math.max(0, b - 1));
+  keys.current = backBy > 0 ? { next: stepForward, back: canBack ? stepBack : null } : { next: nextAct ?? keyNext, back: canBack ? stepBack : null };
+  const controls = (forward: (() => void) | null) => (canBack || forward !== null) && (
+    <div className="cg-flow-controls" data-flow-controls="">
+      {canBack && <button type="button" className="wk-btn wk-btn-line cg-flow-back" onClick={stepBack} data-flow-back="">‹ {W.stepBack}</button>}
+      {forward !== null && <button type="button" className="wk-btn cg-flow-forward" onClick={forward} autoFocus data-flow-go="">{W.goOn} ›</button>}
+    </div>
+  );
+  const touch = {
+    onTouchStart: (e: ReactTouchEvent) => { touchAt.current = e.touches.length === 1 && !noSwipe(e.target) ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; },
+    onTouchEnd: (e: ReactTouchEvent) => {
+      const s = touchAt.current;
+      touchAt.current = null;
+      if (s === null) return;
+      const dx = e.changedTouches[0].clientX - s.x;
+      const dy = e.changedTouches[0].clientY - s.y;
+      if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.6 || String(window.getSelection() ?? '') !== '') return;
+      (dx < 0 ? keys.current.next : keys.current.back)?.();
+    }
+  };
+
+  const shownPast = backBy > 0 ? past[past.length - backBy] : undefined;
   return withPath(
-    <section className={`cg-flow cg-flow-${look === 'slides' || look === 'scenes' ? 'slides' : look === 'flashcards' ? 'cards' : 'reading'}`} data-flow-running={running.id} data-flow-step={state.step ?? ''} data-flow-visited={state.visited.length} data-flow-depth={state.stack.length} data-flow-kept-done={posOf(running.id)?.done === true ? '1' : '0'} data-flow-kept-goals={posOf(running.id)?.goals?.length ?? 0}>
-      <div className="cg-row-between">
-        <span className="cg-flow-title">
-          {/* 2026-11-04 (Prompt 13) — im Abstecher: die Leiste „Etap 1 › Dom w Becchi" (jede rufende Erzählung führt zurück). */}
-          {trail.length > 0 && depths.length > 0 ? (
-            <nav className="cg-muted cg-flow-crumbs cg-flow-trail" aria-label={W.crumbs} data-flow-trail={trail.length} data-flow-crumbs={trail.length}>
-              <ol>
-                {trail.map((f, i) => <li key={`${f.id}:${i}`}>{depths.includes(i) ? <button type="button" className="wk-link-btn" onClick={() => goBack(i)} data-flow-crumb={i}><TexText text={f.name} /></button> : <TexText text={f.name} />}</li>)}
-                <li aria-current="page"><TexText text={running.name} /></li>
-              </ol>
-            </nav>
-          ) : trail.length > 0 && <span className="cg-muted cg-flow-trail" data-flow-trail={trail.length}>{W.inStory(trail.map((f) => f.name).join(' › '))}</span>}
-          <strong data-flow-title={running.id}><TexText text={running.name} /></strong>
-        </span>
-        <span className="cg-row">
-          {running.goals.length > 0 && <span className="cg-muted">{W.goal}: {reached.length}/{running.goals.length}</span>}
-          {depths.length > 0 && trail.length > 0 && <button type="button" className="wk-link-btn" onClick={() => goBack(depths[0])} data-flow-back-detour={trail[trail.length - 1].id}>{W.backTo(trail[trail.length - 1].name)}</button>}
-          <button type="button" className="wk-link-btn" onClick={restart}>{W.fromStart}</button>
-          {learner !== null && <button type="button" className="wk-link-btn" onClick={forget} data-flow-forget="">{W.forgetStory}</button>}
-          {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>{W.close}</button>}
-        </span>
+    <div ref={stage} className="cg-story-stage" {...touch}>
+      {shownPast !== undefined && (() => {
+        const r = shownPast.run;
+        const pFlow = flowOf(r.state.flow);
+        const node = r.state.step === null ? undefined : pFlow?.graph.nodes.find((n) => n.id === r.state.step);
+        const pTitle = node !== undefined && typeof node.config.title === 'string' && node.config.title !== '' ? node.config.title : null;
+        return (
+          <section className={`${lookClass} is-past`} data-flow-past={backBy} data-flow-step={r.state.step ?? ''}>
+            {head(crumbsOf(r, pTitle, false))}
+            <div className="cg-flow-step">
+              {pTitle !== null && <h2 className="cg-flow-step-title"><TexText text={pTitle} /></h2>}
+              <p className="cg-flow-past-note">{W.pastStep}</p>
+              {node === undefined ? null : pastBody(node, shownPast, r.state.item)}
+              {controls(stepForward)}
+            </div>
+          </section>
+        );
+      })()}
+      <section className={`${lookClass}${shownPast !== undefined ? ' is-behind' : ''}`} data-flow-running={running.id} data-flow-step={state.step ?? ''} data-flow-visited={state.visited.length} data-flow-depth={state.stack.length} data-flow-kept-done={posOf(running.id)?.done === true ? '1' : '0'} data-flow-kept-goals={posOf(running.id)?.goals?.length ?? 0}
+        data-flow-trail={trail.length} {...(inDetour ? { 'data-flow-back-detour': trail[trail.length - 1].id } : {})}>
+        {head(crumbsOf(run, title, true))}
+        {notice !== null && <p className="cg-muted" role="status" data-flow-returned="">{notice}</p>}
+        {lines.length > 0 && (
+          <div className="cg-bubbles">
+            {lines.map((l) => <Bubble key={`${l.character}:${l.of}`} who={content.entity(l.character)} text={content.entity(l.of)} mood={null} />)}
+          </div>
+        )}
+        <div className={`cg-flow-step${c.open === 'inline' ? ' cg-flow-inline' : ''}`}>
+          {tellNow !== null && <Teller who={tellNow} W={W} />}
+          {title !== null && <h2 className="cg-flow-step-title" data-flow-title={running.id}><TexText text={title} /></h2>}
+          {item !== null && <p className="cg-muted"><TexText text={item.label} /></p>}
+          {body}
+          {controls(nextAct)}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** 2026-11-05 (Prompt 18) — die Schritte, die „Wstecz" zeigen kann (die automatischen kommen nie vor). */
+const SHOWN_STEPS: ReadonlySet<string> = new Set(['show', 'expand', 'opening', 'question', 'choice', 'chapters', 'line', 'detour', 'scene']);
+
+/** Ein gezeigter Schritt, wie er war: der Lauf in diesem Moment, die gegebene Antwort, der gewählte Ausgang. */
+interface PastStep {
+  readonly run: StoryRun;
+  readonly answer?: { readonly card: Card; readonly outcome: Outcome; readonly given: unknown };
+  readonly exit?: string;
+}
+
+/** Wischen nicht in Feldern, beim Ordnen, auf der Ścieżka und nicht im Kopf. */
+const noSwipe = (t: EventTarget | null): boolean => t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"], .cg-answer, .cg-story-path-side, .cg-story-head, [draggable="true"]') !== null;
+
+interface StoryCrumb { readonly label: string; readonly id?: string; readonly run?: () => void }
+
+/**
+ * 2026-11-05 (Prompt 18) — DIE KOPFZEILE DES SPIELERS: „‹ Mapa" (woher er kam), die Brotkrumen (lange Namen gekürzt, ganz im
+ * Hinweis), „⋯" mit „Od początku" und „Zapomnij postęp" (fragt nach); darunter der Fortschritt „4 z 14".
+ */
+function StoryHead({ W, back, crumbs, menu, progress }: {
+  W: ReturnType<typeof words>;
+  back: { readonly label: string; readonly run: () => void; readonly detour?: string } | null;
+  crumbs: readonly StoryCrumb[];
+  menu: { readonly fromStart: () => void; readonly forget?: () => void };
+  progress?: { readonly label: string; readonly share: number; readonly review: boolean };
+}) {
+  const box = useRef<HTMLDetailsElement | null>(null);
+  const close = () => { if (box.current !== null) box.current.open = false; };
+  return (
+    <header className="cg-story-head">
+      <div className="cg-story-headline">
+        {back !== null && (
+          <button type="button" className="wk-link-btn cg-story-back" onClick={back.run} title={back.label}
+            {...(back.detour === undefined ? { 'data-flow-close': '' } : { 'data-flow-back-to': back.detour })}>‹ <span>{back.label}</span></button>
+        )}
+        <nav className="cg-story-crumbs" aria-label={W.crumbs} data-flow-crumbs={crumbs.length}>
+          <ol>
+            {crumbs.map((x, i) => (
+              <li key={i} title={x.label} {...(i === crumbs.length - 1 ? { 'aria-current': 'page' as const } : {})} {...(x.id === undefined ? {} : { 'data-flow-story': x.id })}>
+                {x.run !== undefined ? <button type="button" className="wk-link-btn" onClick={x.run} data-flow-crumb={i}><TexText text={x.label} /></button> : <TexText text={x.label} />}
+              </li>
+            ))}
+          </ol>
+        </nav>
+        <details ref={box} className="cg-story-menu" data-flow-menu="">
+          <summary aria-label={W.moreTools} title={W.moreTools}>⋯</summary>
+          <div className="cg-story-menu-body">
+            <button type="button" className="wk-link-btn" onClick={() => { close(); menu.fromStart(); }} data-flow-restart="">{W.fromStart}</button>
+            {menu.forget !== undefined && <button type="button" className="wk-link-btn is-danger" onClick={() => { close(); menu.forget!(); }} data-flow-forget="">{W.forgetStory}</button>}
+          </div>
+        </details>
       </div>
-      {notice !== null && <p className="cg-muted" role="status" data-flow-returned="">{notice}</p>}
-      {lines.length > 0 && (
-        <div className="cg-bubbles">
-          {lines.map((l) => <Bubble key={`${l.character}:${l.of}`} who={content.entity(l.character)} text={content.entity(l.of)} mood={null} />)}
+      {progress !== undefined && (
+        <div className={`cg-story-progress${progress.review ? ' is-review' : ''}`} data-flow-progress={progress.label}>
+          <span className="cg-story-bar" aria-hidden><i ref={(el) => { if (el !== null) el.style.width = `${Math.round(Math.max(0, Math.min(1, progress.share)) * 100)}%`; }} /></span>
+          <span className="cg-story-count">{progress.label}</span>
         </div>
       )}
-      {teller !== null && <Narrator who={teller} says={title} />}
-      <div className={`cg-flow-step${c.open === 'inline' ? ' cg-flow-inline' : ''}`}>
-        {title !== null && teller === null && <h2><TexText text={title} /></h2>}
-        {item !== null && <p className="cg-muted"><TexText text={item.label} /></p>}
-        {body}
-      </div>
-    </section>
+    </header>
+  );
+}
+
+/** 2026-11-05 (Prompt 18) — wer erzählt: eine kleine Zeile (Bild oder Anfangsbuchstabe und Name) über dem Titel. */
+function Teller({ who, W }: { who: PublicEntity; W: ReturnType<typeof words> }) {
+  const portrait = who.media.find((m) => m.type === 'image');
+  return (
+    <p className="cg-story-teller" data-narrator={who.id}>
+      <span className="cg-bubble-face" aria-hidden>{portrait !== undefined ? <MediaView media={portrait} /> : who.label.slice(0, 1)}</span>
+      <span>{W.tells(who.label)}</span>
+    </p>
   );
 }
 
@@ -1084,9 +1361,6 @@ function Narrator({ who, says }: { who: PublicEntity | null; says: string | null
   );
 }
 
-function Next({ onNext, label }: { onNext: () => void; label: string }) {
-  return <div className="wk-actions"><button type="button" className="wk-btn" onClick={onNext} autoFocus>{label}</button></div>;
-}
 
 function Goals({ flow, reached }: { flow: Flow; reached: readonly string[] }) {
   return (

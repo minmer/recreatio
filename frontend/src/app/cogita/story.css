@@ -1,0 +1,70 @@
+/*
+ * 2026-11-05 (Prompt 18) — DER SPIELER EINER ERZÄHLUNG (`FlowPlayer.tsx`): eine Kopfzeile (zurück, wo du bist, „⋯"), ein dünner
+ * Fortschritt darunter, eine Karte, die oben beginnt und mit dem Text wächst, und unten „‹ Wstecz" / „Dalej ›".
+ */
+
+.cg-story-stage { display: grid; min-width: 0; }
+.cg-flow.is-behind { display: none; }
+
+/* -- Kopfzeile ------------------------------------------------------------------------------- */
+.cg-story-head { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.cg-story-headline { display: flex; align-items: center; gap: var(--wk-space-3); min-width: 0; }
+.cg-story-back { flex: 0 1 auto; max-width: 12rem; min-width: 0; display: inline-flex; gap: 0.25rem; white-space: nowrap; font-weight: 600; }
+.cg-story-back > span { overflow: hidden; text-overflow: ellipsis; }
+.cg-story-crumbs { flex: 1 1 auto; min-width: 0; }
+.cg-story-crumbs ol { display: flex; align-items: center; gap: 0.375rem; margin: 0; padding: 0; list-style: none; min-width: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.cg-story-crumbs li { flex: 0 1 auto; min-width: 2.5rem; max-width: 20rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cg-story-crumbs li + li::before { content: '›'; margin-right: 0.375rem; color: var(--wk-muted); }
+.cg-story-crumbs li[aria-current] { flex-shrink: 2; color: var(--wk-ink); font-weight: 600; }
+.cg-story-crumbs .wk-link-btn { font: inherit; }
+
+.cg-story-menu { position: relative; flex: none; }
+.cg-story-menu > summary {
+  list-style: none; cursor: pointer; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: var(--wk-radius-sm);
+  color: var(--wk-muted); font-size: var(--wk-text-lg); line-height: 1;
+}
+.cg-story-menu > summary::-webkit-details-marker { display: none; }
+.cg-story-menu > summary:hover, .cg-story-menu[open] > summary { background: var(--wk-soft); color: var(--wk-ink); }
+.cg-story-menu > summary:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.cg-story-menu-body {
+  position: absolute; right: 0; top: calc(100% + 0.25rem); z-index: 20; display: grid; gap: var(--wk-space-1); min-width: 12rem;
+  padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface); box-shadow: 0 6px 18px rgb(0 0 0 / 0.15);
+}
+.cg-story-menu-body .wk-link-btn { justify-self: start; text-align: left; padding: 0.25rem 0; }
+.cg-story-menu-body .is-danger { color: var(--wk-danger); }
+
+/* -- Fortschritt ----------------------------------------------------------------------------- */
+.cg-story-progress { display: flex; align-items: center; gap: var(--wk-space-2); min-width: 0; }
+.cg-story-bar { flex: 1 1 auto; height: 4px; border-radius: 2px; background: var(--wk-line); overflow: hidden; }
+.cg-story-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--wk-accent); transition: width 0.3s ease; }
+.cg-story-count { flex: none; font-size: var(--wk-text-xs); color: var(--wk-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cg-story-progress.is-review .cg-story-count { color: var(--wk-ink); font-weight: 600; }
+
+/* -- Die Karte: oben beginnen, links, in Lesebreite; wächst mit dem Text ---------------------- */
+.cg-flow.cg-flow-slides .cg-flow-step { min-height: 0; align-content: start; text-align: left; font-size: var(--wk-text-md); }
+.cg-flow-step > .cg-flow-step-title { margin: 0; font-size: var(--wk-text-xl); line-height: 1.25; }
+.cg-flow-step .cg-markup { max-width: 68ch; margin-inline: 0; }
+.cg-flow-step .cg-markup p { line-height: 1.65; margin: 0 0 0.85em; }
+.cg-flow-step .cg-markup .lib-notes { text-align: left; }
+.cg-flow-step .cg-markup .lib-notes ol { padding-left: 1.75rem; display: grid; gap: 0.25rem; }
+.cg-story-teller { display: flex; align-items: center; gap: var(--wk-space-2); margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.cg-story-teller .cg-bubble-face { width: 1.75rem; height: 1.75rem; font-size: var(--wk-text-xs); }
+
+/* -- Wstecz / Dalej -------------------------------------------------------------------------- */
+.cg-flow-controls {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--wk-space-3);
+  margin-top: var(--wk-space-2); padding-top: var(--wk-space-3); border-top: 1px solid var(--wk-line);
+}
+.cg-flow-controls .cg-flow-forward { margin-left: auto; min-width: 9rem; padding-block: 0.6rem; font-size: var(--wk-text-md); }
+
+/* -- Ein Schritt von früher (nur zum Ansehen) --------------------------------------------------- */
+.cg-flow-past-note { margin: 0; font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.cg-flow.is-past .cg-flow-step { border-style: dashed; }
+.cg-choice-item.is-chosen { border-color: var(--wk-accent); box-shadow: inset 3px 0 0 var(--wk-accent); }
+
+@media (max-width: 480px) {
+  .cg-story-crumbs li:not(:nth-last-child(-n + 2)) { display: none; }
+  .cg-story-back { max-width: 7rem; }
+  .cg-flow-controls .cg-flow-forward { min-width: 7rem; }
+}

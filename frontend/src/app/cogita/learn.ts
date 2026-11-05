@@ -25,6 +25,7 @@ import { newId } from '../core/ids';
 import { call, Unreachable, WorkspaceError } from '../core/session';
 import { readParams, readSeed, type Card, type ParamValue } from './cardBasics';
 import { dueAt, snapshotOf, type Mark, type Snapshot, type Spacing } from './knowness';
+import { withAwards } from './rewards';
 import { effectiveSpacing, OWN_PREFIX, ownSpacing, withOwnSpacing, type AreaSpacing } from './spacing';
 
 /* -- Was gespeichert wird ---------------------------------------------------------------- */
@@ -836,6 +837,19 @@ export class Learner {
    */
   async keepSpacing(sp: Spacing | null): Promise<void> {
     const next = withOwnSpacing(this.progress.values, sp);
+    this.progress = { ...this.progress, values: next };
+    this.changed();
+    await this.send({ v: 1, kind: 'values', values: next });
+  }
+
+  /**
+   * 2026-11-05 (Prompt 17) — WANN EIN ABZEICHEN DER KARTE ZUERST KAM (`rewards.ts` `withAwards`, unter `~award.<id>`: das
+   * früheste Datum bleibt) — mit den übrigen Werten in einem Stapel `values`; nichts Neues: nichts.
+   */
+  async keepAwards(add: Readonly<Record<string, number>>): Promise<void> {
+    const was = this.progress.values;
+    const next = withAwards(was, add);
+    if (!Object.entries(next).some(([k, v]) => was[k] !== v)) return;
     this.progress = { ...this.progress, values: next };
     this.changed();
     await this.send({ v: 1, kind: 'values', values: next });

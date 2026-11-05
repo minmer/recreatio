@@ -106,7 +106,7 @@ function FlowForm({ id }: { id: string }) {
   });
 
   if (playing && cards !== undefined) {
-    return <FlowPlayer flow={resolved} content={contentOfLibrary(lib, cards ?? [])} learner={null} onClose={() => setPlaying(false)} />;
+    return <FlowPlayer flow={resolved} content={contentOfLibrary(lib, cards ?? [])} learner={null} onClose={() => setPlaying(false)} backLabel="Edytor" />;
   }
 
   const templates = lib.docs('flow').filter((e) => e.id !== id && Array.isArray(e.data.slots) && e.data.slots.length > 0);

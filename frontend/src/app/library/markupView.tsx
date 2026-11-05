@@ -349,7 +349,25 @@ export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { bloc
             const H = b.level === 2 ? 'h3' : b.level === 3 ? 'h4' : 'h5';
             return <H key={i} className="lib-h"><Inlines list={b.c} notes={notes} prefix={prefix} look={look} /></H>;
           }
-          case 'quote': return <blockquote key={i} className="lib-blockquote"><Blocks blocks={b.c} look={look} notes={notes} prefix={prefix} path={path} /></blockquote>;
+          case 'quote': {
+            /* 2026-11-05 — die letzte Zeile eines Zitats, die mit „—" beginnt, ist sein Autor: abgesetzt unter dem Zitat. */
+            /* Zwei `>`-Zeilen ergeben einen Absatz mit Zeilenumbruch: der Autor ist, was nach dem letzten Umbruch kommt (oder ein eigener letzter Absatz). */
+            const dash = (x: Inline | undefined) => x?.t === 'text' && /^\s*[—–]\s/.test(x.v);
+            const last = b.c[b.c.length - 1];
+            let body: readonly Block[] = b.c;
+            let by: readonly Inline[] | null = null;
+            if (last?.t === 'p') {
+              const cut = last.c.map((x) => x.t).lastIndexOf('br');
+              if (cut > 0 && dash(last.c[cut + 1])) { body = [...b.c.slice(0, -1), { ...last, c: last.c.slice(0, cut) }]; by = last.c.slice(cut + 1); }
+              else if (b.c.length > 1 && dash(last.c[0])) { body = b.c.slice(0, -1); by = last.c; }
+            }
+            return (
+              <blockquote key={i} className="lib-blockquote">
+                <Blocks blocks={body} look={look} notes={notes} prefix={prefix} path={path} />
+                {by !== null && <p className="lib-quote-by"><Inlines list={by} notes={notes} prefix={prefix} look={look} /></p>}
+              </blockquote>
+            );
+          }
           case 'list': {
             const L = b.ordered ? 'ol' : 'ul';
             return <L key={i}>{b.items.map((item, j) => <li key={j}><Inlines list={item} notes={notes} prefix={prefix} look={look} /></li>)}</L>;

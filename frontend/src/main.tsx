@@ -11,6 +11,8 @@
  */
 
 import './app/core/polyfills';
+/* 2026-11-05 (Prompt 17) — wie viel Bewegung (`data-motion` an <html>), bevor irgendetwas zeichnet. */
+import './app/ui/motion';
 import { keepLinkFromAddress } from './app/links/linkKeep';
 
 /*

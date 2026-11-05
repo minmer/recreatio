@@ -145,3 +145,21 @@ Jeden dokument może też zmieniać i usuwać to, co już jest — wszystko w je
 - Sceny wstępu i spotkania bez "about" — ścieżka nie ma ich kroków.
 - Długi przegląd z całą głęboką treścią w środku — rozdziel: przegląd krótki, głębsze w osobnych opowieściach przez "detour".
 - Zagłębienie bez krawędzi "done" (albo "skip" przy "optional": true) — ścieżka ma ślepy zaułek; dwie opowieści, które przez zagłębienia wchodzą jedna w drugą — import odrzuca koło.
+- Cytat wpisany w akapit jako „**Cytat (T. Bosco):** „…”” — pokazuje się jak zwykły tekst. Cytat to osobny akapit z „> ” (rozdział 11).
+
+## 11. Tekst kroku: akapity, cytaty, przypisy (2026-11-05)
+
+Pola "markup" (tekst wpisu, który krok pokazuje) czyta się na ekranie kroku — od lewej, w szerokości do czytania. Żeby wyglądały czysto:
+
+- Krótkie akapity (2–4 zdania), oddzielone pustą linią; śródtytuł `## …` tylko przy dłuższym tekście.
+- **Cytat** — osobny akapit, każda linia od `> `; słowa w cudzysłowie, źródło jako przypis na końcu słów; ostatnia linia `> — Kto` to podpis pod cytatem:
+
+  ```
+  > „Wszystkie następne lata zostały głęboko naznaczone tym snem.” [@bosco-biografia, s. 5]
+  > — Teresio Bosco
+  ```
+
+  Pokazuje się jako wyróżniony blok z podpisem po prawej.
+- **Źródło** — `[@klucz-dzieła, s. 12]` na końcu zdania (dzieło w bibliotece, z której baza korzysta); przypisy numerują się same i stoją pod tekstem, kolejne z tego samego dzieła jako „Tamże”. Nie pisz numerów, list „Przypisy” ani źródeł w nawiasach ręcznie.
+- Odesłanie do innej części opowieści albo innego wpisu — `[[słowa|@wpis]]` (link), nie cudzysłów z nazwą.
+- Przejście dalej daje przycisk „Dalej →” pod tekstem — nie kończ tekstu zdaniem „kliknij dalej”.
