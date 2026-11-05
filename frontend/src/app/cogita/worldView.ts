@@ -161,11 +161,11 @@ export function keepLabels<T extends PlacedLabel>(placed: readonly T[], must: (l
       if (Math.abs(x - sx) > 2 || Math.abs(y - sy) > 2) continue;
       if (free(x, y, l)) return { ...l, x, y, shown: true, alpha: 1 };
     }
-    /* Zu klein: kurz daneben (höchstens etwa 90 Bildpunkte) mit einer Linie. */
-    for (let d = l.h + 6; d <= 90; d += l.h / 2 + 3) {
-      for (let k = 0; k < 8; k += 1) {
-        const a = (k * Math.PI) / 4;
-        const x = l.x + Math.cos(a) * d * 1.6; const y = l.y + Math.sin(a) * d;
+    /* Zu klein: kurz daneben (höchstens etwa 130 Bildpunkte) mit einer Linie. */
+    for (let d = l.h + 6; d <= 100; d += l.h / 2 + 3) {
+      for (let k = 0; k < 16; k += 1) {
+        const a = (k * Math.PI) / 8;
+        const x = l.x + Math.cos(a) * d * 1.3; const y = l.y + Math.sin(a) * d;
         if (x < l.w / 2 + 4 || x > width - l.w / 2 - 4 || y < l.h / 2 + 4 || y > height - l.h / 2 - 4) continue;
         if (free(x, y, l)) return { ...l, x, y, shown: true, alpha: 1, leader: [l.x, l.y] as const };
       }

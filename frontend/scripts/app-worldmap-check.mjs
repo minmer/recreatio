@@ -77,15 +77,16 @@ for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], [
   const st = [[q0, r0]];
   while (st.length > 0) { const [q, r] = st.pop(); for (const [dq, dr] of dirs) { const a = q + dq; const b = r + dr; const k = `${a},${b}`; if (a < q0 || a > q1 || b < r0 || b > r1 || outside.has(k) || at.has(k)) continue; outside.add(k); st.push([a, b]); } }
   let holes = 0;
-  for (let q = q0; q <= q1; q += 1) for (let r = r0; r <= r1; r += 1) { const k = `${q},${r}`; if (!at.has(k) && !outside.has(k)) holes += 1; }
-  const islands = (() => { const seen = new Set(); let c = 0; for (const k0 of at.keys()) { if (seen.has(k0)) continue; c += 1; const s2 = [k0]; seen.add(k0); while (s2.length > 0) { const [q, r] = s2.pop().split(',').map(Number); for (const [dq, dr] of dirs) { const k = `${q + dq},${r + dr}`; if (at.has(k) && !seen.has(k)) { seen.add(k); s2.push(k); } } } } return c; })();
+  for (let q = q0; q <= q1; q += 1) for (let r = r0; r <= r1; r += 1) { const k = `${q},${r}`; if (!at.has(k) && !outside.has(k) && k !== '0,0') holes += 1; }
+  const islands = (() => { const seen = new Set(); let c = 0; const withHome = new Map(at); withHome.set('0,0', -1); for (const k0 of withHome.keys()) { if (seen.has(k0)) continue; c += 1; const s2 = [k0]; seen.add(k0); while (s2.length > 0) { const [q, r] = s2.pop().split(',').map(Number); for (const [dq, dr] of dirs) { const k = `${q + dq},${r + dr}`; if (withHome.has(k) && !seen.has(k)) { seen.add(k); s2.push(k); } } } } return c; })();
   const strays = w.cells.filter((c) => dirs.filter(([dq, dr]) => at.has(`${c.q + dq},${c.r + dr}`)).length <= 1).length;
   truth(`${name}: one solid area — ${holes} holes, ${islands} island(s), ${strays} columns standing apart`, holes <= (g.ids.length > 1000 ? 0.01 * g.ids.length : 0) && islands === 1 && strays <= (g.ids.length > 1000 ? 3 : 0), { holes, islands, strays });
-  /* Das Haus: auf dem Startthema in der Mitte, rundum Land; das Fundament um es. */
+  /* Das Haus: ein eigenes Feld in der Mitte (kein Thema dort), rundum Land, das Startthema daneben; das Fundament um es. */
   const home = w.home;
   const roots = g.ids.map((_, t) => t).filter((t) => g.needs[t].length === 0);
   const homeRing = dirs.filter(([q, r]) => at.has(`${q},${r}`)).length;
-  truth(`${name}: the house stands on the start topic (${g.labels[home]}) in the centre, all 6 neighbours land`, home >= 0 && w.cells[home].q === 0 && w.cells[home].r === 0 && roots.includes(home) && homeRing === 6, { home, homeRing });
+  const startRing = home < 0 ? -1 : (Math.abs(w.cells[home].q) + Math.abs(w.cells[home].r) + Math.abs(w.cells[home].q + w.cells[home].r)) / 2;
+  truth(`${name}: the house has its own tile in the centre (no topic on it), all 6 neighbours land, the start topic (${g.labels[home]}) next to it`, home >= 0 && !at.has('0,0') && roots.includes(home) && homeRing === 6 && startRing === 1, { home, homeRing, startRing });
   const inF = new Set(w.foundation);
   const fCells = new Set(w.foundation.map((t) => `${w.cells[t].q},${w.cells[t].r}`));
   const fWhole = connected(w.foundation.map((t) => w.cells[t]));

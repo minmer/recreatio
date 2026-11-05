@@ -19,7 +19,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 
 import type { LsBand } from './landscape';
 import type { WorldLayout } from './worldLayout';
-import { cellPx, deepestS, depthOf, detailPx, fitCam, fitInfo, FORE_MAX, keepLabels, FORE_MIN, FORE_START, INFO_FORE, infoAngle, NAME_PX, PICK_PX, placeLabels, projection, regionLabelAlpha, RING_PX, toGround, toScreen, type LabelCandidate, type PlacedLabel, type Projection, type WorldCam } from './worldView';
+import { cellPx, deepestS, depthOf, detailPx, fitCam, fitInfo, FORE_MAX, keepLabels, FORE_MIN, FORE_START, INFO_FORE, infoAngle, NAME_PX, PICK_PX, placeLabels, projection, RING_PX, toGround, toScreen, type LabelCandidate, type PlacedLabel, type Projection, type WorldCam } from './worldView';
 import type { LandscapeWords } from './landscapeWords';
 
 /** 2026-11-04 (Prompt 15, 4b) — was die Karte zeigt: alles, nur das Gekonnte (mit dem Rand), nur das Fällige. */
@@ -224,8 +224,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
     for (const c of world.cells) { x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y); }
     /* 2026-11-04 (Prompt 16, 1) — die ganze Karte um das Haus (die Mitte ist das Startthema). */
-    const h = world.home >= 0 && world.home < n ? world.cells[world.home] : null;
-    if (h !== null) { let r = 0; for (const c of world.cells) r = Math.max(r, Math.hypot(c.x - h.x, c.y - h.y)); return { x: h.x, y: h.y, r: r + 1.2 }; }
+    if (world.home >= 0) { let r = 0; for (const c of world.cells) r = Math.max(r, Math.hypot(c.x, c.y)); return { x: 0, y: 0, r: r + 1.2 }; }
     return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, r: Math.max(x1 - x0, y1 - y0) / 2 + 1.2 };
   }, [world, n]);
   const start: WorldCam = { s: 10, cx: whole.x, cy: whole.y, rot: 0, fore: FORE_START };
@@ -549,9 +548,28 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const textR = p.s * 0.42;
     const measure = (text: string, size: number, bold: boolean) => { ctx.font = `${bold ? '600 ' : ''}${size}px ${fontFamily.current}`; return ctx.measureText(text).width; };
     let drawnText = 0; let insideText = 0; let hiddenText = 0; let rings = 0;
+    /*
+      2026-11-04 (Prompt 16, 1; vom Nutzer) — DAS HAUS hat ein eigenes Feld in der Mitte (kein Thema darauf): eine flache helle
+      Kachel, darauf ein einfaches Haus wie ein Name — liegend, mit der Neigung gestaucht und mit der Kachel gedreht; in der
+      Reihenfolge der Säulen gezeichnet (davor Stehendes deckt es).
+    */
+    const [homeX, homeY] = toScreen(p, 0, 0, 0);
+    const homeDepth = depthOf(p, 0, 0);
+    let homeDrawn = n === 0;
+    const drawHome = () => {
+      homeDrawn = true;
+      ctx.beginPath(); hexPath(homeX, homeY);
+      ctx.fillStyle = css(mix(P.surface, P.light, 0.4)); ctx.fill();
+      ctx.lineWidth = Math.max(1, line * 0.7); ctx.strokeStyle = css(P.ink, 0.35); ctx.stroke();
+      const hs = p.s * 0.5;
+      ctx.setTransform(dpr * ca, dpr * sa * cam.fore, -dpr * sa, dpr * ca * cam.fore, homeX * dpr, homeY * dpr);
+      houseIcon(ctx, hs, P);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
     for (const i of order) {
       const t = topics[i];
       if (t === undefined) continue;
+      if (!homeDrawn && scr[i * 3 + 2] > homeDepth) drawHome();
       const x = scr[i * 3];
       const top = scr[i * 3 + 1];
       const h = t.steps * lift;
@@ -602,8 +620,6 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       */
       if (showLand && isLand(i)) { ctx.beginPath(); edges(i, x, top, isLand); strokeEdges(P.land, line * 1.15, 0.95); }
       if (showReady && showGlow && isReady(i)) { ctx.beginPath(); edges(i, x, top, isReady); strokeEdges(P.ready, line, 0.95); }
-      /* 2026-11-04 (Prompt 16, 1) — das Haus auf dem Startfeld, mit seiner Säule gezeichnet (davor Stehendes deckt es). */
-      if (i === world.home) drawHouse(ctx, x, top, houseSize(), P);
       if (ringOn && (mode !== 'due' || t.due) && !greyed(i)) { strokeRing(x, top, t.share, t.due); rings += 1; }
       if (textOn && x > -textR && x < cw + textR && top > -textR && top < ch + textR) {
         if (coverAt(i, x, top, p, scr) !== null) { hiddenText += 1; continue; }
@@ -623,6 +639,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
     }
+    if (!homeDrawn) drawHome();
     /* Wo eine Säule davor den Umriss deckt: dünn (etwa ein Drittel) und etwas heller darüber — der Rand bleibt lesbar. */
     if (outlines) {
       ctx.beginPath();
@@ -672,24 +689,14 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    /* Hier bist du: leise, am Rand des eigenen Landes. */
-    if (home !== null && home >= 0 && home < n) {
-      const x = scr[home * 3]; const y = scr[home * 3 + 1];
-      ctx.beginPath();
-      ctx.arc(x, y, Math.max(2.5, Math.min(5, px / 6)), 0, Math.PI * 2);
-      ctx.fillStyle = css(P.ink, 0.75);
-      ctx.fill();
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = css(P.surface, 0.9);
-      ctx.stroke();
-    }
+    /* 2026-11-04 (Prompt 16) — kein Punkt „hier bist du“ mehr (das Haus und die Figuren zeigen, wo man ist). */
     /* Für Prüfungen: was im sichtbaren Bild steht. */
     {
       const el = box.current;
       if (el !== null) {
         el.dataset.wmInfo = String(drawnText); el.dataset.wmInfoIn = String(insideText); el.dataset.wmInfoHidden = String(hiddenText); el.dataset.wmRings = String(rings);
         el.dataset.wmTier = textOn ? (deep ? 'deep' : 'names') : '';
-        el.dataset.wmHomeXy = world.home < 0 ? '' : `${screen[world.home * 3].toFixed(0)},${screen[world.home * 3 + 1].toFixed(0)}`;
+        el.dataset.wmHomeXy = scr === screen ? `${homeX.toFixed(0)},${homeY.toFixed(0)}` : el.dataset.wmHomeXy ?? '';
         el.dataset.wmChosenXy = chosen === null ? '' : `${screen[chosen * 3].toFixed(0)},${screen[chosen * 3 + 1].toFixed(0)}`;
       }
     }
@@ -717,8 +724,6 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     return best;
   };
 
-  /** Wie gross das Haus ist: mit dem Zoom, aber nie zu klein, um es zu erkennen. */
-  const houseSize = () => Math.max(13, Math.min(58, px * 0.55));
   /** Ein Tippen auf eine Figur, die Fahne oder den Namen eines Gebiets — „true", wenn es etwas traf. */
   const tapOverlay = (x: number, y: number): boolean => {
     for (const p of [...shownPieces].reverse()) {
@@ -732,10 +737,10 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const fx = screen[goalFlag * 3]; const fy = screen[goalFlag * 3 + 1];
       if (x >= fx - 4 && x <= fx + pieceH * 0.75 && y >= fy - pieceH * 1.15 && y <= fy + 4) { onFlag(); return true; }
     }
-    /* Das Haus: wählt das Startthema. */
-    if (world.home >= 0 && world.home < n) {
-      const hx = screen[world.home * 3]; const hy = screen[world.home * 3 + 1]; const hs = houseSize();
-      if (Math.abs(x - hx) <= hs * 0.5 && y >= hy - hs * 1.05 && y <= hy + hs * 0.15) { onPickTopic(world.home); return true; }
+    /* Das Feld des Hauses: wählt das Startthema (wenn keine Säule davor steht). */
+    if (world.home >= 0 && world.home < n && hit(x, y) === null) {
+      const [gx, gy] = toGround(camRef.current, width, height, x, y);
+      if (Math.hypot(gx, gy) <= 0.5) { onPickTopic(world.home); return true; }
     }
     for (const l of labels) {
       if (!l.shown || !l.key.startsWith('r:')) continue;
@@ -925,13 +930,27 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   */
   /* Fern: kleine Kacheln oder die ganze Karte im Bild (eine kleine Baza ist ganz gezeigt schon gross) — Namen der Gebiete, keine in den Kacheln. */
   const far = px < RING_PX || cam.s <= fitWhole(cam).s * 1.08;
+  /*
+    2026-11-04 (Prompt 16; vom Nutzer) — JE EBENE EINE ZOOMSTUFE: fern die obersten Gebiete, dann (bis die Namen in den Kacheln
+    stehen) ihre Teilgebiete, dann deren Teilgebiete … — die Strecke zwischen fern und nah ist gleichmässig (im Mass des
+    Zooms) auf die Ebenen aufgeteilt, auf jeder stehen nur die Namen dieser Ebene.
+  */
+  const depthOfRegion = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of world.regions.values()) { let d = 0; for (let q = r.parent; q !== null && d < 64; q = world.regions.get(q)?.parent ?? null) d += 1; m.set(r.key, d); }
+    return m;
+  }, [world]);
+  const deepest = useMemo(() => Math.max(0, ...depthOfRegion.values()), [depthOfRegion]);
+  const pxFar = Math.max(RING_PX, cellPx(fitWhole(cam)) * 1.08);
+  const levelNow = far || deepest === 0 ? 0 : 1 + Math.min(deepest - 1, Math.floor(Math.max(0, Math.min(0.999, Math.log(px / pxFar) / Math.log(Math.max(1.01, NAME_PX / pxFar)))) * deepest));
   const labels = useMemo((): (PlacedLabel & { readonly leader?: readonly [number, number] })[] => {
     const list: LabelCandidate[] = [];
     /* Nah steht alles in den Kacheln: dann keine Namen der Gebiete darüber. */
     for (const r of px >= NAME_PX && !far ? [] : world.regions.values()) {
       const d = 2 * r.radius * cam.s;
       const parent = r.parent === null ? null : world.regions.get(r.parent) ?? null;
-      const alpha = far ? (parent === null ? 1 : 0) : regionLabelAlpha(d, parent === null ? null : 2 * parent.radius * cam.s, r.level === 1);
+      const alpha = (depthOfRegion.get(r.key) ?? 0) === levelNow ? 1 : 0;
+      void d;
       if (alpha <= 0.02) continue;
       const [x, y] = toScreen(proj, r.x, r.y);
       const text = regionName(r.key);
@@ -954,9 +973,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       for (let k = 0; k < r.topics.length; k += step2) { const t = r.topics[k]; out.push([screen[t * 3], screen[t * 3 + 1]]); }
       return out.sort((a, b) => Math.hypot(a[0] - l.x, a[1] - l.y) - Math.hypot(b[0] - l.x, b[1] - l.y));
     };
-    return keepLabels(placed, (l) => l.key.startsWith('r:') && world.regions.get(l.key.slice(2))?.parent === null, width, height, spots);
+    return keepLabels(placed, (l) => levelNow === 0 && l.key.startsWith('r:') && (depthOfRegion.get(l.key.slice(2)) ?? 0) === 0, width, height, spots);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, cam, proj, screen, regionName, topics, chosen, width, height, conquered, measureTick, far]);
+  }, [world, cam, proj, screen, regionName, topics, chosen, width, height, conquered, measureTick, far, levelNow]);
   /* Die Farbe eines Gebiets für seinen Namen (Teilgebiete im gefüllten Gebiet: ihr eigener Ton). */
   const labelColour = (key: string): string => {
     const r = world.regions.get(key);
@@ -1023,7 +1042,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 
   return (
     <div ref={box} className={`cg-wm${compact ? ' is-compact' : ''}`} tabIndex={-1} onKeyDown={keys} data-wm-scale={cam.s.toFixed(2)} data-wm-px={px.toFixed(1)} data-wm-rot={rotNow} data-wm-fore={cam.fore.toFixed(2)}
-      data-wm-far={far ? '1' : '0'} data-wm-tops={world.top.length} data-wm-hot={hoverRegion ?? ''} data-wm-cells={n} data-wm-step={stepNow.toFixed(3)} data-wm-height={height3} data-wm-home={world.home} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')}>
+      data-wm-far={far ? '1' : '0'} data-wm-level={levelNow} data-wm-tops={world.top.length} data-wm-hot={hoverRegion ?? ''} data-wm-cells={n} data-wm-step={stepNow.toFixed(3)} data-wm-height={height3} data-wm-home={world.home} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')}>
       <div className="cg-wm-modes" role="group" aria-label={T.modeLabel} data-wm-modes={mode}>
         {(['all', 'known', 'discover', 'due'] as const).map((m) => (
           <button key={m} type="button" className={`cg-wm-mode${mode === m ? ' is-on' : ''}`} aria-pressed={mode === m} onClick={() => setMode(m)} data-wm-mode={m}>{m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : T.modeDue}</button>
@@ -1159,25 +1178,18 @@ function shiftHue(c: readonly number[], deg: number): number[] {
   return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255];
 }
 /**
- * 2026-11-04 (Prompt 16, 1) — DAS HAUS auf dem Startfeld: Wand, Dach und Tür, flach schattiert wie die Säulen (eine helle
- * Front, eine dunklere Seite), unten auf der Mitte der Oberseite. `hs`: Höhe in Bildpunkten.
+ * 2026-11-04 (Prompt 16, 1; vom Nutzer) — DAS HAUS, einfach und flach: ein Umriss aus Dach und Wand mit Tür, liegend auf der
+ * Kachel (die Umgebung setzt Drehung und Neigung). `hs`: Grösse in Bildpunkten, Mitte bei 0,0.
  */
-function drawHouse(ctx: CanvasRenderingContext2D, x: number, y: number, hs: number, P: Palette): void {
-  const w = hs * 0.62; const wallH = hs * 0.42; const roofH = hs * 0.36; const side = hs * 0.16;
-  const foot = y + hs * 0.1; const wallTop = foot - wallH; const ridge = wallTop - roofH;
-  const wall = mix(P.surface, P.light, 0.3); const sideC = mix(wall, [0, 0, 0], 0.22); const roof = P.land; const roofSide = mix(P.land, [0, 0, 0], 0.28);
-  ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1, hs * 0.04); ctx.strokeStyle = css(P.ink, 0.85);
-  /* Schatten auf der Oberseite */
-  ctx.beginPath(); ctx.ellipse(x + side * 0.4, foot, w * 0.62, hs * 0.08, 0, 0, Math.PI * 2); ctx.fillStyle = css(P.ink, 0.18); ctx.fill();
-  /* Seite (dunkler) */
-  ctx.beginPath(); ctx.moveTo(x + w / 2, foot); ctx.lineTo(x + w / 2 + side, foot - side * 0.5); ctx.lineTo(x + w / 2 + side, wallTop - side * 0.5); ctx.lineTo(x + w / 2, wallTop); ctx.closePath(); ctx.fillStyle = css(sideC); ctx.fill(); ctx.stroke();
-  /* Front */
-  ctx.beginPath(); ctx.rect(x - w / 2, wallTop, w, wallH); ctx.fillStyle = css(wall); ctx.fill(); ctx.stroke();
-  /* Dach: Seite und Front */
-  ctx.beginPath(); ctx.moveTo(x, ridge); ctx.lineTo(x + side, ridge - side * 0.5); ctx.lineTo(x + w / 2 + side + hs * 0.05, wallTop - side * 0.5); ctx.lineTo(x + w / 2 + hs * 0.05, wallTop); ctx.closePath(); ctx.fillStyle = css(roofSide); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x - w / 2 - hs * 0.05, wallTop); ctx.lineTo(x, ridge); ctx.lineTo(x + w / 2 + hs * 0.05, wallTop); ctx.closePath(); ctx.fillStyle = css(roof); ctx.fill(); ctx.stroke();
-  /* Tür */
-  ctx.beginPath(); ctx.rect(x - w * 0.12, foot - wallH * 0.62, w * 0.24, wallH * 0.62); ctx.fillStyle = css(mix(P.ink, P.accent, 0.4), 0.85); ctx.fill();
+function houseIcon(ctx: CanvasRenderingContext2D, hs: number, P: Palette): void {
+  const w = hs * 0.9; const roof = hs * 0.42; const body = hs * 0.5;
+  const top = -(roof + body) / 2; const eave = top + roof; const bottom = eave + body;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 - hs * 0.08, eave); ctx.lineTo(0, top); ctx.lineTo(w / 2 + hs * 0.08, eave);
+  ctx.moveTo(-w / 2 + hs * 0.08, eave); ctx.lineTo(-w / 2 + hs * 0.08, bottom); ctx.lineTo(w / 2 - hs * 0.08, bottom); ctx.lineTo(w / 2 - hs * 0.08, eave);
+  ctx.moveTo(-w * 0.1, bottom); ctx.lineTo(-w * 0.1, bottom - body * 0.55); ctx.lineTo(w * 0.1, bottom - body * 0.55); ctx.lineTo(w * 0.1, bottom);
+  ctx.lineWidth = Math.max(1.4, hs * 0.075); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = css(P.ink, 0.8); ctx.stroke();
 }
 
 /** Die Teilgebiete eines Gebiets, in das man hineinzoomt: je Farbklasse ein benachbarter Ton (15–25° auseinander). */
