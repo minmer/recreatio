@@ -93,8 +93,8 @@ export function HomePanel({ lib, learner, rules, numbers, onReview, onAll, onClo
         </HomeHead>
         {learner === null ? <p className="cg-muted">{H.noLearner}</p> : (
           <>
-            <RewardBoard learner={learner} rules={rules} shape="block" />
-            <LiveStats lib={lib} learner={learner} rules={rules} cards={null} shape="block" />
+            <RewardBoard learner={learner} rules={rules} shape="strip" />
+            <LiveStats lib={lib} learner={learner} rules={rules} cards={null} shape="strip" />
           </>
         )}
         <p className="cg-muted">{H.hint}</p>

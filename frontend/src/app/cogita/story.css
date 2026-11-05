@@ -74,3 +74,5 @@
 .cg-flow-next-list { display: grid; gap: var(--wk-space-2); margin: 0; padding: 0; list-style: none; max-width: 36rem; }
 .cg-flow-next-list .wk-btn { width: 100%; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0.25rem 0.75rem; text-align: left; white-space: normal; height: auto; padding-block: 0.6rem; }
 .cg-flow-next-list .cg-flow-next-work { font-weight: 400; opacity: 0.8; font-size: var(--wk-text-sm); }
+.cg-flow-step .cg-flow-next { justify-items: stretch; }
+.cg-flow-step .cg-flow-next .cg-run-closing-h { text-align: left; }

@@ -1015,7 +1015,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       if (sx < x - half || sx > x + half) continue;
       const top = screen[i * 3 + 1];
       const base = top + (topics[i]?.steps ?? 0) * per;
-      if (sy < top - face || sy > base + face) continue;
+      /* 2026-11-05 — der Umriss des Sechsecks, nicht sein Rechteck: zu den Ecken links und rechts wird es niedriger (dort sieht man das Feld dahinter, etwa das Haus). */
+      const reach = face * Math.min(1, Math.max(0, (half - Math.abs(sx - x)) / (half / 2)));
+      if (sy < top - reach || sy > base + reach) continue;
       if (screen[i * 3 + 2] > depth) { depth = screen[i * 3 + 2]; best = i; }
     }
     return best;
