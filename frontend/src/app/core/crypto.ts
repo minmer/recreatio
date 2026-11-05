@@ -278,7 +278,10 @@ export const Field = {
   RecordValue: 'record_value',
 
   /* 0133 — die Wizytówka eines Bereichs mit einer Art (`areas/profile.ts`): Titel und Vorspann unter dem Schlüssel des Bereichs, in dem sie veröffentlicht ist. */
-  AreaProfileCard: 'area_profile_card'
+  AreaProfileCard: 'area_profile_card',
+
+  /* 0137 — das Dokument der Einrichtung einer Wspólnota je Bereich (`communities/communityStore.ts`). */
+  AreaSetup: 'area_setup'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

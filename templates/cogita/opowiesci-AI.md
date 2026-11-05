@@ -113,6 +113,26 @@ z krawędziami `{"from": "z1", "out": "done", "to": "s5"}` i `{"from": "z1", "ou
 - Najwyżej **3 zagłębienia** jedno w drugim. **Koło** (A → B → A) import odrzuca z nazwami obu opowieści.
 - Głębsza opowieść jest też **własnym polem** w krajobrazie i można ją zacząć wprost. Jeśli jej jednostka wymaga jednostki przeglądu (pole z "prerequisite": "up", np. „Wymaga” → jednostka etapu), otwarta wprost przed ukończeniem przeglądu mówi „Najpierw: „Etap 1””; z przeglądu wchodzi się zawsze.
 
+## 8c. Inne światy: linki i zagłębienia do innej bazy wiedzy (2026-11-05)
+
+Opowieść może zaprosić do **innej bazy wiedzy** („świata”) — Fizyka przy prawach Newtona do Historii przy chwalebnej rewolucji. To zawsze **oferta, nigdy wymaganie**. Odwołanie ma postać `"@@<nazwa bazy>:<@trwała/nazwa albo identyfikator>"`:
+
+```json
+{"settings": {"handle": "fizyka", "worlds": [{"id": "<identyfikator bazy Historia>", "handle": "historia", "name": "Historia"}]}}
+```
+
+- **Nazwa bazy** to `"handle"` z jej Ustawień (`{"settings": {"handle": "historia"}}` w tamtej bazie) — małe litery, cyfry, „-”. Lista `"worlds"` mówi, którą bazę ta nazwa oznacza; jeśli jej nie podasz, import sam dopisze świat, gdy wśród baz, które czyta użytkownik, jest baza o tej nazwie.
+- **Link w tekście slajdu** (w każdym polu z zapisem): `Newton żył w czasach [[chwalebnej rewolucji|@@historia:@historia/rewolucja-1688]].` — klik otwiera kartę: nazwa świata, jedno zdanie, stan uczącego się tam, „Otwórz”.
+- **Zagłębienie w innym świecie** — krok `detour`, którego `"flow"` wskazuje opowieść tamtej bazy:
+
+```json
+{"id": "z2", "type": "detour", "config": {"flow": "@@historia:@historia/f/rewolucja", "label": "Zagłębienie w innym świecie: Historia"}}
+```
+  krawędzie jak przy zwykłym zagłębieniu: `{"from": "z2", "out": "done", "to": "s4"}` i `{"from": "z2", "out": "skip", "to": "s4"}`. Jest **zawsze nieobowiązkowe** (`"optional": false` nie obowiązuje). „Wejdź” gra tamtą opowieść z paskiem „Fizyka › Prawa Newtona › Historia: Chwalebna rewolucja” i wraca na ten krok.
+- **Pole wpisu** z `"external": true` (zob. schematy-AI.md) zbiera linki „W innych światach” przy temacie.
+
+**Jak aplikacja używa tych danych:** na stronie wpisu i tematu stoi „W innych światach” (karty z nazwą bazy, zdaniem i stanem uczącego się w tamtej bazie); w krajobrazie przy polu znak portalu (z bliska) i lista w panelu tematu, bez linii między bazami. Widzi je tylko ten, kto może czytać tamtą bazę — inni nie widzą nic, właściciel widzi „niedostępne”. **Postęp zostaje tam, gdzie powstaje**: odpowiedzi w Historii liczą się w Historii, nie w Fizyce. Odwołania nie liczą się do znajomości, krajobrazu, celów, przeglądu ani powtórek tej bazy, a tamta baza sama decyduje, co jest w niej wcześniej („Najpierw: …”). Odwołanie, które się zerwało (wpis usunięty, nazwa nieznana), uczący się nie widzi; właściciel ma je w „Do zrobienia”. Import przyjmuje każde `@@…` i tylko ostrzega (nieznany świat, świat bez dostępu, brak wpisu, zagłębienie do czegoś, co nie jest opowieścią); eksport zapisuje je tak samo.
+
 ## 9. Kolejność importu
 
 1. Utwórz stronę (sam adres), jeśli opowieść jest prezentacją — przebieg musi znać jej adres.

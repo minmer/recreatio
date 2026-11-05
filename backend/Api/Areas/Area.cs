@@ -74,6 +74,9 @@ public static partial class Area
         /* 0081 — umbenennen: wer den Bereich führt. */
         app.MapPost("/workspace/area/{id:guid}/name", RenameAsync);
 
+        /* 0137 — die Einrichtung einer Wspólnota (versiegelt je Bereich), ihr Verlauf, und das Umhängen. */
+        MapSetup(app);
+
         /*
          * ÖFFENTLICH, und das ist der ganze Punkt. Wer einen veröffentlichten
          * Epochenschlüssel holt, braucht kein Konto — sonst wäre „öffentlich"

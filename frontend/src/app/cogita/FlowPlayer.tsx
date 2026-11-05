@@ -56,6 +56,8 @@ import { publicEntity, type PublicEntity } from './publish';
 import type { MediaRef } from './schema';
 import type { CogitaLibrary } from './store';
 import { CogitaContext, Markup, MediaView, originPath } from './ui';
+import { CrossCrumbs, CrossDetourStep, CrossRun, WorldsSection } from './WorldLinks';
+import { crossOf } from './worlds';
 import { readPlan } from './revision';
 import { ReviewStep } from './ReviewStep';
 import { slideDrawingText, WithSlideDrawing } from './SlideDrawing';
@@ -231,6 +233,12 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const ownCard = (id: string): Card | null => { const c = content.card(id); return c !== null && (c.question === id || c.entity === id || c.key === id) ? c : null; };
   /* 2026-11-04 (Prompt 11) — in diesem Lauf zu Ende erzählt: die Bedingung „Przebieg" sieht es sofort. */
   const doneHere = useRef(new Set<string>());
+  /*
+    2026-11-05 (Prompt 24) — EIN ABSTECHER IN EINE ANDERE WELT läuft hier, mit ihrem Inhalt und ihrem Lernenden (`CrossRun`);
+    zurück (ukończona) geht der Schritt mit „done" weiter. Der Weg über die Welten: der rufende (`CrossCrumbs`) und dieser.
+  */
+  const [crossRun, setCrossRun] = useState<{ readonly world: CogitaLibrary; readonly name: string; readonly flowId: string; readonly step: string } | null>(null);
+  const crossTrail = useContext(CrossCrumbs);
   const flowFacts = (ref: string): FlowFacts | undefined => {
     const target = flowOf(ref);
     if (target === undefined) return undefined;
@@ -1156,6 +1164,11 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         const d = detourOf(current)!;
         const inner = d.flow === '' ? undefined : flowOf(d.flow);
         const on = (exit: 'done' | 'skip') => go(exit);
+        const cross = crossOf(d.flow);
+        if (cross !== null) {
+          const step = state.step ?? '';
+          return <CrossDetourStep key={step} cross={cross} label={d.label} holder={learner?.holder ?? null} W={W} next={next} onExit={on} onEnter={(world, name, flowId) => setCrossRun({ world, name, flowId, step })} />;
+        }
         if (inner === undefined) return <><p className="wk-note" data-flow-detour-missing="">{W.detourMissing}</p>{next(() => on(d.optional ? 'skip' : 'done'))}</>;
         /* 2026-11-05 (Prompt 23, B4/A8) — dieselbe Karte wie im Fenster eines Zweiges der Ścieżka (`DetourCard`), mit dem Satz ihrer Einheit. */
         return <DetourCard {...detourCardOf(d, inner)} next={next} onExit={on} autoFocus />;
@@ -1252,6 +1265,19 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   };
 
   const shownPast = backBy > 0 ? past[past.length - backBy] : undefined;
+  if (crossRun !== null) {
+    const here = crossTrail.length > 0 ? crossTrail : [cg?.name ?? '', running.name].filter((x) => x !== '');
+    return (
+      <CrossRun world={crossRun.world} name={crossRun.name} flowId={crossRun.flowId} holder={learner?.holder ?? null} crumbs={here}
+        onBack={(done) => { const at = crossRun.step; setCrossRun(null); if (done && runRef.current.state.step === at) go('done'); }}
+        player={(p) => {
+          const inner = contentOfLibrary(p.world, p.cards);
+          const f = inner.flow(p.flowId);
+          return f === undefined ? <p className="wk-note">{W.detourMissing}</p>
+            : <FlowPlayer key={f.id} flow={f} content={inner} learner={p.learner} onClose={p.onClose} backLabel={p.backLabel} />;
+        }} />
+    );
+  }
   return withPath(
     <div ref={stage} className="cg-story-stage" {...touch}>
       {shownPast !== undefined && (() => {
@@ -1421,10 +1447,16 @@ function Goals({ flow, reached }: { flow: Flow; reached: readonly string[] }) {
 
 /** Ein Eintrag im Ablauf: eine Aussage ganz, andere mit ihren Feldern und Bildern. */
 export function EntityView({ entity }: { entity: PublicEntity | null }) {
+  const cg = useContext(CogitaContext);
   if (entity === null) return <p className="wk-hint">(tego wpisu tu nie ma)</p>;
+  /*
+    2026-11-05 (Prompt 24) — am Ende einer Folie (und eines Eintrags): die Karten „W innych światach" aus ihren Feldern
+    (freiwillig — nur, wenn der Autor sie gesetzt hat; Links im Text stehen im Text).
+  */
+  const worlds = <WorldsSection data={cg?.lib.entry(entity.id)?.data} compact />;
   /* 2026-10-22 — eine Aussage (ihre Bausteine als Zapis): ganz. 2026-10-23: jeder Eintrag mit Feld blocks. */
   const text = entity.fields.find((f) => f.type === 'blocks');
-  if (text !== undefined) return <Markup text={text.text} />;
+  if (text !== undefined) return <><Markup text={text.text} />{worlds}</>;
   return (
     <div className="cg">
       <h3><TexText text={entity.label} /></h3>
@@ -1435,6 +1467,7 @@ export function EntityView({ entity }: { entity: PublicEntity | null }) {
           {f.type === 'markup' ? <Markup text={f.text} /> : <span><TexText text={f.text} /></span>}
         </div>
       ))}
+      {worlds}
     </div>
   );
 }

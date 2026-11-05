@@ -26,13 +26,23 @@ export interface DetourConfig {
   readonly label: string;
   /** Freiwillig (Vorgabe) — `false` (oder `"required": true`, so setzt es der Editor): nur „Wejdź", das Ende braucht ihn. */
   readonly optional: boolean;
+  /**
+   * 2026-11-05 (Prompt 24) — in eine Erzählung einer ANDEREN Baza ("flow": "@@historia:@historia/f/rewolucja", `worlds.ts`):
+   * immer freiwillig (ein "optional": false gilt dort nicht), nie in Kreisen, Tiefe oder Ścieżka dieser Baza gerechnet.
+   */
+  readonly cross?: true;
 }
+
+/** 2026-11-05 (Prompt 24) — ein Verweis in eine andere Baza ("@@name:…") — dieselbe Form wie `worlds.ts` `crossOf`. */
+export const isCrossFlow = (ref: string): boolean => /^@@[a-z0-9][a-z0-9_-]{0,39}:\S/i.test(ref.trim());
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 export function detourOf(node: Pick<GraphNode, 'type' | 'config'>): DetourConfig | null {
   if (node.type !== 'detour') return null;
-  return { flow: str(node.config.flow), label: str(node.config.label), optional: node.config.optional !== false && node.config.required !== true };
+  const flow = str(node.config.flow);
+  if (isCrossFlow(flow)) return { flow, label: str(node.config.label), optional: true, cross: true };
+  return { flow, label: str(node.config.label), optional: node.config.optional !== false && node.config.required !== true };
 }
 
 /** Die Abstecher eines Ablaufs, in der Reihenfolge seiner Schritte. */
@@ -115,6 +125,12 @@ export function detourProblems(flow: Pick<Flow, 'id' | 'name' | 'graph'>, all: r
   const list = all.some((f) => f.id === flow.id) ? all.map((f) => (f.id === flow.id ? flow : f)) : [...all, flow];
   const nameOf = (id: string) => `„${list.find((f) => f.id === id)?.name ?? id}”`;
   for (const d of detoursIn(flow)) {
+    /* 2026-11-05 (Prompt 24) — in eine andere Baza: geprüft beim Import gegen jene (`worldsImport.ts`); hier nur, dass es freiwillig bleibt. */
+    if (d.cross === true) {
+      const node = flow.graph.nodes.find((n) => n.id === d.step);
+      if (node !== undefined && (node.config.optional === false || node.config.required === true)) out.push({ level: 'warning', step: d.step, text: `Zagłębienie w innym świecie („${d.flow}”) jest zawsze nieobowiązkowe — "optional": false nie obowiązuje.` });
+      continue;
+    }
     const to = d.flow === '' ? null : resolve(d.flow);
     if (to === null || !list.some((f) => f.id === to)) {
       out.push({ level: 'warning', step: d.step, text: d.flow === '' ? 'Zagłębienie nie wskazuje opowieści ("flow") — uczący się zobaczy tylko „Dalej”.' : `Zagłębienie wskazuje opowieść „${d.flow}”, której nie ma ani w dokumencie, ani w bazie — uczący się zobaczy tylko „Dalej”.` });

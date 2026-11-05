@@ -108,7 +108,7 @@ const g2 = L.goalState([...answers, ...day(5, ['z'])], 3, noon(5) + 3600_000);
 check('goal: today reached — the streak includes today', [g2.today, g2.streak], [3, 3]);
 const merged = L.goalState(day(5, ['old', 'new', 'q']), 3, noon(5) + 3600_000, (k) => (k === 'old' ? 'new' : k));
 check('goal: merged cards count once', merged.today, 2);
-check('settings: dailyGoal read', ST.readSettings({ motivation: 'streaks', dailyGoal: '12' }), { motivation: 'streaks', dailyGoal: 12, tags: [], dependencies: [], offline: [], sources: [] });
+check('settings: dailyGoal read', ST.readSettings({ motivation: 'streaks', dailyGoal: '12' }), { motivation: 'streaks', dailyGoal: 12, tags: [], dependencies: [], offline: [], sources: [], worlds: [] });
 check('settings: no goal by default', ST.readSettings({}).dailyGoal, undefined);
 check('settings: motivation stays „progress" by default', ST.readSettings({}).motivation, 'progress');
 

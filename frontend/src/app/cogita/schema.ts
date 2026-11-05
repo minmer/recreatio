@@ -191,6 +191,11 @@ export interface FieldDef {
    */
   readonly prerequisite?: 'up' | 'down';
   /**
+   * 2026-11-05 (Prompt 24) — `ref` IN ANDERE BAZY („Inne światy", `worlds.ts`): ein Wert darf auch "@@historia:@…" sein — ein
+   * Angebot, nie eine Voraussetzung (darum nie zugleich `prerequisite` oder `structure`). Der Editor bietet „Link do innego świata".
+   */
+  readonly external?: true;
+  /**
    * 2026-10-27 — NUR FÜR EINIGE WERTE EINES WAHLFELDES desselben Rodzaj („Pokaż, gdy"): ein Rodzaj
    * mit einem Feld „Rodzaj pytania" (oder „Typ") und Feldern, die nur zu einigen Typen gehören — EIN
    * Schema statt eines je Typ. Der Editor zeigt das Feld nur, wenn das Wahlfeld einen dieser Werte
@@ -383,8 +388,9 @@ export function readField(raw: unknown): FieldDef | null {
     inverse: type === 'ref' && str(raw.inverse).trim() !== '' ? clip(str(raw.inverse).trim(), 120) : undefined,
     symmetric: type === 'ref' && raw.symmetric === true ? true : undefined,
     locator: type === 'ref' && raw.locator === true ? true : undefined,
-    structure: type === 'ref' && (raw.structure === 'up' || raw.structure === 'down') ? raw.structure : undefined,
-    prerequisite: type === 'ref' && (raw.prerequisite === 'up' || raw.prerequisite === 'down') ? raw.prerequisite : undefined,
+    structure: type === 'ref' && raw.external !== true && (raw.structure === 'up' || raw.structure === 'down') ? raw.structure : undefined,
+    prerequisite: type === 'ref' && raw.external !== true && (raw.prerequisite === 'up' || raw.prerequisite === 'down') ? raw.prerequisite : undefined,
+    external: type === 'ref' && raw.external === true ? true : undefined,
     when: readWhen(raw.when, key),
     media: type === 'media' ? (media && media.length > 0 ? media : [...MEDIA_TYPES]) : undefined,
     rangeOf: type === 'range' ? pick(RANGE_OF, raw.rangeOf) ?? 'number' : undefined,
@@ -945,6 +951,8 @@ export function valueText(field: FieldDef, value: FieldValue | null, look: Looku
     case 'choice': return typeof value === 'string' ? (field.options ?? []).find((o) => o.value === value)?.label ?? value : '';
     case 'ref': {
       if (typeof value !== 'string') return '';
+      /* 2026-11-05 (Prompt 24) — ein Verweis in eine andere Welt ("@@…") steht nie als Text: er hat seinen Abschnitt „W innych światach" (`WorldLinks.tsx`). */
+      if (value.startsWith('@@')) return '';
       const target = look.entity(value);
       return target === undefined ? '…' : depth >= 2 ? '…' : labelOf(target, look, depth + 1, false, tex);
     }

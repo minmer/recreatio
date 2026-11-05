@@ -57,6 +57,8 @@ import { wayPlan } from './worldWay';
 import { HomeFull, HomePanel } from './LandscapeHome';
 import type { Graph } from './graph';
 import { entityNameTex, useCtx } from './ui';
+import { useWorlds, WorldsSection } from './WorldLinks';
+import { crossRefsIn, resolveCross } from './worlds';
 import { needsKnowing, readLandscape, viewList, withKnowing, type LandscapeRegionEdits, type ViewDoc } from './views';
 import { TexText } from '../ui/tex/Tex';
 import { baseLang, words, type Words } from './lang';
@@ -726,6 +728,13 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const dueBy = useMemo(() => { const m = new Map<string, number>(); for (const c of dueCards) for (const e of cardEntities(c)) m.set(e, (m.get(e) ?? 0) + 1); return m; }, [dueCards]);
   /* 2026-11-04 (Prompt 14, 6) — die Stufe nach der Baza: ihre längste Kette (eine flache Baza bekommt höhere Stufen). */
   const step = useMemo(() => { const d = globalDepth(tg); let most = 0; for (let i = 0; i < d.length; i += 1) most = Math.max(most, d[i]); return stepFor(most + 1); }, [tg]);
+  /*
+    2026-11-05 (Prompt 24) — DIE PORTALE: je Thema seine Verweise in andere Welten (Felder „W innych światach"), gezählt nur, was
+    der Betrachter dort lesen kann und was es gibt (der Autor: alle). Sie gehen nie in Höhen, Sperren, Ziele oder Wege ein.
+  */
+  const portalRefs = useMemo(() => new Map(tg.graph.ids.flatMap((id) => { const r = crossRefsIn(lib.entry(id)?.data, { markup: false }); return r.length === 0 ? [] : [[id, r] as const]; })), [tg, lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  const portalWorlds = useWorlds([...portalRefs.values()].flat().map((r) => r.handle));
+  const portalsOf = (id: string): number => (portalRefs.get(id) ?? []).filter((r) => { const w = portalWorlds.get(r.handle); return writes || (w?.lib != null && resolveCross(w.lib, r.ref) !== null); }).length;
   const worldTopics = useMemo((): WorldTopic[] => tg.graph.ids.map((id, t) => {
     const info = infoOf(t);
     const band = info.band ?? 'mountain';
@@ -734,9 +743,9 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     return { id, label: tg.graph.labels[t], steps: info.steps, band, subject: topKey !== undefined ? topSubject.get(topKey) ?? -1 : colourOf([t]), glow: band === 'ring' && !info.locked,
       /* 2026-11-04 (Prompt 15, 4b) — der Ring: die mittlere Kenntnis seiner Karten (keine Zeichen auf den Feldern mehr). */
       share: info.total === 0 ? (band === 'known' || band === 'due' ? 1 : 0) : info.mean, todo,
-      due: band === 'due' || (dueBy.get(id) ?? 0) > 0 };
+      due: band === 'due' || (dueBy.get(id) ?? 0) > 0, portals: portalsOf(id) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [tg, stand, state, world, topSubject, colourOf, dueBy, lang, opensOf]);
+  }), [tg, stand, state, world, topSubject, colourOf, dueBy, lang, opensOf, portalRefs, portalWorlds]);
   /* Je Gebiet: wie viel darin gekonnt ist und was jetzt geht. */
   const regionStats = useMemo(() => {
     const m = new Map<string, { all: number; known: number; ready: number }>();
@@ -1377,6 +1386,8 @@ function TopicPanel({ questions, id, info, missing, missingKnown, opens, story, 
         <p className="cg-muted cg-ls-storyline" data-landscape-story={story.stage}>{T.storyLine(story.parts, story.done)} · <button type="button" className="wk-link-btn" onClick={onPath} data-landscape-show-path="">{T.showPath}</button>{story.first !== null && story.first.length > 0 && <> · <span data-landscape-story-first="">{W.storyFirst(story.first.map((n) => `„${n}”`).join(', '))}</span></>}</p>
       )}
       {region !== null && <p className="cg-muted cg-ls-regionline"><button type="button" className="wk-link-btn" onClick={() => onRegion(region.key)} data-landscape-topic-region={region.key}>{T.regionLine(region.name, region.all, region.known)}</button></p>}
+      {/* 2026-11-05 (Prompt 24) — die Portale dieses Themas in andere Welten (Angebote; keine Linien über Welten hinweg, nichts sperrt). */}
+      <WorldsSection data={lib.entry(id)?.data} compact />
     </div>
   );
 }

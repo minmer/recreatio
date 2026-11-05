@@ -208,6 +208,20 @@ Zasady: węzłów nie wpisuje się do `"steps"` widoku (widok pokazuje tematy, w
 
 Sprawdź przed importem: narzędzie `preview_knowledge` serwera podglądu (`recreatio-preview`) rysuje krajobraz dla nowego uczącego się i dla kogoś w połowie drogi oraz wypisuje koła w wymaganiach.
 
+### Inne światy: pole „W innych światach” (2026-11-05)
+
+Pole-odwołanie z `"external": true` może wskazywać także wpisy i opowieści **innej bazy wiedzy** — odwołaniem `"@@<nazwa bazy>:<@trwała/nazwa>"`:
+
+```json
+{"key": "swiaty", "label": "W innych światach", "type": "ref", "multi": true, "external": true}
+```
+we wpisie: `"swiaty": ["@@historia:@historia/rewolucja-1688", "@@historia:@historia/f/rewolucja"]`. Nazwa bazy to `"handle"` z jej Ustawień; ta baza zna ją w `"settings": {"worlds": [{"id", "handle", "name"}]}` (import dopisuje świat sam, gdy znajdzie bazę o tej nazwie wśród czytanych).
+
+- Takie pole **nigdy nie ma** `"prerequisite"` ani `"structure"` (aplikacja je pomija) — inny świat to oferta, nie wymaganie.
+- Schemat pod rodzaj wiedzy dostaje to pole tylko wtedy, gdy wpisy tego rodzaju naprawdę mają odpowiedniki gdzie indziej (temat fizyki ↔ wydarzenie historyczne) — nie „na zapas”.
+
+**Jak aplikacja używa tych danych:** przy temacie stoi „W innych światach” — karty z nazwą bazy, jednym zdaniem i stanem uczącego się tam; tylko dla tych, którzy mogą czytać tamtą bazę (właściciel widzi „niedostępne”). Postęp zostaje w bazie, w której powstaje; odwołania nie liczą się do znajomości, krajobrazu, celów ani powtórek tej bazy. Zerwane są dla uczących się ukryte i stoją w „Do zrobienia”; edytor ma przy polu „Link do innego świata”.
+
 ## 3. Czego nie robić
 
 - Schemat pod jedną książkę albo jeden kurs.

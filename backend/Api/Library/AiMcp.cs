@@ -42,6 +42,7 @@ public static class AiMcp
         "A reconstructed argument of a work: a field whose schema says \"structure\": \"up\" links a step to the step above it. Start at the leading question and call get_related with direction \"in\", fields [that field] and depth 3; continue with another call from every node at depth 3. If the result is truncated (at most 60 nodes per call), its edges still name the steps that did not fit: continue from those too. Order steps by the locator of their reference to the work. " +
         "Learning order in a knowledge base: a field whose schema says \"prerequisite\": \"up\" names what must be known first (\"down\": what builds on this); questions are entries of kind \"question\" whose \"form\" is the type of question, \"about\" what they test and \"needs\" what comes before them. " +
         "What steers learning in a knowledge base — card templates with their weights (tests), revisions, views, flows (in full), collections, anchors, forms, settings, how many cards each template makes, who reads it and the fixed map of every landscape view — comes from get_knowledge_setup, in the shape of the export \"recreatio.cogita.course\" (without entries, without learner progress). It is a snapshot built in the browser of someone who writes there (45 s after the last change while a tab is open, and right after an import): when SnapshotCurrent is false the base changed after it was made. " +
+        "Links between knowledge bases: a value \"@@historia:@historia/rewolucja\" (a field value, inside markup as [[words|@@historia:@…]], or a detour step's flow) points into ANOTHER knowledge base — the one whose lasting name (handle, get_knowledge_setup) is \"historia\"; the linking base lists such bases under worlds. They are offers to read on there, never prerequisites: they never count for order, knowness, landscape, goals or reviews of the linking base, and progress stays in the base where it happens. get_entry and get_related return them as links with crossBase = true, the target's collection name and state (ok / outside = that base is not shared with this access / broken = the target no longer exists); get_entry also accepts \"@@handle:@name\" as id, and search_entries searches several collections at once (collections). " +
         "A story that counts in Cogita is a presentation page plus a flow {\"look\": \"scenes\", \"presentation\": \"<page>\", \"unit\": \"@lesson\"}; how to build one: get_import_format guide-stories, a complete example: example-story and example-story-page. " +
         "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", a page of a separately numbered part written as printed, e.g. \"s. xii\", \"s. 12*\", \"s. 3'\", \"s. A12\", or part by part) and search_text. " +
         "In textbooks, formulas are LaTeX between $…$ (inline) and $$…$$ (displayed, numbered with \\tag{…}); definitions, theorems, lemmas, proofs and examples are blocks of type \"statement\" (their head in bold, their content quoted with \"> \"); read_text also takes such a label as printed (\"Twierdzenie 2.3\", \"(2.4)\", \"Rys. 1.2\"). " +
@@ -143,9 +144,16 @@ public sealed class AiMcpTools
     public sealed record SchemaResult(IReadOnlyList<CollectionSchema> Collections);
     /* 2026-11-05 (Prompt 23, D6/D7) — Ref: der bleibende Name („@bosko/turyn"); mit includeData die Daten und je genannter Kennung ihr Name (Names). */
     public sealed record SearchHit(string Id, string Title, string Kind, string? Type, string? Key, string Collection, string Area, string Snippet, string Url,
-        string? Ref = null, JsonObject? Data = null, IReadOnlyDictionary<string, string>? Names = null);
+        string? Ref = null, JsonObject? Data = null, IReadOnlyDictionary<string, string>? Names = null, string? CollectionId = null);
     public sealed record SearchResult(string? Query, string Match, int Total, int Offset, int Limit, int? NextOffset, IReadOnlyList<SearchHit> Results, string? Note);
-    public sealed record LinkInfo(string Field, string Id, string? Title, string? Kind, string? Locator, bool Outside, string? Url, string? Ref = null);
+    /*
+      2026-11-05 (Prompt 24) — CollectionId/Collection: in welchem Zbiór das Ziel liegt (bei einem Verweis in eine andere Baza: wie
+      sie heisst). CrossBase: ein Verweis „@@name:@ziel" in eine ANDERE Baza wiedzy — ein Angebot, nie eine Voraussetzung; State:
+      ok, outside (diese Baza ist mit diesem Zugang nicht geteilt) oder broken (das Ziel gibt es dort nicht mehr); Label: der
+      eigene Wortlaut aus dem Zapis.
+    */
+    public sealed record LinkInfo(string Field, string Id, string? Title, string? Kind, string? Locator, bool Outside, string? Url, string? Ref = null,
+        string? CollectionId = null, string? Collection = null, bool CrossBase = false, string? State = null, string? Label = null);
     public sealed record EntryResult(
         string Id, string Title, string Kind, string KindId, IReadOnlyList<string> Kinds, string? Type, string? Key, string? Tell,
         string Collection, string CollectionId, string Part, string Area, string? UpdatedAt, string Url,
@@ -162,8 +170,9 @@ public sealed class AiMcpTools
         int? FirstBlock, int? LastBlock, int? NextStart, IReadOnlyList<TextBlockInfo> Blocks, string Text, string? Note, string Url);
     public sealed record TextHit(string TextId, string WorkId, string WorkTitle, string Part, string PartLabel, int Block, string? Place, string? Pages, string Snippet, string Url);
     public sealed record TextSearchResult(string Query, int Total, int Offset, int Limit, int? NextOffset, IReadOnlyList<TextHit> Results, string? Note);
-    public sealed record RelatedNode(string Id, string Title, string Kind, string? Type, string Collection, string Url, int Depth, string? Text, JsonObject? Data);
-    public sealed record RelatedEdge(string From, string To, string Field, string? Locator);
+    public sealed record RelatedNode(string Id, string Title, string Kind, string? Type, string Collection, string Url, int Depth, string? Text, JsonObject? Data, string? CollectionId = null);
+    /* 2026-11-05 (Prompt 24) — CrossBase: die Kante ist ein Verweis in eine andere Baza wiedzy (ein Angebot, nie eine Voraussetzung). */
+    public sealed record RelatedEdge(string From, string To, string Field, string? Locator, bool CrossBase = false);
     public sealed record RelatedResult(string Root, IReadOnlyList<RelatedNode> Nodes, IReadOnlyList<RelatedEdge> Edges, int OutsideReferences, bool Truncated);
     public sealed record DocHit(string Id, string Title, string Url);
     public sealed record DocHits(IReadOnlyList<DocHit> Results);
@@ -209,11 +218,29 @@ public sealed class AiMcpTools
     };
 
     private static AiAccess.Item Find(AiAccess.Opened o, string id) =>
-        o.Get(id) ?? throw new McpException($"not_found: w udostępnionych zbiorach nie ma wpisu o id ani kluczu „{id}”. Szukaj przez search_entries.");
+        (id.TrimStart().StartsWith("@@", StringComparison.Ordinal) ? o.GetCross(id) : o.Get(id))
+        ?? throw new McpException(id.TrimStart().StartsWith("@@", StringComparison.Ordinal)
+            ? $"not_found: „{id}” nie wskazuje wpisu w udostępnionej bazie wiedzy (ta baza nie jest udostępniona temu dostępowi albo nie ma w niej takiego wpisu). Zobacz list_collections."
+            : $"not_found: w udostępnionych zbiorach nie ma wpisu o id ani kluczu „{id}”. Szukaj przez search_entries.");
 
     private static LinkInfo LinkOf(AiAccess.Opened o, AiAccess.Link l) => !l.Outside && o.Get(l.Id) is AiAccess.Item to
-        ? new LinkInfo(l.Field, to.Id, to.Title, to.KindName, l.Locator, false, o.Url(to), RefOf(to))
+        ? new LinkInfo(l.Field, to.Id, to.Title, to.KindName, l.Locator, false, o.Url(to), RefOf(to), Ids.ToText(to.From.LibraryId), to.From.Name)
         : new LinkInfo(l.Field, l.Id, null, null, null, true, null);
+
+    /// <summary>
+    /// 2026-11-05 (Prompt 24) — EIN VERWEIS IN EINE ANDERE BAZA als Link: das Ziel mit seinem Titel und der Baza, in der es liegt
+    /// (Id: seine Kennung; eine Erzählung: ihr „@name"); Ref: der Verweis, wie er geschrieben steht. Nicht geteilt oder zerwany:
+    /// nur der Name der Baza, den die verweisende selbst trägt — nichts über das Ziel.
+    /// </summary>
+    private static LinkInfo CrossLinkOf(AiAccess.Opened o, AiAccess.CrossTarget t) => t switch
+    {
+        { Item: AiAccess.Item to } => new LinkInfo(t.Cross.Field, to.Id, to.Title, to.KindName, null, false, o.Url(to), t.Cross.Text,
+            Ids.ToText(to.From.LibraryId), to.From.Name, true, "ok", t.Cross.Label),
+        { FlowRef: string fr } => new LinkInfo(t.Cross.Field, fr, t.FlowName, "flow", null, false, null, t.Cross.Text,
+            t.World.LibraryId is Guid g ? Ids.ToText(g) : null, t.World.Name, true, "ok", t.Cross.Label),
+        _ => new LinkInfo(t.Cross.Field, t.Cross.Text, null, null, null, true, null, t.Cross.Text,
+            t.World.LibraryId is Guid g ? Ids.ToText(g) : null, t.World.Name, true, t.State, t.Cross.Label)
+    };
 
     /// <summary>2026-11-05 (Prompt 23, D7) — der bleibende Name eines Eintrags als „@name" (aus dem Import), sonst <c>null</c>.</summary>
     internal static string? RefOf(AiAccess.Item item) => string.IsNullOrWhiteSpace(item.Ref) ? null : "@" + item.Ref.TrimStart('@');
@@ -300,53 +327,79 @@ public sealed class AiMcpTools
     }
 
     [McpServerTool(Name = "search_entries", Title = "Szukaj wpisów", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Search or list entries. All words must occur (in title, key, kind or content); case and Polish letters do not matter; words of 1–2 characters count only as whole words, and entries where the words stand together (\"J 21\" in \"J 21,15-17\") come first. Without a query it lists everything in a stable order. Filter by collection (id, name, or books/writing/knowledge) and kind (kind id or name, e.g. Komentarz, Cytat, Kazanie). Page with offset/limit until nextOffset is null.")]
+    [Description("Search or list entries. All words must occur (in title, key, kind or content); case and Polish letters do not matter; words of 1–2 characters count only as whole words, and entries where the words stand together (\"J 21\" in \"J 21,15-17\") come first. Without a query it lists everything in a stable order. Filter by collection (id, name, a knowledge base's lasting name such as \"historia\", or books/writing/knowledge) — several at once with collections (or a comma-separated collection) — and kind (kind id or name, e.g. Komentarz, Cytat, Kazanie). Page with offset/limit until nextOffset is null.")]
     public static async Task<SearchResult> SearchEntries(
         IHttpContextAccessor http, Db db, IConfiguration config,
         [Description("Words to find; empty to list all.")] string? query = null,
-        [Description("Collection id, name, or books / writing / knowledge.")] string? collection = null,
+        [Description("Collection id, name, lasting name of a knowledge base, or books / writing / knowledge; several separated by commas.")] string? collection = null,
         [Description("Kind id or name, e.g. Komentarz.")] string? kind = null,
         [Description("Results per page, 1–50 (default 20); with includeData up to 200.")] int limit = 20,
         [Description("How many results to skip.")] int offset = 0,
         [Description("Also return each entry's full data as stored, with the lasting names (\"@…\") of the entries its ids name (names: id → \"@name\") — read a whole kind (e.g. kind=question) in a few pages of up to 200 (default false).")] bool includeData = false,
+        [Description("Several collections at once (each an id, name, lasting name or part), e.g. [\"fizyka\", \"historia\"] — results from all of them, each hit names its collection.")] string[]? collections = null,
         CancellationToken cancellationToken = default)
     {
         using var o = await OpenAsync(http, db, config, cancellationToken);
+        return SearchOf(o, query, collection, collections, kind, limit, offset, includeData);
+    }
+
+    /// <summary>
+    /// 2026-11-05 (Prompt 24) — der Kern von <c>search_entries</c> (ohne Link prüfbar): ein Zbiór oder mehrere — <c>collections</c>,
+    /// oder <c>collection</c> mit Kommas, wenn er als Ganzes keinen Zbiór nennt.
+    /// </summary>
+    public static SearchResult SearchOf(AiAccess.Opened o, string? query, string? collection, string[]? collections, string? kind, int limit, int offset, bool includeData)
+    {
         limit = Math.Clamp(limit, 1, includeData ? 200 : 50);
         offset = Math.Max(0, offset);
         var terms = AiAccess.Terms(query);
-        var (found, all) = AiAccess.Find(o.Items, query, collection, kind);
+        var wanted = new List<string>();
+        if (!string.IsNullOrWhiteSpace(collection))
+        {
+            var whole = collection.Trim();
+            var one = o.Items.Any(i => AiAccess.InPart(i, whole));
+            wanted.AddRange(one || !whole.Contains(',') ? [whole] : whole.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+        if (collections is not null) wanted.AddRange(collections.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()));
+        var (found, all) = AiAccess.FindIn(o.Items, query, wanted, kind);
         var page = found.Skip(offset).Take(limit).Select(i => new SearchHit(i.Id, i.Title, i.KindName, i.TypeName, i.Key, i.From.Name, i.From.AreaName,
-            AiAccess.Snippet(i.Plain, terms), o.Url(i), RefOf(i), includeData ? ObjectOf(i.Data) : null, includeData ? NamesOf(o, i) : null)).ToList();
+            AiAccess.Snippet(i.Plain, terms), o.Url(i), RefOf(i), includeData ? ObjectOf(i.Data) : null, includeData ? NamesOf(o, i) : null, Ids.ToText(i.From.LibraryId))).ToList();
         return new SearchResult(terms.Count == 0 ? null : query!.Trim(), terms.Count == 0 ? "list" : all ? "all words" : "some words (nothing had all of them)",
             found.Count, offset, limit, offset + limit < found.Count ? offset + limit : null, page,
             o.Missing.Count == 0 ? null : $"{o.Missing.Count} collection(s) have no snapshot yet; their entries are not searchable now.");
     }
 
     [McpServerTool(Name = "get_entry", Title = "Wpis", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("One complete entry by id, citation key or lasting name (\"@bosko/turyn\", also \"@<id>\"): its data exactly as stored (references are ids), its lasting name (ref) and the lasting names of the ids in its data (names: id → \"@name\" — the same names as get_knowledge_setup and the import), the meaning of its fields (schema), its outgoing references with the field they come from and their locator (links, each with its ref), the entries that refer to it (linkedFrom), and a readable text rendering with titles in place of ids.")]
+    [Description("One complete entry by id, citation key, lasting name (\"@bosko/turyn\", also \"@<id>\") or a reference into another knowledge base (\"@@historia:@historia/rewolucja\"): its data exactly as stored (references are ids), its lasting name (ref) and the lasting names of the ids in its data (names: id → \"@name\" — the same names as get_knowledge_setup and the import), the meaning of its fields (schema), its outgoing references with the field they come from and their locator (links, each with its ref and collection), the entries that refer to it (linkedFrom), and a readable text rendering with titles in place of ids. Links with crossBase = true point into ANOTHER knowledge base (value \"@@handle:@name\"): offers to read on there, never prerequisites — collection names that base, state is ok, outside (that base is not shared with this access) or broken (the target no longer exists there).")]
     public static async Task<EntryResult> GetEntry(
         IHttpContextAccessor http, Db db, IConfiguration config,
-        [Description("Entry id (UUID), citation key or lasting name (\"@name\").")] string id,
+        [Description("Entry id (UUID), citation key, lasting name (\"@name\") or \"@@base:@name\".")] string id,
         CancellationToken cancellationToken = default)
     {
         using var o = await OpenAsync(http, db, config, cancellationToken);
+        return EntryOf(o, id);
+    }
+
+    /// <summary>Der Kern von <c>get_entry</c> — ohne Link prüfbar.</summary>
+    public static EntryResult EntryOf(AiAccess.Opened o, string id)
+    {
         var item = Find(o, id);
         return new EntryResult(item.Id, item.Title, item.KindName, item.Kind, item.Kinds.Length > 0 ? item.Kinds : [item.Kind], item.TypeName, item.Key, item.Tell,
             item.From.Name, Ids.ToText(item.From.LibraryId), item.From.Part, item.From.AreaName, item.UpdatedAt, o.Url(item),
             ObjectOf(item.Data), SchemaOf(item),
-            o.LinksOf(item).Select(l => LinkOf(o, l)).ToList(),
-            o.Backlinks(item).Take(100).Select(b => new LinkInfo(b.Link.Field, b.From.Id, b.From.Title, b.From.KindName, b.Link.Locator, false, o.Url(b.From), RefOf(b.From))).ToList(),
+            [.. o.LinksOf(item).Select(l => LinkOf(o, l)), .. o.CrossLinksOf(item).Select(t => CrossLinkOf(o, t))],
+            [.. o.Backlinks(item).Take(100).Select(b => new LinkInfo(b.Link.Field, b.From.Id, b.From.Title, b.From.KindName, b.Link.Locator, false, o.Url(b.From), RefOf(b.From), Ids.ToText(b.From.From.LibraryId), b.From.From.Name)),
+             .. o.CrossBacklinks(item).Take(100).Select(b => new LinkInfo(b.Target.Cross.Field, b.From.Id, b.From.Title, b.From.KindName, null, false, o.Url(b.From), RefOf(b.From),
+                 Ids.ToText(b.From.From.LibraryId), b.From.From.Name, true, "ok", b.Target.Cross.Label))],
             AiAccess.Render(item, o),
             o.Texts.Where(t => t.Work == item.Id).Select(t => new TextRef(t.Id, t.From.Name, t.Parts.Count, t.Parts.Sum(x => x.Words))).ToList(),
             RefOf(item), NamesOf(o, item));
     }
 
     [McpServerTool(Name = "get_related", Title = "Powiązane wpisy", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Follow references from an entry to reconstruct a network, e.g. a comment with its grounds and objections and theirs in turn. Breadth-first up to depth 1–3; direction out (what it refers to), in (what refers to it) or both; optionally only some fields (e.g. [\"grounds\", \"objections\"]). Returns nodes with their readable text and the edges with field and locator. References outside the authorization are only counted.")]
+    [Description("Follow references from an entry to reconstruct a network, e.g. a comment with its grounds and objections and theirs in turn. Breadth-first up to depth 1–3; direction out (what it refers to), in (what refers to it) or both; optionally only some fields (e.g. [\"grounds\", \"objections\"]). Returns nodes with their readable text and collection, and the edges with field and locator. References into other knowledge bases (\"@@base:@name\") are followed too when that base is shared — such edges have crossBase = true (offers, never prerequisites). References outside the authorization are only counted.")]
     public static async Task<RelatedResult> GetRelated(
         IHttpContextAccessor http, Db db, IConfiguration config,
-        [Description("Entry id (UUID) or citation key to start from.")] string id,
+        [Description("Entry id (UUID), citation key, lasting name or \"@@base:@name\" to start from.")] string id,
         [Description("How many steps to follow, 1–3 (default 2).")] int depth = 2,
         [Description("out, in or both (default out).")] string direction = "out",
         [Description("Only follow these fields (field keys); empty for all.")] string[]? fields = null,
@@ -354,6 +407,12 @@ public sealed class AiMcpTools
         CancellationToken cancellationToken = default)
     {
         using var o = await OpenAsync(http, db, config, cancellationToken);
+        return RelatedOf(o, id, depth, direction, fields, includeData);
+    }
+
+    /// <summary>Der Kern von <c>get_related</c> — ohne Link prüfbar; 2026-11-05 (Prompt 24) auch über Verweise in andere Bazy.</summary>
+    public static RelatedResult RelatedOf(AiAccess.Opened o, string id, int depth, string direction, string[]? fields, bool includeData)
+    {
         var root = Find(o, id);
         depth = Math.Clamp(depth, 1, 3);
         var outward = direction is "out" or "both" || string.IsNullOrWhiteSpace(direction);
@@ -374,18 +433,33 @@ public sealed class AiMcpTools
             if (level >= depth) continue;
             var steps = new List<(AiAccess.Item To, RelatedEdge Edge)>();
             if (outward)
+            {
                 foreach (var l in o.LinksOf(at))
                 {
                     if (only is not null && !only.Contains(l.Field)) continue;
                     if (l.Outside || o.Get(l.Id) is not AiAccess.Item to) { outside++; continue; }
                     steps.Add((to, new RelatedEdge(at.Id, to.Id, l.Field, l.Locator)));
                 }
+                foreach (var t in o.CrossLinksOf(at))
+                {
+                    if (only is not null && !only.Contains(t.Cross.Field)) continue;
+                    if (t.Item is not AiAccess.Item to) { outside++; continue; }
+                    steps.Add((to, new RelatedEdge(at.Id, to.Id, t.Cross.Field, null, true)));
+                }
+            }
             if (inward)
+            {
                 foreach (var (from, l) in o.Backlinks(at))
                 {
                     if (only is not null && !only.Contains(l.Field)) continue;
                     steps.Add((from, new RelatedEdge(from.Id, at.Id, l.Field, l.Locator)));
                 }
+                foreach (var (from, t) in o.CrossBacklinks(at))
+                {
+                    if (only is not null && !only.Contains(t.Cross.Field)) continue;
+                    steps.Add((from, new RelatedEdge(from.Id, at.Id, t.Cross.Field, null, true)));
+                }
+            }
             foreach (var (to, edge) in steps)
             {
                 if (!edges.Contains(edge)) edges.Add(edge);
@@ -399,8 +473,9 @@ public sealed class AiMcpTools
         return new RelatedResult(root.Id, nodes, edges, outside, truncated);
 
         RelatedNode Node(AiAccess.Item item, int at) => new(item.Id, item.Title, item.KindName, item.TypeName, item.From.Name, o.Url(item), at,
-            AiAccess.Render(item, o), includeData ? ObjectOf(item.Data) : null);
+            AiAccess.Render(item, o), includeData ? ObjectOf(item.Data) : null, Ids.ToText(item.From.LibraryId));
     }
+
 
     /* -- 2026-10-24: die vollständigen Texte der Werke ------------------------------------------------- */
 
@@ -588,7 +663,14 @@ public sealed class AiMcpTools
     public sealed record KnowledgeSetupResult(
         string CollectionId, string Collection, string Area, string? SnapshotMadeAt, string? Readers,
         IReadOnlyList<SetupSection> Sections, string? Section, int Offset, int? NextOffset, bool Complete,
-        JsonObject Document, JsonObject? Cards, string Note, bool SnapshotCurrent = true, string? ChangedAt = null, JsonArray? Landscapes = null);
+        JsonObject Document, JsonObject? Cards, string Note, bool SnapshotCurrent = true, string? ChangedAt = null, JsonArray? Landscapes = null,
+        string? Handle = null, IReadOnlyList<WorldInfo>? Worlds = null);
+
+    /// <summary>
+    /// 2026-11-05 (Prompt 24) — eine andere Baza, auf die diese verweist („worlds" ihrer Ustawienia): ihr Name in Verweisen
+    /// ("@@handle:@ziel"), ihre Kennung, wie sie heisst, und ob sie mit diesem Zugang geteilt ist (null: unbekannt).
+    /// </summary>
+    public sealed record WorldInfo(string Handle, string Id, string Name, bool? Shared);
 
     /// <summary>Wie viele Zeichen ein Ergebnis höchstens trägt — darüber kommt es abschnitts- und stückweise.</summary>
     public const int SetupBudget = 60_000;
@@ -609,7 +691,8 @@ public sealed class AiMcpTools
     /// Feldnamen (Bau) und bleiben. Einstellungen nur mit ihren Bau-Schlüsseln.
     /// </summary>
     public static readonly HashSet<string> Private = ["marks", "correctness", "knowness", "dueAt", "progress", "learners", "accountId", "answeredAt"];
-    private static readonly HashSet<string> SettingsKept = ["ref", "sources", "dependencies", "tags", "motivation", "offline", "joinPage"];
+    /* 2026-11-05 (Prompt 24) — dazu der bleibende Name der Baza (handle) und die Bazy, auf die sie verweist (worlds). */
+    private static readonly HashSet<string> SettingsKept = ["ref", "sources", "dependencies", "tags", "motivation", "offline", "joinPage", "handle", "worlds"];
 
     public static void Scrub(JsonNode? node, bool named = false)
     {
@@ -632,10 +715,10 @@ public sealed class AiMcpTools
     };
 
     [McpServerTool(Name = "get_knowledge_setup", Title = "Ustawienia nauki bazy wiedzy", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Everything that steers learning in a knowledge base (Cogita), in exactly the shape of its export \"recreatio.cogita.course\" with lasting names (\"@…\") — directly comparable with the import format (get_import_format knowledge-base): card templates (name, kinds, direction, full graph, tests with weights), revisions (full graph: source, learning, filter.when, strategy with all settings), views (mode, steps, group/matrix, columns, sort, outline), flows in full (steps and exits, goals, \"unit\", \"presentation\"), collections, anchors, forms, the schema (kinds), looks, rules, values and settings (sources = libraries used, dependencies, offline, motivation). Plus: how many cards each template actually makes (cards), who reads the base (readers) and, for every view in mode \"landscape\", its fixed world of regions (landscapes: levels, regions with name, parent, level, topic count and the centre of its area, every topic with its one fixed place [q, r] on the single map of all topics — the topics of a region lie together as one area; no heights; the same for every learner). Entries are not included (search_entries / get_entry; an \"@name\" is accepted as id). No learner progress and no answers. The data is a snapshot built in the browser of someone who writes in the base — 45 s after the last change while a tab is open, and right after an import; SnapshotCurrent = false (and a note starting with STALE SNAPSHOT) means the base changed after it was made. Large bases come in sections: without section it returns everything if it fits, otherwise an overview with the sections; then ask per section (also \"landscapes\") and page with nextOffset.")]
+    [Description("Everything that steers learning in a knowledge base (Cogita), in exactly the shape of its export \"recreatio.cogita.course\" with lasting names (\"@…\") — directly comparable with the import format (get_import_format knowledge-base): card templates (name, kinds, direction, full graph, tests with weights), revisions (full graph: source, learning, filter.when, strategy with all settings), views (mode, steps, group/matrix, columns, sort, outline), flows in full (steps and exits, goals, \"unit\", \"presentation\"), collections, anchors, forms, the schema (kinds), looks, rules, values and settings (sources = libraries used, dependencies, offline, motivation, handle = the base's lasting name, worlds = other knowledge bases it links to). Also top-level handle (how other bases name this one: \"@@handle:@name\") and worlds (each with shared = readable through this access). Plus: how many cards each template actually makes (cards), who reads the base (readers) and, for every view in mode \"landscape\", its fixed world of regions (landscapes: levels, regions with name, parent, level, topic count and the centre of its area, every topic with its one fixed place [q, r] on the single map of all topics — the topics of a region lie together as one area; no heights; the same for every learner). Entries are not included (search_entries / get_entry; an \"@name\" is accepted as id). No learner progress and no answers. The data is a snapshot built in the browser of someone who writes in the base — 45 s after the last change while a tab is open, and right after an import; SnapshotCurrent = false (and a note starting with STALE SNAPSHOT) means the base changed after it was made. Large bases come in sections: without section it returns everything if it fits, otherwise an overview with the sections; then ask per section (also \"landscapes\") and page with nextOffset.")]
     public static async Task<KnowledgeSetupResult> GetKnowledgeSetup(
         IHttpContextAccessor http, Db db, IConfiguration config,
-        [Description("Knowledge base id or name; may be empty when only one knowledge base is authorized.")] string? collection = null,
+        [Description("Knowledge base id, name or lasting name (handle, e.g. historia); may be empty when only one knowledge base is authorized.")] string? collection = null,
         [Description("Only one section: templates, revisions, views, flows, collections, anchors, forms, settings, kinds, looks, rules, values, landscapes (Polish names work too). Empty: everything when it fits, otherwise an overview.")] string? section = null,
         [Description("With a section: how many of its items to skip (from nextOffset).")] int offset = 0,
         CancellationToken cancellationToken = default)
@@ -655,17 +738,22 @@ public sealed class AiMcpTools
         else
         {
             var wanted = collection.Trim();
-            var any = o.Parts.FirstOrDefault(x => string.Equals(Ids.ToText(x.LibraryId), wanted, StringComparison.OrdinalIgnoreCase) || AiAccess.Fold(x.Name) == AiAccess.Fold(wanted))
+            var any = o.Parts.FirstOrDefault(x => string.Equals(Ids.ToText(x.LibraryId), wanted, StringComparison.OrdinalIgnoreCase) || AiAccess.Fold(x.Name) == AiAccess.Fold(wanted)
+                    || (x.Part == "knowledge" && x.Handle is string h && wanted.TrimStart('@').ToLowerInvariant() == h))
                 ?? throw new McpException($"not_found: nie ma udostępnionego zbioru „{collection}”. Zobacz list_collections.");
             if (any.Part != "knowledge") throw new McpException($"not_found: „{any.Name}” to {AiAccess.PartLabel(any.Part)}, nie baza wiedzy — get_knowledge_setup czyta tylko bazy wiedzy.");
             p = any;
         }
-        return SetupOf(p, section, offset);
+        return SetupOf(p, section, offset, id => o.Parts.Any(x => x.LibraryId == id));
     }
 
     /// <summary>Der Kern von <c>get_knowledge_setup</c> — ohne Link und Netz prüfbar (<c>Api.Tests/AiAccessChecks.cs</c>).</summary>
-    public static KnowledgeSetupResult SetupOf(AiAccess.Snapshot p, string? section, int offset)
+    public static KnowledgeSetupResult SetupOf(AiAccess.Snapshot p, string? section, int offset, Func<Guid, bool>? shared = null)
     {
+        /* 2026-11-05 (Prompt 24) — wie diese Baza in Verweisen heisst, und auf welche anderen sie verweist. */
+        var handle = p.Handle;
+        var named = AiAccess.WorldsOf(p);
+        IReadOnlyList<WorldInfo>? worlds = named.Count == 0 ? null : named.Select(w => new WorldInfo(w.Handle, Ids.ToText(w.Id), w.Name, shared?.Invoke(w.Id))).ToList();
         if (p.Setup.ValueKind != JsonValueKind.Object || !p.Setup.TryGetProperty("course", out var courseEl) || courseEl.ValueKind != JsonValueKind.Object)
             throw new McpException($"not_ready: odpis bazy „{p.Name}” powstał przed 2026-10-30 i nie niesie jeszcze ustawień nauki. Odświeży się po następnej zmianie w bazie albo po otwarciu panelu „Dostęp dla AI” przez kogoś, kto w niej pisze.");
 
@@ -682,17 +770,17 @@ public sealed class AiMcpTools
         JsonObject Header() => new() { ["format"] = course["format"]?.DeepClone(), ["version"] = course["version"]?.DeepClone(), ["name"] = course["name"]?.DeepClone() };
         /* 2026-11-03 — ein Odpis älter als die letzte Änderung sagt es, bevor jemand aus ihm schliesst, ein Import fehle. */
         var stale = p.Current ? "" : $"STALE SNAPSHOT: made at {p.MadeAt}, but the knowledge base changed after that (last change {p.ChangedAt}) — anything saved since is not visible here yet; the snapshot is rebuilt by the browser of someone who writes there (right after an import). ";
-        var about = stale + "Document = the knowledge base's export \"recreatio.cogita.course\" WITHOUT entities, in the same shape and with the same lasting names: \"@name\" is an entry's, kind's or document's name from an import (its \"ref\"), otherwise its id — compare with get_import_format knowledge-base. Flows come in full (graph, goals, unit, presentation). Read entries named by \"@…\" with get_entry (id = \"@name\"). Cards = how many cards each template makes now, counted with only the sources inside this authorization; problems = why some entries make none. Landscapes = the fixed world of each view in mode \"landscape\" (the same for every learner since it comes from structure alone): regions built from the prerequisite connections (groups of about 5–12 topics, level by level until 7–20 remain on top; a view with \"nest\" uses the owner's nodes), levels = how many region levels (0: the top shows topics), regions = {key, name, parent, level (1: it holds topics), topics (count), at [q, r] — its place on the map above}, topics = [q, r, \"@topic\", region key] — each topic's place on its region's map (axial hex grid; every map is a fan in front of the learner, distance = depth in the prerequisite chain on that level), top = the keys of the top level — no heights, no bands. No learner progress or answers are included. The snapshot is built in the browser of someone who writes in the base: 45 s after the last change while a tab is open (and right after an import); SnapshotCurrent = false means it is older than the last change.";
+        var about = stale + "Document = the knowledge base's export \"recreatio.cogita.course\" WITHOUT entities, in the same shape and with the same lasting names: \"@name\" is an entry's, kind's or document's name from an import (its \"ref\"), otherwise its id — compare with get_import_format knowledge-base. Flows come in full (graph, goals, unit, presentation). Read entries named by \"@…\" with get_entry (id = \"@name\"). Cards = how many cards each template makes now, counted with only the sources inside this authorization; problems = why some entries make none. Landscapes = the fixed world of each view in mode \"landscape\" (the same for every learner since it comes from structure alone): regions built from the prerequisite connections (groups of about 5–12 topics, level by level until 7–20 remain on top; a view with \"nest\" uses the owner's nodes), levels = how many region levels (0: the top shows topics), regions = {key, name, parent, level (1: it holds topics), topics (count), at [q, r] — its place on the map above}, topics = [q, r, \"@topic\", region key] — each topic's place on its region's map (axial hex grid; every map is a fan in front of the learner, distance = depth in the prerequisite chain on that level), top = the keys of the top level — no heights, no bands. Handle = this base's lasting name in references from other bases (\"@@handle:@name\"); worlds = the other knowledge bases it links to (handle, id, name, shared = whether that base is readable through this access) — such links are offers to read on there, never prerequisites, never part of this base's order, landscape, goals or reviews. No learner progress or answers are included. The snapshot is built in the browser of someone who writes in the base: 45 s after the last change while a tab is open (and right after an import); SnapshotCurrent = false means it is older than the last change.";
 
         if (string.IsNullOrWhiteSpace(section))
         {
             var whole = course.ToJsonString(Json).Length + (landscapes?.ToJsonString(Json).Length ?? 0);
             if (whole <= SetupBudget)
-                return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, true, course, cards, about, p.Current, p.ChangedAt, landscapes);
+                return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, true, course, cards, about, p.Current, p.ChangedAt, landscapes, handle, worlds);
             var overview = Header();
             if (course["settings"] is JsonArray settings && settings.ToJsonString(Json).Length <= SetupBudget / 2) overview["settings"] = settings.DeepClone();
             return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, false, overview, cards,
-                $"The whole setup has {whole} characters — too much for one answer. Ask per section (section = one of Sections) and continue with nextOffset. {about}", p.Current, p.ChangedAt);
+                $"The whole setup has {whole} characters — too much for one answer. Ask per section (section = one of Sections) and continue with nextOffset. {about}", p.Current, p.ChangedAt, null, handle, worlds);
         }
 
         var asked = AiAccess.Fold(section);
@@ -714,7 +802,7 @@ public sealed class AiMcpTools
         if (key != "landscapes") doc[key] = picked;
         int? next = at < items.Count ? at : null;
         return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, key, offset, next, offset == 0 && next is null, doc,
-            key == "templates" ? cards : null, about, p.Current, p.ChangedAt, key == "landscapes" ? picked : null);
+            key == "templates" ? cards : null, about, p.Current, p.ChangedAt, key == "landscapes" ? picked : null, handle, worlds);
     }
 
     [McpServerTool(Name = "list_import_formats",Title = "Formaty importu JSON", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]

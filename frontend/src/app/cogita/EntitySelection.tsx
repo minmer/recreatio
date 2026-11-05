@@ -14,6 +14,7 @@ import { askText, toast } from '../ui/dialogs';
 import { typedValue } from './addForm';
 import { fieldsOf, valuesOf, type Entity, type FieldDef } from './schema';
 import { creatorFor, EntityPicker, useBusy, useCtx } from './ui';
+import { incomingLinksFor, incomingText } from './worldsImport';
 
 type FieldMode = 'add' | 'set' | 'remove' | 'clear';
 
@@ -60,7 +61,7 @@ export function SelectionBar({ ids, total, onAll, onClear, onKept }: {
   /** Nach dem Löschen: was übrig bleibt, bleibt gewählt. */
   onKept: (kept: ReadonlySet<string>) => void;
 }) {
-  const { lib, writes } = useCtx();
+  const { lib, writes, me } = useCtx();
   const { busy, failed, run } = useBusy();
   const [open, setOpen] = useState<'field' | 'collection' | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
@@ -72,10 +73,15 @@ export function SelectionBar({ ids, total, onAll, onClear, onKept }: {
     const gone = new Set(own.map((e) => e.id));
     const pointing = new Set(own.flatMap((e) => lib.backlinks(e.id).map((b) => b.from)).filter((id) => !gone.has(id)));
     const foreign = n - own.length;
+    /* 2026-11-05 (Prompt 24) — was andere Bazy darauf zeigen lassen ("@@…"): gesucht, solange es noch da ist; blockiert nichts. */
+    if (me !== null && own.length > 0) setProgress('Sprawdzanie linków z innych światów…');
+    const outside = me === null || own.length === 0 ? '' : incomingText(await incomingLinksFor(me, lib, gone).catch(() => []));
+    setProgress(null);
     const asked = [
       `Usunąć ${own.length} ${plural(own.length, 'wpis', 'wpisy', 'wpisów')}?`,
       pointing.size > 0 ? `${pointing.size} ${plural(pointing.size, 'inny wpis odwołuje', 'inne wpisy odwołują', 'innych wpisów odwołuje')} się do nich (np. tłumaczenie do słowa) — te odwołania zostaną puste.` : '',
-      foreign > 0 ? `${foreign} ${plural(foreign, 'pochodzi', 'pochodzą', 'pochodzi')} z innych baz wiedzy — te zostaną.` : ''
+      foreign > 0 ? `${foreign} ${plural(foreign, 'pochodzi', 'pochodzą', 'pochodzi')} z innych baz wiedzy — te zostaną.` : '',
+      outside
     ].filter(Boolean).join(' ');
     if (own.length === 0 || !(await askText(asked))) return;
     let done = 0;

@@ -42,6 +42,8 @@ const WorkspaceShell = lazy(() => import('./shell/WorkspaceShell'));
 const LinkCalendar = lazy(() => import('./calendar/LinkCalendar').then((m) => ({ default: m.LinkCalendar })));
 const JoinLink = lazy(() => import('./links/JoinLink').then((m) => ({ default: m.JoinLink })));
 const JoinWithoutAccount = lazy(() => import('./links/JoinLink').then((m) => ({ default: m.JoinWithoutAccount })));
+/* 0137 — wohin ein persönlicher Link einer Wspólnota führt (ohne Konto). */
+const MyUnits = lazy(() => import('./communities/MyUnits').then((m) => ({ default: m.MyUnits })));
 const SeatPortal = lazy(() => import('./seats/SeatPortal').then((m) => ({ default: m.SeatPortal })));
 const Verify = lazy(() => import('./seats/Verify').then((m) => ({ default: m.Verify })));
 const AiConnect = lazy(() => import('./aiAccess/AiConnect').then((m) => ({ default: m.AiConnect })));
@@ -264,6 +266,11 @@ export function App() {
    * 0130 — ZGŁOŚ: ohne Anmeldung (melden kann jeder, was er sieht); ist jemand
    * angemeldet, reist seine Sitzung mit, und er kann auch melden, was nur er sieht.
    */
+  /* 0137 — MOJE WSPÓLNOTY: der persönliche Link, ohne Konto — die eigenen Einheiten und Rollen. */
+  if (address.route === 'moje') {
+    return <PlainFrame><Suspense fallback={<Loading />}><MyUnits /></Suspense></PlainFrame>;
+  }
+
   if (address.route === 'zglos') {
     return <PlainFrame><Suspense fallback={<Loading />}><ReportPage slug={address.slug} tail={address.tail} /></Suspense></PlainFrame>;
   }

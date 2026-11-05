@@ -37,6 +37,8 @@ import { workLook } from '../library/sourceFind';
 import { blocksField } from './statements';
 import { isSlideEntity } from './slideLib';
 import { SlideActions } from './SlideView';
+import { CrossRefEditor, WorldsSection } from './WorldLinks';
+import { incomingLinksFor, incomingText } from './worldsImport';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isEnvelope = (raw: unknown): raw is Record<string, unknown> =>
@@ -143,7 +145,9 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
           <div className="wk-actions">
             <button type="submit" className="wk-btn" disabled={busy || !dirty}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>
             {entityId !== null && <button type="button" className="wk-link-btn" disabled={busy} onClick={async () => {
-              if (!(await askText('Usunąć ten wpis? Zostanie w historii wersji.'))) return;
+              /* 2026-11-05 (Prompt 24) — was andere Welten hierher verlinkt, wird dort zerwany: vorher nennen. */
+              const incoming = me === null ? '' : incomingText(await incomingLinksFor(me, lib, new Set([entityId])).catch(() => []));
+              if (!(await askText(`Usunąć ten wpis? Zostanie w historii wersji.${incoming === '' ? '' : `\n\n${incoming}`}`))) return;
               void run(async () => { await lib.remove(entityId); onDone(null); });
             }}>Usuń</button>}
           </div>
@@ -162,6 +166,8 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
         {/* 2026-11-05 (Prompt 23, A2/A3) — eine Folie einer Erzählung: „Zobacz w opowieści“ und die Fragen zu ihr („Ćwicz“). */}
         {existing !== undefined && isSlideEntity(lib, existing.id) && <div className="cg-card" data-entry-slide=""><SlideActions lib={lib} entity={existing} /></div>}
         {existing !== undefined && <Backlinks entity={existing} onOpen={onOpen} />}
+        {/* 2026-11-05 (Prompt 24) — „W innych światach": die Ziele dieses Eintrags dort, mit Stand (der Autor sieht auch zerwane). */}
+        {existing !== undefined && <WorldsSection data={existing.data} />}
         {existing !== undefined && <EntityCards entity={existing} />}
         {existing !== undefined && writes && <Merge entity={existing} onMerged={() => onDone(existing.id)} />}
         {existing !== undefined && writes && me !== null && <History entityId={existing.id} onRestored={() => setDirty(false)} />}
@@ -397,12 +403,15 @@ function PlainValue({ field, value, writes, onChange, onOpen }: { field: FieldDe
       );
     case 'ref': {
       const id = typeof value === 'string' && value !== '' ? value : null;
+      /* 2026-11-05 (Prompt 24) — ein Feld mit "external": true nimmt auch Verweise in andere Welten ("@@historia:@…"): „Link do innego świata…". */
       return (
-        <span className="cg-row">
-          {writes ? <EntityPicker lib={lib} kinds={field.to} refs {...creatorFor(lib, field.to, writes)} value={id} onPick={(next) => onChange(next ?? undefined)} />
-            : <span>{id === null ? '—' : <TexText text={entityNameTex(lib, id)} />}</span>}
-          {id !== null && lib.entity(id) !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(id)}>otwórz</button>}
-        </span>
+        <CrossRefEditor value={value} writes={writes} external={field.external === true} onChange={onChange}>
+          <span className="cg-row">
+            {writes ? <EntityPicker lib={lib} kinds={field.to} refs {...creatorFor(lib, field.to, writes)} value={id} onPick={(next) => onChange(next ?? undefined)} />
+              : <span>{id === null ? '—' : <TexText text={entityNameTex(lib, id)} />}</span>}
+            {id !== null && lib.entity(id) !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(id)}>otwórz</button>}
+          </span>
+        </CrossRefEditor>
       );
     }
     case 'media': {

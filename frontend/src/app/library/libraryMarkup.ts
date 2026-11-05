@@ -132,6 +132,14 @@ export function parseInline(text: string): Inline[] {
     if (c === '[' && text[i + 1] === '[') {
       const end = text.indexOf(']]', i + 2);
       const inside = end > i + 2 ? text.slice(i + 2, end) : '';
+      /* 2026-11-05 (Prompt 24) — in eine andere Baza: [[Wort|@@historia:@historia/rewolucja]] (`cogita/worlds.ts`); das Ziel als ganzes Zeichen. */
+      const cross = inside.indexOf('|@@');
+      if (cross > 0 && CROSS_ONLY.test(inside.slice(cross + 1))) {
+        flush();
+        out.push({ t: 'ref', key: inside.slice(cross + 1), c: parseInline(inside.slice(0, cross)) });
+        i = end + 1;
+        continue;
+      }
       const bar = inside.lastIndexOf('|@');
       if (bar > 0 && TOKEN_ONLY.test(inside.slice(bar + 2))) {
         flush();
@@ -328,6 +336,8 @@ export function markupRefs(source: string): { readonly key: string; readonly loc
 /* -- 2026-10-22: Verweise umschreiben ------------------------------------------------------- */
 
 const TOKEN_ONLY = new RegExp(`^${KEY}$`);
+/** 2026-11-05 (Prompt 24) — ein Verweis in eine andere Baza: "@@name:@bleibender/name" oder "@@name:kennung" (der Schlüssel des `ref` beginnt mit "@@"). */
+const CROSS_ONLY = /^@@[a-z0-9][a-z0-9_-]{0,39}:@?[A-Za-z0-9][A-Za-z0-9_.:/-]*$/i;
 const ITEM_TOKEN = new RegExp(`(^|;)(\\s*)@(${KEY})`, 'g');
 
 /**

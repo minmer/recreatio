@@ -3744,3 +3744,26 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   `rewards.ts` `materialAt` by count, `BadgeStep.grade/grades`; `BadgesPage.tsx` steps wrap), 12 levels doubling (0 …
   200 000); „Co dalej" as violet hexagons like the path's nodes (`pathMap.css`, legend `nextLegend`). `app-rewards-check`
   updated (147).
+
+## C45 — Links between knowledge bases (2026-11-05, Prompt 24)
+
+- Model: `@@<handle>:<@lasting name | id>` (`cogita/worlds.ts`); settings `handle` + `worlds` (`store.ts` `readSettings`);
+  ref fields `"external": true` (`schema.ts`, written by `kinds.ts` `kindDoc`); markup `[[w|@@h:@x]]` (`libraryMarkup.ts`
+  `CROSS_ONLY`, `markupView.tsx` `MarkupLinks.cross`); cross detours always optional (`detour.ts` `detourOf`,
+  `detourProblems` skips them); `@@` never a prerequisite (`prerequisites.ts`).
+- Import/export/removal (`worldsImport.ts`, `json.ts`, `ImportReviewPanel.tsx`, `EntitySelection.tsx`): accepted everywhere,
+  never blocking; warnings at planning (field without `external`) and after the preview against the other bases (unknown
+  handle searched and added to `worlds` in the same save, unreadable world, missing target, detour to a non-story, own
+  handle); export keeps the form, setup snapshot carries `handle`/`worlds`; deleting lists links from other bases.
+- Docs: COGITA.md „Links between knowledge bases", `json.ts` format text, `opowiesci-AI.md` §8c, `schematy-AI.md`;
+  `ImportFormats.json` + `ksiazka-AI.md` regenerated. Check `app-worlds-check.mjs` (52) in `app:check`.
+- UI: `WorldLinks.tsx` (`useWorlds`, `WorldsSection`, `CrossLink`, `CrossDetourStep`, `CrossRun`, `WorldPicker`,
+  `CrossRefEditor`, `useBrokenWorldLinks`), `worldWords.ts`, `worlds.css`; wired into `EntityEditor`, `EntityReading`
+  (reading + „Nowy temat"), `FlowPlayer` (`EntityView`, detour step, the nested run), `LandscapeView` (topic panel,
+  `portals`) + `WorldMap` (the sign), `GraphEditor`/`nodeFields` (detour picker), `CogitaSettings` („Inne światy"),
+  `Pending` (broken links), `schema.ts` `valueText` ('' for `@@`).
+- MCP: `AiAccess.Worlds.cs`, `AiAccess.Read.cs`, `AiMcp.cs` — cross links with base names in `get_entry`/`get_related`,
+  several collections in `search_entries`, `Handle`/`Worlds` in `get_knowledge_setup`; Api.Tests 604 (17 new).
+- Verified on LocalDB (scratchpad `p24/`: Fizyka → Historia, Tajne unreadable): drive 13/13 at 1280 and 390 dark, the
+  finish-in-B path (B's own „najpierw: Jakub II" → „Ucz się" → B's story → back in A at the next step), import warning by
+  name + still imported, deleting the target in B → broken in A, removal preview naming the link from A.

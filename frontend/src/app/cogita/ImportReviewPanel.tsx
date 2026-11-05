@@ -9,7 +9,7 @@
  * und alles Neue fiel still weg. Was den Zapis blockiert, steht hier, bevor jemand speichert.
  */
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useContext, useRef, useState, type ReactNode } from 'react';
 
 import { WorkspaceError } from '../core/session';
 import { plural } from '../core/plural';
@@ -18,6 +18,16 @@ import { ImportBlocked, structurePreview, type ImportPlan } from './json';
 import { changeSummary, defaultDecisions, editedValue, editText, importSession, type Decisions, type ImportChange, type ImportSession } from './importReview';
 import type { CogitaLibrary } from './store';
 import { TexText } from '../ui/tex/Tex';
+import { CogitaContext } from './ui';
+import { crossCheckFor, crossUses, incomingLinksFor, incomingText, withWorlds, type CrossCheck } from './worldsImport';
+
+/** 2026-11-05 (Prompt 24) — was die Prüfung gegen andere Bazy für ein Dokument fand (je Stand der Baza einmal gerechnet). */
+interface CrossFound {
+  readonly revision: number;
+  readonly check: CrossCheck | null;
+  /** Die Rückfrage zu den Löschungen: was andere Bazy darauf zeigen lassen (leer: nichts). */
+  readonly incoming: string;
+}
 
 /**
  * Die Durchsicht für ein JSON-Fach: `preview` sagt, was der Import tut (gezählt an dem, was sich wirklich ändert),
@@ -30,6 +40,30 @@ export function useImportReview(lib: CogitaLibrary): {
   decide: (doc: unknown) => ImportPlan;
 } {
   const [review, setReview] = useState<{ doc: unknown; decisions: Decisions } | null>(null);
+  /*
+    2026-11-05 (Prompt 24) — VERWEISE IN ANDERE BAZY: nach der Vorschau einmal je Dokument und Stand der Baza gegen jene geprüft
+    (geöffnet mit dem Konto); was gefunden wurde, kommt als Hinweis dazu, gefundene Bazy gehen beim Speichern in "worlds".
+  */
+  const me = useContext(CogitaContext)?.me ?? null;
+  const crossDone = useRef(new WeakMap<object, CrossFound>());
+  const crossStarted = useRef(new WeakMap<object, number>());
+  const [, setCrossTick] = useState(0);
+  const crossOf = (doc: unknown, plan: ImportPlan): CrossFound | null => {
+    if (me === null || typeof doc !== 'object' || doc === null) return null;
+    const had = crossDone.current.get(doc);
+    if (had !== undefined && had.revision === lib.revision) return had;
+    const gone = new Set((plan.removals ?? []).map((r) => r.id));
+    if (crossUses(lib, plan).length === 0 && gone.size === 0) return { revision: lib.revision, check: null, incoming: '' };
+    if (crossStarted.current.get(doc) !== lib.revision) {
+      const revision = lib.revision;
+      crossStarted.current.set(doc, revision);
+      void Promise.all([crossCheckFor(me, lib, plan).catch(() => null), incomingLinksFor(me, lib, gone).catch(() => [])]).then(([check, incoming]) => {
+        crossDone.current.set(doc, { revision, check, incoming: incomingText(incoming) });
+        setCrossTick((n) => n + 1);
+      });
+    }
+    return null;
+  };
   const sessions = useRef<{ lib: CogitaLibrary; map: WeakMap<object, ImportSession> } | null>(null);
   const session = (doc: unknown): ImportSession => {
     if (typeof doc !== 'object' || doc === null) return importSession(lib, doc);
@@ -45,24 +79,30 @@ export function useImportReview(lib: CogitaLibrary): {
     if ('error' in plan) return plan;
     const changes = one.changes();
     const changed = new Set(changes.filter((c) => !c.isNew).map((c) => c.targetId));
-    return { lines: [...changeSummary(changes), ...(extra && changes.length > 0 ? structurePreview(lib, plan, 80, changed) : [])], warnings: plan.warnings };
+    const cross = crossOf(doc, plan);
+    const crossLines = cross === null ? (me !== null && (crossUses(lib, plan).length > 0 || (plan.removals ?? []).length > 0) ? ['Sprawdzanie odwołań do innych światów…'] : [])
+      : [...(cross.check?.warnings ?? []), ...(cross.incoming === '' ? [] : [cross.incoming])];
+    return { lines: [...changeSummary(changes), ...(extra && changes.length > 0 ? structurePreview(lib, plan, 80, changed) : [])], warnings: [...plan.warnings, ...crossLines] };
   };
   const options = (doc: unknown): ReactNode => (
-    <ImportReview session={session(doc)} decisions={decisionsFor(doc)} onDecisions={(decisions) => setReview({ doc, decisions })} />
+    <ImportReview session={session(doc)} decisions={decisionsFor(doc)} onDecisions={(decisions) => setReview({ doc, decisions })}
+      incoming={typeof doc === 'object' && doc !== null ? crossDone.current.get(doc)?.incoming ?? '' : ''} />
   );
   const decide = (doc: unknown): ImportPlan => {
     const decided = session(doc).decide(decisionsFor(doc));
     if ('error' in decided) throw new WorkspaceError(decided.error);
     if (decided.invalid.length > 0) throw new WorkspaceError(`Popraw zmienione wartości: ${decided.invalid.join('; ')}`);
     if (decided.blocked.length > 0) throw new ImportBlocked(decided.blocked);
-    return { ...decided.plan, warnings: [...decided.plan.warnings, ...decided.kept] };
+    /* 2026-11-05 (Prompt 24) — gefundene andere Bazy gehen im selben Zapis in die Ustawienia ("worlds"). */
+    const add = typeof doc === 'object' && doc !== null ? crossDone.current.get(doc)?.check?.add ?? [] : [];
+    return withWorlds(lib, { ...decided.plan, warnings: [...decided.plan.warnings, ...decided.kept] }, add);
   };
   return { preview, options, decide };
 }
 
 const count = (n: number, one: string, few: string, many: string) => `${n} ${plural(n, one, few, many)}`;
 
-function ImportReview({ session, decisions, onDecisions }: { session: ImportSession; decisions: Decisions | null; onDecisions: (d: Decisions) => void }) {
+function ImportReview({ session, decisions, onDecisions, incoming }: { session: ImportSession; decisions: Decisions | null; onDecisions: (d: Decisions) => void; incoming: string }) {
   const changes = session.changes();
   const now = decisions ?? defaultDecisions(changes);
   const fresh = changes.filter((c) => c.isNew);
@@ -137,6 +177,7 @@ function ImportReview({ session, decisions, onDecisions }: { session: ImportSess
             <button type="button" className="wk-link-btn" onClick={() => set(gone.map((c) => c.id), false)}>Żadne</button>
           </div>
           <p className="cg-muted">Usunięte wpisy można przywrócić z historii wersji. Odpowiedzi uczących się zostają — liczą się znowu, gdy wpis wróci.</p>
+          {incoming !== '' && <p className="wk-note" data-review-incoming="">{incoming}</p>}
           <ul className="cg-review-new">
             {gone.map((c) => (
               <li key={c.id}>

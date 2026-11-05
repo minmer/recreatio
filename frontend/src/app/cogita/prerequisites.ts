@@ -44,6 +44,8 @@ export function fieldDependencies(entities: Iterable<Entity>, look: Pick<Lookup,
   for (const entity of entities) {
     for (const field of prerequisiteFields(entity, look)) {
       for (const target of targets(entity, field)) {
+        /* 2026-11-05 (Prompt 24) — ein Verweis in eine andere Baza ("@@historia:@…") ist ein Angebot, nie eine Voraussetzung. */
+        if (target.startsWith('@@')) continue;
         const [parent, child] = field.prerequisite === 'up' ? [target, entity.id] : [entity.id, target];
         out.set(`${parent}>${child}`, { parent, child, kind: 'prerequisite', impact: PREREQUISITE_IMPACT });
       }

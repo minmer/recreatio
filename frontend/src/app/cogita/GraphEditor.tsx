@@ -20,6 +20,7 @@ import { readRule, TEXT_RULE, type TextRule } from './check';
 import { uploadFile } from './files';
 import { connect, problemsOf, type Graph, type GraphNode, type Palette } from './graph';
 import { readAction, readCondition, type Action } from './logic';
+import { CrossRefEditor } from './WorldLinks';
 import { configFields, configSummary, FORM_OPTIONS, LEVEL_OPTIONS, type ConfigField } from './nodeFields';
 import { ActionsEditor, ConditionEditor, EntityPicker, KindSelect, MediaView, entityName, useCtx } from './ui';
 import { BOOK_KINDS } from './store';
@@ -457,13 +458,16 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
         </label>
       );
     case 'flow':
+      /* 2026-11-05 (Prompt 24) — ein Abstecher darf in eine Erzählung einer anderen Welt führen („Link do innego świata…"). */
       return (
-        <label className="wk-field">{label}
-          <select value={typeof value === 'string' ? value : ''} disabled={readOnly} onChange={(e) => onSet(e.target.value)}>
-            <option value="">—</option>
-            {lib.docs('flow').map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Przebieg'}</option>)}
-          </select>
-        </label>
+        <div className="wk-field">{label}
+          <CrossRefEditor value={value} writes={!readOnly} external={field.cross === true} only="flow" onChange={(v) => onSet(v ?? '')}>
+            <select value={typeof value === 'string' ? value : ''} disabled={readOnly} aria-label={field.label} onChange={(e) => onSet(e.target.value)}>
+              <option value="">—</option>
+              {lib.docs('flow').map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Przebieg'}</option>)}
+            </select>
+          </CrossRefEditor>
+        </div>
       );
     case 'rule':
       return <RuleInput value={value} readOnly={readOnly} onSet={onSet} label={field.label} />;

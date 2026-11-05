@@ -100,6 +100,11 @@ public static partial class AiAccess
         public Guid AreaId { get; set; }
         public string AreaName { get; set; } = "";
 
+        private string? handle;
+        private bool handleRead;
+        /// <summary>2026-11-05 (Prompt 24) — der bleibende Name dieser Baza für Verweise aus anderen ("handle" ihrer Ustawienia).</summary>
+        public string? Handle { get { if (!handleRead) { handle = HandleOf(this); handleRead = true; } return handle; } }
+
         /// <summary>Die Felder einer Art dieses Behälters (aus der Abschrift), nach ihrem Schlüssel.</summary>
         public JsonElement? Field(IEnumerable<string> kinds, string key)
         {
@@ -291,9 +296,14 @@ public static partial class AiAccess
     /// Schlüssel ganz vorne. Findet das nichts, zählt jedes Wort für sich
     /// (<c>all = false</c>). Ohne Wörter: alles, nach Teil, Art und Titel.
     /// </summary>
-    public static (List<Item> Found, bool All) Find(IEnumerable<Item> items, string? query, string? part, string? kind)
+    public static (List<Item> Found, bool All) Find(IEnumerable<Item> items, string? query, string? part, string? kind) =>
+        FindIn(items, query, string.IsNullOrWhiteSpace(part) ? null : [part], kind);
+
+    /// <summary>2026-11-05 (Prompt 24) — dasselbe in mehreren Zbiory zugleich (<c>parts</c>: jeder ein Zbiór; leer: alle).</summary>
+    public static (List<Item> Found, bool All) FindIn(IEnumerable<Item> items, string? query, IReadOnlyCollection<string>? parts, string? kind)
     {
-        var pool = items.Where(i => PartMatches(i, part) && KindMatches(i, kind)).ToList();
+        var wanted = parts?.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        var pool = items.Where(i => (wanted is null || wanted.Count == 0 || wanted.Any(w => PartMatches(i, w))) && KindMatches(i, kind)).ToList();
         var terms = Terms(query);
         if (terms.Count == 0) return (pool.OrderBy(i => PartOrder(i.From.Part)).ThenBy(i => Fold(i.KindName), StringComparer.Ordinal).ThenBy(i => i.FoldedTitle, StringComparer.Ordinal).ThenBy(i => i.Id, StringComparer.Ordinal).ToList(), true);
 
@@ -349,11 +359,15 @@ public static partial class AiAccess
         return -1;
     }
 
+    /// <summary>2026-11-05 (Prompt 24) — gehört ein Eintrag zu einem Zbiór (Kennung, Name, Teil, bleibender Name einer Baza)?</summary>
+    public static bool InPart(Item i, string part) => PartMatches(i, part);
+
     private static bool PartMatches(Item i, string? part)
     {
         if (string.IsNullOrWhiteSpace(part)) return true;
         var p = part.Trim().ToLowerInvariant();
-        return p == i.From.Part || p == Ids.ToText(i.From.LibraryId) || Fold(part) == Fold(i.From.Name);
+        /* 2026-11-05 (Prompt 24) — auch der bleibende Name einer Baza ("handle": "historia", auch "@@historia"). */
+        return p == i.From.Part || p == Ids.ToText(i.From.LibraryId) || Fold(part) == Fold(i.From.Name) || (i.From.Part == "knowledge" && i.From.Handle is string h && p.TrimStart('@') == h);
     }
 
     private static bool KindMatches(Item i, string? kind)
@@ -419,7 +433,8 @@ public static partial class AiAccess
     /// den Link (<c>/ai/…</c>) oder, wo kein Geheimnis in einer Antwort stehen darf
     /// (MCP), in die App.
     /// </summary>
-    internal sealed class Opened : IDisposable
+    /* 2026-11-05 (Prompt 24) — öffentlich und geteilt (AiAccess.Worlds.cs): die Verweise in andere Bazy, ohne Link prüfbar. */
+    public sealed partial class Opened : IDisposable
     {
         public required Guid Id { get; init; }
         public required DateTimeOffset Expires { get; init; }
@@ -525,7 +540,8 @@ public static partial class AiAccess
     /// </summary>
     public sealed record Link(string Field, string Id, string? Locator, bool Outside);
 
-    private static readonly Regex MarkupRef = new(@"@([A-Za-z0-9][A-Za-z0-9_.:\-]*)(?:\s*,\s*([^\];]+))?", RegexOptions.CultureInvariant);
+    /* 2026-11-05 (Prompt 24) — nie ein „@" neben einem zweiten: [[Wort|@@historia:@…]] ist ein Verweis in eine andere Baza (AiAccess.Worlds.cs), kein eigener. */
+    private static readonly Regex MarkupRef = new(@"(?<!@)@(?!@)([A-Za-z0-9][A-Za-z0-9_.:\-]*)(?:\s*,\s*([^\];]+))?", RegexOptions.CultureInvariant);
 
     /// <summary>
     /// Alle Verweise eines Eintrags: Kennungen in Feldern (auch <c>{value, locator}</c> und Zellen
@@ -592,7 +608,7 @@ public static partial class AiAccess
     /// Verweise mit Titel und Stelle statt Kennungen, Bausteine (Absätze, Listen, Tabellen), und am
     /// Ende, worauf er zeigt und was auf ihn zeigt. Was ausserhalb des Zugangs liegt, heisst so.
     /// </summary>
-    internal static string Render(Item item, Opened o)
+    public static string Render(Item item, Opened o)
     {
         var sb = new StringBuilder();
         string Title(string token)
@@ -602,6 +618,12 @@ public static partial class AiAccess
         }
         string Markup(string text)
         {
+            /* 2026-11-05 (Prompt 24) — erst die Verweise in andere Bazy (sonst läse WordsRef „@historia:…" als eigenen Schlüssel). */
+            if (text.Contains("@@", StringComparison.Ordinal))
+            {
+                if (CrossOf(text) is (string h, string r)) return $"→ {CrossTitle(o.Resolve(item.From, new CrossRef("", h, r, null)))}";
+                text = CrossMarkupText(text, item.From, o);
+            }
             text = EmbedRef.Replace(text, m => $"[osadzone: {Title(m.Groups[1].Value.Trim())}]");
             text = WordsRef.Replace(text, m => $"{m.Groups[1].Value} [→ {Title(m.Groups[2].Value.Trim())}]");
             return CiteRef.Replace(text, m => "[" + string.Join("; ", m.Groups[1].Value.Split(';').Select(one =>
@@ -686,6 +708,23 @@ public static partial class AiAccess
             sb.Append("## Wskazuje na\n");
             foreach (var l in outgoing)
                 sb.Append("- ").Append(l.Field).Append(": ").Append(l.Outside ? "(poza tym dostępem)" : $"{Title(l.Id)} [{l.Id}]").Append(l.Locator is null ? "" : $", {l.Locator}").Append('\n');
+            sb.Append('\n');
+        }
+        /* 2026-11-05 (Prompt 24) — Angebote in anderen Bazy (nie Voraussetzungen), und wer aus anderen Bazy hierher verweist. */
+        var cross = o.CrossLinksOf(item);
+        if (cross.Count > 0)
+        {
+            sb.Append("## W innych światach (oferty, nie wymagania)\n");
+            foreach (var t in cross)
+                sb.Append("- ").Append(t.Cross.Field).Append(": ").Append(CrossTitle(t)).Append(t.Item is Item to ? $" [{to.Id}]" : t.FlowRef is string fr ? $" [{fr}]" : "").Append(" — ").Append(t.Cross.Text).Append('\n');
+            sb.Append('\n');
+        }
+        var crossBack = o.CrossBacklinks(item);
+        if (crossBack.Count > 0)
+        {
+            sb.Append("## Wskazują tu z innych światów\n");
+            foreach (var (from, t) in crossBack.Take(MaxUsedBy))
+                sb.Append("- ").Append(from.From.Name).Append(": ").Append(from.Title).Append(" [").Append(from.Id).Append("] (pole ").Append(t.Cross.Field).Append(")\n");
             sb.Append('\n');
         }
         var back = o.Backlinks(item);

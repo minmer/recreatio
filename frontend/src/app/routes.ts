@@ -111,7 +111,13 @@ export const ROUTES = {
    * Sache) und `#/zglos/stan` (was aus einer Meldung wurde). Ohne Konto: melden
    * kann jeder, was er lesen kann; die Meldung geht an den Betreiber.
    */
-  zglos: { slugged: true, needsIdentity: false }
+  zglos: { slugged: true, needsIdentity: false },
+
+  /*
+   * 0137 — MOJE WSPÓLNOTY: `#/moje?dostep=T` — wohin ein persönlicher Link führt. Ohne Konto: die
+   * eigenen Einheiten mit Rolle, was neu ist, die Wege hinein (`communities/MyUnits.tsx`).
+   */
+  moje: { slugged: false, needsIdentity: false }
 } as const satisfies Readonly<Record<string, RouteDef>>;
 
 export type Route = keyof typeof ROUTES;
@@ -368,6 +374,12 @@ export const VIEWS = {
    * zuerst sucht, findet hier, woran er hängt.
    */
   areas: 'Obszary',
+
+  /*
+   * 0137 — WSPÓLNOTY: ein Baum von Bereichen mit Positionen und Personen, geführt eingerichtet
+   * (`communities/`). Über den Bereichen, nicht statt ihrer: jede Einheit IST ein Bereich.
+   */
+  wspolnoty: 'Wspólnoty',
 
   /*
    * 0054 — DER EIGENE KALENDER: alles, was ich sehe, und meine eigenen

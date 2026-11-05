@@ -112,7 +112,7 @@ export function freeKey(wanted: string, taken: ReadonlySet<string>, max = 32): s
 /* -- Adressen ------------------------------------------------------------------- */
 
 const SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const RESERVED_ROOTS = new Set(['workspace', 'seat', 'verify', 'dolacz', 'widget', 'plik', 'polacz-ai', 'zglos']);
+const RESERVED_ROOTS = new Set(['workspace', 'seat', 'verify', 'dolacz', 'widget', 'plik', 'polacz-ai', 'zglos', 'moje']);
 export const MAX_PATH = 200;
 
 /** „/Parafia/Rekolekcje/" → „parafia/rekolekcje". */

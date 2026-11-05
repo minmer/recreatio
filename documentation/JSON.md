@@ -35,6 +35,7 @@ backup, or prepared by an assistant. The rules are the same everywhere (2026-10-
 | Strony — a page (grid, slides, presentation, every module) | `page` | Strony → strona → „Edytuj” → „JSON strony” | `pages/pageJsonText.ts` |
 | Moduły — a form | `form` | Moduły → formularz → „JSON modułu”; on a page „JSON tego modułu” | `pages/pageJsonText.ts`, `forms/formFormat.ts` |
 | Formularze — the list of entries | `form-entries` | Formularze → formularz → „Zgłoszenia” → „JSON listy” | `forms/entriesJson.ts` |
+| Wspólnoty — a tree of units with positions, persons and the five setup steps (0137, COMMUNITIES.md) | `community` | Wspólnoty → „Nowa wspólnota z JSON”; a community → tab JSON | `communities/communityJson.ts` |
 | Obszary — an area with a kind | `area` | Obszary → obszar → its kind tab → „Import i eksport (JSON dla AI)” | `areas/areaJsonText.ts` |
 | Kalendarz — appointments of one calendar | `calendar` | Kalendarz → „Kalendarze” → „Ustawienia” → „Terminy jako JSON” (readers: „Eksport JSON”) | `calendar/calendarJson.ts`, `calendarJsonRun.ts`, `CalendarJsonSection.tsx` |
 | Kalendarz — schemes and plans | `calendar-scheme`, `calendar-plan` | Kalendarz → „Kalendarze” → „Ustawienia” → schemat / plan | `calendar/schemeJson.ts` |

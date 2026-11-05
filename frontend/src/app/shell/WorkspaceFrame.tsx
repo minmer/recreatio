@@ -89,7 +89,7 @@ export function useNav(): Nav {
 
   if (basic) {
     return {
-      main: [entry('home', 'Teraz', 'home'), entry('calendar', 'Kalendarz', 'calendar'), entry('chat', 'Rozmowy', 'chat', chats), ...phone, entry('areas', 'Obszary', 'layers'), ...sprawy],
+      main: [entry('home', 'Teraz', 'home'), entry('calendar', 'Kalendarz', 'calendar'), entry('chat', 'Rozmowy', 'chat', chats), ...phone, entry('areas', 'Obszary', 'layers'), entry('wspolnoty', 'Wspólnoty', 'users'), ...sprawy],
       parish: [],
       knowledge: [entry('knowledge', 'Wiedza', 'branch'), entry('learn', 'Nauka', 'cap')],
       settings: []
@@ -103,7 +103,7 @@ export function useNav(): Nav {
       entry('chat', 'Rozmowy', 'chat', chats),
       ...phone,
       entry('forms', 'Formularze', 'form', fresh),
-      entry('areas', 'Obszary', 'layers'),
+      entry('areas', 'Obszary', 'layers'), entry('wspolnoty', 'Wspólnoty', 'users'),
       entry('pages', 'Strony', 'globe'),
       ...sprawy
     ],

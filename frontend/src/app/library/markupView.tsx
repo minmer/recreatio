@@ -45,6 +45,11 @@ export function Segs({ segs }: { segs: readonly Seg[] }) {
 export interface MarkupLinkTo {
   readonly hrefOf?: (entry: LibEntry) => string | undefined;
   readonly open?: (entry: LibEntry) => void;
+  /**
+   * 2026-11-05 (Prompt 24) — ein Verweis in eine andere Baza ([[Wort|@@historia:@…]], `cogita/worlds.ts`): wie er gezeichnet
+   * wird (Cogita: ein Link, wenn der Leser die andere Baza lesen kann). Ohne: nur der eigene Wortlaut.
+   */
+  readonly cross?: (token: string, label: ReactNode) => ReactNode;
 }
 
 export const MarkupLinks = createContext<MarkupLinkTo>({});
@@ -59,6 +64,7 @@ export function OwnRef({ token, locator = '', label, look }: { token: string; lo
   const to = useContext(MarkupLinks);
   const entry = look === undefined ? undefined : refTarget(look, token);
   const said = label !== undefined && label.length > 0 ? <Inlines list={label} notes={null} look={look} /> : null;
+  if (token.startsWith('@@')) return <>{to.cross !== undefined ? to.cross(token, said) : <span className="lib-own-ref is-cross">{said}</span>}</>;
   if (entry === undefined || look === undefined) return <span className="lib-own-ref is-unreadable">{said ?? UNREADABLE}</span>;
   const text = said ?? `${ownTitle(entry, look)}${locator === '' ? '' : `, ${locator}`}`;
   const href = to.hrefOf?.(entry);

@@ -1253,6 +1253,65 @@ topic (`worldWay.ts` plans it, `WorldMap.tsx` draws it on its own canvas over th
 - Checks: `app-branches-check.mjs`, `app-slide-links-check.mjs`, `app-selfcheck-check.mjs`, `app-review-step-check.mjs`,
   `app-drawing-check.mjs`.
 
+### Links between knowledge bases (2026-11-05, Prompt 24)
+
+Another knowledge base („świat") can be **offered**, never required: Physics at Newton's laws offers History's „Glorious
+Revolution". One reference form everywhere (`cogita/worlds.ts`):
+
+```json
+"@@historia:@historia/rewolucja-1688"
+```
+
+`@@<handle>:<target>` — `handle` is the other base's lasting name (its settings `"handle": "historia"`, lower case,
+`a-z0-9-_`, kept when the base is renamed); `target` is a lasting name (`@…`) or an id of an entry, a story (flow) or a
+view there. The linking base knows its worlds in its settings — `"worlds": [{"id": "<library id>", "handle": "historia",
+"name": "Historia"}]` — never merged (unlike `sources`, which reuse a whole base).
+
+- **Where**: a ref field with `"external": true` (`{"key": "swiaty", "label": "W innych światach", "type": "ref", "multi":
+  true, "external": true}` — such a field never keeps `prerequisite` or `structure`; `kindDoc` writes `external`); markup
+  `[[rewolucja 1688|@@historia:@historia/rewolucja-1688]]` (`libraryMarkup.ts` `CROSS_ONLY`: one `ref` inline whose key
+  starts with `@@`; `markupView.tsx` `MarkupLinks.cross` draws it); a detour step `{"type": "detour", "config": {"flow":
+  "@@historia:@historia/f/rewolucja", "label": "Zagłębienie w innym świecie: Historia"}}` — always optional (`detourOf` →
+  `optional: true, cross: true`; `"optional": false` only warns), never in this base's cycles, depth or path.
+- **Never a prerequisite**: a `@@` value in a `prerequisite` field is skipped (`prerequisites.ts` `fieldDependencies`);
+  nothing of the other base counts for knowness, landscape, goals or reviews here — everything here resolves only own ids,
+  and `@@…` is none. The target base decides its own order („Najpierw: …").
+- **Import** accepts `@@…` everywhere; nothing blocks (`importProblems` skips them; `refsIn` never treats them as `@name`).
+  Warnings (`worldsImport.ts`): at planning — `@@` in a ref field without `"external": true`; after the preview, once per
+  document and base revision, checked against the other bases with the account (`crossCheckFor`, shown under the plan,
+  `ImportReviewPanel.tsx`): unknown handle → searched among readable bases by their `handle`; found → added to `worlds`
+  in the same one save (`withWorlds`, „Dodano świat …"), not found → „Nieznany świat …"; world not readable → one line;
+  target missing → „… nie ma takiego wpisu, opowieści ani widoku. Zapisze się jako zerwane"; a detour to a non-story; the
+  base's own handle. **Export** keeps the form as written (`refsOut` no longer prefixes `@`); the settings carry `handle`
+  and `worlds`, also in the MCP setup snapshot (`SETUP_SETTINGS`).
+- **Removal**: before entries are deleted (selection „Usuń", import `remove`), readable bases whose `worlds` name this base
+  are scanned (`incomingIn`, `incomingLinksFor`) — the confirmation says „Linki z innych światów: Fizyka — Prawa Newtona →
+  Chwalebna rewolucja — tam staną się zerwane …"; it never blocks.
+- **Visibility and progress**: shown only to someone who can read the other base (opened with the account, `openWorld`,
+  once per tab); others see nothing, the owner sees „niedostępne". Progress belongs to the base where it happens (the
+  other base's own learner). Broken links (target gone, handle unknown) are hidden from learners and listed in the owner's
+  „Do zrobienia".
+- **Player, landscape, editor** (`WorldLinks.tsx`, `worldWords.ts`, `FlowPlayer.tsx`, `EntityReading.tsx`, `ui.tsx`):
+  „W innych światach" cards (`WorldsSection`, from the `external` field values only) on the entry page, the reading, „Nowy
+  temat", the landscape's topic panel and at the end of a slide/entry in the player — base name, one sentence, the
+  learner's state THERE (`useWorldStanding`: the same holder's learner of that base; story begun/finished, entry % known);
+  an inline link (`CrossLink`, via `ui.tsx` `crossLink`, lazy) opens the target in its world (its page or its story, with
+  its rules) and shows ◎; the cross-base detour (`CrossDetourStep`) shows the world on the card, plays the other story in
+  place (`CrossRun`: that base's content, cards, learner and context; its own lock „najpierw: …" with its own „Ucz się")
+  under the breadcrumb „Fizyka › Prawa Newtona › Historia: Chwalebna rewolucja"; finished there → the step exits `done`
+  (next step here), „‹ Wróć do: …" → the card again, „Dalej bez tego" → `skip`; unreadable/broken → learners skip it
+  silently, the owner sees why. Landscape: `WorldTopic.portals` (readable targets only; the owner all) → a double ring on
+  the tile at near zoom (`data-wm-portals`), no lines across bases. Editor: `CrossRefEditor` in ref fields with
+  `external` and in the detour's „Opowieść" (`nodeFields` `cross`), picker `WorldPicker` (readable bases → entry/story,
+  summary and the exact value before saving; adds the world to `worlds`; „Kopiuj jako link w tekście" for markup).
+  Settings „Inne światy" (`OtherWorlds`): the own handle and the list of worlds. „Do zrobienia": `useBrokenWorldLinks`.
+- **MCP** (`AiAccess.Worlds.cs`): `get_entry` accepts `@@handle:@name` and returns cross links in `links`/`linkedFrom`
+  with `collectionId`, `collection` (base name), `crossBase: true`, `state` ok/outside/broken; `get_related` follows them
+  between shared bases; `search_entries` takes several collections (`collections` or a comma list, or a handle);
+  `get_knowledge_setup` returns `Handle` and `Worlds`.
+- Docs: `json.ts` („INNE ŚWIATY", field `external`, usage), `opowiesci-AI.md` §8c, `schematy-AI.md` („Inne światy"),
+  regenerated `ImportFormats.json` / `ksiazka-AI.md`. Check `scripts/app-worlds-check.mjs` (52).
+
 ### House, foundation, wedges, view modes, column height (2026-11-04/05, Prompt 16)
 
 Wins over Prompt 15 where they differ. Layout in `worldLayout.ts`, drawing in `WorldMap.tsx`.

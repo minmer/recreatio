@@ -97,6 +97,42 @@ export interface CogitaSettings {
   readonly spacing?: AreaSpacing;
   /** 2026-11-05 — wie viele Karten eine Wiederholung zugleich hat (`spacing.ts`, Stapel), und ob die Lernenden es ändern dürfen. */
   readonly stack?: AreaStack;
+  /**
+   * 2026-11-05 (Prompt 24) — der bleibende Name dieser Baza für Verweise aus anderen („@@historia:@…", `worlds.ts`):
+   * klein, ohne Leerzeichen; bleibt, auch wenn die Baza umbenannt wird.
+   */
+  readonly handle?: string;
+  /** 2026-11-05 (Prompt 24) — die anderen Bazy, auf die Verweise „@@name:…" hier zeigen (Name → Kennung); nie zusammengeführt. */
+  readonly worlds: readonly WorldRef[];
+}
+
+/** 2026-11-05 (Prompt 24) — eine andere Baza, auf die hier verwiesen wird (`worlds.ts`). */
+export interface WorldRef {
+  readonly id: string;
+  readonly handle: string;
+  readonly name: string;
+}
+
+/** Ein bleibender Name einer Baza: klein, Buchstaben, Ziffern, „-" und „_", höchstens 40. */
+export const WORLD_HANDLE = /^[a-z0-9][a-z0-9_-]{0,39}$/;
+
+export const readHandle = (raw: unknown): string | undefined => {
+  if (typeof raw !== 'string') return undefined;
+  const h = raw.trim().toLowerCase().replace(/^@+/, '');
+  return WORLD_HANDLE.test(h) ? h : undefined;
+};
+
+export function readWorlds(raw: unknown): WorldRef[] {
+  const out: WorldRef[] = [];
+  for (const one of Array.isArray(raw) ? raw : []) {
+    if (typeof one !== 'object' || one === null || out.length >= 40) continue;
+    const o = one as Record<string, unknown>;
+    const id = typeof o.id === 'string' ? o.id.trim() : '';
+    const handle = readHandle(o.handle);
+    if (id === '' || handle === undefined || out.some((w) => w.handle === handle)) continue;
+    out.push({ id, handle, name: typeof o.name === 'string' && o.name.trim() !== '' ? o.name.trim().slice(0, 120) : handle });
+  }
+  return out;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -128,7 +164,9 @@ export function readSettings(raw: unknown): CogitaSettings {
     sources: readSources(d.sources),
     ...(d.language === 'pl' || d.language === 'de' || d.language === 'en' ? { language: d.language } : {}),
     ...(readAreaSpacing(d.spacing) === undefined ? {} : { spacing: readAreaSpacing(d.spacing)! }),
-    ...(readAreaStack(d.stack) === undefined ? {} : { stack: readAreaStack(d.stack)! })
+    ...(readAreaStack(d.stack) === undefined ? {} : { stack: readAreaStack(d.stack)! }),
+    ...(readHandle(d.handle) === undefined ? {} : { handle: readHandle(d.handle)! }),
+    worlds: readWorlds(d.worlds)
   };
 }
 

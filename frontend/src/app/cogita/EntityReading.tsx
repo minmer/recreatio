@@ -35,11 +35,12 @@ import { TexText } from '../ui/tex/Tex';
 import { citedPlaces, formatReading, leadAt, leadPlain, leadShape, readingParts, readingPattern, readingSource } from './reading';
 import { fieldsOf, fieldText, kindsOf, labelOf, patternKeys, placeText, plainOf, valuesOf, type Entity, type FieldDef } from './schema';
 import type { CogitaLibrary } from './store';
-import { originPath } from './ui';
+import { crossLink, originPath } from './ui';
 import { isSlideEntity, storyOfUnit } from './slideLib';
 import { SlideActions, SlideBody } from './SlideView';
 import { slideWords } from './slideWords';
 import { baseLang } from './lang';
+import { WorldsSection } from './WorldLinks';
 
 const PROSE: ReadonlySet<string> = new Set(['markup', 'text', 'blocks']);
 const WHEN: ReadonlySet<string> = new Set(['date', 'range']);
@@ -173,7 +174,7 @@ function ReadingMarkup({ lib, text, onEntity, short }: { lib: CogitaLibrary; tex
   const blocks = useMemo(() => parseMarkup(readingSource(text)), [text]);
   const notes = useMemo(() => countNotes([blocks], look), [blocks, look]);
   const parts = useMemo(() => readingParts(blocks), [blocks]);
-  const links = useMemo<MarkupLinkTo>(() => (onEntity === undefined ? {} : { open: (e: LibEntry) => onEntity(e.id) }), [onEntity]);
+  const links = useMemo<MarkupLinkTo>(() => (onEntity === undefined ? { cross: crossLink } : { open: (e: LibEntry) => onEntity(e.id), cross: crossLink }), [onEntity]);
   const at = short ? leadAt(blocks) : -1;
   const lead = at < 0 ? undefined : blocks[at];
   /* Zurück aus den Fussnoten in eine zugeklappte Liste: die Klappe geht auf, bevor gesprungen wird. */
@@ -348,6 +349,8 @@ export function EntityReading({ lib, entity, onEntity, variant = 'line' }: {
               <ReadingMeta lib={lib} r={r} />
             </>
           )}
+          {/* 2026-11-05 (Prompt 24) — Angebote aus anderen Welten (nur was der Leser dort lesen kann). */}
+          <WorldsSection data={entity.data} compact />
           {(slide || unitFlow !== null) && <SlideActions lib={lib} entity={entity} unitFlow={unitFlow} questions={slide} />}
           {onEntity !== undefined
             ? <button type="button" className="wk-link-btn cg-reading-open" onClick={() => onEntity(entity.id)}>Otwórz wpis</button>
@@ -478,6 +481,8 @@ export function TopicIntro({ lib, entity, pattern, noTitle = false, noSource = f
         </div>
       )}
       {passage && source !== null && <Passage look={source.look} link={source.link} />}
+      {/* 2026-11-05 (Prompt 24) — „W innych światach": Angebote, nie warunki. */}
+      <WorldsSection data={entity.data} compact />
     </div>
   );
 }

@@ -41,6 +41,8 @@ import { landscapeImportWarnings } from './landscapeImport';
 import { generatorImportWarnings } from './generatorImport';
 import { slideImportWarnings } from './slideLint';
 import { interactiveImportWarnings } from './interactiveCheck';
+import { crossImportWarnings } from './worldsImport';
+import { isCross } from './worlds';
 import { quantitiesDescription } from '../core/quantities';
 import { generatorExprDescription } from '../pages/motion/expr';
 import { THESIS_LIMIT } from '../library/blocks';
@@ -92,7 +94,8 @@ function refsOut(lib: CogitaLibrary, entity: Entity, name: (id: string) => strin
   for (const [key, value] of Object.entries(entity.data)) {
     const field = fields.get(key);
     if (field?.type !== 'ref') { out[key] = value; continue; }
-    const swap = (one: unknown): unknown => (typeof one === 'string' && one !== '' ? `@${name(one)}` : isObject(one) && typeof one.value === 'string' ? { ...one, value: `@${name(one.value)}` } : one);
+    /* 2026-11-05 (Prompt 24) — ein Verweis in eine andere Baza ("@@historia:@…") geht hinaus, wie er steht. */
+    const swap = (one: unknown): unknown => (typeof one === 'string' && one !== '' ? (isCross(one) ? one : `@${name(one)}`) : isObject(one) && typeof one.value === 'string' && !isCross(one.value) ? { ...one, value: `@${name(one.value)}` } : one);
     out[key] = Array.isArray(value) ? value.map(swap) : swap(value);
   }
   return out;
@@ -220,7 +223,8 @@ export interface KnowledgeSetup {
 export const PRIVATE_KEYS: ReadonlySet<string> = new Set(['marks', 'correctness', 'knowness', 'dueAt', 'progress', 'learners', 'accountId', 'answeredAt']);
 
 /** Die Einstellungen einer Baza, die zu ihrem Bau gehören (nicht: wohin Antworten gehen, wohin Vorschläge). */
-const SETUP_SETTINGS = ['sources', 'dependencies', 'tags', 'motivation', 'dailyGoal', 'rewards', 'offline', 'joinPage', 'language'] as const;
+/* 2026-11-05 (Prompt 24) — dazu der bleibende Name der Baza ("handle") und die anderen Welten, auf die sie verweist ("worlds"). */
+const SETUP_SETTINGS = ['sources', 'dependencies', 'tags', 'motivation', 'dailyGoal', 'rewards', 'offline', 'joinPage', 'language', 'handle', 'worlds'] as const;
 
 /** Die Schlüssel eines Objekts unter „fields" sind Feldnamen eines Rodzaju (ein Formularz: „answers") — Bau, sie bleiben. */
 const withoutPrivate = (v: unknown, named = false): unknown => {
@@ -942,6 +946,8 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
   warnings.push(...slideImportWarnings(lib, { kinds, entities }));
   /* 2026-11-05 (Prompt 23, D3) — die Rysunki do poruszania: unbekannte Namen in Ausdrücken, eine Lösung, die ihr Ziel verfehlt. */
   warnings.push(...interactiveImportWarnings({ entities }));
+  /* 2026-11-05 (Prompt 24) — Verweise in andere Bazy: angenommen; hier nur ein "@@…" in einem Verweisfeld ohne "external": true (der Rest nach dem Öffnen jener Bazy, `crossCheckFor`). */
+  warnings.push(...crossImportWarnings(lib, { kinds, entities, docs }));
 
   const lines = [
     kinds.length === 0 ? '' : `Rodzaje: ${kinds.filter((k) => k.isNew).length} nowych, ${kinds.filter((k) => !k.isNew).length} do zmiany.`,
@@ -1246,7 +1252,8 @@ export function importProblems(lib: CogitaLibrary, plan: ImportPlan): { blocked:
       if (before !== undefined && untouched(before.data[f.key], e.data[f.key])) continue;
       const had = new Set(before === undefined ? [] : valuesOf(before, f).map((v) => v.value).filter((v): v is string => typeof v === 'string'));
       for (const v of valuesOf(entity, f)) {
-        if (typeof v.value !== 'string' || v.value === '') continue;
+        /* 2026-11-05 (Prompt 24) — ein Verweis in eine andere Baza blockiert nie (geprüft wird er gegen jene: `worldsImport.ts`). */
+        if (typeof v.value !== 'string' || v.value === '' || isCross(v.value)) continue;
         check(e.id, v.value, 'wpis', entityKnown(v.value), `${title}, pole „${f.label}”`, had.has(v.value));
       }
     }
@@ -1568,13 +1575,15 @@ const kindsSection = (): string => `"kinds" — rodzaje:
     bez "reading": streszczenie (pole "streszczenie" albo "summary") albo pierwszy akapit tekstu, potem pola z tekstem, daty i miejsca; "reading": "" usuwa wzór
   "builtin" — zmiana wbudowanego rodzaju (person, work, quote — z biblioteki; text, delivery, project — ze skryptorium; question);
     innych wbudowanych treści nie ma: rodzaje pisze właściciel bazy albo importuje gotowy schemat (niżej)
-  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "quantity", "options", "to", "inverse", "symmetric", "locator", "structure", "prerequisite", "when", "media", "rangeOf", "says"}]
+  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "quantity", "options", "to", "inverse", "symmetric", "locator", "structure", "prerequisite", "external", "when", "media", "rangeOf", "says"}]
   "structure" (odwołanie) — połączenie w STRUKTURZE (np. wywód artykułu): "up" — ten wpis leży POD tym, na co wskazuje (krok → krok wyżej: „Należy do"); "down" — wskazane wpisy leżą pod nim („Argumenty za");
     widok „Struktura" z krokiem "structure" rysuje z tego drzewo w kolejności miejsc w dziele; takie pole nie czyni wypowiedzi „interpretacją"
   "prerequisite" (odwołanie) — KOLEJNOŚĆ NAUKI: "up" — to, na co wskazuje, trzeba znać WCZEŚNIEJ (pojęcie → „Wymaga": orbital wymaga elektronu i atomu); "down" — to, na co wskazuje, buduje na tym wpisie („Prowadzi do");
     z takich pól (i z pola "needs" pytań) aplikacja liczy poziomy od podstaw: karty szczegółu przychodzą, gdy podstawy są opanowane (widok albo powtórka z „Filtrem znajomości” "rel": "before" — np. gotowa „Najpierw podstawy”; Nauka → Ścieżka), z kolejnością "general" nowe karty idą od ogólnych do szczegółowych;
     to coś innego niż "structure" (co pod czym leży); koło (A wymaga B, B wymaga A) nie działa i stoi w „Do zrobienia"
     np. {"key": "wymaga", "label": "Wymaga", "type": "ref", "to": ["@pojecie"], "multi": true, "prerequisite": "up", "inverse": "Na tym budują"}
+  "external": true (odwołanie) — pole może wskazywać także wpisy i opowieści INNEJ bazy wiedzy ("@@historia:@historia/rewolucja-1688", patrz „INNE ŚWIATY” wyżej) — jako ofertę „W innych światach”, nigdy jako wymaganie (bez "prerequisite" i "structure"); edytor ma przy nim „Link do innego świata”;
+    np. {"key": "swiaty", "label": "W innych światach", "type": "ref", "multi": true, "external": true}
   "when" — pole tylko dla niektórych wartości pola-wyboru tego samego rodzaju: {"field": "typ", "values": ["bitwa", "traktat"]} — JEDEN rodzaj z polem „typ” zamiast osobnego rodzaju dla każdego typu; edytor pokazuje pole tylko przy tych wartościach
   "quantity" (liczba) — jaka wielkość (identyfikator z QUDT, np. "Torque", "Mass"); wtedy wartość wpisuje się w dowolnej jednostce tej wielkości, a zapisuje tak, jak wpisano, razem z SI:
     {"value": 1.5, "unit": "KiloN", "si": 1500} ("unit" — identyfikator jednostki z QUDT: "N", "KiloN", "N-M", "J", "KiloGM", "DEG_C" …; liczba bez jednostki — w jednostce pola);
@@ -1655,6 +1664,13 @@ Wspólne:
     Nazwy bez „/" działają tylko w swoim dokumencie. Rodzaje i wpisy mają wspólne nazwy, każdy rodzaj dokumentów (widoki, wejścia, szablony…) własne: wejście "@q" nie zmieni wpisu "@q".
     W polu-odwołaniu i w odwołaniu komórki ("ref") nazwa, która nigdzie nie prowadzi, wypada (z ostrzeżeniem, które podaje wpis i pole); w polu tekstowym "@autor/rok" jest tekstem i zostaje.
   Dzieło, osobę, cytat z biblioteki wskazuje się jej kluczem albo identyfikatorem ("@kowalski2020") — tylko z bibliotek, z których korzysta ta baza (Więcej → Ustawienia → Źródła); nie tworzy się ich tutaj.
+  INNE ŚWIATY (odwołania do innej bazy wiedzy — oferta, nigdy wymaganie): "@@<nazwa bazy>:<@trwała/nazwa albo identyfikator>", np. "@@historia:@historia/rewolucja-1688" — wpis, opowieść (przebieg) albo widok tamtej bazy;
+    nazwa bazy to jej trwała nazwa z jej Ustawień: {"settings": {"handle": "historia"}} (małe litery, cyfry, „-”, „_”; zostaje po zmianie nazwy bazy);
+    baza, która odwołuje się do innych, zna je w Ustawieniach: {"settings": {"handle": "fizyka", "worlds": [{"id": "<identyfikator tamtej bazy>", "handle": "historia", "name": "Historia"}]}} — import sam dopisuje świat, gdy znajdzie wśród baz, które czytasz, bazę z tą nazwą;
+    gdzie: w polu-odwołaniu z "external": true (rodzaj: {"key": "swiaty", "label": "W innych światach", "type": "ref", "multi": true, "external": true}, wpis: "swiaty": ["@@historia:@historia/rewolucja-1688", "@@historia:@historia/f/rewolucja"]),
+    w zapisie tekstu: [[rewolucja 1688|@@historia:@historia/rewolucja-1688]], jako zagłębienie: {"id": "z2", "type": "detour", "config": {"flow": "@@historia:@historia/f/rewolucja", "label": "Zagłębienie w innym świecie: Historia"}} (zawsze nieobowiązkowe; wyjścia "done" i "skip");
+    import przyjmuje je wszędzie i nic go przez nie nie zatrzymuje — sprawdza je w tamtej bazie i ostrzega (nieznany świat, świat, którego nie czytasz, brak takiego wpisu, zagłębienie do czegoś, co nie jest opowieścią, "@@…" w polu bez "external": true); eksport zapisuje je w tej samej postaci;
+    nigdy nie są wymaganiem: pole z "external": true nie może mieć "prerequisite" ani "structure", a "@@…" w polu "prerequisite" jest pomijane — nie liczą się do znajomości, krajobrazu, celów ani powtórek tej bazy; tamta baza sama decyduje, co jest w niej wcześniej.
   Eksport zapisuje trwałe nazwy, a identyfikatory własnych wpisów, rodzajów i dokumentów w widokach, szablonach, powtórkach, przebiegach, zbiorach i formularzach jako "@nazwa" — da się go zaimportować do innej bazy.
 
 Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza jest otwarta: Ustawienia → Kto czyta) każdy, bez konta — cała baza, także odpowiedzi pytań i szkice.
@@ -1826,6 +1842,9 @@ const COURSE_USAGE = `## Jak aplikacja używa tych danych
   Strony: moduły „Widok” (tabela, drzewo, macierz, mapa), „Powtórka”, „Kurs / opowieść”, „Karta wpisu” czytają bazę tak, jak widzi ją czytelnik strony; uczy się osoba strony (zalogowana — ona sama, bez konta — ta przeglądarka).
   Nagrody ("rewards"): moduły „Punkty i seria” i „Statystyki na żywo” na stronie oraz Nauka (Motywacja „Punkty i nagrody”, zakładka „Nagrody”) liczą z odpowiedzi punkty, serię, cel dnia, poziom i odznaki — na żywo, przy każdej odpowiedzi; nic z tego nie jest zapisywane.
   Inne bazy wiedzy, które korzystają z tej jako źródła, widzą jej rodzaje, wpisy, szablony, powtórki i przebiegi tylko do odczytu; link dla AI i MCP czytają ją bez zmian.
+  Inne światy ("@@nazwa:…"): na stronie wpisu i tematu stoi „W innych światach” — karty z nazwą tamtej bazy, jednym zdaniem i stanem uczącego się TAM; link w tekście otwiera taką kartę; zagłębienie w innym świecie gra tamtą opowieść z paskiem „Fizyka › Prawa Newtona › Historia: Chwalebna rewolucja” i wraca na swój krok; w krajobrazie znak portalu przy polu (z bliska) i lista w panelu tematu — bez linii między bazami.
+    Widzi je tylko ten, kto może czytać tamtą bazę (inni nie widzą nic; właściciel widzi „niedostępne”); postęp zapisuje się w bazie, w której powstaje (odpowiedzi w Historii należą do Historii); nie wpływają na znajomość, krajobraz, cele ani powtórki tej bazy.
+    Zerwane (tamten wpis usunięty, nazwa nieznana) są dla uczących się ukryte, a właściciel widzi je w „Do zrobienia”; usuwając wpis, podgląd mówi, które bazy do niego linkują.
   Kto czyta: ten, kto czyta jej obszar (w obszarze jawnym — każdy); wpisy są szyfrowane kluczem obszaru.
   Import usuwa tylko to, co dokument wymienia z "remove": true (podgląd pokazuje każde), i nie dotyka odpowiedzi ani postępów: nowa karta zaczyna bez historii, a karta, której poprawna odpowiedź się zmieniła, zaczyna historię od nowa (zmiana wag "tests" historii nie zmienia).
 `;

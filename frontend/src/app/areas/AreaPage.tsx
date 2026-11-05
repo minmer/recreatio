@@ -27,6 +27,7 @@ import { CONTROLLER_EVENT } from './controllers';
 import { kindLabel, loadProfile, type Profile, type ProfileState } from './profile';
 import { daysLeft, memberUntil, noteRenewal, RENEW_BEFORE_DAYS, renewalFailure, renewArea, WARN_BEFORE_DAYS } from './renew';
 import { AREA_TABS, type AreaTab, KIND_NAME, LEVEL_NAME, OTHER_LEVEL } from './areaWords';
+import { ManagedBy } from '../communities/ManagedBy';
 
 /* -- Ein Bereich, ganz ------------------------------------------------------ */
 
@@ -242,6 +243,9 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
             target={{ title: area.name, aim: null, areaIds: [area.areaId] }} />
         ) : undefined}
       />
+
+      {/* 0137 — ein Bereich einer Wspólnota sagt, wer ihn einstellt, und führt dorthin. */}
+      {area.personal !== true && <ManagedBy areaId={area.areaId} ring={ring} />}
 
       {/*
         „TYLKO JA" (0054): der eigene Bereich nimmt niemanden auf und öffnet

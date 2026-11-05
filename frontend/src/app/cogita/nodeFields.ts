@@ -35,6 +35,8 @@ export interface ConfigField {
   readonly hint?: string;
   /** Welche Arten ein Eintrag haben darf (bei `entity`). */
   readonly kinds?: readonly string[];
+  /** 2026-11-05 (Prompt 24) — `flow`: auch eine Erzählung einer anderen Welt ("@@historia:@…", „Link do innego świata…"). */
+  readonly cross?: true;
 }
 
 const f = (key: string, label: string, type: ConfigType, more: Partial<ConfigField> = {}): ConfigField => ({ key, label, type, ...more });
@@ -201,7 +203,7 @@ const FLOW_FIELDS: Record<string, readonly ConfigField[]> = {
   line: [f('character', 'Postać', 'entity'), f('of', 'Co mówi (wypowiedź — treść w blokach)', 'entity', { kinds: [STATEMENT_KINDS] }), f('mood', 'Nastrój', 'text'), f('condition', 'Tylko gdy', 'condition')],
   handoff: [f('flow', 'Do przebiegu', 'flow')],
   /* 2026-11-04 (Prompt 13) — ein Abstecher: die Erzählung aus der Liste, wie er angeboten wird, ob er Pflicht ist. */
-  detour: [f('flow', 'Opowieść, w którą się zagłębia', 'flow'), f('label', 'Jak go zaproponować', 'text', { hint: 'np. Chcesz wiedzieć więcej: Dom w Becchi bez ojca' }), f('required', 'Obowiązkowe — bez „Dalej bez tego” ("optional": false)', 'bool')],
+  detour: [f('flow', 'Opowieść, w którą się zagłębia', 'flow', { cross: true, hint: 'albo opowieść z innego świata (zawsze nieobowiązkowa)' }), f('label', 'Jak go zaproponować', 'text', { hint: 'np. Chcesz wiedzieć więcej: Dom w Becchi bez ojca' }), f('required', 'Obowiązkowe — bez „Dalej bez tego” ("optional": false)', 'bool')],
   /* 2026-10-22 (Schritt 12) — eine Szene einer Präsentation (ihre Ausgänge kommen aus dem Storyboard). */
   scene: [TITLE, f('page', 'Strona z prezentacją (adres)', 'text'), f('scene', 'Scena (klucz)', 'text')],
   end: [],

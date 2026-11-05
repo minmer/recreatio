@@ -58,6 +58,8 @@ const SmsApp = lazy(() => import('../phone/SmsApp'));
 const ContactsApp = lazy(() => import('../phone/ContactsApp'));
 const LampsApp = lazy(() => import('../lamps/LampsApp'));
 /* 0129–0131 — Sprawy: Meldungen (der Betreiber), eigene gesperrte Inhalte, Bitten um einen Platz in einer Liste. */
+/* 0137 — Wspólnoty: die geführte Einrichtung, die Struktur (React Flow) — erst, wenn man sie öffnet. */
+const Communities = lazy(() => import('../communities/Communities').then((m) => ({ default: m.Communities })));
 const SprawyView = lazy(() => import('../reports/Sprawy').then((m) => ({ default: m.SprawyView })));
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
@@ -213,6 +215,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'addresses') return <Addresses desk={desk} who={who} onChanged={onChanged} />;
   if (view === 'roles') return <RoleGraph who={who} />;
   if (view === 'areas') return <Areas who={who} trail={trail} desk={desk} />;
+  if (view === 'wspolnoty') return <Suspense fallback={<Loading />}><Communities who={who} trail={trail} /></Suspense>;
   /* 0094 — die Adresse eines Widoks führt dorthin, wo er jetzt steht: der eines Bereichs in den Bereich, jeder andere nach Hause. */
   if (view === 'widok') {
     const area = /^area:(.+)$/.exec(trail[0] ?? '')?.[1];

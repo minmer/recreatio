@@ -147,7 +147,9 @@ internal static class AiAccessChecks
             var importFormats = ImportFormats.All;
             string[] formatIds = ["library", "work-with-text", "source-text", "knowledge-base", "knowledge-forms", "scriptorium", "page", "area", "calendar-scheme", "calendar-plan", "registry", "guide-book", "guide-argument", "scheme-fakty", "scheme-zbior", "example-atom",
                 /* 2026-10-29 — JSON für jeden Teil */
-                "calendar", "masses", "tasks", "bookings", "chat", "contacts", "roles", "lamps", "persons", "workspace-view", "addresses", "learn-progress", "form", "form-entries", "quotes", "text-plan"];
+                "calendar", "masses", "tasks", "bookings", "chat", "contacts", "roles", "lamps", "persons", "workspace-view", "addresses", "learn-progress", "form", "form-entries", "quotes", "text-plan",
+                /* 0137 — Wspólnoty */
+                "community", "guide-community", "example-community-dk-rejon-13"];
             check(formatIds.All(x => ImportFormats.Find(x) is not null) && ImportFormats.Find(" PAGE ")?.Id == "page" && ImportFormats.Find("nic") is null && ImportFormats.Find(null) is null,
                 "import formats: embedded in the program — the Library, Cogita, Scriptorium, pages, areas, calendar, registry, the AI guides and ready schemes");
             check(importFormats.Formats.All(f => f.Parts.Count > 0 && f.Parts.All(p => p.Length > 0) && (f.Parts.Count == 1 || f.Parts.All(p => p.Length <= 24_000)) && f.Where.Length > 0 && f.What.Length > 0),
@@ -334,9 +336,107 @@ internal static class AiAccessChecks
                 "texts: a formula is found by its symbol (search line) and by its LaTeX");
         }
 
+        Worlds(check);
+
         /* Entpacken mit Obergrenze. */
         var packed = Gzip(new byte[1_000_000]);
         check(AiAccess.Gunzip(Gzip("{\"v\":1}"u8.ToArray())).Length == 7 && Fails(() => AiAccess.Gunzip(packed, 10_000)), "unpacking stops at its limit (no gzip bomb)");
+    }
+
+    /// <summary>
+    /// 2026-11-05 (Prompt 24) — VERWEISE IN ANDERE BAZY WIEDZY im MCP: „Fizyka" verweist auf „Historia" (geteilt), „Chemia" (nicht
+    /// geteilt) und „sztuka" (unbekannt); „Historia" nennt keine „worlds" und findet „Fizyka" über deren eigenen Namen.
+    /// </summary>
+    private static void Worlds(Action<bool, string> check)
+    {
+        const string fiz = "01a16af6-5a94-718f-b8b5-abdb3ab69300", his = "01a16af6-5a94-718f-b8b5-abdb3ab69400", che = "01a16af6-5a94-718f-b8b5-abdb3ab69500";
+        const string newton = "01a16af6-5a94-718f-b8b5-abdb3ab69301", praw = "01a16af6-5a94-718f-b8b5-abdb3ab69302", rew = "01a16af6-5a94-718f-b8b5-abdb3ab69401", maria = "01a16af6-5a94-718f-b8b5-abdb3ab69402";
+        using var a = JsonDocument.Parse($$"""
+            { "v": 1, "library": "{{fiz}}", "name": "Fizyka",
+              "entries": [
+                { "id": "{{newton}}", "kind": "topic", "kindName": "Temat", "title": "Prawa Newtona", "ref": "fizyka/newton",
+                  "data": { "nazwa": "Prawa Newtona", "w-innych-swiatach": ["@@historia:@historia/rewolucja", "@@historia:@historia/f/rewolucja", "@@chemia:@chemia/atom"],
+                            "tekst": "Newton żył w czasach [[Chwalebnej Rewolucji|@@historia:@historia/rewolucja]]; zob. też [[spór|@@historia:@historia/nie-ma]] i [[obraz|@@sztuka:@sztuka/obraz]], a w tej bazie [[pęd|@fizyka/ped]].",
+                            "dalej": "{{praw}}" } },
+                { "id": "{{praw}}", "kind": "topic", "kindName": "Temat", "title": "Pęd", "ref": "fizyka/ped", "data": {} } ],
+              "setup": { "course": { "format": "recreatio.cogita.course", "version": 1, "name": "Fizyka",
+                "settings": [ { "ref": "@ustawienia", "handle": "fizyka", "language": "pl",
+                  "worlds": [ { "id": "{{his}}", "handle": "historia", "name": "Historia (stara nazwa)" }, { "id": "{{che}}", "handle": "chemia", "name": "Chemia" } ] } ] } } }
+            """);
+        using var b = JsonDocument.Parse($$"""
+            { "v": 1, "library": "{{his}}", "name": "Historia",
+              "entries": [
+                { "id": "{{rew}}", "kind": "event", "kindName": "Wydarzenie", "title": "Chwalebna Rewolucja 1688", "ref": "historia/rewolucja", "data": { "streszczenie": "Rok 1688." } },
+                { "id": "{{maria}}", "kind": "person", "kindName": "Osoba", "title": "Maria II", "ref": "historia/maria", "data": { "zob": "@@fizyka:@fizyka/newton" } } ],
+              "setup": { "course": { "format": "recreatio.cogita.course", "version": 1, "name": "Historia",
+                "flows": [ { "ref": "@historia/f/rewolucja", "name": "Chwalebna Rewolucja", "graph": { "nodes": [], "edges": [] } } ],
+                "settings": [ { "ref": "@ustawienia", "handle": "historia" } ] } } }
+            """);
+        var A = AiAccess.ReadSnapshot(Guid.Parse(fiz), "knowledge", a.RootElement)!;
+        var B = AiAccess.ReadSnapshot(Guid.Parse(his), "knowledge", b.RootElement)!;
+        using var o = new AiAccess.Opened { Id = Guid.Empty, Expires = DateTimeOffset.MaxValue, Base = "/ai/T", Area = "Szkoła" };
+        o.Parts.Add(A);
+        o.Parts.Add(B);
+
+        check(AiAccess.HandleOf(A) == "fizyka" && A.Handle == "fizyka" && B.Handle == "historia" && AiAccess.WorldsOf(A).Select(w => w.Handle).SequenceEqual(["historia", "chemia"]) && AiAccess.WorldsOf(B).Count == 0,
+            "worlds (Prompt 24): a base's lasting name (handle) and the bases it links to (worlds) come from its settings");
+        var crossRefs = AiAccess.CrossRefsOf(A.Items[0]);
+        check(crossRefs.Count == 5 && crossRefs.Any(c => c.Field == "tekst" && c.Label == "spór" && c.Ref == "@historia/nie-ma") && crossRefs.Count(c => c.Text == "@@historia:@historia/rewolucja") == 1,
+            "worlds: cross references from field values and markup, each once (field values first)");
+        check(!AiAccess.LinksOf(A.Items[0], t => AiAccess.ItemIn(A, t) ?? AiAccess.ItemIn(B, t)).Any(l => l.Id == rew)
+            && AiAccess.LinksOf(A.Items[0], t => AiAccess.ItemIn(A, t)).Any(l => l.Id == praw),
+            "worlds: [[…|@@historia:@…]] is never read as an own reference (MarkupRef); own [[…|@fizyka/ped]] still is");
+
+        var entry = AiMcpTools.EntryOf(o, newton);
+        var toRew = entry.Links.FirstOrDefault(l => l.CrossBase && l.Id == rew);
+        check(toRew is { Field: "w-innych-swiatach", Title: "Chwalebna Rewolucja 1688", Collection: "Historia", State: "ok", Outside: false, Ref: "@@historia:@historia/rewolucja" } && toRew.CollectionId == his
+            && toRew.Url == $"/ai/T/entry/{rew}",
+            "worlds: get_entry returns a cross link with the target, its base's name and id, state ok (the shared base's own name wins)");
+        check(entry.Links.Any(l => l is { CrossBase: true, Kind: "flow", Id: "@historia/f/rewolucja", Title: "Chwalebna Rewolucja", State: "ok" }),
+            "worlds: a story (flow) of the other base is a target too");
+        check(entry.Links.Any(l => l is { CrossBase: true, State: "broken", Outside: true, Collection: "Historia", Title: null, Label: "spór" }),
+            "worlds: a target that no longer exists in a shared base is broken — nothing invented");
+        check(entry.Links.Any(l => l is { CrossBase: true, State: "outside", Collection: "Chemia", Title: null, Url: null } && l.CollectionId == che)
+            && entry.Links.Any(l => l is { CrossBase: true, State: "outside", Collection: null, Ref: "@@sztuka:@sztuka/obraz" }),
+            "worlds: a base not shared with this access is only named (as the linking base names it); an unknown name is outside without a name");
+        check(entry.Links.Any(l => !l.CrossBase && l.Id == praw && l.Collection == "Fizyka" && l.CollectionId == fiz), "worlds: own links name their collection too");
+        check(entry.Text.Contains("## W innych światach (oferty, nie wymagania)") && entry.Text.Contains("Chwalebnej Rewolucji [→ Historia: Chwalebna Rewolucja 1688 (inny świat, oferta)]")
+            && entry.Text.Contains("(zerwany odnośnik"), "worlds: the readable text names the other world for every cross link, in markup too");
+
+        var back = AiMcpTools.EntryOf(o, rew);
+        check(back.LinkedFrom.Any(l => l is { CrossBase: true, Id: newton, Collection: "Fizyka", Field: "w-innych-swiatach" }),
+            "worlds: the target lists who links to it from another base (linkedFrom, crossBase)");
+        var viaHandle = AiMcpTools.EntryOf(o, maria);
+        check(viaHandle.Links.Any(l => l is { CrossBase: true, Id: newton, State: "ok", Collection: "Fizyka" }),
+            "worlds: without worlds, a name resolves to the shared base that names itself so (settings.handle)");
+        check(AiMcpTools.EntryOf(o, "@@historia:@historia/rewolucja").Id == rew && AiMcpTools.EntryOf(o, "@@fizyka:" + newton).Id == newton
+            && FailsMcp(() => AiMcpTools.EntryOf(o, "@@chemia:@chemia/atom")) == "not_found",
+            "worlds: get_entry accepts \"@@handle:@name\" (and an id after the handle); an unshared base is not_found");
+
+        var related = AiMcpTools.RelatedOf(o, newton, 1, "out", null, false);
+        check(related.Nodes.Any(n => n.Id == rew && n.Collection == "Historia" && n.CollectionId == his) && related.Edges.Any(e => e is { From: newton, To: rew, CrossBase: true })
+            && related.OutsideReferences >= 3, "worlds: get_related follows cross links into a shared base (edge crossBase); the others are only counted");
+        var inward = AiMcpTools.RelatedOf(o, rew, 1, "in", null, false);
+        check(inward.Nodes.Any(n => n.Id == newton) && inward.Edges.Any(e => e is { From: newton, To: rew, CrossBase: true }), "worlds: get_related in finds links from other bases");
+
+        check(AiMcpTools.SearchOf(o, null, null, ["fizyka", "historia"], null, 50, 0, false).Total == 4
+            && AiMcpTools.SearchOf(o, null, "Fizyka, Historia", null, null, 50, 0, false).Total == 4
+            && AiMcpTools.SearchOf(o, null, "historia", null, null, 50, 0, false).Total == 2
+            && AiMcpTools.SearchOf(o, "rewolucja", null, ["@@historia", his], null, 50, 0, false).Results.Single().CollectionId == his,
+            "worlds: search_entries in several collections (a list, or comma-separated), by id, name or lasting name");
+
+        var setup = AiMcpTools.SetupOf(A, null, 0, id => o.Parts.Any(p => p.LibraryId == id));
+        check(setup.Handle == "fizyka" && setup.Worlds is { Count: 2 } w && w[0] is { Handle: "historia", Shared: true } && w[1] is { Handle: "chemia", Name: "Chemia", Shared: false }
+            && setup.Document["settings"]?[0]?["handle"]?.GetValue<string>() == "fizyka" && setup.Document["settings"]?[0]?["worlds"]?.AsArray().Count == 2
+            && setup.Note.Contains("never prerequisites"),
+            "worlds: get_knowledge_setup names the base's handle and its worlds (shared or not), and keeps them in settings");
+        check(AiMcp.Instructions.Contains("@@historia:@historia/rewolucja") && AiMcp.Instructions.Contains("never prerequisites"), "worlds: the MCP instructions explain cross-base links");
+    }
+
+    private static string FailsMcp(Action run)
+    {
+        try { run(); return "ran"; }
+        catch (ModelContextProtocol.McpException e) { return e.Message.Split(':')[0]; }
     }
 
     private static bool Fails(Action act)

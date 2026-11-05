@@ -1,0 +1,59 @@
+/*
+  2026-11-05 (Prompt 24) — „W INNYCH ŚWIATACH": Karten mit einer eigenen Farbe (Türkis — nicht das Grün von „gekonnt", nicht das
+  Violett von „Co dalej"), ein Link im Text mit dem Portal ◎, der Weg über die Welten über einem Abstecher, die Auswahl der Autoren.
+*/
+:root { --cg-world: #1f7a8c; --cg-world-soft: rgb(31 122 140 / 0.1); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --cg-world: #6cc5d6; --cg-world-soft: rgb(108 197 214 / 0.14); } }
+:root[data-theme='dark'] { --cg-world: #6cc5d6; --cg-world-soft: rgb(108 197 214 / 0.14); }
+
+.cg-worlds { display: grid; gap: var(--wk-space-2); margin-top: var(--wk-space-3); min-width: 0; }
+.cg-worlds-title { margin: 0; font-size: var(--wk-text-md); }
+.cg-worlds.is-compact .cg-worlds-title { font-size: var(--wk-text-sm); text-transform: uppercase; letter-spacing: 0.04em; color: var(--wk-muted); }
+.cg-worlds-note { margin: 0; font-size: var(--wk-text-sm); }
+.cg-worlds-cards { display: grid; gap: var(--wk-space-2); grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); }
+
+.cg-world-card {
+  display: grid; gap: var(--wk-space-1); align-content: start; padding: var(--wk-space-2) var(--wk-space-3); min-width: 0;
+  border: 1px solid var(--cg-world); border-left-width: 4px; border-radius: var(--wk-radius); background: var(--cg-world-soft); color: var(--wk-ink);
+}
+.cg-world-card > p { margin: 0; overflow-wrap: anywhere; }
+.cg-world-card.is-done { border-style: dashed; }
+.cg-world-card.is-off { border-color: var(--wk-line-strong); background: var(--wk-surface); color: var(--wk-muted); }
+.cg-world-card.is-preview { margin-top: var(--wk-space-2); }
+.cg-world-card .wk-actions { margin-top: var(--wk-space-1); }
+.cg-world-name { font-size: var(--wk-text-xs); color: var(--cg-world); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.cg-world-card.is-off .cg-world-name { color: var(--wk-muted); }
+.cg-world-title { font-weight: 600; }
+.cg-world-summary { font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
+.cg-world-state { font-size: var(--wk-text-xs); }
+.cg-world-portal { color: var(--cg-world); }
+.cg-world-off { font-size: var(--wk-text-xs); color: var(--wk-muted); }
+
+/* Ein Link im Text in eine andere Welt: unterstrichen in ihrer Farbe. */
+.lib-own-ref.is-cross { text-decoration-color: var(--cg-world); }
+a.lib-own-ref.is-cross { color: var(--cg-world); }
+.lib-own-ref.is-cross.is-off { text-decoration: line-through dotted; }
+
+/* Der Abstecher in eine andere Welt. */
+.cg-detour-world { display: grid; gap: var(--wk-space-1); }
+.cg-detour-world .cg-detour { border-color: var(--cg-world); border-left-width: 4px; background: var(--cg-world-soft); }
+.cg-detour-world-note { font-size: var(--wk-text-xs); margin: 0; }
+.cg-detour.is-off { border-style: dashed; }
+.cg-cross-run { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.cg-cross-crumbs {
+  display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); align-items: center; padding: var(--wk-space-1) var(--wk-space-2);
+  border-left: 4px solid var(--cg-world); background: var(--cg-world-soft); border-radius: var(--wk-radius-sm); font-size: var(--wk-text-sm);
+}
+.cg-cross-trail { color: var(--wk-muted); overflow-wrap: anywhere; }
+.cg-cross-trail .is-here { color: var(--cg-world); font-weight: 600; }
+
+/* „Link do innego świata…" */
+.cg-world-pick { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); border: 1px solid var(--cg-world); border-radius: var(--wk-radius); background: var(--wk-surface); min-width: 0; }
+.cg-world-pick > p { margin: 0; }
+.cg-world-pick-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); max-height: 16rem; overflow-y: auto; }
+.cg-world-pick-one { width: 100%; text-align: left; padding: var(--wk-space-1) var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); color: var(--wk-ink); cursor: pointer; }
+.cg-world-pick-one.is-chosen { border-color: var(--cg-world); background: var(--cg-world-soft); }
+.cg-world-pick-one:focus-visible { outline: 2px solid var(--wk-ring); outline-offset: 1px; }
+
+/* Die Karte des Abstechers in eine andere Welt: dicht wie die Karten „W innych światach". */
+.cg-detour-world .cg-detour > p { margin: 0; }

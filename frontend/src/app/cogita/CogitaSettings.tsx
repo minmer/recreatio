@@ -7,6 +7,8 @@
  * Werte, eigene Regeln für Sitzungen und Aussehen.
  */
 
+import { worldWords } from './worldWords';
+import { handleFrom, readHandle, WORLD_HANDLE, type WorldRef } from './worlds';
 import { useEffect, useState } from 'react';
 
 import { loadAreas, type AreaRow } from '../areas/area';
@@ -48,6 +50,7 @@ export function CogitaSettings() {
       <BaseSection areas={areas} />
       <BaseVisibility libraries={libraries} areas={areas} onChanged={() => setRound((n) => n + 1)} />
       <Sources libraries={libraries} areas={areas} />
+      <OtherWorlds libraries={libraries} />
 
       <section className="cg-card">
         <h3>Gdzie zapisują się odpowiedzi uczących się</h3>
@@ -227,6 +230,50 @@ function Sources({ libraries, areas }: { libraries: readonly OpenLibrary[]; area
             void save([...list, { id: row.libraryId, kind: libraryKindOf(row), name: row.name }]).then(() => setPick(''));
           }}>Dodaj</button>
         </div>
+      )}
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </section>
+  );
+}
+
+/**
+ * 2026-11-05 (Prompt 24) — „Inne światy": der bleibende Name dieser Baza (für Verweise aus anderen, "@@name:@…") und die Welten,
+ * auf die Verweise von hier zeigen (Name → Baza). Nie zusammengeführt (das sind „Źródła"): nur Angebote.
+ */
+function OtherWorlds({ libraries }: { libraries: readonly OpenLibrary[] }) {
+  const { lib, writes, name } = useCtx();
+  const { busy, failed, run } = useBusy();
+  const W = worldWords(baseLang(lib));
+  const s = lib.settings();
+  const [handle, setHandle] = useState(s.handle ?? '');
+  const shown = handle.trim().toLowerCase();
+  const valid = shown === '' || WORLD_HANDLE.test(shown);
+  const rows = s.worlds;
+  const readable = new Set(libraries.map((l) => l.libraryId));
+  const saveWorlds = (next: readonly WorldRef[]) => run(() => lib.saveSettings({ worlds: next }));
+  return (
+    <section className="cg-card" data-settings-worlds="">
+      <h3>{W.settingsTitle}</h3>
+      <label className="wk-field">
+        <span>{W.settingsHandle}</span>
+        <span className="cg-row">
+          <span aria-hidden="true">@</span>
+          <input value={handle} disabled={!writes} placeholder={handleFrom(name)} onChange={(e) => setHandle(e.target.value)} aria-invalid={!valid} data-settings-handle="" />
+          {writes && <button type="button" className="wk-btn" disabled={busy || !valid || (readHandle(shown) ?? '') === (s.handle ?? '')} onClick={() => void run(() => lib.saveSettings({ handle: shown === '' ? undefined : shown }))}>{W.settingsSave}</button>}
+        </span>
+      </label>
+      <p className="cg-muted">{W.settingsHandleNote}</p>
+      <h4>{W.settingsWorlds}</h4>
+      {rows.length === 0 ? <p className="cg-muted">{W.settingsNoWorlds}</p> : (
+        <ul>
+          {rows.map((w) => (
+            <li key={w.id} className="cg-row" data-settings-world={w.handle}>
+              <strong>{w.name}</strong> <code>@@{w.handle}:…</code>
+              {!readable.has(w.id) && <span className="cg-tag is-warn">{W.unavailable}</span>}
+              {writes && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void saveWorlds(rows.filter((x) => x.id !== w.id))}>{W.settingsRemove}</button>}
+            </li>
+          ))}
+        </ul>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
     </section>

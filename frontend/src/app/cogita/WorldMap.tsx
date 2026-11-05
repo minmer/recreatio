@@ -60,6 +60,11 @@ export interface WorldTopic {
   readonly todo: string;
   /** Etwas daran ist fällig (der Punkt am Ring, die Ansicht „Do powtórki"). */
   readonly due: boolean;
+  /**
+   * 2026-11-05 (Prompt 24) — wie viele Portale in andere Welten das Thema hat (nur, was der Betrachter dort lesen kann): nah ein
+   * kleines Zeichen ◎ auf der Kachel; keine Linien über Welten hinweg, nichts daran zählt für die Landschaft.
+   */
+  readonly portals?: number;
 }
 
 /** Eine Spielfigur: auf einem Thema, das er zu lernen begann (`single`), oder auf dem Weg zu seinem Ziel (`goal`). */
@@ -1247,7 +1252,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const ca = Math.cos(ang); const sa = Math.sin(ang);
     const textR = p.s * 0.42;
     const measure = (text: string, size: number, bold: boolean) => { ctx.font = `${bold ? '600 ' : ''}${size}px ${fontFamily.current}`; return ctx.measureText(text).width; };
-    let drawnText = 0; let insideText = 0; let hiddenText = 0; let rings = 0;
+    let drawnText = 0; let insideText = 0; let hiddenText = 0; let rings = 0; let portalSigns = 0;
     /*
       2026-11-04 (Prompt 16, 1; vom Nutzer) — DAS HAUS hat ein eigenes Feld in der Mitte (kein Thema darauf): eine flache helle
       Kachel, darauf ein einfaches Haus wie ein Name — liegend, mit der Neigung gestaucht und mit der Kachel gedreht; in der
@@ -1376,6 +1381,15 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.strokeStyle = css(P.surface, 0.42); ctx.strokeText(l.text, 0, l.y);
           ctx.fillStyle = css(P.ink); ctx.fillText(l.text, 0, l.y);
         }
+        /* 2026-11-05 (Prompt 24) — das Portal: zwei Ringe oben rechts auf der Kachel (liegend wie der Name). */
+        if ((t.portals ?? 0) > 0) {
+          const pr = Math.max(3, textR * 0.11);
+          const px0 = textR * 0.62; const py0 = -textR * 0.62;
+          ctx.beginPath(); ctx.arc(px0, py0, pr * 1.45, 0, Math.PI * 2); ctx.fillStyle = css(P.surface, 0.85); ctx.fill();
+          ctx.lineWidth = Math.max(1, pr * 0.32); ctx.strokeStyle = css(P.ink, 0.85); ctx.stroke();
+          ctx.beginPath(); ctx.arc(px0, py0, pr * 0.62, 0, Math.PI * 2); ctx.fillStyle = css(P.ink, 0.85); ctx.fill();
+          portalSigns += 1;
+        }
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
     }
@@ -1443,7 +1457,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     if (layer === undefined) {
       const el = box.current;
       if (el !== null) {
-        el.dataset.wmInfo = String(drawnText); el.dataset.wmInfoIn = String(insideText); el.dataset.wmInfoHidden = String(hiddenText); el.dataset.wmRings = String(rings);
+        el.dataset.wmInfo = String(drawnText); el.dataset.wmInfoIn = String(insideText); el.dataset.wmInfoHidden = String(hiddenText); el.dataset.wmRings = String(rings); el.dataset.wmPortals = String(portalSigns);
         el.dataset.wmTier = textOn ? (deep ? 'deep' : 'names') : '';
         el.dataset.wmHomeXy = scr === screen ? `${homeX.toFixed(0)},${homeY.toFixed(0)}` : el.dataset.wmHomeXy ?? '';
         el.dataset.wmChosenXy = chosen === null ? '' : `${screen[chosen * 3].toFixed(0)},${screen[chosen * 3 + 1].toFixed(0)}`;

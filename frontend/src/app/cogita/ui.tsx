@@ -4,7 +4,7 @@
  * Wissens, Dateien, Bedingungen und Aktionen der einen Logik.
  */
 
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { Me } from '../core/me';
 import { Icon } from '../ui/icons';
@@ -284,6 +284,13 @@ export const kindLabel = (k: { readonly id: string; readonly name: string }): st
 
 /* -- Auszeichnung des Wissens ------------------------------------------------------------- */
 
+/*
+  2026-11-05 (Prompt 24) — EIN LINK IN EINE ANDERE WELT im Zapis ([[Wort|@@historia:@…]]): `WorldLinks.tsx` (später geladen —
+  sonst ein Kreis der Einfuhren); bis dahin der Wortlaut.
+*/
+const CrossLinkLazy = lazy(() => import('./WorldLinks').then((m) => ({ default: m.CrossLink })));
+export const crossLink = (token: string, label: ReactNode): ReactNode => <Suspense fallback={<span className="lib-own-ref is-cross">{label}</span>}><CrossLinkLazy token={token} label={label} /></Suspense>;
+
 /** Wo es nichts nachzuschlagen gibt (eine öffentliche Seite ohne Schlüssel): jeder Verweis bleibt verborgen. */
 const NOTHING: MarkupLookup = { get: () => undefined, byKey: () => undefined };
 
@@ -303,7 +310,7 @@ export function Markup({ text, onEntity, lib }: { text: string; onEntity?: (id: 
   const look = from?.markupLook ?? NOTHING;
   const blocks = useMemo(() => parseMarkup(text), [text]);
   const notes = useMemo(() => countNotes([blocks], look), [blocks, look]);
-  const links = useMemo<MarkupLinkTo>(() => (onEntity === undefined ? {} : { open: (e: LibEntry) => onEntity(e.id) }), [onEntity]);
+  const links = useMemo<MarkupLinkTo>(() => (onEntity === undefined ? { cross: crossLink } : { open: (e: LibEntry) => onEntity(e.id), cross: crossLink }), [onEntity]);
   return (
     <MarkupLinks.Provider value={links}>
       <div className="cg-markup">

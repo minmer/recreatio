@@ -23,6 +23,10 @@ import { TexText } from '../ui/tex/Tex';
 import { isQuestion, thesisProblem, THESIS_LIMIT } from '../library/blocks';
 import { blocksField, entityBlocks, isStatementKind } from './statements';
 import { Loading } from '../ui/Loading';
+import { useBrokenWorldLinks } from './WorldLinks';
+import { worldWords } from './worldWords';
+import { baseLang } from './lang';
+import { cogitaPath } from './parts';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -80,6 +84,7 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
 
   return (
     <div className="cg">
+      <BrokenWorldLinks pathOf={pathOf} />
       <section className="cg-card">
         <h3>Pytania bez odpowiedzi ({openQuestions.length})</h3>
         {openQuestions.length === 0 ? <span className="cg-muted">Na każde pytanie odpowiada jakaś wypowiedź.</span>
@@ -205,6 +210,35 @@ function Parallel() {
         setChosen(new Set());
       })}>Utwórz zaznaczone pytania</button>
       {failed !== null && <p className="wk-error">{failed}</p>}
+    </section>
+  );
+}
+
+/**
+ * 2026-11-05 (Prompt 24) — LINKS IN ANDERE WELTEN, DIE NICHT AUFGEHEN: das Ziel gibt es dort nicht mehr (gelöscht, umbenannt),
+ * die Welt ist für dieses Konto nicht lesbar, oder ihr Name ist hier nicht bekannt. Lernende sehen sie nicht; hier stehen sie,
+ * bis sie repariert sind. Nichts, solange es keine gibt.
+ */
+function BrokenWorldLinks({ pathOf }: { pathOf: (id: string) => string }) {
+  const { lib } = useCtx();
+  const broken = useBrokenWorldLinks();
+  const W = worldWords(baseLang(lib));
+  if (broken === null) return <p className="cg-muted" data-world-todo="checking">{W.todoChecking}</p>;
+  if (broken.length === 0) return null;
+  const isFlow = (id: string) => lib.docs('flow').some((d) => d.id === id);
+  return (
+    <section className="cg-card" data-world-todo={broken.length}>
+      <h3>{W.todoTitle(broken.length)}</h3>
+      <ul>
+        {broken.map((b) => (
+          <li key={`${b.from}|${b.ref.handle}:${b.ref.ref}`} data-world-todo-item={b.why}>
+            <code>@@{b.ref.handle}:{b.ref.ref}</code>
+            {' '}<span className="cg-muted">{W.todoIn} </span>
+            <a className="cg-ref" href={isFlow(b.from) ? cogitaPath(lib.libraryId, 'przebiegi', b.from) : pathOf(b.from)}><TexText text={b.fromTitle} /></a>
+            <span className="cg-muted"> — {b.why === 'broken' ? `${W.broken}: ${W.brokenNote(b.ref.ref, b.world)}` : b.why === 'unreadable' ? W.todoUnreadable(b.world) : W.unknownWorld(b.ref.handle)}</span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

@@ -484,6 +484,12 @@ public enum Field
     AreaProfileCard,
 
     /// <summary>
+    /// 0137 — das Dokument der Einrichtung einer Wspólnota je Bereich (Einheiten, Positionen,
+    /// Personen, die fünf Schritte), versiegelt unter dem Epochenschlüssel des Bereichs.
+    /// </summary>
+    AreaSetup,
+
+    /// <summary>
     /// 2026-10-28 — Anmelden ohne Netz (<c>core/away.ts</c> im Browser): Salz und die Hülle des
     /// Hauptschlüssels, auf dem Telefon unter dem Geräteschlüssel versiegelt. Nur der Browser
     /// benutzt es, wie <see cref="AccountKeptKey"/>; der Eintrag steht hier, weil 3.13 ihn verlangt.
@@ -699,6 +705,7 @@ public readonly record struct Aad
         Field.CalendarValue           => "calendar_value",
         Field.RecordValue             => "record_value",
         Field.AreaProfileCard         => "area_profile_card",
+        Field.AreaSetup               => "area_setup",
         Field.AwayAccount             => "away_account",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
