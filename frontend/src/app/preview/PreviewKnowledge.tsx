@@ -22,6 +22,7 @@ import { CogitaContext, useAsync, type CogitaCtx } from '../cogita/ui';
 import { LIST_MODE_LABEL, readView, type ListMode } from '../cogita/views';
 import type { Learner } from '../cogita/learn';
 import '../cogita/cogita.css';
+import { drawingSamples, type DrawingSample } from '../cogita/interactiveCheck';
 
 export interface KnowledgeInput {
   /** Das Dokument (`recreatio.cogita.course` oder `…schema`) — Objekt oder Text. */
@@ -67,6 +68,8 @@ export interface KnowledgeResult extends KnowledgeSummary {
 export interface SamplesResult {
   readonly name: string;
   readonly generators: readonly GeneratorReport[];
+  /** 2026-11-05 (Prompt 23, D3) — die Rysunki do poruszania: unbekannte Namen, erreicht die Lösung ihr Ziel? */
+  readonly drawings?: readonly DrawingSample[];
 }
 
 /* -- Die Baza, einmal je Dokument --------------------------------------------------------------------------------- */
@@ -259,7 +262,9 @@ const MOOD_WORD: Readonly<Record<CardMood, string>> = { known: 'znane', due: 'do
 export async function knowledgeSamples(input: KnowledgeInput & { readonly count?: number | null }): Promise<SamplesResult | { error: string }> {
   const built = await baseFor(input.doc);
   if ('error' in built) return built;
-  return { name: built.base.name, generators: await generatorReport(built.base.lib, input.count ?? 10) };
+  const lib = built.base.lib;
+  const refOf = (id: string): string | null => { const r = lib.entry(id)?.data._ref; return typeof r === 'string' && r !== '' ? `@${r}` : null; };
+  return { name: built.base.name, generators: await generatorReport(lib, input.count ?? 10), drawings: drawingSamples(lib.entities(), refOf) };
 }
 
 /** Was die Baza ist — ohne zu zeichnen (schnell, für den Bericht ohne Bilder). */

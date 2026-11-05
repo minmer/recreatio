@@ -27,7 +27,21 @@ import { clamp01, easeInOut, easeOut, FADE_MS, FLY_GAP, FLY_MS, FLY_SINGLE, LINE
 import { beatAt, beatStart, wayTimes, wayWaits, type WayHop, type WayPlan, type WayTimes } from './worldWay';
 
 /** 2026-11-04 (Prompt 15, 4b) — was die Karte zeigt: alles, nur das Gekonnte (mit dem Rand), nur das Fällige. */
-export type WorldMode = 'all' | 'known' | 'discover' | 'due';
+/** 2026-11-05 (Prompt 23, C5) — dazu „Luki": nur die Themen, deren Kernfrage beantwortet und nicht gewusst ist (`gaps`). */
+export type WorldMode = 'all' | 'known' | 'discover' | 'due' | 'gaps';
+
+/** 2026-11-05 (Prompt 23, C5) — „Sprawdź, co wiesz" neben den Ansichten, danach der Filter „Luki" mit „Uzupełnij luki". */
+export interface WorldSelfCheck {
+  /** Der Knopf (für das Gebiet im Bild oder die ganze Karte). */
+  readonly label: string;
+  readonly onCheck: () => void;
+  /** Die Lücken (Themen in der Folge der Karte). */
+  readonly gaps: ReadonlySet<number>;
+  /** Schon etwas geprüft (sonst sagt „Luki": erst prüfen). */
+  readonly checked: boolean;
+  readonly onFill: (() => void) | null;
+  readonly words: { readonly gaps: string; readonly gapsNone: string; readonly gapsFirst: string; readonly fill: string };
+}
 /** 2026-11-04 (Prompt 16, 4) — die Höhe der Säulen: ein Faktor auf die Stufe der Baza (die Verhältnisse bleiben). */
 export type WorldHeight = 'low' | 'mid' | 'high';
 const HEIGHT_FACTOR: Readonly<Record<WorldHeight, number>> = { low: 0.5, mid: 1, high: 2 };
@@ -141,7 +155,7 @@ function keepCam(key: string, cam: WorldCam): void {
 }
 
 function keptMode(key: string): WorldMode {
-  try { const v = localStorage.getItem(`cg-wm-mode:${key}`); if (v === 'known' || v === 'discover' || v === 'due') return v; } catch { /* ohne Speicher */ }
+  try { const v = localStorage.getItem(`cg-wm-mode:${key}`); if (v === 'known' || v === 'discover' || v === 'due' || v === 'gaps') return v; } catch { /* ohne Speicher */ }
   return 'all';
 }
 
@@ -185,7 +199,7 @@ export function GoalFlagIcon({ h }: { h: number }) {
 
 /* -- Die Karte ------------------------------------------------------------------------------------------------- */
 
-export function WorldMap({ world, topics, regionName, conquered, chosen, flash, home, links, way, width, compact, T, memoryKey, command, onPickTopic, onView, onBackground, legend, step, pieces, goalFlag, onPiece, onFlag, onStart, onHome, playback = null, onPlayback, replayLabel }: {
+export function WorldMap({ world, topics, regionName, conquered, chosen, flash, home, links, way, width, compact, T, memoryKey, command, onPickTopic, onView, onBackground, legend, step, pieces, goalFlag, onPiece, onFlag, onStart, onHome, playback = null, onPlayback, replayLabel, selfCheck = null }: {
   world: WorldLayout;
   /** Die Höhe eines Schrittes dieser Baza (`stepFor`). */
   step: number;
@@ -207,6 +221,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   onPlayback?: (e: PlaybackEvent) => void;
   /** „Pokaż zmiany" — eine Weile nach dem Zurückkommen (fehlt es: kein Knopf). */
   replayLabel?: string;
+  /** 2026-11-05 (Prompt 23, C5) — „Sprawdź, co wiesz" und „Luki" (fehlt es: keine). */
+  selfCheck?: WorldSelfCheck | null;
   topics: readonly WorldTopic[];
   regionName: (key: string) => string;
   /** Gebiete, in denen alles gekonnt ist (erobert). */
@@ -391,7 +407,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   /* 2026-11-05 (Durchsicht) — das grosse Bild nur neu, wenn die Kamera ruht (nicht schon beim ersten Schritt einer Bewegung). */
   const rebuild = useRef(false);
   const dataTick = useRef(0);
-  const dataSig = useMemo(() => { dataTick.current += 1; return dataTick.current; }, [topics, chosen, flash, links, way, home, hoverRegion, palette, world, mode, focusTop]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dataSig = useMemo(() => { dataTick.current += 1; return dataTick.current; }, [topics, chosen, flash, links, way, home, hoverRegion, palette, world, mode, focusTop, selfCheck?.gaps]); // eslint-disable-line react-hooks/exhaustive-deps
   const paint = () => {
     const el = canvas.current;
     if (el === null || palette === null) return;
@@ -1140,7 +1156,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       2026-11-04 (Prompt 16, 3) — die Ansicht: „Co umiem" nur Gekonntes in Farbe (mit dem orangeroten Umriss), „Do odkrycia"
       nur das jetzt Lernbare (mit dem hellgelben Umriss, das Gekonnte blass darum), „Do powtórki" nur Fälliges.
     */
-    const greyed = (i: number): boolean => { const t = topics[i]; if (t === undefined) return false; if (mode === 'known') return !isLand(i); if (mode === 'discover') return !isReady(i); if (mode === 'due') return !t.due; return false; };
+    const greyed = (i: number): boolean => { const t = topics[i]; if (t === undefined) return false; if (mode === 'known') return !isLand(i); if (mode === 'discover') return !isReady(i); if (mode === 'due') return !t.due; if (mode === 'gaps') return !(selfCheck?.gaps.has(i) ?? false); return false; };
     const showLand = mode === 'all' || mode === 'known';
     const showReady = mode === 'all' || mode === 'discover';
     const outlines = showLand || showReady;
@@ -1264,7 +1280,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       /* 2026-11-05 (Prompt 17) — beim Abspielen: die Farbe geht vom alten Band zum neuen (eine gelernte Säule füllt sich). */
       if (A !== null && A.b0[i] !== 255) face = mix(faceFor(BAND_OF[A.b0[i]] ?? null, Number.isNaN(A.h0[i]) ? t.steps : A.h0[i], regionC), face, kOf(i));
       const g1 = greyed(i) ? 1 : 0;
-      const g0 = A === null ? g1 : greyedBefore(A, i, mode);
+      const g0 = A === null || mode === 'gaps' ? g1 : greyedBefore(A, i, mode);
       /* In „Do powtórki" wird eine erledigte Wiederholung grau — mit ihrem Puls. */
       const grayK = A === null || g0 === g1 ? g1 : g0 + (g1 - g0) * (A.mark[i] === 1 && mode === 'due' ? pulseK(A, i, tau) : kOf(i));
       if (grayK > 0) { const l = face[0] * 0.3 + face[1] * 0.59 + face[2] * 0.11; const grey = mix([l, l, l], P.haze, 0.45); face = mix(face, mode === 'discover' && isLand(i) ? mix(grey, face, 0.4) : grey, grayK); }
@@ -1804,9 +1820,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       data-wm-way-hops={way === null || way.hops.length > 200 ? '' : way.hops.map((h) => `${topics[h.from]?.label ?? h.from}>${topics[h.to]?.label ?? h.to}@${h.beat}`).join('|')}
       data-wm-way-tiles={way === null || way.tiles.length > 200 ? '' : way.tiles.map((t, i) => `${topics[t]?.label ?? t}@${way.tileBeat[i]}`).join('|')}>
       <div className="cg-wm-modes" role="group" aria-label={T.modeLabel} data-wm-modes={mode}>
-        {(['all', 'known', 'discover', 'due'] as const).map((m) => (
-          <button key={m} type="button" className={`cg-wm-mode${mode === m ? ' is-on' : ''}`} aria-pressed={mode === m} onClick={() => setMode(m)} data-wm-mode={m}>{m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : T.modeDue}</button>
+        {(['all', 'known', 'discover', 'due', ...(selfCheck === null ? [] : ['gaps' as const])] as const).map((m) => (
+          <button key={m} type="button" className={`cg-wm-mode${mode === m ? ' is-on' : ''}`} aria-pressed={mode === m} onClick={() => setMode(m)} data-wm-mode={m}>{m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : m === 'due' ? T.modeDue : selfCheck?.words.gaps}{m === 'gaps' && selfCheck !== null && selfCheck.gaps.size > 0 ? ` (${selfCheck.gaps.size})` : ''}</button>
         ))}
+        {/* 2026-11-05 (Prompt 23, C5) — „Sprawdź, co wiesz": die Kernfragen des Gebiets im Bild (sonst der ganzen Karte), jede einmal. */}
+        {selfCheck !== null && <button type="button" className="cg-wm-mode is-check" onClick={() => { setMode('gaps'); selfCheck.onCheck(); }} data-wm-selfcheck="">{selfCheck.label}</button>}
       </div>
       <div ref={stageRef} className="cg-wm-stage">
       <canvas ref={canvas} className="cg-wm-canvas" width={width} height={height} aria-label={T.mapLabel} role="img"
@@ -1867,6 +1885,12 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       )}
       {mode === 'due' && !topics.some((t) => t.due) && <div className="cg-wm-note" role="status" data-wm-note="due">{T.nothingDue}</div>}
       {mode === 'discover' && !topics.some((t) => t.band === 'ring') && <div className="cg-wm-note" role="status" data-wm-note="discover">{T.nothingReady}</div>}
+      {mode === 'gaps' && selfCheck !== null && (
+        <div className="cg-wm-note is-gaps" role="status" data-wm-note="gaps" data-wm-gaps={selfCheck.gaps.size}>
+          {!selfCheck.checked ? selfCheck.words.gapsFirst : selfCheck.gaps.size === 0 ? selfCheck.words.gapsNone : null}
+          {selfCheck.checked && selfCheck.gaps.size > 0 && selfCheck.onFill !== null && <button type="button" className="wk-btn is-small" onClick={selfCheck.onFill} data-wm-fill="">{selfCheck.words.fill}</button>}
+        </div>
+      )}
       {/* 2026-11-05 (Weg) — wie viele Schritte zum gewählten Thema; ein Klick zeigt sie noch einmal (beim Laufen: der Schritt, ein Klick überspringt). */}
       {way !== null && phase === null && (motion === 'off'
         ? <span className="cg-wm-waybtn is-still" data-wm-way-btn="off"><WayIcon />{T.wayInfo(way.beats)}</span>

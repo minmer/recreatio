@@ -52,10 +52,46 @@ export const learnerFlows = (lib: Parameters<typeof flowRefsOf>[0], positions: R
  * „bestanden" senkt die Einheit der Erzählung ins Tal.
  */
 export type StoryStage = 'new' | 'started' | 'review' | 'passed';
-export function storyStage(flow: { readonly goals: readonly { readonly id: string }[] }, facts: FlowFacts | undefined): StoryStage {
+export function storyStage(flow: { readonly goals: readonly { readonly id: string }[] }, facts: FlowFacts | undefined, questionsKnown = false): StoryStage {
+  /*
+    2026-11-05 (Prompt 23, C4) — KANN DER LERNENDE JEDE FRAGE DER ERZÄHLUNG (Band „znane", aus der ganzen Geschichte), ist sie
+    bestanden — auch ungespielt oder ohne bestandenen Przegląd (ihr Ziel prüft ja dasselbe): die Einheit sinkt ins Tal. Gerechnet,
+    nie gespeichert — wer etwas vergisst, sieht die Erzählung wieder als offen. (`questionsKnown`, `flowQuestionsKnown`.)
+  */
+  if (questionsKnown) return 'passed';
   if (facts === undefined || !facts.started) return 'new';
   if (!facts.done) return 'started';
   return flow.goals.every((g) => facts.goals.includes(g.id)) ? 'passed' : 'review';
+}
+
+/**
+ * 2026-11-05 (Prompt 23, C4) — sind ALLE Fragen, die eine Erzählung stellt (ihre Schritte „question"), gekonnt? Ohne eine Frage:
+ * nein (eine Erzählung zum Lesen wird gelesen, nicht gewusst). `known`: die Karte (Schlüssel) ist im Band „znane".
+ */
+export function flowQuestionsKnown(flow: Pick<Flow, 'graph'>, cardOf: (id: string) => { readonly key: string } | null, known: (key: string) => boolean): boolean {
+  let any = false;
+  for (const n of flow.graph.nodes) {
+    if (n.type !== 'question') continue;
+    const id = typeof n.config.of === 'string' && n.config.of !== '' ? n.config.of : typeof n.config.card === 'string' ? n.config.card : '';
+    const card = id === '' ? null : cardOf(id);
+    if (card === null) continue;
+    any = true;
+    if (!known(card.key)) return false;
+  }
+  return any;
+}
+
+/** 2026-11-05 (Prompt 23, C4) — die Karte einer Frage (ihre Kennung oder der Schlüssel einer Karte) — einmal je Kartensatz. */
+const CARD_OF = new WeakMap<readonly object[], Map<string, { readonly key: string }>>();
+export function cardOfQuestion(cards: readonly { readonly key: string; readonly question: string }[]): (id: string) => { readonly key: string } | null {
+  let m = CARD_OF.get(cards);
+  if (m === undefined) {
+    m = new Map();
+    for (const c of cards) { if (!m.has(c.question)) m.set(c.question, c); if (!m.has(c.key)) m.set(c.key, c); }
+    CARD_OF.set(cards, m);
+  }
+  const map = m;
+  return (id) => map.get(id) ?? null;
 }
 
 /** Der eine Knopf einer Erzählung, nach ihrem Stand (er öffnet den Spieler: an der Stelle des Lernenden; „Powtórz przegląd" am Przegląd). */

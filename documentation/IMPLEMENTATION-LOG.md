@@ -3703,3 +3703,44 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   5 000-topic random graph under 60 ms per way, words) in `app:check`. Drives (`scratchpad/p18/way.mjs`, LocalDB): kette
   1280 light (13-step and 6-step ways), 390 dark, ograniczone, wyłączone, the 5 000-topic base — 12/12 each (8/8 off);
   0.1 ms per frame for the dots, 60 fps.
+
+## C44 — Stories ↔ questions: Prompts 19–22 in one pass (2026-11-05, Prompt 23)
+
+- Audit first (four read-only reviews), then built by part; test data on LocalDB: two new libraries „P23 Bosko" (pl: overview
+  → Etap 1 with six detours after slides 1, 2, 2, 3, 4, 5 → deep stories, nested detour, story-wide and practice-only
+  questions, bad slides for the lint) and „P23 LAAG" (de: u0 → k1–k4 → §11–§15, formulas, footnotes, interactive questions,
+  a hand-built review) — `scratchpad/p23/setup.mjs`.
+- A (slides ↔ questions): `SlideView.tsx`, `slideLinks.ts`, `slideLib.ts`, `StoryPreview.tsx`, `QuestionLandscape.tsx`,
+  `slideLint.ts`, `slideWords.ts`, `slides.css`; `EntityReading.tsx`, `CardFace.tsx`, `EntityEditor.tsx`, `FlowPlayer.tsx`
+  (lib for explanations, ⋯ „Pytania do tego slajdu", title fallback), `LandscapeView.tsx` (tabs), `json.ts`,
+  `opowiesci-AI.md`. Check `app-slide-links-check.mjs` (120).
+- B (detours as branches) and A8: `pathLayout.ts` (`withBranches`: the line without detours, branches beside their
+  anchor), `PathMap.tsx` (branch nodes, arms, names, states, counter, „Rozwiń", „tu wrócisz", TeX in names and „Co dalej"),
+  `pathBranches.ts` (state, slides done/total, questions known, „po slajdzie N", sub-detours), `DetourCard.tsx` (one card
+  for the step and the path, with the unit's summary), `FlowPlayer.tsx` (the calling story's path inside a detour),
+  `LandscapeView.tsx` (the unit path with branches and cards), `pathMap.css`, `lang.ts`. Check `app-branches-check.mjs` (17).
+  Also fixed: switching from one library's player straight to another's stayed on „Otwieranie bazy wiedzy…"
+  (`libraryStore.ts`: a counter instead of the revision as state).
+- C (self-check): `revision.ts` (pick sample, perTopic, step sample, warnings for unknown mode/pick), `kinds.ts`,
+  `questionTypes.ts`, `cardBasics.ts`, `cards.ts` (core), `logic.ts`/`knowing.ts` (rel core), `selfCheck.ts`,
+  `SelfCheckSummary.tsx`, `selfCheckWords.ts`, `selfCheck.css`, `TopicQuestions.tsx`, `RevisionRun.tsx`, `WorldMap.tsx`
+  (button and mode „Luki"), `flowFacts.ts`/`storyLock.ts`/`LandscapeView.tsx` (story passed when all its questions are
+  known), `levelMap.ts` (lone topics named after themselves), `json.ts`, `schematy-AI.md`, `pytania.json`. Check
+  `app-selfcheck-check.mjs` (92).
+- D (explanation paths): `SlideDrawing.tsx`/`slideDrawing.css` (drawing beside a slide), `interactive.ts`/
+  `InteractiveAnswer.tsx` (check submit, goals in order), `interactiveCheck.ts` + `json.ts` (import warnings),
+  `PreviewKnowledge.tsx`, `mcp/report.mjs`, `mcp/server.mjs` (interactive questions in preview_knowledge), `flow.ts`,
+  `reviewRound.ts`, `ReviewStep.tsx`, `storyPath.ts`, `flowCheck.ts` (step review), `pages/motion/expr.ts` (fmtpi),
+  `LivePanel.tsx` (TeX labels), `levelMap.ts` (nest nodes that are topics), `library/libraryMarkup.ts`, `markupView.tsx`,
+  `blocks.ts`, `reading.ts`, `scriptorium/latex.ts`, `sermon.ts`, `styles/library.css` (details block),
+  `backend/Api/Library/AiMcp.cs` (includeData, ref, names) + `Api.Tests/AiAccessChecks.cs`. Checks
+  `app-review-step-check.mjs` (30), `app-drawing-check.mjs` (23); Api.Tests 587.
+- E (one place): `QuestionLandscape.tsx` „Pokaż na ścieżce", `LandscapeView.tsx` (branch highlight on the overview path),
+  `SelfCheckSummary.tsx` (the story preview from a gap). Drive `scratchpad/p23/place.mjs` 6/6.
+- Drives: `scratchpad/p23/branches.mjs` 15/15 at 1280 light and 390 dark; parts A/C/D in `scratchpad/p23a`, `p23c`, `p23d`.
+- Not done: interactive questions in the preview MCP are reported as text (problems, solution values, solved), not drawn;
+  texts drawn inside a drawing stay plain (labels of controls render TeX).
+- Added by the owner during the work: badges 5 categories × 12 roughly exponential steps (materials spread, grades I–III;
+  `rewards.ts` `materialAt` by count, `BadgeStep.grade/grades`; `BadgesPage.tsx` steps wrap), 12 levels doubling (0 …
+  200 000); „Co dalej" as violet hexagons like the path's nodes (`pathMap.css`, legend `nextLegend`). `app-rewards-check`
+  updated (147).

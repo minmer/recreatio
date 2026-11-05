@@ -17,7 +17,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { Card } from './cardBasics';
-import { answerWorld, drawingOfText, liveWithGoal, solutionValues, solutionWorld, type InteractiveSpec } from './interactive';
+import { answerWorld, drawingOfText, liveWithGoals, liveWithoutGoals, solutionValues, solutionWorld, type InteractiveSpec } from './interactive';
 import type { Program } from '../pages/motion/liveRun';
 import { later } from '../ui/later';
 
@@ -26,17 +26,20 @@ const Live = later(() => import('../pages/motion/LiveDrawing').then((m) => m.Liv
 const specOf = (card: Card): InteractiveSpec | null => (card.answer.form === 'interactive' ? card.answer : null);
 
 /** Das Bild der Karte, mit dem Ziel der Frage als Regel — so meldet es das Treffen schon beim Ausprobieren. */
-function useDrawing(spec: InteractiveSpec | null) {
+function useDrawing(spec: InteractiveSpec | null, answering = false) {
   return useMemo(() => {
     if (spec === null) return null;
     const d = drawingOfText(spec.drawing);
-    return d === null ? null : { ...d, live: liveWithGoal(d.live, spec.goal) };
-  }, [spec]);
+    if (d === null) return null;
+    /* 2026-11-05 (Prompt 23, D2) — "check": "submit": beim Ausprobieren verrät nichts das Ziel (gewertet wird bei „Sprawdź“). */
+    if (answering && spec.check === 'submit') return { ...d, live: liveWithoutGoals(d.live) };
+    return { ...d, live: liveWithGoals(d.live, spec) };
+  }, [spec, answering]);
 }
 
 export function InteractiveAnswer({ card, disabled, onSubmit }: { card: Card; disabled?: boolean; onSubmit: (given: unknown) => void }) {
   const spec = specOf(card);
-  const drawing = useDrawing(spec);
+  const drawing = useDrawing(spec, true);
   const program = useRef<Program | null>(null);
   const onProgram = useCallback((p: Program) => { program.current = p; }, []);
   if (spec === null || drawing === null) return <p className="wk-error">Ten rysunek jest pusty albo nie jest poprawnym JSON.</p>;

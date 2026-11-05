@@ -637,6 +637,8 @@ export function questionCard(entity: Entity, seed = '', world?: GenWorld): Card 
     varies: (answer.form === 'interactive' && Object.keys(answer.fixed).length > 0) || varied,
     requires: [],
     ...(about.length > 0 ? { about } : {}),
+    /* 2026-11-05 (Prompt 23, C3) — eine Kernfrage ihrer Themen. */
+    ...(d.core === true || d.core === 'true' ? { core: true as const } : {}),
     ...(facts.length > 0 ? { facts } : {}),
     ...(hints.length > 0 ? { hints } : {}),
     ...(explanation === '' ? {} : { explanation }),

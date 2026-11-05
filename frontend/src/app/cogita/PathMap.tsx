@@ -20,9 +20,16 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+import { texPlain } from '../core/tex';
+import { TexText } from '../ui/tex/Tex';
 import { words as wordsIn, type Words } from './lang';
 import type { PartKind, PathMarks, PathModel, PathState } from './pathLayout';
 import './pathMap.css';
+
+/** 2026-11-05 (Prompt 23, D5) — ein Name mit Wzory als Zeile Text (im SVG zeichnet kein KaTeX). */
+const plainOf = (text: string): string => text.replace(/\$\$?([^$]+)\$\$?/g, (_, t: string) => texPlain(t));
+/** Gekürzt mit „…" (der ganze Name steht im Fenster beim Tippen). */
+const cut = (text: string, chars: number): string => (text.length <= chars ? text : `${text.slice(0, Math.max(1, chars - 1)).trimEnd()}…`);
 
 /** 2026-11-04 (Prompt 11) — was nach dem Ende kommt (ein Knoten in der Reihe über „Koniec"). */
 export interface PathNext {
@@ -41,7 +48,31 @@ export interface PathNext {
   readonly action?: { readonly label: string; readonly run: () => void };
 }
 
+/**
+ * 2026-11-05 (Prompt 23, B2–B5) — WAS EIN ZWEIG (ein Abstecher) ÜBER SEINE ERZÄHLUNG WEISS: ihr Name, wie weit der Lernende
+ * darin ist, ihre Fragen, wo er abzweigt, und ihre eigenen Abstecher (zugeklappt, „Rozwiń").
+ */
+export interface PathBranch {
+  readonly name: string;
+  readonly state: 'new' | 'skipped' | 'progress' | 'done';
+  /** Durch und alle Teile ihrer Erzählung (für „3/8"). */
+  readonly done?: number;
+  readonly total?: number;
+  readonly questions?: number;
+  readonly known?: number;
+  /** „po slajdzie 2". */
+  readonly where?: string;
+  /** Ihr Satz („streszczenie" ihrer Einheit). */
+  readonly summary?: string;
+  /** Ihre eigenen Abstecher (eine Ebene tiefer). */
+  readonly sub?: readonly { readonly id: string; readonly name: string; readonly state: PathBranch['state'] }[];
+}
+
 export interface PathMapProps {
+  /** 2026-11-05 (Prompt 23, B) — je Abstecher, was sein Zweig zeigt (ohne: ein schlichter Zweig). */
+  readonly branches?: (id: string) => PathBranch | null;
+  /** 2026-11-05 (Prompt 23, B6) — im Abstecher: der Knoten, zu dem der Lernende zurückkehrt („tu wrócisz"). */
+  readonly returnAt?: string | null;
   readonly model: PathModel;
   readonly marks: PathMarks;
   /** Eine Spur hervorheben (die Möglichkeit einer Wahl der Erzählung, über der der Zeiger steht). */
@@ -104,7 +135,7 @@ export const PATH_STATE_WORDS: Readonly<Record<PathState, string>> = { done: 'uk
 /** Eine Seite des Fensters über einem Knoten (eine Kennung der Karte oder ein Knoten der Reihe danach). */
 const NEXT = 'next:';
 
-export function PathMap({ model, marks, highlight = null, actions, onPick, name, detail, size = 'full', title: titleIn, collapsible = false, open: openIn, onOpen, words: wordsGiven, noun = 'parts', next, tools }: PathMapProps) {
+export function PathMap({ model, marks, highlight = null, actions, onPick, name, detail, size = 'full', title: titleIn, collapsible = false, open: openIn, onOpen, words: wordsGiven, noun = 'parts', next, tools, branches, returnAt = null }: PathMapProps) {
   const T = wordsGiven ?? wordsIn('pl');
   const title = titleIn ?? (wordsGiven === undefined ? undefined : T.pathTitle);
   const stateWords: Readonly<Record<PathState, string>> = { done: T.done, available: T.open, locked: T.locked };
@@ -114,12 +145,44 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
     return (k === 'learn' || k === 'mixed') && marks.ask?.[v] === 0 ? 'read' : k;
   };
   const optional = (v: number) => marks.optional?.[v] === true;
+  /* 2026-11-05 (Prompt 23, B2) — was ein Zweig sagt (vom Gastgeber; sonst aus dem Stand der Karte). */
+  const branchOf = (v: number): PathBranch | null => (model.nodes[v]?.branch === undefined ? null : branches?.(model.nodes[v].id) ?? null);
+  const branchState = (v: number): PathBranch['state'] => branchOf(v)?.state ?? (marks.skipped?.[v] === true ? 'skipped' : marks.state[v] === 'done' ? 'done' : 'new');
+  /* 2026-11-05 (Prompt 23, B5) — aufgeklappte Zweige: ihre eigenen Abstecher als kleine Zweige daneben. */
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
   const full = size === 'full';
   const R = full ? 20 : 15;
   const CW = full ? 84 : 60;
   const RH = full ? 72 : 54;
   const pad = R * 1.6 + 10;
-  const W = Math.max(1, (model.x1 - model.x0 - 1) * CW + 2 * pad);
+  /*
+    2026-11-05 (Prompt 23, B1/B8) — DIE ZWEIGE: neben ihrem Anker, aussen ihr Name. Schmal (Telefon, kleiner Rahmen) rücken
+    sie näher an die Linie und der Name wird kürzer — die Karte passt, ohne seitlich zu rollen.
+  */
+  const [roomW, setRoomW] = useState(0);
+  const narrowB = roomW > 0 && roomW < 480;
+  const nodeX = (v: number): number => {
+    const nd = model.nodes[v];
+    const b = nd.branch;
+    if (b === undefined || !narrowB) return nd.x;
+    return model.nodes[b.anchor].x + b.side * (0.95 + 0.8 * Math.floor(b.slot / 2));
+  };
+  /* Platz für den Namen in der Breite der Karte (er darf darüber hinaus bis an den Rand der Fläche). */
+  /* Links braucht der Name eigenen Platz; rechts reicht er in die Spalte der Namen, wo dort nichts steht. */
+  const labelLeft = narrowB ? 0.95 : 1.25;
+  const labelRight = 0.35;
+  const extent = useMemo(() => {
+    if (!model.nodes.some((nd) => nd.branch !== undefined)) return { x0: model.x0, x1: model.x1 };
+    let lo = Infinity; let hi = -Infinity;
+    model.nodes.forEach((nd, v) => {
+      const x = nodeX(v);
+      lo = Math.min(lo, x - 0.5 - (nd.branch?.side === -1 ? labelLeft : 0));
+      hi = Math.max(hi, x + 0.5 + (nd.branch?.side === 1 ? labelRight : 0));
+    });
+    for (const r of model.routes) for (const [x] of r) { lo = Math.min(lo, x - 0.5); hi = Math.max(hi, x + 0.5); }
+    return { x0: lo, x1: hi };
+  }, [model, narrowB]); // eslint-disable-line react-hooks/exhaustive-deps
+  const W = Math.max(1, (extent.x1 - extent.x0 - 1) * CW + 2 * pad);
   const H = Math.max(1, Math.max(0, model.levels - 1) * RH + 2 * pad);
   const [openOwn, setOpenOwn] = useState(true);
   const open = openIn ?? openOwn;
@@ -149,7 +212,10 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
     const measure = () => {
       const mh = sc === null ? Number.NaN : Number.parseFloat(getComputedStyle(sc).maxHeight);
       const h = Number.isFinite(mh) ? mh : Infinity;
-      setRoom((was) => (was.w === el.clientWidth && was.h === h ? was : { w: el.clientWidth, h }));
+      /* 2026-11-05 (Prompt 23, B8) — die Breite innen (ohne die Leiste zum Rollen nach unten): sonst rollte die Karte um ihre Breite seitwärts. */
+      const w = sc !== null && sc.clientWidth > 0 ? Math.min(el.clientWidth, sc.clientWidth + 2) : el.clientWidth;
+      setRoom((was) => (was.w === w && was.h === h ? was : { w, h }));
+      setRoomW(w);
     };
     measure();
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
@@ -161,7 +227,9 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
   const avail = Math.max(1, room.w - 2);
   /* Lesbar: ein Sechseck nie kleiner als 13–14 px im Halbmesser. */
   const minS = (full ? 14 : 13) / R;
-  const fitW = room.w <= 0 ? 1 : Math.max(0.05, (avail - (labels ? 112 : 0)) / W);
+  /* 2026-11-05 (Prompt 23, B8) — schmal mit Zweigen: die Spalte der Namen etwas schmaler (sie bricht um), damit nichts seitwärts rollt. */
+  const colMin = narrowB && model.nodes.some((nd) => nd.branch !== undefined) ? 84 : 112;
+  const fitW = room.w <= 0 ? 1 : Math.max(0.05, (avail - (labels ? colMin : 0)) / W);
   const base = Math.min(1, Math.max(minS, fitW));
   const fitAll = Math.min(fitW, Number.isFinite(room.h) ? Math.max(0.05, (room.h - 8) / H) : Infinity);
   const canFit = fitAll < base - 1e-3;
@@ -170,14 +238,16 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
   const s = zoom < 0 ? fitAll : Math.min(1.5, base * 2 ** Math.min(zoom, steps - 1));
   const gW = W * s;
   const gH = H * s;
-  const labelCol = labels ? Math.max(112, Math.min(208, avail - gW)) : 0;
+  const labelCol = labels ? Math.max(colMin, Math.min(208, avail - gW)) : 0;
   const cW = Math.max(avail, gW + labelCol);
   /* Die Karte mittig im Platz links der Spalte der Namen. */
   const ox = Math.max(0, (cW - labelCol - gW) / 2);
-  const at = useMemo(() => model.nodes.map((nd) => ({ x: ox + (pad + (nd.x - model.x0 - 0.5) * CW) * s, y: (H - pad - nd.level * RH) * s })), [model, pad, CW, RH, H, s, ox]);
+  const toPx = (x: number, L: number) => ({ x: ox + (pad + (x - extent.x0 - 0.5) * CW) * s, y: (H - pad - L * RH) * s });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const at = useMemo(() => model.nodes.map((nd, v) => toPx(nodeX(v), nd.level)), [model, pad, CW, RH, H, s, ox, extent, narrowB]);
   const r = R * s;
   const labelX = ox + gW - pad * s + r * 1.35 + 10;
-  const labelW = Math.max(96, cW - labelX - 4);
+  const labelW = Math.max(colMin < 112 ? 60 : 96, cW - labelX - 4);
   useLayoutEffect(() => {
     const c = canvas.current;
     if (c !== null) c.style.width = `${Math.ceil(cW)}px`;
@@ -394,6 +464,71 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
     return best;
   })();
 
+  /*
+    2026-11-05 (Prompt 23, B1–B5) — EIN ZWEIG: ein grösseres Sechseck neben der Linie, aussen sein Name (gekürzt, ganz im
+    Fenster) und darunter seine Fragen; nicht betreten blass und gestrichelt, ausgelassen dünn („pominięte"), begonnen halb
+    gefüllt mit „3/8", ukończony gefüllt mit Haken. Aufgeklappt („Rozwiń"): die Abstecher seiner Erzählung als kleine
+    Zweige des Zweiges.
+  */
+  const branchNode = (v: number) => {
+    const nd = model.nodes[v];
+    const b = nd.branch!;
+    const p = at[v];
+    const current = v === marks.current;
+    const rr = current ? r * 1.3 : r * 1.12;
+    const info = branchOf(v);
+    const bs = branchState(v);
+    const side = b.side;
+    const nameText = plainOf(info?.name ?? nd.label);
+    /* So viel Platz bis zum Rand der Fläche (rechts: bis zur Spalte der Namen). */
+    /* Wie weit ein Name der Spalte rechts nach oben und unten reicht (bis drei Zeilen; schmal grösser). */
+    const reach = narrowB ? 56 : 34;
+    const busy = (marks.current >= 0 && marks.current !== v && Math.abs(at[marks.current].y - p.y) < reach) || [...marks.forks.keys()].some((f) => Math.abs(at[f].y - p.y) < reach);
+    const room = side === 1 ? (labels && busy ? labelX - 8 : cW - 4) - (p.x + rr + 5) : p.x - rr - 9;
+    const chars = Math.floor(room / (full ? 6.6 : 5.9));
+    const subs = info?.sub ?? [];
+    const open = unfolded.has(nd.id) && subs.length > 0;
+    const counter = bs === 'progress' && info?.done !== undefined && info.total !== undefined && info.total > 0 ? `${info.done}/${info.total}` : null;
+    const q = info?.questions !== undefined && info.questions > 0 ? T.branchQuestions(info.questions, info.known ?? 0) : '';
+    return (
+      <g key={nd.id} className={`cg-pm-node is-branch is-b-${bs}${current ? ' is-current' : ''}${hl?.has(nd.id) === true ? ' is-hl' : ''}${shown === nd.id ? ' is-on' : ''}`}
+        transform={`translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`} data-path-node={nd.id} data-path-branch={bs} data-path-state={bs === 'skipped' ? 'skipped' : marks.state[v]} data-path-current={current ? '1' : '0'}
+        data-path-kind="detour" data-path-side={side} data-path-anchor={model.nodes[b.anchor].id} {...(counter === null ? {} : { 'data-path-branch-count': counter })} {...(open ? { 'data-path-unfolded': subs.length } : {})}
+        tabIndex={0} role="button" aria-label={[nameText, current ? T.now : '', T.branchLegend, info?.where ?? '', bs === 'new' ? T.branchNew : bs === 'skipped' ? T.branchSkipped : bs === 'progress' ? T.branchProgress(info?.done ?? 0, info?.total ?? 0) : T.branchDone, q].filter(Boolean).join(' · ')} aria-pressed={chosen === nd.id}>
+        <circle className="cg-pm-hit" r={Math.max(rr * 1.15, 13)} />
+        {current && <polygon className="cg-pm-halo" points={HEX(rr + Math.max(3, 5 * s))} />}
+        {bs === 'progress' && <clipPath id={`${uid}-b${v}`}><rect x={-rr} y={0} width={rr * 2} height={rr} /></clipPath>}
+        <polygon className="cg-pm-hex" points={HEX(rr)} />
+        {bs === 'progress' && <polygon className="cg-pm-hex-fill" points={HEX(rr)} clipPath={`url(#${uid}-b${v})`} />}
+        {bs === 'done' ? <path className="cg-pm-icon is-check" d={`M${(-rr * 0.38).toFixed(1)},0 L${(-rr * 0.1).toFixed(1)},${(rr * 0.3).toFixed(1)} L${(rr * 0.42).toFixed(1)},${(-rr * 0.32).toFixed(1)}`} />
+          : counter !== null ? <text className="cg-pm-branch-count" textAnchor="middle" dominantBaseline="central">{counter}</text>
+          : <path className="cg-pm-icon" d={kindIcon('detour', rr)} />}
+        {chars >= 3 && (
+          /* Aufgeklappt stehen dort die kleinen Zweige: der Name rückt unter das Sechseck. */
+          <text className="cg-pm-branch-name" x={open ? 0 : (side * (rr + 5)).toFixed(1)} y={open ? (rr + 10).toFixed(1) : q !== '' && full ? -3 : 0} textAnchor={open ? 'middle' : side === 1 ? 'start' : 'end'} dominantBaseline="central">
+            {cut(nameText, chars)}
+            {q !== '' && full && !open && <tspan className="cg-pm-branch-q" x={(side * (rr + 5)).toFixed(1)} dy="1.25em">{cut(q, chars + 4)}</tspan>}
+          </text>
+        )}
+        {open && subs.map((sb, k) => {
+          const span = Math.min(RH * s * 0.36, (RH * s * 1.1) / Math.max(1, subs.length - 1));
+          const dy = (k - (subs.length - 1) / 2) * span;
+          const dx = side * (rr * 1.25 + Math.min(CW * s * 0.55, 34));
+          const sr = Math.max(6, rr * 0.5);
+          return (
+            <g key={sb.id} className={`cg-pm-sub is-b-${sb.state}`} data-path-sub={sb.id} data-path-sub-state={sb.state}>
+              <path className={`cg-pm-way is-arm is-arm-${sb.state}`} d={`M${(side * rr * 0.9).toFixed(1)},0 C${(dx * 0.5).toFixed(1)},0 ${(dx * 0.5).toFixed(1)},${dy.toFixed(1)} ${(dx - side * sr).toFixed(1)},${dy.toFixed(1)}`} />
+              <polygon className="cg-pm-hex" points={HEX(sr)} transform={`translate(${dx.toFixed(1)},${dy.toFixed(1)})`} />
+              {sb.state === 'done' && <path className="cg-pm-icon is-check" transform={`translate(${dx.toFixed(1)},${dy.toFixed(1)})`} d={`M${(-sr * 0.38).toFixed(1)},0 L${(-sr * 0.1).toFixed(1)},${(sr * 0.3).toFixed(1)} L${(sr * 0.42).toFixed(1)},${(-sr * 0.32).toFixed(1)}`} />}
+              <text className="cg-pm-sub-name" x={(dx + side * (sr + 4)).toFixed(1)} y={dy.toFixed(1)} textAnchor={side === 1 ? 'start' : 'end'} dominantBaseline="central">{cut(plainOf(sb.name), Math.max(4, Math.floor(chars * 0.7)))}<title>{plainOf(sb.name)}</title></text>
+            </g>
+          );
+        })}
+      </g>
+    );
+  };
+  const returnV = returnAt === null ? -1 : model.index.get(returnAt) ?? -1;
+
   /* Die Legende: genau die Zeichen, die auf dieser Karte vorkommen. */
   const kinds = new Set(model.nodes.map((nd) => nd.kind).filter((k): k is PartKind => k !== undefined));
   const states = new Set(marks.state.filter((_, v) => !optional(v)));
@@ -401,7 +536,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
     <ul className="cg-pm-legend" data-path-legend="">
       {(['start', 'read', 'learn', 'mixed', 'review', 'fork', 'detour', 'end'] as const).filter((k) => kinds.has(k)).map((k) => (
         <li key={k} data-path-legend-kind={k}>
-          <svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(k, 10)}<path className="cg-pm-icon" d={kindIcon(k, 10)} /></svg>{T.kinds[k]}
+          <svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(k, 10)}<path className="cg-pm-icon" d={kindIcon(k, 10)} /></svg>{k === 'detour' && model.nodes.some((nd) => nd.branch !== undefined) ? T.branchLegend : T.kinds[k]}
         </li>
       ))}
       {model.nodes.some((nd) => nd.auto === true) && (
@@ -416,6 +551,8 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
       {(marks.skipped ?? []).some(Boolean) && <li data-path-legend-state="skipped"><svg className="cg-pm-legend-icon is-skipped" viewBox="-12 -12 24 24" aria-hidden>{shapeOf('detour', 10)}<path className="cg-pm-icon" d={kindIcon('detour', 10)} /></svg>{T.skippedKind}</li>}
       {model.nodes.some((_, v) => optional(v)) && <li data-path-legend-state="optional"><svg className="cg-pm-legend-icon is-optional" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>{T.optionalKind}</li>}
       {marks.current >= 0 && <li data-path-legend-state="current"><svg className="cg-pm-legend-icon is-current" viewBox="-12 -12 24 24" aria-hidden><polygon className="cg-pm-halo" points={HEX(10)} /></svg>{T.now}</li>}
+      {/* 2026-11-05 (Prompt 23, Nachtrag) — was danach kommt: violette Punkte über dem Ende. */}
+      {next !== undefined && next.length > 0 && <li data-path-legend-state="next"><svg className="cg-pm-legend-icon cg-pm-next-icon" viewBox="-12 -12 24 24" aria-hidden><polygon className="cg-pm-hex" points={HEX(10)} /></svg>{T.nextLegend}</li>}
       {marks.due.some(Boolean) && <li data-path-legend-state="due"><svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden><circle className="cg-pm-due" r={5} /></svg>{T.dueMark}</li>}
     </ul>
   );
@@ -434,7 +571,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
       <div className="cg-pm-next-list">
         {next.map((it) => (
           <button key={it.id} type="button" className={`cg-pm-next-item${it.ready ? ' is-ready' : ' is-wait'}${it.kind === 'map' ? ' is-map' : ''}${shown === `${NEXT}${it.id}` ? ' is-on' : ''}`}
-            data-path-next-item={it.id} data-path-next-ready={it.ready ? '1' : '0'} data-path-next-kind={it.kind} aria-pressed={chosen === `${NEXT}${it.id}`}
+            data-path-next-item={it.id} data-path-next-ready={it.ready ? '1' : '0'} data-path-next-kind={it.kind} aria-pressed={chosen === `${NEXT}${it.id}`} title={[plainOf(it.label), it.note, it.work].filter(Boolean).join(' · ')}
             onClick={() => pick(`${NEXT}${it.id}`)} onPointerEnter={enter} onPointerLeave={leave}>
             <svg className="cg-pm-next-icon" viewBox="-12 -12 24 24" aria-hidden>
               {it.kind === 'map' ? <circle className="cg-pm-hex" r={10} /> : <polygon className="cg-pm-hex" points={HEX(10.5)} />}
@@ -442,7 +579,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
               {!it.ready && <circle className="cg-pm-due" cx={7} cy={-7} r={3.5} />}
             </svg>
             <span className="cg-pm-next-text">
-              <span className="cg-pm-next-name">{it.label}</span>
+              <span className="cg-pm-next-name"><TexText text={it.label} /></span>
               <span className="cg-pm-next-kind">{[it.note, it.work, it.ready ? '' : T.nextNotYet].filter(Boolean).join(' · ')}</span>
             </span>
           </button>
@@ -477,8 +614,23 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
                   </defs>
                   <g className="cg-pm-ways" aria-hidden>
                     {model.edges.map(([p, c], i) => {
-                      const pts = (model.routes[i] ?? [[model.nodes[p].x, model.nodes[p].level], [model.nodes[c].x, model.nodes[c].level]]).map(([x, L]) => ({ x: ox + (pad + (x - model.x0 - 0.5) * CW) * s, y: (H - pad - L * RH) * s }));
+                      /* 2026-11-05 (Prompt 23, B1) — ein Arm eines Zweiges: von der Seite des Ankers hinaus, zurück zur Linie. */
+                      const arm = model.nodes[p].branch !== undefined ? p : model.nodes[c].branch !== undefined ? c : -1;
+                      const pts = arm >= 0 ? [at[p], at[c]] : (model.routes[i] ?? [[model.nodes[p].x, model.nodes[p].level], [model.nodes[c].x, model.nodes[c].level]]).map(([x, L]) => toPx(x, L));
                       const k = wayKey(i);
+                      if (arm >= 0) {
+                        const a = at[p]; const b = at[c];
+                        const out = arm === c;
+                        const ra = (p === marks.current ? r * 1.3 : r) * (out ? 0.95 : 1.12);
+                        const rb = (c === marks.current ? r * 1.3 : r) * (out ? 1.12 : 0.95);
+                        const side = model.nodes[arm].branch!.side;
+                        /* Hinaus: von der Seite des Ankers waagrecht los, im Bogen zum Zweig; zurück: vom Zweig hinauf in die Linie. */
+                        const d = out
+                          ? `M${(a.x + side * ra * 0.86).toFixed(1)},${(a.y - ra * 0.3).toFixed(1)} C${(b.x - side * rb * 1.2).toFixed(1)},${(a.y - ra * 0.3).toFixed(1)} ${b.x.toFixed(1)},${(b.y + rb * 2).toFixed(1)} ${b.x.toFixed(1)},${(b.y + rb * 0.9).toFixed(1)}`
+                          : `M${a.x.toFixed(1)},${(a.y - ra * 0.9).toFixed(1)} C${a.x.toFixed(1)},${(b.y + rb * 1.6).toFixed(1)} ${(b.x + side * rb * 1.4).toFixed(1)},${(b.y + rb * 0.4).toFixed(1)} ${(b.x + side * rb * 0.86).toFixed(1)},${(b.y + rb * 0.3).toFixed(1)}`;
+                        const bs = branchState(arm);
+                        return <path key={k} className={`cg-pm-way is-arm is-arm-${bs}${marks.lit[i] ? ' is-lit' : ''}${hl !== null && hl.has(model.nodes[arm].id) ? ' is-hl' : ''}`} pathLength={1} d={d} data-path-way={k} data-path-arm={bs} />;
+                      }
                       let d = `M${pts[0].x.toFixed(1)},${(pts[0].y - r * 0.9).toFixed(1)}`;
                       for (let j = 1; j < pts.length; j += 1) {
                         const a = j === 1 ? { x: pts[0].x, y: pts[0].y - r * 0.9 } : pts[j - 1];
@@ -520,8 +672,9 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
                       const p = at[v];
                       const state = marks.state[v];
                       const current = v === marks.current;
-                      const rr = current ? r * 1.3 : r;
                       const opt = optional(v);
+                      if (nd.branch !== undefined) return branchNode(v);
+                      const rr = current ? r * 1.3 : r;
                       return (
                         <g key={nd.id} className={`cg-pm-node is-${opt ? 'optional' : state}${nd.kind === undefined ? '' : ` is-${nd.kind}`}${current ? ' is-current' : ''}${marks.due[v] ? ' is-due' : ''}${glow.done.has(nd.id) ? ' is-new' : ''}${hl?.has(nd.id) === true ? ' is-hl' : ''}${shown === nd.id ? ' is-on' : ''}${nd.auto === true ? ' is-auto' : ''}${marks.skipped?.[v] === true ? ' is-skipped' : ''}`}
                           transform={`translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`} data-path-node={nd.id} data-path-state={opt ? 'optional' : marks.skipped?.[v] === true ? 'skipped' : state} data-path-current={current ? '1' : '0'}
@@ -541,11 +694,18 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
                         </g>
                       );
                     })}
+                    {/* 2026-11-05 (Prompt 23, B6) — im Abstecher: wo die Linie weitergeht, wenn er zurückkommt. */}
+                    {returnV >= 0 && (
+                      <g className="cg-pm-return" transform={`translate(${at[returnV].x.toFixed(1)},${at[returnV].y.toFixed(1)})`} data-path-return={model.nodes[returnV].id}>
+                        <polygon className="cg-pm-return-ring" points={HEX(r * 1.28)} />
+                        <text x={(-r * 1.45).toFixed(1)} y={0} textAnchor="end" dominantBaseline="central">{T.branchReturn}</text>
+                      </g>
+                    )}
                   </g>
                 </svg>
                 {nowAt !== null && currentNode !== undefined && (
                   <Label x={labelX} y={nowAt.y} width={labelW} className="cg-pm-now" data="now">
-                    <span className="cg-pm-now-tag">{T.now}</span> {name?.(currentNode.id) ?? currentNode.label}
+                    <span className="cg-pm-now-tag">{T.now}</span> {currentNode.branch !== undefined ? <TexText text={branchOf(marks.current)?.name ?? currentNode.label} /> : name?.(currentNode.id) ?? <TexText text={currentNode.label} />}
                     {marks.forks.has(marks.current) ? <span className="cg-pm-now-fork"> · {T.fork(marks.forks.get(marks.current)!)}</span> : null}
                   </Label>
                 )}
@@ -560,7 +720,28 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
       )}
       {pop !== undefined && open && (
         <PathPop anchor={anchorOf(model.nodes[pop].id)} bounds={() => section.current?.getBoundingClientRect() ?? null} {...popHandlers}>
-          <p className="cg-pm-pop-title"><strong>{name?.(model.nodes[pop].id) ?? model.nodes[pop].label}</strong></p>
+          {model.nodes[pop].branch !== undefined ? (() => {
+            /* 2026-11-05 (Prompt 23, B4) — ein Zweig: der Name ganz, wo er abzweigt, sein Stand, seine Fragen, „Rozwiń", die Karte des Abstechers. */
+            const id = model.nodes[pop].id;
+            const info = branchOf(pop);
+            const bs = branchState(pop);
+            const subs = info?.sub ?? [];
+            return (
+              <div data-path-pop-branch={bs}>
+                <p className="cg-muted">{T.branchLegend}{info?.where === undefined ? '' : ` · ${info.where}`}</p>
+                <p className="cg-pm-pop-title"><strong><TexText text={info?.name ?? model.nodes[pop].label} /></strong></p>
+                {info?.summary !== undefined && info.summary !== '' && <p data-path-pop-summary="">{info.summary}</p>}
+                <p className="cg-pm-pop-state" data-path-pop-state={bs}>{pop === marks.current ? `${T.now} · ` : ''}{bs === 'new' ? T.branchNew : bs === 'skipped' ? T.branchSkipped : bs === 'progress' ? T.branchProgress(info?.done ?? 0, info?.total ?? 0) : T.branchDone}</p>
+                {info?.questions !== undefined && info.questions > 0 && <p className="cg-muted" data-path-pop-questions="">{T.branchQuestions(info.questions, info.known ?? 0)}</p>}
+                {subs.length > 0 && (
+                  <p><button type="button" className="wk-link-btn" aria-expanded={unfolded.has(id)} data-path-unfold={id}
+                    onClick={() => setUnfolded((was) => { const nx = new Set(was); if (nx.has(id)) nx.delete(id); else nx.add(id); return nx; })}>{unfolded.has(id) ? T.branchFold : T.branchUnfold(subs.length)}</button></p>
+                )}
+                {actions?.(id, marks.state[pop])}
+              </div>
+            );
+          })() : (<>
+          <p className="cg-pm-pop-title"><strong>{name?.(model.nodes[pop].id) ?? <TexText text={model.nodes[pop].label} />}</strong></p>
           {model.nodes[pop].kind !== undefined && <p data-path-pop-kind={model.nodes[pop].kind} {...(marks.ask === undefined ? {} : { 'data-path-pop-ask': marks.ask[pop] })}>{T.part(model.nodes[pop], marks.ask?.[pop])}</p>}
           {model.nodes[pop].auto === true && <p className="cg-muted" data-path-pop-auto="">{T.autoWhy}</p>}
           <p className="cg-pm-pop-state" data-path-pop-state={optional(pop) ? 'optional' : marks.skipped?.[pop] === true ? 'skipped' : marks.state[pop]}>
@@ -569,16 +750,17 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
           {loopsOut.has(pop) && <p className="cg-muted" data-path-pop-loop="">{T.loopWhy}</p>}
           {popFork !== undefined && <p className="cg-muted" data-path-pop-fork="">{T.fork(popFork)}{popFork.mode === 'all' ? T.forkAll : T.forkOne}</p>}
           {marks.state[pop] === 'locked' && !optional(pop) && (
-            <p className="cg-muted">{T.firstNeeds}: {model.nodes[pop].needs.filter((q) => marks.state[q] !== 'done').map((q) => model.nodes[q].label).slice(0, 3).join(', ')}</p>
+            <p className="cg-muted">{T.firstNeeds}: {model.nodes[pop].needs.filter((q) => marks.state[q] !== 'done').map((q) => plainOf(model.nodes[q].label)).slice(0, 3).join(', ')}</p>
           )}
           {detail?.(model.nodes[pop].id) != null && <p className="cg-muted">{detail(model.nodes[pop].id)}</p>}
           {actions?.(model.nodes[pop].id, marks.state[pop])}
           {onPick !== undefined && chosen === model.nodes[pop].id && (marks.state[pop] !== 'locked' || pop === marks.current) && !optional(pop) && <p className="cg-muted">{T.tapAgain}</p>}
+          </>)}
         </PathPop>
       )}
       {nextItem !== undefined && open && (
         <PathPop anchor={anchorOf(`${NEXT}${nextItem.id}`)} bounds={() => section.current?.getBoundingClientRect() ?? null} {...popHandlers}>
-          <p className="cg-pm-pop-title"><strong>{nextItem.label}</strong></p>
+          <p className="cg-pm-pop-title"><strong><TexText text={nextItem.label} /></strong></p>
           {nextItem.note !== undefined && <p className="cg-muted">{nextItem.note}</p>}
           {nextItem.work !== undefined && nextItem.work !== '' && <p data-path-pop-work="">{nextItem.work}</p>}
           <p className="cg-pm-pop-state" data-path-pop-next={nextItem.ready ? 'ready' : 'wait'}>{nextItem.ready ? T.nextReady : T.nextNotYet}</p>

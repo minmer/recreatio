@@ -159,9 +159,14 @@ const int = (v: unknown, fallback: number, min: number, max: number): number => 
 export const slugOf = (text: string): string =>
   text.toLocaleLowerCase('pl-PL').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 
+/*
+  2026-11-05 (Odznaki, vom Nutzer) — ZWÖLF STUFEN, JE STUFE ETWA DOPPELT SO WEIT: die ersten kommen schnell, die oberen erst nach
+  Wochen (zwei Tage viel Nauka brachten 22 000 Punkte — vorher die oberste von acht).
+*/
 const DEFAULT_LEVELS: readonly RewardLevel[] = [
-  { at: 0, name: 'Początkujący' }, { at: 100, name: 'Uczeń' }, { at: 300, name: 'Odkrywca' }, { at: 700, name: 'Znawca' },
-  { at: 1500, name: 'Mistrz' }, { at: 3000, name: 'Mędrzec' }, { at: 6000, name: 'Erudyta' }, { at: 12000, name: 'Legenda' }
+  { at: 0, name: 'Początkujący' }, { at: 100, name: 'Uczeń' }, { at: 300, name: 'Odkrywca' }, { at: 700, name: 'Badacz' },
+  { at: 1500, name: 'Znawca' }, { at: 3000, name: 'Mistrz' }, { at: 6000, name: 'Mędrzec' }, { at: 12000, name: 'Uczony' },
+  { at: 25000, name: 'Erudyta' }, { at: 50000, name: 'Arcymistrz' }, { at: 100000, name: 'Legenda' }, { at: 200000, name: 'Mistrz wszech czasów' }
 ];
 
 /* Die Folge der Schlüssel wie in `readRewards` — die eingebaute Regel liest sich unverändert zurück. */
@@ -170,7 +175,8 @@ const b = (id: string, name: string, icon: BadgeIcon, measure: RewardMeasure, at
 
 /**
  * Die Regel, wenn nichts anderes gewählt ist — „Punkty, seria i poziomy". 2026-11-05 (Odznaki): fünf Kategorien, je eine
- * Leiter aus fünf Stufen (Holz, Bronze, Silber, Gold, Diamant) — Seria, Celność, Wiedza, Cele, Mapa. Die Kennungen der
+ * Leiter (Holz, Bronze, Silber, Gold, Diamant) — Seria, Celność, Wiedza, Cele, Mapa; seit dem Nachtrag zwölf Stufen je Leiter,
+ * etwa exponentiell (die ersten leicht, die oberen nach Monaten). Die Kennungen der
  * früheren Abzeichen mit derselben Schwelle bleiben (`trzy-dni`, `tydzien`, `miesiac`, `celny`, `pierwsza-utrwalona`,
  * `cel-piec`, `pol-mapy`, `cala-mapa`): die gemerkten Daten der Karte (`~award.`) gelten weiter.
  */
@@ -184,35 +190,70 @@ export const DEFAULT_REWARDS: RewardRules = {
   streak: { counts: 'goal', grace: 0, max: 10 },
   levels: DEFAULT_LEVELS,
   badges: [
-    /* Seria: dni z rzędu */
+    /* Seria: dni z rzędu (2026-11-05, vom Nutzer: zwölf Stufen, die ersten schnell, dann immer weiter) */
+    b('dwa-dni', 'Dwa dni z rzędu', 'flame', 'streak', 2, 'consistency'),
     b('trzy-dni', 'Trzy dni z rzędu', 'flame', 'streak', 3, 'consistency'),
+    b('piec-dni', 'Pięć dni z rzędu', 'flame', 'streak', 5, 'consistency'),
     b('tydzien', 'Tydzień z rzędu', 'flame', 'streak', 7, 'consistency'),
+    b('dziesiec-dni', 'Dziesięć dni z rzędu', 'flame', 'streak', 10, 'consistency'),
     b('dwa-tygodnie', 'Dwa tygodnie z rzędu', 'flame', 'streak', 14, 'consistency'),
+    b('trzy-tygodnie', 'Trzy tygodnie z rzędu', 'flame', 'streak', 21, 'consistency'),
     b('miesiac', 'Miesiąc z rzędu', 'flame', 'streak', 30, 'consistency'),
+    b('piecdziesiat-dni', 'Pięćdziesiąt dni z rzędu', 'flame', 'streak', 50, 'consistency'),
     b('sto-dni', 'Sto dni z rzędu', 'flame', 'streak', 100, 'consistency'),
+    b('dwiescie-dni', 'Dwieście dni z rzędu', 'flame', 'streak', 200, 'consistency'),
+    b('rok', 'Rok z rzędu', 'flame', 'streak', 365, 'consistency'),
     /* Celność: najwięcej dobrych z rzędu */
+    b('trzy-z-rzedu', 'Trzy z rzędu', 'bolt', 'combo', 3, 'accuracy'),
     b('piec-z-rzedu', 'Pięć z rzędu', 'bolt', 'combo', 5, 'accuracy'),
+    b('osiem-z-rzedu', 'Osiem z rzędu', 'bolt', 'combo', 8, 'accuracy'),
     b('celny', 'Dziesięć z rzędu', 'bolt', 'combo', 10, 'accuracy'),
+    b('pietnascie-z-rzedu', 'Piętnaście z rzędu', 'bolt', 'combo', 15, 'accuracy'),
     b('dwadziescia-piec-z-rzedu', 'Dwadzieścia pięć z rzędu', 'bolt', 'combo', 25, 'accuracy'),
+    b('trzydziesci-piec-z-rzedu', 'Trzydzieści pięć z rzędu', 'bolt', 'combo', 35, 'accuracy'),
     b('piecdziesiat-z-rzedu', 'Pięćdziesiąt z rzędu', 'bolt', 'combo', 50, 'accuracy'),
+    b('siedemdziesiat-piec-z-rzedu', 'Siedemdziesiąt pięć z rzędu', 'bolt', 'combo', 75, 'accuracy'),
     b('sto-z-rzedu', 'Sto z rzędu', 'bolt', 'combo', 100, 'accuracy'),
+    b('sto-piecdziesiat-z-rzedu', 'Sto pięćdziesiąt z rzędu', 'bolt', 'combo', 150, 'accuracy'),
+    b('dwiescie-z-rzedu', 'Dwieście z rzędu', 'bolt', 'combo', 200, 'accuracy'),
     /* Wiedza: utrwalone karty */
     b('pierwsza-utrwalona', 'Pierwsza utrwalona', 'book', 'known', 1, 'volume'),
+    b('utrwalone-5', '5 utrwalonych', 'book', 'known', 5, 'volume'),
+    b('utrwalone-10', '10 utrwalonych', 'book', 'known', 10, 'volume'),
     b('utrwalone-25', '25 utrwalonych', 'book', 'known', 25, 'volume'),
+    b('utrwalone-50', '50 utrwalonych', 'book', 'known', 50, 'volume'),
     b('utrwalone-100', '100 utrwalonych', 'book', 'known', 100, 'volume'),
+    b('utrwalone-200', '200 utrwalonych', 'book', 'known', 200, 'volume'),
     b('utrwalone-500', '500 utrwalonych', 'book', 'known', 500, 'volume'),
+    b('utrwalone-1000', '1000 utrwalonych', 'book', 'known', 1000, 'volume'),
     b('utrwalone-2000', '2000 utrwalonych', 'book', 'known', 2000, 'volume'),
+    b('utrwalone-3500', '3500 utrwalonych', 'book', 'known', 3500, 'volume'),
+    b('utrwalone-5000', '5000 utrwalonych', 'book', 'known', 5000, 'volume'),
     /* Cele: dni z osiągniętym celem dnia */
     b('pierwszy-cel', 'Pierwszy cel dnia', 'target', 'goals', 1, 'goals'),
+    b('cele-2', 'Dwa cele', 'target', 'goals', 2, 'goals'),
+    b('cele-3', 'Trzy cele', 'target', 'goals', 3, 'goals'),
     b('cel-piec', 'Pięć celów', 'target', 'goals', 5, 'goals'),
+    b('cele-10', 'Dziesięć celów', 'target', 'goals', 10, 'goals'),
     b('cele-20', 'Dwadzieścia celów', 'target', 'goals', 20, 'goals'),
+    b('cele-35', 'Trzydzieści pięć celów', 'target', 'goals', 35, 'goals'),
     b('cele-50', 'Pięćdziesiąt celów', 'target', 'goals', 50, 'goals'),
+    b('cele-75', 'Siedemdziesiąt pięć celów', 'target', 'goals', 75, 'goals'),
+    b('cele-100', 'Sto celów', 'target', 'goals', 100, 'goals'),
     b('cele-150', 'Sto pięćdziesiąt celów', 'target', 'goals', 150, 'goals'),
+    b('cele-250', 'Dwieście pięćdziesiąt celów', 'target', 'goals', 250, 'goals'),
     /* Mapa: procent tematów mapy — liczy krajobraz (`extra`), data zostaje zapisana (`~award.`) */
+    b('mapa-3', 'Pierwsze kroki na mapie', 'rocket', 'map', 3, 'exploration'),
+    b('mapa-5', '5 % mapy', 'rocket', 'map', 5, 'exploration'),
     b('mapa-10', 'Dziesiąta część mapy', 'rocket', 'map', 10, 'exploration'),
+    b('mapa-15', '15 % mapy', 'rocket', 'map', 15, 'exploration'),
+    b('mapa-20', 'Piąta część mapy', 'rocket', 'map', 20, 'exploration'),
     b('cwierc-mapy', 'Ćwierć mapy', 'rocket', 'map', 25, 'exploration'),
+    b('mapa-35', '35 % mapy', 'rocket', 'map', 35, 'exploration'),
     b('pol-mapy', 'Pół mapy', 'rocket', 'map', 50, 'exploration'),
+    b('mapa-60', '60 % mapy', 'rocket', 'map', 60, 'exploration'),
     b('trzy-czwarte-mapy', 'Trzy czwarte mapy', 'rocket', 'map', 75, 'exploration'),
+    b('mapa-90', '90 % mapy', 'rocket', 'map', 90, 'exploration'),
     b('cala-mapa', 'Cała mapa', 'rocket', 'map', 100, 'exploration')
   ]
 };
@@ -802,6 +843,9 @@ export function levelFrame(index: number, count: number): LevelFrame {
 export interface BadgeStep {
   readonly badge: RewardBadge;
   readonly material: BadgeMaterial;
+  /** 2026-11-05 (Odznaki) — die wievielte Stufe dieses Stoffes in ihrer Leiter (1…) und wie viele es davon gibt (Srebro II von III). */
+  readonly grade: number;
+  readonly grades: number;
   readonly at: number | null;
   readonly value: number;
   readonly measured: boolean;
@@ -832,23 +876,28 @@ export interface BadgeCategory {
 const ladderKey = (b: RewardBadge): string => `${badgeKindOf(b)}|${b.measure}`;
 
 /** Der Stoff einer Stufe: genannt (`tier`), sonst ihr Rang in der Leiter (ab dem fünften Diamant). */
-const materialAt = (b: RewardBadge, rank: number): BadgeMaterial => (b.tier !== undefined ? (b.tier - 1) as BadgeMaterial : Math.min(4, rank) as BadgeMaterial);
+/*
+  2026-11-05 (Odznaki, vom Nutzer) — eine lange Leiter (mehr als fünf Stufen) verteilt die fünf Stoffe gleichmässig: bei zwölf
+  drei Holz, zwei Bronze, drei Silber, zwei Gold, zwei Diamant — innerhalb eines Stoffes mit Zahl (Srebro I, II, III).
+*/
+const materialAt = (b: RewardBadge, rank: number, count: number): BadgeMaterial => (b.tier !== undefined ? (b.tier - 1) as BadgeMaterial : count <= 5 ? Math.min(4, rank) as BadgeMaterial : Math.min(4, Math.floor((rank * 5) / count)) as BadgeMaterial);
 
 /** Die Leitern einer Regel, in der Folge der Arten (`BADGE_KINDS`), darin in der Folge der Regel; je Leiter nach der Schwelle. */
-function laddersOf<T extends { readonly badge: RewardBadge }>(rows: readonly T[]): { readonly kind: BadgeKind; readonly measure: RewardMeasure; readonly rows: readonly (T & { readonly material: BadgeMaterial })[] }[] {
+function laddersOf<T extends { readonly badge: RewardBadge }>(rows: readonly T[]): { readonly kind: BadgeKind; readonly measure: RewardMeasure; readonly rows: readonly (T & { readonly material: BadgeMaterial; readonly grade: number; readonly grades: number })[] }[] {
   const byKey = new Map<string, T[]>();
   for (const x of rows) {
     const k = ladderKey(x.badge);
     const had = byKey.get(k);
     if (had === undefined) byKey.set(k, [x]); else had.push(x);
   }
-  const out: { kind: BadgeKind; measure: RewardMeasure; rows: (T & { material: BadgeMaterial })[] }[] = [];
+  const out: { kind: BadgeKind; measure: RewardMeasure; rows: (T & { material: BadgeMaterial; grade: number; grades: number })[] }[] = [];
   for (const kind of BADGE_KINDS) {
     for (const [k, list] of byKey) {
       if (!k.startsWith(`${kind}|`)) continue;
       /* Stabil: gleiche Schwellen in der Folge der Regel. */
       const sorted = list.map((x, i) => ({ x, i })).sort((a, b) => a.x.badge.atLeast - b.x.badge.atLeast || a.i - b.i).map((e) => e.x);
-      out.push({ kind, measure: sorted[0]!.badge.measure, rows: sorted.map((x, rank) => ({ ...x, material: materialAt(x.badge, rank) })) });
+      const mats = sorted.map((x, rank) => materialAt(x.badge, rank, sorted.length));
+      out.push({ kind, measure: sorted[0]!.badge.measure, rows: sorted.map((x, rank) => ({ ...x, material: mats[rank], grade: mats.slice(0, rank + 1).filter((m) => m === mats[rank]).length, grades: mats.filter((m) => m === mats[rank]).length })) });
     }
   }
   return out;
@@ -871,7 +920,7 @@ export function badgeCategories(rows: RewardState['badges']): BadgeCategory[] {
   for (const kind of BADGE_KINDS) {
     const mine = ladders.filter((l) => l.kind === kind);
     if (mine.length === 0) continue;
-    const steps = mine.map((l): BadgeLadder => ({ kind, measure: l.measure, steps: l.rows.map((r) => ({ badge: r.badge, material: r.material, at: r.at, value: r.value, measured: r.measured })) }));
+    const steps = mine.map((l): BadgeLadder => ({ kind, measure: l.measure, steps: l.rows.map((r) => ({ badge: r.badge, material: r.material, grade: r.grade, grades: r.grades, at: r.at, value: r.value, measured: r.measured })) }));
     const all = steps.flatMap((l) => l.steps);
     const got = all.filter((s) => s.at !== null);
     let top: BadgeMaterial | null = null;

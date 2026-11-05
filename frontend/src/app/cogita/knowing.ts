@@ -55,6 +55,8 @@ export interface Gauge {
   readonly graph: PrerequisiteGraph;
   /** 2026-11-03 (G) — die Erzählungen des Lernenden (begonnen, zu Ende, Ziele) — für die Bedingung „Przebieg". */
   readonly flows?: ReadonlyMap<string, FlowFacts>;
+  /** 2026-11-05 (Prompt 23, C3) — je Thema seine Kernfragen (Pytania mit `"core": true`, die es in „O czym" nennen). */
+  readonly core?: ReadonlyMap<string, readonly string[]>;
 }
 
 /** 2026-11-03 (G) — dieselbe Kenntnis mit dem, was über die Erzählungen bekannt ist. */
@@ -70,9 +72,11 @@ export function gauge(cards: readonly Card[], state: (key: string) => CardState 
   const testing = new Map<string, { key: string; weight: number }[]>();
   const askable = new Set<string>();
   const seen = new Set<string>();
+  const core = new Map<string, string[]>();
   for (const card of cards) {
     if (seen.has(card.key)) continue;
     seen.add(card.key);
+    if (card.core === true) for (const t of card.about ?? []) { const list = core.get(t); if (list === undefined) core.set(t, [card.question]); else if (!list.includes(card.question)) list.push(card.question); }
     /* 2026-11-03 (G) — eine Karte aus einer Antwort auf einer Seite zählt mit, macht aber nichts fragbar. */
     if (card.template !== '~page') for (const id of cardEntities(card)) askable.add(id);
     const tests = cardTests(card).filter((t) => t.weight > 0);
@@ -92,7 +96,7 @@ export function gauge(cards: readonly Card[], state: (key: string) => CardState 
     }
   }
   const own = new Map([...sums].map(([id, s]) => [id, s.w > 0 ? s.wk / s.w : 0]));
-  return { now, states, own, totals: propagate(own, deps), testing, askable, graph };
+  return { now, states, own, totals: propagate(own, deps), testing, askable, graph, ...(core.size === 0 ? {} : { core }) };
 }
 
 /**
@@ -148,6 +152,8 @@ export interface RelSource {
   readonly cardsOf: (id: string) => readonly string[];
   /** 2026-11-03 — wurde diese Karte schon beantwortet? (für `chain`: nie gefragte Karten zählen nicht) — fehlt es: keine. */
   readonly answered?: (key: string) => boolean;
+  /** 2026-11-05 (Prompt 23, C3) — die Kernfragen eines Themas (Kennungen der Pytania) — fehlt es: keine. */
+  readonly coreOf?: (topic: string) => readonly string[];
 }
 
 /** Aus einer Messung (und der Baza) die Quelle der Beziehungen. */
@@ -157,7 +163,8 @@ export const relSourceOf = (g: Gauge, base: Pick<RelSource, 'entity' | 'look' | 
   /* Ohne Karten (noch nichts gerechnet) gilt jeder Eintrag als prüfbar: wer nichts weiss, dem fehlt das Vorherige. */
   askable: g.testing.size === 0 ? () => true : (id) => g.askable.has(id),
   cardsOf: (id) => (g.testing.get(id) ?? []).map((t) => t.key),
-  answered: (key) => g.states.has(key)
+  answered: (key) => g.states.has(key),
+  coreOf: (id) => g.core?.get(id) ?? []
 });
 
 /**
@@ -217,6 +224,8 @@ export function itemRelated(src: RelSource, id: string, rel: string): string[] {
     case 'before': return nearestNeeds([id], src.graph, src.askable);
     case 'up': return parents(src, id);
     case 'chain': return chainCards(src, [id]);
+    /* 2026-11-05 (Prompt 23, C3) — die Kernfragen dieses Themas. */
+    case 'core': return [...(src.coreOf?.(id) ?? [])];
     default: return refTargets(src.entity(id), src.look, rel);
   }
 }
@@ -230,6 +239,8 @@ export function cardRelated(src: RelSource, card: Card, rel: string): string[] {
     case 'before': return [...card.requires.map((key) => `${CARD_REF}${key}`), ...nearestNeeds(cardEntities(card), src.graph, src.askable)];
     case 'up': return parents(src, main);
     case 'chain': return chainCards(src, cardEntities(card), card.key);
+    /* 2026-11-05 (Prompt 23, C3) — die Kernfragen der Themen dieser Karte („O czym"; eine Karte aus einer Vorlage: ihr Eintrag). */
+    case 'core': return [...new Set((card.about !== undefined && card.about.length > 0 ? card.about : [main]).flatMap((t) => src.coreOf?.(t) ?? []))];
     default: return refTargets(src.entity(main), src.look, rel);
   }
 }

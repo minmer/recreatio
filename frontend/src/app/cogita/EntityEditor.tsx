@@ -35,6 +35,8 @@ import { StatementMarks } from '../library/markupView';
 import { TextJump } from '../library/SourceJump';
 import { workLook } from '../library/sourceFind';
 import { blocksField } from './statements';
+import { isSlideEntity } from './slideLib';
+import { SlideActions } from './SlideView';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isEnvelope = (raw: unknown): raw is Record<string, unknown> =>
@@ -157,6 +159,8 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
             {writes && <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(() => lib.markChecked(existing.id))}>Sprawdzone</button>}
           </div>
         )}
+        {/* 2026-11-05 (Prompt 23, A2/A3) — eine Folie einer Erzählung: „Zobacz w opowieści“ und die Fragen zu ihr („Ćwicz“). */}
+        {existing !== undefined && isSlideEntity(lib, existing.id) && <div className="cg-card" data-entry-slide=""><SlideActions lib={lib} entity={existing} /></div>}
         {existing !== undefined && <Backlinks entity={existing} onOpen={onOpen} />}
         {existing !== undefined && <EntityCards entity={existing} />}
         {existing !== undefined && writes && <Merge entity={existing} onMerged={() => onDone(existing.id)} />}

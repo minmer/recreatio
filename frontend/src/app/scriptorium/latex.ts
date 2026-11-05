@@ -99,6 +99,8 @@ function blocks(list: readonly Block[], ctx: Ctx, depth: 0 | 1): string {
         break;
       }
       case 'quote': out.push(`\\begin{quotation}\n${blocks(b.c, ctx, depth)}\n\\end{quotation}`); break;
+      /* 2026-11-05 (Prompt 23, D10) — gedruckt steht ein aufklappbarer Block offen, mit seiner Überschrift. */
+      case 'details': out.push(`\\paragraph{${inlines(b.summary, ctx, true)}}\n${blocks(b.c, ctx, depth)}`); break;
       case 'list': {
         const env = b.ordered ? 'enumerate' : 'itemize';
         out.push(`\\begin{${env}}\n${b.items.map((item) => `  \\item ${inlines(item, ctx)}`).join('\n')}\n\\end{${env}}`);

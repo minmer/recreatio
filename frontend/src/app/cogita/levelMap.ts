@@ -1060,7 +1060,11 @@ export function nestAsRegions(nest: NestLike, tg: TopicGraph, other: (name: stri
   const g = tg.graph;
   const direct = new Map<string | null, number[]>();
   g.ids.forEach((id, t) => {
-    const home = nest.home.get(id) ?? null;
+    /*
+      2026-11-05 (Prompt 23, D9) — ein Knoten, der selbst ein Feld ist (eine Erzählung „Kapitel III", unter der ihre
+      Vertiefungen liegen — `"nest": "gehoert"` über Einträgen derselben Art): er steht IN seinem Gebiet, als erstes Feld.
+    */
+    const home = nest.nodes.has(id) ? id : nest.home.get(id) ?? null;
     const at = home !== null && nest.nodes.has(home) ? home : null;
     const list = direct.get(at) ?? [];
     list.push(t);
@@ -1091,7 +1095,8 @@ export function nestAsRegions(nest: NestLike, tg: TopicGraph, other: (name: stri
     const children = [...kids];
     if (own.length > 0) {
       const rest = `${node}::rest`;
-      regions.set(rest, { key: rest, level: 1, parent: node, children: own.map((t) => g.ids[t]), topics: [...own], name: other(label), named: 'base', central: centralOf(own) });
+      /* 2026-11-05 (Prompt 23, C7) — EIN einzelnes Thema neben Unterknoten heisst wie es selbst (nicht „Weiteres in …"). */
+      regions.set(rest, { key: rest, level: 1, parent: node, children: own.map((t) => g.ids[t]), topics: [...own], name: own.length === 1 ? g.labels[own[0]] ?? other(label) : other(label), named: 'base', central: centralOf(own) });
       children.push(rest);
     }
     for (const k of kids) { const r = regions.get(k); if (r !== undefined) regions.set(k, { ...r, parent: node }); }
@@ -1105,7 +1110,8 @@ export function nestAsRegions(nest: NestLike, tg: TopicGraph, other: (name: stri
   let top: string[] = tops;
   if (tops.length === 0) top = loose.map((t) => g.ids[t]);
   else if (loose.length > 0) {
-    regions.set('::top', { key: '::top', level: 1, parent: null, children: loose.map((t) => g.ids[t]), topics: [...loose], name: other(topName), named: 'base', central: centralOf(loose) });
+    /* 2026-11-05 (Prompt 23, C7) — ein einzelnes Thema oben neben Knoten („Ksiądz Bosko w zarysie") heisst wie es selbst. */
+    regions.set('::top', { key: '::top', level: 1, parent: null, children: loose.map((t) => g.ids[t]), topics: [...loose], name: loose.length === 1 ? g.labels[loose[0]] ?? other(topName) : other(topName), named: 'base', central: centralOf(loose) });
     top = [...tops, '::top'];
   }
   const levels = tops.length === 0 ? 0 : Math.max(...top.map((k) => regions.get(k)?.level ?? 1));

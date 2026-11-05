@@ -786,9 +786,11 @@ Phones stay awake.
 - *2026-11-05 (Odznaki) — categories with material steps*: a category is the badge kind; badges of one kind with the
   same measure are the steps of one ladder, ordered by threshold — wood, bronze, silver, gold, diamond (`tier` 1–5 sets
   it; from the fifth step on diamond; `badgeKindOf` derives the kind from the measure only, `start` only when named).
-  Built-in rule: 5 categories × 5 steps — Seria (streak 3/7/14/30/100 days), Celność (combo 5/10/25/50/100 in a row),
-  Wiedza (utrwalone 1/25/100/500/2000), Cele (days with the goal 1/5/20/50/150), Mapa (map % 10/25/50/75/100); ids of
-  former badges with the same threshold kept. A stored higher map step implies the lower ones. Level frames use the
+  Built-in rule (owner, after two days of use: too quick): 5 categories × 12 steps, roughly exponential — the first come
+  easily, the top ones after months — Seria (streak 2…365 days), Celność (combo 3…200 in a row), Wiedza (utrwalone 1…5000),
+  Cele (days with the goal 1…250), Mapa (map % 3…100); a long ladder spreads the five materials (3 wood, 2 bronze, 3 silver,
+  2 gold, 2 diamond) with a grade inside a material (Srebro I–III). Levels: 12, each about double the points before
+  (0 … 200 000). Ids of former badges with the same threshold kept. A stored higher map step implies the lower ones. Level frames use the
   same scale (frame 0 wood). Toasts and the history name the material; the editor shows it and offers `tier`.
 
 ### Generated exercises (2026-11-03)
@@ -1204,6 +1206,52 @@ topic (`worldWay.ts` plans it, `WorldMap.tsx` draws it on its own canvas over th
 - Check: `app-way-check.mjs` (same-step arrival, waiting, split and meet, through known topics, cycles, no way,
   timing, a 5 000-topic random graph, words). Test hooks on the map: `data-wm-way` (target:steps:jumps),
   `data-wm-way-playing`, `-beat`, `-plays`, `-ms`, `-hops`, `-tiles`.
+
+### Stories ↔ questions (2026-11-05, Prompt 23)
+
+- **Slides after an answer (A1)**: the leading story slides of a question's `explain` come first under the answer — also
+  inside stories — drawn like the player draws them (`SlideView.tsx`: title, text, quotations with `> — Autor`, formulas,
+  footnotes), folded; the topic follows. A show step without its own `title` shows the slide's label (A7a). A blank line
+  inside one paragraph block starts a new paragraph, a single newline is a line break (A7b). The position lives in the
+  learner's progress per flow; after an import that changes step ids, unknown visited ids drop, the player resumes at the
+  first unvisited step, „ukończona", goals and finished roads stay (A7c).
+- **„Zobacz w opowieści" (A2)**: the story that shows the slide (`slideLinks.ts`: a started one first, else the deep story
+  over the overview), opened at that step in a read-only preview „Podgląd" (`StoryPreview.tsx`: the player without a
+  learner and without the lock — nothing is stored), with the ladder breadcrumb of its detours; „Wróć" returns.
+- **„Pytania do tego slajdu (N)" (A3)**: in the player's ⋯ menu, in the slide's entry view and under an opened slide;
+  „Ćwicz" asks exactly those cards (known ones skipped).
+- **„Opowieści | Pytania" (A4/A5)**: a story landscape has a second tab — one field per set of leading slides (label: the
+  slide titles), regions = the stories by their ladder, computed, nothing stored (`QuestionLandscape.tsx`); a question
+  whose `explain` names a story unit stands in the field „Cała opowieść". Choosing a story selects its group and back.
+  The topic view „Pytania — krajobraz" stays separate: it partitions the same questions by learning topic.
+- **Import lint (A6)** for kinds with blocks (`slideLint.ts`): the old label „Cytat (…):", a hand-written „Przypisy" list,
+  „kliknij dalej", a quotation without `> —`, a citation `[@…]` in a question prompt.
+- **Detours as branches (B, A8)**: on every story path (`pathLayout.ts` `withBranches`, `PathMap.tsx`) a detour leaves the
+  straight main line as a short arm to one larger hexagon with the inner story's name and its questions („12 pytań · 5
+  umiesz"), and rejoins at the next step; sides alternate, two after one slide fan out. States: not entered (pale,
+  dashed), skipped (thin), in progress (half filled, „3/8"), finished (filled, check — wherever it was finished). A tap
+  opens the same card as the player's detour step (`DetourCard.tsx`, now with the unit's „streszczenie"); „Rozwiń" shows
+  the inner story's own detours as branches of the branch. Inside a detour the side panel shows the calling story with
+  TERAZ on the branch and „tu wrócisz" on the main line. „Co dalej" says where a detour branches („po slajdzie 2").
+  „Co dalej" itself is a row of hexagons above the end like the path's nodes, in their own colour (violet), the name
+  under each; what waits there and the button are in the window on tap.
+  Phone: shorter arms, names cut with „…", full on tap, no sideways scrolling.
+- **Self-check (C)**: revision modes documented (temporal, levels, once, random); `"pick": "sample", "perTopic": N` and
+  a graph step `sample`; questions may carry `"core": true` (badge „kluczowe", first in the topic panel) and the condition
+  `{"type": "knowness", "rel": "core", …}`; a once run ends with a summary per topic („umiesz" / „luka", links to the topic,
+  its slide and „Uzupełnij luki"); „Sprawdź, co wiesz" next to the map modes and the mode „Luki (N)"; a story whose
+  questions are all known counts as passed (computed, never stored).
+- **Explanation paths (D)**: a `drawing` in a show step (or a drawing field) beside the slide text; interactive questions
+  with `"check": "submit"` and `"goals"` in order; import warnings when a drawing's solution misses its goal or names are
+  unknown; the flow step `{"type": "review", "of": "story", "threshold": 0.9}` (exits `passed` / `notyet`) replaces the
+  hand-built review; `fmtpi`; `$…$` in control labels; block `details` (`::: details …`); MCP `search_entries` with
+  `includeData` and lasting names (`ref`, `names`) in entries, hits and links; `"landscape": {"nest": "gehoert"}` with
+  stories as nodes.
+- **One place (E)**: the chosen story stays chosen between „Opowieści" and „Pytania"; a question group of a detour story
+  offers „Pokaż na ścieżce: <overview>" — the overview's path opens with the branch highlighted (also when the chosen map
+  field is that story).
+- Checks: `app-branches-check.mjs`, `app-slide-links-check.mjs`, `app-selfcheck-check.mjs`, `app-review-step-check.mjs`,
+  `app-drawing-check.mjs`.
 
 ### House, foundation, wedges, view modes, column height (2026-11-04/05, Prompt 16)
 

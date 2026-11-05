@@ -299,6 +299,8 @@ function CategoryTile({ c, W, readOnly, open, closest, controls, onToggle }: { c
 }
 
 type StepPhase = 'got' | 'next' | 'later' | 'map';
+/** 2026-11-05 (Odznaki) — mehrere Stufen eines Stoffes: Srebro I, II, III. */
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI'];
 
 /** Die Stufen einer Kategorie: je Leiter (ein Mass) eine Zeile, vom Holz bis zum Diamant. */
 function CategorySteps({ c, W, readOnly, date, id }: { c: BadgeCategory; W: RewardWords; readOnly: boolean; date: Intl.DateTimeFormat; id: string }) {
@@ -321,7 +323,7 @@ function CategorySteps({ c, W, readOnly, date, id }: { c: BadgeCategory; W: Rewa
                   <li key={s.badge.id} className={`cg-bp-step is-${phase}`} title={saysOf(W, s.badge)} data-bp-step={s.badge.id} data-bp-material={s.material} data-bp-phase={phase}>
                     <BadgeMedal material={s.material} icon={s.badge.icon} ghost={s.at === null} />
                     <span className="cg-bp-step-body">
-                      <strong className="cg-bp-step-mat">{W.material[s.material]}</strong>
+                      <strong className="cg-bp-step-mat">{W.material[s.material]}{s.grades > 1 ? ` ${ROMAN[s.grade - 1] ?? s.grade}` : ""}</strong>
                       <span className="cg-bp-step-name">{s.badge.name}</span>
                       <span className="cg-bp-step-goal">{W.amount(s.badge.measure, s.badge.atLeast)}{s.badge.points > 0 ? <span className="cg-bp-bonus"> {W.bonus(s.badge.points)}</span> : null}</span>
                       {phase === 'got' && <span className="cg-bp-status is-got"><span aria-hidden>✓ </span>{W.earned(date.format(new Date(s.at!)))}</span>}

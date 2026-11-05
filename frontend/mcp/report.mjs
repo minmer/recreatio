@@ -224,6 +224,19 @@ const valueWord = (v) => (Array.isArray(v) ? `[${v.map(valueWord).join(', ')}]` 
 export function samplesText(samples) {
   const out = [];
   if (samples === null) return out;
+  /* 2026-11-05 (Prompt 23, D3) — die Rysunki do poruszania: geprüft wie beim Import, die Lösung bis zum Ende gerechnet. */
+  const drawings = samples.drawings ?? [];
+  if (drawings.length > 0) {
+    out.push('', `# Interactive drawings (${drawings.length})`);
+    for (const d of drawings) {
+      const goal = d.goals.length > 0 ? `goals in order: ${d.goals.join(' → ')}` : d.goal !== null ? `goal: ${d.goal}` : 'goal: the drawing rules with "goal": true';
+      const sol = d.solution === null ? 'no solution' : `solution ${Object.entries(d.solution).map(([k, v]) => `${k}=${valueWord(v)}`).join(', ')}`;
+      const verdict = d.solved === null ? '' : d.solved ? ' → the solution REACHES the goal ✓' : ' → ⚠ the solution does NOT reach the goal';
+      out.push(`- ${d.ref ?? d.id} „${d.name}” — ${goal} · check ${d.check} · ${d.controls} control(s) · ${sol}${verdict}`);
+      for (const p of d.problems.slice(0, 5)) out.push(`  - ⚠ ${p}`);
+    }
+    out.push('To see a drawing move: preview_page with a page module "animation" holding the same drawing JSON.');
+  }
   const gens = samples.generators;
   out.push('', `# Generators (${gens.length})`);
   if (gens.length === 0) {

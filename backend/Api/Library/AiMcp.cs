@@ -38,6 +38,7 @@ public static class AiMcp
         "Recreatio: read-only access to the Library (sources), Scriptorium (own texts) and knowledge bases (Cogita) the user authorized. " +
         "Start with list_collections, read entry types with get_schema, find entries with search_entries (all words; a short reference like \"J 21\" matches as a phrase), " +
         "read full entries with get_entry and follow arguments with get_related (fields such as grounds/objections). " +
+        "To read many entries in full (e.g. all questions of a base), call search_entries with kind and includeData true — pages of up to 200 with the data as stored; every entry and every id in its data comes with its lasting name (ref, names: id → \"@name\"), the same names an import uses; a reference value may be a UUID or \"@name\". " +
         "A reconstructed argument of a work: a field whose schema says \"structure\": \"up\" links a step to the step above it. Start at the leading question and call get_related with direction \"in\", fields [that field] and depth 3; continue with another call from every node at depth 3. If the result is truncated (at most 60 nodes per call), its edges still name the steps that did not fit: continue from those too. Order steps by the locator of their reference to the work. " +
         "Learning order in a knowledge base: a field whose schema says \"prerequisite\": \"up\" names what must be known first (\"down\": what builds on this); questions are entries of kind \"question\" whose \"form\" is the type of question, \"about\" what they test and \"needs\" what comes before them. " +
         "What steers learning in a knowledge base — card templates with their weights (tests), revisions, views, flows (in full), collections, anchors, forms, settings, how many cards each template makes, who reads it and the fixed map of every landscape view — comes from get_knowledge_setup, in the shape of the export \"recreatio.cogita.course\" (without entries, without learner progress). It is a snapshot built in the browser of someone who writes there (45 s after the last change while a tab is open, and right after an import): when SnapshotCurrent is false the base changed after it was made. " +
@@ -140,14 +141,16 @@ public sealed class AiMcpTools
     public sealed record CollectionsResult(IReadOnlyList<CollectionInfo> Collections, string AccessExpiresAt, string Note);
     public sealed record CollectionSchema(string Id, string Name, string Part, string Area, JsonArray Kinds);
     public sealed record SchemaResult(IReadOnlyList<CollectionSchema> Collections);
-    public sealed record SearchHit(string Id, string Title, string Kind, string? Type, string? Key, string Collection, string Area, string Snippet, string Url);
+    /* 2026-11-05 (Prompt 23, D6/D7) — Ref: der bleibende Name („@bosko/turyn"); mit includeData die Daten und je genannter Kennung ihr Name (Names). */
+    public sealed record SearchHit(string Id, string Title, string Kind, string? Type, string? Key, string Collection, string Area, string Snippet, string Url,
+        string? Ref = null, JsonObject? Data = null, IReadOnlyDictionary<string, string>? Names = null);
     public sealed record SearchResult(string? Query, string Match, int Total, int Offset, int Limit, int? NextOffset, IReadOnlyList<SearchHit> Results, string? Note);
-    public sealed record LinkInfo(string Field, string Id, string? Title, string? Kind, string? Locator, bool Outside, string? Url);
+    public sealed record LinkInfo(string Field, string Id, string? Title, string? Kind, string? Locator, bool Outside, string? Url, string? Ref = null);
     public sealed record EntryResult(
         string Id, string Title, string Kind, string KindId, IReadOnlyList<string> Kinds, string? Type, string? Key, string? Tell,
         string Collection, string CollectionId, string Part, string Area, string? UpdatedAt, string Url,
         JsonObject Data, JsonArray Schema, IReadOnlyList<LinkInfo> Links, IReadOnlyList<LinkInfo> LinkedFrom, string Text,
-        IReadOnlyList<TextRef> FullTexts);
+        IReadOnlyList<TextRef> FullTexts, string? Ref = null, IReadOnlyDictionary<string, string>? Names = null);
     /* 2026-10-24 — vollständige Texte der Werke. */
     public sealed record TextRef(string TextId, string Collection, int Parts, int Words);
     public sealed record TextPartInfo(string Key, string Label, double Order, string? First, string? Last, string? Pages, int Blocks, int Words);
@@ -209,8 +212,46 @@ public sealed class AiMcpTools
         o.Get(id) ?? throw new McpException($"not_found: w udostępnionych zbiorach nie ma wpisu o id ani kluczu „{id}”. Szukaj przez search_entries.");
 
     private static LinkInfo LinkOf(AiAccess.Opened o, AiAccess.Link l) => !l.Outside && o.Get(l.Id) is AiAccess.Item to
-        ? new LinkInfo(l.Field, to.Id, to.Title, to.KindName, l.Locator, false, o.Url(to))
+        ? new LinkInfo(l.Field, to.Id, to.Title, to.KindName, l.Locator, false, o.Url(to), RefOf(to))
         : new LinkInfo(l.Field, l.Id, null, null, null, true, null);
+
+    /// <summary>2026-11-05 (Prompt 23, D7) — der bleibende Name eines Eintrags als „@name" (aus dem Import), sonst <c>null</c>.</summary>
+    internal static string? RefOf(AiAccess.Item item) => string.IsNullOrWhiteSpace(item.Ref) ? null : "@" + item.Ref.TrimStart('@');
+
+    /// <summary>
+    /// 2026-11-05 (Prompt 23, D6/D7) — DIE NAMEN NEBEN DEN KENNUNGEN: jede Kennung, die in den Daten steht (ein Wert, ein Wert in
+    /// einer Liste, <c>value</c> eines Verweises mit Stelle), mit dem bleibenden Namen ihres Eintrags — die Daten selbst bleiben,
+    /// wie sie gespeichert sind. Leer: keine genannte Kennung hat einen Namen.
+    /// </summary>
+    public static Dictionary<string, string> NamesIn(JsonElement data, Func<string, string?> refOf)
+    {
+        var found = new Dictionary<string, string>(StringComparer.Ordinal);
+        void Walk(JsonElement e, int depth)
+        {
+            if (depth > 12) return;
+            switch (e.ValueKind)
+            {
+                case JsonValueKind.String:
+                    var s = e.GetString() ?? "";
+                    if (s.Length >= 8 && s.Length <= 64 && !found.ContainsKey(s) && !s.Contains(' ') && refOf(s) is string name) found[s] = name;
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var x in e.EnumerateArray()) Walk(x, depth + 1);
+                    break;
+                case JsonValueKind.Object:
+                    foreach (var p in e.EnumerateObject()) Walk(p.Value, depth + 1);
+                    break;
+            }
+        }
+        Walk(data, 0);
+        return found;
+    }
+
+    private static IReadOnlyDictionary<string, string>? NamesOf(AiAccess.Opened o, AiAccess.Item item)
+    {
+        var names = NamesIn(item.Data, id => o.Get(id) is AiAccess.Item to && string.Equals(to.Id, id, StringComparison.OrdinalIgnoreCase) ? RefOf(to) : null);
+        return names.Count == 0 ? null : names;
+    }
 
     private static JsonObject ObjectOf(JsonElement e) => e.ValueKind == JsonValueKind.Object ? JsonNode.Parse(e.GetRawText())!.AsObject() : [];
     private static JsonArray ArrayOf(JsonElement e) => e.ValueKind == JsonValueKind.Array ? JsonNode.Parse(e.GetRawText())!.AsArray() : [];
@@ -265,27 +306,28 @@ public sealed class AiMcpTools
         [Description("Words to find; empty to list all.")] string? query = null,
         [Description("Collection id, name, or books / writing / knowledge.")] string? collection = null,
         [Description("Kind id or name, e.g. Komentarz.")] string? kind = null,
-        [Description("Results per page, 1–50 (default 20).")] int limit = 20,
+        [Description("Results per page, 1–50 (default 20); with includeData up to 200.")] int limit = 20,
         [Description("How many results to skip.")] int offset = 0,
+        [Description("Also return each entry's full data as stored, with the lasting names (\"@…\") of the entries its ids name (names: id → \"@name\") — read a whole kind (e.g. kind=question) in a few pages of up to 200 (default false).")] bool includeData = false,
         CancellationToken cancellationToken = default)
     {
         using var o = await OpenAsync(http, db, config, cancellationToken);
-        limit = Math.Clamp(limit, 1, 50);
+        limit = Math.Clamp(limit, 1, includeData ? 200 : 50);
         offset = Math.Max(0, offset);
         var terms = AiAccess.Terms(query);
         var (found, all) = AiAccess.Find(o.Items, query, collection, kind);
         var page = found.Skip(offset).Take(limit).Select(i => new SearchHit(i.Id, i.Title, i.KindName, i.TypeName, i.Key, i.From.Name, i.From.AreaName,
-            AiAccess.Snippet(i.Plain, terms), o.Url(i))).ToList();
+            AiAccess.Snippet(i.Plain, terms), o.Url(i), RefOf(i), includeData ? ObjectOf(i.Data) : null, includeData ? NamesOf(o, i) : null)).ToList();
         return new SearchResult(terms.Count == 0 ? null : query!.Trim(), terms.Count == 0 ? "list" : all ? "all words" : "some words (nothing had all of them)",
             found.Count, offset, limit, offset + limit < found.Count ? offset + limit : null, page,
             o.Missing.Count == 0 ? null : $"{o.Missing.Count} collection(s) have no snapshot yet; their entries are not searchable now.");
     }
 
     [McpServerTool(Name = "get_entry", Title = "Wpis", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("One complete entry by id (or citation key): its data exactly as stored (references are ids), the meaning of its fields (schema), its outgoing references with the field they come from and their locator (links), the entries that refer to it (linkedFrom), and a readable text rendering with titles in place of ids.")]
+    [Description("One complete entry by id, citation key or lasting name (\"@bosko/turyn\", also \"@<id>\"): its data exactly as stored (references are ids), its lasting name (ref) and the lasting names of the ids in its data (names: id → \"@name\" — the same names as get_knowledge_setup and the import), the meaning of its fields (schema), its outgoing references with the field they come from and their locator (links, each with its ref), the entries that refer to it (linkedFrom), and a readable text rendering with titles in place of ids.")]
     public static async Task<EntryResult> GetEntry(
         IHttpContextAccessor http, Db db, IConfiguration config,
-        [Description("Entry id (UUID) or citation key.")] string id,
+        [Description("Entry id (UUID), citation key or lasting name (\"@name\").")] string id,
         CancellationToken cancellationToken = default)
     {
         using var o = await OpenAsync(http, db, config, cancellationToken);
@@ -294,9 +336,10 @@ public sealed class AiMcpTools
             item.From.Name, Ids.ToText(item.From.LibraryId), item.From.Part, item.From.AreaName, item.UpdatedAt, o.Url(item),
             ObjectOf(item.Data), SchemaOf(item),
             o.LinksOf(item).Select(l => LinkOf(o, l)).ToList(),
-            o.Backlinks(item).Take(100).Select(b => new LinkInfo(b.Link.Field, b.From.Id, b.From.Title, b.From.KindName, b.Link.Locator, false, o.Url(b.From))).ToList(),
+            o.Backlinks(item).Take(100).Select(b => new LinkInfo(b.Link.Field, b.From.Id, b.From.Title, b.From.KindName, b.Link.Locator, false, o.Url(b.From), RefOf(b.From))).ToList(),
             AiAccess.Render(item, o),
-            o.Texts.Where(t => t.Work == item.Id).Select(t => new TextRef(t.Id, t.From.Name, t.Parts.Count, t.Parts.Sum(x => x.Words))).ToList());
+            o.Texts.Where(t => t.Work == item.Id).Select(t => new TextRef(t.Id, t.From.Name, t.Parts.Count, t.Parts.Sum(x => x.Words))).ToList(),
+            RefOf(item), NamesOf(o, item));
     }
 
     [McpServerTool(Name = "get_related", Title = "Powiązane wpisy", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]

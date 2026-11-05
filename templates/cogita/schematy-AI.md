@@ -106,6 +106,10 @@ Warunek „Znajomość” w widoku albo w powtórce nazywa pasmo zamiast liczby:
 - `"order"`: `"general"` (od podstaw — przy kolejności nauki), `"text"` (jak w tekście), `"date"` (oś czasu);
 - `"pick"`: `"weighted"` (domyślnie);
 - `"endWhenDone": true` tylko w powtórkach „tylko zaległe” — zwykła codzienna powtórka uczy dalej na zapas i kończy się przyciskiem.
+- inne tryby: `"once"` — każda karta stosu dokładnie raz, zła odpowiedź nie wraca w tym przebiegu, na końcu każdy temat jako „umiesz” albo „luka” (z „Uzupełnij luki”); `"random"` — jak `"once"`, ale tylko `"count"` kart (domyślnie 20); `"levels"` — stos `"stackSize"`, dobra odpowiedź podnosi kartę o poziom (do `"levels"`, domyślnie 5), zła na poziom 1; przebieg kończy się sam;
+- `"pick": "sample"` z `"perTopic": 2` — z każdego tematu tylko 2 losowe karty (sprawdzian na wyrywki); osobny krok `{"type": "sample", "config": {"perTopic": 1}}` robi to samo w środku grafu (np. „Razem” z kartami luk).
+
+**Sprawdź, co wiesz — pytania kluczowe (2026-11-05).** Na każdy temat jedno–dwa pytania z `"core": true` (tematy w `"about"`). Powtórka „Sprawdź, co wiesz — cała książka”: źródło pytań → `filter.rule` z `{"field": "core", "cmp": "eq", "value": "true"}` → `{"mode": "once", "order": "general"}`; uczący się odpowiada raz na każde, na końcu widzi luki. „Uzupełnij luki”: `{"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "core", "each": "any", "band": "unknown"}}}` (pytanie kluczowe tematu nieznane) razem z `{"type": "sample", "config": {"perTopic": 1}}` → `{"mode": "once"}`. Bez gotowej powtórki krajobraz ma przycisk „Sprawdź, co wiesz” (obszar w obrazie albo cała mapa) i filtr „Luki”. Opowieść, której wszystkie pytania uczący się już umie, liczy się jako zaliczona (pole opada do doliny) — nie trzeba jej przechodzić.
 
 ### 2.5 Baza gotowa na krajobraz wiedzy (`"mode": "landscape"`)
 

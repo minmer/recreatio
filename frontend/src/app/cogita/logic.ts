@@ -139,7 +139,7 @@ export interface Facts {
  * Karten, was vorher zu können ist, worunter er in der Struktur liegt — oder (jeder andere Wert) der Schlüssel eines
  * Verweisfeldes: worauf es zeigt.
  */
-export const RELATIONS = ['self', 'cards', 'before', 'up', 'chain'] as const;
+export const RELATIONS = ['self', 'cards', 'before', 'up', 'chain', 'core'] as const;
 export type Relation = (typeof RELATIONS)[number];
 
 export const RELATION_LABEL: Record<Relation, string> = {
@@ -152,7 +152,9 @@ export const RELATION_LABEL: Record<Relation, string> = {
    * (über Stufen, auch durch Einträge ohne Karten und durch Kreise) vorher zu können sind. Nie gefragte zählen nicht.
    * „Każda znana" — die Sperre des Krajobraz: erst wiederholen, was in der Kette verblasst oder falsch war.
    */
-  chain: 'już pytane karty całej drogi przed nim'
+  chain: 'już pytane karty całej drogi przed nim',
+  /* 2026-11-05 (Prompt 23, C3) — die Kernfragen (`"core": true`) des Themas (bei einer Karte: der Themen ihres „O czym"). */
+  core: 'pytania kluczowe tematu'
 };
 
 /** Eine Beziehung in Worten — `field`: der Name eines Feldes. */
@@ -164,6 +166,7 @@ export function relationText(rel: string, each: 'all' | 'any' | undefined, field
     case 'before': return any ? 'czegoś z tego, co trzeba znać wcześniej' : 'tego, co trzeba znać wcześniej';
     case 'up': return any ? 'czegoś, pod czym leży' : 'tego, pod czym leży';
     case 'chain': return any ? 'którejś z już pytanych kart całej drogi przed nim' : 'każdej już pytanej karty całej drogi przed nim';
+    case 'core': return any ? 'któregoś z pytań kluczowych tematu' : 'każdego pytania kluczowego tematu';
     default: return `${any ? 'czegoś, na co wskazuje' : 'tego, na co wskazuje'} pole „${field(rel)}”`;
   }
 }

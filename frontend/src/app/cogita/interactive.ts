@@ -49,6 +49,41 @@ export interface InteractiveSpec {
   readonly fixed: Readonly<Record<string, number>>;
   /** Was das Rätsel löst: Wert (oder `ding.eigenschaft`) → Rechnung — gezeigt nach einer falschen Antwort. */
   readonly solution: Readonly<Record<string, string>> | null;
+  /**
+   * 2026-11-05 (Prompt 23, D2) — Ziele NACHEINANDER (`"goals": ["x > 3", "y < 1"]`): richtig erst, wenn das erste erreicht
+   * wurde und danach das zweite … (statt eines `goal`). Leer: wie bisher.
+   */
+  readonly goals?: readonly string[];
+  /**
+   * 2026-11-05 (Prompt 23, D2) — wann sich das Ziel zeigt: "live" (Vorgabe) — schon beim Ausprobieren meldet das Bild das
+   * Treffen, gewertet wird bei „Sprawdź"; "submit" — beim Ausprobieren verrät nichts das Ziel, erst „Sprawdź" wertet.
+   */
+  readonly check?: 'live' | 'submit';
+}
+
+/** 2026-11-05 (Prompt 23, D2) — der versteckte Zähler der Ziele nacheinander (wie weit die Reihe ist). */
+export const GOAL_STEP = 'cg_goal_step';
+
+/**
+ * 2026-11-05 (Prompt 23, D2) — DIE ZIELE DER FRAGE ALS REGELN: eines (`goal`) wie bisher; mehrere (`goals`) nacheinander —
+ * jedes erst, wenn das vorige erreicht wurde (ein versteckter Zähler), das Ziel ist das letzte.
+ */
+export function liveWithGoals(live: Live | null, spec: Pick<InteractiveSpec, 'goal' | 'goals'>): Live | null {
+  const goals = (spec.goals ?? []).filter((g) => g.trim() !== '');
+  if (goals.length === 0) return liveWithGoal(live, spec.goal);
+  const rules = [
+    ...goals.map((g, i) => ({ when: `${GOAL_STEP} >= ${i} && (${g})`, set: { [GOAL_STEP]: `max(${GOAL_STEP}, ${i + 1})` }, once: true })),
+    { when: `${GOAL_STEP} >= ${goals.length}`, goal: true }
+  ];
+  const own = readLive({ vars: [{ name: GOAL_STEP, value: 0 }], rules });
+  if (own === null) return live;
+  if (live === null) return own;
+  return { ...live, vars: live.vars.some((v) => v.name === GOAL_STEP) ? live.vars : [...live.vars, ...own.vars], rules: [...live.rules, ...own.rules] };
+}
+
+/** 2026-11-05 (Prompt 23, D2) — „submit": das Bild beim Ausprobieren ohne seine Ziele (nichts meldet ein Treffen). */
+export function liveWithoutGoals(live: Live | null): Live | null {
+  return live === null ? null : { ...live, rules: live.rules.filter((r) => !r.goal) };
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -85,7 +120,12 @@ export function interactiveSpec(data: Readonly<Record<string, unknown>>, rng: ()
   const goal = typeof data.goal === 'string' && data.goal.trim() !== '' ? data.goal.trim().replace(/^=\s*/, '') : null;
   const own = readSolution(data.solution);
   const solve = drawing.live?.task?.solve ?? {};
-  return { form: 'interactive', drawing: text, goal, fixed, solution: own ?? (Object.keys(solve).length === 0 ? null : solve) };
+  /* 2026-11-05 (Prompt 23, D2) — Ziele nacheinander und wann gewertet wird. */
+  const goals = Array.isArray(data.goals) ? data.goals.filter((g): g is string => typeof g === 'string' && g.trim() !== '').map((g) => g.trim().replace(/^=\s*/, '')) : [];
+  return {
+    form: 'interactive', drawing: text, goal, fixed, solution: own ?? (Object.keys(solve).length === 0 ? null : solve),
+    ...(goals.length === 0 ? {} : { goals }), ...(data.check === 'submit' ? { check: 'submit' as const } : {})
+  };
 }
 
 /** Das Bild mit dem Ziel der Frage als weitere Regel — so erreicht es die Prüfung wie jedes andere Ziel. */
@@ -191,7 +231,7 @@ export function checkInteractive(spec: InteractiveSpec, given: unknown): Outcome
   if (values === null) return { correct: false, correctness: 0, answered: false, expected };
   const drawing = drawingOfText(spec.drawing);
   if (drawing === null) return { correct: false, correctness: 0, answered: true, expected };
-  const program = new Program(liveWithGoal(drawing.live, spec.goal), { fixed: values, replay: answerWorld(given) });
+  const program = new Program(liveWithGoals(drawing.live, spec), { fixed: values, replay: answerWorld(given) });
   if (!program.hasGoal()) return { correct: true, correctness: 1, answered: true, expected };
   /* Eine Regel der Welt gebrochen (zu viele Züge): falsch, gleich, wohin es führt. */
   if (program.broken() !== null) return { correct: false, correctness: 0, answered: true, expected };

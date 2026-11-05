@@ -45,6 +45,12 @@ Ten przewodnik mówi, jak zbudować kurs w formie opowieści tak, żeby każda o
 
 Opowieść kończy się krótkim przeglądem tego, czego uczyła — W TYM SAMYM przebiegu, z TYMI SAMYMI pytaniami co w opowieści (ta sama historia kart). Przebieg z celami opuszcza jednostkę do doliny dopiero, gdy jest ukończony **i** każdy cel osiągnięty; bez celów — gdy ukończony.
 
+**Najprościej (od 2026-11-05): jeden krok "review".** Zamiast kilku kroków na każde pytanie wstaw na końcu jeden krok:
+
+`{"id": "przeglad", "type": "review", "config": {"of": "story", "threshold": 0.9}}` → wyjścia "passed" (zdany) i "notyet" (jeszcze nie).
+
+Pyta jeszcze raz o pytania tego przebiegu (kroki "question"), których uczący się jeszcze nie umie — każde raz w rundzie — i pokazuje wynik („Umiesz 9 z 10 (90 %)”). Co najmniej "threshold" → "passed", inaczej "notyet" (bez połączenia opowieść kończy się z przeglądem jeszcze niezdanym, a na końcu stoi „Powtórz przegląd”; albo połącz "notyet" z wyborem „Spróbuj jeszcze raz” / „Zakończ na razie” — nie z samym krokiem "review"). Przebieg bez "goals" dostaje sam cel „Przegląd zdany” ("goal": inna nazwa, np. „Durchsicht bestanden” w bazie niemieckiej), a „Powtórz przegląd” wraca do tego kroku. Na ścieżce to jeden węzeł „Przegląd”. "value" — gdzie zapisać wynik (domyślnie „<nazwa opowieści>.przeglad”: 1 / 0). Dawny sposób poniżej nadal działa:
+
 1. **Licznik z nazwą opowieści na początku**: `"deszcz.przeglad"` (wartości należą do uczącego się, nie do jednej opowieści — bez nazwy dwie opowieści dzieliłyby licznik).
 2. **Początek przeglądu zeruje licznik** (krok "set" `{"type": "set", "value": "deszcz.przeglad", "to": 0}`) i jest oznaczony w przebiegu: `"review": "<id tego kroku>"` (w prezentacji: klucz sceny początku przeglądu). Tam prowadzi „Powtórz przegląd”.
 3. **Każde pytanie**: "right" → krok "set" `{"type": "add", "value": "deszcz.przeglad", "by": 1}` → następne pytanie; "wrong" → od razu następne pytanie.
@@ -97,6 +103,8 @@ Opowieści układaj jak drabinę: **jedna ogólna** („Kim jest ksiądz Bosko?�
 
 z krawędziami `{"from": "z1", "out": "done", "to": "s5"}` i `{"from": "z1", "out": "skip", "to": "s5"}` (zwykle oba wyjścia do tego samego następnego kroku).
 
+- **Rysunek przy slajdzie**: krok "show" z "drawing" (ten sam JSON co moduł „Animacja” i pytanie "interactive": vars, controls — suwaki —, elements) pokazuje rysunek obok tekstu slajdu (na telefonie pod nim) — statyczny albo z suwakami, bez oceny: `{"id": "s7", "type": "show", "config": {"of": "@laag/folie/zwei-geraden", "drawing": {…}}}`; "drawing" może też być kluczem pola slajdu, które trzyma rysunek.
+- **Długi dowód zwinięty**: w treści slajdu blok `::: details Beweisidee` … `:::` (w polu "blocks": `{"type": "details", "summary": "Beweisidee", "text": "…"}`) — pokazany zwinięty z nagłówkiem.
 - **W odtwarzaczu** krok pokazuje kartę: nazwę tamtej opowieści, co w niej czeka („7 slajdów · 16 pytań”), „Wejdź” i „Dalej bez tego”. Gdy tamta jest już ukończona — „już znasz”, „Przypomnij” i „Dalej”.
 - **„Wejdź”** gra tamtą w środku: tytuł, ścieżka i liczniki są wtedy jej, nad nią pasek „Etap 1 › Dom w Becchi bez ojca” z „Wróć do: Etap 1” (powrót na krok zagłębienia, bez ukończenia). Jej „Koniec” wraca do przeglądu wyjściem "done". Kto wyjdzie z aplikacji w środku, po powrocie jest znów w środku.
 - **Postęp należy do opowieści**, nie do drogi: głębsza jest ukończona raz, gdziekolwiek ją skończono (wprost albo przez zagłębienie); jej pytania liczą się jak zawsze. Przegląd przeglądu obejmuje tylko jego własne pytania.
@@ -163,3 +171,12 @@ Pola "markup" (tekst wpisu, który krok pokazuje) czyta się na ekranie kroku �
 - **Źródło** — `[@klucz-dzieła, s. 12]` na końcu zdania (dzieło w bibliotece, z której baza korzysta); przypisy numerują się same i stoją pod tekstem, kolejne z tego samego dzieła jako „Tamże”. Nie pisz numerów, list „Przypisy” ani źródeł w nawiasach ręcznie.
 - Odesłanie do innej części opowieści albo innego wpisu — `[[słowa|@wpis]]` (link), nie cudzysłów z nazwą.
 - Przejście dalej daje przycisk „Dalej →” pod tekstem — nie kończ tekstu zdaniem „kliknij dalej”.
+
+## Slajdy i pytania (2026-11-05)
+
+- **Pytanie → slajd.** Zacznij "explain" każdego pytania od 1–2 slajdów opowieści (wpisów z „Treścią w blokach”, które pokazuje krok "show"), potem temat. Po odpowiedzi uczący się widzi te slajdy pierwsze, narysowane jak w odtwarzaczu (zwinięte), a pod nimi „Zobacz w opowieści” — podgląd opowieści na tym slajdzie, który niczego nie zapisuje (nawet gdy opowieść jest zamknięta lub nie zaczęta; nad nią drabina zagłębień, np. „Etap 1 › Sen dziewięciolatka”).
+- **Slajd → pytania.** Każdy slajd pokazuje „Pytania do tego slajdu (N)” (pytania, których "explain" go wymienia) z „Ćwicz”: w odtwarzaczu w menu „⋯”, we wpisie slajdu obok odwołań.
+- **Mapa „Pytania”.** Obok mapy opowieści: jedno pole na grupę pytań o tych samych początkowych slajdach, przy swojej opowieści, w kolejności slajdów. Pytanie o całą opowieść (np. oś czasu) ma w "explain" JEDNOSTKĘ opowieści — stoi w polu „Cała opowieść”.
+- **Tytuł slajdu.** Odtwarzacz pokazuje "title" kroku "show"; bez niego — nazwę slajdu (jego etykietę, np. „tytul”). Nie powtarzaj tytułu w tekście.
+- **Pisownia bloków.** Pusta linia w akapicie = nowy akapit. Cytat: wiersze „> …” i ostatni „> — Autor, Dzieło”. Przypisy: [^1] w tekście i „[^1]: …” na końcu (lista „Przypisy” powstaje sama). Import ostrzega przed: „Cytat (…):”, ręcznie pisaną listą „Przypisy”, „kliknij dalej”, cytatem bez „> —” i cytowaniem [@…] w treści pytania.
+- **Miejsce w opowieści** jest w postępie uczącego się (krok, odwiedzone, ukończona, cele). Import, który zmienia identyfikatory kroków, nie kasuje postępu: odtwarzacz zaczyna od pierwszego nieodwiedzonego kroku, „ukończona”, cele i przebyte drogi zostają. Dawaj krokom stałe "id" (np. "s<klucz slajdu>").

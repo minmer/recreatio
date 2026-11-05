@@ -72,7 +72,7 @@ export const QUESTION_TYPES: readonly QuestionType[] = [
     says: 'Uczący się wskazuje punkt na mapie; liczy się, czy trafił w promień.' },
   { form: 'code', label: 'Kod (Python)', group: 'other', prompt: 'Pytanie', fields: ['task', 'starter', 'tests', 'createInput', 'reference', 'cases'],
     says: 'Uczący się pisze funkcję transform(x) w Pythonie; sprawdzają ją widoczne przykłady (wejście → wynik), potem ukryte przypadki porównane z rozwiązaniem wzorcowym. Każdy przypadek ma 2 sekundy.' },
-  { form: 'interactive', label: 'Rysunek do poruszania', group: 'other', prompt: 'Pytanie', fields: ['drawing', 'goal', 'solution'],
+  { form: 'interactive', label: 'Rysunek do poruszania', group: 'other', prompt: 'Pytanie', fields: ['drawing', 'goal', 'solution', 'goals', 'check'],
     says: 'Uczący się ustawia rysunek (suwaki, przeciąganie) i sprawdza; dobrze, gdy symulacja osiąga cel.' }
 ];
 
@@ -80,7 +80,7 @@ export const QUESTION_TYPES: readonly QuestionType[] = [
  * Was jede Frage hat, gleich welcher Art. 2026-11-01 — dazu Podpowiedzi (vor der Antwort), das Wyjaśnienie als Text
  * (nach ihr) und Parameter (neue Zahlen je Versuch).
  */
-export const QUESTION_SHARED = ['form', 'prompt', 'hints', 'explanation', 'explain', 'about', 'needs', 'params', 'let', 'require', 'share', 'fact'] as const;
+export const QUESTION_SHARED = ['form', 'prompt', 'hints', 'explanation', 'explain', 'about', 'needs', 'params', 'let', 'require', 'share', 'fact', 'core'] as const;
 
 export const questionType = (form: unknown): QuestionType =>
   QUESTION_TYPES.find((t) => t.form === form) ?? QUESTION_TYPES[0];

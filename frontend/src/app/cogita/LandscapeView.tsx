@@ -20,7 +20,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 
 import type { Card } from './cardBasics';
 import { cardKnowness, factsOf, gaugeFromMarks, withFlows, type Gauge } from './knowing';
-import { learnerFlows, reviewStart, storyStage, type StoryStage } from './flowFacts';
+import { KNOWN } from './knowness';
+import { cardOfQuestion, flowQuestionsKnown, learnerFlows, reviewStart, storyStage, type StoryStage } from './flowFacts';
 import { BAND_CODE, liftOf, type LsBand, type LsInput, type LsStand, type LsState } from './landscape';
 import { landscapeClient, type LandscapeClient } from './landscapeClient';
 import { landscapeInput, landscapeState, lockCards } from './landscapeData';
@@ -35,9 +36,16 @@ import { directStartLock } from './storyLock';
 import { storyMarks } from './storyPath';
 import { viewPath } from '../routes';
 import { PathMap } from './PathMap';
+import { branchesOf } from './pathBranches';
+import { DetourCard, summaryField } from './DetourCard';
+import { detourOf } from './detour';
+import { storyWork } from './storyNext';
 import { countsAsStep, pathMarks } from './pathLayout';
 import { practiseGraph, practiseIds } from './quilt';
 import { planOf, readPlan, type Plan } from './revision';
+import { fillCards, gapTopics, selfCheckCards } from './selfCheck';
+import { selfCheckWords } from './selfCheckWords';
+import { TopicQuestions } from './TopicQuestions';
 import { RevisionRun, type RunSource } from './RevisionRun';
 import { awardsOf, cleanDays, freshAwards, rewardsFor, type RewardRules } from './rewards';
 import { RewardBoard, useRewards } from './RewardViews';
@@ -58,6 +66,9 @@ import { landscapeWords, type LandscapeWords } from './landscapeWords';
 import { globalDepth, nestAsRegions, topicGraphOf, type TopicGraph } from './levelMap';
 import { stepFor } from './worldView';
 import { worldLayout, type WorldLayout } from './worldLayout';
+import { QuestionLandscape } from './QuestionLandscape';
+import { slideWords } from './slideWords';
+import { libQuestionGroups } from './slideLib';
 import { FlagIcon, GoalFlagIcon, PieceIcon, WayIcon, WorldMap, type WorldCommand, type WorldPiece, type WorldTopic } from './WorldMap';
 import type { RegionTree } from './regions';
 import './landscape.css';
@@ -342,8 +353,12 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* 2026-11-03 (G) — ERZÄHLUNGEN ALS FELDER: ein Ablauf mit „unit" ist diese Einheit (auch ohne eigene Karten). */
   const stories = useMemo(() => lib.docs('flow').map((d) => ({ doc: d, flow: readFlow(d.id, d.data) })).filter((x) => x.flow.unit !== undefined), [lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   const storyOf = (id: string) => stories.find((x) => x.flow.unit === id)?.flow;
-  const lowered = useMemo(() => new Set(stories.filter((x) => storyStage(x.flow, flows.get(x.flow.id)) === 'passed').map((x) => x.flow.unit!)), [stories, flows]);
-  const stageOf = (flow: Flow): StoryStage => storyStage(flow, flows.get(flow.id));
+  /* 2026-11-05 (Prompt 23, C4) — eine Erzählung, deren Fragen alle gekonnt sind, ist bestanden (gerechnet, nie gespeichert). */
+  const cardOfQ = useMemo(() => cardOfQuestion(cards), [cards]);
+  const allKnown = (flow: Flow): boolean => flowQuestionsKnown(flow, cardOfQ, (key) => cardKnowness(gauge, key) >= KNOWN);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lowered = useMemo(() => new Set(stories.filter((x) => storyStage(x.flow, flows.get(x.flow.id), allKnown(x.flow)) === 'passed').map((x) => x.flow.unit!)), [stories, flows, gauge, cardOfQ]);
+  const stageOf = (flow: Flow): StoryStage => storyStage(flow, flows.get(flow.id), allKnown(flow));
   const shownAskable = useMemo(() => (stories.length === 0 ? gauge : { ...gauge, askable: new Set([...gauge.askable, ...stories.map((x) => x.flow.unit!)]) }), [gauge, stories]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const input = useMemo(() => landscapeInput({ select: lib.selectContext(), deps: lib.dependencies(), label: (e) => lib.label(e) }, list, view.group, shownAskable), [lib, lib.revision, listKey, groupKey, cards, stories]);
@@ -618,6 +633,17 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const [said, setSaid] = useState('');
   const [command, setCommand] = useState<WorldCommand | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  /* 2026-11-05 (Prompt 23, A4) — die Karte der Erzählungen auch als Karte ihrer Fragen („Opowieści | Pytania“, je Widok gemerkt). */
+  const qlsKey = `cg-qls:${lib.libraryId}:${viewKey}`;
+  const [qls, setQlsNow] = useState<'stories' | 'questions'>(() => { try { return localStorage.getItem(qlsKey) === 'questions' ? 'questions' : 'stories'; } catch { return 'stories'; } });
+  const setQls = (v: 'stories' | 'questions') => { setQlsNow(v); try { localStorage.setItem(qlsKey, v); } catch { /* ohne Speicher */ } };
+  const qlsUnit = useRef<string | null>(null);
+  /* 2026-11-05 (Prompt 23, E) — die Erzählung, deren Zweig auf der eben geöffneten Ścieżka leuchtet (von „Pytania“ her). */
+  const [pathMark, setPathMark] = useState<string | null>(null);
+  useEffect(() => { if (keep.unit === null) setPathMark(null); }, [keep.unit]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const storyUnits = useMemo(() => { const on = new Set(stories.map((x) => x.flow.unit ?? '').filter((u) => u !== '' && topicIndex.has(u))); return on.size > 0 && libQuestionGroups(lib).length > 0 ? on : new Set<string>(); }, [stories, topicIndex, lib, lib.revision]);
+  const SW = slideWords(lang);
 
   /* -- Lernen ------------------------------------------------------------------------------------------- */
   const planFrom = async (graph: Graph): Promise<Plan | null> => {
@@ -739,6 +765,10 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     ist (ein Baustein daneben): dasselbe ohne Kamera und ohne fliegende Punkte. Beim ersten Mal steigen die Säulen nur auf.
   */
   const MW = motionWords(lang);
+  /* 2026-11-05 (Prompt 23, C5) — die Lücken (Kernfrage beantwortet, jetzt nicht gewusst) als Felder der Karte, für „Luki". */
+  const SC = selfCheckWords(lang);
+  const gapsNow = useMemo(() => gapTopics(cards, (key) => gauge.states.get(key) ?? null, Date.now()), [cards, gauge]);
+  const gapsT = useMemo(() => new Set([...gapsNow.gaps].map((id) => topicIndex.get(id)).filter((x): x is number => x !== undefined)), [gapsNow, topicIndex]);
   const pointsRules = useMemo(() => rewards ?? rewardsFor(lib.docs('reward'), null, lib.settings().rewards ?? null).rules, [rewards, lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   const rw = useRewards(learner, pointsRules, { rename });
   const mapShown = running === null && keep.unit === null && tree !== null && standFits && boxWidth > 0 && world !== null && tg.graph.ids.length > 0 && (fresh.failed ?? regionsFailed) === null;
@@ -865,7 +895,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       <div className="cg-ls-run" data-landscape-run={running.key.split(':')[0]}>
         {back}
         <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} rewards={rewards} closing={closingFor(running.origin ?? null)}
-          onClose={() => setRunning(null)} backToMap={() => setRunning(null)} {...(running.then === undefined ? {} : { onDone: running.then })} />
+          onClose={() => setRunning(null)} backToMap={() => setRunning(null)} {...(running.then === undefined ? {} : { onDone: running.then })}
+          onTopic={(id) => { setRunning(null); selectTopic(id); }} />
       </div>
     );
   }
@@ -887,7 +918,34 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         knownStep: (s: string) => { const n = nodeOf.get(s); return n !== undefined && skipStep(n, content.card, Object.assign((c: Card) => learner.marks(c.key, c.fingerprint, content.rename), { spacing: spacingFor(lib, learner) })); }
       })
     });
-    return { flow, sp, model: sp.model, marks };
+    /* 2026-11-05 (Prompt 23, B) — die Abstecher als Zweige (ukończona, wo immer sie zu Ende ging — auch direkt hier). */
+    const flowOf = (ref: string) => content.flow(content.flowRef?.(ref) ?? ref);
+    const branchMap = branchesOf(sp, flow, {
+      flowOf, position: (x) => positionFor(learner?.progress.positions, flowOf(x) ?? { id: x }), done: (x) => flows.get(flowOf(x)?.id ?? x)?.done === true, card: content.card,
+      marks: learner === null ? null : Object.assign((c: Card) => learner.marks(c.key, c.fingerprint, content.rename), { spacing: spacingFor(lib, learner) }),
+      summary: (f) => (f.unit === undefined ? '' : summaryField(content.entity(f.unit)?.fields)), words: W
+    }, { visited: kept?.visited ?? [], step: kept?.step ?? null });
+    const detourCard = (id: string) => {
+      const part = sp.parts[sp.model.index.get(id) ?? -1];
+      const n = part?.kind === 'detour' ? nodeOf.get(part.steps[0] ?? '') : undefined;
+      const d = n === undefined ? null : detourOf(n);
+      const inner = d === null || d.flow === '' ? undefined : flowOf(d.flow);
+      if (d === null || inner === undefined) return null;
+      const known = flows.get(inner.id)?.done === true;
+      const w = storyWork(storyPathOf(inner, content));
+      return <DetourCard name={inner.name} label={d.label} summary={inner.unit === undefined ? '' : summaryField(content.entity(inner.unit)?.fields)} work={W.workShort(w.slides, w.questions)} optional={d.optional} known={known}
+        started={!known && (positionFor(learner?.progress.positions, inner)?.visited.length ?? 0) > 1} refused={null} W={W} flowId={inner.id} onEnter={() => openStory(inner, false)} />;
+    };
+    /* 2026-11-05 (Prompt 23, E) — der Zweig der Erzählung, von der der Lernende kommt (eine Gruppe von Fragen, ein gewähltes Feld), leuchtet. */
+    const markFlow = pathMark ?? (keep.chosen === null || keep.chosen === id ? undefined : storyOf(keep.chosen)?.id);
+    const highlight = new Set<string>();
+    sp.parts.forEach((part, v) => {
+      if (part.kind !== 'detour' || markFlow === undefined) return;
+      const n = nodeOf.get(part.steps[0] ?? '');
+      const d = n === undefined ? null : detourOf(n);
+      if (d !== null && flowOf(d.flow)?.id === markFlow) { const nd = sp.model.nodes[v]; highlight.add(nd.id); if (nd.branch !== undefined) highlight.add(sp.model.nodes[nd.branch.anchor].id); }
+    });
+    return { flow, sp, model: sp.model, marks, branchMap, detourCard, highlight };
   };
   const askable = (id: string) => gauge.askable.has(id) && !asks.has(id);
   const unitTopics = (id: string): string[] => unitMembers(lib, id, cards, askable);
@@ -911,10 +969,11 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         {story === null && <p className="cg-muted" data-landscape-unit-count={members.length}>{T.inSection(members.length)}</p>}
         {members.length === 0 ? <p className="cg-muted">{W.empty}</p> : (
           story !== null ? (
-            <PathMap model={story.model} marks={story.marks} size="full" words={W} title={`${W.pathTitle}: ${W.story}`} name={(id) => <TexText text={story.model.nodes[story.model.index.get(id) ?? -1]?.label ?? id} />}
+            <PathMap model={story.model} marks={story.marks} size="full" words={W} title={`${W.pathTitle}: ${W.story}`} branches={(id) => story.branchMap.get(id) ?? null} highlight={story.highlight.size > 0 ? story.highlight : null} name={(id) => <TexText text={story.model.nodes[story.model.index.get(id) ?? -1]?.label ?? id} />}
               onPick={(id) => { const part = story.sp.parts[story.model.index.get(id) ?? -1]; if (part !== undefined && part.first !== null) setRunning({ key: `story:${story.flow.id}:${Date.now()}`, story: story.flow, jump: { step: part.first, at: Date.now() } }); }}
               actions={(id, st) => {
                 const part = story.sp.parts[story.model.index.get(id) ?? -1];
+                if (part?.kind === 'detour') return story.detourCard(id);
                 if (part === undefined || part.kind === 'start' || part.kind === 'end' || part.kind === 'fork') return null;
                 const askedHere = part.asked.filter((x) => cardsAbout(cards, x).length > 0);
                 return <div className="wk-actions">{learner !== null && askedHere.length > 0 && <button type="button" className="wk-btn" onClick={() => learnParts(part.label, askedHere, st !== 'done')} data-path-learn={id}>{st === 'done' ? W.review : W.start}</button>}</div>;
@@ -939,6 +998,24 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
 
   /* -- Navigation: eine Karte, die Brotkrumen folgen dem Zoom ----------------------------------------------- */
   const here = viewChain.length === 0 ? null : tree.regions.get(viewChain[viewChain.length - 1]) ?? null;
+  /*
+    2026-11-05 (Prompt 23, C5) — „SPRAWDŹ, CO WIESZ": die Kernfragen der Themen im Bild (das Gebiet, das es füllt; sonst die ganze
+    Karte), jede genau einmal ("mode": "once" — am Ende je Thema „umiesz" / „luka"); danach der Filter „Luki" und „Uzupełnij luki"
+    (alle Fragen der Lücken und eine Stichprobe der übrigen geprüften Themen — `selfCheck.ts`).
+  */
+  const runOnce = (title: string, list: readonly Card[]) => {
+    const free = list.filter((c) => !(learner?.progress.suspended.has(c.key) ?? false));
+    if (free.length === 0) { setNote(SC.checkNone); return; }
+    setNote(null);
+    setRunning({ key: `check:${Date.now()}`, source: { plan: readPlan(free, { mode: 'once', order: 'general', pick: 'next' }), cards, title } });
+  };
+  const selfCheck = learner === null ? null : {
+    label: here === null ? SC.check : SC.checkHere(here.name),
+    onCheck: () => runOnce(SC.checkTitle(here?.name ?? baseName), selfCheckCards(cards, here === null ? undefined : new Set(here.topics.map((x) => tg.graph.ids[x])))),
+    gaps: gapsT, checked: gapsNow.checked.size > 0,
+    onFill: gapsNow.gaps.size === 0 ? null : () => runOnce(SC.fillTitle(baseName), fillCards(cards, gapsNow.gaps, gapsNow.checked, Date.now().toString(36))),
+    words: SC
+  };
   const zoomTo = (key: string | null) => { setCommand(key === null ? { kind: 'fit', at: Date.now() } : { kind: 'region', key, at: Date.now() }); };
   const toMe = () => { if (next === null) { zoomTo(null); return; } showTopic(tg.graph.ids[next.t]); };
   const whole = () => zoomTo(null);
@@ -1015,7 +1092,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const leafStats = leaf === undefined ? undefined : regionStats.get(leaf);
     const dueHereN = dueCards.filter((c) => cardEntities(c).includes(chosenId)).length;
     return (
-      <TopicPanel key={chosenId} id={chosenId} info={chosenInfo} missing={missing} missingKnown={list !== null} opens={opensOf[chosenT].map((u) => tg.graph.ids[u])} story={story} dueCount={dueHereN}
+      <TopicPanel key={chosenId} id={chosenId} info={chosenInfo} questions={<TopicQuestions lib={lib} cards={cards} topic={chosenId} gauge={gauge} />} missing={missing} missingKnown={list !== null} opens={opensOf[chosenT].map((u) => tg.graph.ids[u])} story={story} dueCount={dueHereN}
         region={leafRegion === undefined || leafStats === undefined ? null : { name: leafRegion.name, all: leafStats.all, known: leafStats.known, key: leafRegion.key }}
         canLearn={learner !== null} note={note} lockCount={lockCount} bandOf={bandOf} stepsOf={(x) => infoById(x).steps}
         onLearnNow={(x) => startTopic(x)}
@@ -1125,7 +1202,23 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       {query.trim() !== '' && <SearchHits query={query} ids={tg.graph.ids} bandOf={bandOf} label={labelOf} goal={goal} onShow={selectTopic} onGoal={(id) => { setGoal(id); setSaid(W.goalSet(labelOf(id))); }} />}
       <div className="cg-ls-body">
         <div ref={mainRef} className="cg-ls-main">
-          {world !== null && (
+          {/* 2026-11-05 (Prompt 23, A4) — über einer Karte von Erzählungen: dieselben Gebiete als Gruppen ihrer Fragen. */}
+          {world !== null && storyUnits.size > 0 && (
+            <div className="cg-qls-tabs" role="group" aria-label={SW.tabsLabel} data-qls-tabs={qls}>
+              {(['stories', 'questions'] as const).map((m) => (
+                <button key={m} type="button" className={`cg-qls-tab${qls === m ? ' is-on' : ''}`} aria-pressed={qls === m} data-qls-tab={m}
+                  onClick={() => { if (m === qls) return; if (m === 'stories' && qlsUnit.current !== null && topicIndex.has(qlsUnit.current)) selectTopic(qlsUnit.current); qlsUnit.current = m === 'questions' ? chosenId : null; setQls(m); }}>{m === 'stories' ? SW.tabStories : SW.tabQuestions}</button>
+              ))}
+            </div>
+          )}
+          {world !== null && storyUnits.size > 0 && qls === 'questions' && (
+            <QuestionLandscape lib={lib} cards={cards} stand={(c) => ({ k: cardKnowness(gauge, c.key), seen: gauge.states.has(c.key) })} units={storyUnits} width={mapWidth} compact={compact}
+              memoryKey={`${lib.libraryId}:${viewKey}:questions:${learner === null ? 'me' : holderKey(learner.holder)}`} story={qlsUnit.current}
+              onStory={(unit) => { qlsUnit.current = null; setQls('stories'); if (topicIndex.has(unit)) selectTopic(unit); }}
+              onPractise={(title, list) => reviewCards(title, list)} onChoose={(unit) => { qlsUnit.current = unit; }}
+              onBranch={(unit, flowId) => { setPathMark(flowId); qlsUnit.current = null; setQls('stories'); keep.setUnit(unit); }} />
+          )}
+          {world !== null && (storyUnits.size === 0 || qls === 'stories') && (
             <WorldMap world={world} topics={worldTopics} regionName={regionName} conquered={conquered} chosen={chosenT} flash={flashT} home={next?.t ?? null} links={links} way={way}
               width={mapWidth} compact={compact} T={T} memoryKey={`${lib.libraryId}:${viewKey}:${learner === null ? 'me' : holderKey(learner.holder)}`} command={command}
               onPickTopic={pick} onView={setViewChain} onBackground={() => setChosen(null)} legend={legend}
@@ -1133,11 +1226,11 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
               onPiece={(x) => { const id = tg.graph.ids[x]; const flow = storyUnit(id); if (flow !== undefined) openStory(flow, false); else learnEntry(id); }}
               onFlag={() => { if (goal !== null) selectTopic(goal); }}
               onHome={(double) => { setChosen(null); setHomeOpen(double ? 'full' : 'panel'); }}
-              playback={lastPlay.current} onPlayback={onPlayback} replayLabel={MW.replay}
+              playback={lastPlay.current} onPlayback={onPlayback} replayLabel={MW.replay} selfCheck={selfCheck}
               /* 2026-11-05 — Doppelklick: auf einen Berg — der Weg dorthin beginnt; sonst das Thema selbst. */
               onStart={(x) => { const id = tg.graph.ids[x]; setChosen(id); if (learner === null) return; if (infoById(id).band === 'mountain') leadTo(id); else startTopic(id); }} />
           )}
-          {!wide && topicPanel !== null && chosenId !== null && <SheetBox label={labelOf(chosenId)} questKey={chosenId}>{topicPanel}</SheetBox>}
+          {!wide && topicPanel !== null && chosenId !== null && !(storyUnits.size > 0 && qls === 'questions') && <SheetBox label={labelOf(chosenId)} questKey={chosenId}>{topicPanel}</SheetBox>}
           {!wide && homePanel !== null && <SheetBox label="⌂" questKey="~home">{homePanel}</SheetBox>}
           {!wide && regionPanel}
         </div>
@@ -1187,10 +1280,12 @@ function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'land
 
 /* -- Das gewählte Thema: kurz und zum Handeln ------------------------------------------------------------------- */
 
-function TopicPanel({ id, info, missing, missingKnown, opens, story, dueCount, region, canLearn, note, lockCount, bandOf, stepsOf, onLearnNow, onStart, onLead, onShow, onPath, onClose, onRegion, owner, resign }: {
+function TopicPanel({ questions, id, info, missing, missingKnown, opens, story, dueCount, region, canLearn, note, lockCount, bandOf, stepsOf, onLearnNow, onStart, onLead, onShow, onPath, onClose, onRegion, owner, resign }: {
   id: string;
   /** 2026-11-05 — steht hier eine Figur: zurücktreten (`piece`: die eigene geht; `goal`: auch das Ziel wird aufgegeben). */
   resign: { readonly kind: 'piece' | 'goal'; readonly onResign: () => void } | null;
+  /** 2026-11-05 (Prompt 23, C3) — die Fragen des Themas, die Kernfragen zuerst. */
+  questions?: ReactNode;
   info: TopicInfo;
   /** Was noch fehlt (in der Reihenfolge des Lernens, was jetzt geht zuerst). */
   missing: readonly string[];
@@ -1246,6 +1341,7 @@ function TopicPanel({ id, info, missing, missingKnown, opens, story, dueCount, r
         <button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={onClose} data-landscape-quest-close="">×</button>
       </div>
       <p className="cg-ls-qstate" data-landscape-state={band}>{sentence}</p>
+      {questions}
       {band === 'mountain' && missingKnown && missing.length > 0 && (
         <div data-landscape-missing={missing.length}>
           <p className="cg-ls-qh">{T.needFirst}</p>

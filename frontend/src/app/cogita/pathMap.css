@@ -135,7 +135,7 @@
 .cg-pm-leader.is-fork { stroke: var(--wk-line-strong); }
 
 /* Der Name „jetzt dran" und die Zähler der Gabeln: in einer Spalte rechts der Karte (nie über einem Knoten). */
-.cg-pm-now, .cg-pm-fork { position: absolute; top: 0; pointer-events: none; font-size: var(--wk-text-xs); line-height: 1.25; }
+.cg-pm-now, .cg-pm-fork { position: absolute; top: 0; pointer-events: none; font-size: var(--wk-text-xs); line-height: 1.25; box-sizing: border-box; }
 .cg-pm-now {
   width: max-content; padding: 0.15rem 0.45rem; border-radius: var(--wk-radius-sm);
   background: var(--wk-surface); border: 2px solid var(--cg-pm-now); color: var(--wk-ink); font-weight: 600;
@@ -262,3 +262,62 @@
 .cg-flow-crumbs ol { display: contents; list-style: none; }
 .cg-flow-crumbs li { display: inline-flex; gap: 0.25rem; align-items: center; }
 .cg-flow-crumbs li + li::before { content: '›'; color: var(--wk-muted); }
+
+/*
+  2026-11-05 (Prompt 23, B) — ABSTECHER ALS ZWEIGE: ein Arm hinaus und zurück, ein grösseres Sechseck neben der Linie, aussen
+  der Name. Nicht betreten: blass, gestrichelt; ausgelassen: dünn; begonnen: halb gefüllt mit Zähler; ukończony: gefüllt
+  mit Haken. Immer auch in Worten (Fenster, aria) — nie nur die Farbe.
+*/
+.cg-pm-way.is-arm { stroke-width: 2.5; }
+.cg-pm.is-small .cg-pm-way.is-arm { stroke-width: 2; }
+.cg-pm-way.is-arm-new { stroke-dasharray: 5 4; }
+.cg-pm-way.is-arm-skipped { stroke-width: 1.4; stroke-dasharray: 2 4; }
+.cg-pm-way.is-arm-progress, .cg-pm-way.is-arm-done { stroke: var(--cg-pm-lit); }
+.cg-pm-node.is-branch .cg-pm-hex { stroke-width: 2.2; }
+.cg-pm-node.is-b-new .cg-pm-hex { fill: var(--cg-pm-lock); stroke: var(--cg-pm-lock-edge); stroke-dasharray: 4 3; }
+.cg-pm-node.is-b-new .cg-pm-icon { stroke: var(--wk-muted); }
+.cg-pm-node.is-b-skipped .cg-pm-hex { fill: var(--cg-pm-open); stroke: var(--cg-pm-lock-edge); stroke-width: 1.2; }
+.cg-pm-node.is-b-skipped .cg-pm-icon { stroke: var(--wk-muted); }
+.cg-pm-node.is-b-progress .cg-pm-hex { fill: var(--cg-pm-open); stroke: var(--cg-pm-lit); }
+.cg-pm-hex-fill { fill: var(--cg-pm-done); opacity: 0.55; pointer-events: none; }
+.cg-pm-node.is-b-done .cg-pm-hex { fill: var(--cg-pm-done); stroke: var(--cg-pm-done-edge); }
+.cg-pm-node.is-b-done .cg-pm-icon { stroke: var(--cg-pm-done-ink); }
+.cg-pm-node.is-branch.is-current .cg-pm-hex { stroke: var(--cg-pm-now); stroke-width: 3.5; }
+.cg-pm-node.is-branch.is-hl .cg-pm-hex, .cg-pm-node.is-branch.is-on .cg-pm-hex { stroke: var(--cg-pm-now); stroke-width: 3; stroke-dasharray: none; }
+.cg-pm-icon.is-check { stroke-width: 2.6; }
+.cg-pm-branch-count { fill: var(--wk-ink); font-size: var(--wk-text-xs); font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none; }
+.cg-pm-branch-name { fill: var(--wk-ink); font-size: var(--wk-text-xs); font-weight: 600; pointer-events: none; }
+.cg-pm.is-small .cg-pm-branch-name { font-size: var(--wk-text-xs); }
+.cg-pm-branch-q { fill: var(--wk-muted); font-weight: 400; }
+.cg-pm-node.is-b-new .cg-pm-branch-name, .cg-pm-node.is-b-skipped .cg-pm-branch-name { fill: var(--wk-ink-2); font-weight: 500; }
+.cg-pm-sub .cg-pm-hex { stroke-width: 1.5; }
+.cg-pm-sub.is-b-new .cg-pm-hex { fill: var(--cg-pm-lock); stroke: var(--cg-pm-lock-edge); stroke-dasharray: 3 2; }
+.cg-pm-sub.is-b-done .cg-pm-hex { fill: var(--cg-pm-done); stroke: var(--cg-pm-done-edge); }
+.cg-pm-sub.is-b-progress .cg-pm-hex { stroke: var(--cg-pm-lit); }
+.cg-pm-sub .cg-pm-icon.is-check { stroke: var(--cg-pm-done-ink); stroke-width: 2; }
+.cg-pm-sub-name { fill: var(--wk-ink-2); font-size: var(--wk-text-xs); }
+.cg-pm-return-ring { fill: none; stroke: var(--cg-pm-now); stroke-width: 1.5; stroke-dasharray: 3 3; pointer-events: none; }
+.cg-pm-return text { fill: var(--cg-pm-now); font-size: var(--wk-text-xs); font-weight: 600; pointer-events: none; }
+
+/*
+  2026-11-05 (Prompt 23, Nachtrag vom Nutzer) — „CO DALEJ" ALS PUNKTE WIE DIE ÜBRIGEN: was nach dieser Erzählung kommt, steht
+  als Sechseck in einer Reihe über dem Ende (wie die Knoten der Ścieżka), in einer eigenen Farbe (violett: nicht mehr diese
+  Erzählung); darunter kurz der Name — was dort wartet, warum noch nicht und der Knopf stehen im Fenster beim Tippen.
+*/
+.cg-pm { --cg-pm-next: #7c4fd0; --cg-pm-next-soft: rgb(124 79 208 / 0.16); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .cg-pm { --cg-pm-next: #b394f2; --cg-pm-next-soft: rgb(179 148 242 / 0.2); } }
+:root[data-theme='dark'] .cg-pm { --cg-pm-next: #b394f2; --cg-pm-next-soft: rgb(179 148 242 / 0.2); }
+.cg-pm-next-item { width: 6.25rem; padding: var(--wk-space-1) 0.2rem; border: 0; background: transparent; gap: 0.2rem; }
+.cg-pm-next-item.is-ready, .cg-pm-next-item.is-wait { border: 0; box-shadow: none; }
+.cg-pm-next-icon { width: 2.4rem; height: 2.4rem; }
+.cg-pm-next-icon .cg-pm-hex { fill: var(--cg-pm-next-soft); stroke: var(--cg-pm-next); stroke-width: 2; }
+.cg-pm-next-icon .cg-pm-icon { stroke: var(--cg-pm-next); }
+.cg-pm-next-item.is-ready .cg-pm-next-icon .cg-pm-hex { filter: drop-shadow(0 0 4px var(--cg-pm-next-soft)); }
+.cg-pm-next-item.is-wait .cg-pm-next-icon .cg-pm-hex { fill: transparent; stroke: var(--cg-pm-next); stroke-dasharray: 3 2; opacity: 0.7; }
+.cg-pm-next-item.is-map .cg-pm-next-icon .cg-pm-hex { fill: var(--cg-pm-open); stroke: var(--wk-line-strong); }
+.cg-pm-next-item.is-map .cg-pm-next-icon .cg-pm-icon { stroke: var(--wk-ink); }
+.cg-pm-next-name { font-size: var(--wk-text-xs); -webkit-line-clamp: 2; }
+.cg-pm-next-kind { display: none; }
+.cg-pm-next-item::after, .cg-pm-next-item:not(:last-child)::before { border-color: var(--cg-pm-next); }
+.cg-pm-next-way { stroke: var(--cg-pm-next); }
+.cg-pm-next-h { color: var(--cg-pm-next); }

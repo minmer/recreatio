@@ -10,8 +10,9 @@
 
 import type { Card } from './cardBasics';
 import { readFlow, type Flow } from './flow';
-import { learnerFlows, storyStage, storyUnitsOf } from './flowFacts';
-import { chainNeeds, gaugeFromMarks, itemKnowness, withFlows, type Gauge } from './knowing';
+import { cardOfQuestion, flowQuestionsKnown, learnerFlows, storyStage, storyUnitsOf } from './flowFacts';
+import { cardKnowness, chainNeeds, gaugeFromMarks, itemKnowness, withFlows, type Gauge } from './knowing';
+import { KNOWN } from './knowness';
 import { spacingFor } from './spacing';
 import { isLearned } from './landscape';
 import { lockCards } from './landscapeData';
@@ -57,7 +58,8 @@ function lockContext(lib: CogitaLibrary, cards: readonly Card[], learner: Learne
   const flows = learnerFlows(lib, learner.progress.positions);
   const learned = (id: string): boolean => {
     const story = stories.get(id);
-    if (story !== undefined) return storyStage(story, flows.get(story.id)) === 'passed';
+    /* 2026-11-05 (Prompt 23, C4) — auch, wenn jede ihrer Fragen gekonnt ist. */
+    if (story !== undefined) return storyStage(story, flows.get(story.id), flowQuestionsKnown(story, cardOfQuestion(cards), (key) => cardKnowness(gauge, key) >= KNOWN)) === 'passed';
     return isLearned(itemKnowness(gauge, id));
   };
   return { lib, cards, learner, gauge, graph, stories, learned, order: authorOrder(lib) };

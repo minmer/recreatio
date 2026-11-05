@@ -91,6 +91,15 @@ export function blockOf(value: unknown, keep = false): CommentBlock | null {
     const text = line(r.text);
     return text.trim() === '' && !keep ? null : { type, text };
   }
+  /*
+    2026-11-05 (Prompt 23, D10) — {"type": "details", "summary": "Beweisidee", "text": "…"}: ein Absatz zum Aufklappen. Er
+    wird zu einem Absatz im Zapis `::: details Beweisidee` … `:::` (so zeigt ihn jeder Leser zu, mit seiner Überschrift).
+  */
+  if (type === 'details') {
+    const text = line(r.text);
+    if (text.trim() === '' && !keep) return null;
+    return { type: 'paragraph', text: `::: details ${line(r.summary).replace(/\s+/g, ' ').trim()}\n${text}\n:::` };
+  }
   if (type === 'ordered' || type === 'unordered') {
     const items = (Array.isArray(r.items) ? r.items : []).map(cell);
     return items.length === 0 && !keep ? null : { type, items };

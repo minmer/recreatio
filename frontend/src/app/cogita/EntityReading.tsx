@@ -36,6 +36,10 @@ import { citedPlaces, formatReading, leadAt, leadPlain, leadShape, readingParts,
 import { fieldsOf, fieldText, kindsOf, labelOf, patternKeys, placeText, plainOf, valuesOf, type Entity, type FieldDef } from './schema';
 import type { CogitaLibrary } from './store';
 import { originPath } from './ui';
+import { isSlideEntity, storyOfUnit } from './slideLib';
+import { SlideActions, SlideBody } from './SlideView';
+import { slideWords } from './slideWords';
+import { baseLang } from './lang';
 
 const PROSE: ReadonlySet<string> = new Set(['markup', 'text', 'blocks']);
 const WHEN: ReadonlySet<string> = new Set(['date', 'range']);
@@ -313,11 +317,16 @@ export function EntityReading({ lib, entity, onEntity, variant = 'line' }: {
   const r = readingOf(lib, entity);
   const href = onEntity === undefined ? openHref(lib, entity.id) : undefined;
   const lead = variant === 'line' ? firstSentence(r.lead) : r.lead;
+  /* 2026-11-05 (Prompt 23, A1/A5) — eine Folie einer Erzählung: wie im Spieler gezeichnet, mit „Zobacz w opowieści“; die Einheit einer Erzählung („Część opowieści“): die Erzählung von Anfang an. */
+  const slide = isSlideEntity(lib, entity.id);
+  const unitFlow = slide ? null : storyOfUnit(lib, entity.id);
+  const SW = slide || unitFlow !== null ? slideWords(baseLang(lib)) : null;
   return (
-    <div className={`cg-reading is-${variant}${open ? ' is-open' : ''}`} data-reading={entity.id}>
+    <div className={`cg-reading is-${variant}${open ? ' is-open' : ''}${slide ? ' is-slide' : ''}${unitFlow !== null ? ' is-story' : ''}`} data-reading={entity.id} {...(slide ? { 'data-reading-slide': '' } : {})} {...(unitFlow !== null ? { 'data-reading-story': unitFlow } : {})}>
       <button type="button" className="cg-reading-head" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((x) => !x)}>
         <span className="cg-reading-chevron" aria-hidden>{open ? '▾' : '▸'}</span>
         <span className="cg-reading-line">
+          {SW !== null && <span className="cg-reading-tag">{slide ? SW.slide : SW.storyPart}</span>}
           {/* 2026-11-01 — Titel und Anriss setzen ihre Wzory; ohne Wzór steht der Text wie bisher. */}
           <strong className="cg-reading-title"><TexText text={r.titleTex} /></strong>
           {!open && lead !== '' && lead !== r.title && (
@@ -327,7 +336,7 @@ export function EntityReading({ lib, entity, onEntity, variant = 'line' }: {
       </button>
       {open && (
         <div className="cg-reading-body" id={bodyId}>
-          {r.shown !== undefined ? <ReadingMarkup lib={lib} text={r.shown} onEntity={onEntity} short={false} /> : (
+          {slide ? <SlideBody lib={lib} entity={entity} {...(onEntity === undefined ? {} : { onEntity })} /> : r.shown !== undefined ? <ReadingMarkup lib={lib} text={r.shown} onEntity={onEntity} short={false} /> : (
             <>
               {r.summary !== undefined && <section className="cg-reading-part"><ReadingField lib={lib} entity={entity} field={r.summary} onEntity={onEntity} /></section>}
               {r.prose.map((f, i) => (
@@ -339,6 +348,7 @@ export function EntityReading({ lib, entity, onEntity, variant = 'line' }: {
               <ReadingMeta lib={lib} r={r} />
             </>
           )}
+          {(slide || unitFlow !== null) && <SlideActions lib={lib} entity={entity} unitFlow={unitFlow} questions={slide} />}
           {onEntity !== undefined
             ? <button type="button" className="wk-link-btn cg-reading-open" onClick={() => onEntity(entity.id)}>Otwórz wpis</button>
             : href !== undefined && <a className="wk-link-btn cg-reading-open" href={href}>Otwórz wpis</a>}

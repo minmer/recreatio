@@ -12,6 +12,8 @@ import { DATE_UNREAD, dateAsked, PRECISION_ASK, readDateAnswer, spansOf, withHin
 import { BuildAnswer } from './BuildAnswer';
 import { CodeAnswer, CodeResult, storedCodeGiven } from './CodeAnswer';
 import { ExplainList } from './EntityReading';
+import { isSlideEntity } from './slideLib';
+import { leadingSlides } from './slideLinks';
 import { GapAnswer } from './GapAnswer';
 import { OrderAnswer } from './OrderAnswer';
 import { GeoMap } from './GeoMap';
@@ -535,7 +537,9 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   /* 2026-11-01 — mehrere Lücken stehen mit ihren Marken im Text — dort das Ergebnis. */
   const onAnswer = marked && (MARKED_FORMS.has(a.form) || (a.form === 'gap' && a.gaps !== undefined));
   /* 2026-10-31 — zuerst das Thema der Frage („O czym”), dann, was sie zur Erklärung nennt; alles zugeklappt. */
-  const explainIds = lib === undefined ? [] : [...(card.about ?? []), ...card.explain];
+  /* 2026-11-05 (Prompt 23, A1) — führen Folien einer Erzählung die Erklärung an, stehen sie zuerst (wie im Spieler gezeichnet); das Thema folgt wie bisher. */
+  const lead = lib === undefined ? [] : leadingSlides(card.explain, (id) => isSlideEntity(lib, id));
+  const explainIds = lib === undefined ? [] : [...lead, ...(card.about ?? []), ...card.explain.filter((x) => !lead.includes(x))];
   /* 2026-11-01 — richtig, aber mit Podpowiedź: das zählt weniger — und es steht da. */
   const hinted = outcome.correct && (outcome.hints ?? 0) > 0;
   /* 2026-11-05 (Prompt 17) — teilweise richtig: der Anteil zählt hoch, nachdem die Teile ihr Ergebnis gezeigt haben. */

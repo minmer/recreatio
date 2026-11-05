@@ -112,5 +112,14 @@ export function flowProblems(flow: Flow, label: (id: string) => string = (id) =>
     while (back.length > 0) { const id = back.pop()!; if (ok.has(id)) continue; ok.add(id); for (const p of into.get(id) ?? []) back.push(p); }
     for (const id of reach) if (!ok.has(id)) out.push({ level: 'warning', text: `Ślepy zaułek: z kroku ${name(id)} nie da się dojść do końca (pętla bez wyjścia).`, step: id });
   }
+  /* 2026-11-05 (Prompt 23, D4) — ein Przegląd in einem Schritt prüft die Fragen der Erzählung: ohne Fragen prüft er nichts. */
+  const asks = flow.graph.nodes.some((n) => n.type === 'question');
+  for (const n of flow.graph.nodes) {
+    if (n.type !== 'review') continue;
+    const of = typeof n.config.of === 'string' ? n.config.of.trim() : '';
+    if ((of === '' || of === 'story') && !asks) out.push({ level: 'warning', text: `Przegląd ${name(n.id)} nie ma czego sprawdzać: w tym przebiegu nie ma kroków „Pytanie”.`, step: n.id });
+    const t = n.config.threshold;
+    if (t !== undefined && (typeof t !== 'number' || !Number.isFinite(t) || t < 0 || t > 100)) out.push({ level: 'warning', text: `Przegląd ${name(n.id)}: "threshold" to liczba od 0 do 1 (np. 0.9) — przyjęto 0.9.`, step: n.id });
+  }
   return out;
 }

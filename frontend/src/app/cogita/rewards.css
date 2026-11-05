@@ -196,8 +196,8 @@
 .cg-rw-medal.is-none { --m-edge: var(--wk-line-strong); background: var(--wk-sunk); border-style: dashed; border-width: 0.12rem; color: var(--wk-muted); }
 
 /* Die Stufen als Punkte: erreichte im Stoff, offene als Ring; der Diamant als Raute. */
-.cg-rw-pips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.22rem; }
-.cg-rw-pips i { width: 0.62rem; height: 0.62rem; box-sizing: border-box; border-radius: 50%; border: 0.1rem solid var(--wk-line-strong); background: transparent; }
+.cg-rw-pips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.16rem; }
+.cg-rw-pips i { width: 0.5rem; height: 0.5rem; box-sizing: border-box; border-radius: 50%; border: 0.1rem solid var(--wk-line-strong); background: transparent; }
 .cg-rw-pips i.is-m4 { border-radius: 0; transform: rotate(45deg) scale(0.86); }
 .cg-rw-pips i.is-on.is-m0 { background: var(--cg-rw-m0); border-color: var(--cg-rw-m0-edge); }
 .cg-rw-pips i.is-on.is-m1 { background: var(--cg-rw-m1); border-color: var(--cg-rw-m1-edge); }

@@ -124,7 +124,8 @@ const ANSWER = new Set(['right', 'wrong']);
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /** Ein Ausgang, der fehlen darf: „dalej" einer Szene, die anders weitergeht (eine Frage auf ihr, ihre Knöpfe). */
-export const optionalExit = (type: string, exit: string, others: number): boolean => type === 'scene' && exit === 'next' && others > 0;
+/* 2026-11-05 (Prompt 23, D4) — „notyet" eines Przegląd ohne Weg: die Erzählung endet mit noch nicht bestandenem Przegląd („Powtórz przegląd" am Ende). */
+export const optionalExit = (type: string, exit: string, others: number): boolean => (type === 'scene' && exit === 'next' && others > 0) || (type === 'review' && exit === 'notyet');
 
 /**
  * Die Arbeit eines Schrittes eines gewöhnlichen Ablaufs: Pokaż und Verwandtes ein Bild, eine Frage eine Frage (ihre
@@ -265,6 +266,8 @@ export function storyPath(flow: Flow, work: WorkOfStep, label: (id: string) => s
   const A1 = walk(rawForward);
   const review = new Set<string>();
   const heads = new Set<string>();
+  /* 2026-11-05 (Prompt 23, D4) — ein Schritt „review" ist der Przegląd (ein Knoten statt der Schleife je Frage). */
+  for (const n of flow.graph.nodes) if (n.type === 'review' && A1.reach.has(n.id)) review.add(n.id);
   for (const key of A1.back) {
     const [u, v] = key.split('>');
     /* Ein Weg zurück zu einer Wahl ist eine Schleife der Wahl, kein Przegląd. */

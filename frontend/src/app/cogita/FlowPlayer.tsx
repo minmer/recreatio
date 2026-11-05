@@ -34,10 +34,12 @@ import type { Outcome } from './check';
 import { questionCard } from './cards';
 import { type Card } from './cardBasics';
 import {
-  chaptersLeft, detourRefused, follow, goalsReached, linesNow, markSaid, optionsOf, readFlow, resolveFlow, STEP_LABEL,
+  chaptersLeft, detourRefused, follow, goalsReached, linesNow, markSaid, optionsOf, readFlow, resolveFlow, reviewOf, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext
 } from './flow';
-import { detourOf, detourState, openDetours, requiredOpen } from './detour';
+import { detourOf, detourState, openDetours, requiredOpen, type DetourConfig } from './detour';
+import { DetourCard, summaryField } from './DetourCard';
+import { branchesOf, type BranchContext } from './pathBranches';
 import type { EntriesOfStep } from './flowPath';
 import { branchIds, branchParts, branchWork, chapterOfSteps, stepWorkOf, storyMarks, storyPath, type WorkOfStep } from './storyPath';
 import { chaptersKept, flowFactsOf, mergeGoals } from './flowFacts';
@@ -55,11 +57,16 @@ import type { MediaRef } from './schema';
 import type { CogitaLibrary } from './store';
 import { CogitaContext, Markup, MediaView, originPath } from './ui';
 import { readPlan } from './revision';
+import { ReviewStep } from './ReviewStep';
+import { slideDrawingText, WithSlideDrawing } from './SlideDrawing';
+import { reviewCards } from './reviewRound';
 import { RevisionRun, type RunSource } from './RevisionRun';
 import { backDepths, backTo, decideBy, detourIn, enterAt, insideOf, resumeInside, startRun, stepRun, type RunStep, type StoryFinished, type StoryRun } from './runningStory';
 import { directStartLock, OPEN_LOCK, storyAround } from './storyLock';
 import { storyWork } from './storyNext';
 import { readView } from './views';
+import { isSlideEntity, slideQuestionIds } from './slideLib';
+import { slideWords } from './slideWords';
 import { Loading } from '../ui/Loading';
 import { TexText } from '../ui/tex/Tex';
 import './story.css';
@@ -164,6 +171,12 @@ export function storyPathOf(flow: Flow, content: FlowContent, decide?: (node: Gr
       }
       const w = inner.get(ref);
       if (w != null) return { slides: Math.max(1, w.slides), questions: w.questions, shown: [], asked: [] };
+    }
+    /* 2026-11-05 (Prompt 23, D4) — ein Przegląd in einem Schritt: so viele Fragen, wie er prüft (die der Erzählung). */
+    if (node.type === 'review') {
+      const rc = reviewOf(flow, node);
+      const asked = rc === null ? [] : reviewCards(flow, rc, content.card, (r) => content.flow(content.flowRef?.(r) ?? r));
+      return { slides: 0, questions: asked.length, shown: [], asked: [...new Set(asked.flatMap((c) => (c.about ?? []).length > 0 ? [...c.about!] : [c.entity ?? c.question]))] };
     }
     return base(node);
   };
@@ -540,14 +553,47 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     return w;
   };
   /* Ein Knoten der Ścieżka, der ein Abstecher ist: sein Schritt und seine Erzählung. */
-  const detourAt = (id: string): { readonly step: string; readonly inner: Flow } | null => {
+  const detourAt = (id: string): { readonly step: string; readonly inner: Flow; readonly config: DetourConfig } | null => {
     const part = sp.parts[sp.model.index.get(id) ?? -1];
     if (part?.kind !== 'detour' || part.steps.length === 0) return null;
     const n = stepNode.get(part.steps[0]);
     const d = n === undefined ? null : detourOf(n);
     const inner = d === null || d.flow === '' ? undefined : flowOf(d.flow);
-    return inner === undefined ? null : { step: part.steps[0], inner };
+    return inner === undefined ? null : { step: part.steps[0], inner, config: d! };
   };
+  /* 2026-11-05 (Prompt 23, B4/A8) — die Karte eines Abstechers (im Schritt und im Fenster seines Zweiges), mit dem Satz seiner Einheit. */
+  const unitSummary = (f: Flow): string => (f.unit === undefined ? '' : summaryField(content.entity(f.unit)?.fields));
+  const detourCardOf = (d: DetourConfig, inner: Flow) => {
+    const known = innerDone(inner.id);
+    const kept = posOf(inner.id);
+    return {
+      name: inner.name, label: d.label, summary: unitSummary(inner), work: innerWork(inner), optional: d.optional, known,
+      started: !known && kept !== undefined && (kept.visited.length > 1 || (kept.inside?.length ?? 0) > 0),
+      refused: detourRefused(state, inner.id, flowOf), W, onEnter: (fresh: boolean) => enterDetour(inner, fresh), flowId: inner.id
+    };
+  };
+  /* 2026-11-05 (Prompt 23, B2–B5) — was die Zweige der Ścieżka zeigen (`pathBranches.ts`). */
+  const branchCtx: BranchContext = { flowOf, position: posOf, done: innerDone, card: content.card, marks: marksOf, summary: unitSummary, words: W };
+  const branchMap = branchesOf(sp, running, branchCtx, { visited: state.visited, step: state.step });
+  /*
+    2026-11-05 (Prompt 23, B6) — IM ABSTECHER: die Ścieżka der rufenden Erzählung, „TERAZ" auf ihrem Zweig, und wo die Linie
+    weitergeht, wenn er zurückkommt („tu wrócisz"); darunter die eigene Ścieżka der inneren Erzählung.
+  */
+  const callerFrame = state.stack.length > 0 && depths.length > 0 ? state.stack[state.stack.length - 1] : null;
+  const caller = callerFrame === null ? undefined : flowOf(callerFrame.flow);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const callerSp = useMemo(() => (caller === undefined ? null : storyPathOf(caller, content)), [caller?.id, content]);
+  const callerVisited = run.outer[run.outer.length - 1] ?? [];
+  const callerMarks = callerSp === null || callerFrame === null ? null : storyMarks(callerSp, { visited: callerVisited, step: callerFrame.step, ...(knowNow === undefined ? {} : { know: knowNow }) });
+  const callerBranches = callerSp === null || caller === undefined || callerFrame === null ? null : branchesOf(callerSp, caller, branchCtx, { visited: callerVisited, step: callerFrame.step });
+  const callerReturn = (() => {
+    if (callerSp === null || callerFrame === null || callerFrame.step === null) return null;
+    const v = callerSp.partOfStep.get(callerFrame.step);
+    const b = v === undefined ? undefined : callerSp.model.nodes[v]?.branch;
+    return b === undefined || b.rejoin === null ? null : callerSp.model.nodes[b.rejoin].id;
+  })();
+  /* 2026-11-05 (Prompt 23, B7) — in „Co dalej“: wo der Abstecher abzweigt („po slajdzie 2“). */
+  const whereOfStep = (step: string): string => { const v = sp.partOfStep.get(step); return v === undefined ? '' : branchMap.get(sp.model.nodes[v]?.id ?? '')?.where ?? ''; };
   const [hovered, setHovered] = useState<ReadonlySet<string> | null>(null);
   /* Im Kapitel bleibt seine Spur hervorgehoben. */
   const inChapter = state.chapter === null ? null : branchIds(sp, state.chapter.hub, `c${state.chapter.index}`);
@@ -661,7 +707,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const startFree = (f: Flow) => { keepFree(f.id); startStory(f); };
   const detourNext: PathNext[] = ahead === null ? [] : openDetours(running, innerDone, (r) => flowOf(r)?.id ?? null).flatMap((d): PathNext[] => {
     const f = flowOf(d.target);
-    return f === undefined || f.id === running.id ? [] : [{ id: `detour:${f.id}`, label: f.name, kind: 'story', ready: true, work: innerWork(f), note: W.detourNote, action: { label: W.startStory, run: () => startFree(f) } }];
+    return f === undefined || f.id === running.id ? [] : [{ id: `detour:${f.id}`, label: f.name, kind: 'story', ready: true, work: innerWork(f), note: [W.detourNote, whereOfStep(d.step)].filter(Boolean).join(' · '), action: { label: W.startStory, run: () => startFree(f) } }];
   });
   const nextItems: PathNext[] | undefined = ahead === null ? undefined : (() => {
     const inDetours = new Set(detourNext.map((x) => x.id.slice('detour:'.length)));
@@ -682,9 +728,21 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
           {depths.length > 0 && trail.length > 0 && (
             <button type="button" className="cg-story-path-inside" onClick={() => goBack(depths[0])} data-story-path-inside={trail[trail.length - 1].id}>{W.insidePath(trail[trail.length - 1].name)}</button>
           )}
+          {/* 2026-11-05 (Prompt 23, B6) — im Abstecher: die rufende Erzählung mit „TERAZ" auf ihrem Zweig und „tu wrócisz". */}
+          {caller !== undefined && callerSp !== null && callerMarks !== null && callerSp.model.nodes.length > 1 && (
+            <div className="cg-story-path-caller" data-story-path-caller={caller.id}>
+              <PathMap key={`caller:${caller.id}`} model={callerSp.model} marks={callerMarks} size="small" words={W} title={`${W.pathTitle}: ${caller.name}`}
+                branches={(id) => callerBranches?.get(id) ?? null} returnAt={callerReturn} />
+            </div>
+          )}
           <PathMap key={running.id} model={pathModelNow} marks={pathNow} size="small" words={W} collapsible open={pathOpen} title={`${W.pathTitle}: ${running.name}`}
-            detail={(id) => { const x = detourAt(id); return x === null ? null : [x.inner.name, innerWork(x.inner), innerDone(x.inner.id) ? W.detourKnown : ''].filter(Boolean).join(' · '); }}
-            actions={(id) => { const x = detourAt(id); return x === null ? null : <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => { jumpToStep(x.step); enterDetour(x.inner, false); }} data-path-detour-open={x.inner.id}>{W.detourOpen}</button></div>; }}
+            branches={(id) => branchMap.get(id) ?? null}
+            actions={(id) => {
+              const x = detourAt(id);
+              if (x === null) return null;
+              /* Die Karte des Abstechers; „Dalej bez tego" nur, wo der Lernende gerade an ihm steht. */
+              return <DetourCard {...detourCardOf(x.config, x.inner)} onEnter={(fresh) => { jumpToStep(x.step); enterDetour(x.inner, fresh); }} {...(state.step === x.step ? { onExit: (e: 'done' | 'skip') => go(e) } : {})} />;
+            }}
             onOpen={(v) => { setPathOpen(v); keepOpen(flow.id, v); }} highlight={hovered ?? inChapter} {...(nextItems === undefined ? {} : { next: nextItems })}
             tools={(
               <span className="cg-pm-tools cg-story-path-width" role="group" aria-label={W.pathTitle}>
@@ -703,12 +761,15 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     const k = node.config;
     const id = typeof k.of === 'string' ? k.of : typeof k.explain === 'string' ? k.explain : stItem ?? '';
     const media = typeof k.media === 'object' && k.media !== null ? k.media as MediaRef : null;
+    const shownEntity = id === '' ? null : content.entity(node.type === 'expand' && typeof k.explain === 'string' ? k.explain : id);
+    /* 2026-11-05 (Prompt 23, D1) — ein Rysunek neben dem Text der Folie ("drawing" im Schritt oder ein Feld des Eintrags). */
+    const drawingText = node.type === 'show' ? slideDrawingText(k.drawing, shownEntity) : null;
     return (
-      <>
+      <WithSlideDrawing text={drawingText} identity={`${running.id}:${node.id}`} broken={W.slideDrawingBroken}>
         {node.type === 'opening' && <p className="cg-muted">{k.mode === 'discovery' ? 'Zanim przeczytasz — jak myślisz?' : 'Przypomnij sobie:'}</p>}
         {media !== null && <MediaView media={media} />}
-        {id !== '' && <EntityView entity={content.entity(node.type === 'expand' && typeof k.explain === 'string' ? k.explain : id)} />}
-      </>
+        {id !== '' && <EntityView entity={shownEntity} />}
+      </WithSlideDrawing>
     );
   };
   /*
@@ -734,7 +795,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
             <CardPrompt parts={card.prompt} />
             {drawn && <AnswerInput card={card} autoFocus={false} lang={W.lang} reveal={{ outcome: a.outcome, given: a.given }} onSubmit={() => undefined} />}
             {said !== '' && <p className="cg-flow-past-given"><span className="cg-muted">{W.yourAnswer}:</span> {said}</p>}
-            {a !== undefined && <Verdict card={card} outcome={a.outcome} given={a.given} showGiven={false} marked />}
+            {a !== undefined && <Verdict card={card} outcome={a.outcome} given={a.given} showGiven={false} marked {...(cg === null ? {} : { lib: cg.lib })} />}
           </section>
         );
       }
@@ -928,7 +989,9 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   }
 
   const c = current.config;
-  const title = typeof c.title === 'string' && c.title !== '' ? c.title : null;
+  /* 2026-11-05 (Prompt 23, A7a) — der Titel des Schrittes; ohne ihn bei einer Folie (Feld „blocks“) ihr eigener (ihr Name, z. B. „tytul“). */
+  const slideTitle = (current.type === 'show' || current.type === 'expand') && typeof c.of === 'string' && c.of !== '' ? (() => { const e = content.entity(content.resolve?.(c.of as string) ?? (c.of as string)); return e !== null && e.fields.some((f) => f.type === 'blocks') ? e.label : null; })() : null;
+  const title = typeof c.title === 'string' && c.title !== '' ? c.title : slideTitle;
   const item = state.item === undefined ? null : content.entity(state.item);
   /* 2026-11-05 — wer erzählt, steht nicht mehr da (der Eigentümer: „remove completely"); die Erzähler wirken nur noch in Präsentationen. */
 
@@ -965,7 +1028,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         return (
           <>
             <AskHead W={W} left={left} done={askedHere} card={shown} spacer={spacer !== null} marks={marksOf} topic={(id) => content.label?.(id) ?? content.entity(id)?.label ?? id} story={running.name} />
-            <CardFace key={`${shown.key}:${spacer !== null ? 's' : 'q'}:${visit}`} card={shown} lang={W.lang}
+            <CardFace key={`${shown.key}:${spacer !== null ? 's' : 'q'}:${visit}`} card={shown} lang={W.lang} {...(cg === null ? {} : { lib: cg.lib })}
               onAnswered={(outcome, given) => {
                 /* Ein Przerywnik ändert den Plan nur, wenn er falsch beantwortet wird. */
                 if (spacer !== null) { if (!outcome.correct) learner?.record(shown, outcome.correctness, { via: running.id }); setAnsweredOn({ step: `spacer:${current.id}`, correct: outcome.correct }); return; }
@@ -1073,6 +1136,18 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         return next(() => go(holds(readCondition(c.condition), facts(state)) ? 'yes' : 'no'));
       case 'set':
         return next(() => go('next'));
+      /* 2026-11-05 (Prompt 23, D4) — der Przegląd in einem Schritt: die noch nicht gekonnten Fragen der Erzählung, dann das Ergebnis. */
+      case 'review': {
+        const rc = reviewOf(running, current)!;
+        return (
+          <ReviewStep key={`${current.id}:${visit}`} cards={reviewCards(running, rc, content.card, flowOf)} known={(card) => marksOf !== null && isKnown(card, marksOf)} threshold={rc.threshold} W={W}
+            onAnswer={(card, outcome, given) => {
+              learner?.record(card, outcome.correctness, { via: running.id, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(card.params === undefined ? {} : { params: card.params }) });
+              onAnswer?.(current.id, card, outcome.correctness, given);
+            }}
+            onDone={(passed) => go(passed ? 'passed' : 'notyet')} />
+        );
+      }
       /*
         2026-11-04 (Prompt 13) — EIN ABSTECHER: die andere Erzählung beim Namen, was dort wartet, „Wejdź" und „Dalej bez tego";
         schon ukończona — „już znasz", „Przypomnij" und „Dalej"; Pflicht ("optional": false) — nur „Wejdź".
@@ -1082,36 +1157,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         const inner = d.flow === '' ? undefined : flowOf(d.flow);
         const on = (exit: 'done' | 'skip') => go(exit);
         if (inner === undefined) return <><p className="wk-note" data-flow-detour-missing="">{W.detourMissing}</p>{next(() => on(d.optional ? 'skip' : 'done'))}</>;
-        const refused = detourRefused(state, inner.id, flowOf);
-        const known = innerDone(inner.id);
-        const kept = posOf(inner.id);
-        const started = !known && kept !== undefined && (kept.visited.length > 1 || (kept.inside?.length ?? 0) > 0);
-        return (
-          <div className={`cg-detour${known ? ' is-known' : ''}`} data-flow-detour={inner.id} data-flow-detour-state={known ? 'known' : started ? 'started' : 'new'} data-flow-detour-optional={d.optional ? '1' : '0'}>
-            <p className="cg-muted">{d.label !== '' ? <TexText text={d.label} /> : W.detourAsk(inner.name)}</p>
-            <p className="cg-detour-name"><TexText text={inner.name} /></p>
-            <p className="cg-muted" data-flow-detour-work="">{[innerWork(inner), known ? W.detourKnown : started ? W.detourStarted : ''].filter(Boolean).join(' · ')}</p>
-            {refused !== null ? (
-              <>
-                <p className="wk-note" data-flow-detour-refused={refused}>{refused === 'cycle' ? W.detourCycle : W.detourDeep}</p>
-                {next(() => on(d.optional ? 'skip' : 'done'))}
-              </>
-            ) : known ? (
-              <div className="wk-actions">
-                <button type="button" className="wk-btn" onClick={() => on('done')} autoFocus data-flow-detour-on="">{W.goOn}</button>
-                <button type="button" className="wk-btn wk-btn-line" onClick={() => enterDetour(inner, true)} data-flow-detour-remind="">{W.detourRemind}</button>
-              </div>
-            ) : (
-              <>
-                {!d.optional && <p className="cg-muted" data-flow-detour-required="">{W.detourRequired}</p>}
-                <div className="wk-actions">
-                  <button type="button" className="wk-btn" onClick={() => enterDetour(inner, false)} autoFocus data-flow-detour-enter="">{W.detourEnter}</button>
-                  {d.optional && <button type="button" className="wk-btn wk-btn-line" onClick={() => on('skip')} data-flow-detour-skip="">{W.detourSkip}</button>}
-                </div>
-              </>
-            )}
-          </div>
-        );
+        /* 2026-11-05 (Prompt 23, B4/A8) — dieselbe Karte wie im Fenster eines Zweiges der Ścieżka (`DetourCard`), mit dem Satz ihrer Einheit. */
+        return <DetourCard {...detourCardOf(d, inner)} next={next} onExit={on} autoFocus />;
       }
       /* 2026-10-22 (Schritt 12) — eine Szene einer Präsentation in einem gewöhnlichen Ablauf: ihr Name und der Weg zu ihr. */
       case 'scene': {
@@ -1149,7 +1196,19 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       ...(stepTitle === null ? [] : [{ label: stepTitle }])
     ];
   };
-  const menu = { fromStart: restart, ...(learner === null ? {} : { forget }) };
+  /* 2026-11-05 (Prompt 23, A3) — eine Folie mit Fragen: im ⋯ „Pytania do tego slajdu (N)“ — eine kurze Powtórka mit genau diesen Karten. */
+  const slideHere = (() => {
+    if (cg === null || (current.type !== 'show' && current.type !== 'expand')) return null;
+    const raw = typeof current.config.of === 'string' ? current.config.of : '';
+    const id = raw === '' ? null : content.resolve?.(raw) ?? raw;
+    if (id === null || !isSlideEntity(cg.lib, id)) return null;
+    const qs = new Set(slideQuestionIds(cg.lib, id));
+    const list = (content.cards ?? []).filter((x) => qs.has(x.question));
+    if (list.length === 0) return null;
+    const SW = slideWords(W.lang);
+    return { label: SW.slideQuestions(qs.size), run: () => setTopicRun({ key: `slide:${id}:${Date.now()}`, source: { plan: readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: Math.min(20, list.length), endWhenDone: true }), cards: content.cards ?? [], title: SW.practiseTitle(name(id)) } }) };
+  })();
+  const menu = { fromStart: restart, ...(learner === null ? {} : { forget }), ...(slideHere === null ? {} : { slide: slideHere }) };
   const partNow = state.step === null ? undefined : sp.parts[sp.partOfStep.get(state.step) ?? -1];
   const progress = (() => {
     if (partNow?.kind === 'review') {
@@ -1255,7 +1314,7 @@ function StoryHead({ W, back, crumbs, menu, progress }: {
   W: ReturnType<typeof words>;
   back: { readonly label: string; readonly run: () => void; readonly detour?: string } | null;
   crumbs: readonly StoryCrumb[];
-  menu: { readonly fromStart: () => void; readonly forget?: () => void };
+  menu: { readonly fromStart: () => void; readonly forget?: () => void; readonly slide?: { readonly label: string; readonly run: () => void } };
   progress?: { readonly label: string; readonly share: number; readonly review: boolean };
 }) {
   const box = useRef<HTMLDetailsElement | null>(null);
@@ -1279,6 +1338,7 @@ function StoryHead({ W, back, crumbs, menu, progress }: {
         <details ref={box} className="cg-story-menu" data-flow-menu="">
           <summary aria-label={W.moreTools} title={W.moreTools}>⋯</summary>
           <div className="cg-story-menu-body">
+            {menu.slide !== undefined && <button type="button" className="wk-link-btn" onClick={() => { close(); menu.slide!.run(); }} data-flow-slide-questions="">{menu.slide.label}</button>}
             <button type="button" className="wk-link-btn" onClick={() => { close(); menu.fromStart(); }} data-flow-restart="">{W.fromStart}</button>
             {menu.forget !== undefined && <button type="button" className="wk-link-btn is-danger" onClick={() => { close(); menu.forget!(); }} data-flow-forget="">{W.forgetStory}</button>}
           </div>

@@ -1017,14 +1017,19 @@ export function useLibraryStore(ring: Ring | null, library: Pick<LibraryRow, 'li
   readonly failed: string | null;
 } {
   const store = ring === null || library === null ? null : storeOf(ring, library);
-  const [revision, setRevision] = useState(store?.revision ?? 0);
+  /*
+    2026-11-05 (Prompt 23) — ein Zähler statt der Revision als Zustand: wechselt die Bibliothek (ein Link von einem Spieler in
+    einen anderen), hatte die neue oft dieselbe Revision wie die alte — kein neues Zeichnen, „Otwieranie bazy wiedzy…" blieb stehen.
+  */
+  const [, setTick] = useState(0);
+  const revision = store?.revision ?? 0;
   const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => {
     if (store === null) return undefined;
-    const off = store.subscribe(() => setRevision(store.revision));
+    const off = store.subscribe(() => setTick((n) => n + 1));
     let alive = true;
-    store.sync().then(() => { if (alive) setFailed(null); }, (e: unknown) => {
+    store.sync().then(() => { if (alive) { setFailed(null); setTick((n) => n + 1); } }, (e: unknown) => {
       if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać biblioteki.');
     });
     const again = () => { if (document.visibilityState === 'visible') void store.sync().catch(() => undefined); };

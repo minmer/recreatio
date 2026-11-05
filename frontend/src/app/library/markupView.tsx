@@ -373,6 +373,13 @@ export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { bloc
             return <L key={i}>{b.items.map((item, j) => <li key={j}><Inlines list={item} notes={notes} prefix={prefix} look={look} /></li>)}</L>;
           }
           case 'hr': return <hr key={i} className="lib-hr" />;
+          /* 2026-11-05 (Prompt 23, D10) — zum Aufklappen (ein langer Beweis): zu, mit seiner Überschrift. */
+          case 'details': return (
+            <details key={i} className="lib-details" data-markup-details="">
+              <summary><Inlines list={b.summary} notes={notes} prefix={prefix} look={look} /></summary>
+              <Blocks blocks={b.c} look={look} notes={notes} prefix={prefix} path={path} />
+            </details>
+          );
           case 'embed': {
             const quote = refTarget(look, b.key);
             if (quote === undefined) return <p key={i} className="lib-missing">{UNREADABLE}</p>;

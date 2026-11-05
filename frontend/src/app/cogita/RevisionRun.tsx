@@ -43,6 +43,8 @@ import { freshlyKnown } from './knownNow';
 import { motionWords } from './motionWords';
 import { celebrateKnown } from './rewardBus';
 import { SessionSummary } from './SessionSummary';
+import { SelfCheckSummary } from './SelfCheckSummary';
+import { selfCheckWords } from './selfCheckWords';
 
 /* 2026-10-31 — die Statystyki am Ende einer Powtórka: erst geladen, wenn man sie aufklappt. */
 const RunStats = later(() => import('./KnowCharts').then((m) => m.KnowledgeStats));
@@ -71,7 +73,7 @@ export async function planFor(lib: CogitaLibrary, revisionId: string, learner: L
   return { plan, problems: result.problems, cards };
 }
 
-export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone, closing, backToMap }: {
+export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone, closing, backToMap, onTopic, onSlide }: {
   lib: CogitaLibrary | null;
   source: RunSource;
   learner: Learner | null;
@@ -110,6 +112,9 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   closing?: Closing;
   /** 2026-11-05 (Prompt 17) — zurück zur Landschaft (sie spielt dort ab, was sich änderte): „Wróć do mapy” am Ende. */
   backToMap?: () => void;
+  /** 2026-11-05 (Prompt 23, C6) — in der Übersicht je Thema: ein Thema zeigen, eine Folie in ihrer Erzählung zeigen (fehlt es: zum Eintrag). */
+  onTopic?: (id: string) => void;
+  onSlide?: (id: string) => void;
 }) {
   const ctx = useContext(CogitaContext);
   /*
@@ -374,7 +379,8 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   if (practice !== null) {
     return (
       <RevisionRun lib={lib} learner={learner} source={{ plan: practice.plan, cards: state.all, ...(source.deps === undefined ? {} : { deps: source.deps }), title: practice.title }}
-        via={via ?? source.revisionId} onAnswer={onAnswer} onClose={onClose ?? (() => setPractice(null))} lesson rewards={rewards} {...(closing === undefined ? {} : { closing })} />
+        via={via ?? source.revisionId} onAnswer={onAnswer} onClose={onClose ?? (() => setPractice(null))} lesson rewards={rewards} {...(closing === undefined ? {} : { closing })}
+        {...(onTopic === undefined ? {} : { onTopic })} {...(onSlide === undefined ? {} : { onSlide })} />
     );
   }
 
@@ -418,6 +424,12 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
         )}
         <p>Odpowiedzi: {stats.answered}, dobrze: {stats.correct}{stats.answered > 0 ? ` (${Math.round((stats.correct / stats.answered) * 100)}%)` : ''}.</p>
         <LessonSummary answers={log.answers} cards={summary.cards} firstTry={summary.firstTry} activeMs={log.activeMs} done={lessonNow} />
+        {/* 2026-11-05 (Prompt 23, C1/C6) — nach einem Lauf „każda raz“ (z. B. „Sprawdź, co wiesz“): je Thema „umiesz“ oder „luka“. */}
+        {session.plan.mode === 'once' && lib !== null && stats.answered > 0 && (
+          <SelfCheckSummary lib={lib} cards={state.all} asked={[...askedKeys.current]} missed={new Set(log.missed.keys())} seed={seed}
+            {...(onTopic === undefined ? {} : { onTopic })} {...(onSlide === undefined ? {} : { onSlide })}
+            onFill={(list) => setPractice({ plan: readPlan(list, { mode: 'once', order: 'general', pick: 'next' }), title: selfCheckWords(baseLang(lib)).fillTitle(source.title ?? '') })} />
+        )}
         <p className="cg-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${levels[l]}`).join(' · ')}</p>
         {due !== null && <p className="cg-muted">{due.next === null ? 'Nic nie czeka.' : `Następna powtórka: ${new Date(due.next).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' })}.`}</p>}
         {held.cards > 0 && (
@@ -587,7 +599,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
           <div className="cg-card-foot">
             <div className="cg-row-between">
               {/* 2026-10-30 — jede Wahl erklärbar: warum gerade diese Karte; 2026-10-31 kurz, das Ganze als Hinweis. */}
-              <span className="cg-muted cg-why" data-why={session.why?.reason ?? ''} title={session.why === null ? undefined : whyDetail(session.why, now)}>{card.answer.form === 'flash' ? 'Oceń się sam. ' : ''}{(() => { const id = (card.about ?? [])[0]; const e = id === undefined || lib === null ? undefined : lib.entity(id); return e === undefined || lib === null ? '' : `${W.topicIs}: ${lib.label(e)} · `; })()}{session.why === null ? '' : whyText(session.why, now)}</span>
+              <span className="cg-muted cg-why" data-why={session.why?.reason ?? ''} title={session.why === null ? undefined : whyDetail(session.why, now)}>{card.answer.form === 'flash' ? 'Oceń się sam. ' : ''}{(() => { const id = (card.about ?? [])[0]; const e = id === undefined || lib === null ? undefined : lib.entity(id); return e === undefined || lib === null ? '' : `${W.topicIs}: ${lib.label(e)} · `; })()}{card.core === true && <span className="cg-core-badge" title={selfCheckWords(lib === null ? 'pl' : baseLang(lib)).coreHint} data-card-core="">{selfCheckWords(lib === null ? 'pl' : baseLang(lib)).core}</span>}{card.core === true ? ' · ' : ''}{session.why === null ? '' : whyText(session.why, now)}</span>
               <span className="cg-row">
                 {learner !== null && <button type="button" className="wk-link-btn" onClick={() => { void learner.suspend(card.key, true); setNote('Ta karta nie będzie już pytana (możesz to cofnąć w Postępach).'); }}>Nie pytaj o to</button>}
                 {lib !== null && <button type="button" className="wk-link-btn" aria-expanded={flag !== null} data-flag-open="" onClick={() => setFlag((was) => (was === null ? '' : null))}>Zgłoś problem</button>}

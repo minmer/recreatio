@@ -230,6 +230,14 @@ internal static class AiAccessChecks
                 && pages.Sum(x => x.Document["views"]!.AsArray().Count) == 40 && pages.SelectMany(x => x.Document["views"]!.AsArray()).Select(v => v!["ref"]!.GetValue<string>()).Distinct().Count() == 40,
                 "MCP get_knowledge_setup: a large base — an overview, then a section in pieces with nextOffset");
             check(AiMcp.Instructions.Contains("get_knowledge_setup"), "MCP instructions: name get_knowledge_setup");
+            /* 2026-11-05 (Prompt 23, D6/D7) — die bleibenden Namen neben den Kennungen in den Daten (Werte, Listen, Verweise mit Stelle). */
+            {
+                using var namesDoc = JsonDocument.Parse("""{ "about": ["0190aaaa-1111-7000-8000-000000000001", "0190aaaa-1111-7000-8000-000000000009"], "explain": [{ "value": "0190aaaa-1111-7000-8000-000000000002", "locator": "s. 3" }], "prompt": "Wer ist 0190aaaa?", "n": 3 }""");
+                var named = AiMcpTools.NamesIn(namesDoc.RootElement, id => id.EndsWith("0001") ? "@bosko/t/dom" : id.EndsWith("0002") ? "@bosko/slajd/s1" : null);
+                check(named.Count == 2 && named["0190aaaa-1111-7000-8000-000000000001"] == "@bosko/t/dom" && named["0190aaaa-1111-7000-8000-000000000002"] == "@bosko/slajd/s1",
+                    "MCP: names — each id in an entry's data with its lasting name, unnamed ids and prose left out");
+                check(AiMcp.Instructions.Contains("includeData") && AiMcp.Instructions.Contains("@name"), "MCP instructions: read many entries in full with includeData, lasting names");
+            }
             var leaky = System.Text.Json.Nodes.JsonNode.Parse("""
                 { "settings": [ { "ref": "@s", "sources": [], "storageAreaId": "x", "progress": { "a": 1 } } ],
                   "revisions": [ { "ref": "@r", "marks": [ { "correctness": 1 } ], "graph": { "nodes": [ { "config": { "knowness": 0.7, "order": "general" } } ] } } ],

@@ -28,6 +28,8 @@
  *   handoff     weiter in einem anderen Ablauf (eine Übergabe)
  *   detour      (2026-11-04, Prompt 13) ein Abstecher in eine andere Erzählung, angeboten: „Wejdź" oder „Dalej bez tego";
  *               Ausgänge „done" (nach ihrem Ende) und „skip" (ausgelassen; fehlt bei "optional": false)
+ *   review      (2026-11-05, Prompt 23, D4) der Przegląd als EIN Schritt: fragt die Fragen des Ablaufs, die noch nicht
+ *               sitzen, einmal je Runde; Anteil des Gekonnten ≥ "threshold" → Ausgang „passed", sonst „notyet" (`reviewOf`)
  *   scene       (Schritt 12) eine Szene einer Präsentation — Ausgänge „dalej", die Frage
  *               auf ihr (dobrze / źle), ihre Knöpfe (b0, b1 …)
  *   end · return
@@ -53,7 +55,7 @@ import { apply, holds, readAction, readCondition, type Action, type Condition, t
 
 export const STEP_TYPES = [
   'show', 'question', 'choice', 'condition', 'set', 'chapters', 'chapterEnd', 'restart', 'subflow', 'each',
-  'expand', 'opening', 'line', 'handoff', 'detour', 'scene', 'end', 'return'
+  'expand', 'opening', 'line', 'handoff', 'detour', 'review', 'scene', 'end', 'return'
 ] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
@@ -61,7 +63,7 @@ export const STEP_LABEL: Record<StepType, string> = {
   show: 'Pokaż', question: 'Pytanie', choice: 'Wybór', condition: 'Warunek', set: 'Zmień wartość',
   chapters: 'Rozdziały', chapterEnd: 'Koniec rozdziału', restart: 'Rozdział od nowa', subflow: 'Inny przebieg',
   each: 'Dla każdego', expand: 'Wyjaśnij w miejscu', opening: 'Otwarcie',
-  line: 'Postać mówi', handoff: 'Przekazanie', detour: 'Zagłębienie', scene: 'Scena prezentacji', end: 'Koniec', return: 'Powrót'
+  line: 'Postać mówi', handoff: 'Przekazanie', detour: 'Zagłębienie', review: 'Przegląd', scene: 'Scena prezentacji', end: 'Koniec', return: 'Powrót'
 };
 
 /** Was ein Schritt im Ablauf-Editor bedeutet — ein Satz, auch für die Beschreibung des JSON. */
@@ -81,6 +83,7 @@ export const STEP_SAYS: Record<StepType, string> = {
   line: 'Postać ("character") mówi zdanie ("of": wypowiedź — wpis z polem „Treść w blokach”); "mood" — nastrój; "next".',
   handoff: 'Przekazuje do innego przebiegu ("flow") — tamten zaczyna się od początku.',
   detour: 'Proponuje zagłębienie w inną opowieść ("flow", "label" — „Chcesz wiedzieć więcej: …”): „Wejdź” gra ją i wraca wyjściem "done", „Dalej bez tego” idzie wyjściem "skip"; "optional": false — tylko „Wejdź”.',
+  review: 'Przegląd opowieści w jednym kroku: pyta jeszcze raz o pytania tej opowieści ("of": "story" — albo @przebieg), których uczący się jeszcze nie umie — każde raz w rundzie; gdy umie co najmniej "threshold" (np. 0.9) z nich, wyjście "passed", inaczej "notyet". Zapisuje wartość "value" (domyślnie <nazwa opowieści>.przeglad: 1 zdany, 0 nie); bez "goals" przebieg dostaje cel „Przegląd zdany” ("goal" — jego nazwa) i „Powtórz przegląd” wraca do tego kroku.',
   scene: 'Scena prezentacji ("page" — adres strony, "scene" — klucz sceny, "title"); wyjście "next", przy pytaniu na scenie "right" i "wrong", przyciski "b0", "b1", … ("buttons": [{"exit", "label", "target"}]).',
   end: 'Koniec przebiegu.',
   return: 'Wraca z przebiegu wewnętrznego do miejsca, z którego wszedł.'
@@ -97,6 +100,8 @@ export function exitsOf(type: string, config: Readonly<Record<string, unknown>>)
     case 'question': return [port('right', 'dobrze'), port('wrong', 'źle')];
     case 'choice': return (Array.isArray(config.options) ? config.options : []).map((o, i) => port(`o${i}`, str(isObject(o) ? o.label : o) || `możliwość ${i + 1}`));
     case 'condition': return [port('yes', 'tak'), port('no', 'nie')];
+    /* 2026-11-05 (Prompt 23, D4) — der Przegląd in einem Schritt: zdany oder noch nicht. */
+    case 'review': return [port('passed', 'zdany'), port('notyet', 'jeszcze nie')];
     /* 2026-11-04 (Prompt 13) — ein Abstecher: nach der anderen Erzählung „done", ausgelassen „skip" (nur, wenn er freiwillig ist). */
     case 'detour': return config.optional === false || config.required === true ? [port('done', 'po opowieści')] : [port('done', 'po opowieści'), port('skip', 'bez tego')];
     case 'chapters': return [...(Array.isArray(config.chapters) ? config.chapters : []).map((c, i) => port(`c${i}`, str(isObject(c) ? c.title : c) || `rozdział ${i + 1}`)), port('done', 'wszystkie przerobione')];
@@ -203,7 +208,39 @@ export interface Flow {
   readonly ref?: string;
 }
 
-/** Der eine Schritt, zu dem kein Weg führt — `null`, wenn es keinen oder mehrere gibt. */
+/**
+ * 2026-11-05 (Prompt 23, D4) — DER PRZEGLĄD ALS EIN SCHRITT (`{"type": "review", "of": "story", "threshold": 0.9}`):
+ * <code>
+ *   of         "story" — die Fragen DIESES Ablaufs (seine Schritte „question"); "@przebieg" / Kennung — die eines anderen
+ *   threshold  Anteil der Fragen, die danach sitzen müssen (0–1; Vorgabe 0.9)
+ *   value      wo das Ergebnis steht (1 zdany, 0 nie; Vorgabe "<bleibender Name ohne @ oder Kennung>.przeglad")
+ *   goal       Name des Ziels, das ein Ablauf ohne eigene "goals" bekommt (Vorgabe „Przegląd zdany")
+ * </code>
+ * Ersetzt das Muster „set 0 → je Frage +1 → Bedingung ≥ N → zurück" (das weiter gilt).
+ */
+export interface ReviewConfig {
+  readonly of: string;
+  readonly threshold: number;
+  readonly value: string;
+  readonly goal: string;
+}
+
+/** Der Schlüssel des Ergebnisses eines Przegląd (bleibt bei einem neu eingespielten Ablauf derselbe, über den bleibenden Namen). */
+export const reviewKey = (flow: Pick<Flow, 'id' | 'ref'>): string => `${(flow.ref ?? flow.id).replace(/^@/, '')}.przeglad`;
+
+export function reviewOf(flow: Pick<Flow, 'id' | 'ref'>, node: Pick<GraphNode, 'type' | 'config'>): ReviewConfig | null {
+  if (node.type !== 'review') return null;
+  const c = node.config;
+  const t = typeof c.threshold === 'number' && Number.isFinite(c.threshold) ? c.threshold : 0.9;
+  return {
+    of: str(c.of).trim() || 'story',
+    threshold: Math.max(0, Math.min(1, t > 1 ? t / 100 : t)),
+    value: str(c.value).trim() || reviewKey(flow),
+    goal: str(c.goal).trim() || 'Przegląd zdany'
+  };
+}
+
+/** Der Schritt, zu dem kein Weg führt — `null`, wenn es keinen oder mehrere gibt. */
 function entryOf(graph: Graph): string | null {
   const reached = new Set(graph.edges.filter((e) => e.from !== e.to).map((e) => e.to));
   const free = graph.nodes.filter((n) => !reached.has(n.id));
@@ -218,6 +255,16 @@ export function readFlow(id: string, raw: unknown): Flow {
   if (isObject(d.fill)) for (const [k, v] of Object.entries(d.fill)) if (typeof v === 'string' && v !== '') fill[k] = v;
   const overrides: Record<string, Record<string, unknown>> = {};
   if (isObject(d.overrides)) for (const [k, v] of Object.entries(d.overrides)) if (isObject(v)) overrides[k] = v;
+  const goals = (Array.isArray(d.goals) ? d.goals : []).flatMap((g): Goal[] => (isObject(g) && str(g.id) !== '' ? [{ id: str(g.id), title: str(g.title) || str(g.id), condition: readCondition(g.condition) }] : []));
+  /*
+    2026-11-05 (Prompt 23, D4) — EIN SCHRITT „review": ohne eigene Ziele bekommt der Ablauf das Ziel „Przegląd zdany" (sein
+    Ergebnis ist 1), und „Powtórz przegląd" springt zu ihm, wenn "review" nichts anderes nennt.
+  */
+  const reviewNode = graph.nodes.find((n) => n.type === 'review');
+  const self = { id, ...(str(d._ref) === '' ? {} : { ref: str(d._ref) }) };
+  const rc = reviewNode === undefined ? null : reviewOf(self, reviewNode);
+  if (rc !== null && goals.length === 0) goals.push({ id: 'przeglad', title: rc.goal, condition: { type: 'value', value: rc.value, op: 'ge', than: 1 } as Condition });
+  const reviewAt = str(d.review).trim() || (reviewNode?.id ?? '');
   return {
     id,
     ...(str(d._ref) === '' ? {} : { ref: str(d._ref) }),
@@ -231,12 +278,12 @@ export function readFlow(id: string, raw: unknown): Flow {
     ...(str(d.template) === '' ? {} : { template: str(d.template) }),
     fill,
     overrides,
-    goals: (Array.isArray(d.goals) ? d.goals : []).flatMap((g): Goal[] => (isObject(g) && str(g.id) !== '' ? [{ id: str(g.id), title: str(g.title) || str(g.id), condition: readCondition(g.condition) }] : [])),
+    goals,
     lines: (Array.isArray(d.lines) ? d.lines : []).flatMap((l): CharacterLine[] => (isObject(l) && str(l.character) !== '' && str(l.of) !== '' ? [{ character: str(l.character), of: str(l.of), condition: readCondition(l.condition), once: l.once !== false }] : [])),
     narrators: (Array.isArray(d.narrators) ? d.narrators : []).flatMap((n): Narrator[] => (isObject(n) && str(n.character) !== '' ? [{ character: str(n.character), condition: readCondition(n.condition) }] : [])).slice(0, 12),
     ...(str(d.presentation).trim() === '' ? {} : { presentation: str(d.presentation).trim().replace(/^#?\/?/, '') }),
     ...(str(d.unit).trim() === '' ? {} : { unit: str(d.unit).trim() }),
-    ...(str(d.review).trim() === '' ? {} : { review: str(d.review).trim() })
+    ...(reviewAt === '' ? {} : { review: reviewAt })
   };
 }
 
@@ -452,6 +499,11 @@ export function advance(flow: Flow, state: FlowState, exit: string | undefined, 
     }, inner.start, ctx);
   }
 
+  /* 2026-11-05 (Prompt 23, D4) — ein Przegląd: das Ergebnis (1 zdany, 0 nie) in seiner Wartość, dann weiter über „passed"/„notyet". */
+  if (node.type === 'review' && (exit === 'passed' || exit === 'notyet')) {
+    const rc = reviewOf(flow, node)!;
+    return enter(flow, { ...state, values: { ...state.values, [rc.value]: exit === 'passed' ? 1 : 0 } }, follow(flow, node.id, exit), ctx);
+  }
   const out = exit ?? 'next';
   const to = follow(flow, node.id, out);
   if (node.type === 'chapters' && /^c\d+$/.test(out)) {

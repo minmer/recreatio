@@ -323,8 +323,21 @@ export const FUNCTIONS: Readonly<Record<string, Fun>> = {
   fact: fun(1, 1, (n) => { if (!Number.isInteger(n) || n < 0 || n > 170) return NaN; let r = 1; for (let k = 2; k <= n; k += 1) r *= k; return r; }, 'fact(n) — silnia n! (n całkowite 0–170)'),
   binom: fun(2, 2, (n, k) => { if (!Number.isInteger(n) || !Number.isInteger(k) || k < 0 || n < 0 || k > n) return k > n ? 0 : NaN; let r = 1; for (let j = 1; j <= Math.min(k, n - k); j += 1) r = (r * (n - Math.min(k, n - k) + j)) / j; return Math.round(r); }, 'binom(n, k) — symbol Newtona: na ile sposobów wybrać k z n'),
   isint: fun(1, 1, (x) => (Number.isFinite(x) && Math.abs(x - Math.round(x)) < 1e-9 ? 1 : 0), 'isint(x) — 1, gdy x jest liczbą całkowitą (warunek: wynik ma być całkowity)'),
-  fmt: fun(1, 2, (x, d = 1) => fmt(x, d), 'fmt(x, cyfry) — liczba jako tekst z przecinkiem: fmt(9.81, 1) → "9,8"')
+  fmt: fun(1, 2, (x, d = 1) => fmt(x, d), 'fmt(x, cyfry) — liczba jako tekst z przecinkiem: fmt(9.81, 1) → "9,8"'),
+  /* 2026-11-05 (Prompt 23, D8) — ein Winkel als Vielfaches von π (Bogenmass in Erklärungen): fmtpi(2.356) → „0,75π". */
+  fmtpi: fun(1, 2, (x, d = 2) => fmtPi(x, d), 'fmtpi(x, cyfry) — liczba jako wielokrotność π: fmtpi(2.356) → "0,75π", fmtpi(3.1416) → "π" (do 2 miejsc, bez zer na końcu)')
 };
+
+/** 2026-11-05 (Prompt 23, D8) — x als Vielfaches von π, mit Komma, ohne Nullen am Ende: 0,75π · π · −π · 2π · 0. */
+export function fmtPi(x: number, digits = 2): string {
+  if (!Number.isFinite(x)) return fmt(x);
+  const k = x / Math.PI;
+  const t = fmt(k, digits).replace(/(,\d*?)0+$/, '$1').replace(/,$/, '');
+  if (t === '0' || t === '−0') return '0';
+  if (t === '1') return 'π';
+  if (t === '−1') return '−π';
+  return `${t}π`;
+}
 
 /* -- 2026-11-03: Funktionen über Werte — Listen, Texte, Datensätze ------------------------------------- */
 

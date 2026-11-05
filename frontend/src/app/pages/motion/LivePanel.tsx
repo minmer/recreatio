@@ -11,6 +11,8 @@
  */
 
 import { fmt, toNum, truth } from './expr';
+/* 2026-11-05 (Prompt 23, D8) — Namen der Bedienung und der Anzeigen mit Wzory ($…$), wie die Texte daneben. */
+import { TexText } from '../../ui/tex/Tex';
 import type { Program } from './liveRun';
 import type { ControlSpec, PropSpec, VarSpec } from './liveModel';
 import { readShot, type WorldShot } from './liveThings';
@@ -61,7 +63,7 @@ export function ControlView({ c, i, program, onSet, onPress, locked }: {
       const label = c.label || spec?.label || c.var;
       return (
         <label className="lv-control lv-slider" data-c={i}>
-          <span className="lv-name">{label}</span>
+          <span className="lv-name"><TexText text={label} /></span>
           <output className="lv-value" />
           <input type="range" min={r.min} max={r.max} step={r.step} defaultValue={program.value(c.var)} disabled={locked}
             onInput={(e) => onSet(c.var, e.currentTarget.valueAsNumber)} onChange={(e) => onSet(c.var, e.currentTarget.valueAsNumber)} />
@@ -73,7 +75,7 @@ export function ControlView({ c, i, program, onSet, onPress, locked }: {
       const r = rangeOf(spec);
       return (
         <label className="lv-control lv-number" data-c={i}>
-          <span className="lv-name">{c.label || spec?.label || c.var}</span>
+          <span className="lv-name"><TexText text={c.label || spec?.label || c.var} /></span>
           <span className="lv-number-row">
             <input type="number" inputMode="decimal" min={spec?.min ?? undefined} max={spec?.max ?? undefined} step={r.step} defaultValue={program.value(c.var)} disabled={locked}
               onChange={(e) => { const n = toNum(e.currentTarget.value); if (Number.isFinite(n)) onSet(c.var, n); }} />
@@ -87,7 +89,7 @@ export function ControlView({ c, i, program, onSet, onPress, locked }: {
       return (
         <label className="lv-control lv-toggle" data-c={i}>
           <input type="checkbox" defaultChecked={truth(program.value(c.var))} disabled={locked} onChange={(e) => onSet(c.var, e.currentTarget.checked ? 1 : 0)} />
-          <span>{c.label || spec?.label || c.var}</span>
+          <span><TexText text={c.label || spec?.label || c.var} /></span>
         </label>
       );
     }
@@ -96,7 +98,7 @@ export function ControlView({ c, i, program, onSet, onPress, locked }: {
       const label = c.label || spec?.label || c.var;
       return (
         <div className="lv-control lv-choice" data-c={i} role="group" aria-label={label}>
-          <span className="lv-name">{label}</span>
+          <span className="lv-name"><TexText text={label} /></span>
           <span className="lv-choice-row">
             {c.options.map((o, n) => (
               <button key={n} type="button" aria-pressed={program.value(c.var) === o.value} disabled={locked} onClick={() => onSet(c.var, o.value)}>{o.label}</button>
@@ -114,7 +116,7 @@ export function ControlView({ c, i, program, onSet, onPress, locked }: {
     case 'readout':
       return (
         <div className="lv-control lv-readout" data-c={i}>
-          <span className="lv-name">{c.label}</span>
+          <span className="lv-name"><TexText text={c.label} /></span>
           <output className="lv-value" />
         </div>
       );

@@ -1,0 +1,25 @@
+/*
+ * 2026-11-05 (Prompt 23, C) — SELBSTTEST: das Zeichen „kluczowe" auf einer Kernfrage, die Übersicht je Thema am Ende eines
+ * Laufs „każda raz" (SelfCheckSummary.tsx), die Kernfragen im Panel eines Themas. Nichts nur mit Farbe: ✓ / ○ und Worte.
+ */
+.cg-core-badge {
+  display: inline-block; padding: 0 0.4rem; border: 1px solid var(--wk-accent); border-radius: var(--wk-radius-pill);
+  color: var(--wk-accent); font-size: var(--wk-text-xs); font-weight: 600; line-height: 1.5; vertical-align: baseline;
+}
+.cg-selfcheck { display: grid; gap: var(--wk-space-2); text-align: start; margin: var(--wk-space-3) 0; padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); }
+.cg-selfcheck-title { margin: 0; font-size: var(--wk-text-md); }
+.cg-selfcheck-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.cg-selfcheck-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-1) var(--wk-space-2); padding: 0.2rem 0; border-bottom: 1px solid var(--wk-line); }
+.cg-selfcheck-list li:last-child { border-bottom: 0; }
+.cg-selfcheck-mark { width: 1.1rem; flex: none; text-align: center; color: var(--wk-ok); font-weight: 700; }
+.cg-selfcheck-list li.is-gap .cg-selfcheck-mark { color: var(--wk-warn, var(--wk-accent)); }
+.cg-selfcheck-name { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
+.cg-selfcheck-state { font-size: var(--wk-text-sm); color: var(--wk-ok); }
+.cg-selfcheck-state.is-gap { color: var(--wk-ink-2); font-weight: 600; }
+.cg-selfcheck-links { display: inline-flex; flex-wrap: wrap; gap: var(--wk-space-2); font-size: var(--wk-text-sm); }
+.cg-ls-core { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; font-size: var(--wk-text-sm); }
+.cg-ls-core li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-1); }
+/* Über der Karte (WorldMap): „Sprawdź, co wiesz" neben den Ansichten, der Hinweis zu „Luki" mit „Uzupełnij luki" (antippbar). */
+.cg-wm-mode.is-check { font-weight: 600; color: var(--wk-accent); }
+.cg-wm-note.is-gaps { pointer-events: auto; display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--wk-space-2); }
+.cg-wm-note.is-gaps:empty { display: none; }

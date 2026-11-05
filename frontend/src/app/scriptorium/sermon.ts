@@ -156,6 +156,7 @@ export function pointLine(text: string, look?: Lookup, length = 400): string {
     else if (block.t === 'list') parts.push(...block.items.map(flat));
     else if (block.t === 'quote') parts.push(plainText(block.c.length === 0 ? '' : text.replace(/^>\s?/gm, '')));
     else if (block.t === 'embed') parts.push(quoted(block.key));
+    else if (block.t === 'details') parts.push(flat(block.summary));
   }
   return cut(parts.join(' ').replace(/\s+/g, ' ').replace(/ +([.,;:!?)])/g, '$1').trim(), length);
 }

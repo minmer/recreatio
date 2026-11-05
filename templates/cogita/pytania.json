@@ -672,6 +672,40 @@
           "says": "Wartości, które rozwiązują zadanie, np. \"kat = 45; v0 = 12\" albo własności rzeczy \"w2.pos = 5\" — pokazywane po złej odpowiedzi; puste: \"task.solve\" rysunku (interactive)"
         },
         {
+          "key": "goals",
+          "label": "Cele po kolei",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "interactive"
+            ]
+          },
+          "says": "Kilka celów (wyrażeń), które trzeba osiągnąć PO KOLEI, np. [\"x > 3\", \"y < 1\"] — zamiast \"goal\" (interactive)"
+        },
+        {
+          "key": "check",
+          "label": "Kiedy sprawdzać",
+          "type": "choice",
+          "options": [
+            {
+              "value": "live",
+              "label": "cel widać już przy próbach"
+            },
+            {
+              "value": "submit",
+              "label": "dopiero po „Sprawdź”"
+            }
+          ],
+          "when": {
+            "field": "form",
+            "values": [
+              "interactive"
+            ]
+          },
+          "says": "\"live\" (domyślnie) — rysunek pokazuje trafienie już podczas prób, ocena po „Sprawdź”; \"submit\" — nic nie zdradza celu, dopiero „Sprawdź” ocenia (interactive)"
+        },
+        {
           "key": "explain",
           "label": "Wyjaśnienie (wpisy)",
           "type": "ref",
@@ -695,6 +729,12 @@
           "label": "Warunki losowania",
           "type": "list",
           "says": "Warunki, które losowanie musi spełnić, np. \"a > 2*n\" — losuje się od nowa (do 60 razy); gdy się nie da, karta nie powstaje"
+        },
+        {
+          "key": "core",
+          "label": "Pytanie kluczowe",
+          "type": "bool",
+          "says": "Kluczowe dla tematów z „O czym”: „Sprawdź, co wiesz” pyta o nie raz, a ich znajomość mówi, czy temat to „luka” (warunek z rel \"core\")"
         },
         {
           "key": "about",

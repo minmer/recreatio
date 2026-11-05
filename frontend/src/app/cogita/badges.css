@@ -71,7 +71,8 @@
 .cg-bp-detail { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3) var(--wk-space-3); border: 1px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-sunk); min-width: 0; }
 .cg-bp-ladder { display: grid; gap: 0.3rem; min-width: 0; }
 .cg-bp-ladder-name { font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-ink-2); }
-.cg-bp-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--wk-space-2); }
+/* 2026-11-05 (Odznaki) — bis zu zwölf Stufen: so viele in einer Zeile, wie hineinpassen (sonst umgebrochen). */
+.cg-bp-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 7.5rem), 1fr)); gap: var(--wk-space-2); }
 .cg-bp-step { display: grid; justify-items: center; align-content: start; gap: 0.3rem; min-width: 0; padding: var(--wk-space-2) 0.35rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); text-align: center; }
 .cg-bp-step.is-got { border-color: color-mix(in oklab, var(--cg-rw-gold) 55%, var(--wk-line)); }
 .cg-bp-step.is-next { border-color: var(--wk-accent); }
@@ -107,7 +108,7 @@
 
 /* Mittel: die Stufen einer Kategorie untereinander (Medaille links, Worte rechts) */
 @container (max-width: 36rem) {
-  .cg-bp-steps { grid-auto-flow: row; grid-auto-columns: auto; gap: var(--wk-space-1); }
+  .cg-bp-steps { grid-template-columns: minmax(0, 1fr); gap: var(--wk-space-1); }
   .cg-bp-step { grid-template-columns: auto minmax(0, 1fr); justify-items: start; align-items: center; column-gap: var(--wk-space-3); text-align: start; padding: var(--wk-space-1) var(--wk-space-2); }
   .cg-bp-step-body { justify-items: start; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--wk-space-2); align-items: baseline; }
   .cg-bp-step-mat, .cg-bp-step-name { grid-column: 1; }

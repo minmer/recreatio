@@ -49,7 +49,9 @@ export type Block =
   | { readonly t: 'quote'; readonly c: readonly Block[] }
   | { readonly t: 'list'; readonly ordered: boolean; readonly items: readonly (readonly Inline[])[] }
   | { readonly t: 'embed'; readonly key: string; readonly locator: string }
-  | { readonly t: 'hr' };
+  | { readonly t: 'hr' }
+  /** 2026-11-05 (Prompt 23, D10) — zum Aufklappen (ein langer Beweis): `::: details Beweisidee` … `:::`. */
+  | { readonly t: 'details'; readonly summary: readonly Inline[]; readonly c: readonly Block[] };
 
 const KEY = '[A-Za-z0-9][A-Za-z0-9_.:-]*';
 const EMBED = new RegExp(`^!\\[@(${KEY})(?:\\s*,\\s*([^\\]]*))?\\]\\s*$`);
@@ -198,6 +200,8 @@ export function parseMarkup(source: string): Block[] {
   let paragraph: string[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;
   let quote: string[] | null = null;
+  /* 2026-11-05 (Prompt 23, D10) — ein Block zum Aufklappen, bis zu seinem `:::` (auch ineinander). */
+  let fold: { summary: string; lines: string[]; depth: number } | null = null;
 
   const endParagraph = () => {
     if (paragraph.length > 0) blocks.push({ t: 'p', c: parseInline(paragraph.join('\n').trim()) });
@@ -215,6 +219,18 @@ export function parseMarkup(source: string): Block[] {
 
   for (const raw of lines) {
     const line = raw.replace(/\s+$/, '');
+
+    if (fold !== null) {
+      if (/^:::\s*details\b/.test(line.trim())) fold.depth += 1;
+      else if (line.trim() === ':::') {
+        if (fold.depth === 0) { blocks.push({ t: 'details', summary: parseInline(fold.summary), c: parseMarkup(fold.lines.join('\n')) }); fold = null; continue; }
+        fold.depth -= 1;
+      }
+      fold.lines.push(raw);
+      continue;
+    }
+    const opens = /^:::\s*details(?:\s+(.*))?$/.exec(line.trim());
+    if (opens !== null) { endAll(); fold = { summary: (opens[1] ?? '').trim(), lines: [], depth: 0 }; continue; }
 
     if (quote !== null) {
       if (line.startsWith('>')) { quote.push(line.replace(/^>\s?/, '')); continue; }
@@ -261,6 +277,7 @@ export function parseMarkup(source: string): Block[] {
   }
 
   endAll();
+  if (fold !== null) { const f: { summary: string; lines: string[] } = fold; blocks.push({ t: 'details', summary: parseInline(f.summary), c: parseMarkup(f.lines.join('\n')) }); }
   return blocks;
 }
 
@@ -279,6 +296,7 @@ export function walkBlocks(blocks: readonly Block[], onBlock: (b: Block) => void
     if (block.t === 'p' || block.t === 'h') walkInline(block.c, onInline);
     else if (block.t === 'list') block.items.forEach((item) => walkInline(item, onInline));
     else if (block.t === 'quote') walkBlocks(block.c, onBlock, onInline);
+    else if (block.t === 'details') { walkInline(block.summary, onInline); walkBlocks(block.c, onBlock, onInline); }
   }
 }
 
@@ -384,6 +402,7 @@ export function plainText(source: string, headings = true, tex: TexMode = 'plain
       if (b.t === 'p' || (b.t === 'h' && headings)) parts.push(inline(b.c));
       else if (b.t === 'list') parts.push(...b.items.map(inline));
       else if (b.t === 'quote') blocks(b.c);
+      else if (b.t === 'details') { parts.push(inline(b.summary)); blocks(b.c); }
     }
   };
   blocks(parseMarkup(source));

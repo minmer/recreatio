@@ -173,6 +173,7 @@ export function citedPlaces(blocks: readonly Block[]): CiteItem[] {
       if (b.t === 'p' || b.t === 'h') inline(b.c);
       else if (b.t === 'list') b.items.forEach(inline);
       else if (b.t === 'quote') walk(b.c);
+      else if (b.t === 'details') { inline(b.summary); walk(b.c); }
     }
   };
   walk(blocks);

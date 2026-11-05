@@ -174,6 +174,8 @@ export interface Card {
   readonly answer: AnswerSpec;
   /** Was nach der Antwort zur Erklärung erscheint — Wissen, Einträge [D14]. */
   readonly explain: readonly string[];
+  /** 2026-11-05 (Prompt 23, C3) — eine Kernfrage ihrer Themen (`"core": true`): „Sprawdź, co wiesz" fragt sie, das Zeichen „kluczowe". */
+  readonly core?: true;
   /** Fingerabdruck dessen, was als richtig gilt [D7]. */
   readonly fingerprint: string;
   /** Fragt jedes Mal anderes (Zufall); der Fingerabdruck ist dann der der Vorlage. */

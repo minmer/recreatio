@@ -1,0 +1,11 @@
+/*
+ * 2026-11-05 (Prompt 23, D1) — eine Folie mit einem Rysunek (SlideDrawing.tsx): breit nebeneinander (Text links, Bild rechts),
+ * schmal untereinander (das Bild unter dem Text).
+ */
+.cg-slide-pair { container-type: inline-size; }
+.cg-slide-pair-grid { display: grid; gap: var(--wk-space-3); }
+.cg-slide-pair-text, .cg-slide-pair-drawing { min-width: 0; }
+.cg-slide-pair-drawing { margin: 0; overflow: hidden; }
+@container (min-width: 34rem) {
+  .cg-slide-pair-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+}

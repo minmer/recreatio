@@ -35,6 +35,12 @@ export interface PathNode {
   readonly questions?: number;
   /** 2026-11-04 (Prompt 11) — ein automatischer Teil: die App wählt selbst einen von zwei Wegen (nach dem, was der Lernende kann). */
   readonly auto?: boolean;
+  /**
+   * 2026-11-05 (Prompt 23, B1) — EIN ABSTECHER ALS ZWEIG: er steht nicht auf der Linie, sondern daneben — ein kurzer Arm
+   * von dem Knoten davor (`anchor`) hinaus, zurück zum Knoten danach (`rejoin`). `side`: links (−1) oder rechts (1);
+   * `slot`: der wievielte Zweig desselben Knotens (zwei nach einem Slajd fächern sich auf).
+   */
+  readonly branch?: { readonly anchor: number; readonly rejoin: number | null; readonly side: 1 | -1; readonly slot: number };
 }
 
 /** Woher die Reihenfolge kam: die des Lernens; die der Erzählung (wo das Lernen nichts sagt); eine Kette in der gegebenen Reihenfolge. */
@@ -287,9 +293,12 @@ export interface PathNodeInfo {
  * Kante (keine Reihenfolge) und mit `chainIfFlat`: eine Kette in der gegebenen Reihenfolge. `info`: je Knoten seine Art
  * (eine Erzählung); `reduced`: die Wege sind schon ohne Umwege (eine Erzählung — ihre Gabeln und Zusammenführungen bleiben).
  */
-export function pathModel(items: readonly PathItem[], needsIn: readonly (readonly number[])[], options: { readonly source?: PathSource; readonly chainIfFlat?: boolean; readonly info?: readonly PathNodeInfo[]; readonly reduced?: boolean; readonly loops?: readonly (readonly [number, number])[] } = {}): PathModel {
+export function pathModel(items: readonly PathItem[], needsIn: readonly (readonly number[])[], options: { readonly source?: PathSource; readonly chainIfFlat?: boolean; readonly info?: readonly PathNodeInfo[]; readonly reduced?: boolean; readonly loops?: readonly (readonly [number, number])[]; readonly branches?: boolean } = {}): PathModel {
   const n = items.length;
   if (n === 0) return EMPTY_PATH;
+  /* 2026-11-05 (Prompt 23, B1) — Abstecher stehen als Zweige neben der Linie (sie bleibt gerade). */
+  const isBranch = (v: number) => options.info?.[v]?.kind === 'detour';
+  if (options.branches !== false && items.some((_, v) => isBranch(v)) && items.some((_, v) => !isBranch(v))) return withBranches(items, needsIn, options, isBranch);
   const clean = needsIn.map((l, v) => [...new Set(l.filter((p) => p >= 0 && p < n && p !== v))]);
   let needs = options.reduced === true ? dropBack(clean) : reduce(clean);
   let source: PathSource = options.source ?? 'learning';
@@ -319,6 +328,76 @@ export function pathModel(items: readonly PathItem[], needsIn: readonly (readonl
   const all = [...lay.x, ...lay.routes.flatMap((r) => r.map(([x]) => x))];
   const loops = (options.loops ?? []).filter(([a, b]) => a >= 0 && a < n && b >= 0 && b < n && a !== b);
   return { nodes, index: new Map(items.map((it, i) => [it.id, i] as const)), edges, routes: lay.routes, levels, x0: Math.min(...all) - 0.5, x1: Math.max(...all) + 0.5, source, crossings: lay.crossings, loops };
+}
+
+/**
+ * 2026-11-05 (Prompt 23, B1) — DIE ABSTECHER ALS ZWEIGE: gezeichnet wird die Linie ohne sie (davor → danach direkt, so bleibt
+ * sie gerade); jeder Abstecher steht dann neben dem Knoten davor, halb zwischen ihm und dem danach, mit einem Arm hinaus und
+ * einem zurück. Die Seiten wechseln von Knoten zu Knoten; zwei nach demselben Knoten fächern sich auf (links, rechts, weiter
+ * aussen). Die Kennungen und die Reihenfolge der Knoten bleiben (die Teile einer Erzählung zeigen weiter auf sie).
+ */
+function withBranches(items: readonly PathItem[], needsIn: readonly (readonly number[])[], options: Parameters<typeof pathModel>[2] & object, isBranch: (v: number) => boolean): PathModel {
+  const n = items.length;
+  const clean = needsIn.map((l, v) => [...new Set(l.filter((p) => p >= 0 && p < n && p !== v))]);
+  const after: number[][] = Array.from({ length: n }, () => []);
+  clean.forEach((l, v) => { for (const p of l) after[p].push(v); });
+  /* Die nächsten Knoten der Linie davor / danach, durch Abstecher hindurch. */
+  const through = (v: number, step: (x: number) => readonly number[]): number[] => {
+    const out: number[] = [];
+    const seen = new Set<number>([v]);
+    const stack = [...step(v)];
+    while (stack.length > 0) {
+      const x = stack.pop()!;
+      if (seen.has(x)) continue;
+      seen.add(x);
+      if (!isBranch(x)) { if (!out.includes(x)) out.push(x); continue; }
+      stack.push(...step(x));
+    }
+    return out.sort((a, b) => a - b);
+  };
+  const main = items.map((_, v) => v).filter((v) => !isBranch(v));
+  const sub = new Map(main.map((v, i) => [v, i] as const));
+  const inner = pathModel(main.map((v) => items[v]), main.map((v) => through(v, (x) => clean[x]).map((p) => sub.get(p)!)), {
+    ...options, branches: false,
+    ...(options.info === undefined ? {} : { info: main.map((v) => options.info![v] ?? {}) }),
+    loops: (options.loops ?? []).filter(([a, b]) => sub.has(a) && sub.has(b)).map(([a, b]) => [sub.get(a)!, sub.get(b)!] as const)
+  });
+  const nodes: PathNode[] = new Array(n);
+  main.forEach((v, i) => { const nd = inner.nodes[i]; nodes[v] = { ...nd, needs: nd.needs.map((j) => main[j]), builds: nd.builds.map((j) => main[j]) }; });
+  const edges: [number, number][] = inner.edges.map(([p, c]) => [main[p], main[c]]);
+  const routes: (readonly (readonly [number, number])[])[] = [...inner.routes];
+  const branches = items.map((_, v) => v).filter(isBranch).map((v) => {
+    const up = through(v, (x) => clean[x]);
+    const down = through(v, (x) => after[x]);
+    /* Der Anker: der höchste davor; zurück: der niedrigste danach. */
+    const anchor = up.length === 0 ? null : up.reduce((a, b) => (nodes[b].level > nodes[a].level ? b : a));
+    const rejoin = down.length === 0 ? null : down.reduce((a, b) => (nodes[b].level < nodes[a].level ? b : a));
+    return { v, anchor: anchor ?? rejoin ?? main[0], rejoin: anchor === null ? null : rejoin };
+  }).sort((a, b) => nodes[a.anchor].level - nodes[b.anchor].level || a.v - b.v);
+  const slots = new Map<number, number>();
+  const sideOf = new Map<number, 1 | -1>();
+  let flip: 1 | -1 = 1;
+  let x0 = inner.x0;
+  let x1 = inner.x1;
+  for (const b of branches) {
+    const slot = slots.get(b.anchor) ?? 0;
+    slots.set(b.anchor, slot + 1);
+    if (!sideOf.has(b.anchor)) { sideOf.set(b.anchor, flip); flip = flip === 1 ? -1 : 1; }
+    const own = sideOf.get(b.anchor)!;
+    const side: 1 | -1 = slot % 2 === 0 ? own : own === 1 ? -1 : 1;
+    const a = nodes[b.anchor];
+    const r = b.rejoin === null ? null : nodes[b.rejoin];
+    const level = r === null ? a.level + 0.5 : (a.level + r.level) / 2;
+    const x = a.x + side * (1.15 + 1.05 * Math.floor(slot / 2));
+    nodes[b.v] = { id: items[b.v].id, label: items[b.v].label, level, x, needs: [b.anchor], builds: b.rejoin === null ? [] : [b.rejoin], ...(options.info?.[b.v] ?? {}), branch: { anchor: b.anchor, rejoin: b.rejoin, side, slot } };
+    edges.push([b.anchor, b.v]);
+    routes.push([[a.x, a.level], [x, level]]);
+    if (r !== null) { edges.push([b.v, b.rejoin!]); routes.push([[x, level], [r.x, r.level]]); }
+    /* Platz für den Namen aussen neben dem Zweig. */
+    x0 = Math.min(x0, x - 0.5 - (side === -1 ? 1.3 : 0));
+    x1 = Math.max(x1, x + 0.5 + (side === 1 ? 1.3 : 0));
+  }
+  return { ...inner, nodes, index: new Map(items.map((it, i) => [it.id, i] as const)), edges, routes, x0, x1, loops: (inner.loops ?? []).map(([a, b]) => [main[a], main[b]] as const) };
 }
 
 /** Ohne Kreise, aber MIT allen Wegen (eine Erzählung: eine Gabel, die wieder zusammenkommt, bleibt sichtbar). */

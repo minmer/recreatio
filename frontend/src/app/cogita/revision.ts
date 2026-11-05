@@ -287,6 +287,24 @@ const FILTER_WHEN: Kind = {
   }
 };
 
+/**
+ * 2026-11-05 (Prompt 23, C2) — EINE STICHPROBE JE THEMA als Schritt: aus jedem Thema bis zu `perTopic` zufällige Karten (je
+ * Tag dieselbe Probe — der Plan wird beim Öffnen neu gerechnet). Mit „Razem" zusammen: z. B. alle Karten der Lücken und
+ * dazu eine Probe der übrigen Themen („Uzupełnij luki").
+ */
+const SAMPLE: Kind = {
+  type: 'sample', label: 'Próbka z każdego tematu', group: 'Zawężenie',
+  says: 'Zostawia z każdego tematu kilka losowych kart ("perTopic", domyślnie 2) — sprawdzian na wyrywki; co dzień inna próbka.',
+  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  run: ({ config, inputs, ctx }) => {
+    const flow = merge(flowsAt(inputs, 'cards'));
+    const n = Math.max(1, Math.min(50, Math.round(num(config.perTopic, 2))));
+    const kept = sampleByTopic(flow.cards, n, `day:${Math.floor(ctx.now / 86_400_000)}`);
+    const keys = new Set(kept.map((c) => c.key));
+    return { cards: { cards: kept, when: new Map([...flow.when].filter(([k]) => keys.has(k))) } satisfies CardFlow };
+  }
+};
+
 const UNION: Kind = {
   type: 'union', label: 'Razem', group: 'Zawężenie',
   says: 'Łączy kilka źródeł w jeden stos, bez powtórzeń.',
@@ -317,13 +335,18 @@ export const ORDER_LABEL: Record<Order, string> = {
   due: 'najpierw zaległe'
 };
 
-/** 2026-10-30 — którą kartę ze stosu: ściśle następną albo losowo, częściej słabsze i dłużej czekające. */
-export const PICKS = ['next', 'weighted'] as const;
+/**
+ * 2026-10-30 — którą kartę ze stosu: ściśle następną albo losowo, częściej słabsze i dłużej czekające.
+ * 2026-11-05 (Prompt 23, C2) — `sample`: aus jedem Thema nur `perTopic` zufällige Karten (eine Stichprobe — „Uzupełnij luki"
+ * prüft so auch Themen, deren Kernfrage richtig war), dann streng die nächste.
+ */
+export const PICKS = ['next', 'weighted', 'sample'] as const;
 export type PickMode = (typeof PICKS)[number];
 
 export const PICK_LABEL: Record<PickMode, string> = {
   next: 'ściśle następna',
-  weighted: 'losowo, częściej słabiej znane i dłużej czekające'
+  weighted: 'losowo, częściej słabiej znane i dłużej czekające',
+  sample: 'próbka: z każdego tematu kilka losowych kart'
 };
 
 export interface Plan {
@@ -341,6 +364,8 @@ export interface Plan {
   readonly order: Order;
   /** 2026-10-30 — wybór ze stosu. */
   readonly pick: PickMode;
+  /** 2026-11-05 (Prompt 23, C2) — `pick: "sample"`: ile kart z każdego tematu (domyślnie 2). */
+  readonly perTopic?: number;
   /**
    * 2026-11-01 — `temporal`: gdy nic nie jest do powtórki i nic nieznanego nie zostało, stos dobiera ze znanych te,
    * które się zna najsłabiej („na zapas”) — lauf się nie kończy sam. `false` („endWhenDone”): koniec.
@@ -358,7 +383,8 @@ export interface Plan {
 export function readPlan(cards: readonly Card[], config: Readonly<Record<string, unknown>>, extra: { readonly when?: Readonly<Record<string, CardGate>>; readonly rank?: Readonly<Record<string, number>> } = {}): Plan {
   const mode = (MODES as readonly string[]).includes(str(config.mode)) ? (str(config.mode) as Mode) : 'temporal';
   const order: Order = (ORDERS as readonly string[]).includes(str(config.order)) ? (str(config.order) as Order) : mode === 'levels' || mode === 'temporal' ? 'general' : 'random';
-  const pickMode: PickMode = config.pick === 'next' ? 'next' : 'weighted';
+  /* 2026-11-05 (Prompt 23, C2) — bekannte Werte; ein unbekannter fällt auf die Vorgabe (der Import warnt: `planWarnings`). */
+  const pickMode: PickMode = (PICKS as readonly string[]).includes(str(config.pick)) ? (str(config.pick) as PickMode) : 'weighted';
   const rule = isObject(config.rule) ? (config.rule as Partial<TextRule>) : undefined;
   const when = extra.when ?? (isObject(config.when) ? (config.when as Record<string, CardGate>) : undefined);
   const rank = extra.rank ?? (isObject(config.rank) ? (config.rank as Record<string, number>) : undefined);
@@ -371,6 +397,7 @@ export function readPlan(cards: readonly Card[], config: Readonly<Record<string,
     minCorrectness: Math.max(0, Math.min(1, num(config.minCorrectness, 1))),
     order,
     pick: pickMode,
+    ...(pickMode === 'sample' ? { perTopic: Math.max(1, Math.min(50, Math.round(num(config.perTopic, 2)))) } : {}),
     ahead: mode === 'temporal' && config.endWhenDone !== true,
     ...(when === undefined || Object.keys(when).length === 0 ? {} : { when }),
     ...(rank === undefined ? {} : { rank }),
@@ -379,6 +406,35 @@ export function readPlan(cards: readonly Card[], config: Readonly<Record<string,
 }
 
 const NO_LOOK: Lookup = { kind: () => undefined, entity: () => undefined };
+
+/** 2026-11-05 (Prompt 23, C2) — das Thema einer Karte: was sie prüft („O czym"), sonst ihr Eintrag. */
+export const topicsOfCard = (c: Card): readonly string[] => (c.about !== undefined && c.about.length > 0 ? c.about : [c.entity ?? c.question]);
+
+/**
+ * 2026-11-05 (Prompt 23, C2) — EINE STICHPROBE JE THEMA: aus den Karten jedes Themas (`topicsOfCard`, das erste) bis zu `n`
+ * zufällige — mit dem Samen `seed` (derselbe Lauf, dieselbe Probe). Die Reihenfolge der übrigen bleibt.
+ */
+export function sampleByTopic(cards: readonly Card[], n: number, seed: string): Card[] {
+  const groups = new Map<string, Card[]>();
+  for (const c of cards) { const t = topicsOfCard(c)[0] ?? c.key; const list = groups.get(t); if (list === undefined) groups.set(t, [c]); else list.push(c); }
+  const keep = new Set<string>();
+  for (const [t, list] of groups) {
+    const ranked = list.map((c) => ({ c, r: parseInt(hashOf(`${seed}|${t}|${c.key}`), 16) })).sort((a, b) => a.r - b.r);
+    for (const x of ranked.slice(0, Math.max(1, n))) keep.add(x.c.key);
+  }
+  return cards.filter((c) => keep.has(c.key));
+}
+
+/** 2026-11-05 (Prompt 23, C3) — je Thema seine Kernfragen (einmal je Kartensatz gerechnet). */
+const CORE_MEMO = new WeakMap<readonly Card[], Map<string, string[]>>();
+export function coreIndex(cards: readonly Card[]): ReadonlyMap<string, readonly string[]> {
+  const had = CORE_MEMO.get(cards);
+  if (had !== undefined) return had;
+  const out = new Map<string, string[]>();
+  for (const c of cards) if (c.core === true) for (const t of c.about ?? []) { const list = out.get(t); if (list === undefined) out.set(t, [c.question]); else if (!list.includes(c.question)) list.push(c.question); }
+  CORE_MEMO.set(cards, out);
+  return out;
+}
 
 /** Woraus die Beziehungen beim Planen kommen: die Einträge, die Reihenfolge des Lernens, welche Einträge Karten haben. */
 function relSourceFor(ctx: RevisionContext): RelSource {
@@ -400,7 +456,9 @@ function relSourceFor(ctx: RevisionContext): RelSource {
     askable: (id) => askable.has(id),
     cardsOf,
     /* 2026-11-03 — `rel: "chain"` zählt nur schon beantwortete Karten (`knowing.ts`). */
-    answered: (key) => ctx.marks(key).length > 0
+    answered: (key) => ctx.marks(key).length > 0,
+    /* 2026-11-05 (Prompt 23, C3) — `rel: "core"`: die Kernfragen eines Themas. */
+    coreOf: (id) => coreIndex(ctx.cards).get(id) ?? []
   };
 }
 
@@ -469,7 +527,7 @@ const STRATEGY: Kind = {
   }
 };
 
-export const REVISION_PALETTE = paletteOf<RevisionContext>('revision', [ALL, BY_KIND, BY_COLLECTION, BY_LIST, BY_FROM, BY_VIEW, FILTER, FOLLOW, STRUCTURE, LEARNING, FILTER_RULE, FILTER_WHEN, UNION, STRATEGY]);
+export const REVISION_PALETTE = paletteOf<RevisionContext>('revision', [ALL, BY_KIND, BY_COLLECTION, BY_LIST, BY_FROM, BY_VIEW, FILTER, FOLLOW, STRUCTURE, LEARNING, FILTER_RULE, FILTER_WHEN, SAMPLE, UNION, STRATEGY]);
 
 /**
  * 2026-10-30 — EIN ALTER KNOTEN „Najpierw podstawy" (`gate`) aus den allgemeinen Schritten, die dasselbe tun: „Idź po
@@ -757,7 +815,7 @@ function pickFrom(s: Internal, active: readonly string[], previous: string | nul
     const apart = from.filter((k) => familyOf(k) !== was);
     if (apart.length > 0) from = apart;
   }
-  if (s.plan.pick === 'next') return { key: s.plan.order === 'random' ? from[0] : ordered(s, from, now)[0], among: from.length };
+  if (s.plan.pick === 'next' || s.plan.pick === 'sample') return { key: s.plan.order === 'random' ? from[0] : ordered(s, from, now)[0], among: from.length };
   const weights = from.map((k) => weightOf(s, k, now));
   let r = rng() * weights.reduce((sum, w) => sum + w, 0);
   for (let i = 0; i < from.length; i += 1) {
@@ -786,7 +844,9 @@ const seal = (s: Internal): Session => s;
 
 export function start(input: Start): Session {
   const graph = prerequisiteGraph(input.deps);
-  const unique = input.plan.cards.filter((c, i, all) => all.findIndex((o) => o.key === c.key) === i);
+  const all0 = input.plan.cards.filter((c, i, all) => all.findIndex((o) => o.key === c.key) === i);
+  /* 2026-11-05 (Prompt 23, C2) — eine Stichprobe je Thema (`pick: "sample"`), gezogen mit dem Zufall dieses Laufs. */
+  const unique = input.plan.pick === 'sample' ? sampleByTopic(all0, input.plan.perTopic ?? 2, input.seed) : all0;
   const byKey = new Map<string, Card>();
   for (const c of [...unique, ...input.all]) if (!byKey.has(c.key)) byKey.set(c.key, c);
   const levelMemo = new Map<string, number>();
