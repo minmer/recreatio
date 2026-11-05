@@ -21,7 +21,9 @@ import type { LsBand } from './landscape';
 import type { WorldLayout } from './worldLayout';
 import { cellPx, deepestS, depthOf, detailPx, fitCam, fitInfo, FORE_MAX, keepLabels, FORE_MIN, FORE_START, INFO_FORE, infoAngle, NAME_PX, PICK_PX, placeLabels, projection, RING_PX, toGround, toScreen, type LabelCandidate, type PlacedLabel, type Projection, type WorldCam } from './worldView';
 import type { LandscapeWords } from './landscapeWords';
-import { useMotion } from '../ui/motion';
+import { motionLevel, useMotion, type MotionLevel } from '../ui/motion';
+import { flyPoints } from './rewardBus';
+import { clamp01, easeInOut, easeOut, FLY_GAP, FLY_MS, FLY_SINGLE, LINE_MS, playPoints, playTimes, PULSE_MS, REGION_MS, SHIMMER_MS, WALK_MS, waveDelays, type PlaybackEvent, type PlayTimes, type WorldPlayback } from './worldPlay';
 
 /** 2026-11-04 (Prompt 15, 4b) — was die Karte zeigt: alles, nur das Gekonnte (mit dem Rand), nur das Fällige. */
 export type WorldMode = 'all' | 'known' | 'discover' | 'due';
@@ -170,7 +172,7 @@ export function GoalFlagIcon({ h }: { h: number }) {
 
 /* -- Die Karte ------------------------------------------------------------------------------------------------- */
 
-export function WorldMap({ world, topics, regionName, conquered, chosen, flash, home, links, route, width, compact, T, memoryKey, command, onPickTopic, onView, onBackground, legend, step, pieces, goalFlag, onPiece, onFlag, onStart, onHome }: {
+export function WorldMap({ world, topics, regionName, conquered, chosen, flash, home, links, route, width, compact, T, memoryKey, command, onPickTopic, onView, onBackground, legend, step, pieces, goalFlag, onPiece, onFlag, onStart, onHome, playback = null, onPlayback, replayLabel }: {
   world: WorldLayout;
   /** Die Höhe eines Schrittes dieser Baza (`stepFor`). */
   step: number;
@@ -186,6 +188,12 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   onHome?: (double: boolean) => void;
   /** Ein Doppelklick auf ein Thema (nah): zum Lernen öffnen. */
   onStart: (t: number) => void;
+  /** 2026-11-05 (Prompt 17) — was sich seit dem letzten Zeigen änderte: einmal abspielen (je neuer `id`; `worldPlay.ts`). */
+  playback?: WorldPlayback | null;
+  /** Was beim Abspielen geschieht: die Punkte kommen an, ein Gebiet ist erobert, das Ende. */
+  onPlayback?: (e: PlaybackEvent) => void;
+  /** „Pokaż zmiany" — eine Weile nach dem Zurückkommen (fehlt es: kein Knopf). */
+  replayLabel?: string;
   topics: readonly WorldTopic[];
   regionName: (key: string) => string;
   /** Gebiete, in denen alles gekonnt ist (erobert). */
@@ -319,16 +327,21 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     return () => { mq?.removeEventListener?.('change', read); watch.disconnect(); };
   }, []);
 
-  /* Das eigene Land wächst: wann ein Thema gekonnt wurde (in diesem Fenster), für eine kurze Bewegung. */
-  const knownAt = useRef(new Map<number, number>());
-  const knownBefore = useRef<Set<number> | null>(null);
-  useEffect(() => {
-    const now = new Set<number>();
-    topics.forEach((t, i) => { if (t.band === 'known' || t.band === 'due') now.add(i); });
-    const was = knownBefore.current;
-    if (was !== null) for (const i of now) if (!was.has(i)) knownAt.current.set(i, performance.now());
-    knownBefore.current = now;
-  }, [topics]);
+  /*
+    2026-11-05 (Prompt 17) — DAS ABSPIELEN (ersetzt das kurze Wachsen des Landes): was sich seit dem letzten Zeigen änderte,
+    in einer Folge — Kamera, Säulen und Ringe, Umrisse und Schimmer, Figuren, Punkte, Gebiete. Gezeichnet wird dabei jedes
+    Bild direkt (ohne das grosse Bild im Hintergrund); ein Klick oder eine Taste irgendwo überspringt den Rest.
+  */
+  const playRef = useRef<Play | null>(null);
+  const playedId = useRef(0);
+  const lastPb = useRef<WorldPlayback | null>(null);
+  const [phase, setPhase] = useState<PlayPhase | null>(null);
+  const [replayUntil, setReplayUntil] = useState(0);
+  const onPlaybackRef = useRef(onPlayback);
+  onPlaybackRef.current = onPlayback;
+  const emit = (e: PlaybackEvent) => onPlaybackRef.current?.(e);
+  const skipOff = useRef<(() => void) | null>(null);
+  const playScr = useRef<Float32Array | null>(null);
 
   /* -- Zeichnen ------------------------------------------------------------------------------------------------- */
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -349,7 +362,6 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     }
     return pick;
   };
-  const animating = useRef(0);
   /*
     Ein grösseres Bild im Hintergrund (eine halbe Breite Rand ringsum): beim Ziehen wird es nur verschoben — neu gezeichnet erst,
     wenn sich Zoom, Winkel oder Daten ändern oder der Rand erreicht ist. So bleibt eine Baza mit 5 000 Themen flüssig.
@@ -368,8 +380,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     if (el.width !== Math.round(width * dpr) || el.height !== Math.round(height * dpr)) { el.width = Math.round(width * dpr); el.height = Math.round(height * dpr); }
     const ctx = el.getContext('2d');
     if (ctx === null) return;
-    const growing = [...knownAt.current.values()].some((x) => performance.now() - x < 900);
-    if (n < 1200 || growing) { draw(ctx, dpr); return; }
+    const A = playRef.current;
+    if (A !== null) { drawPlay(ctx, dpr, A); return; }
+    if (n < 1200) { draw(ctx, dpr); return; }
     const margin = Math.round(Math.max(width, height) * 0.5);
     const sig = [cam.s.toFixed(4), cam.rot.toFixed(3), cam.fore.toFixed(4), dataSig, width, height, stepNow].join('|');
     let c = cache.current;
@@ -450,16 +463,20 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     }
     return best;
   };
+  /* 2026-11-05 (Prompt 17) — ein neues Abspielen beginnt VOR dem Zeichnen (das erste Bild zeigt schon den alten Stand). */
   useLayoutEffect(() => {
-    paint();
-    /* Solange das Land wächst: weiter zeichnen. */
-    const growing = [...knownAt.current.values()].some((x) => performance.now() - x < 900);
-    if (growing && animating.current === 0) {
-      const loop = () => { paintRef.current(); animating.current = [...knownAt.current.values()].some((x) => performance.now() - x < 900) ? requestAnimationFrame(loop) : 0; };
-      animating.current = requestAnimationFrame(loop);
-    }
-  });
-  useEffect(() => () => { if (animating.current !== 0) cancelAnimationFrame(animating.current); }, []);
+    if (playback === null || playback.id === playedId.current || palette === null || n === 0) return;
+    playedId.current = playback.id;
+    startPlay(playback, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playback?.id, palette, n]);
+  useLayoutEffect(() => { paint(); });
+  useEffect(() => () => {
+    const A = playRef.current;
+    playRef.current = null;
+    if (A !== null) { cancelAnimationFrame(A.raf); A.finishFlights?.(); }
+    skipOff.current?.();
+  }, []);
 
   /** Die Schirm-Lage jeder Säule (Mitte der Oberseite) — für Klicks und Namen. */
   const screen = useMemo(() => {
@@ -471,9 +488,181 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     }
     return out;
   }, [proj, world, topics, n]);
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
 
-  function draw(ctx: CanvasRenderingContext2D, dpr: number, p: Projection = proj, scr: Float32Array = screen, cw = width, ch = height) {
+  /* -- 2026-11-05 (Prompt 17): das Abspielen ------------------------------------------------------------------------ */
+  /** Nah genug, dass die Namen in den Kacheln stehen (wie `topicCam`) — weiter hinein geht das Abspielen nie. */
+  const nearS = (NAME_PX * 1.25) / (2 * 0.57735);
+  /** Wohin die Kamera gleitet: alles, was sich änderte, im Bild (Neigung und Drehung bleiben); `null`: es ist schon zu sehen. */
+  const changesCam = (pb: WorldPlayback): WorldCam | null => {
+    const list = new Set<number>([...pb.learned, ...pb.reviewed, ...pb.opened, ...pb.points.map((x) => x.t)]);
+    for (const k of pb.conquered) for (const t of world.regions.get(k)?.topics ?? []) list.add(t);
+    if (list.size === 0) return null;
+    let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
+    let seen = true;
+    const scr = screenRef.current;
+    for (const t of list) {
+      const c = world.cells[t];
+      if (c === undefined) continue;
+      x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y);
+      const sx = scr[t * 3]; const sy = scr[t * 3 + 1];
+      if (!(sx >= 24 && sx <= width - 24 && sy >= 24 && sy <= height - 24)) seen = false;
+    }
+    if (!Number.isFinite(x0)) return null;
+    const far = fitWhole(camRef.current).s;
+    if (seen && camRef.current.s >= far * 0.98 && cellPx(camRef.current) >= 6) return null;
+    const fit = fitCam(camRef.current, width, height, (x0 + x1) / 2, (y0 + y1) / 2, Math.max(2.6, Math.max(x1 - x0, y1 - y0) / 2 + 1.2));
+    return clamp({ ...fit, s: Math.max(far, Math.min(fit.s, Math.max(nearS, far))) });
+  };
+  const camDiffers = (a: WorldCam, b: WorldCam): boolean => Math.abs(Math.log(b.s / a.s)) > 0.1 || Math.hypot(b.cx - a.cx, b.cy - a.cy) * a.s > Math.min(width, height) * 0.1;
+  /** „+N" von den Feldern zum Zähler (die grössten einzeln, der Rest als eine Summe aus der Mitte der übrigen). */
+  const flyAll = (A: Play): (() => void) | null => {
+    const el = canvas.current;
+    const counter = box.current?.closest('.cg-ls')?.querySelector('[data-rw-counter]') ?? null;
+    const total = playPoints(A.pb);
+    if (el === null || total <= 0) { if (total > 0) emit({ kind: 'points', id: A.pb.id, n: total }); return null; }
+    const r = el.getBoundingClientRect();
+    const scr = screenRef.current;
+    const inside = (x: number, y: number): [number, number] => [r.left + Math.max(8, Math.min(width - 8, Number.isFinite(x) ? x : width / 2)), r.top + Math.max(8, Math.min(height - 8, Number.isFinite(y) ? y : height / 2))];
+    const sorted = [...A.pb.points].sort((a, b) => b.n - a.n);
+    const items = sorted.slice(0, FLY_SINGLE).map((x) => { const [fx, fy] = inside(scr[x.t * 3], scr[x.t * 3 + 1] - 6); return { n: x.n, x: fx, y: fy }; });
+    const others = sorted.slice(FLY_SINGLE);
+    const restN = others.reduce((sum, x) => sum + x.n, 0) + A.pb.rest;
+    if (restN > 0) {
+      let sx = 0; let sy = 0;
+      for (const x of others) { sx += scr[x.t * 3]; sy += scr[x.t * 3 + 1]; }
+      const [fx, fy] = others.length === 0 ? inside(width / 2, height / 2) : inside(sx / others.length, sy / others.length);
+      items.push({ n: restN, x: fx, y: fy });
+    }
+    return flyPoints(items, counter, undefined, { ms: FLY_MS, gap: FLY_GAP, onEach: (k) => emit({ kind: 'points', id: A.pb.id, n: k }) });
+  };
+  const finishPlay = (skipped: boolean) => {
+    const A = playRef.current;
+    if (A === null) return;
+    playRef.current = null;
+    if (A.raf !== 0) cancelAnimationFrame(A.raf);
+    skipOff.current?.();
+    skipOff.current = null;
+    if (skipped && A.camTo !== null) { stop(); setCam(clamp(A.camTo)); }
+    if (!A.sentPoints) { A.sentPoints = true; const left = playPoints(A.pb); if (left > 0) emit({ kind: 'points', id: A.pb.id, n: left }); } else A.finishFlights?.();
+    if (!A.sentRegions) { A.sentRegions = true; if (A.regions.length > 0) emit({ kind: 'regions', id: A.pb.id, keys: A.regions }); }
+    walks.current.clear();
+    setPhase(null);
+    emit({ kind: 'end', id: A.pb.id, skipped });
+    if (A.pb.kind === 'return' && A.motion !== 'off') setReplayUntil(Date.now() + 60_000);
+    paintRef.current();
+  };
+  const startPlay = (pb: WorldPlayback, replay: boolean) => {
+    if (playRef.current !== null) finishPlay(true);
+    const motion = motionLevel();
+    lastPb.current = pb;
+    const N = topics.length;
+    const h0 = new Float32Array(N).fill(Number.NaN);
+    const s0 = new Float32Array(N).fill(Number.NaN);
+    const b0 = new Uint8Array(N).fill(255);
+    const d0 = new Uint8Array(N);
+    const land0 = new Uint8Array(N);
+    const ready0 = new Uint8Array(N);
+    const mark = new Uint8Array(N);
+    const glow = new Uint8Array(N);
+    for (let i = 0; i < N; i += 1) {
+      const t = topics[i];
+      d0[i] = t.due ? 1 : 0; land0[i] = t.band === 'known' || t.band === 'due' ? 1 : 0; ready0[i] = t.band === 'ring' ? 1 : 0;
+      if (pb.kind === 'first') { h0[i] = 0; s0[i] = 0; continue; }
+      const b = pb.before[i] ?? null;
+      /* Neu auf der Karte: steigt auf, sein Rand zeichnet sich. */
+      if (b === null) { h0[i] = 0; s0[i] = 0; land0[i] = 0; ready0[i] = 0; continue; }
+      d0[i] = b.due ? 1 : 0; land0[i] = b.band === 'known' || b.band === 'due' ? 1 : 0; ready0[i] = b.band === 'ring' ? 1 : 0;
+      if (b.steps !== t.steps) h0[i] = b.steps;
+      if (Math.abs(b.share - t.share) > 0.004) s0[i] = b.share;
+      if (b.band !== t.band) b0[i] = BAND_IX[b.band ?? ''] ?? 0;
+    }
+    for (const i of pb.reviewed) if (i < N) mark[i] = 1;
+    for (const i of pb.opened) if (i < N) mark[i] = 2;
+    for (const key of pb.conquered) for (const i of world.regions.get(key)?.topics ?? []) if (i < N) glow[i] = 1;
+    const late = pb.kind === 'first' ? [] : [...pb.lowered, ...pb.moved, ...pb.fresh].filter((i) => i < N && !Number.isNaN(h0[i]));
+    const delay = waveDelays(world.cells, pb.kind, pb.learned.length > 0 ? pb.learned : pb.opened, late);
+    let wave = 0;
+    for (let i = 0; i < delay.length; i += 1) wave = Math.max(wave, delay[i]);
+    const camFrom = camRef.current;
+    const target = pb.kind === 'return' && !replay ? changesCam(pb) : null;
+    const camTo = target !== null && camDiffers(camFrom, target) ? target : null;
+    const flights = pb.kind === 'return' ? Math.min(FLY_SINGLE + 1, pb.points.length + (pb.rest > 0 ? 1 : 0)) : 0;
+    const times = playTimes({ kind: pb.kind, motion, camMove: camTo !== null, wave, lines: pb.learned.length + pb.opened.length + pb.fresh.length > 0, pulses: pb.reviewed.length > 0, walks: pb.walks.length > 0, flights, regions: pb.conquered.length > 0 });
+    const A: Play = { pb, t0: performance.now(), times, motion, delay, h0, s0, b0, d0, land0, ready0, mark, glow, regions: pb.conquered, camFrom, camTo, fade: null, raf: 0, sentPoints: pb.kind !== 'return', sentRegions: false, finishFlights: null, left: false };
+    playRef.current = A;
+    emit({ kind: 'start', id: pb.id, points: pb.kind === 'return' ? playPoints(pb) : 0 });
+    if (motion === 'off') { if (camTo !== null) setCam(clamp(camTo)); finishPlay(false); return; }
+    /* „ograniczone": nur eine Überblendung — das alte Bild (alte Kamera, alter Stand), darüber vergehend. */
+    if (motion === 'reduced') {
+      const el = canvas.current;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const off = document.createElement('canvas');
+      off.width = Math.round(width * dpr); off.height = Math.round(height * dpr);
+      const octx = off.getContext('2d');
+      if (octx !== null && el !== null && palette !== null) {
+        const scr = new Float32Array(n * 3);
+        for (let i = 0; i < n; i += 1) { const c = world.cells[i]; const [x, y] = toScreen(proj, c.x, c.y, stepsAt(A, i, topics[i]?.steps ?? 0, -1)); scr[i * 3] = x; scr[i * 3 + 1] = y; scr[i * 3 + 2] = depthOf(proj, c.x, c.y); }
+        draw(octx, dpr, proj, scr, width, height, -1);
+        A.fade = off;
+      }
+      if (camTo !== null) setCam(clamp(camTo));
+    }
+    walks.current.clear();
+    if (motion === 'full') for (const w of pb.walks) walks.current.set(w.to, { from: w.from, at: A.t0 + times.walk0, ms: WALK_MS });
+    setPhase({ id: pb.id, flags: false, hide: new Set(pb.conquered), rise: new Set(pb.conquered), leaving: pb.leaving, left: false });
+    skipOff.current = listenSkip(() => finishPlay(true));
+    const loop = () => {
+      if (playRef.current !== A) return;
+      if (topics.length !== A.h0.length && topicsRef.current.length !== A.h0.length) { finishPlay(true); return; }
+      const tau = performance.now() - A.t0;
+      let rendered = false;
+      if (A.camTo !== null && A.times.cam1 > 0 && tau <= A.times.cam1 + 40) { setCam(lerpCam(A.camFrom, A.camTo, easeInOut(clamp01(tau / A.times.cam1)))); rendered = true; }
+      if (!A.sentPoints && tau >= A.times.pts0) { A.sentPoints = true; A.finishFlights = flyAll(A); }
+      if (!A.left && tau >= A.times.walk0) { A.left = true; if (A.pb.leaving.length > 0) { setPhase((ph) => (ph === null ? ph : { ...ph, left: true })); rendered = true; } }
+      if (!A.sentRegions && tau >= A.times.reg0) {
+        A.sentRegions = true;
+        if (A.regions.length > 0) { setPhase((ph) => (ph === null ? ph : { ...ph, flags: true, hide: new Set() })); emit({ kind: 'regions', id: A.pb.id, keys: A.regions }); rendered = true; }
+      }
+      if (A.pb.walks.length > 0 && A.motion === 'full' && tau >= A.times.walk0 - 20 && tau <= A.times.walk1 + 20) { setWalkTick((x) => x + 1); rendered = true; }
+      if (tau >= A.times.end) { finishPlay(false); return; }
+      /* Ein neues Rendern zeichnet von selbst (`useLayoutEffect`); sonst hier. */
+      if (!rendered) paintRef.current();
+      A.raf = requestAnimationFrame(loop);
+    };
+    A.raf = requestAnimationFrame(loop);
+    paintRef.current();
+  };
+  const topicsRef = useRef(topics);
+  topicsRef.current = topics;
+  /** Ein Bild beim Abspielen: die Säulen auf ihrer Höhe von jetzt — „ograniczone": das neue Bild, das alte vergeht darüber. */
+  const drawPlay = (ctx: CanvasRenderingContext2D, dpr: number, A: Play) => {
+    const tau = performance.now() - A.t0;
+    if (A.fade !== null) {
+      draw(ctx, dpr);
+      const k = clamp01(tau / Math.max(1, A.times.fade));
+      if (k < 1) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - k; ctx.drawImage(A.fade, 0, 0); ctx.globalAlpha = 1; }
+      return;
+    }
+    let scr = playScr.current;
+    if (scr === null || scr.length !== n * 3) { scr = new Float32Array(n * 3); playScr.current = scr; }
+    for (let i = 0; i < n; i += 1) { const c = world.cells[i]; const [x, y] = toScreen(proj, c.x, c.y, stepsAt(A, i, topics[i]?.steps ?? 0, tau)); scr[i * 3] = x; scr[i * 3 + 1] = y; scr[i * 3 + 2] = depthOf(proj, c.x, c.y); }
+    draw(ctx, dpr, proj, scr, width, height, tau);
+  };
+  /* Der Knopf „Pokaż zmiany" geht nach einer Weile. */
+  useEffect(() => {
+    if (replayUntil === 0) return undefined;
+    const id = window.setTimeout(() => setReplayUntil(0), Math.max(0, replayUntil - Date.now()) + 50);
+    return () => window.clearTimeout(id);
+  }, [replayUntil]);
+
+  function draw(ctx: CanvasRenderingContext2D, dpr: number, p: Projection = proj, scr: Float32Array = screen, cw = width, ch = height, tauAt?: number) {
     const P = palette!;
+    /* 2026-11-05 (Prompt 17) — beim Abspielen: wie weit jeder Teil ist (`tauAt`, ms seit dem Anfang; -1: der alte Stand). */
+    const A = tauAt === undefined ? null : playRef.current;
+    const tau = tauAt ?? 0;
+    const kOf = (i: number): number => (A === null ? 1 : easeOut(colK(A, i, tau)));
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
     const corners = p.corners;
@@ -499,6 +688,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     /* Blass ist im Dunkeln ein mittleres Grau (nicht das dunkle Licht des Stils): ferne Berge bleiben lesbar. */
     const dark = (P.floor[0] + P.floor[1] + P.floor[2]) / 3 < 90;
     const pale = dark ? [128, 126, 122] : P.light;
+    /* Hell und satt sind für das Wissen: gekonnt kräftig, lernbar mittel, fern blass (die Farbe nur für das Gebiet). */
+    const faceFor = (band: LsBand | null, steps: number, regionC: number[]): number[] => (band === 'known' || band === 'due' ? regionC
+      : band === 'ring' ? mix(regionC, pale, dark ? 0.3 : 0.55) : mix(mix(regionC, pale, dark ? 0.55 : 0.78), P.haze, Math.min(dark ? 0.35 : 0.55, steps / 28)));
+    const shine = dark ? [255, 246, 214] : [255, 255, 255];
+    const regionK = A === null ? -1 : (tau - A.times.reg0) / REGION_MS;
     const at = byCell.current;
     const isLand = (i: number) => { const b = topics[i]?.band; return b === 'known' || b === 'due'; };
     const isReady = (i: number) => topics[i]?.band === 'ring';
@@ -523,6 +717,40 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       }
     };
     const strokeEdges = (colour: number[], w: number, alpha: number) => { ctx.strokeStyle = css(colour, alpha); ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(); };
+    /**
+     * 2026-11-05 (Prompt 17) — die Kanten beim Abspielen: was beide Male Rand ist, ganz; was neu Rand ist, so weit gezeichnet,
+     * wie `k` sagt (von seiner ersten Ecke aus); was nicht mehr Rand ist, vergeht.
+     */
+    const animEdges = (i: number, x: number, y: number, inNow: (j: number) => boolean, inWas: (j: number) => boolean, k: number, colour: number[], w: number) => {
+      const iNow = inNow(i); const iWas = inWas(i);
+      if (!iNow && !iWas) return;
+      const c = world.cells[i];
+      let fading = false;
+      ctx.beginPath();
+      for (let e = 0; e < 6; e += 1) {
+        const [dq, dr] = EDGE_DIR[e];
+        const j = at.get(`${c.q + dq},${c.r + dr}`);
+        const nowEdge = iNow && !(j !== undefined && inNow(j));
+        const wasEdge = iWas && !(j !== undefined && inWas(j));
+        const a = corners[e]; const b = corners[(e + 1) % 6];
+        if (nowEdge && (wasEdge || k >= 1)) { ctx.moveTo(x + a[0], y + a[1]); ctx.lineTo(x + b[0], y + b[1]); }
+        else if (nowEdge && k > 0) { ctx.moveTo(x + a[0], y + a[1]); ctx.lineTo(x + a[0] + (b[0] - a[0]) * k, y + a[1] + (b[1] - a[1]) * k); }
+        else if (wasEdge && !nowEdge && k < 1) fading = true;
+      }
+      strokeEdges(colour, w, 0.95);
+      if (!fading) return;
+      ctx.beginPath();
+      for (let e = 0; e < 6; e += 1) {
+        const [dq, dr] = EDGE_DIR[e];
+        const j = at.get(`${c.q + dq},${c.r + dr}`);
+        const nowEdge = iNow && !(j !== undefined && inNow(j));
+        const wasEdge = iWas && !(j !== undefined && inWas(j));
+        if (!wasEdge || nowEdge) continue;
+        const a = corners[e]; const b = corners[(e + 1) % 6];
+        ctx.moveTo(x + a[0], y + a[1]); ctx.lineTo(x + b[0], y + b[1]);
+      }
+      strokeEdges(colour, w, 0.95 * (1 - k));
+    };
     /*
       2026-11-04 (Prompt 15, 4) — DER RING AM RAND DER KACHEL: auf einem etwas kleineren Sechseck, von oben im Uhrzeigersinn;
       kräftig, was sitzt (mittlere Kenntnis der Karten), blass der Rest, ein Punkt oben: etwas ist fällig. Unabhängig von der
@@ -531,7 +759,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const ringOn = px >= RING_PX && !far;
     const ring = ringOn ? ringPath(corners, 0.8) : null;
     const ringW = Math.max(1.3, Math.min(3.2, px * 0.035));
-    const strokeRing = (x: number, y: number, share: number, due: boolean) => {
+    const strokeRing = (x: number, y: number, share: number, due: number) => {
       if (ring === null) return;
       ctx.beginPath();
       ring.pts.forEach(([rx, ry], k) => { if (k === 0) ctx.moveTo(x + rx, y + ry); else ctx.lineTo(x + rx, y + ry); });
@@ -548,9 +776,10 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         }
         ctx.strokeStyle = css(P.ink, dark ? 0.8 : 0.62); ctx.lineCap = 'round'; ctx.stroke();
       }
-      if (due) {
+      /* 2026-11-05 (Prompt 17) — der Punkt kann vergehen (`due` 0–1): eine Wiederholung ist erledigt. */
+      if (due > 0.01) {
         ctx.beginPath(); ctx.arc(x + ring.pts[0][0], y + ring.pts[0][1], ringW * 1.35, 0, Math.PI * 2);
-        ctx.fillStyle = css(P.warm); ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = css(P.surface, 0.9); ctx.stroke();
+        ctx.fillStyle = css(P.warm, Math.min(1, due)); ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = css(P.surface, 0.9 * Math.min(1, due)); ctx.stroke();
       }
     };
     /* Die Namen in der Kachel (nah), nur wenn ihre Mitte nicht von einer Säule davor verdeckt ist. */
@@ -587,18 +816,19 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       if (!homeDrawn && scr[i * 3 + 2] > homeDepth) drawHome();
       const x = scr[i * 3];
       const top = scr[i * 3 + 1];
-      const h = t.steps * lift;
+      const h = (A === null ? t.steps : stepsAt(A, i, t.steps, tau)) * lift;
       const base = top + h;
       const regionC = colourOf[i] ?? P.cx;
-      let face: number[];
-      /* Hell und satt sind für das Wissen: gekonnt kräftig, lernbar mittel, fern blass (die Farbe nur für das Gebiet). */
-      if (t.band === 'known' || t.band === 'due') {
-        const since = knownAt.current.get(i);
-        const grown = since === undefined ? 1 : Math.min(1, (now - since) / 900);
-        face = mix(mix(regionC, pale, 0.5), regionC, grown);
-      } else if (t.band === 'ring') face = mix(regionC, pale, dark ? 0.3 : 0.55);
-      else face = mix(mix(regionC, pale, dark ? 0.55 : 0.78), P.haze, Math.min(dark ? 0.35 : 0.55, t.steps / 28));
-      if (greyed(i)) { const l = face[0] * 0.3 + face[1] * 0.59 + face[2] * 0.11; const grey = mix([l, l, l], P.haze, 0.45); face = mode === 'discover' && isLand(i) ? mix(grey, face, 0.4) : grey; }
+      let face = faceFor(t.band, t.steps, regionC);
+      /* 2026-11-05 (Prompt 17) — beim Abspielen: die Farbe geht vom alten Band zum neuen (eine gelernte Säule füllt sich). */
+      if (A !== null && A.b0[i] !== 255) face = mix(faceFor(BAND_OF[A.b0[i]] ?? null, Number.isNaN(A.h0[i]) ? t.steps : A.h0[i], regionC), face, kOf(i));
+      const g1 = greyed(i) ? 1 : 0;
+      const g0 = A === null ? g1 : greyedBefore(A, i, mode);
+      /* In „Do powtórki" wird eine erledigte Wiederholung grau — mit ihrem Puls. */
+      const grayK = A === null || g0 === g1 ? g1 : g0 + (g1 - g0) * (A.mark[i] === 1 && mode === 'due' ? pulseK(A, i, tau) : kOf(i));
+      if (grayK > 0) { const l = face[0] * 0.3 + face[1] * 0.59 + face[2] * 0.11; const grey = mix([l, l, l], P.haze, 0.45); face = mix(face, mode === 'discover' && isLand(i) ? mix(grey, face, 0.4) : grey, grayK); }
+      /* Ein eben erobertes Gebiet leuchtet einmal. */
+      if (A !== null && A.glow[i] === 1 && regionK > 0 && regionK < 1) face = mix(face, P.surface, 0.3 * Math.sin(Math.PI * regionK));
       /* 2026-11-04 (Prompt 15, 3) — ein Gebiet unter dem Zeiger leuchtet, die anderen treten zurück. */
       if (regionHi !== null) face = (world.chain[i] ?? []).includes(regionHi) ? mix(face, P.surface, 0.16) : mix(face, P.haze, 0.6);
       /* Die Seiten (eine Fläche je sichtbarer Seite, dunkler). */
@@ -629,13 +859,51 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       ctx.fill();
       if (px >= 9) { ctx.strokeStyle = css(mix(face, [0, 0, 0], 0.22), 0.7); ctx.lineWidth = 0.6; ctx.stroke(); }
       if (i === chosen || i === flash) { ctx.strokeStyle = css(P.accent); ctx.lineWidth = i === flash ? 3.4 : 2.6; ctx.stroke(); }
+      /* 2026-11-05 (Prompt 17) — neu lernbar: ein heller Schimmer läuft einmal über die Oberseite. */
+      if (A !== null && A.mark[i] === 2) {
+        const sk = (tau - A.times.line0) / SHIMMER_MS;
+        if (sk > 0 && sk < 1) {
+          const R = p.s * 0.62;
+          const sx0 = x - R * 1.2 + 2.4 * R * sk;
+          ctx.save(); ctx.beginPath(); hexPath(x, top); ctx.clip();
+          const g = ctx.createLinearGradient(sx0 - R * 0.45, top - R * 0.4, sx0 + R * 0.45, top + R * 0.4);
+          g.addColorStop(0, css(shine, 0)); g.addColorStop(0.5, css(shine, 0.72)); g.addColorStop(1, css(shine, 0));
+          ctx.fillStyle = g; ctx.fillRect(x - R * 1.3, top - R * 1.3, R * 2.6, R * 2.6);
+          ctx.restore();
+        }
+      }
       /*
         2026-11-04 (Prompt 15, 4c) — was auf der Oberseite liegt, in der Reihenfolge der Säulen: Umriss (voll), Ring, Name.
         Eine Säule davor deckt es zu; wo sie es deckt, bleibt der Umriss dünn sichtbar (der zweite Durchgang unten).
       */
-      if (showLand && isLand(i)) { ctx.beginPath(); edges(i, x, top, isLand); strokeEdges(P.land, line * 1.15, 0.95); }
-      if (showReady && showGlow && isReady(i)) { ctx.beginPath(); edges(i, x, top, isReady); strokeEdges(P.ready, line, 0.95); }
-      if (ringOn && (mode !== 'due' || t.due) && !greyed(i)) { strokeRing(x, top, t.share, t.due); rings += 1; }
+      if (A === null) {
+        if (showLand && isLand(i)) { ctx.beginPath(); edges(i, x, top, isLand); strokeEdges(P.land, line * 1.15, 0.95); }
+        if (showReady && showGlow && isReady(i)) { ctx.beginPath(); edges(i, x, top, isReady); strokeEdges(P.ready, line, 0.95); }
+      } else {
+        /* 2026-11-05 (Prompt 17) — der Rand wächst entlang der neuen Grenze (zeichnet sich), der alte vergeht. */
+        const lk = easeOut(clamp01((tau - A.times.line0) / LINE_MS));
+        if (showLand) animEdges(i, x, top, isLand, (j) => A.land0[j] === 1, lk, P.land, line * 1.15);
+        if (showReady && showGlow) animEdges(i, x, top, isReady, (j) => A.ready0[j] === 1, lk, P.ready, line);
+      }
+      const dueWas = A !== null && A.d0[i] === 1;
+      if (ringOn && (mode !== 'due' || t.due || (A !== null && dueWas && pulseK(A, i, tau) < 1)) && grayK < 1) {
+        /* Der Ring füllt sich im Uhrzeigersinn, der Punkt vergeht (oder erscheint). */
+        const share = A === null || Number.isNaN(A.s0[i]) ? t.share : A.s0[i] + (t.share - A.s0[i]) * kOf(i);
+        const dot = A === null || dueWas === t.due ? (t.due ? 1 : 0) : t.due ? kOf(i) : 1 - kOf(i);
+        strokeRing(x, top, share, dot);
+        rings += 1;
+      }
+      /* Eine erledigte Wiederholung: ein Puls in der Farbe ihres Gebiets. */
+      if (A !== null && A.mark[i] === 1) {
+        const pk = pulseK(A, i, tau);
+        if (pk > 0 && pk < 1) {
+          const f = 1 + 0.32 * easeOut(pk);
+          ctx.beginPath(); ctx.moveTo(x + corners[0][0] * f, top + corners[0][1] * f);
+          for (let k = 1; k < 6; k += 1) ctx.lineTo(x + corners[k][0] * f, top + corners[k][1] * f);
+          ctx.closePath();
+          ctx.strokeStyle = css(regionC, 0.9 * (1 - pk)); ctx.lineWidth = Math.max(1.5, line * 1.5); ctx.stroke();
+        }
+      }
       if (textOn && x > -textR && x < cw + textR && top > -textR && top < ch + textR) {
         if (coverAt(i, x, top, p, scr) !== null) { hiddenText += 1; continue; }
         const fk = `${i}|${Math.round(textR)}|${deep ? 1 : 0}|${t.todo}`;
@@ -656,7 +924,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     }
     if (!homeDrawn) drawHome();
     /* Wo eine Säule davor den Umriss deckt: dünn (etwa ein Drittel) und etwas heller darüber — der Rand bleibt lesbar. */
-    if (outlines) {
+    if (outlines && A === null) {
       ctx.beginPath();
       if (showLand) for (const i of order) if (isLand(i)) edges(i, scr[i * 3], scr[i * 3 + 1], isLand);
       strokeEdges(mix(P.land, P.surface, 0.3), Math.max(0.8, line * 0.38), 0.9);
@@ -664,6 +932,20 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         ctx.beginPath();
         for (const i of order) if (isReady(i)) edges(i, scr[i * 3], scr[i * 3 + 1], isReady);
         strokeEdges(mix(P.ready, P.surface, 0.3), Math.max(0.7, line * 0.33), 0.9);
+      }
+    }
+    /* 2026-11-05 (Prompt 17) — das eroberte Gebiet: sein Rand leuchtet einmal auf. */
+    if (A !== null && A.regions.length > 0 && regionK > 0 && regionK < 1) {
+      const a = Math.sin(Math.PI * regionK);
+      for (const key of A.regions) {
+        const r = world.regions.get(key);
+        if (r === undefined) continue;
+        const inR = (j: number) => (world.chain[j] ?? []).includes(key);
+        const ti = world.top.indexOf(r.top);
+        ctx.beginPath();
+        for (const t2 of r.topics) edges(t2, scr[t2 * 3], scr[t2 * 3 + 1], inR);
+        strokeEdges(P.surface, line * 3.2, 0.8 * a);
+        strokeEdges(ti < 0 ? P.land : (P.c[ti % 8] as number[]), line * 1.5, 0.95 * a);
       }
     }
     /* Das Gebiet unter dem Zeiger: sein Rand leuchtet. */
@@ -1021,28 +1303,31 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     2026-11-04 (Prompt 14, 1) — DIE SPIELFIGUREN: wo sie stehen (auf der Oberseite ihres Feldes); fern mehrere in einem Gebiet
     als eine Figur mit Zahl. Die Figur auf dem Weg zum Ziel geht, wenn ihr Feld wechselt, kurz von Feld zu Feld.
   */
-  const walk = useRef<{ from: number; to: number; at: number } | null>(null);
+  /* 2026-11-05 (Prompt 17) — je Ziel-Thema ein Weg (beim Abspielen gehen mehrere Figuren; vor ihrem Start stehen sie am alten Platz). */
+  const walks = useRef(new Map<number, { readonly from: number; readonly at: number; readonly ms: number }>());
   const goalNow = pieces.find((p) => p.kind === 'goal')?.t ?? null;
   const goalSeen = useRef<number | null>(goalNow);
   const [walkTick, setWalkTick] = useState(0);
   useEffect(() => {
     const was = goalSeen.current;
     goalSeen.current = goalNow;
-    if (was === null || goalNow === null || was === goalNow || reduced) return undefined;
-    walk.current = { from: was, to: goalNow, at: performance.now() };
+    /* Läuft das Abspielen, geht die Figur mit ihm (nach den Säulen). */
+    if (was === null || goalNow === null || was === goalNow || reduced || playRef.current !== null) return undefined;
+    const w = { from: was, at: performance.now(), ms: 750 };
+    walks.current.set(goalNow, w);
     let id = 0;
-    const loop = () => { setWalkTick((x) => x + 1); id = walk.current !== null && performance.now() - walk.current.at < 750 ? requestAnimationFrame(loop) : 0; if (id === 0) walk.current = null; };
+    const loop = () => { setWalkTick((x) => x + 1); id = walks.current.get(goalNow) === w && performance.now() - w.at < w.ms ? requestAnimationFrame(loop) : 0; if (id === 0 && walks.current.get(goalNow) === w) walks.current.delete(goalNow); };
     id = requestAnimationFrame(loop);
     return () => { if (id !== 0) cancelAnimationFrame(id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goalNow]);
   const placeOf = (t: number): [number, number] => {
-    const w = walk.current;
-    if (w !== null && w.to === t) {
-      const k = Math.min(1, (performance.now() - w.at) / 750);
+    const w = walks.current.get(t);
+    if (w !== undefined && performance.now() - w.at < w.ms) {
+      const k = clamp01((performance.now() - w.at) / w.ms);
       const e = 1 - (1 - k) ** 2;
-      const a = world.cells[w.from]; const b = world.cells[w.to];
-      const sa = topics[w.from]?.steps ?? 0; const sb = topics[w.to]?.steps ?? 0;
+      const a = world.cells[w.from]; const b = world.cells[t];
+      const sa = topics[w.from]?.steps ?? 0; const sb = topics[t]?.steps ?? 0;
       return toScreen(proj, a.x + (b.x - a.x) * e, a.y + (b.y - a.y) * e, sa + (sb - sa) * e + Math.sin(Math.PI * k) * 2);
     }
     return [screen[t * 3], screen[t * 3 + 1]];
@@ -1074,7 +1359,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 
   return (
     <div ref={box} className={`cg-wm${compact ? ' is-compact' : ''}`} tabIndex={-1} onKeyDown={keys} data-wm-scale={cam.s.toFixed(2)} data-wm-px={px.toFixed(1)} data-wm-rot={rotNow} data-wm-fore={cam.fore.toFixed(2)}
-      data-wm-far={far ? '1' : '0'} data-wm-level={levelNow} data-wm-tops={world.top.length} data-wm-hot={hoverRegion ?? ''} data-wm-cells={n} data-wm-step={stepNow.toFixed(3)} data-wm-height={height3} data-wm-home={world.home} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')}>
+      data-wm-far={far ? '1' : '0'} data-wm-level={levelNow} data-wm-tops={world.top.length} data-wm-hot={hoverRegion ?? ''} data-wm-cells={n} data-wm-step={stepNow.toFixed(3)} data-wm-height={height3} data-wm-home={world.home} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')} data-wm-playing={phase === null ? '' : String(phase.id)} data-wm-played={lastPb.current?.id ?? ''} data-wm-played-kind={lastPb.current?.kind ?? ''}>
       <div className="cg-wm-modes" role="group" aria-label={T.modeLabel} data-wm-modes={mode}>
         {(['all', 'known', 'discover', 'due'] as const).map((m) => (
           <button key={m} type="button" className={`cg-wm-mode${mode === m ? ' is-on' : ''}`} aria-pressed={mode === m} onClick={() => setMode(m)} data-wm-mode={m}>{m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : T.modeDue}</button>
@@ -1088,9 +1373,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           const isRegion = l.key.startsWith('r:');
           const rk = isRegion ? l.key.slice(2) : null;
           return (
-            <span key={l.key} className={`cg-wm-label${isRegion ? ' is-region' : ' is-topic'}${l.shown ? ' is-shown' : ''}${rk !== null && rk === hoverRegion ? ' is-hot' : ''}${rk !== null && world.regions.get(rk)?.parent === null ? ' is-top' : ''}`} data-wm-leader={l.leader === undefined ? undefined : ''} data-wm-label={l.key} data-wm-box={[l.x - l.w / 2, l.y - l.h / 2, l.w, l.h].map((v) => v.toFixed(0)).join(',')}
+            <span key={l.key} className={`cg-wm-label${isRegion ? ' is-region' : ' is-topic'}${l.shown ? ' is-shown' : ''}${rk !== null && rk === hoverRegion ? ' is-hot' : ''}${rk !== null && world.regions.get(rk)?.parent === null ? ' is-top' : ''}${rk !== null && phase !== null && phase.flags && phase.rise.has(rk) ? ' is-rising' : ''}`} data-wm-leader={l.leader === undefined ? undefined : ''} data-wm-label={l.key} data-wm-box={[l.x - l.w / 2, l.y - l.h / 2, l.w, l.h].map((v) => v.toFixed(0)).join(',')}
               ref={(el) => { if (el !== null) { const sk = `${l.key}|${l.text}`; if (!measured.current.has(sk) && el.offsetWidth > 0) { measured.current.set(sk, [el.offsetWidth, el.offsetHeight]); if (measureSoon.current === 0) measureSoon.current = window.setTimeout(() => { measureSoon.current = 0; setMeasureTick((x) => x + 1); }, 60); } if (rk !== null) el.style.setProperty('--wm-label-c', labelColour(rk)); el.style.left = `${l.x.toFixed(1)}px`; el.style.top = `${l.y.toFixed(1)}px`; el.style.width = `${l.w.toFixed(0)}px`; el.style.opacity = l.shown ? String(Math.min(1, l.alpha)) : '0'; } }}>
-              {rk !== null && conquered.has(rk) && <FlagIcon />}{l.text}
+              {rk !== null && conquered.has(rk) && !(phase !== null && phase.hide.has(rk)) && <FlagIcon />}{l.text}
             </span>
           );
         })}
@@ -1100,7 +1385,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           </svg>
         )}
       </div>
-      {(shownPieces.length > 0 || goalFlag !== null) && (
+      {(shownPieces.length > 0 || goalFlag !== null || (phase !== null && phase.leaving.length > 0)) && (
         <svg className="cg-wm-pieces" width={width} height={height} data-wm-pieces={shownPieces.length}>
           {goalFlag !== null && goalFlag >= 0 && goalFlag < n && (() => {
             const [x, y] = [screen[goalFlag * 3], screen[goalFlag * 3 + 1]];
@@ -1112,6 +1397,12 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
               </g>
             );
           })()}
+          {/* 2026-11-05 (Prompt 17) — eine Figur, deren Thema jetzt gekonnt ist, steht noch, bis die Säulen sitzen, dann vergeht sie. */}
+          {phase !== null && phase.leaving.map((p) => {
+            if (p.t < 0 || p.t >= n) return null;
+            const [x, y] = [screen[p.t * 3], screen[p.t * 3 + 1]];
+            return <g key={`leave:${p.kind}:${p.t}`} transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} className={`cg-wm-leaving${phase.left ? ' is-going' : ''}`} data-wm-leaving={p.t}><PieceIcon kind={p.kind} h={pieceH} /></g>;
+          })}
           {shownPieces.map((p) => {
             if (p.t < 0 || p.t >= n) return null;
             const [x, y] = p.region !== null ? (() => { const r = world.regions.get(p.region!); return r === undefined ? placeOf(p.t) : toScreen(proj, r.x, r.y); })() : placeOf(p.t);
@@ -1131,6 +1422,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       )}
       {mode === 'due' && !topics.some((t) => t.due) && <div className="cg-wm-note" role="status" data-wm-note="due">{T.nothingDue}</div>}
       {mode === 'discover' && !topics.some((t) => t.band === 'ring') && <div className="cg-wm-note" role="status" data-wm-note="discover">{T.nothingReady}</div>}
+      {replayLabel !== undefined && replayUntil > 0 && phase === null && lastPb.current !== null && (
+        <button type="button" className="cg-wm-replay" onClick={() => { const pb = lastPb.current; if (pb !== null) startPlay(pb, true); }} data-wm-replay="">
+          <svg viewBox="-8 -8 16 16" aria-hidden><path d="M5.2,-2.6 A6,6 0 1 0 6,1.4 M5.2,-2.6 L1.6,-3.2 M5.2,-2.6 L5.8,0.8" /></svg>{replayLabel}
+        </button>
+      )}
       {hovered !== null && <div ref={placeTip} className="cg-rm-tip" role="tooltip" data-landscape-tip="">{hovered.title}{hovered.hint === '' ? '' : <> · <strong>{hovered.hint}</strong></>}</div>}
       <div className="cg-rm-tools" role="group" aria-label={T.mapLabel}>
         <button type="button" className="cg-rm-tool" onClick={() => glide({ ...camRef.current, s: camRef.current.s * 1.6 }, 240)} aria-label={T.zoomIn} title={T.zoomIn} data-rm-zoom="in">+</button>
@@ -1162,6 +1458,88 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       {legend(visible)}
     </div>
   );
+}
+
+/* -- 2026-11-05 (Prompt 17): das Abspielen, ausserhalb der Komponente ------------------------------------------------ */
+
+/** Ein laufendes Abspielen (je Thema in Feldern, damit 5 000 Säulen je Bild billig bleiben). */
+interface Play {
+  readonly pb: WorldPlayback;
+  readonly t0: number;
+  readonly times: PlayTimes;
+  readonly motion: MotionLevel;
+  /** Je Thema: wann seine Säule beginnt (die Welle). */
+  readonly delay: Float32Array;
+  /** Vorher: die Höhe, der Ring (NaN: wie jetzt), das Band (Code, 255: wie jetzt), fällig, Land, lernbar. */
+  readonly h0: Float32Array;
+  readonly s0: Float32Array;
+  readonly b0: Uint8Array;
+  readonly d0: Uint8Array;
+  readonly land0: Uint8Array;
+  readonly ready0: Uint8Array;
+  /** 1: ein Puls (eine Wiederholung erledigt), 2: ein Schimmer (neu lernbar). */
+  readonly mark: Uint8Array;
+  /** In einem eben eroberten Gebiet. */
+  readonly glow: Uint8Array;
+  readonly regions: readonly string[];
+  readonly camFrom: WorldCam;
+  readonly camTo: WorldCam | null;
+  /** „ograniczone": das alte Bild. */
+  fade: HTMLCanvasElement | null;
+  raf: number;
+  sentPoints: boolean;
+  sentRegions: boolean;
+  left: boolean;
+  finishFlights: (() => void) | null;
+}
+
+/** Was die Oberfläche beim Abspielen braucht (Fahnen, Figuren, die gehen). */
+interface PlayPhase {
+  readonly id: number;
+  /** Die Fahnen der eben eroberten Gebiete stehen (sie steigen jetzt). */
+  readonly flags: boolean;
+  readonly hide: ReadonlySet<string>;
+  readonly rise: ReadonlySet<string>;
+  readonly leaving: readonly { readonly t: number; readonly kind: 'single' | 'goal' }[];
+  readonly left: boolean;
+}
+
+const BAND_IX: Readonly<Record<string, number>> = { mountain: 1, ring: 2, due: 3, known: 4 };
+const BAND_OF: readonly (LsBand | null)[] = [null, 'mountain', 'ring', 'due', 'known'];
+
+/** Wie weit die Säule i ist (0–1, ohne Glättung). */
+function colK(A: Play, i: number, tau: number): number {
+  return clamp01((tau - A.times.col0 - A.delay[i]) / Math.max(1, A.times.colMs));
+}
+/** Ihre Höhe jetzt. */
+function stepsAt(A: Play, i: number, final: number, tau: number): number {
+  const h0 = A.h0[i];
+  if (h0 === undefined || Number.isNaN(h0)) return final;
+  return h0 + (final - h0) * easeOut(colK(A, i, tau));
+}
+/** Der Puls einer erledigten Wiederholung: kurz bevor ihre Säule sitzt. */
+function pulseK(A: Play, i: number, tau: number): number {
+  return clamp01((tau - (A.times.col0 + A.delay[i] + A.times.colMs - 120)) / PULSE_MS);
+}
+/** War es vorher in dieser Ansicht grau? */
+function greyedBefore(A: Play, i: number, mode: WorldMode): number {
+  if (mode === 'known') return A.land0[i] === 1 ? 0 : 1;
+  if (mode === 'discover') return A.ready0[i] === 1 ? 0 : 1;
+  if (mode === 'due') return A.d0[i] === 1 ? 0 : 1;
+  return 0;
+}
+/** Zwischen zwei Blicken (Drehung auf dem kürzeren Weg). */
+function lerpCam(a: WorldCam, b: WorldCam, k: number): WorldCam {
+  const turn = ((((b.rot - a.rot) % 360) + 540) % 360) - 180;
+  return { s: a.s * (b.s / a.s) ** k, cx: a.cx + (b.cx - a.cx) * k, cy: a.cy + (b.cy - a.cy) * k, rot: a.rot + turn * k, fore: a.fore + (b.fore - a.fore) * k };
+}
+/** Irgendein Klick, eine Taste, das Rad: der Rest wird übersprungen (die Eingabe geht trotzdem weiter, wohin sie wollte). */
+function listenSkip(f: () => void): () => void {
+  const h = () => f();
+  window.addEventListener('pointerdown', h, true);
+  window.addEventListener('keydown', h, true);
+  window.addEventListener('wheel', h, { capture: true, passive: true });
+  return () => { window.removeEventListener('pointerdown', h, true); window.removeEventListener('keydown', h, true); window.removeEventListener('wheel', h, true); };
 }
 
 /** Die Kante k (Ecke k → k+1) stösst an den Nachbarn in dieser Richtung (Achsen q, r). */
