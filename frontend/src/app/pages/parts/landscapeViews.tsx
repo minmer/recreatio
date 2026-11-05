@@ -39,7 +39,9 @@ export function LandscapeModuleView({ config, ctx }: { config: LandscapeConfig; 
   const [state, setState] = useScope(scope);
   /* Wählt die Seite oben einen Eintrag dieser Baza, wählt ein Klick dort — sonst öffnet er sich hier. */
   const subject = useEntitySubject();
-  const doc = lib == null || config.view === '' ? undefined : lib.docs('view').find((e) => e.id === config.view);
+  /* 2026-11-05 — mehrere Widoki zur Wahl: der gewählte steht in der Adresse (`w`), sonst der erste; keiner — die ganze Baza. */
+  const viewId = config.views.includes(state.w ?? '') ? state.w! : config.views[0] ?? '';
+  const doc = lib == null || viewId === '' ? undefined : lib.docs('view').find((e) => e.id === viewId);
   const saved = useMemo(() => readView(doc?.data), [doc]);
   /* Gelernt wird als die Person der Seite (angemeldet man selbst, ein Platz, sonst dieser Browser); Antworten wie „Powtórka". */
   const visitor = usePageLearner(lib, answersArea(config.answers));
@@ -49,13 +51,14 @@ export function LandscapeModuleView({ config, ctx }: { config: LandscapeConfig; 
   const rules = namedRules ?? pageRules;
   /* Die Karten bleiben stehen, solange neue gerechnet werden (sonst verliert der Krajobraz Zoom, Wahl und Bildlauf). */
   const [cards, busy] = useAsyncKeep(lib != null ? () => lib.cards('page').then((r) => r.cards) : null, [lib, lib?.revision], () => lib?.cardsReady('page'));
-  const title = config.title || (doc !== undefined ? saved.name : '') || 'Krajobraz wiedzy';
+  const title = config.title || (doc !== undefined && config.views.length <= 1 ? saved.name : '') || 'Krajobraz wiedzy';
 
   if (lib === undefined) return <><h2 className="wk-card-title">{title}</h2><Loading /></>;
   if (lib === null || cg === null) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">Tej bazy wiedzy nie możesz tu czytać — nie jest publiczna albo nie masz do niej dostępu.</p></>;
-  if (config.view !== '' && doc === undefined) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">Tego widoku nie ma w bazie wiedzy.</p></>;
+  if (viewId !== '' && doc === undefined) return <><h2 className="wk-card-title">{title}</h2><p className="wk-card-muted">Tego widoku nie ma w bazie wiedzy.</p></>;
 
-  const viewKey = config.view === '' ? 'wpisy' : config.view;
+  const viewKey = viewId === '' ? 'wpisy' : viewId;
+  const choices = config.views.map((id) => ({ id, name: (() => { const d = lib.docs('view').find((e) => e.id === id); return d === undefined ? null : readView(d.data).name; })() })).filter((x): x is { id: string; name: string } => x.name !== null);
   const tall = isTall(ctx);
   const open = (id: string) => {
     if (subject !== null && subject.library === config.library) { subject.choose(id); window.scrollTo({ top: 0, behavior: 'smooth' }); }
@@ -67,15 +70,24 @@ export function LandscapeModuleView({ config, ctx }: { config: LandscapeConfig; 
     <CogitaContext.Provider value={cg}>
       <h2 className="wk-card-title">{title}</h2>
       {!config.hidden.has('spacing') && <><SpacingChoice lib={lib} learner={visitor.learner} /><StackChoice lib={lib} learner={visitor.learner} /></>}
+      {choices.length > 1 && (
+        <div className="cg-row">
+          <span className="cg-subtabs" role="tablist" aria-label="Widok" data-landscape-views={choices.length}>
+            {choices.map((x) => (
+              <button key={x.id} type="button" role="tab" aria-selected={x.id === viewId} className={x.id === viewId ? 'is-on' : ''} onClick={() => setState({ w: x.id, e: null, d: null })} data-landscape-view-tab={x.id}>{x.name}</button>
+            ))}
+          </span>
+        </div>
+      )}
       {showSearch && (
         <div className="cg-row">
           <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder="Szukaj w krajobrazie…" aria-label={`Szukaj: ${title}`} />
         </div>
       )}
       {cards == null ? <Loading /> : tall ? (
-        <LandscapeView view={saved} cards={cards} learner={visitor.learner} onOpen={open} query={showSearch ? state.q ?? '' : ''} viewKey={viewKey} rewards={rules} urlScope={`${scope}.`} busy={busy} />
+        <LandscapeView key={viewKey} view={saved} cards={cards} learner={visitor.learner} onOpen={open} query={showSearch ? state.q ?? '' : ''} viewKey={viewKey} rewards={rules} urlScope={`${scope}.`} busy={busy} />
       ) : (
-        <LandscapeView view={saved} cards={cards} learner={visitor.learner} onOpen={open} compact viewKey={viewKey} rewards={rules}
+        <LandscapeView key={viewKey} view={saved} cards={cards} learner={visitor.learner} onOpen={open} compact viewKey={viewKey} rewards={rules}
           {...(ctx.openWhole === undefined ? {} : { more: <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cały krajobraz</button> })} />
       )}
       {!config.hidden.has('learner') && <LearnerLine learner={visitor} lib={lib} />}

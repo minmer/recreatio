@@ -34,7 +34,7 @@ import type { Outcome } from './check';
 import { questionCard } from './cards';
 import { type Card } from './cardBasics';
 import {
-  chaptersLeft, detourRefused, follow, goalsReached, linesNow, markSaid, narratorNow, optionsOf, readFlow, resolveFlow, STEP_LABEL,
+  chaptersLeft, detourRefused, follow, goalsReached, linesNow, markSaid, optionsOf, readFlow, resolveFlow, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext
 } from './flow';
 import { detourOf, detourState, openDetours, requiredOpen } from './detour';
@@ -281,8 +281,6 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     setPast((p) => [...p, { run: r, ...(answer == null ? {} : { answer }), ...(exit === undefined ? {} : { exit }) }].slice(-200));
   };
   const forgetPast = () => { setPast([]); setBackBy(0); lastAnswer.current = null; };
-  /* Wer erzählt — einmal je gezeigtem Schritt entschieden (am Anfang einer Erzählung und wenn er wechselt). */
-  const tellSeen = useRef<{ key: string; flow: string; id: string | null; show: boolean }>({ key: '', flow: '', id: null, show: false });
   /*
     Tastatur: → / Enter / Leertaste = Dalej, ← = Wstecz — nicht in Feldern; Enter und Leertaste nicht auf einem Knopf (der
     tut es selbst). Nur, solange dieser Spieler zu sehen ist. Wischen nach links / rechts tut dasselbe.
@@ -681,11 +679,6 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       </div>
     </div>
   ));
-  /* 2026-10-22 (Schritt 12) — wer gerade erzählt: der erste Erzähler, dessen Bedingung gilt. */
-  const narratorOf = (f: Facts): PublicEntity | null => {
-    const one = narratorNow(running, f);
-    return one === null ? null : content.entity(one.character);
-  };
 
   /* Was ein Lese-Schritt zeigt (Bild, Eintrag) — derselbe für den laufenden und für einen, zu dem „Wstecz" zurückgeht. */
   const showBody = (node: GraphNode, stItem: string | undefined): ReactNode => {
@@ -848,8 +841,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     return (
       <Suspense fallback={<Loading />}>
         <PresentationInNauka key={root.id} name={root.name} path={root.presentation} learner={learner} onClose={onClose} content={content} unit={root.unit ?? null}
-          startAt={jumpTo == null || root.id !== flow.id ? null : { scene: jumpTo.step, at: jumpTo.at }}
-          narrator={root.narrators.length === 0 ? undefined : (f) => <Narrator who={(() => { const one = narratorNow(root, f); return one === null ? null : content.entity(one.character); })()} says={null} />} />
+          startAt={jumpTo == null || root.id !== flow.id ? null : { scene: jumpTo.step, at: jumpTo.at }} />
       </Suspense>
     );
   }
@@ -913,15 +905,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const c = current.config;
   const title = typeof c.title === 'string' && c.title !== '' ? c.title : null;
   const item = state.item === undefined ? null : content.entity(state.item);
-  /* 2026-11-05 (Prompt 18) — wer erzählt: eine kleine Zeile über dem Titel, nur am Anfang einer Erzählung und wenn er wechselt. */
-  const teller = narratorOf(facts(state));
-  const tellKey = `${running.id}:${state.step ?? ''}:${visit}`;
-  if (tellSeen.current.key !== tellKey) {
-    const id = teller?.id ?? null;
-    const prev = tellSeen.current;
-    tellSeen.current = { key: tellKey, flow: running.id, id, show: id !== null && (prev.flow !== running.id || prev.id !== id || state.visited.length <= 1) };
-  }
-  const tellNow = tellSeen.current.show ? teller : null;
+  /* 2026-11-05 — wer erzählt, steht nicht mehr da (der Eigentümer: „remove completely"); die Erzähler wirken nur noch in Präsentationen. */
 
   /* 2026-11-05 (Prompt 18) — „Dalej" steht unten in der Leiste (`next` merkt, was er tut); die Tastatur nimmt dasselbe. */
   let nextAct: (() => void) | null = null;
@@ -1213,7 +1197,6 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
           </div>
         )}
         <div className={`cg-flow-step${c.open === 'inline' ? ' cg-flow-inline' : ''}`}>
-          {tellNow !== null && <Teller who={tellNow} W={W} />}
           {title !== null && <h2 className="cg-flow-step-title" data-flow-title={running.id}><TexText text={title} /></h2>}
           {item !== null && <p className="cg-muted"><TexText text={item.label} /></p>}
           {body}
@@ -1286,16 +1269,6 @@ function StoryHead({ W, back, crumbs, menu, progress }: {
   );
 }
 
-/** 2026-11-05 (Prompt 18) — wer erzählt: eine kleine Zeile (Bild oder Anfangsbuchstabe und Name) über dem Titel. */
-function Teller({ who, W }: { who: PublicEntity; W: ReturnType<typeof words> }) {
-  const portrait = who.media.find((m) => m.type === 'image');
-  return (
-    <p className="cg-story-teller" data-narrator={who.id}>
-      <span className="cg-bubble-face" aria-hidden>{portrait !== undefined ? <MediaView media={portrait} /> : who.label.slice(0, 1)}</span>
-      <span>{W.tells(who.label)}</span>
-    </p>
-  );
-}
 
 /** Die gemerkten Kapitel (`<auswahl>:<index>`) als Stand. */
 function chaptersOf(kept: readonly string[] | undefined): FlowState['chapters'] | undefined {
@@ -1348,21 +1321,6 @@ export function AskHead({ W, left, done, card, spacer, marks, topic, story }: {
           {W.lastAnswers}: {history.slice(-5).map((m) => (m.correctness >= 0.999 ? '✓' : m.correctness >= 0.5 ? '½' : '✗')).join(' ') || '—'}
         </p>
       )}
-    </div>
-  );
-}
-
-/** 2026-10-22 (Schritt 12) — wer erzählt: sein Bild, sein Name und was er ansagt (der Titel des Schritts). */
-function Narrator({ who, says }: { who: PublicEntity | null; says: string | null }) {
-  if (who === null) return null;
-  const portrait = who.media.find((m) => m.type === 'image');
-  return (
-    <div className="cg-bubble cg-narrator" data-narrator={who.id}>
-      <span className="cg-bubble-face" title={who.label}>{portrait !== undefined ? <MediaView media={portrait} /> : who.label.slice(0, 1)}</span>
-      <span className="cg-bubble-text">
-        <strong><TexText text={who.label} /></strong>
-        <span><TexText text={says ?? 'opowiada'} /></span>
-      </span>
     </div>
   );
 }

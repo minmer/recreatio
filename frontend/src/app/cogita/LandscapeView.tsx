@@ -979,7 +979,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       <div className="cg-ls-head">
         <div className="cg-ls-headrow">
           <nav className="cg-ls-crumbs" aria-label={W.whereAmI} data-landscape-crumbs={viewChain.length}>
-            <button type="button" className="wk-link-btn" disabled={viewChain.length === 0} onClick={whole} data-landscape-up="">{T.wholeMap}</button>
+            {/* 2026-11-05 — auf der ganzen Karte kein ausgegrautes „Cała mapa" oben (nur, wenn es zurückführt). */}
+            {viewChain.length > 0 && <button type="button" className="wk-link-btn" onClick={whole} data-landscape-up="">{T.wholeMap}</button>}
             {viewChain.map((key, i) => (
               <span key={key} className="cg-ls-crumb">
                 <span aria-hidden>›</span>

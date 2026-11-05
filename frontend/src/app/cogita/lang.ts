@@ -253,7 +253,6 @@ export function words(lang: Lang) {
     reviewProgress: (done: number, all: number) => L(`Przegląd: ${done} z ${all}`, `Durchsicht: ${done} von ${all}`, `Review: ${done} of ${all}`),
     reviewPassedMark: L('Przegląd zdany ✓', 'Durchsicht bestanden ✓', 'Review passed ✓'),
     reviewOpenMark: L('Przegląd jeszcze niezdany', 'Durchsicht noch nicht bestanden', 'Review not passed yet'),
-    tells: (name: string) => L(`Opowiada: ${name}`, `Es erzählt: ${name}`, `Told by: ${name}`),
     pastStep: L('Już za Tobą — tylko do przejrzenia.', 'Schon erledigt — nur zum Ansehen.', 'Already done — for viewing only.'),
     chosenHere: L('wybrane', 'gewählt', 'chosen'),
     yourAnswer: L('Twoja odpowiedź', 'Deine Antwort', 'Your answer'),

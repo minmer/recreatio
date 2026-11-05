@@ -283,7 +283,8 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
           {openEntity !== undefined && <span>› <TexText text={lib.labelTex(openEntity)} /></span>}
         </nav>
       )}
-      <div className="cg-row">
+      {/* 2026-11-05 — ein Krajobraz hat oben nichts davon (Suche, Gestalten, Zahl): die Karte selbst ist die Ansicht. */}
+      {mode !== 'landscape' && <div className="cg-row">
         <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder="Szukaj w widoku…" aria-label={`Szukaj: ${title}`} />
         {/* 2026-11-05 — hat die Seite die Gestalt gewählt („Jak pokazać"), bleibt sie: keine Knöpfe zum Umschalten. */}
         {config.mode.trim() === '' && <span className="cg-subtabs">
@@ -295,7 +296,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
         </span>}
         <span className="wk-card-muted">{shown.length === list.length ? `${list.length} wpisów` : `${shown.length} z ${list.length}`}</span>
         {shownIds.length > 0 && <button type="button" className="wk-link-btn" onClick={() => setLearning({ ids: shownIds, title: cellIds !== null ? cellWords : title })}>Ucz się tego</button>}
-      </div>
+      </div>}
       {mode === 'table' && (
         <div className="cg-table-wrap">
           <table className="cg-table">

@@ -17,7 +17,7 @@
  * Einträge; hoch und im Vollbild das Ganze.
  */
 
-import { definePart, text, type RawConfig } from '../part';
+import { definePart, flag, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
 
 export interface ViewConfig {
@@ -30,6 +30,11 @@ export interface ViewConfig {
   readonly answers: string;
   /** 2026-11-03 — Punkte und Serie beim Lernen aus dem Krajobraz (leer: wie ein Baustein „Punkty i seria" der Seite, sonst keine). */
   readonly rewards: string;
+  /**
+   * 2026-11-05 (Prompt 17, §5) — darf der Leser die Gestalt wechseln und im Widok suchen? Vorgabe NEIN: ein eingebetteter
+   * Widok zeigt, was der Besitzer wählte (ohne Reiter, ohne Suche); die eigenen Knöpfe eines Krajobraz bleiben.
+   */
+  readonly switching: boolean;
 }
 
 const ViewView = later(() => import('./viewViews').then((m) => m.ViewView));
@@ -47,9 +52,10 @@ export const viewPart = definePart<ViewConfig>({
     { key: 'mode', label: 'Jak pokazać', kind: 'line', hint: 'tabela, drzewo, macierz, mapa, postępy albo krajobraz — puste: jak zapisano' },
     /* 2026-11-03 — wie in „Powtórka": wohin die Antworten gehen, und Punkte beim Lernen (Krajobraz, Mapa postępów). */
     { key: 'answers', label: 'Odpowiedzi uczących się do', kind: 'area', hint: 'puste: jak w bazie wiedzy; bez tego zostają u uczącego się' },
-    { key: 'rewards', label: 'Punkty i seria w trakcie nauki', kind: 'libraryEntry', of: 'library', entryKinds: ['reward'], optional: true, none: 'jak moduł „Punkty i seria” na tej stronie' }
+    { key: 'rewards', label: 'Punkty i seria w trakcie nauki', kind: 'libraryEntry', of: 'library', entryKinds: ['reward'], optional: true, none: 'jak moduł „Punkty i seria” na tej stronie' },
+    { key: 'switch', label: 'Przełączanie i szukanie', kind: 'line', hint: '„tak” — odwiedzający może zmienić sposób pokazania i szukać w widoku; puste albo „nie” — widzi tylko to, co tu wybrano' }
   ],
-  read: (raw: RawConfig): ViewConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), view: text(raw, 'view'), mode: text(raw, 'mode'), answers: text(raw, 'answers'), rewards: text(raw, 'rewards') }),
+  read: (raw: RawConfig): ViewConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), view: text(raw, 'view'), mode: text(raw, 'mode'), answers: text(raw, 'answers'), rewards: text(raw, 'rewards'), switching: flag(raw, 'switch', false) }),
   hasContent: (c) => c.library !== '' && c.view !== '',
   missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.view === '' ? 'Wybierz widok (zapisany w „Wpisach” tej bazy).' : null),
   fullscreen: true,

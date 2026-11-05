@@ -49,8 +49,6 @@
 .cg-flow-step .cg-markup p { line-height: 1.65; margin: 0 0 0.85em; }
 .cg-flow-step .cg-markup .lib-notes { text-align: left; }
 .cg-flow-step .cg-markup .lib-notes ol { padding-left: 1.75rem; display: grid; gap: 0.25rem; }
-.cg-story-teller { display: flex; align-items: center; gap: var(--wk-space-2); margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
-.cg-story-teller .cg-bubble-face { width: 1.75rem; height: 1.75rem; font-size: var(--wk-text-xs); }
 
 /* -- Wstecz / Dalej -------------------------------------------------------------------------- */
 .cg-flow-controls {
