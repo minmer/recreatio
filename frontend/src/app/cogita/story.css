@@ -3,7 +3,8 @@
  * Fortschritt darunter, eine Karte, die oben beginnt und mit dem Text wächst, und unten „‹ Wstecz" / „Dalej ›".
  */
 
-.cg-story-stage { display: grid; min-width: 0; }
+/* Waagrechtes Wischen gehört dem Spieler (Dalej / Wstecz), nicht dem „Zurück" des Browsers; senkrecht scrollen und zoomen bleibt. */
+.cg-story-stage { display: grid; min-width: 0; touch-action: pan-y pinch-zoom; }
 .cg-flow.is-behind { display: none; }
 
 /* -- Kopfzeile ------------------------------------------------------------------------------- */
@@ -27,7 +28,7 @@
 .cg-story-menu > summary:hover, .cg-story-menu[open] > summary { background: var(--wk-soft); color: var(--wk-ink); }
 .cg-story-menu > summary:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 .cg-story-menu-body {
-  position: absolute; right: 0; top: calc(100% + 0.25rem); z-index: 20; display: grid; gap: var(--wk-space-1); min-width: 12rem;
+  position: absolute; right: 0; top: calc(100% + 0.25rem); z-index: var(--wk-z-pop); display: grid; gap: var(--wk-space-1); min-width: 12rem;
   padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm);
   background: var(--wk-surface); box-shadow: 0 6px 18px rgb(0 0 0 / 0.15);
 }
@@ -36,7 +37,7 @@
 
 /* -- Fortschritt ----------------------------------------------------------------------------- */
 .cg-story-progress { display: flex; align-items: center; gap: var(--wk-space-2); min-width: 0; }
-.cg-story-bar { flex: 1 1 auto; height: 4px; border-radius: 2px; background: var(--wk-line); overflow: hidden; }
+.cg-story-bar { flex: 1 1 auto; height: 4px; border-radius: var(--wk-radius-xs); background: var(--wk-line); overflow: hidden; }
 .cg-story-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--wk-accent); transition: width 0.3s ease; }
 .cg-story-count { flex: none; font-size: var(--wk-text-xs); color: var(--wk-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cg-story-progress.is-review .cg-story-count { color: var(--wk-ink); font-weight: 600; }
@@ -63,7 +64,7 @@
 .cg-flow.is-past .cg-flow-step { border-style: dashed; }
 .cg-choice-item.is-chosen { border-color: var(--wk-accent); box-shadow: inset 3px 0 0 var(--wk-accent); }
 
-@media (max-width: 480px) {
+@media (max-width: 30rem) {
   .cg-story-crumbs li:not(:nth-last-child(-n + 2)) { display: none; }
   .cg-story-back { max-width: 7rem; }
   .cg-flow-controls .cg-flow-forward { min-width: 7rem; }
