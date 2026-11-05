@@ -77,6 +77,9 @@ export function MyUnits() {
         }
         out.push({ areaId, name: view?.unit.name ?? info.name ?? 'Obszar', view, roles: [...new Set([...holding, ...(mine?.positions ?? [])])], capability: info.capability, fresh });
       }
+      /* Nur Einheiten einer Wspólnota — Hilfsbereiche (z. B. die Antwortenden von „Napisz do nas") zeigen sich nicht. */
+      const shown = out.filter((p) => p.view !== null);
+      out.splice(0, out.length, ...(shown.length > 0 ? shown : out));
       out.sort((a, b) => a.name.localeCompare(b.name, 'pl'));
       if (alive) { setPlaces(out); setMe(name); }
       /* Dieser Besuch ist der letzte — beim nächsten zählt, was danach kam. */

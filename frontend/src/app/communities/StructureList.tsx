@@ -2,6 +2,7 @@
  * 0137 — DIE STRUKTUR ALS LISTE: dasselbe wie die Karte (StructureMap), fürs Telefon — ohne React Flow.
  */
 
+import { kindLabel } from '../areas/profile';
 import { flatten, kindOf, positionsOf, staffing, type CommunityDoc } from './community';
 import { mayMove } from './communityEdit';
 
@@ -22,7 +23,7 @@ export function StructureList({ doc, selected, onPick, onMove }: {
         return (
           <li key={f.unit.key} className={`wk-cm-tree-row depth-${Math.min(f.depth, 6)}${f.unit.key === selected ? ' is-on' : ''}${f.unit.remove ? ' is-removed' : ''}`}>
             <button type="button" className="wk-link-btn" onClick={() => onPick(f.unit.key)}>{f.unit.name}</button>
-            <span className="wk-cm-meta">{kindOf(doc, f.unit)} · {positionsOf(doc, f.unit).map((p) => p.name).join(', ') || 'bez pozycji'}</span>
+            <span className="wk-cm-meta">{kindLabel(kindOf(doc, f.unit))} · {positionsOf(doc, f.unit).map((p) => p.name).join(', ') || 'bez pozycji'}</span>
             {warn.map((g) => <span key={g.position} className="wk-fmap-warn">⚠ {g.positionName}: brakuje {g.want - g.have}</span>)}
             {f.parent !== null && targets.length > 0 && (
               <select aria-label={`Przenieś „${f.unit.name}” pod…`} value="" onChange={(e) => { if (e.target.value !== '') onMove(f.unit.key, e.target.value); }}>

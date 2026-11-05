@@ -11,6 +11,7 @@ import ReactFlow, { Background, Controls, Handle, Position, type Edge, type Node
 import 'reactflow/dist/style.css';
 
 import { ask } from '../ui/dialogs';
+import { kindLabel } from '../areas/profile';
 import { flatten, holdersOf, kindOf, positionsOf, staffing, type CommunityDoc } from './community';
 import { mayMove } from './communityEdit';
 
@@ -87,7 +88,7 @@ export function StructureMap({ doc, selected, onPick, onMove }: {
       nodes.push({
         id: key, type: 'unit', position: { x: f.depth * COL, y },
         data: {
-          key, name: f.unit.name, kind: kindOf(doc, f.unit),
+          key, name: f.unit.name, kind: kindLabel(kindOf(doc, f.unit)),
           lines: [`${positionsOf(doc, f.unit).length} poz. · ${doc.persons.filter((p) => p.remove !== true && p.places.some((pl) => pl.unit === key)).length} os.`],
           warn: gaps.filter((g) => g.unit === key && g.have < g.want).map((g) => `${g.positionName}: brakuje ${g.want - g.have}`),
           hidden: f.unit.units === undefined || f.unit.units.length === 0 ? -1 : closed.has(key) ? below : 0,

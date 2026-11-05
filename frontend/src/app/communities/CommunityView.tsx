@@ -59,7 +59,7 @@ export function CommunityView({ who, ring, areaId, tab, unitKey }: { who: Who; r
   };
   useEffect(() => { void reload(); }, [areaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useCrumbs([{ label: 'Wspólnoty', href: viewPath('wspolnoty') }, { label: stored?.doc.name ?? '…', href: null }]);
+  useCrumbs([{ label: stored?.doc.name ?? '…', href: null }]);
 
   const names = useMemo(() => new Map(areas.map((a) => [a.areaId, a.name])), [areas]);
   if (failed !== null) return <p className="wk-error">{failed}</p>;

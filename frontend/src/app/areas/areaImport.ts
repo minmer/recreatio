@@ -15,7 +15,7 @@
  */
 
 import { deleteEvent, saveEvent, type EventDraft } from '../calendar/agenda';
-import type { AppointmentDoc } from '../calendar/appointmentsJson';
+import { DEFAULT_ENTRY, type AppointmentDoc } from '../calendar/appointmentsJson';
 import { createCalendar } from '../calendar/calendar';
 import { byPlace, loadProgram } from '../calendar/program';
 import { areaKeys, loadAreaNames, openNames, setMemberName, startAreaChat } from '../chat/chat';
@@ -407,6 +407,18 @@ export async function runAreaImport(input: {
       }
       lines.push(`Terminy: nowe — ${created}, zmienione — ${changed}${dropped > 0 ? `, usunięte punkty programu — ${dropped}` : ''}.`);
     });
+  }
+
+  /*
+   * 0137 — ein Baustein zeigt auf den Kalender des Bereichs („@kalendarz"), ohne dass das Dokument
+   * Termine hat: den Kalender trotzdem holen (er entsteht dabei, wenn es ihn noch nicht gibt).
+   */
+  if (calendarId === null && JSON.stringify(doc.pages.map((p) => p.page)).includes(`"@${DEFAULT_ENTRY}"`)) {
+    try {
+      calendarId = (await createCalendar({ areaId, title: areaName, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })).calendarId;
+    } catch (e) {
+      warnings.push(`Kalendarz obszaru: ${failure(e)} — moduły kalendarza zostają bez niego.`);
+    }
   }
 
   /* 4 — erst ALLE Formulare (dann zeigen Verweise jeder Seite auf jedes), dann die Seiten. */

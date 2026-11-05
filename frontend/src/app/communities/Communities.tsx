@@ -45,7 +45,7 @@ export function Communities({ who, trail }: { who: Who; trail: readonly string[]
 }
 
 function List({ who, ring }: { who: Who; ring: Ring }) {
-  useCrumbs([{ label: 'Wspólnoty', href: null }]);
+  useCrumbs([]);
   const [rows, setRows] = useState<readonly Row[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [pick, setPick] = useState<ReadonlySet<string>>(new Set());
