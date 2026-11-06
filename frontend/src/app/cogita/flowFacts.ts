@@ -8,6 +8,7 @@
 import { goalsReached, readFlow, type Flow, type FlowState } from './flow';
 import { positionFor, type FlowPosition } from './learn';
 import type { Facts, FlowFacts } from './logic';
+import { mandatoryQuestionSteps } from './mountain';
 
 /** Ein Pfad ohne „#/" und gross/klein. */
 const bare = (path: string): string => path.trim().replace(/^#?\/?/, '').replace(/\/+$/, '').toLowerCase();
@@ -52,6 +53,13 @@ export const learnerFlows = (lib: Parameters<typeof flowRefsOf>[0], positions: R
  * „bestanden" senkt die Einheit der Erzählung ins Tal.
  */
 export type StoryStage = 'new' | 'started' | 'review' | 'passed';
+
+/**
+ * 2026-11-06 — ZU ENDE GEGANGEN, nicht nur gekonnt: ein Ende erreicht und jedes Ziel (der gemeinsame Przegląd). `storyStage` sagt
+ * „passed" auch, wenn nur alle Pflichtfragen gekonnt sind (das Feld sinkt ins Tal, wie bisher) — das hier unterscheidet beides.
+ */
+export const storyCompleted = (flow: { readonly goals: readonly { readonly id: string }[] }, facts: FlowFacts | undefined): boolean =>
+  facts !== undefined && facts.done && flow.goals.every((g) => facts.goals.includes(g.id));
 export function storyStage(flow: { readonly goals: readonly { readonly id: string }[] }, facts: FlowFacts | undefined, questionsKnown = false): StoryStage {
   /*
     2026-11-05 (Prompt 23, C4) — KANN DER LERNENDE JEDE FRAGE DER ERZÄHLUNG (Band „znane", aus der ganzen Geschichte), ist sie
@@ -68,10 +76,12 @@ export function storyStage(flow: { readonly goals: readonly { readonly id: strin
  * 2026-11-05 (Prompt 23, C4) — sind ALLE Fragen, die eine Erzählung stellt (ihre Schritte „question"), gekonnt? Ohne eine Frage:
  * nein (eine Erzählung zum Lesen wird gelesen, nicht gewusst). `known`: die Karte (Schlüssel) ist im Band „znane".
  */
-export function flowQuestionsKnown(flow: Pick<Flow, 'graph'>, cardOf: (id: string) => { readonly key: string } | null, known: (key: string) => boolean): boolean {
+export function flowQuestionsKnown(flow: Pick<Flow, 'graph'> & { readonly start?: string | null }, cardOf: (id: string) => { readonly key: string } | null, known: (key: string) => boolean): boolean {
   let any = false;
+  /* 2026-11-06 — mit Wahlen („choice"): nur die Fragen auf jedem Weg (`mountain.ts`); eine Frage eines einzelnen Weges zählt nicht. */
+  const counted = mandatoryQuestionSteps(flow);
   for (const n of flow.graph.nodes) {
-    if (n.type !== 'question') continue;
+    if (n.type !== 'question' || !counted.has(n.id)) continue;
     const id = typeof n.config.of === 'string' && n.config.of !== '' ? n.config.of : typeof n.config.card === 'string' ? n.config.card : '';
     const card = id === '' ? null : cardOf(id);
     if (card === null) continue;

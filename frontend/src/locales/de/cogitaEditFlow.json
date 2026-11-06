@@ -71,5 +71,23 @@
     "next": "weiter"
   },
   "reviewPassed": "Rückblick bestanden",
-  "chapterN": "Kapitel {n}"
+  "chapterN": "Kapitel {n}",
+  "mountain": {
+    "segmentMissing": "Den Abschnitt „{ref}“ gibt es nicht — der Spieler überspringt diesen Schritt.",
+    "segmentUnit": "Der Abschnitt „{name}“ hat ein eigenes „unit“ — er würde ein eigenes Feld. Innere Wege eines Sechsecks haben kein „unit“.",
+    "segmentEnd": "Der Abschnitt „{name}“ enthält „Ende“ — beende einen inneren Weg mit „Zurück“, damit er in den gemeinsamen Teil des Sechsecks zurückführt.",
+    "segmentQuestions": {
+      "one": "Der Abschnitt „{name}“ stellt {count} Frage — sie ist nur Übung und zählt nicht für das Sechseck; Pflichtfragen gehören in den gemeinsamen Prüfpunkt.",
+      "other": "Der Abschnitt „{name}“ stellt {count} Fragen — sie sind nur Übung und zählen nicht für das Sechseck; Pflichtfragen gehören in den gemeinsamen Prüfpunkt."
+    },
+    "branchQuestion": "Die Frage „{name}“ liegt nur auf einigen Wegen — sie zählt nicht für den Abschluss des Sechsecks; verschiebe sie in den gemeinsamen Teil.",
+    "reviewBranch": "Diese Durchsicht liegt nur auf einigen Wegen — setze sie in den gemeinsamen Teil, nachdem sich die Wege treffen.",
+    "reviewEmpty": "Diese Durchsicht hat keine Pflichtfragen (keine liegt auf jedem Weg) — sie wäre sofort bestanden.",
+    "noAssessment": "Das Sechseck hat keine gemeinsame Prüfung: keine Frage und keine Durchsicht liegt auf jedem Weg.",
+    "tooManyRoutes": "Mehr als {count} Wege — geprüft wurden nur die ersten {count}.",
+    "questionMissing": "Die Frage „{ref}“ gibt es nicht.",
+    "uncheckable": "Die Frage „{name}“ nennt weder ein Thema („about“) noch erklärende Folien („explain“) — ob sie vorbereitet ist, lässt sich nicht prüfen.",
+    "routeNoEnd": "Der Weg „{route}“ kommt nie an ein Ende.",
+    "notCovered": "Der Weg „{route}“ bereitet die Frage „{name}“ nicht vor: er zeigt weder ihr Thema noch eine ihrer erklärenden Folien."
+  }
 }

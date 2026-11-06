@@ -625,16 +625,18 @@ export function storyMarks(sp: StoryPath, pr: StoryProgress): PathMarks {
   /* Was gewählt wurde, bevor das Ende alles durch macht (für die hervorgehobenen Wege). */
   const doneBefore = [...done];
   const optional = new Array<boolean>(n).fill(false);
-  if (pr.ended === true) {
-    for (let i = 0; i < n; i += 1) {
-      const f = parts[i].fork;
-      if (f?.mode !== 'choose') continue;
-      const roads = roadsOf(f);
-      if (!roads.some((to) => walkedRoad(f, to))) continue;
-      for (const to of roads) if (!walkedRoad(f, to)) for (const v of branchParts(sp, to)) optional[v] = true;
-    }
-    for (let i = 0; i < n; i += 1) if (!optional[i]) done[i] = true;
+  /*
+    2026-11-06 — EIN NICHT GEWÄHLTER WEG ZÄHLT NICHT, sobald ein anderer Weg derselben Wahl begangen ist — schon unterwegs, nicht erst
+    am Ende (vorher zählte ein Sechseck mit zwei inneren Wegen unterwegs „4 z 7", am Ende „6 z 6"). Am Ende wie bisher.
+  */
+  for (let i = 0; i < n; i += 1) {
+    const f = parts[i].fork;
+    if (f?.mode !== 'choose') continue;
+    const roads = roadsOf(f);
+    if (!roads.some((to) => walkedRoad(f, to))) continue;
+    for (const to of roads) if (!walkedRoad(f, to)) for (const v of branchParts(sp, to)) optional[v] = true;
   }
+  if (pr.ended === true) for (let i = 0; i < n; i += 1) if (!optional[i]) done[i] = true;
   const state: PathState[] = parts.map((p, i) => {
     if (done[i]) return 'done';
     if (optional[i]) return 'available';

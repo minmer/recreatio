@@ -71,5 +71,23 @@
     "next": "next"
   },
   "reviewPassed": "Review passed",
-  "chapterN": "Chapter {n}"
+  "chapterN": "Chapter {n}",
+  "mountain": {
+    "segmentMissing": "The segment “{ref}” does not exist — the player skips this step.",
+    "segmentUnit": "The segment “{name}” has its own “unit” — it would become a separate tile. Inner paths of one hexagon have no unit.",
+    "segmentEnd": "The segment “{name}” contains “End” — finish an inner path with “Return”, so it goes back to the shared part of the hexagon.",
+    "segmentQuestions": {
+      "one": "The segment “{name}” asks {count} question — it is practice only and does not count for the hexagon; put required questions into the shared checkpoint.",
+      "other": "The segment “{name}” asks {count} questions — they are practice only and do not count for the hexagon; put required questions into the shared checkpoint."
+    },
+    "branchQuestion": "The question “{name}” lies on only some paths — it does not count for completing the hexagon; move it to the shared part.",
+    "reviewBranch": "This review lies on only some paths — put the review into the shared part after the paths meet.",
+    "reviewEmpty": "This review has no required questions (none on every path) — it would pass at once.",
+    "noAssessment": "The hexagon has no shared assessment: no question and no review lies on every path.",
+    "tooManyRoutes": "More than {count} paths — only the first {count} were checked.",
+    "questionMissing": "The question “{ref}” does not exist.",
+    "uncheckable": "The question “{name}” names neither a topic (“about”) nor explaining slides (“explain”) — its coverage cannot be checked.",
+    "routeNoEnd": "The path “{route}” never reaches an end.",
+    "notCovered": "The path “{route}” does not prepare the question “{name}”: it shows neither its topic nor one of its explaining slides."
+  }
 }

@@ -1253,6 +1253,37 @@ topic (`worldWay.ts` plans it, `WorldMap.tsx` draws it on its own canvas over th
 - Checks: `app-branches-check.mjs`, `app-slide-links-check.mjs`, `app-selfcheck-check.mjs`, `app-review-step-check.mjs`,
   `app-drawing-check.mjs`.
 
+### One hexagon, several inner routes (2026-11-06)
+
+One tile of the landscape = one flow with `unit`. Inside it the learner chooses (`choice`) between routes; each route is
+its own flow called by a `subflow` step, **without `unit`**, ending with `return`. The routes meet again at the shared
+checkpoint (question steps of the parent), the shared `review` and one `end`. Any one route is enough; the others stay
+optional. Module `cogita/mountain.ts`, check `scripts/app-mountain-check.mjs`.
+
+```
+parent (unit @x/prawa):  wstep ─ wybor ─┬─ subflow @x/seg/fakty  ─┐
+                                        └─ subflow @x/seg/halley ─┴─ punkt ─ k1 ─ k2 ─ przeglad (review) ─ koniec
+segment (no unit):       slide ─ slide ─ return
+```
+
+- **Required questions** = question steps of the parent that lie on every route (a `choice` counts only if all its
+  options lead there; any other step if one of its exits does). They alone count for „all known" (`flowQuestionsKnown`)
+  and for `review` with `"of": "story"` (`reviewCards`) — the same cards whatever the route. A flow without `choice`:
+  all its questions, as before. Questions inside a segment are practice only.
+- **Completion**: `storyStage` is unchanged (`passed` also when all required questions are known — the tile sinks);
+  `storyCompleted(flow, facts)` says whether the story was really walked to the end with its goals (the review).
+- **Import / editor warnings** (never blocking; `mountainProblems`, in `json.ts` `flowIssues` and `FlowEditor`):
+  segment missing, segment with own `unit` (would be a second tile), segment containing `end` (measured: the player
+  still returns, but `return` is the contract), question in a segment, question on only some routes, review on only some
+  routes or without required questions, no shared assessment, a route that never ends, a route that does not prepare a
+  required question (it shows neither the question's `about` nor one of its `explain` slides — in the parent or in a
+  called segment). `core: true` is a field of questions only (a key question of its topic) and is not used here.
+- **Counting**: once one road of a `choice` is walked, the others no longer count — during the run too (before: „4 z 7"
+  on the way, „6 z 6" at the end); the landscape line excludes them as well; inside a segment of a hexagon the header
+  counts the hexagon („2 z 6"), not the segment. Choice options already showed the segment's own work („3 slajdy").
+- **Revisit**: after the summit „Od początku" → the other option plays it; the hexagon stays passed, known questions are
+  skipped. Untaken roads are drawn as „droga niewybrana" and are not clickable in the path map.
+
 ### Links between knowledge bases (2026-11-05, Prompt 24)
 
 Another knowledge base („świat") can be **offered**, never required: Physics at Newton's laws offers History's „Glorious

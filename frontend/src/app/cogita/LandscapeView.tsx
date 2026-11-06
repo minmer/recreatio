@@ -1119,7 +1119,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       const sp = storyPath(chosenId);
       const first = directStartLock(lib, learner?.progress.positions, flow);
       if (sp === null) return { parts: 0, done: 0, stage: stageOf(flow), first };
-      const counted = sp.model.nodes.filter(countsAsStep);
+      /* 2026-11-06 — ein nicht gewählter Weg zählt nicht (wie im Spieler): ein bestandenes Sechseck mit zwei Wegen heisst „6 z 6", nicht „6 z 7". */
+      const counted = sp.model.nodes.filter((nd) => countsAsStep(nd) && sp.marks.optional?.[sp.model.index.get(nd.id) ?? -1] !== true);
       return { parts: counted.length, done: counted.filter((nd) => sp.marks.state[sp.model.index.get(nd.id) ?? -1] === 'done').length, stage: stageOf(flow), first };
     })();
     const leaf = world?.chain[chosenT]?.[world.chain[chosenT].length - 1];

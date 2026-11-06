@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { contentOfLibrary, FlowPlayer } from './FlowPlayer';
 import { flowProblems } from './flowCheck';
 import { detourProblems } from './detour';
+import { mountainProblems, type MountainContext } from './mountain';
 import { FLOW_PALETTE, LOOK_LABEL, LOOK_TYPES, proposedDependencies, readFlow, resolveFlow, type CharacterLine, type Flow, type Goal, type LookType, type Narrator, type Slot } from './flow';
 import { GameRulesEditor } from './GamePanel';
 import { readGame, type GameRules } from './game';
@@ -377,7 +378,17 @@ function PageWithFlow({ id, name, onSaid }: { id: string; name: string; onSaid: 
 /** 2026-11-04 — was an der Ścieżka eines Ablaufs nicht stimmt (`flowCheck.ts`): Fehler zuerst, jeder Schritt beim Namen. */
 function FlowProblems({ flow, label, others, resolve }: { flow: Flow; label: (id: string) => string; others: readonly Flow[]; resolve: (ref: string) => string | null }) {
   /* 2026-11-04 (Prompt 13) — dazu die Abstecher: eine Erzählung, die es nicht gibt; ein Kreis A → B → A (beide beim Namen); zu tief. */
-  const list = [...flowProblems(flow, label), ...detourProblems(flow, others, resolve)];
+  const { lib } = useCtx();
+  /* 2026-11-06 — ein Sechseck mit inneren Wegen (`mountain.ts`): Abschnitte, Pflichtfragen, Abdeckung jedes Weges. */
+  const entityOf = (ref: string): string | null => { const r = ref.trim(); if (r === '') return null; if (r.startsWith('@')) return lib.byImportRef(r.slice(1), 'entity')?.id ?? null; return lib.entity(r) !== undefined ? r : null; };
+  const refsOf = (v: unknown): string[] => (Array.isArray(v) ? v : v == null ? [] : [v]).flatMap((x) => { const id = typeof x === 'string' ? entityOf(x) : null; return id === null ? [] : [id]; });
+  const mountain: MountainContext = {
+    flow: (ref) => { const id = resolve(ref); return id === null ? undefined : others.find((f) => f.id === id) ?? (id === flow.id ? flow : undefined); },
+    entity: entityOf,
+    question: (id) => { const e = lib.entity(id); if (e === undefined || !e.kinds.includes('question')) return null; const d = lib.entry(id)?.data ?? {}; return { about: refsOf(d.about), explain: refsOf(d.explain) }; },
+    label
+  };
+  const list = [...flowProblems(flow, label), ...detourProblems(flow, others, resolve), ...mountainProblems(flow, mountain)];
   if (list.length === 0) return <p className="cg-muted" data-flow-problems="0">Ścieżka w porządku: jeden początek, jeden koniec, z każdego kroku da się dojść do końca.</p>;
   const errors = list.filter((p) => p.level === 'error');
   return (
