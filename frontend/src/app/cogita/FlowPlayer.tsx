@@ -553,6 +553,16 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const visitedNow = new Set(state.visited);
   const skippedStep = (s: string): boolean => { const n = stepNode.get(s); const d = n === undefined ? null : detourOf(n); return d !== null && detourState(s, visitedNow, state.step, d.flow !== '' && innerDone(d.flow)) === 'skipped'; };
   const pathNow = storyMarks(sp, { visited: state.visited, ended: state.ended, step: state.step, ...(knowNow === undefined ? {} : { know: knowNow }), ...(knownStep === undefined ? {} : { knownStep }), chapters: state.chapters, skipped: skippedStep });
+  /*
+    2026-11-06 — IN EINEM INNEREN WEG EINES SECHSECKS (ein `subflow` des Ablaufs mit `unit`): oben zählt das Sechseck weiter („3 z 6"),
+    nicht der Abschnitt für sich („0 z 1") — der Abschnitt ist ein Teil des Sechsecks (`mountain.ts`).
+  */
+  const hexFrame = state.stack.length > 0 ? state.stack[0] : null;
+  const hexFlow = hexFrame === null ? undefined : flowOf(hexFrame.flow);
+  const inHexSegment = hexFlow !== undefined && hexFlow.unit !== undefined && hexFlow.graph.nodes.some((n) => n.id === hexFrame!.step && n.type === 'subflow');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const hexSp = useMemo(() => (inHexSegment ? storyPathOf(hexFlow!, content) : null), [inHexSegment, hexFlow?.id, content]);
+  const hexNow = hexSp === null || hexFrame === null ? null : storyMarks(hexSp, { visited: run.outer[0] ?? [], step: hexFrame.step, ...(knowNow === undefined ? {} : { know: knowNow }) });
   /* Was in der Erzählung eines Abstechers wartet („7 slajdów · 16 pytań") — einmal je Erzählung. */
   const workMemo = useMemo(() => new Map<string, string>(), [content]);
   const innerWork = (f: Flow): string => {
@@ -1252,7 +1262,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         return { label: `${W.reviewProgress(known, cards.length)}${mark}`, share: known / cards.length, review: true };
       }
     }
-    return { label: W.progressOf(pathNow.done, pathNow.total), share: pathNow.total === 0 ? 0 : pathNow.done / pathNow.total, review: false };
+    const count = hexNow ?? pathNow;
+    return { label: W.progressOf(count.done, count.total), share: count.total === 0 ? 0 : count.done / count.total, review: false };
   })();
   const head = (crumbs: readonly StoryCrumb[]) => (
     <StoryHead W={W} back={backTarget} crumbs={crumbs} menu={menu}

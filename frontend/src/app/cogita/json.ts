@@ -27,6 +27,7 @@ import { readTemplate } from './cards';
 import { migratePrerequisites, readFlow } from './flow';
 import { flowProblems } from './flowCheck';
 import { detourProblems } from './detour';
+import { mountainProblems, type MountainContext } from './mountain';
 import { graphJson, readGraph, type Graph, type GraphNode } from './graph';
 import { migrateRevision, MODES, PICKS } from './revision';
 import { readRewards, rewardsData } from './rewards';
@@ -940,7 +941,7 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
     warnings.push(t('cogitaData.import.dangling', { list: listed(loose.dangling) }));
   }
   /* 2026-11-04 — die Ścieżka jedes Ablaufs: ein Anfang, ein Ende, keine Sackgassen (`flowCheck.ts`; ohne Anfang oder Ende geht der Zapis nicht). */
-  warnings.push(...flowWarnings(lib, docs));
+  warnings.push(...flowWarnings(lib, docs, entities));
   /* 2026-11-03 — der Krajobraz: Kreise in der Reihenfolge des Lernens, unbekannte Achsen, keine Reihenfolge (`landscapeImport.ts`). */
   warnings.push(...landscapeImportWarnings(lib, { kinds, entities, docs }));
   /* 2026-11-03 — die Generatoren: übersetzen ihre Ausdrücke, gelingen Proben (mit den Einträgen nach dem Import)? */
@@ -1160,8 +1161,9 @@ export class ImportBlocked extends Error {
 }
 
 /** 2026-11-04 — die Probleme der Ścieżka jedes Ablaufs eines Plans, beim Namen des Ablaufs und des Schrittes. */
-function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs']): { level: 'error' | 'warning'; text: string }[] {
-  const label = (id: string) => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); };
+function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): { level: 'error' | 'warning'; text: string }[] {
+  const planTitle = (id: string): string | undefined => { const d = entities.find((e) => e.id === id)?.data; if (d === undefined) return undefined; for (const v of Object.values(d)) if (typeof v === 'string' && v.trim() !== '') return v.trim().slice(0, 80); return undefined; };
+  const label = (id: string) => { const e = lib.entity(id); return e === undefined ? planTitle(id) ?? id : lib.label(e); };
   /*
     2026-11-04 (Prompt 13) — die Abstecher: gegen alle Abläufe nach dem Zapis (die des Dokuments ersetzen die der Baza). Eine
     andere Erzählung, die es nicht gibt: Warnung; ein Kreis A → B → A: blockiert, beide beim Namen (einmal je Kreis).
@@ -1175,13 +1177,39 @@ function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs']): { level: 'err
     return all.find((f) => f.ref !== undefined && f.ref.toLowerCase() === name.toLowerCase())?.id ?? lib.byImportRef(name, 'flow')?.id ?? null;
   };
   const said = new Set<string>();
+  /* 2026-11-06 — ein Sechseck mit inneren Wegen (`mountain.ts`): Einträge aus dem Plan und der Baza, beim Kennung oder @Namen. */
+  const entityOf = (ref: string): string | null => {
+    const r = ref.trim();
+    if (r === '') return null;
+    if (entities.some((e) => e.id === r) || lib.entity(r) !== undefined) return r;
+    const name = r.startsWith('@') ? r.slice(1).toLowerCase() : null;
+    if (name === null) return null;
+    return entities.find((e) => typeof e.marks?._ref === 'string' && e.marks._ref.toLowerCase() === name)?.id ?? lib.byImportRef(name, 'entity')?.id ?? null;
+  };
+  const refsOf = (v: unknown): string[] => (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v]).flatMap((x) => {
+    const r = typeof x === 'string' ? x : typeof x === 'object' && x !== null && typeof (x as { value?: unknown }).value === 'string' ? (x as { value: string }).value : '';
+    const id = entityOf(r);
+    return id === null ? [] : [id];
+  });
+  const mountain: MountainContext = {
+    flow: (ref) => { const id = resolve(ref); return id === null ? undefined : all.find((f) => f.id === id); },
+    entity: entityOf,
+    question: (id) => {
+      const planned = entities.find((e) => e.id === id);
+      const kinds = planned?.kinds ?? lib.entity(id)?.kinds ?? [];
+      if (!kinds.includes('question')) return null;
+      const data = planned?.data ?? lib.entry(id)?.data ?? {};
+      return { about: refsOf(data.about), explain: refsOf(data.explain) };
+    },
+    label
+  };
   return docs.filter((d) => d.kind === 'flow').flatMap((d) => {
     const flow = readFlow(d.id, d.data);
     const detours = detourProblems(flow, all, resolve).filter((p) => { if (p.step !== undefined) return true; if (said.has(p.text)) return false; said.add(p.text); return true; });
-    return [...flowProblems(flow, label, d.data), ...detours].map((p) => ({ level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }) }));
+    return [...flowProblems(flow, label, d.data), ...detours, ...mountainProblems(flow, mountain)].map((p) => ({ level: p.level, text: t('cogitaData.import.flowIssue', { name: flow.name, text: p.text }) }));
   });
 }
-const flowWarnings = (lib: CogitaLibrary, docs: ImportPlan['docs']): string[] => flowIssues(lib, docs).map((p) => (p.level === 'error' ? t('cogitaData.import.flowError', { text: p.text }) : p.text));
+const flowWarnings = (lib: CogitaLibrary, docs: ImportPlan['docs'], entities: ImportPlan['entities'] = []): string[] => flowIssues(lib, docs, entities).map((p) => (p.level === 'error' ? t('cogitaData.import.flowError', { text: p.text }) : p.text));
 
 /** Was ein Widok an Rodzajen nennt — nur, was dort sicher ein Rodzaj ist (Quelle, Gruppe, Achse). */
 function viewKindRefs(data: Readonly<Record<string, unknown>>): { where: string; id: string }[] {

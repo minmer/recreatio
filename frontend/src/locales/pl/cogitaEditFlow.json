@@ -71,5 +71,25 @@
     "next": "dalej"
   },
   "reviewPassed": "Przegląd zdany",
-  "chapterN": "Rozdział {n}"
+  "chapterN": "Rozdział {n}",
+  "mountain": {
+    "segmentMissing": "Odcinka „{ref}” nie ma — odtwarzacz pomija ten krok.",
+    "segmentUnit": "Odcinek „{name}” ma własne „unit” — stałby się osobnym polem. Wewnętrzne drogi jednego sześciokąta nie mają „unit”.",
+    "segmentEnd": "Odcinek „{name}” zawiera „Koniec” — kończ wewnętrzną drogę krokiem „Powrót”, żeby wracała do wspólnej części sześciokąta.",
+    "segmentQuestions": {
+      "one": "Odcinek „{name}” zadaje {count} pytanie — to tylko ćwiczenie, nie liczy się do sześciokąta; pytania obowiązkowe umieść we wspólnym punkcie kontrolnym.",
+      "few": "Odcinek „{name}” zadaje {count} pytania — to tylko ćwiczenie, nie liczą się do sześciokąta; pytania obowiązkowe umieść we wspólnym punkcie kontrolnym.",
+      "many": "Odcinek „{name}” zadaje {count} pytań — to tylko ćwiczenie, nie liczą się do sześciokąta; pytania obowiązkowe umieść we wspólnym punkcie kontrolnym.",
+      "other": "Odcinek „{name}” zadaje {count} pytania — to tylko ćwiczenie, nie liczą się do sześciokąta; pytania obowiązkowe umieść we wspólnym punkcie kontrolnym."
+    },
+    "branchQuestion": "Pytanie „{name}” leży tylko na niektórych drogach — nie liczy się do ukończenia sześciokąta; przenieś je do wspólnej części.",
+    "reviewBranch": "Ten przegląd leży tylko na niektórych drogach — umieść go we wspólnej części, po spotkaniu dróg.",
+    "reviewEmpty": "Ten przegląd nie ma pytań obowiązkowych (żadne nie leży na każdej drodze) — zaliczyłby się od razu.",
+    "noAssessment": "Sześciokąt nie ma wspólnego sprawdzenia: żadne pytanie ani przegląd nie leży na każdej drodze.",
+    "tooManyRoutes": "Więcej niż {count} dróg — sprawdzono tylko pierwsze {count}.",
+    "questionMissing": "Pytania „{ref}” nie ma.",
+    "uncheckable": "Pytanie „{name}” nie wskazuje ani tematu („about”), ani slajdów wyjaśnienia („explain”) — nie da się sprawdzić, czy droga je przygotowuje.",
+    "routeNoEnd": "Droga „{route}” nigdy nie dochodzi do końca.",
+    "notCovered": "Droga „{route}” nie przygotowuje do pytania „{name}”: nie pokazuje ani jego tematu, ani żadnego slajdu jego wyjaśnienia."
+  }
 }

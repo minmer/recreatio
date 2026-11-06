@@ -12,11 +12,14 @@
 import type { Card } from './cardBasics';
 import { cardsInFlow } from './flowAsk';
 import type { Flow, ReviewConfig } from './flow';
+import { mandatoryQuestionSteps } from './mountain';
 
 /** Die Karten, die der Przegląd prüft (in der Reihenfolge der Schritte). */
 export function reviewCards(flow: Flow, rc: Pick<ReviewConfig, 'of'>, cardOf: (id: string) => Card | null, flows: (ref: string) => Flow | undefined): Card[] {
   const target = rc.of === 'story' || rc.of === '' ? flow : flows(rc.of) ?? flow;
-  return cardsInFlow(target, cardOf);
+  /* 2026-11-06 — mit Wahlen: nur die Pflichtfragen (auf jedem Weg) — derselbe Przegląd, welcher Weg auch gewählt wurde (`mountain.ts`). */
+  const counted = mandatoryQuestionSteps(target);
+  return cardsInFlow({ ...target, graph: { ...target.graph, nodes: target.graph.nodes.filter((n) => n.type !== 'question' || counted.has(n.id)) } }, cardOf);
 }
 
 export interface ReviewPlan {

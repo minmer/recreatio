@@ -3767,3 +3767,17 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
 - Verified on LocalDB (scratchpad `p24/`: Fizyka → Historia, Tajne unreadable): drive 13/13 at 1280 and 390 dark, the
   finish-in-B path (B's own „najpierw: Jakub II" → „Ucz się" → B's story → back in A at the next step), import warning by
   name + still imported, deleting the target in B → broken in A, removal preview naming the link from A.
+
+## C46 — One hexagon, several inner routes (2026-11-06)
+
+- `cogita/mountain.ts` (new): `stepsOnEveryRoute`, `mandatoryQuestionSteps`, `routesOf`, `mountainProblems` (warnings
+  only); texts `cogitaEditFlow.mountain.*` (en/de/pl).
+- Completion and review: `flowFacts.ts` `flowQuestionsKnown` counts only required questions (flows with `choice`),
+  new `storyCompleted`; `reviewRound.ts` `reviewCards` the same required questions.
+- Import and editor: `json.ts` `flowIssues` (with the plan's entities) and `FlowEditor.tsx` `FlowProblems` add the
+  mountain warnings.
+- Counting: `storyPath.ts` `storyMarks` — untaken roads optional as soon as another road is walked; `LandscapeView.tsx`
+  story line excludes them; `FlowPlayer.tsx` header counts the hexagon inside one of its segments.
+- Check `scripts/app-mountain-check.mjs` (37, in `app:check`). LocalDB example and drives in scratchpad `p25/`
+  (production build — the dev server's landscape worker fails on `@react-refresh` since `landscapeWords` imports
+  `core/i18n.tsx`; not from this change).
