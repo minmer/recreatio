@@ -57,6 +57,7 @@ import { lintDocument, type LintItem } from './previewLint';
 import { animatedItems, measureView, nextFrames, seek, settle, type Settled, type ViewKind, type ViewMeasure } from './previewProbe';
 import { knowledgeSamples, knowledgeSummary, renderKnowledge, type KnowledgeInput, type KnowledgeResult, type KnowledgeSummary, type SamplesResult } from './PreviewKnowledge';
 import './preview.css';
+import { startTheme } from '../core/theme';
 import { rich, t, useT } from '../core/i18n';
 
 /* -- Was der Treiber bekommt --------------------------------------------------------- */
@@ -426,6 +427,7 @@ function showForm(state: State, problem: string | null = null): void {
 /* -- Der Einstieg ------------------------------------------------------------------------ */
 
 export function startPreview(node: HTMLElement): void {
+  startTheme();
   const fetches = installPreviewFetch(API);
   const deck = { current: null as DeckControl | null };
   const show = { current: null as DriveControl | null };

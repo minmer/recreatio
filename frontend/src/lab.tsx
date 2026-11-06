@@ -29,6 +29,7 @@ import './app/app.css';
 import './app/ui/ui.css';
 import './locales';
 import { startI18n, t } from './app/core/i18n';
+import { startTheme } from './app/core/theme';
 
 const RELOADED = 'recreatio.lab.reloaded';
 
@@ -73,6 +74,7 @@ async function isolate(): Promise<boolean> {
 
 async function start(): Promise<void> {
   /* 2026-11-05 — die Sprache wie in der Anwendung (core/i18n.tsx). */
+  startTheme();
   await startI18n();
   if (await isolate()) return;
   const [{ ParticleLab }, { BOILING_SCENE, PARTICLE_PRESETS }] = await Promise.all([

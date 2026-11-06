@@ -43,6 +43,7 @@ import { SidePanel, type SideTab } from './shell/SidePanel';
 import { TimeBar } from './shell/TimeBar';
 import { EDIT_TOOLS, MATERIALS, ToolOptions, ToolRail, WALL_MATERIALS, type Tool, type ToolSettings } from './shell/ToolRail';
 import { TopBar, type Phase } from './shell/TopBar';
+import { isDark } from '../../core/theme';
 
 const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 8, 16];
 const T0 = 273.15;
@@ -175,7 +176,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     box.prepend(canvas);
     setError(null);
     samplesRef.current = [];
-    const dark = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
+    const dark = isDark();
     const startScene = nextScene.current ?? withQuality(config.scene, qualityRef.current);
     nextScene.current = null;
     const resume = resumeRef.current ?? undefined;

@@ -21,6 +21,7 @@
    =========================================================================== */
 
 @import './tokens.css';
+@import './schemes.css';
 @import './components.css';
 @import './frames.css';
 @import './kit.css';

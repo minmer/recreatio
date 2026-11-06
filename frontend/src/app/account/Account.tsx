@@ -29,6 +29,8 @@ import { PersonCard } from './PersonCard';
 import { PersonsJsonPanel } from './PersonsJsonPanel';
 import { TRANSFER, TransferPage } from './TransferPage';
 import { LANGUAGE, LanguagePage } from './LanguagePage';
+import { APPEARANCE, AppearancePage } from './AppearancePage';
+import { appearance } from '../core/theme';
 import { forget as forgetState } from '../core/prefs';
 import { keysFor } from '../core/ringOf';
 import { myRoleNames } from '../roles/roleNames';
@@ -61,6 +63,7 @@ export function Account({ who, trail = [] }: { who: Who; trail?: readonly string
   if (trail[0] === SECURITY) return <SecurityPage who={who} />;
   if (trail[0] === TRANSFER) return <TransferPage who={who} />;
   if (trail[0] === LANGUAGE) return <LanguagePage />;
+  if (trail[0] === APPEARANCE) return <AppearancePage />;
   if (trail[0] === AI_ACCESS) return <Suspense fallback={<Loading />}><AiConnectionsPage who={who} /></Suspense>;
   return <AccountPage who={who} />;
 }
@@ -233,6 +236,14 @@ function AccountPage({ who }: { who: Who }) {
           <span className="wk-line-text">
             <span className="wk-line-title">{t('i18n.title')}</span>
             <span className="wk-line-sub">{LANG_NAME[t.lang]}</span>
+          </span>
+          <span className="wk-line-end"><Icon name="next" /></span>
+        </a>
+        <a className="wk-line" href={viewPath('account', APPEARANCE)}>
+          <span className="wk-line-ic"><Icon name="eye" /></span>
+          <span className="wk-line-text">
+            <span className="wk-line-title">{t('appearance.title')}</span>
+            <span className="wk-line-sub">{t('appearance.summary', { mode: t(`appearance.mode.${appearance().mode}`), scheme: t(`appearance.scheme.${appearance().scheme}`) })}</span>
           </span>
           <span className="wk-line-end"><Icon name="next" /></span>
         </a>

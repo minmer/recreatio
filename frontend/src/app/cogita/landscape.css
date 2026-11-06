@@ -22,16 +22,14 @@
   --cg-ls-route: #b07800;
   display: grid; gap: var(--wk-space-3); min-width: 0; position: relative;
 }
-@media (prefers-color-scheme: dark) {
-  .cg-ls {
-    --cg-ls-c0: #3987e5; --cg-ls-c1: #d95926; --cg-ls-c2: #199e70; --cg-ls-c3: #c98500;
-    --cg-ls-c4: #d55181; --cg-ls-c5: #008300; --cg-ls-c6: #9085e9; --cg-ls-c7: #e66767;
-    --cg-ls-cx: #6f6b62;
-    --cg-ls-light: #2a2620;
-    --cg-ls-floor: #1d1a15;
-    --cg-ls-stone: #a39a8c;
-    --cg-ls-route: #f2b705;
-  }
+:root[data-mode="dark"] .cg-ls{
+  --cg-ls-c0: #3987e5; --cg-ls-c1: #d95926; --cg-ls-c2: #199e70; --cg-ls-c3: #c98500;
+  --cg-ls-c4: #d55181; --cg-ls-c5: #008300; --cg-ls-c6: #9085e9; --cg-ls-c7: #e66767;
+  --cg-ls-cx: #6f6b62;
+  --cg-ls-light: #2a2620;
+  --cg-ls-floor: #1d1a15;
+  --cg-ls-stone: #a39a8c;
+  --cg-ls-route: #f2b705;
 }
 
 /* Oben: wo man ist, was es gibt, das Ziel */
@@ -267,9 +265,7 @@
  * liegend; ein erobertes Gebiet warm mit Fahne; Tore am Rand blass. Die Farben dieselben acht wie bisher.
  */
 .cg-ls { --cg-ls-glow: #fff6c2; --cg-ls-warm: #f0a020; --cg-ls-haze: #f6f4ef; --cg-ls-sign-bg: #fdfbf7; --cg-ls-sign-rim: #3a352d; --cg-ls-sign-ink: #2a2620; }
-@media (prefers-color-scheme: dark) {
-  .cg-ls { --cg-ls-glow: #fff1a8; --cg-ls-warm: #e08e10; --cg-ls-haze: #24211b; }
-}
+:root[data-mode="dark"] .cg-ls{ --cg-ls-glow: #fff1a8; --cg-ls-warm: #e08e10; --cg-ls-haze: #24211b; }
 .cg-rm { position: relative; min-width: 0; }
 .cg-rm-svg { display: block; max-width: 100%; touch-action: none; user-select: none; cursor: grab; outline: none; }
 .cg-rm-svg:active { cursor: grabbing; }
@@ -438,9 +434,7 @@
  * (einzeln dunkel, auf dem Weg zum Ziel in der Farbe des Ziels) und die Fahne am Ziel.
  */
 .cg-ls { --cg-ls-land: #e0482a; --cg-ls-ready: #ffe15a; --cg-ls-goal: #2f7fd0; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .cg-ls { --cg-ls-land: #ff6a42; --cg-ls-ready: #ffe98a; --cg-ls-goal: #6aaeff; }
-}
+:root[data-mode="dark"] .cg-ls{ --cg-ls-land: #ff6a42; --cg-ls-ready: #ffe98a; --cg-ls-goal: #6aaeff; }
 :root[data-theme='dark'] .cg-ls { --cg-ls-land: #ff6a42; --cg-ls-ready: #ffe98a; --cg-ls-goal: #6aaeff; }
 .cg-wm-pieces { position: absolute; left: 0; top: 0; overflow: hidden; pointer-events: none; }
 .cg-wm-hit { pointer-events: none; }

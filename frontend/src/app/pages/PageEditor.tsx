@@ -25,6 +25,7 @@ import { SlidesEditor } from './slides/SlidesEditor';
 import { PresentationEditor } from './presentation/PresentationEditor';
 import { PageJson } from './PageJsonPanel';
 import { NO_LOOK, readLook, writeLook, type Look } from './slides/slideLook';
+import { PageStyleEditor } from './PageStyleEditor';
 import { readSubject, SubjectSettings, writeSubject, type SubjectDecl } from './pageSubject';
 import { WorkspaceError, type Who } from '../core/session';
 import { Loading } from '../ui/Loading';
@@ -304,7 +305,19 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
             });
           }}
         />
-      ) : (
+      ) : (<>
+      {/* 2026-11-06 — DER ENTWURF DER SEITE: Farben, Titel und Band, Schrift, Breite, Bausteine (`look.style`). */}
+      <PageStyleEditor
+        value={pageLook.style}
+        title={title}
+        lead={lead}
+        busy={busy !== null}
+        onChange={(style) => {
+          const { style: _was, ...rest } = pageLook;
+          setPageLook(style === undefined ? rest : { ...rest, style });
+          setLookDirty(true);
+        }}
+      />
       <PageBuilder
         parts={parts}
         path={path}
@@ -327,7 +340,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
           });
         }}
       />
-      )}
+      </>)}
 
 
       <div className="wk-actions">

@@ -64,25 +64,23 @@
   --wk-sticky-top: calc(var(--wk-bar-h) + var(--wk-space-4));
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --wk-ink-2: #d9d1c3;
-    --wk-line-strong: #5a5244;
-    --wk-sunk: #1b1813;
-    --wk-side: #1a1712;
-    --wk-accent-hover: #e2b877;
-    --wk-accent-soft: #382c1b;
-    --wk-ring: rgb(211 162 94 / 0.35);
-    --wk-ok-soft: #1a2e20;
-    --wk-warn: #e2b153;
-    --wk-warn-soft: #33280f;
-    --wk-danger-soft: #3a1d16;
-    --wk-info: #8ab6e6;
-    --wk-info-soft: #1a2635;
-    --wk-scrim: rgb(0 0 0 / 0.6);
-    --wk-shadow-pop: 0 1px 2px rgb(0 0 0 / 0.5), 0 8px 24px rgb(0 0 0 / 0.45);
-    --wk-shadow-dialog: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 64px rgb(0 0 0 / 0.6);
-  }
+:root[data-mode="dark"]{
+  --wk-ink-2: #d9d1c3;
+  --wk-line-strong: #5a5244;
+  --wk-sunk: #1b1813;
+  --wk-side: #1a1712;
+  --wk-accent-hover: #e2b877;
+  --wk-accent-soft: #382c1b;
+  --wk-ring: rgb(211 162 94 / 0.35);
+  --wk-ok-soft: #1a2e20;
+  --wk-warn: #e2b153;
+  --wk-warn-soft: #33280f;
+  --wk-danger-soft: #3a1d16;
+  --wk-info: #8ab6e6;
+  --wk-info-soft: #1a2635;
+  --wk-scrim: rgb(0 0 0 / 0.6);
+  --wk-shadow-pop: 0 1px 2px rgb(0 0 0 / 0.5), 0 8px 24px rgb(0 0 0 / 0.45);
+  --wk-shadow-dialog: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 64px rgb(0 0 0 / 0.6);
 }
 
 /* Mit dem Finger: Ziele, die man trifft (44 px). */

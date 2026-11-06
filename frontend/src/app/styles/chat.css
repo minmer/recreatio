@@ -21,15 +21,13 @@
   --ch-wall-dot: color-mix(in srgb, var(--wk-accent) 9%, transparent);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ch-mine-mix: 30%;
-    --ch-name-l: 72%;
-    --ch-ava-l: 30%;
-    --ch-ava-ink: 86%;
-    --ch-wall: color-mix(in srgb, var(--wk-ground) 80%, #000);
-    --ch-wall-dot: color-mix(in srgb, var(--wk-accent) 7%, transparent);
-  }
+:root[data-mode="dark"]{
+  --ch-mine-mix: 30%;
+  --ch-name-l: 72%;
+  --ch-ava-l: 30%;
+  --ch-ava-ink: 86%;
+  --ch-wall: color-mix(in srgb, var(--wk-ground) 80%, #000);
+  --ch-wall-dot: color-mix(in srgb, var(--wk-accent) 7%, transparent);
 }
 
 .wk-deck.is-dark { --ch-mine-mix: 30%; --ch-name-l: 72%; --ch-ava-l: 30%; --ch-ava-ink: 86%; }

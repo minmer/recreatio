@@ -81,9 +81,7 @@
   font-size: var(--wk-text-sm);
   flex: none;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .ph-avatar { background: hsl(var(--ph-h, 30) 30% 26%); color: hsl(var(--ph-h, 30) 45% 86%); }
-}
+:root[data-mode="dark"] .ph-avatar{ background: hsl(var(--ph-h, 30) 30% 26%); color: hsl(var(--ph-h, 30) 45% 86%); }
 :root[data-theme="dark"] .ph-avatar { background: hsl(var(--ph-h, 30) 30% 26%); color: hsl(var(--ph-h, 30) 45% 86%); }
 
 /* -- Bilder einer MMS (in der Blase) ---------------------------------------- */

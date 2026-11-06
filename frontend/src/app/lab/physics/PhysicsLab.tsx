@@ -30,6 +30,7 @@ import { PHYS_PRESETS, SANDBOX_SCENE } from './physPresets';
 import { sceneOfWorld } from './physSave';
 import { buildWorld, drawScene, goalArea, readPhysScene, type GraphOf, type PaletteKey, type ToolKey, type VectorKind } from './physScene';
 import type { World } from './physWorld';
+import { onTheme } from '../../core/theme';
 
 export interface PhysConfig {
   readonly title: string;
@@ -326,16 +327,14 @@ export function PhysicsLab({ config, whole = false, seed = null, onGoal }: { con
     sizes?.observe(box);
     const seen = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => loop.show(entries.some((e) => e.isIntersecting)));
     seen?.observe(box);
-    const theme = window.matchMedia?.('(prefers-color-scheme: dark)');
-    const onTheme = () => { pal = readPalette(box); loop.wake(); };
-    theme?.addEventListener?.('change', onTheme);
+    const offTheme = onTheme(() => { pal = readPalette(box); loop.wake(); });
     resize();
     loop.wake();
     return () => {
       detach();
       sizes?.disconnect();
       seen?.disconnect();
-      theme?.removeEventListener?.('change', onTheme);
+      offTheme();
       loop.dispose();
       loopRef.current = null;
     };

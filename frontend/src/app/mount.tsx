@@ -11,6 +11,7 @@ import ReactDOM, { type Root } from 'react-dom/client';
 
 import { App } from './App';
 import { LangReady } from './core/i18n';
+import { startTheme } from './core/theme';
 import { keepFromAddress } from './seats/seatKeep';
 import { keepLinkFromAddress } from './links/linkKeep';
 import './app.css';
@@ -42,33 +43,13 @@ function tidyAddress(): void {
 }
 
 /**
- * Die Leiste des Telefons in der Farbe des Grundes — hell oder dunkel, wie die
- * Seite selbst. `index.html` sagt Weiss; im dunklen Thema stand darüber sonst
- * ein weisser Balken.
- *
- * Die Farbe kommt aus dem Stilblatt (`--wk-ground`), nicht noch einmal von hier.
- */
-function followTheme(): void {
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-  if (meta === null) return;
-
-  const dark = window.matchMedia('(prefers-color-scheme: dark)');
-  const paint = () => {
-    const ground = getComputedStyle(document.documentElement).getPropertyValue('--wk-ground').trim();
-    if (ground !== '') meta.content = ground;
-  };
-
-  paint();
-  dark.addEventListener('change', paint);
-}
-
-/**
  * `wrap` — 2026-10-27: die Vorschau für Assistenten (`preview/`) legt ihre
  * Steuerung um die Anwendung; sonst steht sie, wie sie ist.
  */
 export function mountApp(node: HTMLElement, wrap: (app: ReactNode) => ReactNode = (app) => app): Root {
   tidyAddress();
-  followTheme();
+  /* 2026-11-06 — hell/dunkel und Farben wie gewählt (core/theme.ts), auch die Leiste des Telefons. */
+  startTheme();
 
   const root = ReactDOM.createRoot(node);
   root.render(

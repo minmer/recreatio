@@ -16,19 +16,17 @@
   --cg-rw-crown: #7c5cd6;
   --cg-rw-medal: #2a78d6;
 }
-@media (prefers-color-scheme: dark) {
-  .cg-rw, .cg-live-stats, .cg-rewards, .cg-rw-toasts, .cg-rw-fly, .cg-face {
-    --cg-rw-gold: #f2b705;
-    --cg-rw-gold-2: #ffd75e;
-    --cg-rw-gold-ink: #ffd75e;
-    --cg-rw-gold-soft: #3a2c08;
-    --cg-rw-flame: #fb7a2c;
-    --cg-rw-flame-core: #ffd166;
-    --cg-rw-flame-soft: #3d1d0b;
-    --cg-rw-flame-ink: #ffb183;
-    --cg-rw-crown: #a990ef;
-    --cg-rw-medal: #6da7ec;
-  }
+:root[data-mode="dark"] .cg-rw, :root[data-mode="dark"] .cg-live-stats, :root[data-mode="dark"] .cg-rewards, :root[data-mode="dark"] .cg-rw-toasts, :root[data-mode="dark"] .cg-rw-fly, :root[data-mode="dark"] .cg-face{
+  --cg-rw-gold: #f2b705;
+  --cg-rw-gold-2: #ffd75e;
+  --cg-rw-gold-ink: #ffd75e;
+  --cg-rw-gold-soft: #3a2c08;
+  --cg-rw-flame: #fb7a2c;
+  --cg-rw-flame-core: #ffd166;
+  --cg-rw-flame-soft: #3d1d0b;
+  --cg-rw-flame-ink: #ffb183;
+  --cg-rw-crown: #a990ef;
+  --cg-rw-medal: #6da7ec;
 }
 
 .cg-rw { position: relative; display: grid; gap: var(--wk-space-3); min-width: 0; container-type: inline-size; }
@@ -158,14 +156,12 @@
   --cg-rw-m3: #e3aa10; --cg-rw-m3-hi: #fff1a6; --cg-rw-m3-edge: #8d5f05; --cg-rw-m3-ink: #3f2a00;
   --cg-rw-m4: #79d4ee; --cg-rw-m4-hi: #f3fdff; --cg-rw-m4-edge: #1c86a6; --cg-rw-m4-ink: #08394a;
 }
-@media (prefers-color-scheme: dark) {
-  .cg-rw, .cg-live-stats, .cg-rewards, .cg-rw-toasts, .cg-rw-fly, .cg-face {
-    --cg-rw-m0: #a8774a; --cg-rw-m0-hi: #dcb486; --cg-rw-m0-edge: #e2b98c;
-    --cg-rw-m1: #b8692c; --cg-rw-m1-hi: #f0b27a; --cg-rw-m1-edge: #f0a466;
-    --cg-rw-m2: #9aa5b1; --cg-rw-m2-hi: #eef2f6; --cg-rw-m2-edge: #d3dbe4;
-    --cg-rw-m3: #d9a00c; --cg-rw-m3-hi: #ffeb94; --cg-rw-m3-edge: #ffd34a;
-    --cg-rw-m4: #5fc6e4; --cg-rw-m4-hi: #e9fbff; --cg-rw-m4-edge: #94e8ff;
-  }
+:root[data-mode="dark"] .cg-rw, :root[data-mode="dark"] .cg-live-stats, :root[data-mode="dark"] .cg-rewards, :root[data-mode="dark"] .cg-rw-toasts, :root[data-mode="dark"] .cg-rw-fly, :root[data-mode="dark"] .cg-face{
+  --cg-rw-m0: #a8774a; --cg-rw-m0-hi: #dcb486; --cg-rw-m0-edge: #e2b98c;
+  --cg-rw-m1: #b8692c; --cg-rw-m1-hi: #f0b27a; --cg-rw-m1-edge: #f0a466;
+  --cg-rw-m2: #9aa5b1; --cg-rw-m2-hi: #eef2f6; --cg-rw-m2-edge: #d3dbe4;
+  --cg-rw-m3: #d9a00c; --cg-rw-m3-hi: #ffeb94; --cg-rw-m3-edge: #ffd34a;
+  --cg-rw-m4: #5fc6e4; --cg-rw-m4-hi: #e9fbff; --cg-rw-m4-edge: #94e8ff;
 }
 .cg-rw-medal {
   --m: var(--cg-rw-m0); --m-hi: var(--cg-rw-m0-hi); --m-edge: var(--cg-rw-m0-edge); --m-ink: var(--cg-rw-m0-ink);

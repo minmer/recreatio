@@ -3,7 +3,7 @@
   Violett von „Co dalej"), ein Link im Text mit dem Portal ◎, der Weg über die Welten über einem Abstecher, die Auswahl der Autoren.
 */
 :root { --cg-world: #1f7a8c; --cg-world-soft: rgb(31 122 140 / 0.1); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --cg-world: #6cc5d6; --cg-world-soft: rgb(108 197 214 / 0.14); } }
+:root[data-mode="dark"]{ --cg-world: #6cc5d6; --cg-world-soft: rgb(108 197 214 / 0.14); }
 :root[data-theme='dark'] { --cg-world: #6cc5d6; --cg-world-soft: rgb(108 197 214 / 0.14); }
 
 .cg-worlds { display: grid; gap: var(--wk-space-2); margin-top: var(--wk-space-3); min-width: 0; }

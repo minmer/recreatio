@@ -27,6 +27,7 @@ import {
 import { FilePicker, ImagePicker } from '../PageFiles';
 import { plural } from '../../core/plural';
 import { t, useT } from '../../core/i18n';
+import { onTheme } from '../../core/theme';
 
 /* -- Duldsame Leser (Altbestand: contracts.ts) ------------------------------------ */
 
@@ -113,9 +114,7 @@ export function useTone(ref: RefObject<HTMLElement | null>): 'light' | 'dark' {
       setTone(lum > 0.55 ? 'dark' : 'light');
     };
     look();
-    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
-    media?.addEventListener?.('change', look);
-    return () => media?.removeEventListener?.('change', look);
+    return onTheme(look);
   }, [ref]);
 
   return tone;

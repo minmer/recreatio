@@ -54,7 +54,11 @@ function jumpWithin(event: React.MouseEvent<HTMLElement>) {
  * seit 0020 nennt er stattdessen einen KALENDER, der in seiner eigenen
  * Einstellung steht. Ein Baustein ist dasselbe, gleich wo er hängt.
  */
-export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
+export function PageParts({ parts, gap: gapRem = 1 }: {
+  parts: readonly DraftPart[];
+  /** 2026-11-06 — der Abstand der Bausteine in rem (Entwurf der Seite, `pageStyle.ts`). */
+  gap?: number;
+}) {
   const t = useT();
   const breakpoint = useBreakpoint();
   const columns = COLUMNS[breakpoint];
@@ -126,7 +130,7 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
   const heights = useRef(new Map<string, number>()).current;
   const [, redraw] = useState(0);
   const remPx = typeof document === 'undefined' ? 16 : parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-  const gap = remPx;
+  const gap = remPx * gapRem;
 
   /*
    * Gemessen wird HIER, im Effekt — nicht in einer Zustandsfunktion: die
@@ -164,7 +168,7 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
   const across = (n: number) => `(100% - ${columns - 1} * var(--page-gap)) / ${columns} * ${n}`;
 
   return (
-    <div className="wk-page-grid is-packed" style={{ '--page-cols': columns, '--page-gap': '1rem', height: `${Math.ceil(layout.height)}px` } as CSSProperties}
+    <div className="wk-page-grid is-packed" style={{ '--page-cols': columns, '--page-gap': `${gapRem}rem`, height: `${Math.ceil(layout.height)}px` } as CSSProperties}
       onClick={jumpWithin}>
       {shown.map((part) => {
         const frame = frameFor(part, breakpoint);

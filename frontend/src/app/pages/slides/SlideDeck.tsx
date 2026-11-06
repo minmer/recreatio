@@ -36,6 +36,7 @@ import { colorsAt, colorsOf, deckAt, enterStyle, entering, frameAt } from './sli
 import { layerCover, layerPlace, layerRoom, sheetsAt } from './slideSheets';
 import { useSlideScroll } from './useSlideScroll';
 import { useT } from '../../core/i18n';
+import { useDark } from '../../core/theme';
 
 export interface DeckSlide {
   readonly key: string;
@@ -162,15 +163,8 @@ export interface DeckTrack {
 
 /** Hell oder dunkel, wie das Gerät gerade eingestellt ist — und es bleibt dabei, wenn es wechselt. */
 export function usePrefersDark(): boolean {
-  const [dark, setDark] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-color-scheme: dark)');
-    const on = () => setDark(query.matches);
-    query.addEventListener('change', on);
-    return () => query.removeEventListener('change', on);
-  }, []);
-  return dark;
+  /* 2026-11-06 — wie gewählt (Konto → Wygląd) oder wie das Gerät: core/theme.ts. */
+  return useDark();
 }
 
 /** „Weniger Bewegung" im System — dann blenden Slajdy nur über, nichts fliegt. */

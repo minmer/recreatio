@@ -21,6 +21,7 @@ import { subjectDescription } from './pageSubject';
 import type { PartModule } from './part';
 import { PARTS, partOf } from './parts/registry';
 import { DEFAULT_THEMES } from './slides/slideLook';
+import { PAGE_STYLE_NODE } from './pageStyleText';
 
 /* -- Die Beschreibung ------------------------------------------------------------- */
 
@@ -357,6 +358,7 @@ export const PAGE_JSON: JsonNode = {
     textNode('page.texts', 'Teksty na stronie', () => PAGE_TEXTS),
     textNode('page.appointments', 'Terminy do kalendarza', () => APPOINTMENTS_SECTION),
     textNode('page.images', 'Pliki do dodania', () => IMAGES_SECTION),
+    PAGE_STYLE_NODE,
     ENTRY_JSON,
     textNode('layers', 'Warstwy tła i slajd modułu', () => LAYERS),
     textNode('motion', 'Ruch', motionDescription),

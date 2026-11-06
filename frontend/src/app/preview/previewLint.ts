@@ -39,7 +39,7 @@ export interface LintItem {
 
 const ROOT_KEYS = new Set([
   'format', 'version', 'path', 'title', 'lead', 'mode', 'theme', 'cover', 'show', 'deck', 'menu', 'logic', 'subject',
-  'modules', 'parts', 'images', 'appointments', 'calendars'
+  'modules', 'parts', 'images', 'appointments', 'calendars', 'style'
 ]);
 
 /** Was ein Eintrag von "modules" tragen kann — die Stelle, ihr Modul und (bei einem Formular) alles eines Modul-Dokuments. */

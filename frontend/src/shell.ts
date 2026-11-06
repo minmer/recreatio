@@ -17,6 +17,7 @@ import { App } from '@capacitor/app';
 import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 
 import { saveBlob } from './app/core/platform';
+import { isDark, onTheme } from './app/core/theme';
 
 const HOME = '#/workspace';
 /** Wohin das Symbol „SMS" der Ausgabe sms führt (Edition.adjust, 2026-10-26). */
@@ -162,12 +163,19 @@ export async function startShell(): Promise<void> {
   document.addEventListener('click', onDownload, true);
 
   /*
-   * Die Seite folgt dem dunklen Modus von selbst (prefers-color-scheme). Die
-   * Symbole der Statusleiste nicht: SystemBars legt „DEFAULT" beim Start auf
-   * hell oder dunkel fest und bleibt dabei — dunkle Uhr auf dunklem Grund.
-   * Also bei jedem Wechsel neu fragen.
+   * Die Symbole der Statusleiste folgen der Seite nicht von selbst: SystemBars
+   * legt „DEFAULT" beim Start nach dem Gerät fest und bleibt dabei — dunkle Uhr
+   * auf dunklem Grund. 2026-11-06: hell/dunkel ist wählbar (Konto → Wygląd) und
+   * eine Seite kann es festlegen — also nach dem, was gerade gilt (`core/theme.ts`;
+   * `Dark` = helle Symbole auf dunklem Grund).
    */
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    void SystemBars.setStyle({ style: SystemBarsStyle.Default }).catch(() => undefined);
-  });
+  let barsDark: boolean | null = null;
+  const bars = () => {
+    const dark = isDark();
+    if (dark === barsDark) return;
+    barsDark = dark;
+    void SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => undefined);
+  };
+  bars();
+  onTheme(bars);
 }

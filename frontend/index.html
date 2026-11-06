@@ -32,6 +32,23 @@
           document.documentElement.lang = 'pl';
         }
       })();
+      /* 2026-11-06 — das Aussehen vor dem ersten Bild (dieselbe Wahl wie src/app/core/theme.ts, `recreatio.look`). */
+      (function () {
+        var root = document.documentElement, look = {};
+        try { look = JSON.parse(localStorage.getItem('recreatio.look') || '{}') || {}; } catch (_) { look = {}; }
+        var mode = look.mode === 'light' || look.mode === 'dark' ? look.mode : 'auto';
+        var dark = mode === 'dark' || (mode === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        root.setAttribute('data-mode', dark ? 'dark' : 'light');
+        root.setAttribute('data-scheme', typeof look.scheme === 'string' ? look.scheme : 'sand');
+        if (look.scheme === 'own' && typeof look.hue === 'number') {
+          root.style.setProperty('--sch-h', String(look.hue));
+          root.style.setProperty('--sch-ah', String(look.hue));
+          root.style.setProperty('--sch-n', String(typeof look.tint === 'number' ? look.tint : 1));
+        }
+        if (look.contrast === 'more') root.setAttribute('data-contrast', 'more');
+        if (typeof look.text === 'string') root.setAttribute('data-text', look.text);
+        if (typeof look.corners === 'string') root.setAttribute('data-corners', look.corners);
+      })();
     </script>
   </head>
   <body>

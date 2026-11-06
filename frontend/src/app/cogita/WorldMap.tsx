@@ -25,6 +25,7 @@ import { motionLevel, useMotion, type MotionLevel } from '../ui/motion';
 import { flyPoints } from './rewardBus';
 import { clamp01, easeInOut, easeOut, FADE_MS, FLY_GAP, FLY_MS, FLY_SINGLE, LINE_MS, playPoints, playTimes, PULSE_MS, REGION_MS, SHIMMER_MS, WALK_MS, waveDelays, type PlaybackEvent, type PlayTimes, type WorldPlayback } from './worldPlay';
 import { beatAt, beatStart, wayTimes, wayWaits, type WayHop, type WayPlan, type WayTimes } from './worldWay';
+import { onTheme } from '../core/theme';
 
 /** 2026-11-04 (Prompt 15, 4b) — was die Karte zeigt: alles, nur das Gekonnte (mit dem Rand), nur das Fällige. */
 /** 2026-11-05 (Prompt 23, C5) — dazu „Luki": nur die Themen, deren Kernfrage beantwortet und nicht gewusst ist (`gaps`). */
@@ -363,11 +364,10 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     if (el === null) return undefined;
     const read = () => setPalette(readPalette(el));
     read();
-    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
-    mq?.addEventListener?.('change', read);
+    const off = onTheme(read);
     const watch = new MutationObserver(read);
     watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
-    return () => { mq?.removeEventListener?.('change', read); watch.disconnect(); };
+    return () => { off(); watch.disconnect(); };
   }, []);
 
   /*

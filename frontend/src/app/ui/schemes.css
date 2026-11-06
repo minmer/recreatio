@@ -1,0 +1,119 @@
+/* 2026-11-06 — DIE FARBFAMILIEN (core/theme.ts). Teil von ui.css, nach tokens.css.
+
+   Jede Familie sind vier Zahlen: der Farbton des Graus (--sch-h) und wie stark das Grau ihn trägt (--sch-n),
+   der Farbton des Akzents (--sch-ah) und seine Sättigung (--sch-ac). Daraus rechnen die Regeln unten jede
+   Fläche, Schrift und Linie — hell und dunkel —, in oklch, damit gleiche Helligkeit auch gleich hell aussieht.
+
+   Sie gelten an JEDEM Element mit `data-scheme` (nicht nur an der Wurzel): die Muster auf „Wygląd" und die
+   Vorschau einer Seite tragen ihre eigene Familie und ihren eigenen Modus (`data-mode`).
+
+   `sand` ist die bisherige Familie, Wert für Wert wie in styles/base.css und tokens.css. */
+
+[data-scheme] {
+  --sch-h: 70;
+  --sch-n: 1;
+  --sch-ah: 70;
+  --sch-ac: 0.1;
+
+  --wk-ground: oklch(0.975 calc(0.008 * var(--sch-n)) var(--sch-h));
+  --wk-surface: oklch(0.997 calc(0.003 * var(--sch-n)) var(--sch-h));
+  --wk-sunk: oklch(0.958 calc(0.010 * var(--sch-n)) var(--sch-h));
+  --wk-soft: oklch(0.943 calc(0.013 * var(--sch-n)) var(--sch-h));
+  --wk-side: oklch(0.943 calc(0.013 * var(--sch-n)) var(--sch-h));
+  --wk-line: oklch(0.885 calc(0.015 * var(--sch-n)) var(--sch-h));
+  --wk-line-strong: oklch(0.81 calc(0.02 * var(--sch-n)) var(--sch-h));
+  --wk-ink: oklch(0.22 calc(0.012 * var(--sch-n)) var(--sch-h));
+  --wk-ink-2: oklch(0.36 calc(0.018 * var(--sch-n)) var(--sch-h));
+  --wk-muted: oklch(0.48 calc(0.022 * var(--sch-n)) var(--sch-h));
+  --wk-accent: oklch(0.47 var(--sch-ac) var(--sch-ah));
+  --wk-accent-hover: oklch(0.40 var(--sch-ac) var(--sch-ah));
+  --wk-accent-soft: oklch(0.94 calc(var(--sch-ac) * 0.3) var(--sch-ah));
+  --wk-ring: oklch(0.47 var(--sch-ac) var(--sch-ah) / 0.32);
+  --wk-on-accent: #ffffff;
+}
+
+[data-scheme][data-mode='dark'] {
+  color-scheme: dark;
+  --wk-ground: oklch(0.175 calc(0.009 * var(--sch-n)) var(--sch-h));
+  --wk-surface: oklch(0.215 calc(0.011 * var(--sch-n)) var(--sch-h));
+  --wk-sunk: oklch(0.195 calc(0.010 * var(--sch-n)) var(--sch-h));
+  --wk-soft: oklch(0.255 calc(0.014 * var(--sch-n)) var(--sch-h));
+  --wk-side: oklch(0.19 calc(0.010 * var(--sch-n)) var(--sch-h));
+  --wk-line: oklch(0.37 calc(0.018 * var(--sch-n)) var(--sch-h));
+  --wk-line-strong: oklch(0.44 calc(0.02 * var(--sch-n)) var(--sch-h));
+  --wk-ink: oklch(0.94 calc(0.012 * var(--sch-n)) var(--sch-h));
+  --wk-ink-2: oklch(0.86 calc(0.016 * var(--sch-n)) var(--sch-h));
+  --wk-muted: oklch(0.74 calc(0.022 * var(--sch-n)) var(--sch-h));
+  --wk-accent: oklch(0.76 var(--sch-ac) var(--sch-ah));
+  --wk-accent-hover: oklch(0.83 var(--sch-ac) var(--sch-ah));
+  --wk-accent-soft: oklch(0.30 calc(var(--sch-ac) * 0.45) var(--sch-ah));
+  --wk-ring: oklch(0.76 var(--sch-ac) var(--sch-ah) / 0.35);
+  --wk-on-accent: oklch(0.2 0.03 var(--sch-ah));
+}
+
+[data-scheme='sea'] { --sch-h: 240; --sch-ah: 252; --sch-ac: 0.13; }
+[data-scheme='teal'] { --sch-h: 200; --sch-ah: 195; --sch-ac: 0.1; }
+[data-scheme='forest'] { --sch-h: 150; --sch-ah: 150; --sch-ac: 0.11; }
+[data-scheme='olive'] { --sch-h: 110; --sch-ah: 118; --sch-ac: 0.1; }
+[data-scheme='ember'] { --sch-h: 50; --sch-ah: 40; --sch-ac: 0.15; }
+[data-scheme='rose'] { --sch-h: 10; --sch-ah: 5; --sch-ac: 0.14; }
+[data-scheme='plum'] { --sch-h: 330; --sch-ah: 335; --sch-ac: 0.12; }
+[data-scheme='violet'] { --sch-h: 290; --sch-ah: 290; --sch-ac: 0.14; }
+[data-scheme='slate'] { --sch-h: 250; --sch-n: 0.6; --sch-ah: 255; --sch-ac: 0.06; }
+/* `own`: Farbton und Stärke stehen als Stil am Element (theme.ts, schemeVars). */
+[data-scheme='own'] { --sch-ac: 0.13; }
+
+/* Die bisherige Familie, Wert für Wert. */
+[data-scheme='sand'] {
+  --wk-ground: #f7f5f1;
+  --wk-surface: #ffffff;
+  --wk-sunk: #f3f0ea;
+  --wk-soft: #efebe3;
+  --wk-side: #efebe3;
+  --wk-line: #dcd7cd;
+  --wk-line-strong: #c9c1b3;
+  --wk-ink: #1a1815;
+  --wk-ink-2: #3f3a33;
+  --wk-muted: #5b554c;
+  --wk-accent: #7a5a2e;
+  --wk-accent-hover: #664a22;
+  --wk-accent-soft: #f1e8da;
+  --wk-ring: rgb(122 90 46 / 0.32);
+  --wk-on-accent: #ffffff;
+}
+
+[data-scheme='sand'][data-mode='dark'] {
+  --wk-ground: #16140f;
+  --wk-surface: #1f1c16;
+  --wk-sunk: #1b1813;
+  --wk-soft: #272319;
+  --wk-side: #1a1712;
+  --wk-line: #4a4337;
+  --wk-line-strong: #5a5244;
+  --wk-ink: #f0ebe0;
+  --wk-ink-2: #d9d1c3;
+  --wk-muted: #b0a695;
+  --wk-accent: #d3a25e;
+  --wk-accent-hover: #e2b877;
+  --wk-accent-soft: #382c1b;
+  --wk-ring: rgb(211 162 94 / 0.35);
+  --wk-on-accent: #1a1510;
+}
+
+/* -- Mehr Kontrast: die zweite Schrift fast wie die erste, Linien deutlich ---------------------
+   Gewicht (0,3,1): über jeder Familie, auch der dunklen. */
+html:root[data-contrast='more'][data-scheme] {
+  --wk-muted: color-mix(in oklab, var(--wk-ink) 82%, var(--wk-ground));
+  --wk-ink-2: color-mix(in oklab, var(--wk-ink) 92%, var(--wk-ground));
+  --wk-line: color-mix(in oklab, var(--wk-ink) 38%, var(--wk-ground));
+  --wk-line-strong: color-mix(in oklab, var(--wk-ink) 55%, var(--wk-ground));
+}
+
+/* -- Schriftgrösse: alles rechnet in rem, also genügt die Wurzel ------------------------------ */
+:root[data-text='sm'] { font-size: 93.75%; }
+:root[data-text='lg'] { font-size: 112.5%; }
+:root[data-text='xl'] { font-size: 125%; }
+
+/* -- Ecken ---------------------------------------------------------------------------------- */
+:root[data-corners='sharp'] { --wk-radius-xs: 2px; --wk-radius-sm: 2px; --wk-radius: 3px; --wk-radius-lg: 4px; }
+:root[data-corners='round'] { --wk-radius-xs: 6px; --wk-radius-sm: 10px; --wk-radius: 16px; --wk-radius-lg: 22px; }

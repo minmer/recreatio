@@ -26,6 +26,7 @@ import { useT, type Lang } from '../core/i18n';
 import { InLang } from './pageLang';
 import { langOfLayout } from './layout';
 import { readLook } from './slides/slideLook';
+import { holdPage } from '../core/theme';
 
 const WIDTHS: Record<string, number> = { narrow: 2, medium: 3, wide: 4, full: 6 };
 const HEIGHTS: Record<string, number> = { strip: 1, block: 3, tall: 5 };
@@ -71,8 +72,10 @@ export function Widget({ partId, pagePath }: { partId: string | null; pagePath: 
   useEffect(() => {
     document.documentElement.classList.add('wk-widget-mode');
     const theme = opts.get('theme');
+    /* 2026-11-06 — hell oder dunkel wie verlangt (core/theme.ts); `data-theme` bleibt für ältere Regeln. */
     if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
-    return () => document.documentElement.classList.remove('wk-widget-mode');
+    const release = theme === 'light' || theme === 'dark' ? holdPage({ mode: theme }) : null;
+    return () => { release?.(); document.documentElement.classList.remove('wk-widget-mode'); };
   }, [opts]);
 
   useEffect(() => {

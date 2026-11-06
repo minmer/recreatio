@@ -5,6 +5,7 @@
 import { API } from '../../core/session';
 import { isLang, type Lang } from '../../core/i18n';
 import { type MotionUse, motionsJson, readMotions } from '../motion/motion';
+import { pageStyleJson, readPageStyle, type PageStyle } from '../pageStyle';
 
 /* -- Schichten ---------------------------------------------------------------- */
 
@@ -380,6 +381,8 @@ export interface Look {
   readonly deck?: DeckLook;
   /** 2026-11-05 — die Sprache der Seite (LOCALIZATION.md, Stufe 3); fehlt: jeder Besucher in seiner. */
   readonly lang?: Lang;
+  /** 2026-11-06 — der Entwurf der Seite als Raster (Farben, Schrift, Titel, Band, Bausteine): `pageStyle.ts`. */
+  readonly style?: PageStyle;
 }
 
 /**
@@ -456,12 +459,14 @@ export function readLook(json: string | null | undefined): Look {
       }
       : null;
     const deck = one.deck === undefined || one.deck === null ? undefined : readDeck(one.deck);
+    const style = readPageStyle(one.style);
     return {
       theme,
       cover: readLayers(record(one.cover).layers),
       ...(one.show === undefined || one.show === null ? {} : { show: one.show }),
       ...(deck === undefined || deckJson(deck) === undefined ? {} : { deck }),
-      ...(isLang(one.lang) ? { lang: one.lang } : {})
+      ...(isLang(one.lang) ? { lang: one.lang } : {}),
+      ...(style === undefined ? {} : { style })
     };
   } catch {
     return NO_LOOK;
@@ -472,7 +477,8 @@ export function writeLook(look: Look): string | null {
   const show = look.show ?? null;
   const deck = look.deck === undefined ? undefined : deckJson(look.deck);
   const lang = isLang(look.lang) ? look.lang : undefined;
-  if (look.theme === null && look.cover.length === 0 && show === null && deck === undefined && lang === undefined) return null;
+  const style = pageStyleJson(look.style);
+  if (look.theme === null && look.cover.length === 0 && show === null && deck === undefined && lang === undefined && style === undefined) return null;
   const { night, ...theme } = look.theme ?? { mode: 'auto' as const, night: null };
   return JSON.stringify({
     ...theme,
@@ -480,7 +486,8 @@ export function writeLook(look: Look): string | null {
     cover: { layers: layersJson(look.cover) },
     ...(show === null ? {} : { show }),
     ...(deck === undefined ? {} : { deck }),
-    ...(lang === undefined ? {} : { lang })
+    ...(lang === undefined ? {} : { lang }),
+    ...(style === undefined ? {} : { style })
   });
 }
 

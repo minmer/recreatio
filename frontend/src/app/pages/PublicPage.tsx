@@ -43,6 +43,8 @@ import { readLook } from './slides/slideLook';
 import { PageFooter } from '../reports/PageFooter';
 import { useT } from '../core/i18n';
 import { InLang } from './pageLang';
+import { PageHead, StyledPage } from './PageStyleView';
+import { gapOf } from './pageStyle';
 
 /*
  * 2026-10-17 — DIE LEISTE EINES PLATZES (Bestätigen, Rozmowy, Kroki) nur, wenn
@@ -206,8 +208,9 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
   }
 
   /* 2026-11-05 — DIE SPRACHE DER SEITE (`look.lang`): gesetzt, sieht jeder Besucher sie; sonst seine eigene. */
+  const pageLook = readLook(page.theme);
   return (
-    <InLang lang={readLook(page.theme).lang}>
+    <InLang lang={pageLook.lang}>
     <WithSeat path={page.path}>
       <PageAccessContext.Provider value={page.access ?? null}>
       <PersonProvider path={page.path}>
@@ -251,8 +254,9 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
               </PersonAccessGate>
             </UntilConfirmed>
           ) : (<>
-          {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
-          {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
+          {/* 2026-11-06 — DER ENTWURF DER SEITE (`look.style`): Farben, Schrift, Titel und Band, Bausteine. */}
+          <StyledPage style={pageLook.style}>
+          <PageHead title={page.title} lead={page.lead} style={pageLook.style} />
 
           <SeatBar path={page.path} />
 
@@ -276,9 +280,11 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
                 Link führte. Was vom Formular erscheinen soll, legt die Kanzlei als
                 Baustein auf die Seite, an seine Stelle.
               */}
-              <PageParts parts={parts} />
+              <PageParts parts={parts} gap={gapOf(pageLook.style)} />
             </PersonAccessGate>
           </UntilConfirmed>
+
+          </StyledPage>
 
           {/* 0129/0130 — wer für die Seite geradesteht, wer den Dienst betreibt, „Zgłoś treść". */}
           <PageFooter pageId={page.id} responsible={page.responsible} restricted={page.access?.restricted === true} />

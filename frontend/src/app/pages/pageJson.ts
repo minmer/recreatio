@@ -29,7 +29,8 @@ import type { VirtualAreaDoc } from '../forms/virtualAreasJson';
 import { describePlan, readAppointments, referencesIn, REFERENCE_FIELDS, type AppointmentsPlan } from '../calendar/appointmentsJson';
 import { newId } from '../core/ids';
 import { BREAKPOINTS, COLUMNS, firstFreeCell, langOfLayout, snapColSpan, snapRowSpan, withLang, type Breakpoint, type Frame, type Layout } from './layout';
-import { isLang, LANGS, type Lang } from '../core/i18n';
+import { isLang, LANGS, t, type Lang } from '../core/i18n';
+import { pageStyleDropped, pageStyleJson, readPageStyle } from './pageStyle';
 import type { MenuState } from './menu';
 import { PAGE_MODES, type DraftPart, type MenuItem, type PageMode } from './page';
 import { menuImageOf } from './menuPath';
@@ -136,6 +137,8 @@ export function exportPage(now: PageNow): Record<string, unknown> {
     ...(now.look.show === undefined ? {} : { show: showJson(readShow(now.look.show)) }),
     /* 0107 — die Folge als Ganzes: gemeinsames Tuch, Leiste, Titelslajd, Breite. */
     ...(now.look.deck === undefined || deckJson(now.look.deck) === undefined ? {} : { deck: deckJson(now.look.deck) }),
+    /* 2026-11-06 — der Entwurf der Seite als Raster (pageStyle.ts). */
+    ...(pageStyleJson(now.look.style) === undefined ? {} : { style: pageStyleJson(now.look.style) }),
     ...(menu === undefined ? {} : { menu }),
     logic: readLogic(now.logic),
     subject: readSubject(now.subject ?? null),
@@ -627,7 +630,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
       if (mode !== now.mode) lines.push(mode === 'slides' ? 'Wygląd: slajdy.' : mode === 'presentation' ? 'Wygląd: prezentacja.' : 'Wygląd: strona z modułami.');
       plan.mode = mode;
     } else if (has(root, 'mode')) warnings.push(`"mode" „${asText(root.mode)}” — dozwolone "page", "slides" albo "presentation"; zostaje jak jest.`);
-    if (has(root, 'theme') || has(root, 'cover') || has(root, 'show') || has(root, 'deck')) {
+    if (has(root, 'theme') || has(root, 'cover') || has(root, 'show') || has(root, 'deck') || has(root, 'style')) {
       const theme = has(root, 'theme') ? readTheme(root.theme) : now.look.theme;
       if (theme === undefined) warnings.push('"theme" nie ma "mode" ("dark", "light" albo "auto") — kolory zostają jak są.');
       if (has(root, 'show') && root.show !== null) warnings.push(...showWarnings(root.show));
@@ -636,16 +639,21 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
       const show = has(root, 'show') ? (root.show === null ? undefined : showJson(readShow(root.show))) : now.look.show;
       /* 0107 — die Folge: "deck": null nimmt sie weg, ein leeres Objekt auch. */
       const deck: DeckLook | undefined = has(root, 'deck') ? (root.deck === null ? undefined : readDeck(root.deck)) : now.look.deck;
+      /* 2026-11-06 — der Entwurf: "style": null nimmt ihn weg; was nicht gilt, wird genannt. */
+      const style = has(root, 'style') ? (root.style === null ? undefined : readPageStyle(root.style)) : now.look.style;
+      if (has(root, 'style') && root.style !== null) for (const key of pageStyleDropped(root.style)) warnings.push(t('appearance.page.dropped', { key }));
       const look: Look = {
         theme: theme === undefined ? now.look.theme : theme,
         cover: has(root, 'cover') ? readLayers(root.cover) : now.look.cover,
         ...(show === undefined ? {} : { show }),
         ...(deck === undefined || deckJson(deck) === undefined ? {} : { deck }),
-        ...(now.look.lang === undefined ? {} : { lang: now.look.lang })
+        ...(now.look.lang === undefined ? {} : { lang: now.look.lang }),
+        ...(style === undefined ? {} : { style })
       };
       if (JSON.stringify(look) !== JSON.stringify(now.look)) plan.look = look;
       if (plan.look !== undefined) {
         lines.push(`Kolory: ${plan.look.theme === null ? 'automatyczne' : plan.look.theme.night != null ? 'jasne i nocne (jak urządzenie)' : plan.look.theme.mode === 'dark' ? 'ciemne' : 'jasne'}${has(root, 'cover') ? `, tło tytułu: ${count(plan.look.cover.length, 'warstwa', 'warstwy', 'warstw')}` : ''}.`);
+        if (has(root, 'style')) lines.push(plan.look.style === undefined ? t('appearance.page.importNone') : t('appearance.page.importLine'));
         if (has(root, 'show') && plan.look.show !== undefined) lines.push(`Prezentacja: ${count(readShow(plan.look.show).scenes.length, 'scena', 'sceny', 'scen')}.`);
         if (has(root, 'deck') && plan.look.deck !== undefined) {
           const d = plan.look.deck;
