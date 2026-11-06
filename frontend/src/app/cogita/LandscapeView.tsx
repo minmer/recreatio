@@ -624,7 +624,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     lag der Anfang über dem Fenster (die Karte war nach unten gescrollt), gleitet die Seite zu ihm; sonst bleibt alles stehen.
   */
   const hostEl = useRef<HTMLDivElement | null>(null);
-  const hostRef = useCallback((el: HTMLDivElement | null) => { boxRef(el); hostEl.current = el; }, [boxRef]);
+  const [inFull, setInFull] = useState(false);
+  const hostRef = useCallback((el: HTMLDivElement | null) => { boxRef(el); hostEl.current = el; setInFull(el?.closest('.wk-full') != null); }, [boxRef]);
   /* 2026-11-05 — während die eigenen Fortschritte laden: alles in der Hülle ausser dem Kreis nimmt weder Klick noch Taste an. */
   const loadingNow = learnerLoading != null;
   useEffect(() => {
@@ -771,10 +772,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* 2026-11-05 (Durchsicht) — der erste offene Schritt, der auf DIESER Karte liegt (ein gefilterter Widok zeigt nicht alle). */
   const goalOnMap = goal === null ? undefined : goalOpen.find((x) => topicIndex.has(x));
   const goalPieceT = goalOnMap === undefined ? null : topicIndex.get(goalOnMap) ?? null;
-  const mapPieces: WorldPiece[] = [
-    ...storedPieces.map((id) => topicIndex.get(id)).filter((x): x is number => x !== undefined && x !== goalPieceT && worldTopics[x]?.band !== 'known' && worldTopics[x]?.band !== 'due').map((x) => ({ t: x, kind: 'single' as const })),
-    ...(goalPieceT === null ? [] : [{ t: goalPieceT, kind: 'goal' as const }])
-  ];
+  /* 2026-11-06 (vom Nutzer) — auf der Karte keine Figuren der begonnenen Themen mehr: nur das Ziel. */
+  const mapPieces: WorldPiece[] = goalPieceT === null ? [] : [{ t: goalPieceT, kind: 'goal' as const }];
   const piecesKey2 = mapPieces.map((x) => `${x.kind}:${x.t}`).join('|');
 
   /*
@@ -1088,7 +1087,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   };
 
   /* -- Die Zeile über der Karte: zuerst das eigene Land ----------------------------------------------------- */
-  const wide = !compact && boxWidth >= 860;
+  /* 2026-11-06 (vom Nutzer) — im Vollbild (`.wk-full`) keine Spalte daneben: die Karte so breit wie der Schirm, das Gewählte darunter. */
+  const wide = !compact && !inFull && boxWidth >= 860;
   const mapWidth = mainWidth > 0 ? Math.max(280, Math.floor(mainWidth)) : wide ? Math.max(320, boxWidth - 352) : boxWidth;
   const nextName = next === null ? null : tg.graph.labels[next.t];
   const landCount = worldTopics.filter((x) => x.band === 'known' || x.band === 'due').length;
@@ -1151,43 +1151,21 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     );
   })() : null;
 
-  /* -- Das Gebiet, das das Bild füllt (oder die ganze Karte) ------------------------------------------------- */
-  const hereTopics = here === null ? tg.graph.ids.map((_, x) => x) : here.topics;
-  const hereStats = here === null ? { all: hereTopics.length, known: landCount } : regionStats.get(here.key) ?? { all: hereTopics.length, known: 0 };
-  /* „Als Nächstes" im Gebiet: JEDES jetzt lernbare Thema (erst die freien, dann „erst wiederholen"). */
-  const readyHere = hereTopics.filter((x) => infoOf(x).band === 'ring')
-    .sort((a, b) => Number(infoOf(a).locked) - Number(infoOf(b).locked) || depthOfTopic[a] - depthOfTopic[b] || (tg.graph.rank?.[a] ?? a) - (tg.graph.rank?.[b] ?? b));
-  const dueHere = here === null ? dueCards : dueCards.filter((c) => cardEntities(c).some((e) => { const x = topicIndex.get(e); return x !== undefined && here.topics.includes(x); }));
-  const regionPanel = (
-    <section className="cg-ls-region" data-landscape-region={here?.key ?? ''}>
+  /*
+    2026-11-06 (vom Nutzer) — die Tafel des Gebiets („Cała mapa · 0 z 63 umiesz · Dalej tutaj …") wird nicht mehr gezeigt: dasselbe
+    sagen die Zeile über der Karte und das gewählte Thema. Es bleibt nur das Umbenennen eines Gebiets für den Autor.
+  */
+  const regionPanel = writes && viewDoc !== undefined && here !== null && nest === null ? (
+    <section className="cg-ls-region" data-landscape-region={here.key}>
       <div className="cg-row-between">
-        <p className="cg-ls-qtitle"><strong>{here === null ? (baseName || T.wholeMap) : here.name}</strong>{here !== null && conquered.has(here.key) && <> <FlagIcon /></>}</p>
-        {writes && viewDoc !== undefined && here !== null && nest === null && editing !== here.key && <button type="button" className="wk-link-btn" onClick={() => setEditing(here.key)} data-landscape-rename="">{T.rename}</button>}
+        <p className="cg-ls-qtitle"><strong>{here.name}</strong>{conquered.has(here.key) && <> <FlagIcon /></>}</p>
+        {editing !== here.key && <button type="button" className="wk-link-btn" onClick={() => setEditing(here.key)} data-landscape-rename="">{T.rename}</button>}
       </div>
-      {editing !== null && here !== null && editing === here.key && (
+      {editing === here.key && (
         <RenameBox name={here.name} onSave={(name) => { saveEdits((was) => ({ ...was, names: { ...(was.names ?? {}), [here.key]: { name, topics: here.topics.map((x) => tg.graph.ids[x]) } } })); setEditing(null); }} onCancel={() => setEditing(null)} />
       )}
-      <p className="cg-muted cg-ls-numbers" data-landscape-region-topics={hereStats.all}>{T.knownOf(hereStats.known, hereStats.all)}</p>
-      {readyHere.length > 0 && (
-        <div data-landscape-ready-list={readyHere.length}>
-          <p className="cg-ls-qh">{T.nextHere} — {T.nextList(readyHere.length)}</p>
-          <ul className="cg-ls-qlist is-scroll">
-            {readyHere.slice(0, 10).map((x) => {
-              const id = tg.graph.ids[x];
-              return (
-                <li key={id}>
-                  <button type="button" className="cg-ref" onClick={() => selectTopic(id)} data-landscape-ready={id}><TexText text={entityNameTex(lib, id)} /></button>
-                  {infoOf(x).locked && <span className="cg-muted"> · {T.nextFirst}</span>}
-                </li>
-              );
-            })}
-          </ul>
-          {readyHere.length > 10 && <p className="cg-muted">{T.moreN(readyHere.length - 10)}</p>}
-        </div>
-      )}
-      {dueHere.length > 0 && learner !== null && <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line" onClick={() => reviewCards(W.review + ": " + (here?.name ?? baseName), dueHere)} data-landscape-region-review={dueHere.length}>{T.reviewDue(dueHere.length)}</button></div>}
     </section>
-  );
+  ) : null;
   /* 2026-11-05 — das Haus: der eigene Stand (ein gewähltes Thema hat Vorrang). */
   const homeNumbers = { land: landCount, won: wonCount, regions: tops.length, ready: readyCount, due: dueCards.length, topics: worldTopics.length };
   /* 2026-11-05 (Prompt 17) — dieselben Regeln wie der Zähler oben (einmal gerechnet: sonst begann jede Tafel bei jedem Rendern neu). */
@@ -1198,7 +1176,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     : null;
   /* Die Legende sagt nur, was gerade gilt. */
   const legend = () => (
-    <Legend show={{ land: landCount > 0, glow: readyCount > 0, flag: conquered.size > 0, links: links !== null, piece: mapPieces.some((p) => p.kind === 'single'), goal: goal !== null, way: way !== null }} folded={compact || !wide} />
+    <Legend show={{ land: landCount > 0, glow: readyCount > 0, flag: conquered.size > 0, links: links !== null, piece: mapPieces.some((p) => p.kind === 'single'), goal: goal !== null, way: way !== null }} folded />
   );
 
   return host(
@@ -1265,8 +1243,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
               /* 2026-11-05 — Doppelklick: auf einen Berg — der Weg dorthin beginnt; sonst das Thema selbst. */
               onStart={(x) => { const id = tg.graph.ids[x]; setChosen(id); if (learner === null) return; if (infoById(id).band === 'mountain') leadTo(id); else startTopic(id); }} />
           )}
-          {!wide && topicPanel !== null && chosenId !== null && !(storyUnits.size > 0 && qls === 'questions') && <SheetBox label={labelOf(chosenId)} questKey={chosenId}>{topicPanel}</SheetBox>}
-          {!wide && homePanel !== null && <SheetBox label="⌂" questKey="~home">{homePanel}</SheetBox>}
+          {!wide && topicPanel !== null && chosenId !== null && !(storyUnits.size > 0 && qls === 'questions') && <div className="cg-ls-quest is-below" role="region" aria-label={labelOf(chosenId)} data-landscape-quest={chosenId}>{topicPanel}</div>}
+          {!wide && homePanel !== null && <div className="cg-ls-quest is-below" role="region" aria-label="⌂" data-landscape-quest="~home">{homePanel}</div>}
           {!wide && regionPanel}
         </div>
         {wide && (
@@ -1458,19 +1436,6 @@ function TopicList({ topics, onChoose }: { topics: readonly WorldTopic[]; onChoo
       })}
     </details>
   );
-}
-
-/** Am Telefon: die Einzelheiten des gewählten Themas als Blatt am unteren Rand (höchstens die halbe Höhe). */
-function SheetBox({ label, questKey, children }: { label: string; questKey: string; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (el === null) return undefined;
-    document.body.style.setProperty('padding-bottom', `${Math.ceil(el.offsetHeight)}px`);
-    return () => { document.body.style.removeProperty('padding-bottom'); };
-  }, [questKey]);
-  /* Im Baum der Ansicht (dieselbe Schrift, dieselben Farben) — fest am unteren Rand. */
-  return <div ref={ref} className="cg-ls-quest is-sheet" role="dialog" aria-label={label} data-landscape-quest={questKey}>{children}</div>;
 }
 
 /* -- Masse ---------------------------------------------------------------------------------------------------- */

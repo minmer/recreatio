@@ -264,7 +264,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   /* Im Vollbild eines Bausteins (`.wk-full`): so hoch, wie das Fenster unter Kopf und Knöpfen Platz lässt. */
   const [inFull, setInFull] = useState(false);
   const cap = inFull && !compact ? Math.max(320, winH - 230) : Math.max(320, Math.min(compact ? 620 : 820, winH * (compact ? 0.75 : 0.85)));
-  const height = Math.round(Math.max(320, Math.min(cap, width * (width < 520 ? 1.05 : 0.7))));
+  /* 2026-11-06 (vom Nutzer) — im Vollbild wirklich voll: so hoch wie das Fenster unter seiner Kopfzeile, gleich wie breit. */
+  const height = inFull && !compact ? Math.max(320, winH - 72) : Math.round(Math.max(320, Math.min(cap, width * (width < 520 ? 1.05 : 0.7))));
   const n = world.cells.length;
   /* Die ganze Karte: Mitte und Halbmesser. */
   const whole = useMemo(() => {
@@ -350,7 +351,12 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 
   /* -- Farben ---------------------------------------------------------------------------------------------------- */
   const box = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => { setInFull(box.current?.closest('.wk-full') != null); }, []);
+  useLayoutEffect(() => {
+    const full = box.current?.closest('.wk-full') != null;
+    setInFull(full);
+    /* 2026-11-06 — im Vollbild beginnt das Bild bei der Karte (was darüber steht, liegt oberhalb, erreichbar durch Rollen). */
+    if (full) window.requestAnimationFrame(() => box.current?.scrollIntoView({ block: 'start' }));
+  }, []);
   const [palette, setPalette] = useState<Palette | null>(null);
   useEffect(() => {
     const el = box.current;

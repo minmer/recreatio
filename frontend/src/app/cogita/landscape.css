@@ -561,3 +561,6 @@
 }
 .cg-ls-loading > .ui-ring { padding: var(--wk-space-3) var(--wk-space-4); border-radius: var(--wk-radius); background: var(--wk-surface); border: 1px solid var(--wk-line); box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.12); }
 .cg-ls-loading-note { margin: 0; max-width: 22rem; text-align: center; font-size: var(--wk-text-sm); }
+
+/* 2026-11-06 (vom Nutzer) — am Telefon und im Vollbild steht das gewählte Thema UNTER der Karte (kein Blatt über ihr). */
+.cg-ls-quest.is-below { position: static; z-index: auto; width: auto; max-height: none; overflow: visible; margin-top: var(--wk-space-3); padding: var(--wk-space-2) var(--wk-space-3); box-shadow: none; }
