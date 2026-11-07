@@ -172,6 +172,9 @@ export function readPageStyle(value: unknown): PageStyle | undefined {
   });
 }
 
+/** Schalter, deren Vorgabe nicht gespeichert wird — wer sie trotzdem nennt, hat nichts falsch gemacht. */
+const SAID_DEFAULT: Readonly<Record<string, unknown>> = { 'title.upper': false, 'band.full': true };
+
 /** Was im Dokument stand, aber nicht gilt — für die Warnungen des Imports. */
 export function pageStyleDropped(value: unknown): string[] {
   const said = rec(value);
@@ -179,10 +182,14 @@ export function pageStyleDropped(value: unknown): string[] {
   const out: string[] = [];
   for (const [key, one] of Object.entries(said)) {
     const group = typeof one === 'object' && one !== null && !Array.isArray(one) && Object.keys(one).length > 0;
-    if (!group) { if (!(key in kept)) out.push(key); continue; }
+    if (!group) { if (!(key in kept) && one !== null) out.push(key); continue; }
     /* Eine Gruppe ("title", "band" …): die Schlüssel darin einzeln nennen. */
     const inner = rec(kept[key]);
-    for (const sub of Object.keys(one)) if (!(sub in inner)) out.push(`${key}.${sub}`);
+    for (const [sub, value] of Object.entries(one)) {
+      /* Die Vorgabe ausdrücklich gesagt ("upper": false, "full": true) ist gültig — sie wird nur nicht gespeichert. */
+      if (sub in inner || SAID_DEFAULT[`${key}.${sub}`] === value || value === null) continue;
+      out.push(`${key}.${sub}`);
+    }
   }
   return out;
 }

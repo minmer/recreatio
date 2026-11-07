@@ -85,6 +85,7 @@ try {
     const dropped = m.pageStyleDropped({ scheme: 'neon', title: { size: 3, align: 'middle' }, band: { image: 'javascript:x' }, whatever: 1 });
     assert.deepEqual(dropped.sort(), ['band.image', 'scheme', 'title.align', 'whatever'].sort(), 'what does not hold is named, inside a group by its own name');
 
+    assert.deepEqual(m.pageStyleDropped({ title: { size: 3, upper: false }, band: { color: '#000000', full: true }, scheme: null }), [], 'defaults said out loud are no mistake');
     const look = m.readLook(m.writeLook({ theme: null, cover: [], style }));
     assert.deepEqual(look.style, style, 'the style survives the page look');
     assert.equal(m.writeLook({ theme: null, cover: [], style: undefined }), null, 'no style, no look');
