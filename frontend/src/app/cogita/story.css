@@ -97,6 +97,9 @@
 .cg-flow-next-wait .wk-btn { justify-self: start; margin-top: var(--wk-space-2); }
 .cg-story-route-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-3); }
 .cg-story-route-head h2 { margin: 0; font-size: var(--wk-text-lg); }
+.cg-story-route-goal { margin: 0; color: var(--wk-accent); font-weight: 600; }
+.cg-story-route-start { display: grid; justify-items: start; gap: var(--wk-space-2); }
+.cg-story-route-start p { margin: 0; }
 .cg-story-route-list { display: grid; gap: var(--wk-space-3); padding-left: var(--wk-space-4); margin: 0; }
 .cg-story-route-list > li { padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); }
 .cg-story-route-list > li.is-target { border-color: var(--wk-accent); }

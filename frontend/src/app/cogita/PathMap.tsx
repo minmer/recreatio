@@ -46,6 +46,7 @@ export interface PathNext {
   /** Ein Satz darüber (z. B. „Najbliższe pole na mapie"). */
   readonly note?: string;
   readonly action?: { readonly label: string; readonly run: () => void };
+  readonly goalAction?: { readonly label: string; readonly run: () => void };
   /** 2026-11-05 — wie weit der Lernende dort schon ist: zu Ende („ukończone", grün mit ✓) oder begonnen. */
   readonly state?: 'done' | 'started';
   /** An optional detour, separate from the next stages of learning. */
@@ -781,9 +782,10 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
           {nextItem.work !== undefined && nextItem.work !== '' && <p data-path-pop-work="">{nextItem.work}</p>}
           <p className="cg-pm-pop-state" data-path-pop-next={nextItem.ready ? 'ready' : 'wait'}>{nextItem.state === 'done' ? `✓ ${T.nextDone}` : !nextItem.ready ? T.nextNotYet : nextItem.state === 'started' ? T.detourStarted : T.nextReady}</p>
           {(nextItem.why ?? []).map((w) => <p key={w} className="cg-muted" data-path-pop-why="">{w}</p>)}
-          {nextItem.action !== undefined && (
+          {(nextItem.action !== undefined || nextItem.goalAction !== undefined) && (
             <div className="wk-actions">
-              <button type="button" className="wk-btn" onClick={() => { const run = nextItem.action!.run; setChosen(null); setHover(null); run(); }} data-path-next-start={nextItem.id}>{nextItem.action.label}</button>
+              {nextItem.action !== undefined && <button type="button" className={`wk-btn${nextItem.goalAction === undefined ? '' : ' wk-btn-line'}`} onClick={() => { const run = nextItem.action!.run; setChosen(null); setHover(null); run(); }} data-path-next-start={nextItem.id}>{nextItem.action.label}</button>}
+              {nextItem.goalAction !== undefined && <button type="button" className="wk-btn" title={T.nextGoalHint} onClick={() => { const run = nextItem.goalAction!.run; setChosen(null); setHover(null); run(); }} data-path-next-goal={nextItem.id}>{nextItem.goalAction.label}</button>}
             </div>
           )}
         </PathPop>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { TexText } from '../ui/tex/Tex';
 import type { Card } from './cardBasics';
@@ -9,11 +9,13 @@ import { cardsAbout } from './prerequisites';
 import { readPlan } from './revision';
 import { RevisionRun, type RunSource } from './RevisionRun';
 import { storyRoute } from './storyLock';
+import { keepStoryGoal } from './storyGoal';
 import type { CogitaLibrary } from './store';
 
 /** A route remains open while its prerequisites are studied; cancelling never unlocks it. */
-export function StoryRoute({ target, lib, cards, learner, W, label, onClose, onOpen, renderStory }: {
+export function StoryRoute({ target, startAsGoal = false, lib, cards, learner, W, label, onClose, onOpen, renderStory }: {
   readonly target: string;
+  readonly startAsGoal?: boolean;
   readonly lib: CogitaLibrary;
   readonly cards: readonly Card[];
   readonly learner: Learner;
@@ -26,22 +28,59 @@ export function StoryRoute({ target, lib, cards, learner, W, label, onClose, onO
   const [tick, setTick] = useState(0);
   const [story, setStory] = useState<Flow | null>(null);
   const [run, setRun] = useState<RunSource | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const busy = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => learner.subscribe(() => setTick((n) => n + 1)), [learner]);
   const route = useMemo(() => storyRoute(lib, cards, learner, target), [target, lib, lib.revision, cards, learner, tick]);
   const name = (id: string) => route.find((x) => x.id === id)?.story?.name ?? label(id);
+  const isGoal = [...learner.progress.positions.values()].some((p) => p.flow.startsWith('landscape:') && p.step === target);
   const back = () => { setStory(null); setRun(null); setTick((n) => n + 1); };
   const practice = (id: string, list: readonly Card[]) => {
     const unique = [...new Map(list.filter((c) => !learner.progress.suspended.has(c.key)).map((c) => [c.key, c])).values()];
     if (unique.length === 0) return;
     setRun({ plan: readPlan(unique, { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true }), cards, title: name(id) });
   };
+  const startGoal = async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setSaving(true);
+    setError(null);
+    try {
+      const first = await keepStoryGoal(lib, cards, learner, target);
+      if (!mounted.current) return;
+      if (first === null) { setError(W.nextGoalUnavailable); return; }
+      if (first.kind === 'review') practice(first.id, first.cards);
+      else if (first.id === target) onOpen(first.id, first.kind === 'story' ? first.story : undefined);
+      else if (first.kind === 'story') setStory(first.story);
+      else practice(first.id, first.cards);
+    } catch {
+      if (mounted.current) setError(W.nextGoalFailed);
+    } finally {
+      busy.current = false;
+      if (mounted.current) setSaving(false);
+    }
+  };
+  useEffect(() => {
+    if (startAsGoal) void startGoal();
+    // A direct goal action runs once when this destination opens, not after progress updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startAsGoal]);
   return <section className="cg-flow cg-story-route" data-story-route={target}>
     <header className="cg-story-route-head">
       <button type="button" className="wk-btn wk-btn-line" onClick={story !== null || run !== null ? back : onClose}>{W.back}</button>
       <h2><TexText text={W.nextRouteTo(name(target))} /></h2>
     </header>
+    {isGoal && <p className="cg-story-route-goal" role="status" data-story-route-goal={target}><TexText text={W.goalSet(name(target))} /></p>}
     {story !== null ? renderStory(story, back) : run !== null ? <RevisionRun lib={lib} learner={learner} source={run} onClose={back} onDone={back} /> : <div className="cg-flow-step">
       <p className="cg-muted">{W.nextRouteHint}</p>
+      <div className="cg-story-route-start">
+        <button type="button" className="wk-btn" disabled={saving} onClick={() => void startGoal()} data-story-route-aim={target}>{saving ? W.nextGoalStarting : isGoal ? W.nextGoalContinue : W.setGoal}</button>
+        <p className="cg-muted">{W.nextGoalHint}</p>
+        {error !== null && <p role="alert">{error}</p>}
+      </div>
       <ol className="cg-story-route-list">
         {route.map((step) => {
           const missing = step.lock.missing;

@@ -68,7 +68,6 @@ import { directStartLock, OPEN_LOCK, storyAround } from './storyLock';
 import { storyWork } from './storyNext';
 import { StoryNextChoices } from './StoryNextChoices';
 import { StoryRoute } from './StoryRoute';
-import { readView } from './views';
 import { isSlideEntity, slideQuestionIds } from './slideLib';
 import { slideWords } from './slideWords';
 import { Loading } from '../ui/Loading';
@@ -635,8 +634,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const [unlocked, setUnlocked] = useState(() => isFree(flow.id));
   const [lockRun, setLockRun] = useState<{ readonly key: string; readonly source: RunSource; readonly weak: boolean } | null>(null);
   const [lockTick, setLockTick] = useState(0);
-  const [goalSet, setGoalSet] = useState(false);
-  const [routeTarget, setRouteTarget] = useState<string | null>(null);
+  const [routeTarget, setRouteTarget] = useState<{ readonly id: string; readonly aim: boolean } | null>(null);
   /* 2026-11-04 (Prompt 11) — ein Thema nach „Koniec": eine Powtórka hier, danach zurück zum Ende. */
   const [topicRun, setTopicRun] = useState<{ readonly key: string; readonly source: RunSource } | null>(null);
   const progressNow = learner?.progress;
@@ -722,7 +720,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       why: [missing.length > 0 ? W.needsFirst(names(missing)) : '', due.length > 0 ? W.dueFirst(names(due)) : ''].filter(Boolean),
       action: ready
         ? { label: started ? W.nextContinue : kind === 'story' ? W.startStory : W.learn, run: () => { if (story !== undefined) startStory(story); else startTopic(id); } }
-        : { label: W.nextRoute, run: () => setRouteTarget(id) }
+        : { label: W.nextRoute, run: () => setRouteTarget({ id, aim: false }) },
+      ...(!ready && learner !== null ? { goalAction: { label: W.setGoal, run: () => setRouteTarget({ id, aim: true }) } } : {})
     };
   };
   /*
@@ -886,7 +885,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   };
 
   if (routeTarget !== null && cg !== null && learner !== null) {
-    return <StoryRoute key={routeTarget} target={routeTarget} lib={cg.lib} cards={content.cards ?? []} learner={learner} W={W} label={name}
+    return <StoryRoute key={routeTarget.id} target={routeTarget.id} startAsGoal={routeTarget.aim} lib={cg.lib} cards={content.cards ?? []} learner={learner} W={W} label={name}
       onClose={() => { setRouteTarget(null); setLockTick((n) => n + 1); }}
       onOpen={(id, story) => { setRouteTarget(null); if (story !== undefined) startStory(flowOf(story.id) ?? story); else startTopic(id); }}
       renderStory={(story, back) => <FlowPlayer flow={flowOf(story.id) ?? story} content={content} learner={learner} onClose={back} backLabel={W.nextRoute} onAnswer={onAnswer} />} />;
@@ -908,12 +907,6 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       setLockRun({ key: `lock:${Date.now()}`, weak, source: { plan: readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true }), cards: all, title } });
     };
     const inWorkspace = typeof window !== 'undefined' && window.location.hash.startsWith('#/workspace');
-    const landscapes = cg.lib.docs('view').filter((d) => readView(d.data).mode === 'landscape');
-    const setGoal = () => {
-      if (learner === null || root.unit === undefined) return;
-      for (const v of landscapes) void learner.keepPosition({ flow: `landscape:${v.id}`, step: root.unit, visited: [], at: Date.now() }).catch(() => undefined);
-      setGoalSet(true);
-    };
     const missing = lock.missing.length > 0 || directFirst !== null;
     return (
       <section className="cg-flow cg-flow-locked" data-flow-locked={lock.missing.length > 0 ? 'missing' : directFirst !== null ? 'story' : 'weak'}>
@@ -935,12 +928,6 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
                   );
                 })}
               </ol>
-              {learner !== null && landscapes.length > 0 && (
-                <div className="wk-actions">
-                  <button type="button" className="wk-btn" onClick={setGoal} disabled={goalSet} data-flow-goal="">{goalSet ? 'Cel ustawiony' : 'Ustaw jako cel'}</button>
-                </div>
-              )}
-              {goalSet && <p className="cg-muted" role="status">W krajobrazie ta lekcja jest teraz Twoim celem — z ponumerowaną drogą do niej.</p>}
             </>
           ) : (
             <>
@@ -950,6 +937,10 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
               </div>
             </>
           )}
+          {learner !== null && root.unit !== undefined && <div className="wk-actions">
+            <button type="button" className="wk-btn wk-btn-line" onClick={() => setRouteTarget({ id: root.unit!, aim: false })}>{W.nextRoute}</button>
+            <button type="button" className="wk-btn" title={W.nextGoalHint} onClick={() => setRouteTarget({ id: root.unit!, aim: true })} data-flow-goal="">{W.setGoal}</button>
+          </div>}
           <div className="wk-actions">
             {cg.writes && <button type="button" className="wk-link-btn" onClick={() => setUnlocked(true)} data-flow-preview="">Podgląd mimo to</button>}
             {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>{W.back}</button>}

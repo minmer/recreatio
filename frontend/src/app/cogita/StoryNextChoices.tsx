@@ -56,7 +56,10 @@ export function StoryNextChoices({ choices, W, reviewOpen, onReview, onRestart }
             <strong><TexText text={x.label} /></strong>
             {x.work && <span className="cg-flow-next-work">{x.work}</span>}
             {(x.why ?? []).map((why) => <span className="cg-flow-next-requirement" key={why}>{why}</span>)}
-            {x.action !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={x.action.run} data-flow-next-route={x.id}>{x.action.label}<span aria-hidden> →</span></button>}
+            <div className="wk-actions">
+              {x.action !== undefined && <button type="button" className="wk-btn wk-btn-line" onClick={x.action.run} data-flow-next-route={x.id}>{x.action.label}<span aria-hidden> →</span></button>}
+              {x.goalAction !== undefined && <button type="button" className="wk-btn" onClick={x.goalAction.run} title={W.nextGoalHint} data-flow-next-goal={x.id}>{x.goalAction.label}</button>}
+            </div>
           </li>)}
         </ul>
       </section>}
