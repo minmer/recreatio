@@ -620,6 +620,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
           <div ref={scroller} className={`cg-pm-scroll${zoom !== 0 ? ' is-zoomed' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
             <div ref={canvas} className="cg-pm-canvas">
               {nextRow}
+              {next !== undefined && next.length > 0 && topNode >= 0 && <NextConnections from={model.nodes[topNode].id} next={next} />}
               <div ref={plane} className="cg-pm-plane">
                 <svg className="cg-pm-svg" width={Math.ceil(cW)} height={Math.ceil(gH)} viewBox={`0 0 ${Math.ceil(cW)} ${Math.ceil(gH)}`} role="group"
                   aria-label={T.pathAria(summary, currentLabel)}
@@ -678,9 +679,6 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
                           data-path-loop={`${model.nodes[a].id}>${model.nodes[b].id}`} />
                       );
                     })}
-                    {next !== undefined && next.length > 0 && topNode >= 0 && (
-                      <line className="cg-pm-next-way" x1={at[topNode].x.toFixed(1)} y1={(at[topNode].y - r).toFixed(1)} x2={at[topNode].x.toFixed(1)} y2="0" />
-                    )}
                     {nowAt !== null && leader(marks.current, 'is-now')}
                     {[...marks.forks.keys()].filter((v) => v !== marks.current).map((v) => leader(v, 'is-fork'))}
                   </g>
@@ -816,6 +814,48 @@ function loopSide(model: PathModel, a: number, b: number): { readonly side: 1 | 
   const right = weight(1);
   const side: 1 | -1 = Math.abs(left - right) > 1e-9 ? (left < right ? -1 : 1) : from.x <= (model.x0 + model.x1) / 2 ? -1 : 1;
   return { side, gap: gapOf(side) };
+}
+
+/** Join the HTML choices and SVG map in their shared canvas, including the space reserved for labels. */
+function NextConnections({ from, next }: { from: string; next: readonly PathNext[] }) {
+  const ref = useRef<SVGSVGElement>(null);
+  useLayoutEffect(() => {
+    const svg = ref.current;
+    const canvas = svg?.parentElement;
+    if (svg === null || canvas == null) return;
+    const source = canvas.querySelector(`[data-path-node="${CSS.escape(from)}"] .cg-pm-hex`);
+    const plane = canvas.querySelector('.cg-pm-plane');
+    const items = [...canvas.querySelectorAll<HTMLElement>('[data-path-next-item]')];
+    if (source === null || plane === null || items.length === 0) return;
+    const draw = () => {
+      const box = svg.getBoundingClientRect();
+      if (box.width === 0 || box.height === 0) return;
+      const sx = svg.clientWidth / box.width;
+      const sy = svg.clientHeight / box.height;
+      const anchor = source.getBoundingClientRect();
+      const end = { x: (anchor.left + anchor.width / 2 - box.left) * sx, y: (anchor.top - box.top) * sy };
+      const tips = items.map((item) => {
+        const b = item.getBoundingClientRect();
+        return { x: (b.left + b.width / 2 - box.left) * sx, y: (b.bottom - box.top) * sy };
+      });
+      const rail = (Math.max(...tips.map((p) => p.y)) + (plane.getBoundingClientRect().top - box.top) * sy) / 2;
+      const left = Math.min(end.x, ...tips.map((p) => p.x));
+      const right = Math.max(end.x, ...tips.map((p) => p.x));
+      svg.querySelector('[data-path-next-trunk]')?.setAttribute('d', `M${end.x},${end.y} V${rail} M${left},${rail} H${right}`);
+      svg.querySelectorAll('[data-path-next-link]').forEach((path, i) => {
+        const tip = tips[i];
+        if (tip !== undefined) path.setAttribute('d', `M${tip.x},${tip.y} V${rail}`);
+      });
+    };
+    draw();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(draw);
+    for (const el of [canvas, plane, source, ...items]) ro?.observe(el);
+    return () => ro?.disconnect();
+  });
+  return <svg ref={ref} className="cg-pm-next-connections" aria-hidden>
+    <path className="cg-pm-next-way" data-path-next-trunk={from} />
+    {next.map((item) => <path key={item.id} className="cg-pm-next-way" data-path-next-link={item.id} />)}
+  </svg>;
 }
 
 /** Ein Name oder Zähler in der Spalte rechts der Karte (seine Höhe gleicht der Effekt oben aus). */
