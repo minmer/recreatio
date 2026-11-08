@@ -27,8 +27,8 @@ namespace Api;
 ///
 /// <para>
 /// <b>Ohne Datensatz sammelt niemand:</b> Formulare, Reservierungen und Rozmowy eines
-/// Bereichs (auch „Napisz do nas") nehmen nichts an, und eine öffentliche Seite braucht
-/// jemanden, der für sie geradesteht. Ein Gespräch zweier Menschen braucht niemanden.
+/// Bereichs nehmen nichts an, und eine öffentliche Seite braucht jemanden, der für sie
+/// geradesteht. Private Gespräche, auch „Napisz do nas”, brauchen keinen eigenen Datensatz.
 /// </para>
 /// </summary>
 public static partial class Controllers

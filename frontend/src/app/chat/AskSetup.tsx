@@ -15,7 +15,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { createArea, dropFromArea, joinArea, loadMembers, renameArea } from '../areas/area';
+import { createArea, dropFromArea, joinArea, loadAreas, loadMembers, renameArea, type AreaRow } from '../areas/area';
+import { AreaPick } from '../areas/AreaPick';
+import { inheritController, publicAreaController, controllerChanged, type ControllerInfo } from '../areas/controllers';
+import { setParent } from '../communities/communityStore';
+import { loadPage } from '../pages/page';
+import { askParents, suggestedAskParent } from './askParent';
 import { loadAudienceForms, type AudienceForm } from '../areas/audience';
 import { AudienceForms } from '../areas/AudienceForms';
 import { areaKeys, loadAreaNames, loadChats, openNames, setMemberName, type ChatRow, type Invitee } from './chat';
@@ -54,12 +59,24 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
   const [shownAs, setShownAs] = useState('');
   const [working, setWorking] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [areas, setAreas] = useState<readonly AreaRow[]>([]);
+  const [parentId, setParentId] = useState('');
+  const [controller, setController] = useState<ControllerInfo | null>(null);
+  const [parentController, setParentController] = useState<ControllerInfo | null | undefined>(undefined);
+  const [parentFailed, setParentFailed] = useState(false);
 
   const areaId = row?.areaId ?? null;
 
   const look = useCallback(async () => {
     if (moduleId === null || me == null) return;
-    const found = (await loadModules()).modules.find((m) => m.moduleId === moduleId) ?? null;
+    const [modules, areaList] = await Promise.all([loadModules(), loadAreas()]);
+    const found = modules.modules.find((m) => m.moduleId === moduleId) ?? null;
+    setAreas(areaList.areas);
+    const replyArea = areaList.areas.find((a) => a.areaId === found?.areaId);
+    const paths = found?.pages.length ? found.pages : ctx.path === null ? [] : [ctx.path];
+    const pages = await Promise.all(paths.map((path) => loadPage(path).catch(() => null)));
+    setParentId(replyArea?.parentAreaId ?? suggestedAskParent(askParents(areaList.areas, found?.areaId ?? null), pages.map((p) => p?.responsible?.areaId)));
+    setController(found?.areaId == null ? null : (await publicAreaController(found.areaId)).controller);
     setRow(found);
     setShownAs(found?.areaName ?? '');
     if (found?.areaId == null) { setAnswerers([]); setForms([]); return; }
@@ -74,7 +91,18 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
       leads: m.capabilities.some((c) => LEADS.includes(c)), mine: me.ring.has(m.roleId)
     })));
     setForms(attached);
-  }, [moduleId, me]);
+  }, [moduleId, me, ctx.path]);
+
+  useEffect(() => {
+    let alive = true;
+    setParentController(undefined);
+    setParentFailed(false);
+    if (parentId === '') { setParentController(null); return; }
+    void publicAreaController(parentId).then(
+      (out) => { if (alive) setParentController(out.controller); },
+      () => { if (alive) { setParentController(null); setParentFailed(true); } });
+    return () => { alive = false; };
+  }, [parentId]);
 
   useEffect(() => { void look().catch(() => setRow(null)); }, [look]);
   useEffect(() => { void loadChats().then((found) => setChats(found.chats)).catch(() => undefined); }, []);
@@ -118,7 +146,7 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
     const called = (shownAs.trim() || adding.map((a) => plainName(a.name)).join(', ')).slice(0, 200);
     const own = adding.find((a) => me.ring.maySign(a.roleId));
     const creator = me.roles.find((r) => r.id === own?.roleId) ?? me.person;
-    const made = await createArea(me.ring, creator, called);
+    const made = await createArea(me.ring, creator, called, parentId || undefined);
     await updateModule(moduleId, { areaId: made.areaId });
     const myName = me.names.get(creator.id);
     if (myName !== undefined) await setMemberName(made.areaId, new Map([[made.epoch, made.key]]), creator.id, myName, creator.id).catch(() => undefined);
@@ -135,6 +163,16 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
   if (row === null) return <p className="wk-hint">{t('chat.askSetup.saveFirst')}</p>;
 
   const blocked = busy || working !== null;
+  const ownArea = areas.find((a) => a.areaId === areaId);
+  const parents = askParents(areas, areaId);
+  const inherits = controller !== null && controller.fromAreaId !== areaId;
+  const parentChanged = parentId !== (ownArea?.parentAreaId ?? '');
+  const saveParent = () => void run(t('common.saving'), async () => {
+    if (areaId === null || parentId === '') return;
+    if (parentChanged) await setParent(areaId, parentId);
+    if (controller?.fromAreaId === areaId) await inheritController(areaId);
+    controllerChanged(areaId);
+  });
 
   return (
     <section className="wk-ask-setup">
@@ -142,6 +180,20 @@ export function AskSetup({ raw, onSet, ctx, busy }: EditorProps) {
         <span>{t('chat.askSetup.heading')}</span>
         <input value={raw.title ?? ''} placeholder={t('chat.askSetup.headingHint')} disabled={blocked} onChange={(e) => onSet({ title: e.target.value })} />
       </label>
+
+      <h4 className="pb-h">{t('chat.askSetup.responsibility')}</h4>
+      <p className="wk-hint">{t('chat.askSetup.parentHint')}</p>
+      <AreaPick areas={areas} only={parents} value={parentId} onChange={setParentId}
+        extras={areaId === null || ownArea?.parentAreaId == null ? [{ value: '', label: t('chat.askSetup.standalone') }] : []}
+        label={t('chat.askSetup.parent')} disabled={blocked || (areaId !== null && ownArea?.myLevel !== 'admin')} />
+      {parentId !== '' && parentController === undefined ? <Loading lines={1} />
+        : parentFailed ? <p className="wk-error">{t('areas.ctl.loadFailed')}</p>
+        : parentController === null ? <p className="wk-hint">{t('chat.askSetup.privateWithoutController')}</p>
+        : parentController !== undefined && <p className="wk-note">{t('chat.askSetup.parentController', { name: parentController.name })}</p>}
+      {areaId !== null && ownArea?.myLevel === 'admin' && (parentChanged || !inherits) && <div className="wk-actions">
+        <button type="button" className="wk-btn" disabled={blocked || parentId === '' || parentController === undefined || parentFailed} onClick={saveParent}>{t('chat.askSetup.useParent')}</button>
+      </div>}
+      {areaId !== null && inherits && !parentChanged && <p className="wk-hint">{t('chat.askSetup.inherits', { name: controller.name })}</p>}
 
       <h4 className="pb-h">{t('chat.askSetup.answerers')}</h4>
       {areaId === null ? (

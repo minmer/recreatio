@@ -92,3 +92,9 @@ the failing chat request, and locate the `Api.ApiErrorMiddleware` exception with
 same trace ID shown in the chat. An `appsettings.Production.json` or environment
 variable can override the base logging settings. Logging captures the cause; it does
 not itself repair a failing database query.
+
+## Private chats started by candidates
+
+A person with a valid candidate link can start their own conversation through “Napisz do nas” without a separate data controller. The same rule applies when staff initiate the conversation and when either side sends messages. Area conversations and channels still require their area's controller. Audience checks, the participant link, posting permissions and encryption continue to control access.
+
+The module's setup offers an optional parent area. A new reply area can inherit its controller from that parent, or remain a standalone private chat area without one. Existing reply areas can be attached to a parent by an administrator; this changes responsibility, not the selected answerers or access to conversations.

@@ -42,6 +42,13 @@ try { Audience.PeopleOf("nothing", "x.id", "x.area_id"); } catch (ArgumentExcept
 Check(unknown, "only registered things have an audience");
 /* 0081 — „Napisz do nas" is a thing with an audience too: its forms' people may start there. */
 Check(Audience.PeopleOf("module", "m.id", "m.area_id").Contains("af.subject_kind = N'module'"), "a module's people come from its forms");
+/* Private conversations can be initiated from a candidate's link without a data controller. */
+foreach (var kind in new[] { "seat", "direct", "group", "self" })
+    Check(!ChatRules.RequiresController(kind), $"{kind}: a private conversation does not require a controller");
+foreach (var kind in new[] { "area", "channel" })
+    Check(ChatRules.RequiresController(kind), $"{kind}: shared area conversations still require a controller");
+Check(ChatRules.SeatCanWrite("seat", "members") && !ChatRules.SeatCanWrite("seat", "writers"),
+    "controller-free private chats still enforce their posting policy");
 var now = DateTimeOffset.Parse("2026-09-30T12:00:00Z");
 Check(ChatRules.ValidSchedule(null, now), "immediate message accepted");
 Check(!ChatRules.ValidSchedule(now, now), "schedule at current instant rejected");

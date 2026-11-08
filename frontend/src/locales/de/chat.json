@@ -1,5 +1,13 @@
 {
   "askSetup": {
+    "responsibility": "Verantwortung für Gespräche",
+    "parentHint": "Übernimm den Datenverantwortlichen eines übergeordneten Bereichs oder erstelle einen eigenständigen Bereich für private Gespräche. Jedes Gespräch sehen nur die gewählten Antwortenden und die jeweilige Person.",
+    "parent": "Übergeordneter Bereich (optional)",
+    "standalone": "Eigenständiger Bereich für private Gespräche",
+    "privateWithoutController": "Private Gespräche sind ohne eigenen Datenverantwortlichen möglich.",
+    "parentController": "Datenverantwortlicher des gewählten Bereichs: {name}.",
+    "useParent": "Von diesem Bereich übernehmen",
+    "inherits": "Vom übergeordneten Bereich übernommener Datenverantwortlicher: {name}.",
     "youMark": "du",
     "role": "Rolle",
     "pickAnswerers": "Wähle, wer antwortet.",

@@ -15,10 +15,20 @@ const broadcastChannel = globalThis.BroadcastChannel;
 globalThis.BroadcastChannel = undefined;
 const dir = await mkdtemp(join(tmpdir(), 'chat-check-'));
 try {
-  for (const entry of ['chat', 'chatFeatures']) await build({ entryPoints: [`src/app/chat/${entry}.ts`], bundle: true, format: 'esm', platform: 'node',
+  for (const entry of ['chat', 'chatFeatures', 'askParent']) await build({ entryPoints: [`src/app/chat/${entry}.ts`], bundle: true, format: 'esm', platform: 'node',
     outfile: join(dir, `${entry}.mjs`), define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) }, logLevel: 'error' });
   const chat = await import(pathToFileURL(join(dir, 'chat.mjs')).href);
   const features = await import(pathToFileURL(join(dir, 'chatFeatures.mjs')).href);
+  const setup = await import(pathToFileURL(join(dir, 'askParent.mjs')).href);
+  const area = (areaId, parentAreaId = null, extra = {}) => ({ areaId, parentAreaId, myLevel: 'admin', ...extra });
+  const areas = [area('parish'), area('candidates', 'parish'), area('replies', 'candidates'), area('child', 'replies'), area('private', null, { personal: true }), area('read-only', null, { myLevel: 'read' }), area('direct', null, { ownChat: 'direct' })];
+  const parents = setup.askParents(areas, 'replies');
+  assert.deepEqual(parents.map(a => a.areaId), ['parish', 'candidates'], 'reply areas inherit only from administered areas, never themselves or descendants');
+  assert.equal(setup.suggestedAskParent(parents, ['candidates', 'candidates']), 'candidates', 'pages with the same responsible area offer it as parent');
+  assert.equal(setup.suggestedAskParent(parents, ['parish', 'candidates']), '', 'a reused module never silently chooses between different responsible areas');
+  assert.equal(setup.suggestedAskParent(parents, [null, 'candidates']), '', 'a failed or missing page cannot choose responsibility');
+  assert.equal(setup.suggestedAskParent(parents, []), '', 'a new private chat can stay standalone');
+  assert.equal(setup.suggestedAskParent(parents, ['read-only']), '', 'read access does not authorize assigning a parent');
   const prefs = { timeZone: 'Europe/Berlin', useAvailability: true, windows: [{ day: 1, start: 540, end: 1020 }], muted: false, archived: false, readReceipts: false };
   assert.equal(features.availableNow(prefs, new Date('2026-09-28T07:00:00Z')), true, 'availability includes start in summer time');
   assert.equal(features.availableNow(prefs, new Date('2026-09-28T15:00:00Z')), false, 'end boundary excluded');

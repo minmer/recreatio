@@ -90,7 +90,7 @@ public static partial class Chat
             to.Add(new
             {
                 areaId = Ids.ToText(area), name, chatId = chat is null ? null : Ids.ToText(chat.Value),
-                /* 0129 — die Klausel über „Napisz do: …"; null: niemand steht dafür gerade, dann fängt nichts an. */
+                /* An existing or inherited controller is shown; a private conversation also works without one. */
                 controller = Controllers.Json(await Controllers.OfAreaAsync(connection, area, ctx.RequestAborted))
             });
         }
@@ -114,13 +114,7 @@ public static partial class Chat
             return;
         }
 
-        /* 0129 — „Napisz do nas" ist eine Rozmowa im Bereich: ohne jemanden, der für ihn geradesteht, fängt sie nicht an. */
-        if (await Controllers.OfAreaAsync(connection, areaId, ctx.RequestAborted) is null)
-        {
-            await Fail(ctx, StatusCodes.Status409Conflict, Controllers.Nobody);
-            return;
-        }
-
+        /* The audience above authorizes this private conversation; a separate controller is optional. */
         var seat = found.Value.Seat;
         var had = await SeatChatAtAsync(connection, seat, areaId, ctx.RequestAborted);
         if (had is not null)

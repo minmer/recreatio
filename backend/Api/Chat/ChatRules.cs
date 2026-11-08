@@ -3,6 +3,9 @@ namespace Api;
 /// <summary>Shared posting rules used by every interactive chat write path.</summary>
 public static class ChatRules
 {
+    /// <summary>Shared area conversations collect for the area; private conversations, including a person's link, do not require a controller.</summary>
+    public static bool RequiresController(string kind) => kind is "area" or "channel";
+
     /// <summary>
     /// 0080 — die Rozmowy eines Bereichs sind die drei Zugänge (<see cref="Audience"/>):
     /// der Kanał (`channel`), die Rozmowa aller (`area`), die mit einem Menschen

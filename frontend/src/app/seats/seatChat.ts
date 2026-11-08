@@ -225,7 +225,7 @@ export interface AskTarget {
   readonly areaId: string;
   readonly name: string;
   readonly chatId: string | null;
-  /** 0129 — wer für die Daten dieser Rozmowa geradesteht (ohne ihn fängt der Dienst keine an). */
+  /** Optional for private conversations; includes the parent area's controller when inherited. */
   readonly controller?: Controller | null;
 }
 

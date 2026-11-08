@@ -345,11 +345,10 @@ public static partial class Chat
         string? topicText = null, Guid? authorPerson = null, Guid? waitOnlineFrom = null, bool silent = false)
     {
         /*
-         * 0129 — DIE ROZMOWA EINES BEREICHS (auch „Napisz do nas" und die eines Platzes) sammelt
-         * Daten über Menschen: ohne jemanden, der für den Bereich geradesteht, nimmt sie nichts an.
-         * Ein Gespräch zweier Menschen, eine eigene Gruppe, die eigenen Notizen brauchen niemanden.
+         * Shared area chats and channels require a controller. Private conversations, including
+         * those started by a person with a candidate link, may send without a separate controller.
          */
-        if (chat.Kind is "area" or "channel" or "seat" && await Controllers.OfAreaAsync(connection, chat.AreaId, ctx.RequestAborted) is null)
+        if (ChatRules.RequiresController(chat.Kind) && await Controllers.OfAreaAsync(connection, chat.AreaId, ctx.RequestAborted) is null)
         {
             await Fail(ctx, StatusCodes.Status409Conflict, Controllers.Nobody);
             return null;

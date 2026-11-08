@@ -234,8 +234,8 @@ export function SeatAskBody({ seat, moduleId }: { seat: SeatView; moduleId: stri
                 </div>
               )}
             <p className="wk-hint">{t('chat.seat.askWho', { name: target.name })}</p>
-            {/* 0129 — „Napisz do nas" ist eine Rozmowa des Bereichs: wer für ihre Daten geradesteht. */}
-            {target.controller !== undefined && <ControllerClause controller={target.controller} context="collect" />}
+            {/* Private conversations can start without a controller; show one when assigned or inherited. */}
+            {target.controller != null && <ControllerClause controller={target.controller} context="collect" />}
           </section>
         );
       })}

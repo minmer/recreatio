@@ -285,10 +285,10 @@ public static partial class Chat
 
         /*
          * 0129 — EINE ROZMOWA DES BEREICHS braucht jemanden, der für ihre Daten geradesteht
-         * (auch ein Kanał, auch die mit einem Menschen vom Formular). Gespräche zu zweit,
-         * Gruppen und Notatki gehören ihren Leuten — dort niemand.
+         * (auch ein Kanał). Private Gespräche — auch mit einem Menschen vom Formular —,
+         * Gruppen und Notatki gehören ihren Leuten und brauchen keinen eigenen Datensatz.
          */
-        if (kind is "area" or "channel" or "seat" && await Controllers.OfAreaAsync(connection, areaId, ctx.RequestAborted) is null)
+        if (ChatRules.RequiresController(kind) && await Controllers.OfAreaAsync(connection, areaId, ctx.RequestAborted) is null)
         {
             await Fail(ctx, StatusCodes.Status409Conflict, Controllers.Nobody);
             return;

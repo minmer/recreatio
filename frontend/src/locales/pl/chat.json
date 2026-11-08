@@ -1,5 +1,13 @@
 {
   "askSetup": {
+    "responsibility": "Odpowiedzialność za rozmowy",
+    "parentHint": "Możesz dziedziczyć administratora danych z obszaru nadrzędnego albo utworzyć samodzielny obszar rozmów prywatnych. Rozmowy nadal widzą tylko wybrani odpowiadający i dana osoba.",
+    "parent": "Obszar nadrzędny (opcjonalnie)",
+    "standalone": "Samodzielny obszar rozmów prywatnych",
+    "privateWithoutController": "Rozmowy prywatne mogą działać bez osobnego administratora danych.",
+    "parentController": "Administrator danych wybranego obszaru: {name}.",
+    "useParent": "Dziedzicz z tego obszaru",
+    "inherits": "Administrator danych odziedziczony z obszaru nadrzędnego: {name}.",
     "youMark": "Ty",
     "role": "rola",
     "pickAnswerers": "Wybierz, kto odpowiada.",

@@ -1,5 +1,13 @@
 {
   "askSetup": {
+    "responsibility": "Responsibility for conversations",
+    "parentHint": "Inherit the data controller from a parent area, or create a standalone area for private chats. Only the selected answerers and the individual can read each conversation.",
+    "parent": "Parent area (optional)",
+    "standalone": "Standalone private chat area",
+    "privateWithoutController": "Private chats can work without a separate data controller.",
+    "parentController": "The selected area’s data controller: {name}.",
+    "useParent": "Inherit from this area",
+    "inherits": "Data controller inherited from the parent area: {name}.",
     "youMark": "you",
     "role": "role",
     "pickAnswerers": "Choose who answers.",
