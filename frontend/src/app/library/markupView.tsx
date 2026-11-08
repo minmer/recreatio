@@ -18,6 +18,8 @@ import { later } from '../ui/later';
 import { Glue, glue, Tex } from '../ui/tex/Tex';
 import { texPieces } from '../core/tex';
 import { TextJump } from './SourceJump';
+import { useT } from '../core/i18n';
+import { viewPath } from '../routes';
 
 /* 2026-10-22 (Schritt 11) — ein Widok im Text: der Rechner (Cogita) kommt erst, wenn einer gezeigt wird. */
 const LiveView = later(() => import('../cogita/ViewEmbed').then((m) => m.ViewEmbed));
@@ -53,6 +55,19 @@ export interface MarkupLinkTo {
 }
 
 export const MarkupLinks = createContext<MarkupLinkTo>({});
+
+/** Every readable citation can lead to its source, even without a transcribed passage. */
+function CitationSource({ entry, look }: { entry: LibEntry; look: Lookup }) {
+  const t = useT();
+  const to = useContext(MarkupLinks);
+  const owner = (entry as LibEntry & { libraryId?: string }).libraryId;
+  const workspace = typeof window !== 'undefined' && window.location.hash.startsWith('#/workspace');
+  const href = to.hrefOf?.(entry) ?? (workspace && owner !== undefined ? viewPath('library', owner, entry.id) : undefined);
+  const title = t('librarySource.openSourceTitle', { name: ownTitle(entry, look) });
+  if (href !== undefined) return <> <a className="src-jump" href={href} title={title}>{t('librarySource.openSource')}</a></>;
+  if (to.open !== undefined) return <> <button type="button" className="src-jump" onClick={() => to.open!(entry)} title={title}>{t('librarySource.openSource')}</button></>;
+  return null;
+}
 
 /**
  * EIN VERWEIS AUF EINEN EIGENEN EINTRAG — ein Link mit seinem Namen (und der
@@ -126,18 +141,18 @@ export function countNotes(parts: readonly (readonly Block[])[], look: Lookup): 
         numbers.set(inline, n);
         const segs: Seg[] = [];
         /* 2026-10-24 — hat das zitierte Werk einen Text, den dieser Leser lesen darf: dorthin (`SourceJump.tsx`). */
-        const jumps: { workId: string; locator: string }[] = [];
+        const jumps: { entry: LibEntry; workId?: string; locator: string }[] = [];
         sources.forEach((item, i) => {
           const target = refTarget(look, item.key);
           const work = workBehind(target, look);
           if (work !== undefined) {
             works.push(work);
-            jumps.push({ workId: work.id, locator: target?.kind === 'quote' ? (item.locator || str(target.data, 'locator')) : item.locator });
           }
+          if (target !== undefined) jumps.push({ entry: work ?? target, workId: work?.id, locator: target.kind === 'quote' ? (item.locator || str(target.data, 'locator')) : item.locator });
           if (i > 0) segs.push({ text: '; ' });
           segs.push(...citeSegs(target, item.locator, look, state));
         });
-        list.push({ n, body: <><Segs segs={segs} />.{jumps.map((j, i) => <TextJump key={i} look={look} workId={j.workId} locator={j.locator} />)}</> });
+        list.push({ n, body: <><Segs segs={segs} />.{jumps.map((j, i) => <Fragment key={i}><CitationSource entry={j.entry} look={look} />{j.workId !== undefined && <TextJump look={look} workId={j.workId} locator={j.locator} />}</Fragment>)}</> });
       } else if (inline.t === 'note') {
         const n = list.length + 1;
         numbers.set(inline, n);

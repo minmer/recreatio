@@ -37,7 +37,7 @@ export interface PathNext {
   readonly label: string;
   /** Eine Erzählung, ein Thema — oder die Karte (das nächste Feld, „Wróć do mapy"). */
   readonly kind: 'story' | 'topic' | 'map';
-  /** Jetzt möglich (wählbar); sonst blass, mit dem Grund. */
+  /** Can start immediately; a locked destination may instead offer its prerequisite route. */
   readonly ready: boolean;
   /** Was dort wartet („4 slajdy · 6 pytań"). */
   readonly work?: string;
@@ -48,6 +48,8 @@ export interface PathNext {
   readonly action?: { readonly label: string; readonly run: () => void };
   /** 2026-11-05 — wie weit der Lernende dort schon ist: zu Ende („ukończone", grün mit ✓) oder begonnen. */
   readonly state?: 'done' | 'started';
+  /** An optional detour, separate from the next stages of learning. */
+  readonly optional?: boolean;
 }
 
 /**
@@ -575,7 +577,6 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
 
   const nextRow = next !== undefined && next.length > 0 && (
     <div className="cg-pm-next" data-path-next={next.length} role="group" aria-label={T.whatNext}>
-      <span className="cg-pm-next-h">{T.whatNext}</span>
       <div className="cg-pm-next-list">
         {next.map((it) => (
           <button key={it.id} type="button" className={`cg-pm-next-item${it.state === 'done' ? ' is-done' : it.ready ? ' is-ready' : ' is-wait'}${it.state === 'started' ? ' is-started' : ''}${it.kind === 'map' ? ' is-map' : ''}${shown === `${NEXT}${it.id}` ? ' is-on' : ''}`}
@@ -588,8 +589,10 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
               {it.state === 'done' && <g className="cg-pm-next-check" transform="translate(7,-7)"><circle r={4.6} /><path d="M-2.2,0.1 L-0.6,1.8 L2.4,-1.6" /></g>}
             </svg>
             <span className="cg-pm-next-text">
+              <span className="cg-pm-next-status">{it.state === 'done' ? `✓ ${T.nextDone}` : !it.ready ? T.nextNotYet : it.state === 'started' ? T.nextStarted : T.nextReady}</span>
               <span className="cg-pm-next-name"><TexText text={it.label} /></span>
-              <span className="cg-pm-next-kind">{[it.state === 'done' ? T.nextDone : it.state === 'started' ? T.nextStarted : '', it.note, it.work, it.ready || it.state === 'done' ? '' : T.nextNotYet].filter(Boolean).join(' · ')}</span>
+              {it.work && <span className="cg-pm-next-kind">{it.work}</span>}
+              {it.optional && <span className="cg-pm-next-kind">{T.nextOptional}</span>}
             </span>
           </button>
         ))}
@@ -607,6 +610,10 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
     <section ref={section} className={`cg-pm${full ? ' is-full' : ' is-small'}${open ? '' : ' is-closed'}${whole ? ' is-whole' : ''}`} data-path-map={model.nodes.length} data-path-source={model.source}
       data-path-fit={fitAll.toFixed(3)} data-path-scale={s.toFixed(3)} data-path-zoomed={zoom === 0 ? '0' : '1'} {...(whole ? { role: 'dialog', 'aria-label': title ?? T.pathTitle } : {})}>
       {head}
+      {open && next !== undefined && next.length > 0 && <div className="cg-pm-next-heading">
+        <span className="cg-pm-next-h">{T.whatNext}</span>
+        <span className="cg-pm-next-hint">{T.nextMapHint}</span>
+      </div>}
       {open && (
         <div ref={frame} className="cg-pm-frame">
           <div ref={scroller} className={`cg-pm-scroll${zoom !== 0 ? ' is-zoomed' : ''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
@@ -772,7 +779,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
           <p className="cg-pm-pop-title"><strong><TexText text={nextItem.label} /></strong></p>
           {nextItem.note !== undefined && <p className="cg-muted">{nextItem.note}</p>}
           {nextItem.work !== undefined && nextItem.work !== '' && <p data-path-pop-work="">{nextItem.work}</p>}
-          <p className="cg-pm-pop-state" data-path-pop-next={nextItem.ready ? 'ready' : 'wait'}>{nextItem.ready ? T.nextReady : T.nextNotYet}</p>
+          <p className="cg-pm-pop-state" data-path-pop-next={nextItem.ready ? 'ready' : 'wait'}>{nextItem.state === 'done' ? `✓ ${T.nextDone}` : !nextItem.ready ? T.nextNotYet : nextItem.state === 'started' ? T.detourStarted : T.nextReady}</p>
           {(nextItem.why ?? []).map((w) => <p key={w} className="cg-muted" data-path-pop-why="">{w}</p>)}
           {nextItem.action !== undefined && (
             <div className="wk-actions">

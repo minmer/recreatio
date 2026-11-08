@@ -318,7 +318,12 @@ export function Markup({ text, onEntity, lib }: { text: string; onEntity?: (id: 
   const look = from?.markupLook ?? NOTHING;
   const blocks = useMemo(() => parseMarkup(text), [text]);
   const notes = useMemo(() => countNotes([blocks], look), [blocks, look]);
-  const links = useMemo<MarkupLinkTo>(() => (onEntity === undefined ? { cross: crossLink } : { open: (e: LibEntry) => onEntity(e.id), cross: crossLink }), [onEntity]);
+  const inWorkspace = typeof window !== 'undefined' && window.location.hash.startsWith('#/workspace');
+  const links = useMemo<MarkupLinkTo>(() => ({
+    cross: crossLink,
+    ...(onEntity === undefined ? {} : { open: (e: LibEntry) => onEntity(e.id) }),
+    ...(onEntity === undefined && inWorkspace && from !== undefined ? { hrefOf: (e: LibEntry) => { const origin = from.origin(e.id); return origin === undefined ? undefined : originPath(origin, e.id, 'wpisy'); } } : {})
+  }), [onEntity, inWorkspace, from, from?.revision]);
   return (
     <MarkupLinks.Provider value={links}>
       <div className="cg-markup">

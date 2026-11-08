@@ -1,4 +1,6 @@
 {
+  "openSource": "Open source",
+  "openSourceTitle": "Open source: {name}",
   "place": {
     "unreadable": "This place cannot be read in this work's layout.",
     "spansParts": {

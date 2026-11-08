@@ -313,7 +313,7 @@
 .cg-pm { --cg-pm-next: #7c4fd0; --cg-pm-next-soft: rgb(124 79 208 / 0.16); }
 :root[data-mode="dark"] .cg-pm{ --cg-pm-next: #b394f2; --cg-pm-next-soft: rgb(179 148 242 / 0.2); }
 :root[data-theme='dark'] .cg-pm { --cg-pm-next: #b394f2; --cg-pm-next-soft: rgb(179 148 242 / 0.2); }
-.cg-pm-next-item { width: 6.25rem; padding: var(--wk-space-1) 0.2rem; border: 0; background: transparent; gap: 0.2rem; }
+.cg-pm-next-item { width: 11rem; padding: var(--wk-space-2); border: 0; background: transparent; gap: var(--wk-space-2); }
 .cg-pm-next-item.is-ready, .cg-pm-next-item.is-wait { border: 0; box-shadow: none; }
 .cg-pm-next-icon { width: 2.4rem; height: 2.4rem; }
 .cg-pm-next-icon .cg-pm-hex { fill: var(--cg-pm-next-soft); stroke: var(--cg-pm-next); stroke-width: 2; }
@@ -322,8 +322,14 @@
 .cg-pm-next-item.is-wait .cg-pm-next-icon .cg-pm-hex { fill: transparent; stroke: var(--cg-pm-next); stroke-dasharray: 3 2; opacity: 0.7; }
 .cg-pm-next-item.is-map .cg-pm-next-icon .cg-pm-hex { fill: var(--cg-pm-open); stroke: var(--wk-line-strong); }
 .cg-pm-next-item.is-map .cg-pm-next-icon .cg-pm-icon { stroke: var(--wk-ink); }
-.cg-pm-next-name { font-size: var(--wk-text-xs); -webkit-line-clamp: 2; }
-.cg-pm-next-kind { display: none; }
+.cg-pm-next-text { gap: var(--wk-space-1); }
+.cg-pm-next-name { display: block; font-size: var(--wk-text-sm); overflow: visible; }
+.cg-pm-next-status { font-size: var(--wk-text-xs); font-weight: 600; color: var(--cg-pm-next); }
+.cg-pm-next-item.is-done .cg-pm-next-status { color: var(--cg-pm-done-edge); }
+.cg-pm-next-item.is-wait .cg-pm-next-status { color: var(--wk-ink-2); }
+.cg-pm-next-item:hover { background: var(--wk-soft); }
+.cg-pm-next-heading { display: grid; justify-items: center; gap: var(--wk-space-1); padding: var(--wk-space-2); }
+.cg-pm-next-hint { font-size: var(--wk-text-xs); color: var(--wk-muted); max-width: 28rem; text-align: center; }
 .cg-pm-next-item::after, .cg-pm-next-item:not(:last-child)::before { border-color: var(--cg-pm-next); }
 .cg-pm-next-way { stroke: var(--cg-pm-next); }
 .cg-pm-next-h { color: var(--cg-pm-next); }

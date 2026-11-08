@@ -590,6 +590,13 @@ export class CogitaLibrary {
       const look: MarkupLookup = {
         get: (id) => this.entry(id),
         byKey: (key) => { const id = this.resolve(key); return id === undefined ? undefined : this.entry(id); },
+        revision: this.revision,
+        readable: () => [this.store, ...this.sources.map((s) => s.store)].flatMap((s) => s.all()),
+        texts: (workId) => [this.store, ...this.sources.map((s) => s.store)].flatMap((s) => s.ownTexts(workId)),
+        heavy: async (id) => {
+          const owner = [this.store, ...this.sources.map((s) => s.store)].find((s) => s.ownsHeavy(id));
+          return owner === undefined ? null : owner.heavy(id);
+        },
         title: (entry) => { const e = this.entity(entry.id); return e === undefined ? entryTitle(entry, look) : this.label(e); },
         /* 2026-10-25 — beantwortet: einmal für die ganze Baza gerechnet (statt „Pytanie otwarte" überall). */
         answered: (id) => (this.entity(id) === undefined ? undefined : this.answeredIds().has(id))

@@ -1,4 +1,6 @@
 {
+  "openSource": "Quelle öffnen",
+  "openSourceTitle": "Quelle öffnen: {name}",
   "place": {
     "unreadable": "Diese Stelle lässt sich im Schema dieses Werks nicht lesen.",
     "spansParts": {

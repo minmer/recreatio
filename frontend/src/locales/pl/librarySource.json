@@ -1,4 +1,6 @@
 {
+  "openSource": "Otwórz źródło",
+  "openSourceTitle": "Otwórz źródło: {name}",
   "place": {
     "unreadable": "Tego miejsca nie da się odczytać w układzie tego dzieła.",
     "spansParts": {

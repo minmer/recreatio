@@ -66,6 +66,8 @@ import { RevisionRun, type RunSource } from './RevisionRun';
 import { backDepths, backTo, decideBy, detourIn, enterAt, insideOf, resumeInside, startRun, stepRun, type RunStep, type StoryFinished, type StoryRun } from './runningStory';
 import { directStartLock, OPEN_LOCK, storyAround } from './storyLock';
 import { storyWork } from './storyNext';
+import { StoryNextChoices } from './StoryNextChoices';
+import { StoryRoute } from './StoryRoute';
 import { readView } from './views';
 import { isSlideEntity, slideQuestionIds } from './slideLib';
 import { slideWords } from './slideWords';
@@ -634,6 +636,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const [lockRun, setLockRun] = useState<{ readonly key: string; readonly source: RunSource; readonly weak: boolean } | null>(null);
   const [lockTick, setLockTick] = useState(0);
   const [goalSet, setGoalSet] = useState(false);
+  const [routeTarget, setRouteTarget] = useState<string | null>(null);
   /* 2026-11-04 (Prompt 11) — ein Thema nach „Koniec": eine Powtórka hier, danach zurück zum Ende. */
   const [topicRun, setTopicRun] = useState<{ readonly key: string; readonly source: RunSource } | null>(null);
   const progressNow = learner?.progress;
@@ -717,7 +720,9 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     return {
       id, label: story?.name ?? name(id), kind, ready, work, ...(note === undefined ? {} : { note }), ...(started ? { state: 'started' as const } : {}),
       why: [missing.length > 0 ? W.needsFirst(names(missing)) : '', due.length > 0 ? W.dueFirst(names(due)) : ''].filter(Boolean),
-      ...(ready ? { action: { label: kind === 'story' ? W.startStory : W.learn, run: () => { if (story !== undefined) startStory(story); else startTopic(id); } } } : {})
+      action: ready
+        ? { label: started ? W.nextContinue : kind === 'story' ? W.startStory : W.learn, run: () => { if (story !== undefined) startStory(story); else startTopic(id); } }
+        : { label: W.nextRoute, run: () => setRouteTarget(id) }
     };
   };
   /*
@@ -727,7 +732,12 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const startFree = (f: Flow) => { keepFree(f.id); startStory(f); };
   const detourNext: PathNext[] = ahead === null ? [] : openDetours(running, innerDone, (r) => flowOf(r)?.id ?? null).flatMap((d): PathNext[] => {
     const f = flowOf(d.target);
-    return f === undefined || f.id === running.id ? [] : [{ id: `detour:${f.id}`, label: f.name, kind: 'story', ready: true, work: innerWork(f), note: [W.detourNote, whereOfStep(d.step)].filter(Boolean).join(' · '), action: { label: W.startStory, run: () => startFree(f) } }];
+    if (f === undefined || f.id === running.id) return [];
+    const kept = posOf(f.id);
+    const started = kept !== undefined && (kept.visited.length > 1 || (kept.inside?.length ?? 0) > 0);
+    return [{ id: `detour:${f.id}`, label: f.name, kind: 'story', optional: true, ready: true, ...(started ? { state: 'started' as const } : {}),
+      work: innerWork(f), note: [W.detourNote, whereOfStep(d.step)].filter(Boolean).join(' · '),
+      action: { label: started ? W.nextContinue : W.startStory, run: () => startFree(f) } }];
   });
   const nextItems: PathNext[] | undefined = ahead === null ? undefined : (() => {
     const inDetours = new Set(detourNext.map((x) => x.id.slice('detour:'.length)));
@@ -744,13 +754,14 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     for (const d of detoursIn(running)) {
       const f = d.optional && innerDone(d.flow) ? flowOf(d.flow) : undefined;
       if (f === undefined || f.id === running.id || doneDetours.some((x) => x.id === `detour:${f.id}`)) continue;
-      doneDetours.push({ id: `detour:${f.id}`, label: f.name, kind: 'story', ready: true, state: 'done', work: innerWork(f), note: W.detourNote, action: { label: W.detourRemind, run: () => startFree(f) } });
+      doneDetours.push({ id: `detour:${f.id}`, label: f.name, kind: 'story', optional: true, ready: true, state: 'done', work: innerWork(f), note: W.detourNote, action: { label: W.detourRemind, run: () => startFree(f) } });
     }
     const doneNext: PathNext[] = (ahead.done ?? []).flatMap((id): PathNext[] => {
       const f = ahead.stories.get(id);
       const story = f === undefined ? undefined : flowOf(f.id) ?? f;
       if (story !== undefined && doneDetours.some((x) => x.id === `detour:${story.id}`)) return [];
       return [{ id: `done:${id}`, label: story?.name ?? name(id), kind: story !== undefined ? 'story' : 'topic', ready: true, state: 'done',
+        work: story !== undefined ? innerWork(story) : W.questions(cardsAbout(content.cards ?? [], id).length),
         action: { label: W.detourRemind, run: () => { if (story !== undefined) startStory(story); else startTopic(id); } } }];
     });
     return [...detourNext, ...list, ...doneDetours, ...doneNext];
@@ -874,6 +885,13 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     }
   };
 
+  if (routeTarget !== null && cg !== null && learner !== null) {
+    return <StoryRoute key={routeTarget} target={routeTarget} lib={cg.lib} cards={content.cards ?? []} learner={learner} W={W} label={name}
+      onClose={() => { setRouteTarget(null); setLockTick((n) => n + 1); }}
+      onOpen={(id, story) => { setRouteTarget(null); if (story !== undefined) startStory(flowOf(story.id) ?? story); else startTopic(id); }}
+      renderStory={(story, back) => <FlowPlayer flow={flowOf(story.id) ?? story} content={content} learner={learner} onClose={back} backLabel={W.nextRoute} onAnswer={onAnswer} />} />;
+  }
+
   if (topicRun !== null && cg !== null) {
     const back = () => setTopicRun(null);
     return <RevisionRun key={topicRun.key} lib={cg.lib} learner={learner} source={topicRun.source} onClose={back} onDone={back}
@@ -969,9 +987,6 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       nicht geht mit dem Grund. Ist der Przegląd offen, bleibt „Powtórz przegląd" der grosse Knopf.
     */
     const choices = nextItems ?? [];
-    const first = choices.find((x) => x.ready && x.action !== undefined);
-    const others = choices.filter((x) => x !== first && x.ready && x.action !== undefined);
-    const waiting = choices.filter((x) => !x.ready);
     return withPath(
       <section ref={endRef} className={`cg-flow cg-flow-${look}`} data-flow-ended={running.id} data-flow-running={running.id} data-flow-step={state.step ?? ''} data-flow-visited={state.visited.length} data-flow-depth={state.stack.length} data-flow-kept-done={posOf(running.id)?.done === true ? '1' : '0'} data-flow-kept-goals={posOf(running.id)?.goals?.length ?? 0}>
         {/*
@@ -994,32 +1009,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
               {reviewOpen ? W.reviewNotPassed : `✓ ${W.reviewPassed}`}
             </p>
           )}
-          <div className="cg-flow-next" data-flow-next={choices.length}>
-            {(choices.length > 0 || reviewOpen) && <p className="cg-run-closing-h">{W.whatNext}</p>}
-            <ul className="cg-flow-next-list">
-              {reviewOpen && <li><button type="button" className="wk-btn" onClick={toReview} data-flow-review-again="">{W.reviewAgain}</button></li>}
-              {first !== undefined && (
-                <li>
-                  <button type="button" className={reviewOpen ? 'wk-btn wk-btn-line' : 'wk-btn cg-run-next'} onClick={first.action!.run} data-flow-next-go={first.id} data-flow-next-kind={first.kind}>
-                    <span>{first.kind === 'map' ? first.label : W.nextGo(first.label)}</span>{first.work !== undefined && first.kind !== 'map' ? <span className="cg-flow-next-work">{first.work}</span> : null}
-                  </button>
-                </li>
-              )}
-              {others.map((x) => (
-                <li key={x.id}>
-                  <button type="button" className="wk-btn wk-btn-line" onClick={x.action!.run} data-flow-next-other={x.id}>
-                    <span>{x.label}</span>{x.work !== undefined && x.work !== '' ? <span className="cg-flow-next-work">{x.work}</span> : null}
-                  </button>
-                </li>
-              ))}
-              <li><button type="button" className="wk-btn wk-btn-line" onClick={restart} data-flow-restart-end="">{W.fromStart}</button></li>
-            </ul>
-            {waiting.length > 0 && (
-              <ul className="cg-flow-next-wait" data-flow-next-wait={waiting.length}>
-                {waiting.map((x) => <li key={x.id} data-flow-next-wait-item={x.id}><strong>{x.label}</strong> <span className="cg-muted">· {x.work} · {(x.why ?? []).join(' · ')}</span></li>)}
-              </ul>
-            )}
-          </div>
+          <StoryNextChoices choices={choices} W={W} reviewOpen={reviewOpen} onReview={toReview} onRestart={restart} />
         </div>
       </section>
     );

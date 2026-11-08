@@ -79,6 +79,23 @@ export function storyLock(lib: CogitaLibrary, cards: readonly Card[], learner: L
   return lockWith(lockContext(lib, cards, learner), unit);
 }
 
+export interface StoryRouteStep {
+  readonly id: string;
+  readonly story?: Flow;
+  readonly learned: boolean;
+  readonly lock: StoryLock;
+}
+
+/** A selectable destination keeps the same prerequisite checks as the story and landscape. */
+export function storyRoute(lib: CogitaLibrary, cards: readonly Card[], learner: Learner, target: string): readonly StoryRouteStep[] {
+  const c = lockContext(lib, cards, learner);
+  const before = chainNeeds([target], c.graph)
+    .filter((id) => lib.entity(id) !== undefined && (c.gauge.askable.has(id) || c.stories.has(id)))
+    .sort((a, b) => (c.graph.level.get(a) ?? 0) - (c.graph.level.get(b) ?? 0) || c.order(a, b));
+  return [...before, target]
+    .map((id) => ({ id, story: c.stories.get(id), learned: c.learned(id), lock: lockWith(c, id) }));
+}
+
 /**
  * 2026-11-04 (Prompt 11) — WAS NACH DIESER ERZÄHLUNG KOMMT, für diesen Lernenden: ihre Nachfolger in der Reihenfolge des
  * Lernens mit ihrer Sperre, sonst das nächste lernbare Feld (`storyNext.ts`). `taught`: was die Erzählung zeigt und fragt.
