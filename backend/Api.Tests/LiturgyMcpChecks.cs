@@ -24,7 +24,11 @@ internal static class LiturgyMcpChecks
         var snapshot = AiAccess.ReadSnapshot(library, "liturgy", document.RootElement)!;
         check(AiAccess.PartLabel("liturgy") == "Liturgia", "MCP labels a liturgical collection as Liturgia");
         var first = AiMcpTools.LiturgyExport(snapshot, 0, 1, null);
-        check(first.Total == 3 && first.NextOffset == 1 && !first.Complete && first.Document["schema_version"]!.GetValue<string>() == "1.1", "liturgy export reports a whole-collection total and an explicit continuation");
+        check(first.Total == 3 && first.NextOffset == 1 && !first.Complete && first.Document["format"]!.GetValue<string>() == "recreatio/liturgy" && first.Document["version"]!.GetValue<int>() == 1,
+            "liturgy export is the app's import format, with a whole-collection total and an explicit continuation");
+        var exported = (JsonObject)first.Document["entities"]![0]!;
+        check(!exported.ContainsKey("schema_version") && !exported.ContainsKey("revision") && exported["id"]!.GetValue<string>() == "test.text.0",
+            "exported entities leave out what the app counts, like the app's own export");
         var second = AiMcpTools.LiturgyExport(snapshot, 1, 1, first.SnapshotId);
         check(second.Document["entities"]![0]!["structured_content"]![0]!["text"]!.GetValue<string>().Length == 100000,
             "liturgy export never clips an oversized canonical text to a snippet");
@@ -45,14 +49,14 @@ internal static class LiturgyMcpChecks
         ((JsonObject)single["entries"]![0]!).Remove("canonical");
         using var oldDoc = JsonDocument.Parse(single.ToJsonString());
         check(Fails(() => AiMcpTools.LiturgyExport(AiAccess.ReadSnapshot(library, "liturgy", oldDoc.RootElement)!, 0, 200, null), "snapshot_needs_refresh"), "older snapshots require refresh instead of guessing an import from projections");
-        foreach (var id in new[] { "liturgy", "liturgy-schema", "liturgy-defaults", "example-liturgy", "example-liturgy-maintenance" })
-            check(ImportFormats.Find(id) is { Parts.Count: > 0 }, $"MCP catalog embeds the complete {id} format");
-        var schema = ImportFormats.Find("liturgy-schema")!;
-        using var schemaDoc = JsonDocument.Parse(string.Join("\n", schema.Parts));
-        check(schemaDoc.RootElement.GetProperty("$schema").GetString()!.Contains("2020-12"), "all MCP schema parts reconstruct valid JSON Schema");
+        foreach (var id in new[] { "liturgy", "example-liturgy" })
+            check(ImportFormats.Find(id) is { Parts.Count: > 0 }, $"MCP catalog embeds the {id} format");
+        using var example = JsonDocument.Parse(string.Join("\n", ImportFormats.Find("example-liturgy")!.Parts));
+        check(example.RootElement.GetProperty("format").GetString() == "recreatio/liturgy", "the whole example is in the import format");
         var guide = string.Join("\n", ImportFormats.Find("liturgy")!.Parts);
-        check(guide.Contains("expected_revision") && guide.Contains("reset_default") && guide.Contains("get_liturgy_library"), "MCP guide connects actual-data reading to revision-checked maintenance");
-        check(AiMcp.Instructions.Contains("get_liturgy_library") && AiMcp.Instructions.Contains("liturgy-schema"), "MCP discovery directs assistants to the full liturgy model");
+        check(guide.Contains("\"remove\": true") && guide.Contains("get_liturgy_library") && guide.Contains("Jak aplikacja używa tych danych"),
+            "MCP guide says how to change and remove, where the current data is and how the app uses it");
+        check(AiMcp.Instructions.Contains("get_liturgy_library") && AiMcp.Instructions.Contains("get_import_format liturgy"), "MCP discovery directs assistants to the liturgy format and its data");
     }
     private static bool Fails(Action action, string code)
     {
