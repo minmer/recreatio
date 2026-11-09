@@ -338,7 +338,7 @@ interface TopicInfo {
  */
 export function LandscapeView(props: LandscapeProps) {
   if (props.view.landscape?.style === 'world') {
-    return <WorldLandscape view={props.view} cards={props.cards} learner={props.learner} viewKey={props.viewKey} {...(props.compact === undefined ? {} : { compact: props.compact })} {...(props.more === undefined ? {} : { more: props.more })} {...(props.onOpen === undefined ? {} : { onOpen: props.onOpen })} />;
+    return <WorldLandscape view={props.view} cards={props.cards} learner={props.learner} viewKey={props.viewKey} {...(props.compact === undefined ? {} : { compact: props.compact })} {...(props.more === undefined ? {} : { more: props.more })} {...(props.onOpen === undefined ? {} : { onOpen: props.onOpen })} {...(props.rewards === undefined ? {} : { rewards: props.rewards })} />;
   }
   return <HexLandscape {...props} />;
 }

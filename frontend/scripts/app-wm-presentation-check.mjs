@@ -104,7 +104,8 @@ check('view: landscape.style "world" is read, anything else stays hex', [V.readL
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
   check('no transparency: no globalAlpha below 1', [...code.matchAll(/globalAlpha\s*=\s*([0-9.]+)/g)].map((m) => Number(m[1])).filter((v) => v < 1), []);
   check('no transparency: no rgba / hsla / transparent colours', /rgba\(|hsla\(|transparent|opacity/.test(code), false);
-  check('no transparency: distant places are mixed toward the background colour', /mix\(mix\(p\.color, pal\.floor, satMix\), pal\.haze, far \* 0\.32\)/.test(code), true);
+  /* 2026-11-09 — die Farbe ist das Thema oder (in einer Ansicht, die den Ort nicht meint) sein Grau: beide deckend gemischt. */
+  check('no transparency: distant places are mixed toward the background colour', /mix\(mix\(own, pal\.floor, satMix\), pal\.haze, far \* 0\.32\)/.test(code) && /const own = greyed \? greyOf\(p\.color, pal\) : p\.color;/.test(code), true);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

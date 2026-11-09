@@ -11,6 +11,17 @@
 }
 .cg-wm-main { position: relative; display: grid; gap: var(--wk-space-2); min-width: 0; }
 
+/* Über der Karte (wie im Krajobraz): was sie zeigt, „Sprawdź, co wiesz", der Zähler der Punkte; das Ziel, eine Eroberung. */
+.cg-wm-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--wk-space-2); min-width: 0; }
+.cg-wm-top .cg-wm-modes { margin-bottom: 0; }
+/* Die Karte mit allem, was auf ihr liegt (Blase, Hinweise, „Pokaż zmiany") — gemessen an der Leinwand. */
+.cg-wm-mapwrap { position: relative; min-width: 0; }
+/* Alle Orte als Liste (für die Tastatur). */
+.cg-wm-list { font-size: var(--wk-text-sm); }
+.cg-wm-list > summary { cursor: pointer; color: var(--wk-ink-2); font-weight: 600; }
+.cg-wm-list > summary:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.cg-wm-list .cg-wm-rows { max-height: 20rem; overflow: auto; margin-top: var(--wk-space-1); padding: 0 var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); }
+
 .cg-wm { position: relative; }
 .cg-wm-stage { position: relative; width: 100%; height: min(72vh, 640px); min-height: 320px; border-radius: var(--wk-radius); overflow: hidden; background: var(--wk-surface); border: 1px solid var(--wk-line); }
 .cg-wm.is-compact .cg-wm-stage { height: min(52vh, 380px); min-height: 240px; }

@@ -7,6 +7,8 @@
  *   3  Navigation zu einem Ort mit 3 fehlenden Voraussetzungen, unterwegs eine Abzweigung gewählt
  *   4  die Breite der Säulen stufenlos — gezeichnet, nicht neu gerechnet
  *   5  (dazu) eine Stufe einstellen, die Karten lernen, einen Durchgang bestehen → erobert
+ *   6  (dazu, wie im Krajobraz) die Ansichten, „Sprawdź, co wiesz" → Luki, das Abspielen und „Pokaż zmiany", das Ziel, die
+ *      Liste der Orte, Portale (Schreibende), „Animacje: wyłączone"
  * </code>
  * Vorher: die Vorschau bauen und bedienen, die Kurse schreiben —
  *
@@ -79,10 +81,10 @@ try {
     if (!ok) throw new Error(`no element ${selector}`);
   };
   const ready = `(() => { const h = document.querySelector('[data-world-geometry]'); const c = document.querySelector('[data-world-canvas]'); return h && h.dataset.worldGeometry !== 'pending' && c && Number(c.dataset.wmFrame || 0) > 0; })()`;
-  const open = async (progress = 'none') => {
+  const open = async (progress = 'none', author = false) => {
     await page.navigate(`${base}/preview.html?lang=pl`);
     await waitFor('typeof window.recreatioPreview === "object"', 'the preview');
-    const r = await ev(`window.recreatioPreview.knowledge({ doc: ${doc}, view: ${JSON.stringify(VIEW)}, progress: ${JSON.stringify(progress)} }).then((x) => ({ error: x.error ?? null }))`);
+    const r = await ev(`window.recreatioPreview.knowledge({ doc: ${doc}, view: ${JSON.stringify(VIEW)}, progress: ${JSON.stringify(progress)}, author: ${author} }).then((x) => ({ error: x.error ?? null }))`);
     if (r.error !== null) throw new Error(r.error);
     await waitFor(ready, 'the world map', 60000);
     await sleep(300);
@@ -266,6 +268,103 @@ try {
     await waitFor(`document.querySelector('[data-world-panel="place"]')?.dataset.worldConquered === '1'`, 'the place to be conquered', 15000);
     check(P, 'the place is conquered (flat, full colour, knowledge dot)', true);
     await shot('p5-conquered');
+  }
+
+  /* -- 6 · Wie im Krajobraz: Ansichten, „Sprawdź, co wiesz" → Luki, Abspielen, das Ziel, Portale, die Liste der Orte ------------- */
+  if (runs('6')) {
+    const P = '6 hex features';
+    const canvas = (key) => ev(`document.querySelector('[data-world-canvas]')?.dataset.${key} ?? null`);
+    await open();
+    check(P, 'the first visit plays the columns rising', await canvas('wmPlayedKind') === 'first');
+    const modes = await ev(`[...document.querySelectorAll('[data-world-mode]')].map((b) => b.dataset.worldMode)`);
+    check(P, 'the mode bar: Ogólny, Co umiem, Do odkrycia, Do powtórki, Luki — and "Sprawdź, co wiesz"', modes.join() === 'all,known,discover,due,gaps' && await ev(`document.querySelector('[data-world-selfcheck]') !== null`), modes);
+    const litOf = async (m) => { await click(`[data-world-mode="${m}"]`); await sleep(250); return canvas('wmLit'); };
+    const known = await litOf('known');
+    const discover = await litOf('discover');
+    const due = await litOf('due');
+    const dueNote = await ev(`document.querySelector('[data-world-note="due"]') !== null`);
+    check(P, 'a new learner: "Co umiem" nothing, "Do odkrycia" the places without prerequisites, "Do powtórki" nothing (with its note)', known === '0' && Number(discover) > 0 && due === '0' && dueNote, { known, discover, due, dueNote });
+    await litOf('discover');
+    await shot('p6-mode-discover');
+    const all = await litOf('all');
+    check(P, '"Ogólny" — every place in colour again', all === '');
+    /* Sprawdź, co wiesz: die erste Kernfrage falsch, die anderen richtig — eine Lücke. */
+    await click('[data-world-selfcheck]');
+    await waitFor(`document.querySelector('[data-world-running="check"]')`, 'the self-check');
+    let first = true;
+    for (let n = 0; n < 80; n += 1) {
+      if (await ev(`document.querySelector('[data-run-end]') !== null`)) break;
+      const want = first ? 'Nie' : 'Tak';
+      const picked = await ev(`(() => { const b = [...document.querySelectorAll('.cg-options [role=radio]')].find((x) => x.textContent.trim() === ${JSON.stringify(want)} && !x.disabled); if (!b) return false; b.click(); return true; })()`);
+      if (!picked) { await sleep(120); continue; }
+      first = false;
+      await waitFor(`document.querySelector('[data-card-next]') !== null || document.querySelector('[data-run-end]') !== null`, 'next card', 10000);
+      if (await ev(`document.querySelector('[data-card-next]') !== null`)) await click('[data-card-next]');
+      await sleep(60);
+    }
+    await click('[data-world-back]');
+    await waitFor(ready, 'the map after the self-check');
+    await waitFor(`document.querySelector('[data-world-note="gaps"]')`, 'the gaps note');
+    const gaps = await ev(`({ gaps: Number(document.querySelector('[data-world-note="gaps"]').dataset.worldGaps), fill: document.querySelector('[data-world-fill]') !== null, mode: document.querySelector('[data-world-modes]').dataset.worldModes })`);
+    await sleep(200);
+    const gapsLit = await canvas('wmLit');
+    check(P, 'after the self-check: mode "Luki" with one gap in colour and "Uzupełnij luki"', gaps.mode === 'gaps' && gaps.gaps === 1 && gaps.fill && gapsLit === '1', { ...gaps, gapsLit });
+    check(P, 'coming back plays what changed since the map was last seen (return)', await canvas('wmPlayedKind') === 'return', await canvas('wmPlayedKind'));
+    await shot('p6-gaps');
+    await waitFor(`document.querySelector('[data-world-replay]')`, '"Pokaż zmiany"', 8000);
+    await click('[data-world-replay]');
+    await sleep(120);
+    check(P, '"Pokaż zmiany" plays it again', (await canvas('wmPlaying')) !== '', await canvas('wmPlaying'));
+    await click('[data-world-mode="all"]');
+    /* Das Ziel: am Ort setzen — eine Fahne, die Zeile oben mit den Schritten; zurücknehmen. */
+    await click('[data-world-fit]');
+    await sleep(300);
+    await clickMap('label', N.magone);
+    await waitFor(`document.querySelector('[data-world-goal-set]')`, 'the goal button');
+    const magone = await ev(`document.querySelector('[data-world-panel="place"]').dataset.worldPlace`);
+    await click('[data-world-goal-set]');
+    await waitFor(`document.querySelector('[data-world-goal]')`, 'the goal line');
+    await sleep(250);
+    const g = await ev(`({ goal: document.querySelector('[data-world-goal]').dataset.worldGoal, steps: Number(document.querySelector('[data-world-goal]').dataset.worldGoalSteps), resign: document.querySelector('[data-world-goal-resign]') !== null })`);
+    check(P, '"Ustaw jako cel": the goal line with its steps, a flag on the map, "Zrezygnuj" in the panel', g.goal === magone && g.steps > 1 && (await canvas('wmGoal')) === magone && g.resign, g);
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5 });
+    await ev('window.scrollTo(0, 0)');
+    await sleep(300);
+    await shot('p6-goal');
+    await click('[data-world-goal-clear]');
+    await waitFor(`document.querySelector('[data-world-goal]') === null`, 'the goal to go');
+    check(P, 'clearing the goal removes the line and the flag', (await canvas('wmGoal')) === '');
+    /* Die Liste aller Orte (Tastatur): öffnen, einen wählen. */
+    await ev(`(() => { const d = document.querySelector('[data-world-list]'); d.open = true; d.dispatchEvent(new Event('toggle')); d.scrollIntoView({ block: 'center' }); return true; })()`);
+    await waitFor(`document.querySelectorAll('[data-world-list-place]').length > 0`, 'the list of places');
+    const rows = await ev(`document.querySelectorAll('[data-world-list-place]').length`);
+    const placesN = Number(await ev(`document.querySelector('[data-world-view]').dataset.worldPlaces`));
+    const pickId = await ev(`document.querySelectorAll('[data-world-list-place]')[3].dataset.worldListPlace`);
+    await click(`[data-world-list-place="${pickId}"] .cg-ref`);
+    await waitFor(`document.querySelector('[data-world-panel="place"][data-world-place="${pickId}"]')`, 'the place from the list');
+    check(P, 'the list of places: every place, and a row opens its panel (no mouse needed)', rows === placesN, { rows, placesN });
+    await shot('p6-list');
+    /* Portale: wer schreibt, sieht jeden Verweis in andere Welten (der Lernende nur, was er dort lesen kann). */
+    check(P, 'a learner sees no portal to a world he cannot read', (await canvas('wmPortals')) === '0');
+    await open('none', true);
+    const portals = await canvas('wmPortals');
+    /* Über die Liste gewählt: die Kamera fliegt hin (nah genug für das Zeichen und den Namen). */
+    await ev(`(() => { const d = document.querySelector('[data-world-list]'); d.open = true; d.dispatchEvent(new Event('toggle')); return true; })()`);
+    await waitFor(`document.querySelectorAll('[data-world-list-place]').length > 0`, 'the list of places');
+    const comolloId = await ev(`[...document.querySelectorAll('[data-world-list-place]')].find((li) => li.textContent.includes(${JSON.stringify(N.comollo)}))?.dataset.worldListPlace ?? null`);
+    await click(`[data-world-list-place="${comolloId}"] .cg-ref`);
+    await waitFor(`document.querySelector('[data-world-panel="place"] [data-worlds]')`, 'the worlds section');
+    check(P, 'a writer sees the portal on the pillar and the link in the place panel', portals === '1', { portals });
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5 });
+    await ev('window.scrollTo(0, 0)');
+    await sleep(400);
+    await shot('p6-portal');
+    /* „Animacje: wyłączone": nichts bewegt sich. */
+    await ev(`localStorage.setItem('rc-motion', 'off')`);
+    await open();
+    check(P, 'with motion off the change is shown at once (no animation)', (await canvas('wmPlayedMs')) === '0' && (await canvas('wmPlaying')) === '');
+    await ev(`localStorage.removeItem('rc-motion')`);
+    results.push({ path: P, name: 'names hidden behind nearer pillars (this view)', ok: true, detail: { covered: Number(await canvas('wmCovered')) } });
   }
 
   const errors = page.console.filter((c) => c.level === 'exception' || c.level === 'error');

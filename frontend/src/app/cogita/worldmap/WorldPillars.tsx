@@ -15,11 +15,14 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react';
 
 import type { T } from '../../core/i18n';
+import { useMotion } from '../../ui/motion';
 import { placeLabels, type LabelCandidate, type WorldCam } from '../worldView';
 import { mix, rgbCss, type Rgb } from './wmColors';
 import type { LockSymbol } from './wmConditions';
-import { showsName, type Scene, type SceneLane } from './wmScene';
+import { nameCovered, pickAt, pickGrid, type DrawnPillar, type PickGrid } from './wmPick';
+import { showsName, type Scene, type ScenePlace, type SceneLane } from './wmScene';
 import { pillarHeight } from './wmState';
+import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';
 
 /** Neigung als Stauchung des Bodens: sin(25°) bis sin(88°). */
 export const FORE_LOW = Math.sin((25 * Math.PI) / 180);
@@ -35,8 +38,17 @@ export interface PillarsHandle {
   focus(place: string): void;
   /** Für Messungen: die Kamera drehen (Grad) und neu zeichnen. */
   rotate(deg: number): void;
+  /** Das letzte Abspielen noch einmal („Pokaż zmiany"). */
+  replay(): void;
   readonly frames: { count: number; ms: number[] };
 }
+
+/** Was beim Abspielen geschieht: der Anfang (mit den Punkten), die Punkte kommen an, Orte sind erobert, das Ende. */
+export type PlayEvent =
+  | { readonly kind: 'start'; readonly id: number; readonly points: number }
+  | { readonly kind: 'points'; readonly id: number; readonly n: number }
+  | { readonly kind: 'conquered'; readonly id: number; readonly places: readonly string[] }
+  | { readonly kind: 'end'; readonly id: number; readonly skipped: boolean };
 
 export interface PillarsProps {
   readonly scene: Scene;
@@ -58,6 +70,15 @@ export interface PillarsProps {
   readonly onPickLane?: (section: string) => void;
   readonly onPickHome?: () => void;
   readonly compact?: boolean;
+  /** Die Ansicht („Co umiem", „Do odkrycia", …): nur diese Orte farbig, die anderen grau und deckend. `null`: alle. */
+  readonly lit?: ReadonlySet<string> | null;
+  /** Verweise in andere Welten je Ort: das Zeichen des Portals auf der Säule. */
+  readonly portals?: ReadonlyMap<string, number> | null;
+  /** Das Ziel („Ustaw jako cel"): eine Fahne in der Farbe des Ziels. */
+  readonly goal?: string | null;
+  /** Was sich seit dem letzten Zeigen änderte (einmal je `id`; `wmViews.ts`). */
+  readonly playback?: WorldPlayback | null;
+  readonly onPlayback?: (e: PlayEvent) => void;
 }
 
 interface Palette {
@@ -68,6 +89,8 @@ interface Palette {
   readonly haze: Rgb;
   readonly lit: Rgb;
   readonly casing: Rgb;
+  /** Die Farbe des Ziels (wie die Fahne im Krajobraz). */
+  readonly goal: Rgb;
   readonly dark: boolean;
 }
 
@@ -101,8 +124,33 @@ function readPalette(el: HTMLElement): Palette {
     floorDeep: mix(floor, ink, dark ? 0.16 : 0.1),
     haze: mix(surface, floor, 0.5),
     lit: parse(cs.getPropertyValue('--cg-ls-route').trim() || '#b07800'),
-    casing: mix(floor, ink, dark ? 0.24 : 0.14)
+    casing: mix(floor, ink, dark ? 0.24 : 0.14),
+    goal: parse(cs.getPropertyValue('--cg-ls-goal').trim() || (dark ? '#6aaeff' : '#2f7fd0'))
   };
+}
+
+/** Grau in einer Ansicht, die den Ort nicht meint — deckend, nur ohne Farbe (wie im Krajobraz). */
+const greyOf = (c: Rgb, pal: Palette): Rgb => { const l = c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11; return mix([l, l, l], pal.haze, 0.45); };
+
+/** Das Portal (Verweise in andere Welten): zwei Ringe auf der Oberseite, oben rechts — Schirmpunkte, deckend. */
+function drawPortal(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, pal: Palette): void {
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, Math.PI * 2); ctx.fillStyle = rgbCss(pal.surface); ctx.fill();
+  ctx.lineWidth = Math.max(1, r * 0.32); ctx.strokeStyle = rgbCss(pal.ink); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, r * 0.62, 0, Math.PI * 2); ctx.fillStyle = rgbCss(pal.ink); ctx.fill();
+  ctx.restore();
+}
+
+/** Ein laufendes Abspielen. */
+interface Playing {
+  readonly pb: WorldPlayback;
+  readonly sched: PlaySchedule;
+  readonly t0: number;
+  readonly total: number;
+  readonly fresh: ReadonlySet<string>;
+  readonly changed: ReadonlySet<string>;
+  conqSent: boolean;
+  ptsSent: boolean;
 }
 
 const camKey = (k: string) => `cg-wm2-cam:${k}`;
@@ -230,8 +278,19 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, compact = false } = props;
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, compact = false,
+    lit = null, portals = null, goal = null, playback = null, onPlayback } = props;
+  const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
+  /* Das Abspielen (Zeitplan, Anfang) und was zuletzt abgespielt wurde („Pokaż zmiany"). */
+  const playRef = useRef<Playing | null>(null);
+  const lastPb = useRef<WorldPlayback | null>(null);
+  const playedId = useRef(0);
+  const playRaf = useRef(0);
+  const onPlaybackRef = useRef(onPlayback);
+  onPlaybackRef.current = onPlayback;
+  /* Das Raster der gezeichneten Säulen (Treffen, verdeckte Namen). */
+  const gridRef = useRef<PickGrid | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [palette, setPalette] = useState<Palette | null>(null);
@@ -242,7 +301,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   }, [scene.extent]);
   const camRef = useRef<WorldCam | null>(keptCam(memoryKey));
   const groundRef = useRef<GroundLayer | null>(null);
-  const drawnRef = useRef<{ id: string; x: number; top: number; bottom: number; rx: number; ry: number }[]>([]);
+  const drawnRef = useRef<DrawnPillar[]>([]);
   const frames = useRef<{ count: number; ms: number[] }>({ count: 0, ms: [] });
   const raf = useRef(0);
   const settle = useRef(0);
@@ -434,21 +493,61 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     const list = scene.places.map((p) => ({ p, d: depth(v, p.x, p.y) })).sort((x, y) => x.d - y.d);
     let dmin = Infinity, dmax = -Infinity;
     for (const it of list) { dmin = Math.min(dmin, it.d); dmax = Math.max(dmax, it.d); }
-    const drawn: { id: string; x: number; top: number; bottom: number; rx: number; ry: number }[] = [];
-    const labels: LabelCandidate[] = [];
+    const drawn: DrawnPillar[] = [];
+    const labels: (LabelCandidate & { readonly own: number })[] = [];
+    /*
+      Das Abspielen (`wmViews.ts`): je geändertem Ort Höhe, Sättigung, Stufe und Punkt zwischen vorher und jetzt; neue Stufen
+      leuchten auf, ein eroberter Ort schickt einen Ring über den Boden. „ograniczone": nur ein kurzes Aufleuchten des Randes.
+    */
+    const play = playRef.current;
+    const tau = play === null ? 0 : performance.now() - play.t0;
+    const SATMIX = [0.65, 0.35, 0] as const;
+    const look = (p: ScenePlace) => {
+      const h = pillarHeight(p.missing, p.conquered);
+      const sat = p.sat === 'never' ? 0.65 : p.sat === 'partly' ? 0.35 : 0;
+      const still = { h, sat, level: p.level, from: p.level, dot: p.dot, conquered: p.conquered, flash: 0, ring: -1, outline: 0 };
+      if (play === null) return still;
+      const { pb, sched } = play;
+      if (sched.fade > 0) return play.changed.has(p.id) ? { ...still, outline: 1 - clamp01(tau / sched.fade) } : still;
+      const k = easeInOut(clamp01((tau - (sched.delay.get(p.id) ?? 0)) / Math.max(1, sched.colMs)));
+      if (pb.kind === 'first') return play.fresh.has(p.id) ? { ...still, h: h * k } : still;
+      const b = pb.before.get(p.id);
+      if (b === undefined) return still;
+      const hb = pillarHeight(b.missing, b.conquered);
+      const sb = SATMIX[b.sat];
+      const q = tau >= sched.flash0 && tau < sched.flash0 + FLASH_MS ? (tau - sched.flash0) / FLASH_MS : -1;
+      return {
+        h: hb + (h - hb) * k, sat: sb + (sat - sb) * k, level: tau >= sched.flash0 ? p.level : b.level, from: b.level,
+        dot: k < 1 ? DOT_OF[b.dot] : p.dot, conquered: k < 1 ? b.conquered : p.conquered,
+        flash: q >= 0 && p.level > b.level ? 1 - q : 0, ring: q >= 0 && p.conquered && !b.conquered ? q : -1, outline: 0
+      };
+    };
+    let litCount = 0;
+    let portalSigns = 0;
     for (const { p, d: dp } of list) {
       const [X, Yb] = toScr(v, p.x, p.y, 0);
       const rx = p.r * pillarWidth * v.s, ry = rx * v.fore;
       if (X + rx < -40 || X - rx > size.w + 40 || Yb + ry < -40) continue;
-      const hWorld = pillarHeight(p.missing, p.conquered) * heightScale;
-      const Yt = Yb - hWorld * v.lift * v.s - (p.conquered ? 1.5 * v.lift * v.s : 0);
+      const a = look(p);
+      const hWorld = a.h * heightScale;
+      const Yt = Yb - hWorld * v.lift * v.s - (a.conquered ? 1.5 * v.lift * v.s : 0);
       if (Yt - ry > size.h + 40) continue;
-      /* Die Farbe: Thema; der Stand nur als Sättigung; fern blasser, nie durchsichtig. */
-      const satMix = p.sat === 'never' ? 0.65 : p.sat === 'partly' ? 0.35 : 0;
+      /* Die Farbe: Thema; der Stand nur als Sättigung; fern blasser, nie durchsichtig; eine Ansicht, die den Ort nicht meint: grau. */
+      const greyed = lit !== null && !lit.has(p.id);
+      /* In einer Ansicht steht, was sie meint, in voller Farbe und mit Rand (sonst ginge ein nie gesehener Ort im Grau unter). */
+      const meant = lit !== null && !greyed;
+      if (meant) litCount += 1;
       const far = dmax > dmin ? (dmax - dp) / (dmax - dmin) : 0;
-      const base = mix(mix(p.color, pal.floor, satMix), pal.haze, far * 0.32);
+      const own = greyed ? greyOf(p.color, pal) : p.color;
+      const satMix = greyed || meant ? 0 : a.sat;
+      const base = mix(mix(own, pal.floor, satMix), pal.haze, far * 0.32);
       const top = mix(base, pal.dark ? pal.ink : pal.surface, 0.12);
       const side = mix(base, pal.dark ? pal.surface : pal.ink, 0.2);
+      /* Eben erobert: ein Ring läuft über den Boden (hinter der Säule verdeckt, wie der Boden). */
+      if (a.ring >= 0) {
+        ctx.beginPath(); ctx.ellipse(X, Yb, rx * (1 + 0.9 * a.ring), ry * (1 + 0.9 * a.ring), 0, 0, Math.PI * 2);
+        ctx.strokeStyle = rgbCss(pal.lit); ctx.lineWidth = 0.6 + 3 * (1 - a.ring); ctx.stroke();
+      }
       if (hWorld > 0.5) {
         ctx.beginPath();
         ctx.moveTo(X - rx, Yt);
@@ -469,30 +568,38 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       ctx.fillStyle = rgbCss(top);
       ctx.beginPath(); ctx.ellipse(X, Yt, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
       if (chosen === p.id) { ctx.strokeStyle = rgbCss(pal.lit); ctx.lineWidth = 2.5; ctx.stroke(); }
-      /* Die Stufen: der obere Rand in gleich grosse Bögen; erreicht leuchtet. */
+      else if (a.outline > 0) { ctx.strokeStyle = rgbCss(pal.lit); ctx.lineWidth = 0.5 + 2.5 * a.outline; ctx.stroke(); }
+      else if (meant) { ctx.strokeStyle = rgbCss(pal.ink); ctx.lineWidth = 1.8; ctx.stroke(); }
+      /* Die Stufen: der obere Rand in gleich grosse Bögen; erreicht leuchtet, eben erreicht leuchtet auf. */
       if (p.levels > 0 && rx > 3.5) {
         const gap = Math.min(0.12, Math.PI / (p.levels * 6));
         for (let i = 0; i < p.levels; i += 1) {
           const a0 = -Math.PI / 2 + (i * 2 * Math.PI) / p.levels + gap, a1 = -Math.PI / 2 + ((i + 1) * 2 * Math.PI) / p.levels - gap;
+          const fresh = a.flash > 0 && i >= a.from && i < a.level;
           ctx.beginPath(); ctx.ellipse(X, Yt, rx * 0.93, ry * 0.93, 0, a0, a1);
-          ctx.strokeStyle = rgbCss(i < p.level ? pal.lit : mix(side, pal.ink, 0.25));
-          ctx.lineWidth = Math.max(1.4, Math.min(3, rx * 0.12));
+          ctx.strokeStyle = rgbCss(i < a.level ? pal.lit : mix(side, pal.ink, 0.25));
+          ctx.lineWidth = Math.max(1.4, Math.min(3, rx * 0.12)) * (fresh ? 1 + 1.4 * a.flash : 1);
           ctx.stroke();
         }
       }
       /* Der Punkt der Kenntnis — nur auf eroberten Orten. */
-      if (p.dot !== null && rx > 3) {
-        ctx.fillStyle = DOT[p.dot];
+      if (a.dot !== null && rx > 3) {
+        ctx.fillStyle = DOT[a.dot];
         ctx.beginPath(); ctx.ellipse(X, Yt, Math.max(2.2, rx * 0.2), Math.max(2.2, rx * 0.2) * v.fore, 0, 0, Math.PI * 2); ctx.fill();
       }
+      /* Das Portal: Verweise in andere Welten (nie eine Voraussetzung, nie in Höhe oder Weg). */
+      if ((portals?.get(p.id) ?? 0) > 0 && rx > 7) { drawPortal(ctx, X + rx * 0.62, Yt - ry * 0.62, Math.max(2.5, rx * 0.11), pal); portalSigns += 1; }
       drawn.push({ id: p.id, x: X, top: Yt, bottom: Yb, rx, ry });
       const hPx = Yb - Yt;
       if (showsName(rx, hPx)) {
         const text = p.label.length > 42 ? `${p.label.slice(0, 40)}…` : p.label;
         const w = Math.min(rx * 2.4, 8 + text.length * 6.4);
-        labels.push({ key: p.id, text, x: X, y: Yt - ry - 9, w, h: 16, weight: -hPx, alpha: 1 });
+        labels.push({ key: p.id, text, x: X, y: Yt - ry - 9, w, h: 16, weight: -hPx, alpha: 1, own: drawn.length - 1 });
       }
     }
+    /* Das Raster der gezeichneten Säulen (Treffen, verdeckte Namen; `wmPick.ts`). */
+    const grid = pickGrid(drawn);
+    gridRef.current = grid;
     /* Das Haus: ein Zeichen auf seiner Platte, „Start". */
     if (scene.home !== null) {
       const [hx, hy] = toScr(v, scene.home.x, scene.home.y, 0);
@@ -504,17 +611,19 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       ctx.lineWidth = 3; ctx.strokeStyle = rgbCss(pal.surface); ctx.strokeText(t('cogitaWorld.map.start'), hx, hy + 4);
       ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(t('cogitaWorld.map.start'), hx, hy + 4);
     }
+    const topOf = (id: string): [number, number] | null => {
+      if (id === HOME_MARK && scene.home !== null) { const [hx, hy] = toScr(v, scene.home.x, scene.home.y, 0); return [hx, hy - Math.max(6, Math.min(16, scene.home.r * v.s * 0.55)) * 1.7]; }
+      const d = drawn.find((x) => x.id === id);
+      if (d !== undefined) return [d.x, d.top];
+      const p = scene.byId.get(id);
+      if (p === undefined) return null;
+      const [x, y] = toScr(v, p.x, p.y, 0);
+      return [x, y];
+    };
+    /* Das Ziel („Ustaw jako cel", wie im Krajobraz): eine Fahne in der Farbe des Ziels. */
+    if (goal !== null) { const at = topOf(goal); if (at !== null) drawFlag(ctx, at[0], at[1], pal, rgbCss(pal.goal)); }
     /* Die Navigation (§8.3): Gabeln am Ring, die Fahne am Ziel, der Wimpel am jetzigen Schritt („Tu zacznij"). */
     if (marks !== null) {
-      const topOf = (id: string): [number, number] | null => {
-        if (id === HOME_MARK && scene.home !== null) { const [hx, hy] = toScr(v, scene.home.x, scene.home.y, 0); return [hx, hy - Math.max(6, Math.min(16, scene.home.r * v.s * 0.55)) * 1.7]; }
-        const d = drawn.find((x) => x.id === id);
-        if (d !== undefined) return [d.x, d.top];
-        const p = scene.byId.get(id);
-        if (p === undefined) return null;
-        const [x, y] = toScr(v, p.x, p.y, 0);
-        return [x, y];
-      };
       for (const id of marks.forks) {
         const p = scene.byId.get(id);
         const r = p === undefined ? (scene.home?.r ?? 0) : p.r * pillarWidth + 7;
@@ -523,7 +632,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         const [fx, fy] = toScr(v, at.x + r * 0.71, at.y - r * 0.71, 0);
         drawFork(ctx, fx, fy, pal);
       }
-      if (marks.target !== null) { const at = topOf(marks.target); if (at !== null) drawFlag(ctx, at[0], at[1], pal, rgbCss(pal.lit)); }
+      /* Ist das Ziel der Navigation auch das gesetzte Ziel, steht dort eine Fahne (die des Ziels). */
+      if (marks.target !== null && marks.target !== goal) { const at = topOf(marks.target); if (at !== null) drawFlag(ctx, at[0], at[1], pal, rgbCss(pal.lit)); }
       if (marks.start !== null && marks.start !== marks.target) {
         const at = topOf(marks.start);
         if (at !== null) {
@@ -534,8 +644,21 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         }
       }
     }
-    /* Namen: nie übereinander, die niedrigere Säule gewinnt. */
-    const placed = placeLabels(labels, size.w, size.h);
+    /* Die Punkte steigen über ihren Orten (Abspielen nach der Rückkehr, nur mit Nagrody) — dann gehen sie in den Zähler. */
+    if (play !== null && play.sched.fade === 0 && play.pb.points.size > 0 && tau >= play.sched.pts0 && tau < play.sched.pts0 + PTS_MS) {
+      const q = easeInOut((tau - play.sched.pts0) / PTS_MS);
+      ctx.font = '700 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const [id, n] of play.pb.points) {
+        const d = drawn.find((x) => x.id === id);
+        if (d === undefined) continue;
+        const y = d.top - d.ry - 14 - 22 * q;
+        ctx.lineWidth = 3; ctx.strokeStyle = rgbCss(pal.surface); ctx.strokeText(`+${n}`, d.x, y);
+        ctx.fillStyle = rgbCss(pal.lit); ctx.fillText(`+${n}`, d.x, y);
+      }
+    }
+    /* Namen: nie übereinander (die niedrigere Säule gewinnt) und nie hinter einer näheren Säule. */
+    const visible = labels.filter((l) => !nameCovered(grid, l.own, l.x, l.y, l.w));
+    const placed = placeLabels(visible, size.w, size.h);
     ctx.font = '600 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const l of placed) {
       if (!l.shown) continue;
@@ -550,25 +673,63 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     canvas.dataset.wmMs = (performance.now() - t0).toFixed(2);
     canvas.dataset.wmPillar = pillarWidth.toFixed(3);
     canvas.dataset.wmRadius = (scene.places.length === 0 ? 0 : scene.places[0].r * pillarWidth * v.s).toFixed(2);
+    canvas.dataset.wmLit = lit === null ? '' : String(litCount);
+    canvas.dataset.wmPortals = String(portalSigns);
+    canvas.dataset.wmGoal = goal ?? '';
+    canvas.dataset.wmPlaying = play === null ? '' : String(play.pb.id);
+    canvas.dataset.wmCovered = String(labels.length - visible.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t]);
+  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t, lit, portals, goal]);
 
   const request = useCallback(() => { cancelAnimationFrame(raf.current); raf.current = requestAnimationFrame(draw); }, [draw]);
   useEffect(() => { request(); }, [request, cam]);
 
-  /* -- Zeigen und Wählen ------------------------------------------------------------------------------------------- */
-  const hit = (x: number, y: number): string | null => {
-    const list = drawnRef.current;
-    for (let i = list.length - 1; i >= 0; i -= 1) {
-      const d = list[i];
-      if (Math.abs(x - d.x) > d.rx) continue;
-      if (y >= d.top && y <= d.bottom) return d.id;
-      const dt = ((x - d.x) / d.rx) ** 2 + ((y - d.top) / Math.max(1, d.ry)) ** 2;
-      const db = ((x - d.x) / d.rx) ** 2 + ((y - d.bottom) / Math.max(1, d.ry)) ** 2;
-      if (dt <= 1 || db <= 1) return d.id;
-    }
-    return null;
-  };
+  /* -- Abspielen: was sich seit dem letzten Zeigen änderte (einmal je id; jede Eingabe überspringt den Rest) ---------- */
+  const drawRef = useRef(draw);
+  drawRef.current = draw;
+  const finish = useCallback((skipped: boolean) => {
+    const play = playRef.current;
+    if (play === null) return;
+    cancelAnimationFrame(playRaf.current);
+    playRef.current = null;
+    const emit = onPlaybackRef.current;
+    if (!play.conqSent && play.pb.conquered.length > 0) emit?.({ kind: 'conquered', id: play.pb.id, places: play.pb.conquered });
+    if (!play.ptsSent && play.total > 0) emit?.({ kind: 'points', id: play.pb.id, n: play.total });
+    emit?.({ kind: 'end', id: play.pb.id, skipped });
+    drawRef.current();
+  }, []);
+  const tick = useCallback(() => {
+    const play = playRef.current;
+    if (play === null) return;
+    const tau = performance.now() - play.t0;
+    if (!play.conqSent && play.pb.conquered.length > 0 && tau >= play.sched.flash0) { play.conqSent = true; onPlaybackRef.current?.({ kind: 'conquered', id: play.pb.id, places: play.pb.conquered }); }
+    if (!play.ptsSent && play.total > 0 && tau >= play.sched.pts0 + PTS_MS) { play.ptsSent = true; onPlaybackRef.current?.({ kind: 'points', id: play.pb.id, n: play.total }); }
+    if (tau >= play.sched.end) { finish(false); return; }
+    drawRef.current();
+    playRaf.current = requestAnimationFrame(tick);
+  }, [finish]);
+  const start = useCallback((pb: WorldPlayback) => {
+    if (playRef.current !== null) finish(true);
+    lastPb.current = pb;
+    const sched = scheduleOf(pb, motion, (id) => { const p = scene.byId.get(id); return p === undefined ? undefined : [p.x, p.y] as const; }, [scene.extent.cx, scene.extent.cy]);
+    const total = [...pb.points.values()].reduce((s, n) => s + n, 0) + pb.rest;
+    const canvas = canvasRef.current;
+    if (canvas !== null) { canvas.dataset.wmPlayed = String(pb.id); canvas.dataset.wmPlayedKind = pb.kind; canvas.dataset.wmPlayedMs = sched.end.toFixed(0); }
+    onPlaybackRef.current?.({ kind: 'start', id: pb.id, points: total });
+    playRef.current = { pb, sched, t0: performance.now(), total, fresh: new Set(pb.fresh), changed: new Set([...pb.before.keys(), ...pb.fresh]), conqSent: false, ptsSent: false };
+    if (sched.end <= 0) { finish(false); return; }
+    tick();
+  }, [motion, scene, finish, tick]);
+  useEffect(() => {
+    if (playback === null || palette === null || size.w === 0 || playedId.current === playback.id) return;
+    playedId.current = playback.id;
+    start(playback);
+  }, [playback, palette, size.w, start]);
+  useEffect(() => () => cancelAnimationFrame(playRaf.current), []);
+  const skip = () => { if (playRef.current !== null) finish(true); };
+
+  /* -- Zeigen und Wählen: über das Raster der gezeichneten Säulen (die vorderste gewinnt) ---------------------------- */
+  const hit = (x: number, y: number): string | null => (gridRef.current === null ? null : pickAt(gridRef.current, x, y));
   const hitHome = (x: number, y: number): boolean => {
     const c = camRef.current;
     if (scene.home === null || c === null) return false;
@@ -620,6 +781,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   });
   const local = (e: React.PointerEvent) => { const r = canvasRef.current!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   const down = (e: React.PointerEvent) => {
+    skip();
     const c = camRef.current;
     if (c === null) return;
     canvasRef.current?.setPointerCapture(e.pointerId);
@@ -680,6 +842,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     onHover?.(null, null);
   };
   const key = (e: React.KeyboardEvent) => {
+    skip();
     const c = camRef.current;
     if (c === null) return;
     const step = 60 / c.s;
@@ -748,8 +911,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       setCam({ ...c, cx: p.x, cy: p.y, s: Math.max(c.s, 1.1) });
     },
     rotate: (deg: number) => { const c = camRef.current; if (c !== null) { setCam({ ...c, rot: c.rot + deg }); draw(); } },
+    replay: () => { if (lastPb.current !== null) start(lastPb.current); },
     frames: frames.current
-  }), [scene, size, setCam, fitCam, draw]);
+  }), [scene, size, setCam, fitCam, draw, start]);
 
   const c = cam;
   return (

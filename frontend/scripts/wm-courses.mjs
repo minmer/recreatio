@@ -43,9 +43,11 @@ function courseOf(name, prefix, input, opts = {}) {
     for (const r of e.refs) if (!m.has(r.field)) m.set(r.field, { key: r.field, label: r.field, type: 'ref', multi: true, ...(r.prerequisite ? { prerequisite: r.prerequisite } : {}), ...(r.part ? { part: r.part } : {}), ...(r.structure ? { structure: r.structure } : {}) });
     fields.set(k, m);
   }
+  /* 2026-11-09 — ein Textfeld mit Verweisen in andere Welten („@@handle:@name"): das Portal auf der Karte. */
+  const extra = opts.extraLine ?? null;
   const kinds = [...fields.entries()].map(([k, m]) => ({
     ref: kindRef(k), name: opts.kindNames?.get(k) ?? k, label: '{name}',
-    fields: [{ key: 'name', label: 'Name', type: 'line' }, { key: 'nr', label: 'Nr', type: 'number' }, ...m.values()]
+    fields: [{ key: 'name', label: 'Name', type: 'line' }, { key: 'nr', label: 'Nr', type: 'number' }, ...m.values(), ...(extra !== null && extra.kind === k ? [{ key: extra.key, label: extra.key, type: 'line' }] : [])]
   }));
   const cardsOf = new Map(input.cards.map((c) => [c.question, c]));
   const entities = input.entries.map((e) => {
@@ -57,7 +59,7 @@ function courseOf(name, prefix, input, opts = {}) {
         data: { form: 'one', prompt: e.label, options: ['Tak', 'Nie'], correct: [0], about: (c?.about ?? []).map(ref), ...(c?.explain?.length ? { explain: c.explain.map(ref) } : {}), ...(c?.needs?.length ? { needs: c.needs.map(ref) } : {}) }
       };
     }
-    const data = { name: e.label, ...(opts.props?.get(e.id) ?? {}) };
+    const data = { name: e.label, ...(opts.props?.get(e.id) ?? {}), ...(extra !== null && extra.values.has(e.id) ? { [extra.key]: extra.values.get(e.id) } : {}) };
     for (const r of e.refs) (data[r.field] ??= []).push(ref(r.to));
     return { ref: ref(e.id), kinds: [kindRef(k)], data };
   });
@@ -89,7 +91,7 @@ function courseOf(name, prefix, input, opts = {}) {
 }
 
 const fx = F.boskoWorld();
-await writeFile(join(outDir, 'fixture.json'), JSON.stringify(courseOf('Świat testowy — kształt Bosko', 'wmfx', fx.input, { placeKind: 'temat' })));
+await writeFile(join(outDir, 'fixture.json'), JSON.stringify(courseOf('Świat testowy — kształt Bosko', 'wmfx', fx.input, { placeKind: 'temat', extraLine: { kind: 'temat', key: 'swiaty', values: new Map([['comollo', '@@historia:@historia/rewolucja']]) } })));
 await writeFile(join(outDir, 'gen1000.json'), JSON.stringify(courseOf('Świat 1000 miejsc', 'wmg', F.generatedWorld({ places: 1000, stories: 40, seed: 11 }), { placeKind: 'topic' })));
 console.log('fixture.json, gen1000.json');
 

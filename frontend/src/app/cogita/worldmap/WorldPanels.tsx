@@ -217,7 +217,7 @@ export function SectionPanel({ id, ctx, onClose }: { id: string; ctx: PanelCtx; 
 /** Wie viele Orte der Reihenfolge das Feld zeigt (der Rest als Zahl). */
 const ORDER_SHOWN = 6;
 
-export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettings }: {
+export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettings, goal = null, worlds = null }: {
   id: string;
   ctx: PanelCtx;
   levels: ReadonlyMap<string, LevelProgress>;
@@ -226,6 +226,10 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
   /** „Moje ustawienia" (offen) und der Schalter dazu. */
   settings: ReactNode;
   onSettings: () => void;
+  /** „Ustaw jako cel" / „Zrezygnuj z tego celu" — wie im Krajobraz (das Ziel bleibt, die Navigation lebt nur in der Sitzung). */
+  goal?: { readonly isGoal: boolean; readonly set: () => void; readonly clear: () => void } | null;
+  /** Die Verweise dieses Ortes in andere Welten (`WorldsSection`) — nie eine Voraussetzung. */
+  worlds?: ReactNode;
 }) {
   const { state, t, act } = ctx;
   const place = state.world.places.get(id);
@@ -316,8 +320,11 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
         </div>
       )}
 
+      {worlds}
       <div className="wk-actions">
         {ctx.canLearn && !ps.conquered && <button type="button" className="wk-btn wk-btn-line" onClick={() => act.lead(id)} data-world-lead={id}>{t('cogitaWorld.panel.leadMe')}</button>}
+        {goal !== null && !ps.conquered && !goal.isGoal && <button type="button" className="wk-link-btn" onClick={goal.set} data-world-goal-set={id}>{t('cogitaLearn.words.setGoal')}</button>}
+        {goal !== null && goal.isGoal && <button type="button" className="wk-link-btn" onClick={goal.clear} data-world-goal-resign={id}>{t('cogitaLearn.landscape.resignGoal')}</button>}
         {ctx.canLearn && <button type="button" className="wk-link-btn" onClick={onSettings} data-world-my-settings="">{t('cogitaWorld.panel.mySettings')}</button>}
         {act.open !== undefined && <button type="button" className="wk-link-btn" onClick={() => act.open!(id)} data-world-open={id}>{t('cogitaWorld.panel.openEntry')}</button>}
       </div>

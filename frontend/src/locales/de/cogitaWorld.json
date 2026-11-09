@@ -92,6 +92,7 @@
       "other": "noch {count} Karten"
     },
     "conquered": "Erobert",
+    "conqueredNow": "Erobert: {names}",
     "noRoute": "Noch führt keine Linie vom Haus hierher",
     "fromHome": "Vom Haus:",
     "sections": {
@@ -108,7 +109,8 @@
     },
     "empty": "Noch keine Orte: ein Ort ist ein Thema, das Fragen in „about” nennen.",
     "computing": "Die Karte wird gelegt…",
-    "relay": "Die ganze Karte neu legen"
+    "relay": "Die ganze Karte neu legen",
+    "places": "Alle Orte ({count})"
   },
   "panel": {
     "close": "Schließen",

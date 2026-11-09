@@ -102,6 +102,7 @@
       "other": "jeszcze {count} karty"
     },
     "conquered": "Zdobyte",
+    "conqueredNow": "Zdobyte: {names}",
     "noRoute": "Żadna linia nie prowadzi tu jeszcze z domu",
     "fromHome": "Z domu:",
     "sections": {
@@ -124,7 +125,8 @@
     },
     "empty": "Jeszcze brak miejsc: miejsce to temat, który pytania wskazują w „about”.",
     "computing": "Układanie mapy…",
-    "relay": "Ułóż mapę od nowa"
+    "relay": "Ułóż mapę od nowa",
+    "places": "Wszystkie miejsca ({count})"
   },
   "panel": {
     "close": "Zamknij",

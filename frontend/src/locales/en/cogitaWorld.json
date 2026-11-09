@@ -92,6 +92,7 @@
       "other": "{count} cards to go"
     },
     "conquered": "Conquered",
+    "conqueredNow": "Conquered: {names}",
     "noRoute": "No line leads here from home yet",
     "fromHome": "From home:",
     "sections": {
@@ -108,7 +109,8 @@
     },
     "empty": "No places yet: a place is a topic that questions name in „about”.",
     "computing": "Laying out the map…",
-    "relay": "Re-lay the whole map"
+    "relay": "Re-lay the whole map",
+    "places": "All places ({count})"
   },
   "panel": {
     "close": "Close",
