@@ -78,5 +78,50 @@
     "serverOld": "Przebiegi będą możliwe po aktualizacji serwera.",
     "locked": "Najpierw niech każda karta pojawi się raz i zdobądź miejsca przed tym.",
     "saving": "Zapisywanie przebiegu…"
+  },
+  "map": {
+    "start": "Start",
+    "label": {
+      "one": "Mapa świata z {count} miejscem",
+      "few": "Mapa świata z {count} miejscami",
+      "many": "Mapa świata z {count} miejscami",
+      "other": "Mapa świata z {count} miejscami"
+    },
+    "zoomIn": "Przybliż",
+    "zoomOut": "Oddal",
+    "whole": "Cały świat",
+    "rotate": "Obróć",
+    "tilt": "Nachyl",
+    "height": "Wysokość {pct} %",
+    "cardsToGo": {
+      "one": "jeszcze {count} karta",
+      "few": "jeszcze {count} karty",
+      "many": "jeszcze {count} kart",
+      "other": "jeszcze {count} karty"
+    },
+    "conquered": "Zdobyte",
+    "noRoute": "Żadna linia nie prowadzi tu jeszcze z domu",
+    "fromHome": "Z domu:",
+    "sections": {
+      "one": "{count} odcinek",
+      "few": "{count} odcinki",
+      "many": "{count} odcinków",
+      "other": "{count} odcinka"
+    },
+    "fresh": {
+      "one": "{count} nowa",
+      "few": "{count} nowe",
+      "many": "{count} nowych",
+      "other": "{count} nowej"
+    },
+    "review": {
+      "one": "{count} do powtórki",
+      "few": "{count} do powtórki",
+      "many": "{count} do powtórki",
+      "other": "{count} do powtórki"
+    },
+    "empty": "Jeszcze brak miejsc: miejsce to temat, który pytania wskazują w „about”.",
+    "computing": "Układanie mapy…",
+    "relay": "Ułóż mapę od nowa"
   }
 }

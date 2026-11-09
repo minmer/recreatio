@@ -72,5 +72,40 @@
     "serverOld": "Durchgänge sind möglich, sobald der Server aktualisiert ist.",
     "locked": "Lass zuerst jede Karte einmal erscheinen und erobere die Orte davor.",
     "saving": "Der Durchgang wird gespeichert…"
+  },
+  "map": {
+    "start": "Start",
+    "label": {
+      "one": "Weltkarte mit {count} Ort",
+      "other": "Weltkarte mit {count} Orten"
+    },
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "whole": "Ganze Welt",
+    "rotate": "Drehen",
+    "tilt": "Neigen",
+    "height": "Höhe {pct} %",
+    "cardsToGo": {
+      "one": "noch {count} Karte",
+      "other": "noch {count} Karten"
+    },
+    "conquered": "Erobert",
+    "noRoute": "Noch führt keine Linie vom Haus hierher",
+    "fromHome": "Vom Haus:",
+    "sections": {
+      "one": "{count} Abschnitt",
+      "other": "{count} Abschnitte"
+    },
+    "fresh": {
+      "one": "{count} neu",
+      "other": "{count} neu"
+    },
+    "review": {
+      "one": "{count} zu wiederholen",
+      "other": "{count} zu wiederholen"
+    },
+    "empty": "Noch keine Orte: ein Ort ist ein Thema, das Fragen in „about” nennen.",
+    "computing": "Die Karte wird gelegt…",
+    "relay": "Die ganze Karte neu legen"
   }
 }

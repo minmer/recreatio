@@ -72,5 +72,40 @@
     "serverOld": "Runs will be possible once the server is updated.",
     "locked": "First let every card appear once and conquer the places before this one.",
     "saving": "Saving the run…"
+  },
+  "map": {
+    "start": "Start",
+    "label": {
+      "one": "World map with {count} place",
+      "other": "World map with {count} places"
+    },
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "whole": "Whole world",
+    "rotate": "Turn",
+    "tilt": "Tilt",
+    "height": "Height {pct} %",
+    "cardsToGo": {
+      "one": "{count} card to go",
+      "other": "{count} cards to go"
+    },
+    "conquered": "Conquered",
+    "noRoute": "No line leads here from home yet",
+    "fromHome": "From home:",
+    "sections": {
+      "one": "{count} section",
+      "other": "{count} sections"
+    },
+    "fresh": {
+      "one": "{count} new",
+      "other": "{count} new"
+    },
+    "review": {
+      "one": "{count} to review",
+      "other": "{count} to review"
+    },
+    "empty": "No places yet: a place is a topic that questions name in „about”.",
+    "computing": "Laying out the map…",
+    "relay": "Re-lay the whole map"
   }
 }

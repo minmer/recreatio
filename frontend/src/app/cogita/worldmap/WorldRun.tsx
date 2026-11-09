@@ -16,6 +16,7 @@ import type { CogitaLibrary } from '../store';
 import { attemptsText } from './WorldLevels';
 import { effectiveWorldFor } from './wmReview';
 import { finishRun, levelOf, runAnswer, runCard, runDone, startRun, type RunRecord, type RunSession } from './wmRuns';
+import './worldmap.css';
 
 export interface RunOutcome {
   readonly run: RunRecord;

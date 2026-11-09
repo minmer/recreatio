@@ -1,0 +1,45 @@
+/*
+ * 2026-11-09 — DIE WELTKARTE (cogita/worldmap/): die Bühne der Säulen, die Werkzeuge, die Blase und die Felder daneben.
+ * Farben nur aus den Variablen des Bildes (hell und dunkel): --wk-* und --cg-ls-*.
+ */
+
+.cg-wm-host { display: grid; gap: var(--wk-space-2); }
+.cg-wm-body { display: grid; gap: var(--wk-space-3); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 64rem) {
+  .cg-wm-body.has-side { grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem); align-items: start; }
+}
+.cg-wm-main { position: relative; display: grid; gap: var(--wk-space-2); min-width: 0; }
+
+.cg-wm { position: relative; }
+.cg-wm-stage { position: relative; width: 100%; height: min(72vh, 640px); min-height: 320px; border-radius: var(--wk-radius); overflow: hidden; background: var(--wk-surface); border: 1px solid var(--wk-line); }
+.cg-wm.is-compact .cg-wm-stage { height: min(52vh, 380px); min-height: 240px; }
+.cg-wm-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; outline: none; }
+.cg-wm-canvas:active { cursor: grabbing; }
+.cg-wm-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--wk-accent); }
+
+.cg-wm-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); margin-top: var(--wk-space-2); }
+.cg-wm-range { display: inline-flex; align-items: center; gap: var(--wk-space-1); font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.cg-wm-range input { width: 7.5rem; }
+
+.cg-wm-sliders { display: flex; flex-wrap: wrap; align-items: end; gap: var(--wk-space-2) var(--wk-space-4); }
+.cg-wm-sliders .wk-field { min-width: 12rem; flex: 1 1 12rem; max-width: 20rem; }
+.cg-world-pillar input[type='range'] { width: 100%; }
+
+/* Die Blase über einer Säule (Name, „noch N Karten", der Weg vom Haus). */
+.cg-wm-bubble {
+  position: absolute; z-index: 3; transform: translate(-50%, calc(-100% - 14px)); pointer-events: none;
+  display: grid; gap: 2px; max-width: 18rem; padding: var(--wk-space-2) var(--wk-space-3);
+  background: var(--wk-surface); color: var(--wk-ink); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--wk-ink) 18%, transparent); font-size: var(--wk-text-sm); line-height: 1.3;
+}
+.cg-wm-bubble strong { font-size: var(--wk-text-md); }
+
+/* Die Stufen einer Einstellung, ein Durchgang. */
+.cg-world-rule { border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); padding: var(--wk-space-2) var(--wk-space-3); margin: 0; }
+.cg-world-rule legend { padding: 0 var(--wk-space-1); font-weight: 600; font-size: var(--wk-text-sm); }
+.cg-world-run { display: grid; gap: var(--wk-space-2); }
+
+@media (max-width: 40rem) {
+  .cg-wm-stage { height: 62vh; min-height: 300px; }
+  .cg-wm-range input { width: 6rem; }
+}

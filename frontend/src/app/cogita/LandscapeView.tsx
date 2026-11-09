@@ -78,6 +78,7 @@ import type { RegionTree } from './regions';
 import { useT } from '../core/i18n';
 import { ProgressRing } from '../ui/ProgressRing';
 import './landscape.css';
+import { WorldLandscape } from './worldmap/WorldLandscape';
 
 /* -- Worte -------------------------------------------------------------------------------------------------------- */
 
@@ -331,7 +332,18 @@ interface TopicInfo {
   readonly mean: number;
 }
 
-export function LandscapeView({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope, busy = false }: LandscapeProps) {
+/**
+ * 2026-11-09 (Weltkarte, Entscheidung 2) — EIN WIDOK KRAJOBRAZ: das Sechseck (Vorgabe) oder, mit `landscape.style: "world"`,
+ * die Weltkarte in derselben Hülle.
+ */
+export function LandscapeView(props: LandscapeProps) {
+  if (props.view.landscape?.style === 'world') {
+    return <WorldLandscape view={props.view} cards={props.cards} learner={props.learner} viewKey={props.viewKey} {...(props.compact === undefined ? {} : { compact: props.compact })} {...(props.more === undefined ? {} : { more: props.more })} {...(props.onOpen === undefined ? {} : { onOpen: props.onOpen })} />;
+  }
+  return <HexLandscape {...props} />;
+}
+
+function HexLandscape({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope, busy = false }: LandscapeProps) {
   const { lib, writes, name: baseName, learnerLoading } = useCtx();
   const tr = useT();
   const lang = baseLang(lib);

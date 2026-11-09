@@ -14,6 +14,7 @@ import type { Learner } from '../learn';
 import type { CogitaLibrary } from '../store';
 import { effectiveWorldFor, leavingReviews, worldOf } from './wmReview';
 import { ATTEMPTS, DEFAULT_SETUP, defaultRules, levelsSetupDoc, MAX_LEVELS, PILLAR_MIN, type Attempts, type LevelRule, type LevelsSetup } from './wmRuns';
+import './worldmap.css';
 
 const ATTEMPT_KEY: Readonly<Record<Attempts, string>> = { any: 'cogitaWorld.settings.attemptsAny', one: 'cogitaWorld.settings.attemptsOne', first: 'cogitaWorld.settings.attemptsFirst' };
 export const attemptsText = (a: Attempts, t: T): string => t(ATTEMPT_KEY[a]);
