@@ -319,6 +319,8 @@ export function kindDoc(kind: KindDef): Record<string, unknown> {
       if (f.locator === true) out.locator = true;
       if (f.structure !== undefined) out.structure = f.structure;
       if (f.prerequisite !== undefined) out.prerequisite = f.prerequisite;
+      /* 2026-11-09 (Weltkarte) — ein Teil eines Blocks. */
+      if (f.part !== undefined) out.part = f.part;
       /* 2026-11-05 (Prompt 24) — ein Verweisfeld, das auch in andere Bazy zeigen darf ("@@historia:@…"). */
       if (f.external === true) out.external = true;
       if (f.when !== undefined) out.when = { field: f.when.field, values: [...f.when.values] };
