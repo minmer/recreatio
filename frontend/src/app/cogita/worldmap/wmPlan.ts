@@ -8,6 +8,9 @@
  *                   „direkt lernen"
  *                2. Durchgänge bis zur letzten Stufe — eine Stufe, die auf ihren Abstand wartet, steht als „ab <Datum>" da, und
  *                   der Plan geht mit dem nächsten Ort weiter, der nicht wartet; ohne Stufen: die Karten lernen, bis sie sitzen
+ *   je Schritt   `at`: ab wann er geht (Step 3 · 7). Der jetzige Schritt ist der erste mit at ≤ jetzt; ein wartender bleibt mit
+ *                seinem Datum in der Liste und IST der Durchgang seiner Stufe (kein zweiter Schritt später) — kommt sein Tag,
+ *                wird er (neu gerechnet: ein Durchgang mit demselben Schlüssel) der jetzige
  *   Abzweigung   je Fahrt die anderen Abschnitte, die dieselben Karten einführen (Folien, neue Karten, Wirkung auf die Summe)
  * </code>
  * Nach jeder Änderung des Lernstands neu gerechnet.
@@ -30,15 +33,18 @@ export interface Alternative {
   readonly delta: number;
 }
 
-export type PlanStep =
+/** Step 3 · 7 — `at`: ab wann der Schritt geht (≤ `Plan.now`: jetzt; ein wartender: sein Datum; später: wenn der Plan dort ist). */
+export type PlanStep = { readonly at: number } & (
   | { readonly kind: 'travel'; readonly place: string; readonly section: string; readonly cards: readonly string[]; readonly locked: boolean; readonly alternatives: readonly Alternative[] }
   | { readonly kind: 'learn'; readonly place: string; readonly cards: readonly string[] }
   | { readonly kind: 'run'; readonly place: string; readonly level: number }
   | { readonly kind: 'wait'; readonly place: string; readonly level: number; readonly from: number }
-  | { readonly kind: 'know'; readonly place: string; readonly cards: readonly string[] };
+  | { readonly kind: 'know'; readonly place: string; readonly cards: readonly string[] });
 
 export interface Plan {
   readonly target: string;
+  /** Wann gerechnet (der Massstab für `PlanStep.at`). */
+  readonly now: number;
   readonly places: readonly string[];
   readonly steps: readonly PlanStep[];
   /** Karten, die bis zum Ziel fehlen. */
@@ -111,6 +117,8 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   const introDone = new Set<string>();
   const waiting = new Set<string>();
   const gapOf = (lv: number) => Math.max(0, opts.gaps?.[lv - 1] ?? 0) * DAY;
+  /* Die Zeit, bei der der Plan gerade ist (er rückt nur vor, wenn nichts anderes mehr geht). */
+  let t = now;
 
   const introduce = (p: string) => {
     let open = (state.places.get(p)?.cards ?? []).filter((k) => !known(k));
@@ -128,7 +136,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       guard += 1;
       const list = candidates(open);
       const s = best(p, open, list);
-      if (s === null) { steps.push({ kind: 'learn', place: p, cards: open }); for (const k of open) introduced.add(k); break; }
+      if (s === null) { steps.push({ kind: 'learn', place: p, cards: open, at: t }); for (const k of open) introduced.add(k); break; }
       const covered = s.introduces.filter((k) => open.includes(k));
       const base = simCost(s);
       const alternatives: Alternative[] = list.filter((x) => x.id !== s.id && x.introduces.some((k) => open.includes(k))).map((x) => ({
@@ -140,7 +148,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       })).sort((a, b) => a.delta - b.delta || (a.section < b.section ? -1 : 1));
       const st = state.sections.get(s.id)!;
       const locked = st.ticket.missing.new.some((k) => !introduced.has(k)) || st.ticket.unknown;
-      steps.push({ kind: 'travel', place: p, section: s.id, cards: covered, locked, alternatives });
+      steps.push({ kind: 'travel', place: p, section: s.id, cards: covered, locked, alternatives, at: t });
       for (const k of s.introduces) introduced.add(k);
       if (covered.length === 0) break;
       open = open.filter((k) => !introduced.has(k));
@@ -148,7 +156,6 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
     settle();
   };
 
-  let t = now;
   for (let round = 0; round < 400; round += 1) {
     let progressed = false;
     let nextTime = Infinity;
@@ -157,7 +164,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       if (levels === 0) {
         if (!conquered(p) && !waiting.has(p)) {
           const cards = (state.places.get(p)?.cards ?? []).filter((k) => state.band(k) !== 'known');
-          steps.push({ kind: 'know', place: p, cards });
+          steps.push({ kind: 'know', place: p, cards, at: t });
           waiting.add(p);
           progressed = true;
         }
@@ -169,13 +176,14 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
         const next = (level.get(p) ?? 0) + 1;
         const prevAt = lastAt.get(p);
         const earliest = next > 1 && prevAt !== undefined ? prevAt + gapOf(next) : t;
+        const key = `${p}#${next}`;
         if (earliest > t) {
-          const key = `${p}#${next}`;
-          if (!waiting.has(key)) { steps.push({ kind: 'wait', place: p, level: next, from: earliest }); waiting.add(key); }
+          if (!waiting.has(key)) { steps.push({ kind: 'wait', place: p, level: next, from: earliest, at: earliest }); waiting.add(key); }
           nextTime = Math.min(nextTime, earliest);
           break;
         }
-        steps.push({ kind: 'run', place: p, level: next });
+        /* Step 3 · 7 — eine Stufe, die als „ab <Datum>" dasteht, ist dieser Durchgang: kein zweiter Schritt dafür. */
+        if (!waiting.has(key)) steps.push({ kind: 'run', place: p, level: next, at: t });
         level.set(p, next);
         lastAt.set(p, t);
         progressed = true;
@@ -189,17 +197,22 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   }
 
   const cards = order.reduce((sum, p) => sum + (state.places.get(p)?.missing ?? 0), 0);
-  return { target, places: order, steps, cards };
+  return { target, now, places: order, steps, cards };
 }
 
-/** Das Fenster des Fahrplans (§8.2): 2 erledigte darüber, der jetzige, 4 kommende. */
-export function timetableWindow<T>(done: readonly T[], upcoming: readonly T[], before = 2, after = 4): { readonly done: readonly T[]; readonly current: T | null; readonly next: readonly T[]; readonly hiddenAbove: number; readonly hiddenBelow: number } {
+/**
+ * Das Fenster des Fahrplans (§8.2): 2 erledigte darüber, der jetzige, 4 kommende. Step 3 · 7 — der jetzige ist der erste, der
+ * jetzt geht (`current`, ein Index in `upcoming`; -1: nichts geht jetzt); wartende davor bleiben mit ihrem Datum stehen.
+ */
+export function timetableWindow<T>(done: readonly T[], upcoming: readonly T[], current = 0, before = 2, after = 4): { readonly done: readonly T[]; readonly waiting: readonly T[]; readonly current: T | null; readonly next: readonly T[]; readonly hiddenAbove: number; readonly hiddenBelow: number } {
   const shown = done.slice(Math.max(0, done.length - before));
+  const at = current < 0 ? upcoming.length : Math.min(current, upcoming.length);
   return {
     done: shown,
-    current: upcoming[0] ?? null,
-    next: upcoming.slice(1, 1 + after),
+    waiting: upcoming.slice(0, at),
+    current: upcoming[at] ?? null,
+    next: upcoming.slice(at + 1, at + 1 + after),
     hiddenAbove: done.length - shown.length,
-    hiddenBelow: Math.max(0, upcoming.length - 1 - after)
+    hiddenBelow: Math.max(0, upcoming.length - at - 1 - after)
   };
 }

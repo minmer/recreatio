@@ -11,7 +11,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import type { T } from '../../core/i18n';
 import { attemptsText } from './WorldLevels';
 import { rgbCss, type LineColour } from './wmColors';
-import { stepKey, type Timetable } from './wmNav';
+import { currentIndex, stepKey, type Timetable } from './wmNav';
 import type { PlanStep } from './wmPlan';
 import { runGate, type LevelProgress, type LevelRule } from './wmRuns';
 import { reviewable, type SectionState, type WorldState } from './wmState';
@@ -388,8 +388,9 @@ function stepAction(step: PlanStep, ctx: PanelCtx): string | null {
     }
     case 'learn':
     case 'know': return t('cogitaWorld.panel.learnDirectlyN', { count: step.cards.length });
-    case 'run': return t('cogitaWorld.panel.startRun', { level: step.level });
-    case 'wait': return null;
+    /* Step 3 · 7 — eine wartende Stufe ist nur dann der jetzige Schritt, wenn ihr Tag gekommen ist: dann ist sie der Durchgang. */
+    case 'run':
+    case 'wait': return t('cogitaWorld.panel.startRun', { level: step.level });
   }
 }
 
@@ -429,18 +430,21 @@ export function NavPanel({ tt, ctx, rules, onChoose, onGo, onEnd }: {
 }) {
   const { t } = ctx;
   const all = tt.done.length + tt.upcoming.length;
+  /* Step 3 · 7 (spec §8.1) — der jetzige Schritt ist der erste, der jetzt geht; wartende bleiben mit ihrem Datum in der Liste. */
+  const cur = currentIndex(tt);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLOListElement | null>(null);
-  /* Das Fenster (§8.2): zwei erledigte darüber sichtbar, der Rest durch Blättern. */
+  /* Das Fenster (§8.2): zwei Zeilen über dem jetzigen Schritt sichtbar, der Rest durch Blättern. */
   useEffect(() => {
     const box = boxRef.current;
     const list = listRef.current;
     if (box === null || list === null) return;
-    const first = list.children[Math.max(0, tt.done.length - 2)] as HTMLElement | undefined;
+    const first = list.children[Math.max(0, tt.done.length + (cur < 0 ? 0 : cur) - 2)] as HTMLElement | undefined;
     if (first !== undefined) box.scrollTop = first.offsetTop;
-  }, [tt]);
+  }, [tt, cur]);
   const date = (at: number) => new Intl.DateTimeFormat(t.locale, { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(at));
-  const stop = (step: PlanStep, kind: 'done' | 'current' | 'next', key: string) => {
+  const opens = cur < 0 && tt.upcoming.length > 0 ? Math.min(...tt.upcoming.map((s) => s.at)) : null;
+  const stop = (step: PlanStep, kind: 'done' | 'current' | 'next' | 'wait', key: string) => {
     const meta = stepMeta(step, ctx, rules);
     const action = kind === 'current' && ctx.canLearn ? stepAction(step, ctx) : null;
     return (
@@ -459,13 +463,14 @@ export function NavPanel({ tt, ctx, rules, onChoose, onGo, onEnd }: {
     <section className="cg-wm-panel cg-wm-nav" data-world-panel="nav" data-world-nav-target={tt.target} data-world-nav-steps={all} data-world-nav-done={tt.done.length}>
       <PanelTop t={t} onClose={onEnd} title={<>⚑ {t('cogitaWorld.nav.target', { name: ctx.nameOf(tt.target) })}</>} />
       <p className="cg-wm-meta" data-world-nav-progress="">{t('cogitaWorld.nav.progress', { done: tt.done.length, all })} · {t('cogitaWorld.map.cardsToGo', { count: tt.cards })}</p>
+      {opens !== null && <p className="wk-note" data-world-nav-waits={opens}>{t('cogitaWorld.nav.waitAll', { date: date(opens) })}</p>}
       {tt.upcoming.length === 0
         ? <p className="wk-note" data-world-nav-arrived="">{t('cogitaWorld.nav.arrived', { name: ctx.nameOf(tt.target) })}</p>
         : (
-          <div ref={boxRef} className="cg-wm-tt" data-world-timetable="">
+          <div ref={boxRef} className="cg-wm-tt" data-world-timetable="" data-world-nav-current={cur}>
             <ol ref={listRef} className="cg-wm-ttlist">
               {tt.done.map((s, i) => stop(s, 'done', `d:${i}:${stepKey(s)}`))}
-              {tt.upcoming.map((s, i) => stop(s, i === 0 ? 'current' : 'next', `u:${stepKey(s)}`))}
+              {tt.upcoming.map((s, i) => stop(s, i === cur ? 'current' : s.kind === 'wait' ? 'wait' : 'next', `u:${stepKey(s)}`))}
             </ol>
           </div>
         )}

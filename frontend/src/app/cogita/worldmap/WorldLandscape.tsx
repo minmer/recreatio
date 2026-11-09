@@ -311,7 +311,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       return;
     }
     if (step.kind === 'learn' || step.kind === 'know') { startCards(step.cards, nameOf(step.place), false); return; }
-    if (step.kind === 'run') act.run(step.place);
+    /* Step 3 · 7 — eine wartende Stufe, deren Tag gekommen ist, ist ihr Durchgang. */
+    if (step.kind === 'run' || step.kind === 'wait') act.run(step.place);
   };
   const panel: PanelCtx = { state, t, canLearn: learner !== null, colours, nameOf, act };
   const issues = useMemo(() => (writes ? authorIssues(world, lines, geometry, regions, world.order) : []), [writes, world, lines, geometry, regions]);

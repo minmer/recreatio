@@ -296,12 +296,16 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   check('plan: places in topological order', pl.places, ['domkos', 'savio', 'warsz', 'magone']);
   const kinds = (p) => pl.steps.filter((s) => s.place === p).map((s) => s.kind);
   check('plan: each place is introduced before its runs', missing.map((p) => kinds(p).indexOf('travel') < kinds(p).indexOf('run')), [true, true, true, true]);
-  check('plan: three runs per place with three levels', missing.map((p) => pl.steps.filter((s) => s.kind === 'run' && s.place === p).map((s) => s.level)), [[1, 2, 3], [1, 2, 3], [1, 2, 3], [1, 2, 3]]);
+  /* Step 3 · 7 — ein Schritt je Stufe: ein Durchgang, oder (wartet die Stufe auf ihren Abstand) ein wartender Schritt mit Datum. */
+  const levelSteps = (p) => pl.steps.filter((s) => (s.kind === 'run' || s.kind === 'wait') && s.place === p);
+  check('plan: three levels per place with three levels — one step each (a run, or a wait with its date)', missing.map((p) => levelSteps(p).map((s) => s.level)), [[1, 2, 3], [1, 2, 3], [1, 2, 3], [1, 2, 3]]);
   const firstWait = pl.steps.find((s) => s.kind === 'wait');
   check('plan: a level that waits for its gap shows "from <date>"', [firstWait?.place, firstWait?.level, firstWait?.from - learner.now], ['domkos', 2, DAY]);
   const idx = (pred) => pl.steps.findIndex(pred);
-  check('plan: meanwhile it continues with the next place that is not waiting', idx((s) => s.kind === 'travel' && s.place === 'savio') < idx((s) => s.kind === 'run' && s.place === 'domkos' && s.level === 2), true);
-  check('plan: runs of a place wait until its prerequisites are conquered', idx((s) => s.kind === 'run' && s.place === 'savio') > idx((s) => s.kind === 'run' && s.place === 'domkos' && s.level === 3), true);
+  const at = (pred) => pl.steps.find(pred)?.at;
+  const domkosL = (l) => (s) => (s.kind === 'run' || s.kind === 'wait') && s.place === 'domkos' && s.level === l;
+  check('plan: meanwhile it continues with the next place that is not waiting (savio now, domkos L2 from tomorrow)', [at((s) => s.kind === 'travel' && s.place === 'savio') - learner.now, at(domkosL(2)) - learner.now], [0, DAY]);
+  check('plan: runs of a place wait until its prerequisites are conquered', [idx((s) => s.kind === 'run' && s.place === 'savio') > idx(domkosL(3)), at((s) => s.kind === 'run' && s.place === 'savio') >= at(domkosL(3))], [true, true]);
   check('plan: cards to go', pl.cards, missing.reduce((sum, p) => sum + world.places.get(p).cards.length, 0));
   const travelWarsz = pl.steps.find((s) => s.kind === 'travel' && s.place === 'warsz');
   check('plan: the cheapest section introduces the cards', travelWarsz.section, 'f/L1:14');
@@ -316,11 +320,15 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   const one = P.plan(S.stateOf(world, lines, learner, { levels: 1, knownShare: 1 }), 'magone');
   check('plan with 1 level: one run each, no waiting', [one.steps.filter((s) => s.kind === 'run').length, one.steps.some((s) => s.kind === 'wait')], [4, false]);
   const five = P.plan(S.stateOf(world, lines, F.fakeLearner({ knowness: know, levels: Object.fromEntries(Object.keys(levels).map((p) => [p, 5])) }), { levels: 5, knownShare: 1 }), 'magone', { gaps: [0, 1, 1, 2, 3] });
-  check('plan with 5 levels: five runs each, the gaps add up', [five.steps.filter((s) => s.kind === 'run' && s.place === 'magone').length, five.steps.filter((s) => s.kind === 'wait' && s.place === 'domkos').map((s) => s.from - learner.now)], [5, [DAY, 2 * DAY, 4 * DAY, 7 * DAY]]);
+  check('plan with 5 levels: five level steps each, the gaps add up', [five.steps.filter((s) => (s.kind === 'run' || s.kind === 'wait') && s.place === 'magone').length, five.steps.filter((s) => s.kind === 'wait' && s.place === 'domkos').map((s) => s.from - learner.now)], [5, [DAY, 2 * DAY, 4 * DAY, 7 * DAY]]);
   const noSlide = P.plan(S.stateOf(world, lines, F.fakeLearner({}), { levels: 0, knownShare: 1 }), 'w_kapl');
   check('plan: cards that no section introduces are learned directly', noSlide.steps.filter((s) => s.place === 'w_kapl').map((s) => s.kind), ['learn', 'know']);
   const win = P.timetableWindow([1, 2, 3, 4, 5], [6, 7, 8, 9, 10, 11, 12]);
   check('timetable: 2 done above, the current one, 4 upcoming', [win.done, win.current, win.next, win.hiddenAbove, win.hiddenBelow], [[4, 5], 6, [7, 8, 9, 10], 3, 2]);
+  const waitWin = P.timetableWindow([1, 2], ['w', 'c', 'n1', 'n2'], 1);
+  check('Step 3 · 7: the window around the first step that can be done now (waiting ones stay above it)', [waitWin.waiting, waitWin.current, waitWin.next, waitWin.hiddenBelow], [['w'], 'c', ['n1', 'n2'], 0]);
+  const allWait = P.timetableWindow([], ['w1', 'w2'], -1);
+  check('Step 3 · 7: nothing can be done now → no current step, everything waits', [allWait.waiting, allWait.current, allWait.next], [['w1', 'w2'], null, []]);
 }
 
 /* -- 400 besuchte Schritte: verliert die Kappung Abschnitte? (Korrektur 2) ------------------------------------------------------ */

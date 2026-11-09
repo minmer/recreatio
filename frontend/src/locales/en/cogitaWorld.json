@@ -185,6 +185,7 @@
     "learn": "Learn directly: {place}",
     "run": "Run for level {level}: {place}",
     "wait": "{place}: level {level} from {date}",
+    "waitAll": "Nothing to do on this route right now — the next step opens on {date}.",
     "know": "Learn until known: {place}",
     "locked": "needs cards first",
     "turnHint": "You can also turn here",

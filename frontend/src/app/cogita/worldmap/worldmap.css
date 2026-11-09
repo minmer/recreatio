@@ -101,6 +101,9 @@
 .cg-wm-stop.is-current { padding: var(--wk-space-2) var(--wk-space-2) var(--wk-space-3); margin: var(--wk-space-1) 0; border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); }
 .cg-wm-stop.is-current .cg-wm-stoptext { font-size: var(--wk-text-md); font-weight: 600; }
 .cg-wm-stop.is-current .cg-wm-stopdot { left: calc(-1 * var(--wk-space-5) + 0.1rem); top: 0.7rem; width: 0.95rem; height: 0.95rem; border-color: var(--wk-accent); background: var(--wk-accent); }
+/* Step 3 · 7 — ein wartender Halt (mit Datum) bleibt in der Liste, gestrichelt, bis sein Tag kommt. */
+.cg-wm-stop.is-wait .cg-wm-stoptext { color: var(--wk-muted); }
+.cg-wm-stop.is-wait .cg-wm-stopdot { border-style: dashed; }
 .cg-wm-turns { font-size: var(--wk-text-sm); }
 .cg-wm-turns > summary { cursor: pointer; color: var(--wk-accent); width: max-content; max-width: 100%; }
 .cg-wm-turns[open] > summary { margin-bottom: var(--wk-space-1); }

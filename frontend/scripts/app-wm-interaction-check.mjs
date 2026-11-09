@@ -115,6 +115,35 @@ const known = (places) => Object.fromEntries(places.flatMap((p) => world.places.
   delete globalThis.window;
 }
 
+/* -- Step 3 · 7: der Fahrplan hält nicht an einem wartenden Schritt (spec §8.1) -------------------------------------------------- */
+{
+  const DAY = P.DAY;
+  const NOW = Date.UTC(2026, 10, 9, 12);
+  const missing = ['warsz', 'savio', 'magone'];
+  const others = world.order.filter((p) => !missing.includes(p));
+  /* savio: Stufe 1 eben erreicht, seine Karten bekannt — Stufe 2 wartet einen Tag (der nächste Schritt beginnt woanders: domkos). */
+  const learnerAt = (now) => F.fakeLearner({ now, knowness: known([...others, 'savio']), levels: { ...Object.fromEntries(others.map((p) => [p, 3])), savio: 1 } });
+  const opts = { gaps: [0, 1, 1], reachedAt: (p, l) => (p === 'savio' && l === 1 ? NOW : undefined) };
+  const planAt = (now, target) => P.plan(S.stateOf(world, lines, learnerAt(now), { levels: 3, knownShare: 1 }), target, opts);
+  /* Der jetzige Schritt nach der alten Regel: der erste der Liste. */
+  const currentOf = (tt) => (typeof N.currentIndex === 'function' ? N.currentIndex(tt) : 0);
+  const pl = planAt(NOW, 'magone');
+  const tt = N.followPlan(null, pl);
+  check('Step 3 · 7: the plan begins with a waiting level (savio L2, from tomorrow)', [pl.steps[0].kind, pl.steps[0].place, pl.steps[0].level, pl.steps[0].from - NOW], ['wait', 'savio', 2, DAY]);
+  const doable = tt.upcoming.findIndex((s) => s.kind !== 'wait');
+  check('Step 3 · 7: the current step is the first that can be done now — not the waiting one', [currentOf(tt), tt.upcoming[currentOf(tt)]?.kind], [doable, 'travel']);
+  check('Step 3 · 7: the waiting step stays in the list, with its date', [tt.upcoming.slice(0, doable).map((s) => s.kind), tt.upcoming[0].from - NOW], [['wait'], DAY]);
+  check('Step 3 · 7: the pennant stands at the current step (domkos), not at the waiting one (savio)', [N.navMarks(tt, lines).start, N.stepPlace(tt.upcoming[doable], lines)], ['domkos', 'domkos']);
+  check('Step 3 · 7: a waiting level is one step (not listed again as a run later)', pl.steps.filter((s) => s.place === 'savio' && s.level === 2).map((s) => s.kind), ['wait']);
+  /* Der Tag kommt: derselbe Schritt, nun ein Durchgang, wird der jetzige; nichts gilt als erledigt. */
+  const tt2 = N.followPlan(tt, planAt(NOW + DAY + 60_000, 'magone'));
+  check('Step 3 · 7: when its date arrives, the waiting step becomes current (the same step, now a run), nothing marked done',
+    [tt2.done.length, tt2.upcoming[currentOf(tt2)]?.kind, N.stepKey(tt2.upcoming[currentOf(tt2)]) === N.stepKey(tt.upcoming[0])], [0, 'run', true]);
+  /* Alles wartet: kein jetziger Schritt, kein Wimpel — die Liste zeigt die Tage. */
+  const only = N.followPlan(null, planAt(NOW, 'savio'));
+  check('Step 3 · 7: when every step waits there is no current step and no pennant', [only.upcoming.map((s) => [s.kind, s.level]), currentOf(only), N.navMarks(only, lines).start], [[['wait', 2], ['wait', 3]], -1, null]);
+}
+
 /* -- Die Liste für Autoren ---------------------------------------------------------------------------------------------------- */
 {
   const broken = F.brokenWorld();

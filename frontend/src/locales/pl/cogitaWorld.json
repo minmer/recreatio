@@ -211,6 +211,7 @@
     "learn": "Ucz się bezpośrednio: {place}",
     "run": "Przebieg na poziom {level}: {place}",
     "wait": "{place}: poziom {level} od {date}",
+    "waitAll": "Na tej trasie nie ma teraz nic do zrobienia — następny krok od {date}.",
     "know": "Ucz się aż do opanowania: {place}",
     "locked": "najpierw potrzebne karty",
     "turnHint": "Tu możesz też skręcić",

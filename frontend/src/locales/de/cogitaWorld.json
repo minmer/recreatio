@@ -185,6 +185,7 @@
     "learn": "Direkt lernen: {place}",
     "run": "Durchgang für Stufe {level}: {place}",
     "wait": "{place}: Stufe {level} ab {date}",
+    "waitAll": "Auf diesem Weg ist gerade nichts zu tun — der nächste Schritt geht ab {date}.",
     "know": "Lernen, bis es sitzt: {place}",
     "locked": "braucht erst Karten",
     "turnHint": "Hier kannst du auch abbiegen",
