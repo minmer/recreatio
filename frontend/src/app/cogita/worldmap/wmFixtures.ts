@@ -393,6 +393,8 @@ export interface FakeLearner {
   readonly now?: number;
   /** Ausgesetzte Karten (Step 3 · 1). */
   readonly suspended?: readonly string[];
+  /** Orte mit einem Durchgang „Mistrzowsko". */
+  readonly perfect?: readonly string[];
 }
 
 export function fakeLearner(f: FakeLearner = {}): LearnerInput {
@@ -408,6 +410,7 @@ export function fakeLearner(f: FakeLearner = {}): LearnerInput {
     knowness: (card) => f.knowness?.[card] ?? 0,
     progress: (flow) => prog.get(flow),
     level: (place) => f.levels?.[place] ?? 0,
+    perfect: (place) => f.perfect?.includes(place) === true,
     ...(f.suspended === undefined ? {} : { suspended: ((set) => (card: string) => set.has(card))(new Set(f.suspended)) })
   };
 }

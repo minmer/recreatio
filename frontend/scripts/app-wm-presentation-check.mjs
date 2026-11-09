@@ -20,12 +20,13 @@ const workspace = await mkdtemp(join(tmpdir(), 'app-wm-presentation-'));
 const entries = {
   graph: 'src/app/cogita/worldmap/wmGraph.ts', lines: 'src/app/cogita/worldmap/wmLines.ts', state: 'src/app/cogita/worldmap/wmState.ts',
   geo: 'src/app/cogita/worldmap/wmGeometry.ts', scene: 'src/app/cogita/worldmap/wmScene.ts', colors: 'src/app/cogita/worldmap/wmColors.ts',
-  tracks: 'src/app/cogita/worldmap/wmTracks.ts', fx: 'src/app/cogita/worldmap/wmFixtures.ts', views: 'src/app/cogita/views.ts'
+  tracks: 'src/app/cogita/worldmap/wmTracks.ts', fx: 'src/app/cogita/worldmap/wmFixtures.ts', views: 'src/app/cogita/views.ts',
+  island: 'src/app/cogita/worldmap/wmIsland.ts', camera: 'src/app/cogita/worldmap/wmCamera.ts'
 };
 await build({ entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' }, define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) } });
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [G, L, S, GEO, SC, C, T, F, V] = await Promise.all(Object.keys(entries).map(load));
+const [G, L, S, GEO, SC, C, T, F, V, IS, CAM] = await Promise.all(Object.keys(entries).map(load));
 
 let failed = 0;
 let passed = 0;
@@ -88,11 +89,59 @@ for (const theme of ['light', 'dark']) {
   check('scene: a lane runs from its section\'s start to its end', [d0 < 120, d1 < 120], [true, true]);
   check('scene: lanes end at the FULL rim (the renderer adds the piece to the drawn rim)', Math.round(Math.hypot(a.points[a.points.length - 2] - to[0], a.points[a.points.length - 1] - to[1])) >= 27, true);
   const states = new Set(scene.lanes.map((l) => l.state));
-  check('scene: travelled, open and locked lanes', ['travelled', 'open', 'locked'].every((x) => states.has(x)), true);
+  /* 2026-11-09 (Eigentümer) — kräftig nur, was die Kenntnis weiterbringt; gefahren, leer und gesperrt leise und je anders. */
+  check('scene: lanes that grow knowledge, travelled, idle and locked lanes', ['grow', 'travelled', 'locked'].every((x) => states.has(x)), true);
+  const growOk = scene.lanes.filter((l) => l.state === 'grow').every((l) => state.sections.get(l.section).ticket.met && lines.sections.get(l.section).introduces.some((k) => state.band(k) !== 'known'));
+  check('scene: a "grow" lane is open and brings cards that are not known yet', growOk, true);
+  const knownAll = Object.fromEntries([...world.cards.keys()].map((k) => [k, 3]));
+  const st2 = S.stateOf(world, lines, F.fakeLearner({ knowness: knownAll }), { levels: 0, knownShare: 1 });
+  const sc2 = SC.sceneOf(world, lines, st2, geometry, { placeColour: () => [120, 140, 160], lineColour: lc, fallback: [100, 100, 100] });
+  check('scene: when every card is known, no open lane is prominent (they are idle)', [sc2.lanes.some((l) => l.state === 'grow'), sc2.lanes.some((l) => l.state === 'idle')], [false, true]);
+  check('scene: "Masterly" reaches the pillar', SC.sceneOf(world, lines, S.stateOf(world, lines, F.fakeLearner({ levels: { becchi: 3 }, perfect: ['becchi'] }), { levels: 3, knownShare: 1 }), geometry, { placeColour: () => [1, 1, 1], lineColour: lc, fallback: [1, 1, 1] }).byId.get('becchi').perfect, true);
   check('scene: a locked lane carries the lock of its missing condition', scene.lanes.filter((l) => l.state === 'locked').every((l) => ['knowledge', 'review', 'story', 'value', 'time', 'place', 'unknown'].includes(l.symbol)), true);
   check('scene: stations are marked', scene.places.filter((p) => p.station).length, [...lines.stations.keys()].filter((k) => k !== '~home').length);
   check('scene: home is placed', scene.home !== null, true);
   check('scene: levels on the rim (3 configured), the dot only on conquered places', [scene.places.every((p) => p.levels === 3), scene.places.filter((p) => p.dot !== null).every((p) => p.conquered)], [true, true]);
+}
+
+/* -- Die Insel (2026-11-09, Eigentümer): Land unter jeder Säule, Bäume nie auf Säulen oder Gleisen ------------------------ */
+{
+  const lc = C.lineColours(lines, 'light');
+  const scene = SC.sceneOf(world, lines, state, geometry, { placeColour: () => [120, 140, 160], lineColour: lc, fallback: [100, 100, 100] });
+  const isl = IS.islandOf({ places: scene.places, home: scene.home, tracks: scene.tracks });
+  const onLand = (x, y) => isl.land.some(([cx, cy, r]) => Math.hypot(x - cx, y - cy) < r - IS.BEACH);
+  check('island: every pillar stands on land', scene.places.every((p) => onLand(p.x, p.y)), true);
+  check('island: there are trees, at most MAX_TREES', [isl.trees.length > 20, isl.trees.length <= IS.MAX_TREES], [true, true]);
+  check('island: no tree on a pillar or its ring', isl.trees.every(([x, y]) => scene.places.every((p) => Math.hypot(x - p.x, y - p.y) >= p.r * 1.25 + 9)), true);
+  const seg = (px, py, ax, ay, bx, by) => { const l2 = (bx - ax) ** 2 + (by - ay) ** 2; const k = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / l2)); return Math.hypot(px - (ax + (bx - ax) * k), py - (ay + (by - ay) * k)); };
+  check('island: no tree on a track', isl.trees.every(([x, y]) => scene.tracks.every((t) => { for (let i = 2; i < t.points.length; i += 2) if (seg(x, y, t.points[i - 2], t.points[i - 1], t.points[i], t.points[i + 1]) < IS.TREE_CLEAR - 0.01) return false; return true; })), true);
+  check('island: the same world, the same trees', JSON.stringify(IS.islandOf({ places: scene.places, home: scene.home, tracks: scene.tracks }).trees) === JSON.stringify(isl.trees), true);
+
+  /* Die Kamera (Step 3 §2.7, §2.8). */
+  const disks = scene.places.map((p) => ({ x: p.x, y: p.y, r: p.r }));
+  for (const [w, h] of [[1200, 640], [390, 640]]) {
+    const cam = CAM.fitView(disks, w, h, -20, Math.sin(50 * Math.PI / 180));
+    const v = CAM.viewOf(cam, w, h);
+    const pts = disks.map((d) => CAM.toScr(v, d.x, d.y, 0));
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const used = Math.max((Math.max(...xs) - Math.min(...xs)) / w, (Math.max(...ys) - Math.min(...ys)) / h);
+    check(`camera ${w}×${h}: "whole world" fits every pillar and fills the frame (${Math.round(used * 100)} %)`, [xs.every((x) => x >= 0 && x <= w), ys.every((y) => y >= 0 && y <= h), used > 0.7], [true, true, true]);
+  }
+  const tall = CAM.stageHeightFor(disks, 390, -20, Math.sin(50 * Math.PI / 180), 260, 900);
+  check('camera: on a phone the stage height follows the world (not a fixed 62 vh)', tall >= 260 && tall <= 900, true);
+  const zmax = CAM.maxZoom(disks, 1, 1200, 640);
+  check('camera: zoom-in stops when a pillar is a third of the view', Math.round(2 * Math.max(...disks.map((d) => d.r)) * zmax), Math.round(640 / 3));
+  const v0 = CAM.viewOf({ s: 1, cx: disks[0].x, cy: disks[0].y, rot: 0, fore: 0.8 }, 800, 600);
+  const [px, py] = CAM.toScr(v0, disks[0].x, disks[0].y, 0);
+  check('camera: zooming in near a place zooms towards it; far from all, towards the pointer', [CAM.zoomAnchor(v0, disks, px + 30, py + 10).map(Math.round), CAM.zoomAnchor(v0, [], 5, 5)], [[Math.round(px), Math.round(py)], [5, 5]]);
+}
+
+/* -- Die Steuerung (2026-11-09, Eigentümer): Strg statt Umschalt, nach unten ziehen neigt nach unten, Doppelklick führt hin -- */
+{
+  const src = (await readFile('src/app/cogita/worldmap/WorldPillars.tsx', 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '');
+  check('controls: Ctrl (or the right button) turns and tilts — not Shift', [/turn: e\.ctrlKey \|\| e\.metaKey \|\| e\.button === 2/.test(src), /shiftKey/.test(src)], [true, false]);
+  check('controls: dragging down tilts down (fore grows with dy)', /fore: dr\.cam\.fore \+ dy \* 0\.004/.test(src), true);
+  check('controls: a double click (or double tap) on a pillar leads there', /onLead\(id\)/.test(src) && /now - last\.at < 380/.test(src), true);
 }
 
 /* -- Namen erst nah; Höhe; die Gestalt des Widoku ---------------------------------------------------------------------------- */

@@ -34,9 +34,16 @@ export interface ScenePlace {
   readonly level: number;
   readonly dot: 'green' | 'yellow' | 'orange' | null;
   readonly station: boolean;
+  /** „Mistrzowsko" — ein Stern auf der Säule. */
+  readonly perfect: boolean;
 }
 
-export type LaneState = 'travelled' | 'open' | 'locked';
+/**
+ * 2026-11-09 (Eigentümer) — WAS EIN WEG JETZT FÜR DICH IST. Kräftig nur, was die Kenntnis weiterbringt (`grow`: offen, und er
+ * bringt Karten, die noch nicht sitzen). Alles andere leise, und jedes anders: `travelled` (schon gefahren), `idle` (offen,
+ * bringt nichts Neues), `locked` (noch nicht erreichbar).
+ */
+export type LaneState = 'grow' | 'travelled' | 'idle' | 'locked';
 
 export interface SceneLane {
   readonly section: string;
@@ -87,7 +94,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       id, label: p.label, x: pos[0], y: pos[1], r: g.radii[id] ?? 28, ...(p.block === undefined ? {} : { block: p.block }),
       color: opts.placeColour(id), sat: st?.saturation ?? 'never', missing: st?.height ?? p.cards.length, total: p.cards.length,
       conquered: st?.conquered === true, levels: state.settings.levels, level: st?.level ?? 0, dot: st?.dot ?? null,
-      station: lines.stations.has(id)
+      station: lines.stations.has(id), perfect: st?.perfect === true
     });
   }
   const byId = new Map(places.map((p) => [p.id, p] as const));
@@ -119,7 +126,8 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
     const a = nodeOf(s.from), b = nodeOf(s.to);
     const st = state.sections.get(s.id);
     const colour = opts.lineColour.get(s.line);
-    const laneState: LaneState = st?.travelled === true ? 'travelled' : st?.ticket.met === true ? 'open' : 'locked';
+    const laneState: LaneState = st?.travelled === true ? 'travelled' : st?.ticket.met !== true ? 'locked'
+      : s.introduces.some((k) => state.band(k) !== 'known') ? 'grow' : 'idle';
     let points: number[];
     if (a === b) {
       /* Zwischen zwei Teilen desselben Blocks: gerade über die Scheibe. */

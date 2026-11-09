@@ -454,6 +454,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
         <span>{p.conquered ? t('cogitaWorld.map.conquered') : t('cogitaWorld.map.cardsToGo', { count: p.missing })}</span>
         {sum === null ? <span className="cg-muted">{t('cogitaWorld.map.noRoute')}</span>
           : <span className="cg-muted">{t('cogitaWorld.map.fromHome')} {t('cogitaWorld.map.sections', { count: sum.sections })} · {t('cogitaWorld.map.fresh', { count: sum.fresh })} · {t('cogitaWorld.map.review', { count: sum.review })}</span>}
+        {!p.conquered && <span className="cg-muted">{t('cogitaWorld.map.leadHint')}</span>}
       </div>
     );
   })();
@@ -540,7 +541,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
               onHover={(id, at) => setHover(id === null || at === null ? null : { id, x: at.x, y: at.y })}
               onPick={(id) => setChosen(id === null ? null : { kind: 'place', id })}
               onPickLane={(id) => setChosen({ kind: 'section', id })}
-              onPickHome={() => setChosen({ kind: 'home', id: HOME })} />}
+              onPickHome={() => setChosen({ kind: 'home', id: HOME })}
+              onLead={(id) => { lead(id); setChosen({ kind: 'place', id }); }} />}
           {bubble}
           {shownMode === 'due' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="due">{T.nothingDue}</div>}
           {shownMode === 'discover' && lit !== null && lit.size === 0 && <div className="cg-wm-note" role="status" data-world-note="discover">{T.nothingReady}</div>}

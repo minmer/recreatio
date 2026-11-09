@@ -1,10 +1,12 @@
 /**
  * 2026-11-09 — DIE WELTKARTE ZEICHNEN (spec §4): Canvas 2D, orthografisch, mit der Kamera der Landschaft (`WorldCam`: Mitte,
- * Zoom, Drehung, Neigung) — stufenlos drehbar (Regler, Umschalt+Ziehen, zwei Finger), Neigung 25°–88°, die Mitte des Bildes
- * bleibt beim Drehen und Neigen stehen.
+ * Zoom, Drehung, Neigung) — stufenlos drehbar (Regler, Strg+Ziehen oder rechte Taste, zwei Finger; nach unten ziehen neigt nach
+ * unten), Neigung 25°–88°, die Mitte des Bildes bleibt beim Drehen und Neigen stehen. Doppelklick auf eine Säule: „Prowadź mnie
+ * tutaj". Hineinzoomen höchstens, bis eine Säule ein Drittel des Bildes ist, und zum nächsten Ort hin.
  * <code>
- *   Boden    Insel, Scheiben der Blöcke, Gleise mit ihren Spuren, Pfeile, Schlösser, Tore, Umsteigeringe, das Haus — EINMAL je
- *            Stand in ein Bild gerastert (Weltkoordinaten) und je Bild mit einer affinen Abbildung gezeichnet
+ *   Boden    Wasser, die Insel mit Strand und Bäumen (`wmIsland.ts`), Scheiben der Blöcke, die Spuren, Umsteigeringe, das Haus —
+ *            EINMAL je Stand in ein Bild gerastert (Weltkoordinaten) und je Bild mit einer affinen Abbildung gezeichnet.
+ *            Kräftig nur Wege, die die Kenntnis weiterbringen; gefahrene, leere und gesperrte leise, jede Art anders
  *   Säulen   von hinten nach vorn; Farbe = Thema, der Stand nur als Sättigung; Höhe = was fehlt; Stufen als Bögen am Rand;
  *            der Punkt der Kenntnis nur auf eroberten; was fern ist, wird blasser — nie durchsichtig
  *   Namen    nur nah: sichtbar, wenn r_px > 24 + 0,32 · h_px; nie übereinander, die niedrigere Säule gewinnt
@@ -20,16 +22,30 @@ import { placeLabels, type LabelCandidate, type WorldCam } from '../worldView';
 import { mix, rgbCss, type Rgb } from './wmColors';
 import type { LockSymbol } from './wmConditions';
 import { nameCovered, pickAt, pickGrid, type DrawnPillar, type PickGrid } from './wmPick';
+import { depth, fitView, FORE_HIGH, FORE_LOW, maxZoom, stageHeightFor, toGrd, toScr, viewOf, zoomAnchor, type View } from './wmCamera';
+import { BEACH, islandOf } from './wmIsland';
 import { showsName, type Scene, type ScenePlace, type SceneLane } from './wmScene';
 import { pillarHeight } from './wmState';
 import { clamp01, DOT_OF, easeInOut, FLASH_MS, PTS_MS, scheduleOf, type PlaySchedule, type WorldPlayback } from './wmViews';
 
-/** Neigung als Stauchung des Bodens: sin(25°) bis sin(88°). */
-export const FORE_LOW = Math.sin((25 * Math.PI) / 180);
-export const FORE_HIGH = Math.sin((88 * Math.PI) / 180);
+export { FORE_HIGH, FORE_LOW } from './wmCamera';
 const FORE_FIRST = Math.sin((50 * Math.PI) / 180);
 /** Ab diesem Zoom (Bildpunkte je Einheit) sind Vertiefungen zu sehen. */
 const DEEP_FROM = 0.32;
+/** Die Namen: Schrift und grösste Breite (Bildpunkte; länger: gekürzt mit „…"). */
+const NAME_FONT = '600 12px system-ui, sans-serif';
+export const NAME_MAX = 200;
+
+/** Ein Text, gekürzt auf eine Breite (gemessen). */
+export function fitText(ctx: Pick<CanvasRenderingContext2D, 'measureText'>, text: string, max: number): string {
+  if (ctx.measureText(text).width <= max) return text;
+  let lo = 0, hi = text.length;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (ctx.measureText(`${text.slice(0, mid).trimEnd()}…`).width <= max) lo = mid; else hi = mid - 1; }
+  return `${text.slice(0, lo).trimEnd()}…`;
+}
+
+/** Ab diesem Zoom tragen gesperrte Wege ihr Schloss (fern bleibt die Karte ruhig). */
+const LOCKS_FROM = 0.9;
 
 export interface PillarsHandle {
   /** Die ganze Welt ins Bild. */
@@ -69,6 +85,8 @@ export interface PillarsProps {
   readonly onPick?: (place: string | null) => void;
   readonly onPickLane?: (section: string) => void;
   readonly onPickHome?: () => void;
+  /** Doppelklick (Doppeltippen) auf eine Säule: „Prowadź mnie tutaj". */
+  readonly onLead?: (place: string) => void;
   readonly compact?: boolean;
   /** Die Ansicht („Co umiem", „Do odkrycia", …): nur diese Orte farbig, die anderen grau und deckend. `null`: alle. */
   readonly lit?: ReadonlySet<string> | null;
@@ -92,6 +110,14 @@ interface Palette {
   /** Die Farbe des Ziels (wie die Fahne im Krajobraz). */
   readonly goal: Rgb;
   readonly dark: boolean;
+  /** Das Gelände: Wasser, Strand, Land, Bäume (Krone und ihr Schatten). */
+  readonly water: Rgb;
+  readonly sand: Rgb;
+  readonly land: Rgb;
+  readonly tree: Rgb;
+  readonly treeShade: Rgb;
+  /** Die Farbe des Sterns „Mistrzowsko". */
+  readonly star: Rgb;
 }
 
 const parse = (v: string): Rgb => {
@@ -125,7 +151,13 @@ function readPalette(el: HTMLElement): Palette {
     haze: mix(surface, floor, 0.5),
     lit: parse(cs.getPropertyValue('--cg-ls-route').trim() || '#b07800'),
     casing: mix(floor, ink, dark ? 0.24 : 0.14),
-    goal: parse(cs.getPropertyValue('--cg-ls-goal').trim() || (dark ? '#6aaeff' : '#2f7fd0'))
+    goal: parse(cs.getPropertyValue('--cg-ls-goal').trim() || (dark ? '#6aaeff' : '#2f7fd0')),
+    water: dark ? mix(surface, [40, 78, 110], 0.55) : mix(surface, [150, 196, 222], 0.6),
+    sand: dark ? mix(floor, [92, 80, 56], 0.55) : mix(floor, [236, 220, 178], 0.7),
+    land: dark ? mix(floor, [44, 64, 40], 0.45) : mix(floor, [204, 222, 178], 0.45),
+    tree: dark ? [62, 104, 62] : [110, 158, 96],
+    treeShade: dark ? [34, 58, 36] : [76, 116, 70],
+    star: dark ? [244, 196, 64] : [214, 158, 20]
   };
 }
 
@@ -164,22 +196,6 @@ function keptCam(k: string): WorldCam | null {
 }
 function keepCam(k: string, c: WorldCam): void { try { localStorage.setItem(camKey(k), JSON.stringify(c)); } catch { /* ohne Speicher */ } }
 
-/** Die Abbildung: Boden (x, y, Höhe z) → Schirm. */
-interface View { readonly ca: number; readonly sa: number; readonly fore: number; readonly lift: number; readonly s: number; readonly ox: number; readonly oy: number; readonly cx: number; readonly cy: number }
-const viewOf = (c: WorldCam, w: number, h: number): View => {
-  const a = (c.rot * Math.PI) / 180;
-  const fore = Math.max(FORE_LOW, Math.min(FORE_HIGH, c.fore));
-  return { ca: Math.cos(a), sa: Math.sin(a), fore, lift: Math.sqrt(Math.max(0, 1 - fore * fore)), s: c.s, ox: w / 2, oy: h / 2, cx: c.cx, cy: c.cy };
-};
-const toScr = (v: View, x: number, y: number, z = 0): [number, number] => {
-  const dx = x - v.cx, dy = y - v.cy;
-  return [v.ox + (dx * v.ca - dy * v.sa) * v.s, v.oy - (dx * v.sa + dy * v.ca) * v.fore * v.s - z * v.lift * v.s];
-};
-const toGrd = (v: View, sx: number, sy: number): [number, number] => {
-  const rx = (sx - v.ox) / v.s, ry = -(sy - v.oy) / (v.fore * v.s);
-  return [v.cx + rx * v.ca + ry * v.sa, v.cy - rx * v.sa + ry * v.ca];
-};
-const depth = (v: View, x: number, y: number) => -(x * v.sa + y * v.ca);
 
 /** Ein Punkt in `t` (0–1) entlang einer Linie, mit ihrer Richtung. */
 function along(p: readonly number[], t: number): { x: number; y: number; a: number } {
@@ -267,6 +283,19 @@ function drawFlag(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 /** Das Gabelzeichen an einem Umsteigeort, an dem man abbiegen kann (§8.3). */
+/** Ein fünfzackiger Stern (Schirmpunkte, deckend). */
+function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill: string, edge: string): void {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i += 1) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rr = i % 2 === 0 ? r : r * 0.45;
+    if (i === 0) ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); else ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = edge; ctx.lineWidth = 1; ctx.stroke();
+}
+
 function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Palette): void {
   ctx.save();
   ctx.fillStyle = rgbCss(pal.surface);
@@ -278,7 +307,7 @@ function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Pale
 }
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, compact = false,
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, onLead, compact = false,
     lit = null, portals = null, goal = null, playback = null, onPlayback } = props;
   const motion = useMotion();
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -294,11 +323,15 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [palette, setPalette] = useState<Palette | null>(null);
-  const fitCam = useCallback((w: number, h: number, rot = -20, fore = FORE_FIRST): WorldCam => {
-    const e = scene.extent;
-    const s = Math.max(0.02, Math.min((w - 24) / (2 * e.radius), (h - 24) / (2 * e.radius * fore + e.radius * 0.3)));
-    return { s, cx: e.cx, cy: e.cy, rot, fore };
-  }, [scene.extent]);
+  /* Die Scheiben der Welt (Säulen und Haus) — für Einpassen und Zoomgrenze. */
+  const disks = useMemo(() => [...scene.places.map((p) => ({ x: p.x, y: p.y, r: p.r })), ...(scene.home === null ? [] : [scene.home])], [scene]);
+  /* Step 3 §2.8 — eingepasst nach der gedrehten, geneigten Gestalt (nicht nach einem Kreis). */
+  const fitCam = useCallback((w: number, h: number, rot = -20, fore = FORE_FIRST): WorldCam => fitView(disks, w, h, rot, fore), [disks]);
+  /* Auf einem schmalen Schirm folgt die Höhe des Bildes der Gestalt der Welt (sonst bliebe es halb leer). */
+  const narrow = size.w > 0 && size.w < 640;
+  const stageH = narrow ? stageHeightFor(disks, size.w, -20, FORE_FIRST, 260, Math.round(window.innerHeight * 0.75)) : null;
+  const zoomMax = useRef(40);
+  zoomMax.current = size.w === 0 ? 40 : maxZoom(disks, pillarWidth, size.w, size.h);
   const camRef = useRef<WorldCam | null>(keptCam(memoryKey));
   const groundRef = useRef<GroundLayer | null>(null);
   const drawnRef = useRef<DrawnPillar[]>([]);
@@ -324,7 +357,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   }, []);
 
   const setCam = useCallback((c: WorldCam) => {
-    const next = { ...c, fore: Math.max(FORE_LOW, Math.min(FORE_HIGH, c.fore)), s: Math.max(0.01, Math.min(40, c.s)) };
+    const next = { ...c, fore: Math.max(FORE_LOW, Math.min(FORE_HIGH, c.fore)), s: Math.max(0.01, Math.min(zoomMax.current, c.s)) };
     camRef.current = next;
     setCamState(next);
     window.clearTimeout(settle.current);
@@ -338,6 +371,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
 
   /* Der Boden: einmal je Stand, Breite, Farben und Ausschnitt gerastert. */
   const stampOf = useMemo(() => `${scene.lanes.length}:${scene.places.length}:${pillarWidth.toFixed(3)}`, [scene, pillarWidth]);
+  /* Die Insel und ihre Bäume: einmal je Stand. */
+  const island = useMemo(() => islandOf({ places: scene.places, home: scene.home, tracks: scene.tracks }), [scene]);
   const sceneId = useRef(0);
   const lastScene = useRef<Scene | null>(null);
   if (lastScene.current !== scene) { lastScene.current = scene; sceneId.current += 1; groundRef.current = null; }
@@ -359,37 +394,55 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (g === null) return null;
     g.setTransform(k, 0, 0, k, -x0 * k, -y0 * k);
     const px = 1 / v.s;
-    /* Die Insel. */
-    g.fillStyle = rgbCss(pal.floor);
-    g.beginPath(); g.arc(e.cx, e.cy, e.radius + 70, 0, Math.PI * 2); g.fill();
+    /* Das Wasser, der Strand, das Land (die Insel folgt der Gestalt der Welt) und die Bäume. */
+    g.fillStyle = rgbCss(pal.water);
+    g.fillRect(x0, y0, x1 - x0, y1 - y0);
+    g.fillStyle = rgbCss(pal.sand);
+    for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2], 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = rgbCss(pal.land);
+    for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], Math.max(1, d[2] - BEACH), 0, Math.PI * 2); g.fill(); }
+    for (const [tx, ty, ts] of island.trees) {
+      g.fillStyle = rgbCss(pal.treeShade);
+      g.beginPath(); g.arc(tx + ts * 0.35, ty + ts * 0.3, ts, 0, Math.PI * 2); g.fill();
+      g.fillStyle = rgbCss(pal.tree);
+      g.beginPath(); g.arc(tx, ty, ts * 0.86, 0, Math.PI * 2); g.fill();
+    }
     /* Scheiben der Blöcke, knapp über dem Boden. */
     for (const b of scene.blocks) {
       g.fillStyle = rgbCss(pal.floorDeep);
       g.beginPath(); g.arc(b.x, b.y, b.r, 0, Math.PI * 2); g.fill();
       g.strokeStyle = rgbCss(pal.casing); g.lineWidth = 2 * px; g.stroke();
     }
-    /* Gleise: das Bett unter den Spuren. */
+    /*
+      Die Spuren (2026-11-09, Eigentümer): kräftig nur, was die Kenntnis weiterbringt — mit Bett, Richtung und Toren. Leise und
+      je anders: gefahren (dünn, in der Farbe der Linie), leer (dünner, grau), gesperrt (gestrichelt; das Schloss erst nah).
+    */
     g.lineCap = 'round'; g.lineJoin = 'round';
-    for (const tr of scene.tracks) {
-      g.strokeStyle = rgbCss(pal.casing);
-      g.lineWidth = Math.max(8, 8 + 5 * (tr.lanes - 1)) * (deep ? 1 : 0.8);
-      g.beginPath();
-      for (let i = 0; i < tr.points.length; i += 2) { if (i === 0) g.moveTo(tr.points[0], tr.points[1]); else g.lineTo(tr.points[i], tr.points[i + 1]); }
-      g.stroke();
-    }
-    /* Die Spuren: befahren voll, offen etwas gedämpft, gesperrt gestrichelt und blass. */
-    for (const lane of scene.lanes) {
-      if (lane.deep && !deep) continue;
+    const path = (pts: readonly number[]) => { g.beginPath(); for (let i = 0; i < pts.length; i += 2) { if (i === 0) g.moveTo(pts[0], pts[1]); else g.lineTo(pts[i], pts[i + 1]); } };
+    const quiet = scene.lanes.filter((l) => l.state !== 'grow' && !(l.deep && !deep));
+    const grow = scene.lanes.filter((l) => l.state === 'grow' && !(l.deep && !deep));
+    for (const lane of quiet) {
       const pts = withRims(lane, pillarWidth);
-      const colour = lane.state === 'travelled' ? lane.color : lane.state === 'open' ? mix(lane.color, pal.floor, 0.2) : mix(lane.color, pal.floor, 0.55);
-      g.strokeStyle = rgbCss(colour);
-      g.lineWidth = (lane.state === 'travelled' ? 3.4 : lane.state === 'open' ? 2.4 : 2) * px;
-      g.setLineDash(lane.state === 'locked' ? [6 * px, 5 * px] : []);
-      g.beginPath();
-      for (let i = 0; i < pts.length; i += 2) { if (i === 0) g.moveTo(pts[0], pts[1]); else g.lineTo(pts[i], pts[i + 1]); }
+      const grey = mix(pal.ink, pal.land, 0.5);
+      g.strokeStyle = rgbCss(lane.state === 'travelled' ? mix(lane.color, pal.land, 0.5) : lane.state === 'idle' ? mix(mix(lane.color, grey, 0.6), pal.land, 0.55) : mix(lane.color, pal.land, 0.62));
+      g.lineWidth = (lane.state === 'travelled' ? 1.8 : 1.2) * px;
+      g.setLineDash(lane.state === 'locked' ? [3 * px, 5 * px] : []);
+      path(pts);
       g.stroke();
       g.setLineDash([]);
-      /* Die Richtung in der Mitte jedes Abschnitts. */
+      if (lane.state === 'locked' && lane.symbol !== null && v.s >= LOCKS_FROM) {
+        const at = along(pts, 0.2);
+        drawLock(g, at.x, at.y, 4.5 * px, lane.symbol, rgbCss(mix(lane.color, pal.land, 0.3)), rgbCss(pal.land));
+      }
+    }
+    for (const lane of grow) { g.strokeStyle = rgbCss(pal.casing); g.lineWidth = 7 * px; path(withRims(lane, pillarWidth)); g.stroke(); }
+    for (const lane of grow) {
+      const pts = withRims(lane, pillarWidth);
+      g.strokeStyle = rgbCss(lane.color);
+      g.lineWidth = 3.2 * px;
+      path(pts);
+      g.stroke();
+      /* Die Richtung in der Mitte. */
       const m = along(pts, 0.55);
       const al = 4.5 * px;
       g.beginPath();
@@ -397,23 +450,14 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       g.lineTo(m.x + Math.cos(m.a) * al * 0.8, m.y + Math.sin(m.a) * al * 0.8);
       g.lineTo(m.x - Math.cos(m.a) * al + Math.sin(m.a) * al, m.y - Math.sin(m.a) * al - Math.cos(m.a) * al);
       g.lineWidth = 1.8 * px;
-      g.strokeStyle = rgbCss(lane.state === 'locked' ? mix(lane.color, pal.floor, 0.4) : lane.color);
       g.stroke();
-      if (lane.state === 'locked' && lane.symbol !== null) {
-        const at = along(pts, 0.2);
-        drawLock(g, at.x, at.y, 5.5 * px, lane.symbol, rgbCss(lane.color), rgbCss(pal.floor));
-      }
-    }
-    /* Tore: kleine Quadrate am gezeichneten Rand. */
-    g.fillStyle = rgbCss(pal.casing);
-    for (const lane of scene.lanes) {
-      if (lane.deep && !deep) continue;
-      const pts = withRims(lane, pillarWidth);
+      /* Tore: kleine Quadrate am gezeichneten Rand. */
+      g.fillStyle = rgbCss(pal.casing);
       for (const [x, y] of [[pts[0], pts[1]], [pts[pts.length - 2], pts[pts.length - 1]]]) g.fillRect(x - 2.6 * px, y - 2.6 * px, 5.2 * px, 5.2 * px);
     }
     /* Umsteigeorte: ein Ring auf dem Boden. */
-    g.strokeStyle = rgbCss(mix(pal.ink, pal.floor, 0.45));
-    g.lineWidth = 1.6 * px;
+    g.strokeStyle = rgbCss(mix(pal.ink, pal.land, 0.6));
+    g.lineWidth = 1.2 * px;
     for (const p of scene.places) {
       if (!p.station) continue;
       g.beginPath(); g.arc(p.x, p.y, p.r * pillarWidth + 7, 0, Math.PI * 2); g.stroke();
@@ -440,7 +484,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (ctx === null) return;
     const v = viewOf(c, size.w, size.h);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = rgbCss(pal.surface);
+    /* Ringsum Wasser (die Insel liegt darin). */
+    ctx.fillStyle = rgbCss(pal.water);
     ctx.fillRect(0, 0, size.w, size.h);
 
     /* Der Boden: neu, wenn er nicht mehr deckt, zu grob ist oder der Stand sich änderte. */
@@ -587,14 +632,25 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
         ctx.fillStyle = DOT[a.dot];
         ctx.beginPath(); ctx.ellipse(X, Yt, Math.max(2.2, rx * 0.2), Math.max(2.2, rx * 0.2) * v.fore, 0, 0, Math.PI * 2); ctx.fill();
       }
+      /* „Mistrzowsko": ein Stern auf der Oberseite (die höchste Auszeichnung eines Ortes). */
+      if (p.perfect && rx > 4) drawStar(ctx, X - rx * 0.55, Yt - ry * 0.35, Math.max(4, Math.min(11, rx * 0.26)), rgbCss(pal.star), rgbCss(pal.ink));
       /* Das Portal: Verweise in andere Welten (nie eine Voraussetzung, nie in Höhe oder Weg). */
       if ((portals?.get(p.id) ?? 0) > 0 && rx > 7) { drawPortal(ctx, X + rx * 0.62, Yt - ry * 0.62, Math.max(2.5, rx * 0.11), pal); portalSigns += 1; }
       drawn.push({ id: p.id, x: X, top: Yt, bottom: Yb, rx, ry });
       const hPx = Yb - Yt;
       if (showsName(rx, hPx)) {
-        const text = p.label.length > 42 ? `${p.label.slice(0, 40)}…` : p.label;
-        const w = Math.min(rx * 2.4, 8 + text.length * 6.4);
-        labels.push({ key: p.id, text, x: X, y: Yt - ry - 9, w, h: 16, weight: -hPx, alpha: 1, own: drawn.length - 1 });
+        /*
+          Step 3 · 11/12 — der Name wird gemessen (die Kollision rechnet mit seiner wahren Breite) und, wenn nötig, auf
+          NAME_MAX gekürzt; ein Name, der über den Rand ginge, rückt ins Bild — ist sein Ort selbst draussen, fällt er weg.
+        */
+        ctx.font = NAME_FONT;
+        const text = fitText(ctx, p.label, NAME_MAX);
+        const w = ctx.measureText(text).width + 6;
+        const y = Yt - ry - 9;
+        if (X >= 0 && X <= size.w && y >= 9 && y <= size.h - 9) {
+          const x = Math.max(w / 2 + 4, Math.min(size.w - w / 2 - 4, X));
+          labels.push({ key: p.id, text, x, y, w, h: 16, weight: -hPx, alpha: 1, own: drawn.length - 1 });
+        }
       }
     }
     /* Das Raster der gezeichneten Säulen (Treffen, verdeckte Namen; `wmPick.ts`). */
@@ -659,7 +715,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     /* Namen: nie übereinander (die niedrigere Säule gewinnt) und nie hinter einer näheren Säule. */
     const visible = labels.filter((l) => !nameCovered(grid, l.own, l.x, l.y, l.w));
     const placed = placeLabels(visible, size.w, size.h);
-    ctx.font = '600 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = NAME_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const l of placed) {
       if (!l.shown) continue;
       ctx.lineWidth = 3; ctx.strokeStyle = rgbCss(pal.surface); ctx.strokeText(l.text, l.x, l.y);
@@ -760,16 +816,20 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
 
   /* -- Gesten ------------------------------------------------------------------------------------------------------------ */
   const drag = useRef<{ id: number; x: number; y: number; cam: WorldCam; turn: boolean; moved: boolean } | null>(null);
+  const lastTap = useRef<{ id: string; at: number } | null>(null);
   const touches = useRef(new Map<number, { x: number; y: number }>());
   const two = useRef<{ d: number; a: number; cam: WorldCam; mx: number; my: number } | null>(null);
   const zoomAt = (factor: number, sx: number, sy: number) => {
     const c = camRef.current;
     if (c === null) return;
     const v = viewOf(c, size.w, size.h);
-    const [gx, gy] = toGrd(v, sx, sy);
-    const s = Math.max(0.01, Math.min(40, c.s * factor));
+    /* §2.7 — höchstens bis eine Säule ein Drittel des Bildes ist; hinein zum nächsten Ort hin, nicht in leeren Boden. */
+    const s = Math.max(0.01, Math.min(zoomMax.current, c.s * factor));
+    if (Math.abs(s - c.s) < 1e-9) return;
+    const [ax, ay] = factor > 1 ? zoomAnchor(v, disks, sx, sy) : [sx, sy];
+    const [gx, gy] = toGrd(v, ax, ay);
     const after = viewOf({ ...c, s }, size.w, size.h);
-    const [hx, hy] = toGrd(after, sx, sy);
+    const [hx, hy] = toGrd(after, ax, ay);
     setCam({ ...c, s, cx: c.cx + gx - hx, cy: c.cy + gy - hy });
   };
   useEffect(() => {
@@ -793,7 +853,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       drag.current = null;
       return;
     }
-    drag.current = { id: e.pointerId, x: p.x, y: p.y, cam: c, turn: e.shiftKey || e.button === 2, moved: false };
+    drag.current = { id: e.pointerId, x: p.x, y: p.y, cam: c, turn: e.ctrlKey || e.metaKey || e.button === 2, moved: false };
   };
   const move = (e: React.PointerEvent) => {
     const p = local(e);
@@ -803,7 +863,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (two.current !== null && touches.current.size === 2) {
       const [a, b] = [...touches.current.values()];
       const d = Math.hypot(b.x - a.x, b.y - a.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
-      const s = Math.max(0.01, Math.min(40, two.current.cam.s * (d / Math.max(1, two.current.d))));
+      const s = Math.max(0.01, Math.min(zoomMax.current, two.current.cam.s * (d / Math.max(1, two.current.d))));
       const rot = two.current.cam.rot - ((ang - two.current.a) * 180) / Math.PI;
       setCam({ ...two.current.cam, s, rot });
       return;
@@ -817,8 +877,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (Math.abs(dx) + Math.abs(dy) > 3) dr.moved = true;
     if (!dr.moved) return;
     if (dr.turn) {
-      /* Drehen und neigen um die Mitte des Bildes (sie bleibt stehen). */
-      setCam({ ...dr.cam, rot: dr.cam.rot + dx * 0.35, fore: dr.cam.fore - dy * 0.004 });
+      /* Drehen und neigen um die Mitte des Bildes (sie bleibt stehen); nach unten ziehen neigt nach unten (flacher). */
+      setCam({ ...dr.cam, rot: dr.cam.rot + dx * 0.35, fore: dr.cam.fore + dy * 0.004 });
       return;
     }
     const v = viewOf(dr.cam, size.w, size.h);
@@ -834,7 +894,14 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (dr === null || dr.id !== e.pointerId || dr.moved) return;
     const p = local(e);
     const id = hit(p.x, p.y);
-    if (id !== null) { onPick?.(id); onHover?.(id, { x: p.x, y: p.y }); return; }
+    if (id !== null) {
+      /* Zweimal kurz nacheinander auf dieselbe Säule (Maus oder Finger): „Prowadź mnie tutaj". */
+      const now = performance.now();
+      const last = lastTap.current;
+      lastTap.current = { id, at: now };
+      if (last !== null && last.id === id && now - last.at < 380 && onLead !== undefined) { lastTap.current = null; onLead(id); return; }
+      onPick?.(id); onHover?.(id, { x: p.x, y: p.y }); return;
+    }
     if (hitHome(p.x, p.y)) { onPickHome?.(); return; }
     const lane = hitLane(p.x, p.y);
     if (lane !== null) { onPickLane?.(lane); return; }
@@ -918,7 +985,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const c = cam;
   return (
     <div className={`cg-wm${compact ? ' is-compact' : ''}`} data-world-map={scene.places.length} data-world-lanes={scene.lanes.length}>
-      <div ref={boxRef} className="cg-wm-stage">
+      <div ref={boxRef} className="cg-wm-stage" style={stageH === null ? undefined : { height: stageH, minHeight: 0 }} data-world-stage-h={stageH ?? ''}>
         <canvas ref={canvasRef} className="cg-wm-canvas" tabIndex={0} aria-label={t('cogitaWorld.map.label', { count: scene.places.length })}
           onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key}
           onPointerLeave={() => onHover?.(null, null)} onContextMenu={(e) => e.preventDefault()} data-world-canvas="" />
@@ -936,6 +1003,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
             <span>{t('cogitaWorld.map.tilt')}</span>
             <input type="range" min={25} max={88} step={1} value={Math.round((Math.asin(Math.max(FORE_LOW, Math.min(FORE_HIGH, c.fore))) * 180) / Math.PI)} onChange={(e) => setCam({ ...c, fore: Math.sin((Number(e.target.value) * Math.PI) / 180) })} data-world-tilt="" />
           </label>
+          {!compact && <span className="cg-wm-meta" data-world-turn-hint="">{t('cogitaWorld.map.turnHint')}</span>}
         </div>
       )}
     </div>

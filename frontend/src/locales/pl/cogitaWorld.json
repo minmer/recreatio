@@ -106,7 +106,7 @@
     "conquered": "Zdobyte",
     "conqueredNow": "Zdobyte: {names}",
     "noRoute": "Żadna linia nie prowadzi tu jeszcze z domu",
-    "fromHome": "Z domu:",
+    "fromHome": "Na trasie:",
     "sections": {
       "one": "{count} odcinek",
       "few": "{count} odcinki",
@@ -114,10 +114,10 @@
       "other": "{count} odcinka"
     },
     "fresh": {
-      "one": "{count} nowa",
-      "few": "{count} nowe",
-      "many": "{count} nowych",
-      "other": "{count} nowej"
+      "one": "{count} nowa karta do biletów",
+      "few": "{count} nowe karty do biletów",
+      "many": "{count} nowych kart do biletów",
+      "other": "{count} nowej karty do biletów"
     },
     "review": {
       "one": "{count} do powtórki",
@@ -128,7 +128,9 @@
     "empty": "Jeszcze brak miejsc: miejsce to temat, który pytania wskazują w „about”.",
     "computing": "Układanie mapy…",
     "relay": "Ułóż mapę od nowa",
-    "places": "Wszystkie miejsca ({count})"
+    "places": "Wszystkie miejsca ({count})",
+    "leadHint": "Dwuklik: prowadź mnie tutaj",
+    "turnHint": "Ctrl + przeciągnij: obróć i pochyl"
   },
   "panel": {
     "close": "Zamknij",

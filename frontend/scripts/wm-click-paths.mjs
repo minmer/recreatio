@@ -129,7 +129,7 @@ try {
     await waitFor(ready, 'the map again');
     await waitFor(`document.querySelector('[data-world-panel="section"]')?.dataset.worldTicket === 'met'`, 'the ticket to be met', 10000);
     const after = (await ev(`document.querySelector('[data-world-canvas]').wmLanes()`)).find((l) => l.section === lane.section);
-    check(P, 'the lock is gone: the ticket is valid and the lane is open', after?.state === 'open', after);
+    check(P, 'the lock is gone: the ticket is valid and the lane is no longer locked', after !== undefined && after.state !== 'locked', after);
     check(P, 'travel is now possible', await ev(`document.querySelector('[data-world-travel]')?.disabled === false`));
     await shot('p1-lock-gone');
   }

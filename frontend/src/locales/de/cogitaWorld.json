@@ -96,14 +96,14 @@
     "conquered": "Erobert",
     "conqueredNow": "Erobert: {names}",
     "noRoute": "Noch führt keine Linie vom Haus hierher",
-    "fromHome": "Vom Haus:",
+    "fromHome": "Unterwegs:",
     "sections": {
       "one": "{count} Abschnitt",
       "other": "{count} Abschnitte"
     },
     "fresh": {
-      "one": "{count} neu",
-      "other": "{count} neu"
+      "one": "{count} neue Karte für Fahrkarten",
+      "other": "{count} neue Karten für Fahrkarten"
     },
     "review": {
       "one": "{count} zu wiederholen",
@@ -112,7 +112,9 @@
     "empty": "Noch keine Orte: ein Ort ist ein Thema, das Fragen in „about” nennen.",
     "computing": "Die Karte wird gelegt…",
     "relay": "Die ganze Karte neu legen",
-    "places": "Alle Orte ({count})"
+    "places": "Alle Orte ({count})",
+    "leadHint": "Doppelklick: führ mich hin",
+    "turnHint": "Strg + Ziehen: drehen und neigen"
   },
   "panel": {
     "close": "Schließen",

@@ -34,6 +34,8 @@ export interface LearnerInput {
   readonly storyPassed?: (flow: string) => boolean;
   /** Die erreichte Stufe eines Ortes (aus den Durchgängen). */
   readonly level?: (place: string) => number;
+  /** Ein Durchgang dieses Ortes war „Mistrzowsko" (alles beim ersten Mal richtig). */
+  readonly perfect?: (place: string) => boolean;
   readonly prepared?: ReadonlyMap<string, unknown>;
   /** Step 3 · 1 — ausgesetzte Karten (der Lernende hat sie angehalten): nie gefragt, also nirgends gezählt. */
   readonly suspended?: (card: string) => boolean;
@@ -59,6 +61,8 @@ export interface PlaceState {
   readonly appeared: boolean;
   readonly level: number;
   readonly conquered: boolean;
+  /** „Mistrzowsko": ein Durchgang mit jeder Karte beim ersten Mal richtig. */
+  readonly perfect: boolean;
   /** Was diesem Ort selbst noch fehlt (Karten). */
   readonly missing: number;
   /** Was bis hierher fehlt: der Ort und seine ganze Grundlage. */
@@ -163,7 +167,7 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     const missing = conquered ? 0 : levels > 0 ? total : unseen + learning;
     const saturation = (empty || (levels > 0 ? level >= 1 : conquered)) ? 'full' : unseen < total ? 'partly' : 'never';
     const dot = !conquered || empty ? null : unseen + learning > 0 ? 'orange' : weakest < SOON ? 'yellow' : 'green';
-    own.set(p.id, { cards, total, unseen, learning, known, appeared: unseen === 0, level, conquered, missing, saturation, dot });
+    own.set(p.id, { cards, total, unseen, learning, known, appeared: unseen === 0, level, conquered, perfect: levels > 0 && learner.perfect?.(p.id) === true, missing, saturation, dot });
   }
   /* Die Höhe über der Bitmenge der Grundlage (5 000 Orte: keine Mengen je Ort). */
   const miss = new Float64Array(world.bitOrder.length);

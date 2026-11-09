@@ -96,14 +96,14 @@
     "conquered": "Conquered",
     "conqueredNow": "Conquered: {names}",
     "noRoute": "No line leads here from home yet",
-    "fromHome": "From home:",
+    "fromHome": "On the way:",
     "sections": {
       "one": "{count} section",
       "other": "{count} sections"
     },
     "fresh": {
-      "one": "{count} new",
-      "other": "{count} new"
+      "one": "{count} new card for tickets",
+      "other": "{count} new cards for tickets"
     },
     "review": {
       "one": "{count} to review",
@@ -112,7 +112,9 @@
     "empty": "No places yet: a place is a topic that questions name in „about”.",
     "computing": "Laying out the map…",
     "relay": "Re-lay the whole map",
-    "places": "All places ({count})"
+    "places": "All places ({count})",
+    "leadHint": "Double-click: take me there",
+    "turnHint": "Ctrl + drag: turn and tilt"
   },
   "panel": {
     "close": "Close",
