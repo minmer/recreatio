@@ -179,7 +179,9 @@
     "homeSays": "Linien, die hier beginnen",
     "backToMap": "Zurück zur Karte",
     "mapShort": "Karte",
-    "nothing": "Hier gibt es gerade nichts zu lernen."
+    "nothing": "Hier gibt es gerade nichts zu lernen.",
+    "next": "Dein nächster Schritt",
+    "more": "Mehr zu diesem Ort"
   },
   "nav": {
     "target": "Ziel: {name}",

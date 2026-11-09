@@ -785,7 +785,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   const skip = () => { if (playRef.current !== null) finish(true); };
 
   /* -- Zeigen und Wählen: über das Raster der gezeichneten Säulen (die vorderste gewinnt) ---------------------------- */
-  const hit = (x: number, y: number): string | null => (gridRef.current === null ? null : pickAt(gridRef.current, x, y));
+  const hit = (x: number, y: number, grid: PickGrid | null = gridRef.current): string | null => (grid === null ? null : pickAt(grid, x, y));
+  /* Das Bild, das beim Drücken zu sehen war (ein Druck überspringt das Abspielen — getroffen wird, was man sah). */
+  const seenGrid = useRef<PickGrid | null>(null);
   const hitHome = (x: number, y: number): boolean => {
     const c = camRef.current;
     if (scene.home === null || c === null) return false;
@@ -841,6 +843,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
   });
   const local = (e: React.PointerEvent) => { const r = canvasRef.current!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   const down = (e: React.PointerEvent) => {
+    seenGrid.current = gridRef.current;
     skip();
     const c = camRef.current;
     if (c === null) return;
@@ -893,7 +896,7 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     drag.current = null;
     if (dr === null || dr.id !== e.pointerId || dr.moved) return;
     const p = local(e);
-    const id = hit(p.x, p.y);
+    const id = hit(p.x, p.y, seenGrid.current ?? gridRef.current);
     if (id !== null) {
       /* Zweimal kurz nacheinander auf dieselbe Säule (Maus oder Finger): „Prowadź mnie tutaj". */
       const now = performance.now();

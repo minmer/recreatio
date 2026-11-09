@@ -3,11 +3,23 @@
  * Farben nur aus den Variablen des Bildes (hell und dunkel): --wk-* und --cg-ls-*.
  */
 
-/* Das Feld steht neben der Karte, wenn der Platz reicht (gemessen an der Karte selbst, nicht am Fenster) — sonst darunter. */
+/*
+  Das Feld steht neben der Karte, wenn der Platz reicht (gemessen an der Karte selbst, nicht am Fenster; ab 50rem, in der App
+  ab etwa 1 100 px Fensterbreite). Step 3 §3 — schmaler: das Feld ist ein Blatt über dem unteren Teil der Karte (klebt am unteren
+  Rand des Fensters, höchstens die Hälfte hoch), die Karte bleibt darüber sichtbar — nicht mehr unter der ganzen Seite.
+*/
 .cg-wm-host { display: grid; gap: var(--wk-space-2); container-type: inline-size; }
 .cg-wm-body { display: grid; gap: var(--wk-space-3); grid-template-columns: minmax(0, 1fr); }
 @container (min-width: 50rem) {
   .cg-wm-body.has-side { grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem); align-items: start; }
+}
+@container (max-width: 49.99rem) {
+  .cg-wm-body.has-side > .cg-wm-side {
+    position: sticky; bottom: 0; z-index: 5; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain;
+    margin-top: calc(-1 * min(50vh, 22rem)); padding: var(--wk-space-2) var(--wk-space-2) var(--wk-space-3);
+    border-radius: var(--wk-radius) var(--wk-radius) 0 0; background: var(--wk-surface); border: 1px solid var(--wk-line);
+    box-shadow: var(--wk-shadow-pop);
+  }
 }
 .cg-wm-main { position: relative; display: grid; gap: var(--wk-space-2); min-width: 0; }
 
@@ -57,6 +69,11 @@
 }
 
 /* -- Die Felder daneben (spec §4.8): Ort, Abschnitt, Umsteigeort, Haus, Navigation ------------------------------------------- */
+/* Der nächste Schritt eines Ortes, gross; der Rest eingeklappt (2026-11-09: ruhiger). */
+.cg-wm-next { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); }
+.cg-wm-next .cg-wm-h { margin: 0; }
+.cg-wm-more > summary { cursor: pointer; color: var(--wk-ink-2); font-size: var(--wk-text-sm); font-weight: 600; }
+.cg-wm-more[open] { display: grid; gap: var(--wk-space-2); }
 .cg-wm-side { display: grid; gap: var(--wk-space-3); align-content: start; min-width: 0; }
 .cg-wm-panel { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); background: var(--wk-surface); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); min-width: 0; }
 .cg-wm-panel p { margin: 0; }

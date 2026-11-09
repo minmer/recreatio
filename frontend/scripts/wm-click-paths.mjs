@@ -72,7 +72,15 @@ try {
   };
   /** Ein Ort, das Haus oder ein Abschnitt — dort, wo die Karte ihn wirklich trifft. */
   const clickMap = async (kind, id) => {
-    const at = await ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c?.wmLocate?.(${JSON.stringify(kind)}, ${JSON.stringify(id)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
+    const locate = () => ev(`(() => { const c = document.querySelector('[data-world-canvas]'); const p = c?.wmLocate?.(${JSON.stringify(kind)}, ${JSON.stringify(id)}); if (!p) return null; const r = c.getBoundingClientRect(); return [r.left + p[0], r.top + p[1]]; })()`);
+    /* Erst, wenn die Stelle stillsteht (eine Bildlaufleiste, die eben erscheint, verschiebt die Leinwand um ein paar Punkte). */
+    let at = await locate();
+    for (let i = 0; i < 20; i += 1) {
+      await sleep(120);
+      const again = await locate();
+      if (at !== null && again !== null && Math.abs(again[0] - at[0]) < 0.5 && Math.abs(again[1] - at[1]) < 0.5) break;
+      at = again;
+    }
     if (at === null) throw new Error(`not on the map: ${kind} ${id}`);
     await clickAt(at[0], at[1]);
   };

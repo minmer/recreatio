@@ -260,75 +260,87 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
         {' · '}{ps.conquered ? t('cogitaWorld.map.conquered') : t('cogitaWorld.map.cardsToGo', { count: ps.missing })}
       </p>
       {progress.perfect && <p className="cg-wm-perfect" data-world-perfect="">★ {t('cogitaWorld.run.perfect')}</p>}
+      {/*
+        2026-11-09 (Eigentümer: „es soll klar sein, was zu tun ist") — EIN nächster Schritt, gross; alles andere eingeklappt.
+        Erobert: wiederholen (wenn etwas fällig ist). Ein Durchgang geht: ihn beginnen. Sonst: „Prowadź mnie tutaj".
+      */}
+      <div className="cg-wm-next" data-world-next="">
+        <p className="cg-wm-h">{t('cogitaWorld.panel.next')}</p>
+        {ps.conquered ? (
+          ctx.canLearn && due.length > 0
+            ? <button type="button" className="wk-btn" onClick={() => act.review(due, place.label)} data-world-review={due.length}>{t('cogitaWorld.panel.reviewN', { count: due.length })}</button>
+            : <p className="cg-wm-ok">✓ {t('cogitaWorld.map.conquered')}</p>
+        ) : gate.kind === 'ready' && ctx.canLearn ? (
+          <div className="wk-actions">
+            <button type="button" className="wk-btn" onClick={() => act.run(id)} data-world-run-for={gate.level}>{t('cogitaWorld.panel.startRun', { level: gate.level })}</button>
+            {rule !== undefined && <span className="cg-wm-meta">{t('cogitaWorld.run.rule', { pct: rule.pct, attempts: attemptsText(rule.attempts, t) })}</span>}
+          </div>
+        ) : ctx.canLearn ? (
+          <div className="wk-actions">
+            <button type="button" className="wk-btn" onClick={() => act.lead(id)} data-world-lead={id}>{t('cogitaWorld.panel.leadMe')}</button>
+            {(L === 0 ? notKnown.length > 0 : unseen.length > 0) && (
+              <button type="button" className="wk-link-btn" onClick={() => act.learn(L === 0 ? notKnown : unseen, place.label)} data-world-learn-direct={L === 0 ? notKnown.length : unseen.length}>
+                {t('cogitaWorld.panel.learnDirectlyN', { count: L === 0 ? notKnown.length : unseen.length })}
+              </button>
+            )}
+          </div>
+        ) : <p className="cg-wm-meta">{t('cogitaWorld.map.cardsToGo', { count: ps.missing })}</p>}
+      </div>
       {ps.dot !== null && (
         <p className="cg-wm-row" data-world-dot={ps.dot}>
           <span className={`cg-wm-dot is-${ps.dot}`} aria-hidden="true" />
           <span>{t('cogitaWorld.panel.knowledge')}: {t(`cogitaWorld.panel.dot.${ps.dot}`)}</span>
-          {ctx.canLearn && due.length > 0 && <button type="button" className="wk-btn is-small" onClick={() => act.review(due, place.label)} data-world-review={due.length}>{t('cogitaWorld.panel.reviewN', { count: due.length })}</button>}
         </p>
       )}
 
-      {/* Erobern (§7.3): ein Durchgang, sein Datum — oder die Reihenfolge und woher die Karten kommen. */}
-      {!ps.conquered && (
-        <div className="cg-wm-conquer" data-world-conquer={gate.kind}>
-          {gate.kind === 'ready' && ctx.canLearn && (
-            <div className="wk-actions">
-              <button type="button" className="wk-btn" onClick={() => act.run(id)} data-world-run-for={gate.level}>{t('cogitaWorld.panel.startRun', { level: gate.level })}</button>
-              {rule !== undefined && <span className="cg-wm-meta">{t('cogitaWorld.run.rule', { pct: rule.pct, attempts: attemptsText(rule.attempts, t) })}</span>}
-            </div>
-          )}
-          {order.length > 0 && (
-            <>
-              <p className="cg-wm-h">{t('cogitaWorld.panel.conquerFirst')}</p>
-              <ol className="cg-wm-rows cg-wm-order" data-world-order={order.length}>
-                {order.slice(0, ORDER_SHOWN).map((p) => (
-                  <li key={p} className="cg-wm-row" data-world-order-item={p}>
-                    <button type="button" className="cg-ref" onClick={() => act.show('place', p)}>{ctx.nameOf(p)}</button>
-                    <span className="cg-wm-meta">{t('cogitaWorld.map.cardsToGo', { count: state.places.get(p)?.missing ?? 0 })}</span>
-                  </li>
-                ))}
-              </ol>
-              <p className="cg-wm-meta" data-world-order-total={total}>{hiddenOrder > 0 ? `${t('cogitaWorld.panel.moreN', { count: hiddenOrder })} · ` : ''}{t('cogitaWorld.panel.orderTotal', { count: total })}</p>
-            </>
-          )}
-          {gate.kind === 'locked' && order.length === 0 && unseen.length === 0 && <p className="cg-wm-meta">{t('cogitaWorld.run.locked')}</p>}
-          {unseen.length > 0 && (
-            <>
-              <p className="cg-wm-meta">{t('cogitaWorld.panel.neverSeen', { count: unseen.length })} — {t('cogitaWorld.panel.whereFrom')}</p>
-              <Sources cards={unseen} except={null} ctx={ctx} />
-            </>
-          )}
-          {ctx.canLearn && (L === 0 ? notKnown.length > 0 : unseen.length > 0) && (
-            <div className="wk-actions">
-              <button type="button" className={gate.kind === 'ready' ? 'wk-btn wk-btn-line' : 'wk-btn'} onClick={() => act.learn(L === 0 ? notKnown : unseen, place.label)} data-world-learn-direct={L === 0 ? notKnown.length : unseen.length}>
-                {t('cogitaWorld.panel.learnDirectlyN', { count: L === 0 ? notKnown.length : unseen.length })}
-              </button>
-            </div>
-          )}
+      {/* Alles Weitere eingeklappt: die Reihenfolge, woher die Karten kommen, die Linien, die Richtungen, Ziel und Einstellungen. */}
+      <details className="cg-wm-more" data-world-more="">
+        <summary>{t('cogitaWorld.panel.more')}</summary>
+        {!ps.conquered && (
+          <div className="cg-wm-conquer" data-world-conquer={gate.kind}>
+            {order.length > 0 && (
+              <>
+                <p className="cg-wm-h">{t('cogitaWorld.panel.conquerFirst')}</p>
+                <ol className="cg-wm-rows cg-wm-order" data-world-order={order.length}>
+                  {order.slice(0, ORDER_SHOWN).map((p) => (
+                    <li key={p} className="cg-wm-row" data-world-order-item={p}>
+                      <button type="button" className="cg-ref" onClick={() => act.show('place', p)}>{ctx.nameOf(p)}</button>
+                      <span className="cg-wm-meta">{t('cogitaWorld.map.cardsToGo', { count: state.places.get(p)?.missing ?? 0 })}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="cg-wm-meta" data-world-order-total={total}>{hiddenOrder > 0 ? `${t('cogitaWorld.panel.moreN', { count: hiddenOrder })} · ` : ''}{t('cogitaWorld.panel.orderTotal', { count: total })}</p>
+              </>
+            )}
+            {gate.kind === 'locked' && order.length === 0 && unseen.length === 0 && <p className="cg-wm-meta">{t('cogitaWorld.run.locked')}</p>}
+            {unseen.length > 0 && (
+              <>
+                <p className="cg-wm-meta">{t('cogitaWorld.panel.neverSeen', { count: unseen.length })} — {t('cogitaWorld.panel.whereFrom')}</p>
+                <Sources cards={unseen} except={null} ctx={ctx} />
+              </>
+            )}
+          </div>
+        )}
+        <p className="cg-wm-h">{station !== undefined ? t('cogitaWorld.panel.station') : t('cogitaWorld.panel.linesHere')}</p>
+        {linesHere.length === 0 ? <p className="cg-wm-meta" data-world-no-lines="">{t('cogitaWorld.panel.noLines')}</p> : (
+          <p className="cg-wm-lines" data-world-lines-here={linesHere.length}>
+            {linesHere.map((l) => <span key={l.id} className="cg-wm-linechip"><Chip colour={ctx.colours.get(l.id)} />{l.name}</span>)}
+          </p>
+        )}
+        {station !== undefined && (
+          <div data-world-station={id}>
+            <p className="cg-wm-meta">{t('cogitaWorld.panel.directions')}</p>
+            <Directions from={id} ctx={ctx} />
+          </div>
+        )}
+        {worlds}
+        <div className="wk-actions">
+          {goal !== null && !ps.conquered && !goal.isGoal && <button type="button" className="wk-link-btn" onClick={goal.set} data-world-goal-set={id}>{t('cogitaLearn.words.setGoal')}</button>}
+          {goal !== null && goal.isGoal && <button type="button" className="wk-link-btn" onClick={goal.clear} data-world-goal-resign={id}>{t('cogitaLearn.landscape.resignGoal')}</button>}
+          {ctx.canLearn && <button type="button" className="wk-link-btn" onClick={onSettings} data-world-my-settings="">{t('cogitaWorld.panel.mySettings')}</button>}
+          {act.open !== undefined && <button type="button" className="wk-link-btn" onClick={() => act.open!(id)} data-world-open={id}>{t('cogitaWorld.panel.openEntry')}</button>}
         </div>
-      )}
-
-      <p className="cg-wm-h">{station !== undefined ? t('cogitaWorld.panel.station') : t('cogitaWorld.panel.linesHere')}</p>
-      {linesHere.length === 0 ? <p className="cg-wm-meta" data-world-no-lines="">{t('cogitaWorld.panel.noLines')}</p> : (
-        <p className="cg-wm-lines" data-world-lines-here={linesHere.length}>
-          {linesHere.map((l) => <span key={l.id} className="cg-wm-linechip"><Chip colour={ctx.colours.get(l.id)} />{l.name}</span>)}
-        </p>
-      )}
-      {station !== undefined && (
-        <div data-world-station={id}>
-          <p className="cg-wm-meta">{t('cogitaWorld.panel.directions')}</p>
-          <Directions from={id} ctx={ctx} />
-        </div>
-      )}
-
-      {worlds}
-      <div className="wk-actions">
-        {ctx.canLearn && !ps.conquered && <button type="button" className="wk-btn wk-btn-line" onClick={() => act.lead(id)} data-world-lead={id}>{t('cogitaWorld.panel.leadMe')}</button>}
-        {goal !== null && !ps.conquered && !goal.isGoal && <button type="button" className="wk-link-btn" onClick={goal.set} data-world-goal-set={id}>{t('cogitaLearn.words.setGoal')}</button>}
-        {goal !== null && goal.isGoal && <button type="button" className="wk-link-btn" onClick={goal.clear} data-world-goal-resign={id}>{t('cogitaLearn.landscape.resignGoal')}</button>}
-        {ctx.canLearn && <button type="button" className="wk-link-btn" onClick={onSettings} data-world-my-settings="">{t('cogitaWorld.panel.mySettings')}</button>}
-        {act.open !== undefined && <button type="button" className="wk-link-btn" onClick={() => act.open!(id)} data-world-open={id}>{t('cogitaWorld.panel.openEntry')}</button>}
-      </div>
+      </details>
       {settings}
     </section>
   );

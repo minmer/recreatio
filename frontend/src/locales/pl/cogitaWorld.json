@@ -205,7 +205,9 @@
     "homeSays": "Linie, które tu się zaczynają",
     "backToMap": "Wróć do mapy",
     "mapShort": "Mapa",
-    "nothing": "Tu nie ma teraz nic do nauki."
+    "nothing": "Tu nie ma teraz nic do nauki.",
+    "next": "Twój następny krok",
+    "more": "Więcej o tym miejscu"
   },
   "nav": {
     "target": "Cel: {name}",
