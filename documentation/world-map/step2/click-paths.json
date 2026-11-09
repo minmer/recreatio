@@ -67,12 +67,12 @@
   },
   {
     "path": "1 lock",
-    "name": "the lock is gone: the ticket is valid and the lane is open",
+    "name": "the lock is gone: the ticket is valid and the lane is no longer locked",
     "ok": true,
     "detail": {
-      "section": "01a1c202-c2ae-754a-b612-07eecf93d4d4:2",
-      "line": "01a1c202-c2ae-754a-b612-07eecf93d4d4",
-      "state": "open",
+      "section": "01a1c291-612f-74f8-ae64-81e358567945:2",
+      "line": "01a1c291-612f-74f8-ae64-81e358567945",
+      "state": "grow",
       "from": "Dom i kościół (1850–1852)",
       "to": "Cagliero, Rua i konwikt studentów"
     }
@@ -122,7 +122,7 @@
   },
   {
     "path": "3 navigate",
-    "name": "the target has 3 missing prerequisites (after learning 116 cards of the others)",
+    "name": "the target has 3 missing prerequisites (after learning 112 cards of the others)",
     "ok": true,
     "detail": {
       "count": 3,
@@ -140,20 +140,20 @@
     "detail": {
       "steps": 14,
       "stops": [
-        "travel:01a1c203-ccd2-7c6b-b7ab-a9821718f6f5:13",
-        "travel:01a1c203-ccd2-79a2-83ad-02e305192440:7",
-        "learn:01a1c203-ccc8-7cb0-bdbe-3e0648c2407b",
-        "know:01a1c203-ccc8-7cb0-bdbe-3e0648c2407b",
-        "travel:01a1c203-ccd2-79a2-83ad-02e305192440:8",
-        "travel:01a1c203-ccd2-7c06-8862-5a597f94e2c7:3",
-        "know:01a1c203-ccc8-7c6c-b26c-4a2496932f61",
-        "travel:01a1c203-ccd2-7c6b-b7ab-a9821718f6f5:14",
-        "travel:01a1c203-ccd2-7c06-8862-5a597f94e2c7:1",
-        "learn:01a1c203-ccc8-772d-a885-5b596918d632",
-        "know:01a1c203-ccc8-772d-a885-5b596918d632",
-        "travel:01a1c203-ccd2-7c06-8862-5a597f94e2c7:4",
-        "learn:01a1c203-ccc8-73e7-82ac-4c9e75f14888",
-        "know:01a1c203-ccc8-73e7-82ac-4c9e75f14888"
+        "travel:01a1c291-7c1a-7a20-a14e-7198377f3025:13",
+        "travel:01a1c291-7c1a-77c0-a633-f60a33440d2b:7",
+        "learn:01a1c291-7c14-724e-b8bf-fb5343b149a4",
+        "know:01a1c291-7c14-724e-b8bf-fb5343b149a4",
+        "travel:01a1c291-7c1a-77c0-a633-f60a33440d2b:8",
+        "travel:01a1c291-7c1a-7c46-bf60-e1a8064e7e27:3",
+        "know:01a1c291-7c14-7c1c-b2b8-a0130dc127f3",
+        "travel:01a1c291-7c1a-7a20-a14e-7198377f3025:14",
+        "travel:01a1c291-7c1a-7c46-bf60-e1a8064e7e27:1",
+        "learn:01a1c291-7c14-7474-8d1f-8a9a8382370a",
+        "know:01a1c291-7c14-7474-8d1f-8a9a8382370a",
+        "travel:01a1c291-7c1a-7c46-bf60-e1a8064e7e27:4",
+        "learn:01a1c291-7c14-7c21-a48d-05426fca3a57",
+        "know:01a1c291-7c14-7c21-a48d-05426fca3a57"
       ]
     }
   },
@@ -162,20 +162,20 @@
     "name": "a branch option is offered on the way",
     "ok": true,
     "detail": [
-      "travel:01a1c203-ccd2-7c6b-b7ab-a9821718f6f5:13:0",
-      "travel:01a1c203-ccd2-79a2-83ad-02e305192440:7:0",
-      "learn:01a1c203-ccc8-7cb0-bdbe-3e0648c2407b:0",
-      "know:01a1c203-ccc8-7cb0-bdbe-3e0648c2407b:0",
-      "travel:01a1c203-ccd2-79a2-83ad-02e305192440:8:0",
-      "travel:01a1c203-ccd2-7c06-8862-5a597f94e2c7:3:0",
-      "know:01a1c203-ccc8-7c6c-b26c-4a2496932f61:0",
-      "travel:01a1c203-ccd2-7c6b-b7ab-a9821718f6f5:14:0",
-      "travel:01a1c203-ccd2-7c06-8862-5a597f94e2c7:1:0",
-      "learn:01a1c203-ccc8-772d-a885-5b596918d632:0",
-      "know:01a1c203-ccc8-772d-a885-5b596918d632:0",
-      "travel:01a1c203-ccd2-7c06-8862-5a597f94e2c7:4:2",
-      "learn:01a1c203-ccc8-73e7-82ac-4c9e75f14888:0",
-      "know:01a1c203-ccc8-73e7-82ac-4c9e75f14888:0"
+      "travel:01a1c291-7c1a-7a20-a14e-7198377f3025:13:0",
+      "travel:01a1c291-7c1a-77c0-a633-f60a33440d2b:7:0",
+      "learn:01a1c291-7c14-724e-b8bf-fb5343b149a4:0",
+      "know:01a1c291-7c14-724e-b8bf-fb5343b149a4:0",
+      "travel:01a1c291-7c1a-77c0-a633-f60a33440d2b:8:0",
+      "travel:01a1c291-7c1a-7c46-bf60-e1a8064e7e27:3:0",
+      "know:01a1c291-7c14-7c1c-b2b8-a0130dc127f3:0",
+      "travel:01a1c291-7c1a-7a20-a14e-7198377f3025:14:0",
+      "travel:01a1c291-7c1a-7c46-bf60-e1a8064e7e27:1:0",
+      "learn:01a1c291-7c14-7474-8d1f-8a9a8382370a:0",
+      "know:01a1c291-7c14-7474-8d1f-8a9a8382370a:0",
+      "travel:01a1c291-7c1a-7c46-bf60-e1a8064e7e27:4:2",
+      "learn:01a1c291-7c14-7c21-a48d-05426fca3a57:0",
+      "know:01a1c291-7c14-7c21-a48d-05426fca3a57:0"
     ]
   },
   {
@@ -183,26 +183,26 @@
     "name": "choosing the option recomputes the route from that stop (nothing marked done)",
     "ok": true,
     "detail": {
-      "turned": "travel:01a1c203-ccd2-7c06-8862-5a597f94e2c7:4",
-      "to": "01a1c203-ccd2-7c06-8862-5a597f94e2c7:5",
+      "turned": "travel:01a1c291-7c1a-7c46-bf60-e1a8064e7e27:4",
+      "to": "01a1c291-7c1a-7c46-bf60-e1a8064e7e27:5",
       "steps": 14,
       "done": 0,
-      "target": "01a1c203-ccc8-73e7-82ac-4c9e75f14888",
+      "target": "01a1c291-7c14-7c21-a48d-05426fca3a57",
       "stops": [
-        "travel:01a1c203-ccd2-7c6b-b7ab-a9821718f6f5:13",
-        "travel:01a1c203-ccd2-79a2-83ad-02e305192440:7",
-        "learn:01a1c203-ccc8-7cb0-bdbe-3e0648c2407b",
-        "know:01a1c203-ccc8-7cb0-bdbe-3e0648c2407b",
-        "travel:01a1c203-ccd2-79a2-83ad-02e305192440:8",
-        "travel:01a1c203-ccd2-7c06-8862-5a597f94e2c7:3",
-        "know:01a1c203-ccc8-7c6c-b26c-4a2496932f61",
-        "travel:01a1c203-ccd2-7c6b-b7ab-a9821718f6f5:14",
-        "travel:01a1c203-ccd2-7c06-8862-5a597f94e2c7:1",
-        "learn:01a1c203-ccc8-772d-a885-5b596918d632",
-        "know:01a1c203-ccc8-772d-a885-5b596918d632",
-        "travel:01a1c203-ccd2-7c06-8862-5a597f94e2c7:5",
-        "learn:01a1c203-ccc8-73e7-82ac-4c9e75f14888",
-        "know:01a1c203-ccc8-73e7-82ac-4c9e75f14888"
+        "travel:01a1c291-7c1a-7a20-a14e-7198377f3025:13",
+        "travel:01a1c291-7c1a-77c0-a633-f60a33440d2b:7",
+        "learn:01a1c291-7c14-724e-b8bf-fb5343b149a4",
+        "know:01a1c291-7c14-724e-b8bf-fb5343b149a4",
+        "travel:01a1c291-7c1a-77c0-a633-f60a33440d2b:8",
+        "travel:01a1c291-7c1a-7c46-bf60-e1a8064e7e27:3",
+        "know:01a1c291-7c14-7c1c-b2b8-a0130dc127f3",
+        "travel:01a1c291-7c1a-7a20-a14e-7198377f3025:14",
+        "travel:01a1c291-7c1a-7c46-bf60-e1a8064e7e27:1",
+        "learn:01a1c291-7c14-7474-8d1f-8a9a8382370a",
+        "know:01a1c291-7c14-7474-8d1f-8a9a8382370a",
+        "travel:01a1c291-7c1a-7c46-bf60-e1a8064e7e27:5",
+        "learn:01a1c291-7c14-7c21-a48d-05426fca3a57",
+        "know:01a1c291-7c14-7c21-a48d-05426fca3a57"
       ]
     }
   },
@@ -227,36 +227,36 @@
     "name": "the drawn radius shrinks continuously",
     "ok": true,
     "detail": [
-      9.11,
-      8.92,
-      8.74,
-      8.55,
-      8.36,
-      8.18,
-      7.99,
-      7.81,
-      7.62,
+      11.39,
+      11.16,
+      10.92,
+      10.69,
+      10.46,
+      10.23,
+      10,
+      9.76,
+      9.53,
+      9.3,
+      9.07,
+      8.83,
+      8.6,
+      8.37,
+      8.14,
+      7.9,
+      7.67,
       7.44,
-      7.25,
-      7.06,
-      6.88,
-      6.69,
+      7.21,
+      6.97,
+      6.74,
       6.51,
-      6.32,
-      6.13,
-      5.95,
-      5.76,
+      6.28,
+      6.04,
+      5.81,
       5.58,
-      5.39,
-      5.2,
-      5.02,
-      4.83,
-      4.65,
-      4.46,
-      4.28,
-      4.09,
-      3.9,
-      3.72
+      5.35,
+      5.11,
+      4.88,
+      4.65
     ]
   },
   {
@@ -265,11 +265,11 @@
     "ok": true,
     "detail": {
       "geo0": {
-        "version": "wm1-31062ff6a2f80e10-50",
+        "version": "wm1-97e73b3aaafd110c-50",
         "runs": 1
       },
       "geo1": {
-        "version": "wm1-31062ff6a2f80e10-50",
+        "version": "wm1-97e73b3aaafd110c-50",
         "runs": 1
       }
     }
@@ -279,8 +279,8 @@
     "name": "timing",
     "ok": true,
     "detail": {
-      "drawMedianMs": 2.9,
-      "drawMaxMs": 3.3
+      "drawMedianMs": 21,
+      "drawMaxMs": 25.2
     }
   },
   {
@@ -363,7 +363,7 @@
     "name": "\"Ustaw jako cel\": the goal line with its steps, a flag on the map, \"Zrezygnuj\" in the panel",
     "ok": true,
     "detail": {
-      "goal": "01a1c202-f705-72a5-8974-9771e070058d",
+      "goal": "01a1c291-d7d7-78ba-b26c-4e56f9083a73",
       "steps": 13,
       "resign": true
     }
@@ -428,33 +428,6 @@
       {
         "level": "error",
         "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4795/api/workspace/learn/features)"
-      },
-      {
-        "level": "error",
-        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4795/api/workspace/learn/features)"
-      }
-    ]
-  },
-  {
-    "path": "all",
-    "name": "no exceptions in the page",
-    "ok": true,
-    "detail": [
-      {
-        "level": "error",
-        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4795/api/workspace/learn/features)"
-      },
-      {
-        "level": "error",
-        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4795/api/intake/podglad-obszaru)"
-      },
-      {
-        "level": "error",
-        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4795/api/intake/podglad-obszaru)"
-      },
-      {
-        "level": "error",
-        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4795/api/intake/podglad-obszaru)"
       },
       {
         "level": "error",

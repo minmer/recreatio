@@ -1,8 +1,8 @@
 {
   "steps": 180,
-  "frameGapAvg": 33.21333333332505,
-  "frameGapP95": 33.400000005960464,
-  "drawAvg": 3.291111111111115,
-  "drawP95": 3.7,
-  "drawMax": 4.8
+  "frameGapAvg": 33.16722222218911,
+  "frameGapP95": 33.5,
+  "drawAvg": 3.352777777777777,
+  "drawP95": 3.9,
+  "drawMax": 5.2
 }
