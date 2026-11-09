@@ -61,7 +61,9 @@ const LIST_OF: Record<DocKind, string> = {
   /* 2026-10-25 (Wywód) — die Wejścia z Biblioteki: Werk und Stellen → Eintrag und Widok. */
   anchor: 'anchors',
   /* 2026-11-02 — Nagrody: punkty, seria, cel dnia, poziomy, odznaki (`rewards.ts`). */
-  reward: 'rewards'
+  reward: 'rewards',
+  /* 2026-11-09 — die Lage der Weltkarte: gerechnet, nie exportiert oder eingespielt (spec §9.7). */
+  worldmap: 'worldmaps'
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -181,7 +183,8 @@ const kindJson = (lib: CogitaLibrary, k: KindDef): Record<string, unknown> => ({
 export function exportCourse(lib: CogitaLibrary, name: string, only?: { entities?: ReadonlySet<string>; docs?: ReadonlySet<DocKind> }): Record<string, unknown> {
   const docs: Record<string, unknown[]> = {};
   for (const kind of DOC_KINDS) {
-    if (kind === 'kind' || kind === 'merge' || kind === 'contribution') continue;
+    /* 2026-11-09 — die Lage der Weltkarte ist gerechnet (nie im JSON eines Kurses, spec §9.7). */
+    if (kind === 'kind' || kind === 'merge' || kind === 'contribution' || kind === 'worldmap') continue;
     if (only?.docs !== undefined && !only.docs.has(kind)) continue;
     docs[LIST_OF[kind]] = lib.docs(kind).filter((e) => lib.isOwn(e.id)).map((e) => docJson(lib, kind, e.id, e.data));
   }
@@ -1392,7 +1395,7 @@ export function removalEffects(lib: CogitaLibrary, plan: Pick<ImportPlan, 'kinds
   /* Dokumente nach dem Zapis (ohne Zusammenführungen und Beiträge — die gehören zur Geschichte eines Eintrags). */
   const afterDocs = new Map<string, { kind: DocKind; data: Readonly<Record<string, unknown>> }>();
   for (const k of DOC_KINDS) {
-    if (k === 'merge' || k === 'contribution' || k === 'kind') continue;
+    if (k === 'merge' || k === 'contribution' || k === 'kind' || k === 'worldmap') continue;
     for (const d of lib.docs(k)) if (lib.isOwn(d.id) && !gone.has(d.id)) afterDocs.set(d.id, { kind: k, data: d.data });
   }
   for (const d of plan.docs) if (!gone.has(d.id)) afterDocs.set(d.id, { kind: d.kind, data: d.data });
@@ -1441,7 +1444,7 @@ export function withRemovals(lib: CogitaLibrary, plan: ImportPlan): { plan: Impo
 /** In welcher Reihenfolge Dokumente einer Art nach den anderen kommen: was andere nennen, zuerst. */
 const DOC_ORDER: Readonly<Record<DocKind, number>> = {
   collection: 0, template: 1, addform: 1, look: 1, rules: 1, values: 1, settings: 1, reward: 1, kind: 1,
-  view: 2, revision: 3, flow: 4, anchor: 5, merge: 6, contribution: 6
+  view: 2, revision: 3, flow: 4, anchor: 5, merge: 6, contribution: 6, worldmap: 7
 };
 
 /**

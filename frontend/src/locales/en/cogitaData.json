@@ -392,7 +392,8 @@
     "settings": "Settings",
     "merge": "Merge",
     "contribution": "Proposal",
-    "reward": "Rewards"
+    "reward": "Rewards",
+    "worldmap": "World map positions"
   },
   "questionGroup": {
     "write": "You write the answer",

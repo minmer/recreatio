@@ -68,7 +68,8 @@ function mainThread(): LandscapeClient {
     run: async ({ input, state, options }) => {
       if (input !== undefined) engine.setInput(input);
       if (state !== undefined) engine.setState(state);
-      return engine.layout(options);
+      /* 2026-11-09 — auch hier: die Rechnung gibt Schlüssel zurück (sie kennt keine Wörterbücher), die Ansicht spricht sie. */
+      return spoken(engine.layout(options));
     },
     stand: async ({ input, state }) => {
       if (input !== undefined) engine.setInput(input);
