@@ -148,7 +148,9 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
         const f = flowById.get(flow);
         return f !== undefined && storyStage(f, flowFacts.get(flow), flowQuestionsKnown(f, cardOfQ, (key) => know(key) >= KNOWN)) === 'passed';
       },
-      level: (place) => levels.get(place)?.level ?? 0
+      level: (place) => levels.get(place)?.level ?? 0,
+      /* Step 3 · 1 — ausgesetzte Karten zählen nirgends (sonst sperrte eine einzige ihren Ort für immer). */
+      suspended: (card) => progress?.suspended.has(card) === true
     };
   }, [gauge, progress, learner, flowFacts, flowById, cardOfQ, levels]);
   const state = useMemo(() => stateOf(world, lines, learnerInput, { levels: eff.levels, knownShare: eff.knownShare }), [world, lines, learnerInput, eff.levels, eff.knownShare]);
@@ -466,7 +468,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       const p = world.places.get(running.place);
       return host(
         <div className="cg-ls-run" data-world-running="run">
-          <WorldRun lib={lib} learner={learner} place={running.place} name={p?.label ?? running.place} cards={cardsOf(p?.cards ?? [])} onClose={back} />
+          <WorldRun lib={lib} learner={learner} place={running.place} name={p?.label ?? running.place} cards={cardsOf(state.places.get(running.place)?.cards ?? p?.cards ?? [])} onClose={back} />
         </div>
       );
     }

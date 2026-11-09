@@ -33,10 +33,9 @@ export function readyNow(state: WorldState, id: string): boolean {
   return true;
 }
 
-/** Die Karten eines Ortes, die jetzt zu wiederholen sind: fällig und wiederholbar (`reviewable`). */
+/** Die Karten eines Ortes, die jetzt zu wiederholen sind: fällig und wiederholbar (`reviewable`); ausgesetzte nie. */
 export function dueOf(state: WorldState, id: string): string[] {
-  const place = state.world.places.get(id);
-  return place === undefined ? [] : place.cards.filter((k) => state.band(k) === 'learning' && reviewable(k, state));
+  return (state.places.get(id)?.cards ?? []).filter((k) => state.band(k) === 'learning' && reviewable(k, state));
 }
 
 /** Welche Orte in einer Ansicht farbig stehen (`null`: alle). */

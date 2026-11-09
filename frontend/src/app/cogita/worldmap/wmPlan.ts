@@ -87,7 +87,8 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   const add = (place: string, guard: number) => {
     for (const p of state.conquestOrder(place)) {
       if (placed.has(p) || guard > 6) continue;
-      const cards = (world.places.get(p)?.cards ?? []).filter((k) => state.band(k) === 'unseen');
+      /* Step 3 · 1 — nur Karten, die zählen (ohne ausgesetzte). */
+      const cards = (state.places.get(p)?.cards ?? []).filter((k) => state.band(k) === 'unseen');
       const s = best(p, cards, candidates(cards));
       if (s !== null) {
         for (const part of state.sections.get(s.id)!.ticket.parts) {
@@ -112,7 +113,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   const gapOf = (lv: number) => Math.max(0, opts.gaps?.[lv - 1] ?? 0) * DAY;
 
   const introduce = (p: string) => {
-    let open = (world.places.get(p)?.cards ?? []).filter((k) => !known(k));
+    let open = (state.places.get(p)?.cards ?? []).filter((k) => !known(k));
     let guard = 0;
     const from = steps.length;
     /* Was der Plan für diesen Ort ohnehin fährt, ist eine Ergänzung, keine Abzweigung (zwei Linien bringen je andere Karten). */
@@ -155,7 +156,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       if (!introDone.has(p)) { introduce(p); introDone.add(p); progressed = true; }
       if (levels === 0) {
         if (!conquered(p) && !waiting.has(p)) {
-          const cards = (world.places.get(p)?.cards ?? []).filter((k) => state.band(k) !== 'known');
+          const cards = (state.places.get(p)?.cards ?? []).filter((k) => state.band(k) !== 'known');
           steps.push({ kind: 'know', place: p, cards });
           waiting.add(p);
           progressed = true;

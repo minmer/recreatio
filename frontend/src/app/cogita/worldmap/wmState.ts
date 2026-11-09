@@ -35,6 +35,8 @@ export interface LearnerInput {
   /** Die erreichte Stufe eines Ortes (aus den Durchgängen). */
   readonly level?: (place: string) => number;
   readonly prepared?: ReadonlyMap<string, unknown>;
+  /** Step 3 · 1 — ausgesetzte Karten (der Lernende hat sie angehalten): nie gefragt, also nirgends gezählt. */
+  readonly suspended?: (card: string) => boolean;
 }
 
 export interface WorldSettings {
@@ -47,6 +49,8 @@ export interface WorldSettings {
 export const DEFAULT_SETTINGS: WorldSettings = { levels: 0, knownShare: 1 };
 
 export interface PlaceState {
+  /** Die Karten des Ortes ohne die ausgesetzten — alle Zahlen unten zählen nur sie (Step 3 · 1). */
+  readonly cards: readonly string[];
   readonly total: number;
   readonly unseen: number;
   readonly learning: number;
@@ -134,24 +138,32 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
   const storyPassed = learner.storyPassed ?? ((flow: string) => learner.progress(flow)?.done === true);
 
   /* -- Orte ----------------------------------------------------------------------------------------------------------------- */
+  /*
+    Step 3 · 1 — eine ausgesetzte Karte wird nie gefragt: sie zählt nirgends (Zahlen, „erschienen", Höhe, Punkt, Freigabe).
+    Ein Ort ohne Karte, die noch zählt, hat nichts zu erobern: er gilt als erobert und sperrt nichts, was auf ihm baut.
+  */
+  const off = learner.suspended;
   const own = new Map<string, Omit<PlaceState, 'height'>>();
   for (const p of world.places.values()) {
+    const cards = off === undefined ? p.cards : p.cards.filter((k) => !off(k));
     let unseen = 0;
     let learning = 0;
     let known = 0;
     let weakest = Infinity;
-    for (const k of p.cards) {
+    for (const k of cards) {
       const b = band(k);
       if (b === 'unseen') unseen += 1; else if (b === 'learning') learning += 1; else known += 1;
       weakest = Math.min(weakest, knowness(k));
     }
-    const total = p.cards.length;
-    const level = levels === 0 ? 0 : Math.max(0, Math.min(levels, learner.level?.(p.id) ?? 0));
-    const conquered = levels === 0 ? total > 0 && known / total >= share - 1e-9 : level >= levels;
+    const total = cards.length;
+    const empty = total === 0;
+    const reached = levels === 0 ? 0 : Math.max(0, Math.min(levels, learner.level?.(p.id) ?? 0));
+    const level = empty ? levels : reached;
+    const conquered = empty || (levels === 0 ? known / total >= share - 1e-9 : level >= levels);
     const missing = conquered ? 0 : levels > 0 ? total : unseen + learning;
-    const saturation = (levels > 0 ? level >= 1 : conquered) ? 'full' : unseen < total ? 'partly' : 'never';
-    const dot = !conquered ? null : unseen + learning > 0 ? 'orange' : weakest < SOON ? 'yellow' : 'green';
-    own.set(p.id, { total, unseen, learning, known, appeared: unseen === 0, level, conquered, missing, saturation, dot });
+    const saturation = (empty || (levels > 0 ? level >= 1 : conquered)) ? 'full' : unseen < total ? 'partly' : 'never';
+    const dot = !conquered || empty ? null : unseen + learning > 0 ? 'orange' : weakest < SOON ? 'yellow' : 'green';
+    own.set(p.id, { cards, total, unseen, learning, known, appeared: unseen === 0, level, conquered, missing, saturation, dot });
   }
   /* Die Höhe über der Bitmenge der Grundlage (5 000 Orte: keine Mengen je Ort). */
   const miss = new Float64Array(world.bitOrder.length);
@@ -164,7 +176,10 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     places.set(id, { ...s, height: h });
   }
 
-  const ctx: LearnerContext = { world, lines, knowness, facts: learner.facts, storyPassed, conquered: (p) => places.get(p)?.conquered === true, ...(learner.prepared === undefined ? {} : { prepared: learner.prepared }) };
+  const ctx: LearnerContext = {
+    world, lines, knowness, facts: learner.facts, storyPassed, conquered: (p) => places.get(p)?.conquered === true,
+    ...(learner.prepared === undefined ? {} : { prepared: learner.prepared }), ...(off === undefined ? {} : { suspended: off })
+  };
 
   /* -- Fahrkarten ------------------------------------------------------------------------------------------------------------ */
   const ticketOf = (s: Section): TicketState => {

@@ -139,6 +139,28 @@ const run = (id, place, startDay, first, after = 0, cards = 20) => ({ id, place,
   check('session: an answer for another card than asked is ignored', R.runAnswer(R.startRun('y', 'P', ['a', 'b'], T0), 'zz', 1).attempts, 0);
 }
 
+/* -- Step 3 · 1: eine ausgesetzte Karte sperrt ihren Ort nie (sie wird nie gefragt) --------------------------------------- */
+{
+  const bx = F.boskoWorld();
+  const world = G.readWorld(bx.input);
+  const lines = L.linesOf(world, bx.input.flows);
+  const p = [...world.places.values()].find((x) => x.needs.length === 0 && x.cards.length >= 3);
+  const [off, ...rest] = p.cards;
+  const withOff = (knowness, cards = [off]) => ({ ...F.fakeLearner({ knowness }), suspended: (k) => cards.includes(k) });
+  const st = S.stateOf(world, lines, withOff(Object.fromEntries(rest.map((k) => [k, 0.5]))), { levels: 1, knownShare: 1 });
+  const ps = st.places.get(p.id);
+  check('suspended: every other card appeared — the place counts as appeared, its counts leave the card out', [ps.appeared, ps.total, ps.unseen, (ps.cards ?? p.cards).includes(off)], [true, p.cards.length - 1, 0, false]);
+  check('suspended: the run can start — the suspended card neither locks it nor is asked', R.runGate(st.ctx, p.id, { level: 0, reachedAt: [], nextAt: null }, 1, T0).kind, 'ready');
+  const st0 = S.stateOf(world, lines, withOff(Object.fromEntries(rest.map((k) => [k, 3]))), { levels: 0, knownShare: 1 });
+  check('suspended, 0 levels: every other card known — the place is fulfilled and flat', [st0.places.get(p.id).conquered, st0.places.get(p.id).height], [true, 0]);
+  const above = [...world.places.values()].find((x) => world.base(x.id).has(p.id));
+  const h1 = S.stateOf(world, lines, withOff({}), { levels: 1, knownShare: 1 }).places.get(above.id).height;
+  const h0 = S.stateOf(world, lines, F.fakeLearner({}), { levels: 1, knownShare: 1 }).places.get(above.id).height;
+  check('suspended: the height of a place built on it leaves the card out', h0 - h1, 1);
+  const all = S.stateOf(world, lines, withOff({}, p.cards), { levels: 1, knownShare: 1 }).places.get(p.id);
+  check('suspended: a place whose every card is suspended blocks nothing (it counts as conquered)', [all.conquered, all.height, all.dot], [true, 0, null]);
+}
+
 /* -- PR A: bis der Dienst Durchgänge speichert, gelten 0 Stufen (wmFeatures.ts) ---------------------------------------- */
 {
   const kept = new Map();

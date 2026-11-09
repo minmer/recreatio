@@ -37,6 +37,8 @@ export interface LearnerContext {
   readonly conquered?: (place: string) => boolean;
   /** Was `prepare` geliefert hat, je Bedingung (`conditionKey`). */
   readonly prepared?: ReadonlyMap<string, unknown>;
+  /** Step 3 · 1 — ausgesetzte Karten werden nie gefragt: sie zählen in keiner Bedingung (sonst sperrten sie für immer). */
+  readonly suspended?: (card: string) => boolean;
 }
 
 export interface Missing {
@@ -135,10 +137,11 @@ function relCards(rel: string, subject: string | undefined, world: World, lines:
 }
 
 /** Eine Menge Karten gegen einen Test: was fehlt, neu (nie gesehen) oder zu wiederholen. */
-function cardTest(cards: readonly string[], test: (k: number) => boolean, each: 'all' | 'any', ctx: LearnerContext): ConditionResult {
+function cardTest(all: readonly string[], test: (k: number) => boolean, each: 'all' | 'any', ctx: LearnerContext): ConditionResult {
   const fresh: string[] = [];
   const review: string[] = [];
   let ok = 0;
+  const cards = ctx.suspended === undefined ? all : all.filter((k) => !ctx.suspended!(k));
   for (const card of cards) {
     const k = ctx.knowness(card);
     if (test(k)) { ok += 1; continue; }

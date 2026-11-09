@@ -391,6 +391,8 @@ export interface FakeLearner {
   readonly levels?: Readonly<Record<string, number>>;
   readonly values?: Readonly<Record<string, number>>;
   readonly now?: number;
+  /** Ausgesetzte Karten (Step 3 · 1). */
+  readonly suspended?: readonly string[];
 }
 
 export function fakeLearner(f: FakeLearner = {}): LearnerInput {
@@ -405,6 +407,7 @@ export function fakeLearner(f: FakeLearner = {}): LearnerInput {
     now, facts,
     knowness: (card) => f.knowness?.[card] ?? 0,
     progress: (flow) => prog.get(flow),
-    level: (place) => f.levels?.[place] ?? 0
+    level: (place) => f.levels?.[place] ?? 0,
+    ...(f.suspended === undefined ? {} : { suspended: ((set) => (card: string) => set.has(card))(new Set(f.suspended)) })
   };
 }

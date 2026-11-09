@@ -241,10 +241,11 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
   const block = place.block === undefined ? undefined : state.world.blocks.get(place.block);
   const station = state.lines.stations.get(id);
   const linesHere = [...state.lines.lines.values()].filter((l) => l.stops.includes(id) || l.sections.some((sid) => { const s = state.lines.sections.get(sid); return s !== undefined && (s.to === id || s.from === id); }));
-  const unseen = place.cards.filter((k) => state.band(k) === 'unseen');
-  const notKnown = place.cards.filter((k) => state.band(k) !== 'known');
+  /* Step 3 · 1 — nur Karten, die zählen (ausgesetzte nie). */
+  const unseen = ps.cards.filter((k) => state.band(k) === 'unseen');
+  const notKnown = ps.cards.filter((k) => state.band(k) !== 'known');
   const hiddenOrder = Math.max(0, state.conquestOrder(id).length - 1 - ORDER_SHOWN);
-  const due = ps.conquered ? place.cards.filter((k) => state.band(k) === 'learning' && reviewable(k, state)) : [];
+  const due = ps.conquered ? ps.cards.filter((k) => state.band(k) === 'learning' && reviewable(k, state)) : [];
   const order = gate.kind === 'locked' || (L === 0 && !ps.conquered) ? state.conquestOrder(id).filter((p) => p !== id) : [];
   const total = order.reduce((sum, p) => sum + (state.places.get(p)?.missing ?? 0), 0) + ps.missing;
   const date = (at: number) => new Intl.DateTimeFormat(t.locale, { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(at));
