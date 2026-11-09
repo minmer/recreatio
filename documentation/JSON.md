@@ -28,7 +28,7 @@ backup, or prepared by an assistant. The rules are the same everywhere (2026-10-
 | Biblioteka — a work with its full text | `work-with-text` | „Źródła” → „Dzieło z tekstem (JSON)” | `library/sourceImport.ts` |
 | Biblioteka — a text for an existing work | `source-text` | dzieło → „Tekst źródła” → „Dodaj tekst (JSON)” | `library/sourceText.ts` |
 | Biblioteka — quotes of a book | `quotes` | książka → „Cytaty z tej książki” → „Import cytatów z JSON…” | `library/libraryQuotes.ts` |
-| Biblioteka — Liturgia, a whole collection (also `liturgy-schema`, `liturgy-defaults`, `example-liturgy`, `example-liturgy-maintenance`; current data: MCP `get_liturgy_library`) | `liturgy` | zbiór rodzaju Liturgia → „Import / eksport” (own panel with preview, not `JsonPanel`; [LITURGY.md](LITURGY.md)) | `library/liturgy/schema.ts`, `resources.ts`, `description.ts` |
+| Biblioteka — Liturgia, a whole collection (also `example-liturgy`; current data: MCP `get_liturgy_library`) | `liturgy` | zbiór rodzaju Liturgia → „Import / eksport”; also on each resource page ([LITURGY.md](LITURGY.md)) | `library/liturgy/liturgyJson.ts`, `LiturgyJsonPanel.tsx`, `persistence.ts` |
 | Wiedza — a knowledge base | `knowledge-base` | Wiedza → baza → „Więcej” → „Import i eksport (JSON)”; Schematy → „Schemat jako JSON” | `cogita/json.ts` |
 | Wiedza — forms for adding | `knowledge-forms` | Schematy → „Sposoby dodawania” → „Z JSON (wklej)…” | `cogita/json.ts` |
 | Skryptorium | `scriptorium` | Skryptorium → „Import / eksport”; per entry | `scriptorium/scriptoriumJson.ts` |
@@ -59,6 +59,9 @@ What each import may do, in short (the descriptions say it in full):
   sets the language its visitors see, on a module the language of that module; `null` or absent follows the visitor
   (page) or the page (module). Stored in the page look (`page_theme`) and the module layout (`layout.lang`).
 
+- **liturgy** — the nine kinds of a liturgical collection by `id`: a known one changes in place (only the fields named, `null`
+  clears), a new one is created, `{"id", "remove": true}` deletes (a changed built-in returns to its default); the whole
+  graph is checked first and anything pointing to nothing stops the import; saved in one go with a receipt.
 - **calendar** — appointments, series (a weekly timetable), program points, the scheme and its values, days of a series
   (cancel, restore, move, day values); deletes only with `"remove": true`; never intentions, entries, reservations.
 - **masses** — masses and services (single or series, celebrants, „ta i następne” with `changeFrom`) and their

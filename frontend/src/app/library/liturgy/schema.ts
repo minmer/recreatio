@@ -1,4 +1,7 @@
-/** Versioned, strict import contract. The same schema validates imports and generates JSON Schema. */
+/**
+ * Die neun Rodzaje der Liturgia, streng (zod): so gespeichert, so geprüft — und daraus die Felder der Beschreibung
+ * (`liturgyJson.ts`). Gespeichert trägt jede Encja `schema_version` "1.0" und ihre `revision`; beides zählt die App.
+ */
 import { z } from 'zod';
 import { isLiturgyKind, KIND as KIND_NAMES } from './names';
 
@@ -88,22 +91,9 @@ const calendar = z.strictObject({ ...base, entity_type: z.literal('calendar_prof
   coverage: z.enum(['partial', 'reviewed']), reviewed_from: date.optional(), reviewed_until: date.optional(), authority_reference: text
 });
 export const EntitySchema = z.discriminatedUnion('entity_type', [work, edition, resource, passage, template, observance, assignment, rule, calendar]);
-export const MAX_IMPORT_ENTITIES = 50000;
-// Reserve one of LibraryStore's 5000 atomic operations for the import receipt.
+/* Ein Import ist ein Zapis (`LibraryStore.saveAll`, höchstens 5000) — einer davon ist die Quittung. Das Dokument: `liturgyJson.ts`. */
 export const MAX_IMPORT_CHANGES = 4999;
-const operationBase = { id, expected_revision: integer(1, 1000000) };
-export const OperationSchema = z.discriminatedUnion('op', [
-  z.strictObject({ ...operationBase, op: z.literal('patch'), patch: z.record(z.string(), z.json()) }),
-  z.strictObject({ ...operationBase, op: z.literal('remove') }),
-  z.strictObject({ ...operationBase, op: z.literal('reset_default') })
-]);
-export const BatchSchema = z.strictObject({ format: z.literal('recreatio.liturgy'), schema_version: z.enum(['1.0', '1.1']),
-  mode: z.enum(['add', 'update']).optional(), entities: z.array(EntitySchema).max(MAX_IMPORT_ENTITIES).default([]),
-  operations: z.array(OperationSchema).max(MAX_IMPORT_ENTITIES).default([]), provenance: z.string().max(4000).optional() });
-export const ImportSchema = z.union([EntitySchema, BatchSchema]);
-export const jsonSchema = () => z.toJSONSchema(ImportSchema);
 export type LitEntity = z.infer<typeof EntitySchema>;
-export type ImportOperation = z.infer<typeof OperationSchema>;
 export type EntityType = LitEntity['entity_type'];
 export type OfType<T extends EntityType> = Extract<LitEntity, { entity_type: T }>;
 export type TextBlock = z.infer<typeof BlockSchema>;

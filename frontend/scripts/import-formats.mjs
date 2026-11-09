@@ -51,7 +51,7 @@ async function appTexts() {
     const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
     const entry = join(out, 'entry.ts');
     await writeFile(entry, [
-      `export { liturgyDescription, liturgySchemaText, liturgyDefaultsText } from '${app}library/liturgy/description';`,
+      `export { LITURGY_JSON } from '${app}library/liturgy/liturgyJson';`,
       `export { libraryDescription } from '${app}library/libraryJson';`,
       `export { workWithTextPrompt } from '${app}library/sourceImport';`,
       `export { sourceTextDescription } from '${app}library/sourceText';`,
@@ -91,9 +91,7 @@ async function appTexts() {
     globalThis.BroadcastChannel = undefined;
     const m = await import(pathToFileURL(join(out, 'entry.js')).href);
     return {
-      liturgy: m.liturgyDescription(),
-      liturgySchema: m.liturgySchemaText(),
-      liturgyDefaults: m.liturgyDefaultsText(),
+      liturgy: m.describe(m.LITURGY_JSON),
       library: m.libraryDescription(),
       workWithText: m.workWithTextPrompt(),
       sourceText: m.sourceTextDescription(),
@@ -202,14 +200,10 @@ export async function formats() {
     return { name: doc.name ?? name, text };
   };
   const liturgyExample = await readFile('../templates/liturgy/complete-example.json', 'utf8');
-  const liturgyMaintenance = await readFile('../templates/liturgy/maintenance-example.json', 'utf8');
-  const liturgyWhere = 'Biblioteka → zbiór rodzaju Liturgia → Import / eksport (#/workspace/library/<id>/import). Dane bieżące: get_liturgy_library, wszystkie strony z tym samym snapshotId.';
+  const liturgyWhere = 'Biblioteka → zbiór rodzaju Liturgia → zakładka „Import / eksport” → „JSON liturgii — eksport i import” (#/workspace/library/<id>/import); także przy każdym wpisie („Ten wpis jako JSON”). Bieżące dane zbioru dokładnie: get_liturgy_library.';
   const list = [
-    { id: 'liturgy', group: 'Biblioteka — Liturgia', title: 'Cała biblioteka liturgiczna — import, korekta, usuwanie i redakcja', what: 'Pełny model i kontrakt: wszystkie dziewięć rodzajów, całe teksty, wydania, fragmenty, kalendarze, szablony, przypisania i reguły. Tworzenie, pełne rewizje, scalanie pól, jawne usuwanie i przywracanie ustawień domyślnych; pełna walidacja i historia.', where: liturgyWhere, text: t.liturgy },
-    { id: 'liturgy-schema', group: 'Biblioteka — Liturgia', title: 'Liturgia — pełny JSON Schema 1.1', what: 'Ścisły schemat wygenerowany z walidatora aplikacji: encje, operacje patch/remove/reset_default i cały dokument. Połącz części znakiem nowego wiersza, aby otrzymać cały JSON Schema.', where: liturgyWhere, text: t.liturgySchema },
-    { id: 'liturgy-defaults', group: 'Biblioteka — Liturgia', title: 'Liturgia — wbudowane obchody, reguły i szablony', what: 'Pełne dane bazowe aplikacji jako JSON; odrębne od danych zapisanych w danym zbiorze. Służą do przygotowania udokumentowanych nadpisań, nie stanowią pełnego zatwierdzonego kalendarza.', where: liturgyWhere, text: t.liturgyDefaults },
-    { id: 'example-liturgy', group: 'Biblioteka — Liturgia', title: 'Przykład całej biblioteki liturgicznej', what: 'Spójny, importowalny zbiór: każdy rodzaj encji, wszystkie godziny i Msza, wspólny tekst z podziałem, antyfona, wydanie i profil. Wyłącznie tekst testowy.', where: liturgyWhere, text: liturgyExample },
-    { id: 'example-liturgy-maintenance', group: 'Biblioteka — Liturgia', title: 'Przykład korekty i porządkowania istniejącej Liturgii', what: 'Kolejny import do example-liturgy: nowe wydanie, korekta pełnego tekstu i metadanych wielu rodzajów, usunięcie obchodu wraz z jego regułą w jednym zapisie.', where: liturgyWhere, text: liturgyMaintenance },
+    { id: 'liturgy', group: 'Biblioteka — Liturgia', title: 'Liturgia — cały zbiór (dzieła, wydania, teksty, fragmenty, szablony, obchody, przypisania, reguły, profile)', what: 'Wszystkie dziewięć rodzajów wpisów Liturgii. Znane "id" zmienia w miejscu tylko podane pola (null czyści), nowe "id" dodaje, {"id", "remove": true} usuwa; wszystko sprawdzane razem i zapisywane naraz; nic poza tym nie jest usuwane.', where: liturgyWhere, text: t.liturgy },
+    { id: 'example-liturgy', group: 'Biblioteka — Liturgia', title: 'Przykład całej biblioteki liturgicznej', what: 'Spójny, importowalny zbiór w formacie "liturgy": każdy rodzaj wpisu, wszystkie godziny i Msza, wspólny tekst z podziałem, antyfona, wydanie i profil. Teksty zmyślone.', where: liturgyWhere, text: liturgyExample },
     { id: 'library', group: 'Biblioteka', title: 'Biblioteka — wpisy (źródła, cytaty, osoby, muzyka)', what: 'Dzieła, cytaty, osoby, utwory i ich odwołania; nowe wpisy i zmiany istniejących.', where: 'Biblioteka → biblioteka → zakładka „Import / eksport” → „JSON biblioteki — eksport i import” (#/workspace/library/<id>/json); także pod każdą zakładką listy i przy każdym wpisie („Import / eksport JSON”).', text: t.library },
     { id: 'work-with-text', group: 'Biblioteka', title: 'Dzieło z pełnym tekstem', what: 'Nowe dzieło (książka, artykuł, rozdział) z autorami i CAŁYM tekstem podzielonym na części, z granicami stron. To polecenie aplikacja daje do skopiowania dla AI.', where: 'Biblioteka → biblioteka → zakładka „Źródła” → „Dzieło z tekstem (JSON)” → „Dzieło z pełnym tekstem — import JSON”.', text: t.workWithText },
     { id: 'source-text', group: 'Biblioteka', title: 'Tekst źródła — do istniejącego dzieła', what: 'Pełny tekst (albo kolejne części) dzieła, które już jest w Bibliotece: części, bloki, miejsca, strony, przypisy.', where: 'Biblioteka → biblioteka → „Źródła” → dzieło → ramka „Tekst źródła” → „Dodaj tekst (JSON)” albo „Dodaj lub zmień części (JSON)”. Aplikacja dopisuje tam klucz dzieła i jego sposób liczenia miejsc.', text: t.sourceText },

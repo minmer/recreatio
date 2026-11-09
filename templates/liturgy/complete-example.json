@@ -1,28 +1,24 @@
 {
-  "format": "recreatio.liturgy",
-  "schema_version": "1.1",
-  "mode": "add",
+  "format": "recreatio/liturgy",
+  "version": 1,
+  "name": "Liturgia — przykład",
   "provenance": "Complete synthetic collection example: every entity type, all hours and Mass. Not an approved corpus.",
   "entities": [
     {
-      "schema_version": "1.0",
-      "revision": 1,
-      "status": "draft",
       "entity_type": "canonical_work",
       "id": "example.psalm",
       "title": "Example psalm structure — synthetic text",
+      "status": "draft",
       "work_type": "psalm",
       "numbering_systems": {
         "example": 1
       }
     },
     {
-      "schema_version": "1.0",
-      "revision": 1,
-      "status": "draft",
       "entity_type": "text_edition",
       "id": "example.edition",
       "title": "Synthetic demonstration edition",
+      "status": "draft",
       "language": "pl-PL",
       "license": "CC0 — synthetic demonstration text, not a liturgical translation",
       "permitted_usage": [
@@ -33,12 +29,10 @@
       "source_reference": "Recreatio import demonstration"
     },
     {
-      "schema_version": "1.0",
-      "revision": 1,
-      "status": "draft",
       "entity_type": "text_resource",
       "id": "example.psalm.pl",
       "title": "Example full text — four synthetic verses",
+      "status": "draft",
       "resource_type": "psalm",
       "work_id": "example.psalm",
       "edition_id": "example.edition",
@@ -70,12 +64,10 @@
       ]
     },
     {
-      "schema_version": "1.0",
-      "revision": 1,
-      "status": "draft",
       "entity_type": "passage_definition",
       "id": "example.psalm.part",
       "title": "Example division: verses 1–2 and 4",
+      "status": "draft",
       "work_id": "example.psalm",
       "edition_id": "example.edition",
       "resource_id": "example.psalm.pl",
@@ -91,12 +83,10 @@
       ]
     },
     {
-      "schema_version": "1.0",
-      "revision": 1,
-      "status": "draft",
       "entity_type": "text_resource",
       "id": "example.antiphon",
       "title": "Example antiphon — synthetic text",
+      "status": "draft",
       "resource_type": "antiphon",
       "edition_id": "example.edition",
       "language": "pl-PL",
@@ -110,11 +100,9 @@
       ]
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_template",
       "id": "example.template.invitatory",
       "title": "example.template.invitatory",
-      "revision": 1,
       "status": "draft",
       "hour_or_rite": "invitatory",
       "applicability": {
@@ -144,11 +132,9 @@
       ]
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.opening",
       "title": "example.text.opening",
-      "revision": 1,
       "status": "draft",
       "resource_type": "opening",
       "edition_id": "example.edition",
@@ -166,11 +152,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.invitatory.opening",
       "title": "example.assignment.invitatory.opening",
-      "revision": 1,
       "status": "draft",
       "slot_name": "opening",
       "resource_ref": {
@@ -188,11 +172,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.invitatory.invitatory",
       "title": "example.assignment.invitatory.invitatory",
-      "revision": 1,
       "status": "draft",
       "slot_name": "invitatory",
       "resource_ref": {
@@ -211,11 +193,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_template",
       "id": "example.template.readings",
       "title": "example.template.readings",
-      "revision": 1,
       "status": "draft",
       "hour_or_rite": "readings",
       "applicability": {
@@ -333,11 +313,9 @@
       ]
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.opening",
       "title": "example.assignment.readings.opening",
-      "revision": 1,
       "status": "draft",
       "slot_name": "opening",
       "resource_ref": {
@@ -355,11 +333,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.hymn",
       "title": "example.text.hymn",
-      "revision": 1,
       "status": "draft",
       "resource_type": "hymn",
       "edition_id": "example.edition",
@@ -377,11 +353,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.hymn",
       "title": "example.assignment.readings.hymn",
-      "revision": 1,
       "status": "draft",
       "slot_name": "hymn",
       "resource_ref": {
@@ -399,11 +373,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.psalmody.1",
       "title": "example.assignment.readings.psalmody.1",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.1",
       "resource_ref": {
@@ -422,11 +394,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.psalmody.2",
       "title": "example.assignment.readings.psalmody.2",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.2",
       "resource_ref": {
@@ -445,11 +415,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.psalmody.3",
       "title": "example.assignment.readings.psalmody.3",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.3",
       "resource_ref": {
@@ -468,11 +436,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.versicle",
       "title": "example.text.versicle",
-      "revision": 1,
       "status": "draft",
       "resource_type": "versicle",
       "edition_id": "example.edition",
@@ -490,11 +456,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.versicle",
       "title": "example.assignment.readings.versicle",
-      "revision": 1,
       "status": "draft",
       "slot_name": "versicle",
       "resource_ref": {
@@ -512,11 +476,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.reading.1",
       "title": "example.text.reading.1",
-      "revision": 1,
       "status": "draft",
       "resource_type": "reading_1",
       "edition_id": "example.edition",
@@ -534,11 +496,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.reading.1",
       "title": "example.assignment.readings.reading.1",
-      "revision": 1,
       "status": "draft",
       "slot_name": "reading.1",
       "resource_ref": {
@@ -556,11 +516,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.responsory.1",
       "title": "example.text.responsory.1",
-      "revision": 1,
       "status": "draft",
       "resource_type": "responsory_1",
       "edition_id": "example.edition",
@@ -578,11 +536,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.responsory.1",
       "title": "example.assignment.readings.responsory.1",
-      "revision": 1,
       "status": "draft",
       "slot_name": "responsory.1",
       "resource_ref": {
@@ -600,11 +556,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.reading.2",
       "title": "example.text.reading.2",
-      "revision": 1,
       "status": "draft",
       "resource_type": "reading_2",
       "edition_id": "example.edition",
@@ -622,11 +576,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.reading.2",
       "title": "example.assignment.readings.reading.2",
-      "revision": 1,
       "status": "draft",
       "slot_name": "reading.2",
       "resource_ref": {
@@ -644,11 +596,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.responsory.2",
       "title": "example.text.responsory.2",
-      "revision": 1,
       "status": "draft",
       "resource_type": "responsory_2",
       "edition_id": "example.edition",
@@ -666,11 +616,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.responsory.2",
       "title": "example.assignment.readings.responsory.2",
-      "revision": 1,
       "status": "draft",
       "slot_name": "responsory.2",
       "resource_ref": {
@@ -688,11 +636,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.te_deum",
       "title": "example.text.te_deum",
-      "revision": 1,
       "status": "draft",
       "resource_type": "te_deum",
       "edition_id": "example.edition",
@@ -710,11 +656,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.te_deum",
       "title": "example.assignment.readings.te_deum",
-      "revision": 1,
       "status": "draft",
       "slot_name": "te_deum",
       "resource_ref": {
@@ -732,11 +676,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.prayer",
       "title": "example.text.prayer",
-      "revision": 1,
       "status": "draft",
       "resource_type": "prayer",
       "edition_id": "example.edition",
@@ -754,11 +696,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.prayer",
       "title": "example.assignment.readings.prayer",
-      "revision": 1,
       "status": "draft",
       "slot_name": "prayer",
       "resource_ref": {
@@ -776,11 +716,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.conclusion",
       "title": "example.text.conclusion",
-      "revision": 1,
       "status": "draft",
       "resource_type": "conclusion",
       "edition_id": "example.edition",
@@ -798,11 +736,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.readings.conclusion",
       "title": "example.assignment.readings.conclusion",
-      "revision": 1,
       "status": "draft",
       "slot_name": "conclusion",
       "resource_ref": {
@@ -820,11 +756,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_template",
       "id": "example.template.lauds",
       "title": "example.template.lauds",
-      "revision": 1,
       "status": "draft",
       "hour_or_rite": "lauds",
       "applicability": {
@@ -934,11 +868,9 @@
       ]
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.opening",
       "title": "example.assignment.lauds.opening",
-      "revision": 1,
       "status": "draft",
       "slot_name": "opening",
       "resource_ref": {
@@ -956,11 +888,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.hymn",
       "title": "example.assignment.lauds.hymn",
-      "revision": 1,
       "status": "draft",
       "slot_name": "hymn",
       "resource_ref": {
@@ -978,11 +908,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.psalmody.1",
       "title": "example.assignment.lauds.psalmody.1",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.1",
       "resource_ref": {
@@ -1001,11 +929,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.psalmody.2",
       "title": "example.assignment.lauds.psalmody.2",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.2",
       "resource_ref": {
@@ -1024,11 +950,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.psalmody.3",
       "title": "example.assignment.lauds.psalmody.3",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.3",
       "resource_ref": {
@@ -1047,11 +971,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.reading",
       "title": "example.text.reading",
-      "revision": 1,
       "status": "draft",
       "resource_type": "reading",
       "edition_id": "example.edition",
@@ -1069,11 +991,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.reading",
       "title": "example.assignment.lauds.reading",
-      "revision": 1,
       "status": "draft",
       "slot_name": "reading",
       "resource_ref": {
@@ -1091,11 +1011,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.responsory",
       "title": "example.text.responsory",
-      "revision": 1,
       "status": "draft",
       "resource_type": "responsory",
       "edition_id": "example.edition",
@@ -1113,11 +1031,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.responsory",
       "title": "example.assignment.lauds.responsory",
-      "revision": 1,
       "status": "draft",
       "slot_name": "responsory",
       "resource_ref": {
@@ -1135,11 +1051,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.gospel_canticle",
       "title": "example.text.gospel_canticle",
-      "revision": 1,
       "status": "draft",
       "resource_type": "gospel_canticle",
       "edition_id": "example.edition",
@@ -1157,11 +1071,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.gospel_canticle",
       "title": "example.assignment.lauds.gospel_canticle",
-      "revision": 1,
       "status": "draft",
       "slot_name": "gospel_canticle",
       "resource_ref": {
@@ -1179,11 +1091,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.intercessions",
       "title": "example.text.intercessions",
-      "revision": 1,
       "status": "draft",
       "resource_type": "intercessions",
       "edition_id": "example.edition",
@@ -1201,11 +1111,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.intercessions",
       "title": "example.assignment.lauds.intercessions",
-      "revision": 1,
       "status": "draft",
       "slot_name": "intercessions",
       "resource_ref": {
@@ -1223,11 +1131,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.lords_prayer",
       "title": "example.text.lords_prayer",
-      "revision": 1,
       "status": "draft",
       "resource_type": "lords_prayer",
       "edition_id": "example.edition",
@@ -1245,11 +1151,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.lords_prayer",
       "title": "example.assignment.lauds.lords_prayer",
-      "revision": 1,
       "status": "draft",
       "slot_name": "lords_prayer",
       "resource_ref": {
@@ -1267,11 +1171,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.prayer",
       "title": "example.assignment.lauds.prayer",
-      "revision": 1,
       "status": "draft",
       "slot_name": "prayer",
       "resource_ref": {
@@ -1289,11 +1191,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.lauds.conclusion",
       "title": "example.assignment.lauds.conclusion",
-      "revision": 1,
       "status": "draft",
       "slot_name": "conclusion",
       "resource_ref": {
@@ -1311,11 +1211,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_template",
       "id": "example.template.terce",
       "title": "example.template.terce",
-      "revision": 1,
       "status": "draft",
       "hour_or_rite": "terce",
       "applicability": {
@@ -1401,11 +1299,9 @@
       ]
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.terce.opening",
       "title": "example.assignment.terce.opening",
-      "revision": 1,
       "status": "draft",
       "slot_name": "opening",
       "resource_ref": {
@@ -1423,11 +1319,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.terce.hymn",
       "title": "example.assignment.terce.hymn",
-      "revision": 1,
       "status": "draft",
       "slot_name": "hymn",
       "resource_ref": {
@@ -1445,11 +1339,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.terce.psalmody.1",
       "title": "example.assignment.terce.psalmody.1",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.1",
       "resource_ref": {
@@ -1468,11 +1360,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.terce.psalmody.2",
       "title": "example.assignment.terce.psalmody.2",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.2",
       "resource_ref": {
@@ -1491,11 +1381,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.terce.psalmody.3",
       "title": "example.assignment.terce.psalmody.3",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.3",
       "resource_ref": {
@@ -1514,11 +1402,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.terce.reading",
       "title": "example.assignment.terce.reading",
-      "revision": 1,
       "status": "draft",
       "slot_name": "reading",
       "resource_ref": {
@@ -1536,11 +1422,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.terce.versicle",
       "title": "example.assignment.terce.versicle",
-      "revision": 1,
       "status": "draft",
       "slot_name": "versicle",
       "resource_ref": {
@@ -1558,11 +1442,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.terce.prayer",
       "title": "example.assignment.terce.prayer",
-      "revision": 1,
       "status": "draft",
       "slot_name": "prayer",
       "resource_ref": {
@@ -1580,11 +1462,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.terce.conclusion",
       "title": "example.assignment.terce.conclusion",
-      "revision": 1,
       "status": "draft",
       "slot_name": "conclusion",
       "resource_ref": {
@@ -1602,11 +1482,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_template",
       "id": "example.template.sext",
       "title": "example.template.sext",
-      "revision": 1,
       "status": "draft",
       "hour_or_rite": "sext",
       "applicability": {
@@ -1692,11 +1570,9 @@
       ]
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.sext.opening",
       "title": "example.assignment.sext.opening",
-      "revision": 1,
       "status": "draft",
       "slot_name": "opening",
       "resource_ref": {
@@ -1714,11 +1590,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.sext.hymn",
       "title": "example.assignment.sext.hymn",
-      "revision": 1,
       "status": "draft",
       "slot_name": "hymn",
       "resource_ref": {
@@ -1736,11 +1610,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.sext.psalmody.1",
       "title": "example.assignment.sext.psalmody.1",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.1",
       "resource_ref": {
@@ -1759,11 +1631,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.sext.psalmody.2",
       "title": "example.assignment.sext.psalmody.2",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.2",
       "resource_ref": {
@@ -1782,11 +1652,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.sext.psalmody.3",
       "title": "example.assignment.sext.psalmody.3",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.3",
       "resource_ref": {
@@ -1805,11 +1673,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.sext.reading",
       "title": "example.assignment.sext.reading",
-      "revision": 1,
       "status": "draft",
       "slot_name": "reading",
       "resource_ref": {
@@ -1827,11 +1693,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.sext.versicle",
       "title": "example.assignment.sext.versicle",
-      "revision": 1,
       "status": "draft",
       "slot_name": "versicle",
       "resource_ref": {
@@ -1849,11 +1713,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.sext.prayer",
       "title": "example.assignment.sext.prayer",
-      "revision": 1,
       "status": "draft",
       "slot_name": "prayer",
       "resource_ref": {
@@ -1871,11 +1733,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.sext.conclusion",
       "title": "example.assignment.sext.conclusion",
-      "revision": 1,
       "status": "draft",
       "slot_name": "conclusion",
       "resource_ref": {
@@ -1893,11 +1753,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_template",
       "id": "example.template.none",
       "title": "example.template.none",
-      "revision": 1,
       "status": "draft",
       "hour_or_rite": "none",
       "applicability": {
@@ -1983,11 +1841,9 @@
       ]
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.none.opening",
       "title": "example.assignment.none.opening",
-      "revision": 1,
       "status": "draft",
       "slot_name": "opening",
       "resource_ref": {
@@ -2005,11 +1861,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.none.hymn",
       "title": "example.assignment.none.hymn",
-      "revision": 1,
       "status": "draft",
       "slot_name": "hymn",
       "resource_ref": {
@@ -2027,11 +1881,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.none.psalmody.1",
       "title": "example.assignment.none.psalmody.1",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.1",
       "resource_ref": {
@@ -2050,11 +1902,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.none.psalmody.2",
       "title": "example.assignment.none.psalmody.2",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.2",
       "resource_ref": {
@@ -2073,11 +1923,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.none.psalmody.3",
       "title": "example.assignment.none.psalmody.3",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.3",
       "resource_ref": {
@@ -2096,11 +1944,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.none.reading",
       "title": "example.assignment.none.reading",
-      "revision": 1,
       "status": "draft",
       "slot_name": "reading",
       "resource_ref": {
@@ -2118,11 +1964,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.none.versicle",
       "title": "example.assignment.none.versicle",
-      "revision": 1,
       "status": "draft",
       "slot_name": "versicle",
       "resource_ref": {
@@ -2140,11 +1984,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.none.prayer",
       "title": "example.assignment.none.prayer",
-      "revision": 1,
       "status": "draft",
       "slot_name": "prayer",
       "resource_ref": {
@@ -2162,11 +2004,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.none.conclusion",
       "title": "example.assignment.none.conclusion",
-      "revision": 1,
       "status": "draft",
       "slot_name": "conclusion",
       "resource_ref": {
@@ -2184,11 +2024,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_template",
       "id": "example.template.vespers",
       "title": "example.template.vespers",
-      "revision": 1,
       "status": "draft",
       "hour_or_rite": "vespers",
       "applicability": {
@@ -2298,11 +2136,9 @@
       ]
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.opening",
       "title": "example.assignment.vespers.opening",
-      "revision": 1,
       "status": "draft",
       "slot_name": "opening",
       "resource_ref": {
@@ -2320,11 +2156,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.hymn",
       "title": "example.assignment.vespers.hymn",
-      "revision": 1,
       "status": "draft",
       "slot_name": "hymn",
       "resource_ref": {
@@ -2342,11 +2176,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.psalmody.1",
       "title": "example.assignment.vespers.psalmody.1",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.1",
       "resource_ref": {
@@ -2365,11 +2197,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.psalmody.2",
       "title": "example.assignment.vespers.psalmody.2",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.2",
       "resource_ref": {
@@ -2388,11 +2218,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.psalmody.3",
       "title": "example.assignment.vespers.psalmody.3",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.3",
       "resource_ref": {
@@ -2411,11 +2239,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.reading",
       "title": "example.assignment.vespers.reading",
-      "revision": 1,
       "status": "draft",
       "slot_name": "reading",
       "resource_ref": {
@@ -2433,11 +2259,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.responsory",
       "title": "example.assignment.vespers.responsory",
-      "revision": 1,
       "status": "draft",
       "slot_name": "responsory",
       "resource_ref": {
@@ -2455,11 +2279,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.gospel_canticle",
       "title": "example.assignment.vespers.gospel_canticle",
-      "revision": 1,
       "status": "draft",
       "slot_name": "gospel_canticle",
       "resource_ref": {
@@ -2477,11 +2299,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.intercessions",
       "title": "example.assignment.vespers.intercessions",
-      "revision": 1,
       "status": "draft",
       "slot_name": "intercessions",
       "resource_ref": {
@@ -2499,11 +2319,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.lords_prayer",
       "title": "example.assignment.vespers.lords_prayer",
-      "revision": 1,
       "status": "draft",
       "slot_name": "lords_prayer",
       "resource_ref": {
@@ -2521,11 +2339,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.prayer",
       "title": "example.assignment.vespers.prayer",
-      "revision": 1,
       "status": "draft",
       "slot_name": "prayer",
       "resource_ref": {
@@ -2543,11 +2359,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.vespers.conclusion",
       "title": "example.assignment.vespers.conclusion",
-      "revision": 1,
       "status": "draft",
       "slot_name": "conclusion",
       "resource_ref": {
@@ -2565,11 +2379,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_template",
       "id": "example.template.compline",
       "title": "example.template.compline",
-      "revision": 1,
       "status": "draft",
       "hour_or_rite": "compline",
       "applicability": {
@@ -2663,11 +2475,9 @@
       ]
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.compline.opening",
       "title": "example.assignment.compline.opening",
-      "revision": 1,
       "status": "draft",
       "slot_name": "opening",
       "resource_ref": {
@@ -2685,11 +2495,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.examination",
       "title": "example.text.examination",
-      "revision": 1,
       "status": "draft",
       "resource_type": "examination",
       "edition_id": "example.edition",
@@ -2707,11 +2515,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.compline.examination",
       "title": "example.assignment.compline.examination",
-      "revision": 1,
       "status": "draft",
       "slot_name": "examination",
       "resource_ref": {
@@ -2729,11 +2535,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.compline.hymn",
       "title": "example.assignment.compline.hymn",
-      "revision": 1,
       "status": "draft",
       "slot_name": "hymn",
       "resource_ref": {
@@ -2751,11 +2555,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.compline.psalmody.1",
       "title": "example.assignment.compline.psalmody.1",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalmody.1",
       "resource_ref": {
@@ -2774,11 +2576,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.compline.reading",
       "title": "example.assignment.compline.reading",
-      "revision": 1,
       "status": "draft",
       "slot_name": "reading",
       "resource_ref": {
@@ -2796,11 +2596,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.compline.responsory",
       "title": "example.assignment.compline.responsory",
-      "revision": 1,
       "status": "draft",
       "slot_name": "responsory",
       "resource_ref": {
@@ -2818,11 +2616,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.compline.gospel_canticle",
       "title": "example.assignment.compline.gospel_canticle",
-      "revision": 1,
       "status": "draft",
       "slot_name": "gospel_canticle",
       "resource_ref": {
@@ -2840,11 +2636,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.compline.prayer",
       "title": "example.assignment.compline.prayer",
-      "revision": 1,
       "status": "draft",
       "slot_name": "prayer",
       "resource_ref": {
@@ -2862,11 +2656,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.blessing",
       "title": "example.text.blessing",
-      "revision": 1,
       "status": "draft",
       "resource_type": "blessing",
       "edition_id": "example.edition",
@@ -2884,11 +2676,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.compline.blessing",
       "title": "example.assignment.compline.blessing",
-      "revision": 1,
       "status": "draft",
       "slot_name": "blessing",
       "resource_ref": {
@@ -2906,11 +2696,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.marian_antiphon",
       "title": "example.text.marian_antiphon",
-      "revision": 1,
       "status": "draft",
       "resource_type": "marian_antiphon",
       "edition_id": "example.edition",
@@ -2928,11 +2716,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.compline.marian_antiphon",
       "title": "example.assignment.compline.marian_antiphon",
-      "revision": 1,
       "status": "draft",
       "slot_name": "marian_antiphon",
       "resource_ref": {
@@ -2950,11 +2736,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_template",
       "id": "example.template.mass",
       "title": "example.template.mass",
-      "revision": 1,
       "status": "draft",
       "hour_or_rite": "mass",
       "applicability": {
@@ -3064,11 +2848,9 @@
       ]
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.entrance",
       "title": "example.text.entrance",
-      "revision": 1,
       "status": "draft",
       "resource_type": "entrance",
       "edition_id": "example.edition",
@@ -3086,11 +2868,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.entrance",
       "title": "example.assignment.mass.entrance",
-      "revision": 1,
       "status": "draft",
       "slot_name": "entrance",
       "resource_ref": {
@@ -3108,11 +2888,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.collect",
       "title": "example.text.collect",
-      "revision": 1,
       "status": "draft",
       "resource_type": "collect",
       "edition_id": "example.edition",
@@ -3130,11 +2908,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.collect",
       "title": "example.assignment.mass.collect",
-      "revision": 1,
       "status": "draft",
       "slot_name": "collect",
       "resource_ref": {
@@ -3152,11 +2928,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.reading.1",
       "title": "example.assignment.mass.reading.1",
-      "revision": 1,
       "status": "draft",
       "slot_name": "reading.1",
       "resource_ref": {
@@ -3174,11 +2948,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.psalm",
       "title": "example.assignment.mass.psalm",
-      "revision": 1,
       "status": "draft",
       "slot_name": "psalm",
       "resource_ref": {
@@ -3197,11 +2969,9 @@
       "antiphon_ref": "example.antiphon"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.reading.2",
       "title": "example.assignment.mass.reading.2",
-      "revision": 1,
       "status": "draft",
       "slot_name": "reading.2",
       "resource_ref": {
@@ -3219,11 +2989,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.acclamation",
       "title": "example.text.acclamation",
-      "revision": 1,
       "status": "draft",
       "resource_type": "acclamation",
       "edition_id": "example.edition",
@@ -3241,11 +3009,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.acclamation",
       "title": "example.assignment.mass.acclamation",
-      "revision": 1,
       "status": "draft",
       "slot_name": "acclamation",
       "resource_ref": {
@@ -3263,11 +3029,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.gospel",
       "title": "example.text.gospel",
-      "revision": 1,
       "status": "draft",
       "resource_type": "gospel",
       "edition_id": "example.edition",
@@ -3285,11 +3049,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.gospel",
       "title": "example.assignment.mass.gospel",
-      "revision": 1,
       "status": "draft",
       "slot_name": "gospel",
       "resource_ref": {
@@ -3307,11 +3069,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.offertory",
       "title": "example.text.offertory",
-      "revision": 1,
       "status": "draft",
       "resource_type": "offertory",
       "edition_id": "example.edition",
@@ -3329,11 +3089,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.offertory",
       "title": "example.assignment.mass.offertory",
-      "revision": 1,
       "status": "draft",
       "slot_name": "offertory",
       "resource_ref": {
@@ -3351,11 +3109,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.prayer_over_offerings",
       "title": "example.text.prayer_over_offerings",
-      "revision": 1,
       "status": "draft",
       "resource_type": "prayer_over_offerings",
       "edition_id": "example.edition",
@@ -3373,11 +3129,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.prayer_over_offerings",
       "title": "example.assignment.mass.prayer_over_offerings",
-      "revision": 1,
       "status": "draft",
       "slot_name": "prayer_over_offerings",
       "resource_ref": {
@@ -3395,11 +3149,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.preface",
       "title": "example.text.preface",
-      "revision": 1,
       "status": "draft",
       "resource_type": "preface",
       "edition_id": "example.edition",
@@ -3417,11 +3169,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.preface",
       "title": "example.assignment.mass.preface",
-      "revision": 1,
       "status": "draft",
       "slot_name": "preface",
       "resource_ref": {
@@ -3439,11 +3189,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.communion",
       "title": "example.text.communion",
-      "revision": 1,
       "status": "draft",
       "resource_type": "communion",
       "edition_id": "example.edition",
@@ -3461,11 +3209,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.communion",
       "title": "example.assignment.mass.communion",
-      "revision": 1,
       "status": "draft",
       "slot_name": "communion",
       "resource_ref": {
@@ -3483,11 +3229,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "text_resource",
       "id": "example.text.prayer_after_communion",
       "title": "example.text.prayer_after_communion",
-      "revision": 1,
       "status": "draft",
       "resource_type": "prayer_after_communion",
       "edition_id": "example.edition",
@@ -3505,11 +3249,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_assignment",
       "id": "example.assignment.mass.prayer_after_communion",
       "title": "example.assignment.mass.prayer_after_communion",
-      "revision": 1,
       "status": "draft",
       "slot_name": "prayer_after_communion",
       "resource_ref": {
@@ -3527,11 +3269,9 @@
       "authority_reference": "Synthetic demonstration only"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "calendar_observance",
       "id": "example.observance",
       "title": "example.observance",
-      "revision": 1,
       "status": "draft",
       "precedence_class": 12,
       "liturgical_rank": "optional",
@@ -3545,11 +3285,9 @@
       "authority_reference": "Synthetic calendar fixture"
     },
     {
-      "schema_version": "1.0",
       "entity_type": "liturgical_rule",
       "id": "example.rule",
       "title": "example.rule",
-      "revision": 1,
       "status": "draft",
       "applicable_calendar": "example",
       "authority_reference": "Synthetic example, not an actual decree",
@@ -3565,11 +3303,9 @@
       }
     },
     {
-      "schema_version": "1.0",
       "entity_type": "calendar_profile",
       "id": "example.profile",
       "title": "example.profile",
-      "revision": 1,
       "status": "draft",
       "scopes": [
         "roman",
