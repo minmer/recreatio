@@ -1727,12 +1727,12 @@ ${t('cogitaDataFormat.course.main.s54')}
 ${t('cogitaDataFormat.course.main.s55Name')}
 ${t('cogitaDataFormat.course.main.s56Name')}
 ${t('cogitaDataFormat.course.main.s57View')}
-${REWARDS_SECTION}
+${rewardsSection()}
 ${t('cogitaDataFormat.course.anchors.s01Anchors')}
 ${t('cogitaDataFormat.course.anchors.s02')}
 ${t('cogitaDataFormat.course.anchors.s03')}
 ${formsSection()}
-${COURSE_USAGE}
+${courseUsage()}
 ${kinds}`;
 }
 
@@ -1740,7 +1740,8 @@ ${kinds}`;
  * 2026-11-02 — NAGRODY (`rewards.ts`): Punkte, Serie, Tagesziel, Stufen, Abzeichen — eine Regel als Dokument; was
  * fehlt, nimmt die eingebaute Regel („Punkty, seria i poziomy").
  */
-const REWARDS_SECTION = `${t('cogitaDataFormat.rewards.s01Rewards')}
+/* In der Sprache, die beim Lesen gilt — nie beim Laden des Moduls. */
+const rewardsSection = (): string => `${t('cogitaDataFormat.rewards.s01Rewards')}
 ${t('cogitaDataFormat.rewards.s02Ref')}
 ${t('cogitaDataFormat.rewards.s03Points')}
 ${t('cogitaDataFormat.rewards.s04Goal')}
@@ -1751,7 +1752,7 @@ ${t('cogitaDataFormat.rewards.s06')}`;
  * 2026-10-30 — WAS AUS DEM IMPORTIERTEN WIRD, im ganzen System (der Wunsch des Besitzers: neben jedem Import, wie die
  * Daten gebraucht werden). Jede Zeile ist im Code nachgeprüft.
  */
-const COURSE_USAGE = `${t('cogitaDataFormat.usage.s01')}
+const courseUsage = (): string => `${t('cogitaDataFormat.usage.s01')}
 ${t('cogitaDataFormat.usage.s02Anchors')}
 ${t('cogitaDataFormat.usage.s03')}
 ${t('cogitaDataFormat.usage.s04Landscape')}

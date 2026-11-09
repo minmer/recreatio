@@ -169,3 +169,5 @@ const runAll = (plan, all, grade) => {
 
 if (failures > 0) { console.error(`app-selfcheck-check: ${failures} failed, ${passes} passed`); process.exit(1); }
 console.log(`app-selfcheck-check: ${passes} checks passed`);
+/* 2026-11-09 — core/session (über cogita/learn) hält beim Laden einen BroadcastChannel offen: ohne exit endet Node nie. */
+process.exit(0);
