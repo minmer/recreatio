@@ -254,7 +254,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
       </div>
 
       {/* 2026-11-05 — DIE SPRACHE DER SEITE (im Aussehen, `look.lang`): ohne Wahl jeder Besucher in seiner. */}
-      <div className="wk-field">
+      <div className="wk-field" title={t('i18n.pageLangNote')}>
         <span>{t('i18n.pageLang')}</span>
         <LangPick value={pageLook.lang ?? null} follow={t('i18n.followVisitor')} label={t('i18n.pageLang')} disabled={busy !== null}
           onChange={(lang) => {
@@ -262,7 +262,6 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
             setPageLook(lang === null ? rest : { ...rest, lang });
             setLookDirty(true);
           }} />
-        <span className="wk-hint">{t('i18n.pageLangNote')}</span>
       </div>
 
       {mode === 'presentation' ? (

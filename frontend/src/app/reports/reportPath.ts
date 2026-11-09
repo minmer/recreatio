@@ -22,8 +22,5 @@ export const reportStatusPath = (): string => path('zglos', 'stan');
 /** Die Art, die der Dienst an die Stelle eines nach einer Meldung gesperrten Teils setzt (`Page.PartsOfAsync`). */
 export const BLOCKED_KIND = 'blocked';
 
-/** Der Satz an der Stelle eines gesperrten Teils — überall derselbe. */
-export const BLOCKED_PART_TEXT = 'Ten fragment zablokowano po zgłoszeniu.'; // i18n-ignore — veraltet: `t('reports.blockedPart')` in der Sprache der Seite
-
-/** Derselbe Satz, übersetzt (Sprache der Anwendung); in Komponenten besser `t('reports.blockedPart')`. */
+/** Der Satz an der Stelle eines gesperrten Teils (Sprache der Anwendung); in Komponenten besser `t('reports.blockedPart')`. */
 export const blockedPartText = (): string => t('reports.blockedPart');

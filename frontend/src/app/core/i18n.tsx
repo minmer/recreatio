@@ -158,14 +158,13 @@ export function setSectionLang(section: Section, lang: Lang | null): void {
 }
 
 /**
- * Beim Start, vor dem ersten Bild: die Sprache festlegen und ihre Dateien laden. Englisch kommt
- * dahinter nach, als Rückfall für Schlüssel, die einer Übersetzung noch fehlen.
+ * Beim Start, vor dem ersten Bild: die Sprache festlegen und ihre Dateien laden.
  */
 export async function startI18n(lang: Lang = initialLang()): Promise<void> {
   S.app = lang;
   if (globalThis.document !== undefined) globalThis.document.documentElement.lang = lang;
   await loadLang(lang);
-  if (lang !== DEFAULT_LANG) void loadLang(DEFAULT_LANG);
+  /* Englisch wird NICHT dazu geladen: app-i18n-check verlangt in jeder Sprache jeden Schlüssel — der Rückfall träfe nie. */
   const own = new Set(Object.values(sectionLangs()));
   for (const one of own) void loadLang(one);
 }
@@ -273,7 +272,7 @@ export function LangScope({ lang, section, bare = false, children }: { lang?: La
   if (bare) return <LangContext.Provider value={now}>{children}</LangContext.Provider>;
   return (
     <LangContext.Provider value={now}>
-      <div lang={now} style={{ display: 'contents' }}>{children}</div>
+      <div lang={now} className="wk-lang-scope">{children}</div>
     </LangContext.Provider>
   );
 }
