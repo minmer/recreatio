@@ -28,7 +28,6 @@
     "attemptsAny": "Überhaupt richtig",
     "attemptsOne": "Richtig nach einer Korrektur",
     "attemptsFirst": "Beim ersten Mal richtig",
-    "gap": "Tage nach der vorigen Stufe",
     "knownShare": "Ohne Stufen ist ein Ort erreicht, wenn dieser Anteil seiner Karten gekonnt ist (%)",
     "pillar": "Breite der Säulen",
     "pillarSays": "{pct} % der vollen Breite",
@@ -60,8 +59,8 @@
     "forLevel": "Durchgang für Stufe {level}",
     "rule": "{pct} % · {attempts}",
     "intro": {
-      "one": "{count} Karte in zufälliger Reihenfolge. Eine falsche Antwort kommt am Ende einmal wieder.",
-      "other": "{count} Karten in zufälliger Reihenfolge. Eine falsche Antwort kommt am Ende einmal wieder."
+      "one": "{count} Karte in zufälliger Reihenfolge. Eine falsche Antwort kommt am Ende wieder, bis sie sitzt. Alles beim ersten Mal richtig: alle Stufen auf einmal.",
+      "other": "{count} Karten in zufälliger Reihenfolge. Eine falsche Antwort kommt am Ende wieder, bis sie sitzt. Alles beim ersten Mal richtig: alle Stufen auf einmal."
     },
     "start": "Durchgang starten",
     "of": "Karte {n} von {all}",
@@ -71,10 +70,12 @@
     "notReached": "Stufe {level} diesmal nicht erreicht — {pct} % nötig",
     "conquered": "Ort erobert",
     "close": "Zurück",
-    "waitFrom": "Stufe {level} ab {date}",
     "serverOld": "Durchgänge sind möglich, sobald der Server aktualisiert ist.",
     "locked": "Lass zuerst jede Karte einmal erscheinen und erobere die Orte davor.",
-    "saving": "Der Durchgang wird gespeichert…"
+    "saving": "Der Durchgang wird gespeichert…",
+    "perfect": "Meisterhaft",
+    "perfectSays": "jede Karte beim ersten Mal richtig. Die höchste Auszeichnung.",
+    "reachedMany": "Stufen {from}–{level} auf einmal erreicht"
   },
   "map": {
     "start": "Start",
@@ -184,8 +185,6 @@
     "travel": "{line}: {from} → {to}",
     "learn": "Direkt lernen: {place}",
     "run": "Durchgang für Stufe {level}: {place}",
-    "wait": "{place}: Stufe {level} ab {date}",
-    "waitAll": "Auf diesem Weg ist gerade nichts zu tun — der nächste Schritt geht ab {date}.",
     "know": "Lernen, bis es sitzt: {place}",
     "locked": "braucht erst Karten",
     "turnHint": "Hier kannst du auch abbiegen",
@@ -199,7 +198,8 @@
     "costSame": "gleicher Aufwand",
     "end": "Navigation beenden",
     "arrived": "Du bist da: {name}",
-    "startHere": "Hier beginnen"
+    "startHere": "Hier beginnen",
+    "runAll": "alles beim ersten Mal richtig: gleich bis Stufe {upTo}"
   },
   "issue": {
     "title": {

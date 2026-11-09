@@ -1,13 +1,16 @@
 /**
  * 2026-11-09 — EROBERN DURCH DURCHGÄNGE (spec §7, Entscheidungen 7, 8, 9).
  * <code>
- *   Durchgang  fragt jede Karte eines Ortes einmal, gemischt; eine falsche kommt am Ende EINMAL wieder (Entscheidung 7).
+ *   Durchgang  fragt jede Karte eines Ortes einmal, gemischt; eine falsche kommt am Ende wieder, bis sie sitzt (höchstens
+ *              MAX_ASKS Mal; Entscheidung 7: „one" = richtig beim zweiten Mal, „any" = auch später). Karten derselben Sache
+ *              (dieselben Fakten, sonst derselbe Eintrag aus derselben Vorlage) fragt er nicht mehr, sobald eine davon beim
+ *              ersten Mal sitzt: sie zählen wie diese (2026-11-09, Wunsch des Eigentümers).
  *              Jede Antwort ist eine gewöhnliche Antwort (`via: "run:<id>"`); der Durchgang selbst ist ein Stapel `run`,
  *              nur für den Halter versiegelt (ohne Schlüssel des Bereichs, Entscheidung 9)
  *   zählen     „first": richtig beim ersten Mal · „one": dazu richtig nach der einen Korrektur · „any": richtig überhaupt
  *   Stufe      nie gespeichert: aus allen Durchgängen und der Einstellung, die JETZT gilt — ändert sie sich, ändert sich die
- *              Stufe; nichts geht verloren. Ein Durchgang hebt höchstens um eine Stufe; vor einer Stufe mit Abstand zählt
- *              erst ein Durchgang, der nach dem Abstand beginnt
+ *              Stufe; nichts geht verloren. Ein Durchgang hebt um JEDE Stufe, deren Regel er erfüllt (alles beim ersten Mal
+ *              richtig: alle Stufen auf einmal, „Mistrzowsko"); es gibt keinen Mindestabstand mehr (2026-11-09, Eigentümer)
  *   Freigabe   jede Karte ist erschienen (gelernt oder besser) und jede direkte Voraussetzung erobert — als Bedingung der
  *              einen Sprache (`wmConditions.ts`), damit künftige Typen (Gruppe, Ort) dazukommen
  *   Einstellung  Admin: `levelsSetup` in den Ustawienia; Lernender: Werte `~world.*` (nur Zahlen); es gilt: gesperrt beim
@@ -28,8 +31,6 @@ export interface LevelRule {
   /** Schwelle in Prozent (0–100). */
   readonly pct: number;
   readonly attempts: Attempts;
-  /** Mindestabstand zur vorigen Stufe, in Tagen. */
-  readonly gapDays: number;
 }
 
 /** Was der Admin in den Ustawienia einstellt. */
@@ -44,13 +45,13 @@ export interface LevelsSetup {
   readonly locked: boolean;
 }
 
-/** Die Vorgabe der Stufen (spec §7.1, drei Stufen: 75 % beliebig; 85 % eine Korrektur, 1 Tag; 95 % erster Versuch, 1 Tag). */
+/** Die Vorgabe der Stufen (spec §7.1: 75 % beliebig; 85 % eine Korrektur; 95 % erster Versuch …) — ohne Abstand zwischen ihnen. */
 export const RULE_TABLE: readonly LevelRule[] = [
-  { pct: 75, attempts: 'any', gapDays: 0 },
-  { pct: 85, attempts: 'one', gapDays: 1 },
-  { pct: 95, attempts: 'first', gapDays: 1 },
-  { pct: 95, attempts: 'first', gapDays: 3 },
-  { pct: 100, attempts: 'first', gapDays: 7 }
+  { pct: 75, attempts: 'any' },
+  { pct: 85, attempts: 'one' },
+  { pct: 95, attempts: 'first' },
+  { pct: 98, attempts: 'first' },
+  { pct: 100, attempts: 'first' }
 ];
 export const defaultRules = (levels: number): LevelRule[] => RULE_TABLE.slice(0, Math.max(0, Math.min(MAX_LEVELS, levels)));
 
@@ -67,8 +68,7 @@ export function readRule(raw: unknown, fallback: LevelRule): LevelRule {
   if (!isObject(raw)) return fallback;
   return {
     pct: finite(raw.pct) ? clamp(Math.round(raw.pct), 1, 100) : fallback.pct,
-    attempts: (ATTEMPTS as readonly string[]).includes(String(raw.attempts)) ? (raw.attempts as Attempts) : fallback.attempts,
-    gapDays: finite(raw.gapDays) ? clamp(raw.gapDays, 0, 365) : fallback.gapDays
+    attempts: (ATTEMPTS as readonly string[]).includes(String(raw.attempts)) ? (raw.attempts as Attempts) : fallback.attempts
   };
 }
 
@@ -88,7 +88,7 @@ export function readLevelsSetup(raw: unknown): LevelsSetup | undefined {
 
 /** Für das JSON der Ustawienia. */
 export const levelsSetupDoc = (s: LevelsSetup): Record<string, unknown> => ({
-  levels: s.levels, rules: s.rules.slice(0, s.levels).map((r) => ({ pct: r.pct, attempts: r.attempts, ...(r.gapDays > 0 ? { gapDays: r.gapDays } : {}) })),
+  levels: s.levels, rules: s.rules.slice(0, s.levels).map((r) => ({ pct: r.pct, attempts: r.attempts })),
   knownShare: s.knownShare, pillarWidth: s.pillarWidth, ...(s.locked ? { locked: true } : {})
 });
 
@@ -96,7 +96,7 @@ export const levelsSetupDoc = (s: LevelsSetup): Record<string, unknown> => ({
 
 export const OWN_LEVELS = '~world.levels';
 export const OWN_PILLAR = '~world.pillar';
-const ownKey = (i: number, what: 'pct' | 'attempts' | 'gap') => `~world.l${i + 1}.${what}`;
+const ownKey = (i: number, what: 'pct' | 'attempts') => `~world.l${i + 1}.${what}`;
 
 export interface OwnWorld {
   readonly levels?: number;
@@ -112,8 +112,7 @@ export function ownWorld(values: Readonly<Record<string, number>> | undefined): 
     out.levels = levels;
     out.rules = defaultRules(levels).map((d, i) => ({
       pct: finite(values[ownKey(i, 'pct')]) ? clamp(Math.round(values[ownKey(i, 'pct')]), 1, 100) : d.pct,
-      attempts: finite(values[ownKey(i, 'attempts')]) ? ATTEMPTS[clamp(Math.round(values[ownKey(i, 'attempts')]), 0, 2)] : d.attempts,
-      gapDays: finite(values[ownKey(i, 'gap')]) ? clamp(values[ownKey(i, 'gap')], 0, 365) : d.gapDays
+      attempts: finite(values[ownKey(i, 'attempts')]) ? ATTEMPTS[clamp(Math.round(values[ownKey(i, 'attempts')]), 0, 2)] : d.attempts
     }));
   }
   if (finite(values[OWN_PILLAR])) out.pillarWidth = clamp(values[OWN_PILLAR] / 100, PILLAR_MIN, 1);
@@ -130,7 +129,6 @@ export function withOwnLevels(values: Readonly<Record<string, number>>, own: { r
   own.rules.slice(0, levels).forEach((r, i) => {
     rest[ownKey(i, 'pct')] = r.pct;
     rest[ownKey(i, 'attempts')] = ATTEMPTS.indexOf(r.attempts);
-    rest[ownKey(i, 'gap')] = r.gapDays;
   });
   return rest;
 }
@@ -178,7 +176,7 @@ export interface RunRecord {
   readonly firstTry: number;
   /** Beim ersten Mal falsch, bei der einen Wiederholung am Ende richtig. */
   readonly afterCorrection: number;
-  /** Erst nach mehr als einer Korrektur richtig (für „beliebig"; heute 0 — eine Karte kommt höchstens einmal wieder). */
+  /** Erst nach mehr als einer Korrektur richtig (zählt nur für „beliebig"). */
   readonly laterRight?: number;
   /** Alle Antworten des Durchgangs. */
   readonly attempts: number;
@@ -202,6 +200,9 @@ export function readRun(raw: unknown): RunRecord | null {
   };
 }
 
+/** „Mistrzowsko": jede Karte beim ersten Mal richtig — die höchste Auszeichnung, immer erreichbar. */
+export const perfectRun = (run: RunRecord): boolean => run.cards > 0 && run.firstTry === run.cards;
+
 /** Der Anteil, der nach einer Regel zählt (0–1). */
 export function runScore(run: RunRecord, attempts: Attempts): number {
   if (run.cards <= 0) return 0;
@@ -213,24 +214,21 @@ export interface LevelProgress {
   readonly level: number;
   /** Wann jede erreichte Stufe erreicht wurde (Index 0 = Stufe 1). */
   readonly reachedAt: readonly number[];
-  /** Ab wann ein Durchgang für die nächste Stufe zählt (0: sofort; null: es gibt keine nächste). */
-  readonly nextAt: number | null;
+  /** Ein Durchgang dieses Ortes war „Mistrzowsko" (alles beim ersten Mal richtig). */
+  readonly perfect: boolean;
 }
 
 /** DIE STUFE AUS DEN DURCHGÄNGEN eines Ortes und der Einstellung, die jetzt gilt. */
 export function levelOf(runs: readonly RunRecord[], rules: readonly LevelRule[], levels: number): LevelProgress {
   const n = Math.max(0, Math.min(MAX_LEVELS, levels, rules.length));
   const reachedAt: number[] = [];
+  let perfect = false;
   for (const run of runs.slice().sort((a, b) => a.finishedAt - b.finishedAt || (a.id < b.id ? -1 : 1))) {
-    const level = reachedAt.length;
-    if (level >= n) break;
-    const rule = rules[level];
-    if (level > 0 && run.startedAt < reachedAt[level - 1] + rule.gapDays * DAY) continue;
-    if (runScore(run, rule.attempts) * 100 >= rule.pct - 1e-9) reachedAt.push(run.finishedAt);
+    perfect ||= perfectRun(run);
+    /* Jede Stufe, deren Regel dieser Durchgang erfüllt — der Reihe nach, ohne Abstand. */
+    while (reachedAt.length < n && runScore(run, rules[reachedAt.length].attempts) * 100 >= rules[reachedAt.length].pct - 1e-9) reachedAt.push(run.finishedAt);
   }
-  const level = reachedAt.length;
-  const nextAt = level >= n ? null : level === 0 ? 0 : reachedAt[level - 1] + rules[level].gapDays * DAY;
-  return { level, reachedAt, nextAt };
+  return { level: reachedAt.length, reachedAt, perfect };
 }
 
 /** Die Stufen aller Orte aus allen Durchgängen. */
@@ -263,11 +261,10 @@ export type RunGate =
   | { readonly kind: 'none' }
   | { readonly kind: 'conquered' }
   | { readonly kind: 'ready'; readonly level: number }
-  | { readonly kind: 'wait'; readonly level: number; readonly from: number }
   | { readonly kind: 'locked'; readonly level: number; readonly unseen: readonly string[]; readonly needs: readonly string[] };
 
 /** KANN EIN DURCHGANG BEGINNEN — und für welche Stufe; sonst warum nicht. */
-export function runGate(ctx: LearnerContext, place: string, progress: LevelProgress, levels: number, now: number): RunGate {
+export function runGate(ctx: LearnerContext, place: string, progress: LevelProgress, levels: number): RunGate {
   if (levels <= 0) return { kind: 'none' };
   if (progress.level >= levels) return { kind: 'conquered' };
   const level = progress.level + 1;
@@ -276,7 +273,6 @@ export function runGate(ctx: LearnerContext, place: string, progress: LevelProgr
     const needs = (ctx.world.places.get(place)?.needs ?? []).filter((n) => ctx.conquered?.(n) !== true);
     return { kind: 'locked', level, unseen: unlock.missing?.new ?? [], needs };
   }
-  if (progress.nextAt !== null && progress.nextAt > now) return { kind: 'wait', level, from: progress.nextAt };
   return { kind: 'ready', level };
 }
 
@@ -290,9 +286,16 @@ export interface RunSession {
   readonly order: readonly string[];
   /** Was noch dran ist (vorn: jetzt). */
   readonly queue: readonly string[];
-  /** Je Karte: die erste und die zweite Antwort (Richtigkeit 0–1). */
+  /** Je Karte: die erste, die zweite und die letzte spätere Antwort (Richtigkeit 0–1). */
   readonly first: Readonly<Record<string, number>>;
   readonly second: Readonly<Record<string, number>>;
+  readonly later: Readonly<Record<string, number>>;
+  /** Wie oft jede Karte gefragt wurde. */
+  readonly asked: Readonly<Record<string, number>>;
+  /** Je Karte: was sie fragt (Karten mit derselben Sache stehen für einander). */
+  readonly same: Readonly<Record<string, string>>;
+  /** Karten, die nicht mehr gefragt wurden, weil dieselbe Sache schon beim ersten Mal sass. */
+  readonly covered: readonly string[];
   readonly attempts: number;
   /** Ab hier kommen die Wiederholungen der falschen Karten. */
   readonly retrying: boolean;
@@ -309,27 +312,55 @@ export function shuffled<T>(list: readonly T[], seed: string): T[] {
   return out;
 }
 
-export function startRun(id: string, place: string, cards: readonly string[], now: number): RunSession {
+/** Wie oft eine Karte höchstens gefragt wird (danach gilt sie als falsch). */
+export const MAX_ASKS = 4;
+
+/**
+ * Was eine Karte fragt, als Schlüssel: ihre Fakten (`Card.facts`), sonst ihr Eintrag mit ihrer Vorlage (eine Vorlage, die
+ * mehrere Karten aus einem Eintrag macht — Richtungen, Auswahlen), sonst nur sie selbst.
+ */
+export function sameKey(card: { readonly key: string; readonly facts?: readonly string[]; readonly entity?: string; readonly template?: string }): string {
+  if (card.facts !== undefined && card.facts.length > 0) return `f:${card.facts.slice().sort().join('|')}`;
+  if (card.entity !== undefined && card.template !== undefined) return `e:${card.entity}|${card.template}`;
+  return `k:${card.key}`;
+}
+
+export function startRun(id: string, place: string, cards: readonly string[], now: number, same: Readonly<Record<string, string>> = {}): RunSession {
   const order = shuffled(cards, id);
-  return { id, place, startedAt: now, order, queue: order, first: {}, second: {}, attempts: 0, retrying: false };
+  return { id, place, startedAt: now, order, queue: order, first: {}, second: {}, later: {}, asked: {}, same, covered: [], attempts: 0, retrying: false };
 }
 
 export const runCard = (s: RunSession): string | null => s.queue[0] ?? null;
 
-/** Eine Antwort: beim ersten Mal falsch → am Ende noch einmal (Entscheidung 7). */
+/** Eine Antwort: falsch → am Ende noch einmal, bis sie sitzt (höchstens MAX_ASKS Mal; Entscheidung 7). */
 export function runAnswer(s: RunSession, card: string, correctness: number): RunSession {
   if (s.queue[0] !== card) return s;
   const right = correctness >= 0.999;
-  const rest = s.queue.slice(1);
-  if (!s.retrying && s.first[card] === undefined) {
-    const first = { ...s.first, [card]: correctness };
-    const wrongs = right ? [] : [card];
-    const queue = [...rest, ...wrongs];
-    /* Die erste Runde ist vorbei, sobald keine Karte der gemischten Reihenfolge mehr vorn wartet. */
-    const retrying = queue.length > 0 && queue.every((k) => first[k] !== undefined);
-    return { ...s, first, queue, attempts: s.attempts + 1, retrying };
-  }
-  return { ...s, second: { ...s.second, [card]: correctness }, queue: rest, attempts: s.attempts + 1, retrying: true };
+  let rest = s.queue.slice(1);
+  const n = (s.asked[card] ?? 0) + 1;
+  const asked = { ...s.asked, [card]: n };
+  let first = s.first;
+  let covered = s.covered;
+  let second = s.second;
+  let later = s.later;
+  if (n === 1) {
+    first = { ...first, [card]: correctness };
+    /* Dieselbe Sache sass beim ersten Mal: die anderen Karten dazu fragt der Durchgang nicht mehr. */
+    const key = s.same[card];
+    if (right && key !== undefined) {
+      const twins = rest.filter((k) => k !== card && s.same[k] === key && first[k] === undefined);
+      if (twins.length > 0) {
+        rest = rest.filter((k) => !twins.includes(k));
+        first = { ...first, ...Object.fromEntries(twins.map((k) => [k, 1])) };
+        covered = [...covered, ...twins];
+      }
+    }
+  } else if (n === 2) second = { ...second, [card]: correctness };
+  else later = { ...later, [card]: correctness };
+  const queue = right || n >= MAX_ASKS ? rest : [...rest, card];
+  /* Die erste Runde ist vorbei, sobald keine Karte der gemischten Reihenfolge mehr vorn wartet. */
+  const retrying = queue.length > 0 && queue.every((k) => first[k] !== undefined);
+  return { ...s, first, second, later, asked, covered, queue, attempts: s.attempts + 1, retrying };
 }
 
 export const runDone = (s: RunSession): boolean => s.queue.length === 0;
@@ -339,5 +370,6 @@ export function finishRun(s: RunSession, now: number, participants: readonly str
   const cards = s.order.length;
   const firstTry = s.order.filter((k) => (s.first[k] ?? 0) >= 0.999).length;
   const afterCorrection = s.order.filter((k) => (s.first[k] ?? 0) < 0.999 && (s.second[k] ?? 0) >= 0.999).length;
-  return { id: s.id, place: s.place, participants, startedAt: s.startedAt, finishedAt: Math.max(s.startedAt, now), cards, firstTry, afterCorrection, attempts: s.attempts };
+  const laterRight = s.order.filter((k) => (s.first[k] ?? 0) < 0.999 && (s.second[k] ?? 0) < 0.999 && (s.later[k] ?? 0) >= 0.999).length;
+  return { id: s.id, place: s.place, participants, startedAt: s.startedAt, finishedAt: Math.max(s.startedAt, now), cards, firstTry, afterCorrection, ...(laterRight > 0 ? { laterRight } : {}), attempts: s.attempts };
 }

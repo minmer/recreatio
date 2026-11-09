@@ -20,17 +20,12 @@ export interface NavSession {
   readonly choices: ReadonlyMap<string, string>;
 }
 
-/**
- * Ein Schritt beim Namen (derselbe Schritt in zwei Plänen hat denselben Schlüssel). Step 3 · 7 — eine wartende Stufe ist der
- * Durchgang dieser Stufe: kommt ihr Tag, ist sie derselbe Schritt (nicht „erledigt", sondern jetzt dran).
- */
+/** Ein Schritt beim Namen (derselbe Schritt in zwei Plänen hat denselben Schlüssel). */
 export const stepKey = (s: PlanStep): string =>
-  s.kind === 'travel' ? `travel:${s.section}` : s.kind === 'run' || s.kind === 'wait' ? `run:${s.place}:${s.level}` : `${s.kind}:${s.place}`;
+  s.kind === 'travel' ? `travel:${s.section}` : s.kind === 'run' ? `run:${s.place}:${s.level}` : `${s.kind}:${s.place}`;
 
 export interface Timetable {
   readonly target: string;
-  /** Wann der Plan gerechnet wurde (`PlanStep.at` ≤ now: geht jetzt). */
-  readonly now: number;
   readonly done: readonly PlanStep[];
   readonly upcoming: readonly PlanStep[];
   /** Karten, die bis zum Ziel fehlen. */
@@ -42,17 +37,12 @@ export interface Timetable {
  * verschwindet, ist nicht erledigt. Sonst ist erledigt, was im alten Plan vor dem Neuen stand und nun fehlt.
  */
 export function followPlan(prev: Timetable | null, plan: Plan, replanned = false): Timetable {
-  if (prev === null || prev.target !== plan.target) return { target: plan.target, now: plan.now, done: [], upcoming: plan.steps, cards: plan.cards };
-  if (replanned) return { ...prev, now: plan.now, upcoming: plan.steps, cards: plan.cards };
+  if (prev === null || prev.target !== plan.target) return { target: plan.target, done: [], upcoming: plan.steps, cards: plan.cards };
+  if (replanned) return { ...prev, upcoming: plan.steps, cards: plan.cards };
   const now = new Set(plan.steps.map(stepKey));
   const had = new Set(prev.done.map(stepKey));
   const newly = prev.upcoming.filter((s) => !now.has(stepKey(s)) && !had.has(stepKey(s)));
-  return { target: plan.target, now: plan.now, done: [...prev.done, ...newly], upcoming: plan.steps, cards: plan.cards };
-}
-
-/** Step 3 · 7 (spec §8.1) — der jetzige Schritt: der erste, der jetzt geht (-1: alles wartet auf seinen Tag). */
-export function currentIndex(tt: Timetable): number {
-  return tt.upcoming.findIndex((s) => s.at <= tt.now);
+  return { target: plan.target, done: [...prev.done, ...newly], upcoming: plan.steps, cards: plan.cards };
 }
 
 /** Wie viele kommende Schritte das Fenster zeigt (der jetzige und 4 danach). */
@@ -81,16 +71,13 @@ export function navMarks(tt: Timetable, lines: Lines): NavMarks {
   const next: string[] = [];
   const later: string[] = [];
   const forks = new Set<string>();
-  /* Step 3 · 7 — das Fenster beginnt beim jetzigen Schritt (wartende davor gehören nicht dazu). */
-  const cur = currentIndex(tt);
-  const from = cur < 0 ? tt.upcoming.length : cur;
   tt.upcoming.forEach((s, i) => {
     if (s.kind !== 'travel') return;
-    (i >= from && i < from + WINDOW_NEXT ? next : later).push(s.section);
+    (i < WINDOW_NEXT ? next : later).push(s.section);
     if (s.alternatives.length > 0) forks.add(lines.sections.get(s.section)?.from ?? HOME);
   });
-  const current = cur < 0 ? undefined : tt.upcoming[cur];
-  return { next, later, start: current === undefined ? null : stepPlace(current, lines), target: tt.target, forks: [...forks] };
+  const first = tt.upcoming[0];
+  return { next, later, start: first === undefined ? null : stepPlace(first, lines), target: tt.target, forks: [...forks] };
 }
 
 /* -- In der Sitzung behalten (ein Neuladen; nie im Konto) ---------------------------------------------------------------- */

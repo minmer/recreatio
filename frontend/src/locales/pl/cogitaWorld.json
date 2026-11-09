@@ -28,7 +28,6 @@
     "attemptsAny": "Dobrze w ogóle",
     "attemptsOne": "Dobrze po jednej poprawce",
     "attemptsFirst": "Dobrze za pierwszym razem",
-    "gap": "Dni po poprzednim poziomie",
     "knownShare": "Bez poziomów miejsce jest osiągnięte, gdy znana jest taka część jego kart (%)",
     "pillar": "Szerokość filarów",
     "pillarSays": "{pct} % pełnej szerokości",
@@ -64,10 +63,10 @@
     "forLevel": "Przebieg na poziom {level}",
     "rule": "{pct} % · {attempts}",
     "intro": {
-      "one": "{count} karta w losowej kolejności. Błędna odpowiedź wraca raz na końcu.",
-      "few": "{count} karty w losowej kolejności. Błędna odpowiedź wraca raz na końcu.",
-      "many": "{count} kart w losowej kolejności. Błędna odpowiedź wraca raz na końcu.",
-      "other": "{count} karty w losowej kolejności. Błędna odpowiedź wraca raz na końcu."
+      "one": "{count} karta w losowej kolejności. Błędna odpowiedź wraca na końcu, aż będzie dobrze. Wszystko dobrze za pierwszym razem: wszystkie poziomy naraz.",
+      "few": "{count} karty w losowej kolejności. Błędna odpowiedź wraca na końcu, aż będzie dobrze. Wszystko dobrze za pierwszym razem: wszystkie poziomy naraz.",
+      "many": "{count} kart w losowej kolejności. Błędna odpowiedź wraca na końcu, aż będzie dobrze. Wszystko dobrze za pierwszym razem: wszystkie poziomy naraz.",
+      "other": "{count} karty w losowej kolejności. Błędna odpowiedź wraca na końcu, aż będzie dobrze. Wszystko dobrze za pierwszym razem: wszystkie poziomy naraz."
     },
     "start": "Rozpocznij przebieg",
     "of": "Karta {n} z {all}",
@@ -77,10 +76,12 @@
     "notReached": "Poziom {level} tym razem nieosiągnięty — potrzeba {pct} %",
     "conquered": "Miejsce zdobyte",
     "close": "Wróć",
-    "waitFrom": "Poziom {level} od {date}",
     "serverOld": "Przebiegi będą możliwe po aktualizacji serwera.",
     "locked": "Najpierw niech każda karta pojawi się raz i zdobądź miejsca przed tym.",
-    "saving": "Zapisywanie przebiegu…"
+    "saving": "Zapisywanie przebiegu…",
+    "perfect": "Mistrzowsko",
+    "perfectSays": "każda karta dobrze za pierwszym razem. Najwyższe wyróżnienie.",
+    "reachedMany": "Poziomy {from}–{level} osiągnięte za jednym razem"
   },
   "map": {
     "start": "Start",
@@ -210,8 +211,6 @@
     "travel": "{line}: {from} → {to}",
     "learn": "Ucz się bezpośrednio: {place}",
     "run": "Przebieg na poziom {level}: {place}",
-    "wait": "{place}: poziom {level} od {date}",
-    "waitAll": "Na tej trasie nie ma teraz nic do zrobienia — następny krok od {date}.",
     "know": "Ucz się aż do opanowania: {place}",
     "locked": "najpierw potrzebne karty",
     "turnHint": "Tu możesz też skręcić",
@@ -227,7 +226,8 @@
     "costSame": "ten sam wysiłek",
     "end": "Zakończ nawigację",
     "arrived": "Jesteś na miejscu: {name}",
-    "startHere": "Zacznij tutaj"
+    "startHere": "Zacznij tutaj",
+    "runAll": "wszystko dobrze za pierwszym razem: od razu do poziomu {upTo}"
   },
   "issue": {
     "title": {

@@ -60,13 +60,6 @@ export function LevelsEditor({ levels, rules, onChange, disabled = false, t }: {
                 {ATTEMPTS.map((a) => <option key={a} value={a}>{attemptsText(a, t)}</option>)}
               </select>
             </label>
-            {i > 0 && (
-              <label className="wk-field">
-                <span>{t('cogitaWorld.settings.gap')}</span>
-                <input type="number" inputMode="decimal" min={0} max={365} step="any" value={r.gapDays} disabled={disabled}
-                  onChange={(e) => { const n = num(e.target.value, 0, 365); if (n !== null) set(i, { gapDays: n }); }} data-level-gap={i + 1} />
-              </label>
-            )}
           </div>
         </fieldset>
       ))}

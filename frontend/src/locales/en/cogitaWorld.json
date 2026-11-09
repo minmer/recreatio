@@ -28,7 +28,6 @@
     "attemptsAny": "Right at all",
     "attemptsOne": "Right after one correction",
     "attemptsFirst": "Right the first time",
-    "gap": "Days after the previous level",
     "knownShare": "Without levels, a place is reached when this share of its cards is known (%)",
     "pillar": "Pillar width",
     "pillarSays": "{pct} % of the full width",
@@ -60,8 +59,8 @@
     "forLevel": "Run for level {level}",
     "rule": "{pct} % · {attempts}",
     "intro": {
-      "one": "{count} card in random order. A wrong answer comes back once at the end.",
-      "other": "{count} cards in random order. A wrong answer comes back once at the end."
+      "one": "{count} card in random order. A wrong answer comes back at the end until it is right. All right the first time: every level at once.",
+      "other": "{count} cards in random order. A wrong answer comes back at the end until it is right. All right the first time: every level at once."
     },
     "start": "Start the run",
     "of": "Card {n} of {all}",
@@ -71,10 +70,12 @@
     "notReached": "Level {level} not reached this time — {pct} % needed",
     "conquered": "Place conquered",
     "close": "Back",
-    "waitFrom": "Level {level} from {date}",
     "serverOld": "Runs will be possible once the server is updated.",
     "locked": "First let every card appear once and conquer the places before this one.",
-    "saving": "Saving the run…"
+    "saving": "Saving the run…",
+    "perfect": "Masterly",
+    "perfectSays": "every card right the first time. The highest award.",
+    "reachedMany": "Levels {from}–{level} reached at once"
   },
   "map": {
     "start": "Start",
@@ -184,8 +185,6 @@
     "travel": "{line}: {from} → {to}",
     "learn": "Learn directly: {place}",
     "run": "Run for level {level}: {place}",
-    "wait": "{place}: level {level} from {date}",
-    "waitAll": "Nothing to do on this route right now — the next step opens on {date}.",
     "know": "Learn until known: {place}",
     "locked": "needs cards first",
     "turnHint": "You can also turn here",
@@ -199,7 +198,8 @@
     "costSame": "same effort",
     "end": "End navigation",
     "arrived": "You are there: {name}",
-    "startHere": "Start here"
+    "startHere": "Start here",
+    "runAll": "all right first time: straight to level {upTo}"
   },
   "issue": {
     "title": {

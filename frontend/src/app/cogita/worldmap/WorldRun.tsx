@@ -1,6 +1,7 @@
 /**
  * 2026-11-09 — EIN DURCHGANG (spec §7.1, Entscheidung 7): jede Karte des Ortes einmal, gemischt; eine falsche kommt am Ende
- * einmal wieder. Jede Antwort ist eine gewöhnliche Antwort (`via: "run:<id>"`); am Ende geht der Durchgang als Stapel `run`
+ * wieder, bis sie sitzt; Karten derselben Sache fragt er nicht doppelt, wenn eine davon beim ersten Mal sitzt. Alles beim ersten
+ * Mal richtig: „Mistrzowsko" — alle Stufen auf einmal, die höchste Auszeichnung. Jede Antwort ist eine gewöhnliche Antwort (`via: "run:<id>"`); am Ende geht der Durchgang als Stapel `run`
  * hinaus (nur für den Halter versiegelt) und die Stufe rechnet sich neu. Ein Dienst vor 0140: der Durchgang ist verborgen.
  */
 
@@ -15,7 +16,7 @@ import { learnFeatures, renamer, type Learner } from '../learn';
 import type { CogitaLibrary } from '../store';
 import { attemptsText } from './WorldLevels';
 import { effectiveWorldFor, reportDueFor } from './wmReview';
-import { finishRun, levelOf, runAnswer, runCard, runDone, startRun, type RunRecord, type RunSession } from './wmRuns';
+import { finishRun, levelOf, perfectRun, runAnswer, runCard, runDone, sameKey, startRun, type RunRecord, type RunSession } from './wmRuns';
 import './worldmap.css';
 
 export interface RunOutcome {
@@ -41,6 +42,7 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
   const level = Math.min(eff.levels, before.level + 1);
   const rule = eff.rules[level - 1];
   const byKey = useMemo(() => new Map(cards.map((c) => [c.key, c] as const)), [cards]);
+  const same = useMemo(() => Object.fromEntries(cards.map((c) => [c.key, sameKey(c)] as const)), [cards]);
   const [allowed, setAllowed] = useState<boolean | null>(learner.holder.kind === 'local' ? true : null);
   useEffect(() => {
     if (learner.holder.kind === 'local') return undefined;
@@ -65,12 +67,14 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
   if (outcome !== null) {
     const r = outcome.run;
     const reached = outcome.after > outcome.before;
+    const perfect = perfectRun(r);
     return (
-      <div className="cg-world-run" data-world-run="result" data-world-run-level={outcome.after} data-world-run-reached={reached ? '1' : '0'}>
+      <div className={`cg-world-run${perfect ? ' is-perfect' : ''}`} data-world-run="result" data-world-run-level={outcome.after} data-world-run-reached={reached ? '1' : '0'} data-world-run-perfect={perfect ? '1' : '0'}>
         <h3>{t('cogitaWorld.run.title', { name })}</h3>
+        {perfect && <p className="cg-wm-perfect is-big" data-world-perfect="">★ {t('cogitaWorld.run.perfect')} — {t('cogitaWorld.run.perfectSays')}</p>}
         <p>{t('cogitaWorld.run.result', { first: r.firstTry, all: r.cards, after: r.afterCorrection })}</p>
         <p className={reached ? 'wk-note' : 'cg-muted'}>
-          {reached ? t('cogitaWorld.run.reached', { level: outcome.after }) : t('cogitaWorld.run.notReached', { level, pct: rule?.pct ?? 0 })}
+          {reached ? (outcome.after - outcome.before > 1 ? t('cogitaWorld.run.reachedMany', { from: outcome.before + 1, level: outcome.after }) : t('cogitaWorld.run.reached', { level: outcome.after })) : t('cogitaWorld.run.notReached', { level, pct: rule?.pct ?? 0 })}
           {reached && outcome.after >= eff.levels ? ` · ${t('cogitaWorld.run.conquered')}` : ''}
         </p>
         <div className="wk-actions"><button type="button" className="wk-btn" autoFocus onClick={() => onClose(outcome)} data-world-run-close="">{t('cogitaWorld.run.close')}</button></div>
@@ -86,7 +90,7 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
         <p className="cg-muted">{t('cogitaWorld.run.intro', { count: cards.length })}</p>
         <div className="wk-actions">
           <button type="button" className="wk-btn" autoFocus disabled={allowed !== true || cards.length === 0}
-            onClick={() => setSession(startRun(newId(), place, cards.map((c) => c.key), Date.now()))} data-world-run-start="">{t('cogitaWorld.run.start')}</button>
+            onClick={() => setSession(startRun(newId(), place, cards.map((c) => c.key), Date.now(), same))} data-world-run-start="">{t('cogitaWorld.run.start')}</button>
           <button type="button" className="wk-link-btn" onClick={() => onClose(null)}>{t('cogitaWorld.run.close')}</button>
         </div>
       </div>

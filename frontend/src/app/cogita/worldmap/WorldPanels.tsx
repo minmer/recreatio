@@ -11,7 +11,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import type { T } from '../../core/i18n';
 import { attemptsText } from './WorldLevels';
 import { rgbCss, type LineColour } from './wmColors';
-import { currentIndex, stepKey, type Timetable } from './wmNav';
+import { stepKey, type Timetable } from './wmNav';
 import type { PlanStep } from './wmPlan';
 import { runGate, type LevelProgress, type LevelRule } from './wmRuns';
 import { reviewable, type SectionState, type WorldState } from './wmState';
@@ -236,8 +236,8 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
   const ps = state.places.get(id);
   if (place === undefined || ps === undefined) return null;
   const L = state.settings.levels;
-  const progress = levels.get(id) ?? { level: 0, reachedAt: [], nextAt: null };
-  const gate = runGate(state.ctx, id, progress, L, state.ctx.facts.now.getTime());
+  const progress = levels.get(id) ?? { level: 0, reachedAt: [], perfect: false };
+  const gate = runGate(state.ctx, id, progress, L);
   const block = place.block === undefined ? undefined : state.world.blocks.get(place.block);
   const station = state.lines.stations.get(id);
   const linesHere = [...state.lines.lines.values()].filter((l) => l.stops.includes(id) || l.sections.some((sid) => { const s = state.lines.sections.get(sid); return s !== undefined && (s.to === id || s.from === id); }));
@@ -248,7 +248,6 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
   const due = ps.conquered ? ps.cards.filter((k) => state.band(k) === 'learning' && reviewable(k, state)) : [];
   const order = gate.kind === 'locked' || (L === 0 && !ps.conquered) ? state.conquestOrder(id).filter((p) => p !== id) : [];
   const total = order.reduce((sum, p) => sum + (state.places.get(p)?.missing ?? 0), 0) + ps.missing;
-  const date = (at: number) => new Intl.DateTimeFormat(t.locale, { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(at));
   const rule = gate.kind === 'ready' ? rules[gate.level - 1] : undefined;
   return (
     <section className="cg-wm-panel" data-world-panel="place" data-world-place={id} data-world-gate={gate.kind} data-world-conquered={ps.conquered ? '1' : '0'} data-world-level={ps.level}>
@@ -259,6 +258,7 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
         {L > 0 && <> · {t('cogitaWorld.panel.levelOf', { level: ps.level, levels: L })}</>}
         {' · '}{ps.conquered ? t('cogitaWorld.map.conquered') : t('cogitaWorld.map.cardsToGo', { count: ps.missing })}
       </p>
+      {progress.perfect && <p className="cg-wm-perfect" data-world-perfect="">★ {t('cogitaWorld.run.perfect')}</p>}
       {ps.dot !== null && (
         <p className="cg-wm-row" data-world-dot={ps.dot}>
           <span className={`cg-wm-dot is-${ps.dot}`} aria-hidden="true" />
@@ -276,7 +276,6 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
               {rule !== undefined && <span className="cg-wm-meta">{t('cogitaWorld.run.rule', { pct: rule.pct, attempts: attemptsText(rule.attempts, t) })}</span>}
             </div>
           )}
-          {gate.kind === 'wait' && <p className="wk-note" data-world-wait={gate.from}>{t('cogitaWorld.run.waitFrom', { level: gate.level, date: date(gate.from) })}</p>}
           {order.length > 0 && (
             <>
               <p className="cg-wm-h">{t('cogitaWorld.panel.conquerFirst')}</p>
@@ -349,7 +348,7 @@ export function HomePanel({ ctx, onClose }: { ctx: PanelCtx; onClose: () => void
 
 /* -- Die Navigation: der Fahrplan ------------------------------------------------------------------------------------------- */
 
-function stepText(step: PlanStep, ctx: PanelCtx, date: (at: number) => string): string {
+function stepText(step: PlanStep, ctx: PanelCtx): string {
   const { t, nameOf, state } = ctx;
   switch (step.kind) {
     case 'travel': {
@@ -359,7 +358,6 @@ function stepText(step: PlanStep, ctx: PanelCtx, date: (at: number) => string): 
     }
     case 'learn': return t('cogitaWorld.nav.learn', { place: nameOf(step.place) });
     case 'run': return t('cogitaWorld.nav.run', { place: nameOf(step.place), level: step.level });
-    case 'wait': return t('cogitaWorld.nav.wait', { place: nameOf(step.place), level: step.level, date: date(step.from) });
     case 'know': return t('cogitaWorld.nav.know', { place: nameOf(step.place) });
   }
 }
@@ -373,8 +371,11 @@ function stepMeta(step: PlanStep, ctx: PanelCtx, rules: readonly LevelRule[]): s
     }
     case 'learn':
     case 'know': return t('cogitaWorld.panel.cards', { count: step.cards.length });
-    case 'run': { const r = rules[step.level - 1]; return r === undefined ? '' : t('cogitaWorld.run.rule', { pct: r.pct, attempts: attemptsText(r.attempts, t) }); }
-    case 'wait': return '';
+    case 'run': {
+      const r = rules[step.level - 1];
+      const rule = r === undefined ? '' : t('cogitaWorld.run.rule', { pct: r.pct, attempts: attemptsText(r.attempts, t) });
+      return step.upTo > step.level ? [rule, t('cogitaWorld.nav.runAll', { upTo: step.upTo })].filter((x) => x !== '').join(' · ') : rule;
+    }
   }
 }
 
@@ -388,9 +389,7 @@ function stepAction(step: PlanStep, ctx: PanelCtx): string | null {
     }
     case 'learn':
     case 'know': return t('cogitaWorld.panel.learnDirectlyN', { count: step.cards.length });
-    /* Step 3 · 7 — eine wartende Stufe ist nur dann der jetzige Schritt, wenn ihr Tag gekommen ist: dann ist sie der Durchgang. */
-    case 'run':
-    case 'wait': return t('cogitaWorld.panel.startRun', { level: step.level });
+    case 'run': return t('cogitaWorld.panel.startRun', { level: step.level });
   }
 }
 
@@ -430,28 +429,24 @@ export function NavPanel({ tt, ctx, rules, onChoose, onGo, onEnd }: {
 }) {
   const { t } = ctx;
   const all = tt.done.length + tt.upcoming.length;
-  /* Step 3 · 7 (spec §8.1) — der jetzige Schritt ist der erste, der jetzt geht; wartende bleiben mit ihrem Datum in der Liste. */
-  const cur = currentIndex(tt);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLOListElement | null>(null);
-  /* Das Fenster (§8.2): zwei Zeilen über dem jetzigen Schritt sichtbar, der Rest durch Blättern. */
+  /* Das Fenster (§8.2): zwei erledigte darüber sichtbar, der Rest durch Blättern. */
   useEffect(() => {
     const box = boxRef.current;
     const list = listRef.current;
     if (box === null || list === null) return;
-    const first = list.children[Math.max(0, tt.done.length + (cur < 0 ? 0 : cur) - 2)] as HTMLElement | undefined;
+    const first = list.children[Math.max(0, tt.done.length - 2)] as HTMLElement | undefined;
     if (first !== undefined) box.scrollTop = first.offsetTop;
-  }, [tt, cur]);
-  const date = (at: number) => new Intl.DateTimeFormat(t.locale, { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(at));
-  const opens = cur < 0 && tt.upcoming.length > 0 ? Math.min(...tt.upcoming.map((s) => s.at)) : null;
-  const stop = (step: PlanStep, kind: 'done' | 'current' | 'next' | 'wait', key: string) => {
+  }, [tt]);
+  const stop = (step: PlanStep, kind: 'done' | 'current' | 'next', key: string) => {
     const meta = stepMeta(step, ctx, rules);
     const action = kind === 'current' && ctx.canLearn ? stepAction(step, ctx) : null;
     return (
       <li key={key} className={`cg-wm-stop is-${kind}`} data-world-stop={stepKey(step)} data-world-stop-kind={step.kind} data-world-stop-state={kind}>
         <span className="cg-wm-stopdot" aria-hidden="true" />
         <div className="cg-wm-stopbody">
-          <span className="cg-wm-stoptext">{kind === 'done' ? '✓ ' : ''}{stepText(step, ctx, date)}</span>
+          <span className="cg-wm-stoptext">{kind === 'done' ? '✓ ' : ''}{stepText(step, ctx)}</span>
           {meta !== '' && <span className="cg-wm-meta">{meta}</span>}
           {action !== null && <div className="wk-actions"><button type="button" className="wk-btn is-small" onClick={() => onGo(step)} data-world-nav-go={step.kind}>{action}</button></div>}
           {kind !== 'done' && step.kind === 'travel' && step.alternatives.length > 0 && <Turns step={step} ctx={ctx} onChoose={onChoose} />}
@@ -463,14 +458,13 @@ export function NavPanel({ tt, ctx, rules, onChoose, onGo, onEnd }: {
     <section className="cg-wm-panel cg-wm-nav" data-world-panel="nav" data-world-nav-target={tt.target} data-world-nav-steps={all} data-world-nav-done={tt.done.length}>
       <PanelTop t={t} onClose={onEnd} title={<>⚑ {t('cogitaWorld.nav.target', { name: ctx.nameOf(tt.target) })}</>} />
       <p className="cg-wm-meta" data-world-nav-progress="">{t('cogitaWorld.nav.progress', { done: tt.done.length, all })} · {t('cogitaWorld.map.cardsToGo', { count: tt.cards })}</p>
-      {opens !== null && <p className="wk-note" data-world-nav-waits={opens}>{t('cogitaWorld.nav.waitAll', { date: date(opens) })}</p>}
       {tt.upcoming.length === 0
         ? <p className="wk-note" data-world-nav-arrived="">{t('cogitaWorld.nav.arrived', { name: ctx.nameOf(tt.target) })}</p>
         : (
-          <div ref={boxRef} className="cg-wm-tt" data-world-timetable="" data-world-nav-current={cur}>
+          <div ref={boxRef} className="cg-wm-tt" data-world-timetable="">
             <ol ref={listRef} className="cg-wm-ttlist">
               {tt.done.map((s, i) => stop(s, 'done', `d:${i}:${stepKey(s)}`))}
-              {tt.upcoming.map((s, i) => stop(s, i === cur ? 'current' : s.kind === 'wait' ? 'wait' : 'next', `u:${stepKey(s)}`))}
+              {tt.upcoming.map((s, i) => stop(s, i === 0 ? 'current' : 'next', `u:${stepKey(s)}`))}
             </ol>
           </div>
         )}

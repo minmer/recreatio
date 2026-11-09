@@ -246,7 +246,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const [nav, setNav] = useState<NavSession | null>(() => keptNav(scope));
   useEffect(() => { keepNav(scope, nav); }, [scope, nav]);
   const navPlan = useMemo(() => (nav === null || !world.places.has(nav.target) ? null
-    : planRoute(state, nav.target, { choices: nav.choices, gaps: rules.map((r) => r.gapDays), reachedAt: (p, l) => levels.get(p)?.reachedAt[l - 1] })), [nav, state, rules, levels, world]);
+    : planRoute(state, nav.target, { choices: nav.choices })), [nav, state, world]);
   /* Der Fahrplan merkt, was erledigt ist (eine gewählte Abzweigung ist es nicht). */
   const ttRef = useRef<{ tt: Timetable | null; nav: NavSession | null }>({ tt: null, nav: null });
   const tt = useMemo((): Timetable | null => {
@@ -311,8 +311,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
       return;
     }
     if (step.kind === 'learn' || step.kind === 'know') { startCards(step.cards, nameOf(step.place), false); return; }
-    /* Step 3 · 7 — eine wartende Stufe, deren Tag gekommen ist, ist ihr Durchgang. */
-    if (step.kind === 'run' || step.kind === 'wait') act.run(step.place);
+    if (step.kind === 'run') act.run(step.place);
   };
   const panel: PanelCtx = { state, t, canLearn: learner !== null, colours, nameOf, act };
   const issues = useMemo(() => (writes ? authorIssues(world, lines, geometry, regions, world.order) : []), [writes, world, lines, geometry, regions]);

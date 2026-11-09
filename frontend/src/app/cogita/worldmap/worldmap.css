@@ -80,6 +80,9 @@
 .cg-wm-tag.is-lock, .cg-wm-tag.is-warning { color: var(--wk-ink); border-color: var(--wk-warn); background: var(--wk-warn-soft); }
 .cg-wm-tag.is-error { color: var(--wk-danger); border-color: var(--wk-danger); background: var(--wk-danger-soft); }
 .cg-wm-tag.is-info { color: var(--wk-info); border-color: var(--wk-info); background: var(--wk-info-soft); }
+/* „Mistrzowsko" — alles beim ersten Mal richtig: die höchste Auszeichnung eines Ortes. */
+.cg-wm-perfect { margin: 0; font-weight: 600; color: var(--wk-ink); }
+.cg-wm-perfect.is-big { font-size: var(--wk-text-md); padding: var(--wk-space-2) var(--wk-space-3); border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); }
 .cg-wm-dot { display: inline-block; flex: none; width: 0.7rem; height: 0.7rem; border-radius: var(--wk-radius-pill); }
 .cg-wm-dot.is-green { background: var(--wk-ok); }
 .cg-wm-dot.is-yellow { background: var(--wk-warn); }
@@ -101,9 +104,6 @@
 .cg-wm-stop.is-current { padding: var(--wk-space-2) var(--wk-space-2) var(--wk-space-3); margin: var(--wk-space-1) 0; border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); }
 .cg-wm-stop.is-current .cg-wm-stoptext { font-size: var(--wk-text-md); font-weight: 600; }
 .cg-wm-stop.is-current .cg-wm-stopdot { left: calc(-1 * var(--wk-space-5) + 0.1rem); top: 0.7rem; width: 0.95rem; height: 0.95rem; border-color: var(--wk-accent); background: var(--wk-accent); }
-/* Step 3 · 7 — ein wartender Halt (mit Datum) bleibt in der Liste, gestrichelt, bis sein Tag kommt. */
-.cg-wm-stop.is-wait .cg-wm-stoptext { color: var(--wk-muted); }
-.cg-wm-stop.is-wait .cg-wm-stopdot { border-style: dashed; }
 .cg-wm-turns { font-size: var(--wk-text-sm); }
 .cg-wm-turns > summary { cursor: pointer; color: var(--wk-accent); width: max-content; max-width: 100%; }
 .cg-wm-turns[open] > summary { margin-bottom: var(--wk-space-1); }
