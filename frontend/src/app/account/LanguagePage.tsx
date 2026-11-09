@@ -37,7 +37,7 @@ export function LanguagePage() {
 
       <section aria-labelledby="lang-app">
         <h2 className="wk-h2" id="lang-app">{t('i18n.appLang')}</h2>
-        <label className="wk-field">
+        <label className="wk-field" title={t('i18n.appLangNote')}>
           <span>{t('i18n.appLang')}</span>
           <LangPick
             value={chosen}
@@ -45,13 +45,11 @@ export function LanguagePage() {
             onChange={(lang) => setAppLang(lang)}
           />
         </label>
-        <p className="wk-hint">{t('i18n.appLangNote')}</p>
       </section>
 
       <section aria-labelledby="lang-sections">
         <h2 className="wk-h2" id="lang-sections">{t('i18n.sections')}</h2>
-        <p className="wk-hint">{t('i18n.sectionsNote')}</p>
-        <div className="wk-box">
+        <div className="wk-box" title={t('i18n.sectionsNote')}>
           {SECTIONS.map((section, i) => (
             <label className={`wk-line${i === 0 ? ' wk-line-first' : ''}`} key={section}>
               <span className="wk-line-text"><span className="wk-line-title">{t(`i18n.section.${section}`)}</span></span>

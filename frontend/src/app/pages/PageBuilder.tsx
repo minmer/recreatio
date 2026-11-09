@@ -701,10 +701,9 @@ function Fields({ part, size, busy, onSet, path }: {
 function PartLangField({ value, busy, onChange }: { value: Lang | null; busy: boolean; onChange: (lang: Lang | null) => void }) {
   const t = useT();
   return (
-    <div className="wk-field">
+    <div className="wk-field" title={t('i18n.partLangNote')}>
       <span>{t('i18n.partLang')}</span>
       <LangPick value={value} onChange={onChange} follow={t('i18n.followPage')} label={t('i18n.partLang')} disabled={busy} />
-      <span className="wk-hint">{t('i18n.partLangNote')}</span>
     </div>
   );
 }

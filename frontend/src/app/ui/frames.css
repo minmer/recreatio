@@ -545,3 +545,6 @@ a.wk-crumb-link:hover { color: var(--wk-ink); text-decoration: underline; }
 a.wk-edit-pill { color: var(--wk-ink); }
 .wk-edit-pill:hover { border-color: var(--wk-accent); color: var(--wk-accent); }
 .wk-edit-pill svg { width: 1rem; height: 1rem; }
+
+/* 2026-11-09 — ein Teilbaum in eigener Sprache (core/i18n.tsx, LangScope): nur das Attribut lang, kein Kasten. */
+.wk-lang-scope { display: contents; }
