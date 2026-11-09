@@ -22,7 +22,19 @@ import type { End, ResourceType, Role, Step, Unit } from './schema';
 
 type Raw = Record<string, unknown>;
 type Mark = { readonly at: number; readonly mark: string };
-type Piece = { text: string; end?: End; cross?: boolean; verse?: number; label?: string; role?: Role; kind?: Unit['kind']; style?: 'italic' | 'bold'; id?: string };
+/**
+ * Ein Stück des werdenden Brzmienie. `pre`: was im Original davor stand, im selben Block (Leerraum oder nichts) — so bleibt
+ * der Wortlaut genau; ohne `pre` beginnt ein neuer Block und das Trennzeichen folgt aus dem Ende davor.
+ */
+type Piece = { text: string; pre?: string; end?: End; cross?: boolean; verse?: number; label?: string; role?: Role; kind?: Unit['kind']; style?: 'italic' | 'bold'; id?: string };
+
+/** Ein Stück an Stelle `k` teilen, ohne den Wortlaut zu ändern: was dazwischen stand, wird das `pre` des zweiten. */
+function splitPiece(p: Piece, k: number): [Piece, Piece] {
+  const first = p.text.slice(0, k).trimEnd();
+  const second = p.text.slice(k).trimStart();
+  const { end: _end, id: _id, ...rest } = p;
+  return [{ ...rest, text: first }, { ...rest, text: second, pre: p.text.slice(first.length, p.text.length - second.length), cross: undefined, label: undefined, ...(p.end === undefined ? {} : { end: p.end }) }];
+}
 
 const isObj = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined);
@@ -55,27 +67,37 @@ function liftInlineMarks(text: string, marks: readonly Mark[]): { text: string; 
   return { text: out, marks: moved };
 }
 
-/** Ein Block an seinen Zeichen geschnitten: Stücke mit Ende (* † /) und Kreuz (✢ ✣ vor dem Stück). */
-function cutByMarks(text: string, marks: readonly Mark[]): Piece[] {
+/** Ein Block an seinen Zeichen geschnitten: Stücke mit Ende (* † /) und Kreuz (✢ ✣ vor dem Stück); der Wortlaut bleibt genau. */
+function cutByMarks(text: string, marks: readonly Mark[], flags?: Set<string>): Piece[] {
   const out: Piece[] = [];
   let from = 0;
   let cross = false;
+  let last = 0;
+  const push = (a: number, b: number, end?: End) => {
+    const raw = text.slice(a, b);
+    const piece = raw.trim();
+    if (piece === '') return false;
+    const start = a + (raw.length - raw.trimStart().length);
+    out.push({ text: piece, ...(out.length === 0 ? {} : { pre: text.slice(last, start) }), ...(end === undefined ? {} : { end }), ...(cross ? { cross: true } : {}) });
+    last = start + piece.length;
+    cross = false;
+    return true;
+  };
   for (const m of [...marks].sort((a, b) => a.at - b.at)) {
     const at = Math.max(from, Math.min(text.length, m.at));
+    /* Ein Zeichen mitten im Wort ist ein Fehler der Vorlage: es bleibt eine Grenze, wird aber zum Prüfen vermerkt. */
+    if (/\p{L}/u.test(text[at - 1] ?? '') && /\p{L}/u.test(text[at] ?? '')) flags?.add('marks_unverified');
     const end: End | undefined = m.mark === '*' || m.mark === '/' ? 'mediant' : m.mark === '†' ? 'flex' : undefined;
     if (end === undefined) {
       /* Ein Kreuz steht VOR dem Wort an seiner Stelle. */
-      const before = text.slice(from, at).trim();
-      if (before !== '') { out.push({ text: before, ...(cross ? { cross: true } : {}) }); from = at; }
+      if (push(from, at)) from = at;
       cross = true;
       continue;
     }
-    const piece = text.slice(from, at).trim();
-    if (piece !== '') { out.push({ text: piece, end, ...(cross ? { cross: true } : {}) }); cross = false; }
+    push(from, at, end);
     from = at;
   }
-  const rest = text.slice(from).trim();
-  if (rest !== '') out.push({ text: rest, ...(cross ? { cross: true } : {}) });
+  push(from, text.length);
   return out;
 }
 
@@ -113,9 +135,10 @@ function inferVerses(pieces: Piece[]): Piece[] {
     if (afterMediant && (p.end === 'mediant' || p.end === 'flex')) {
       const at = verseBoundary(p.text, typical);
       if (at > 0) {
-        out.push({ ...p, text: p.text.slice(0, at).trim(), end: 'verse', verse });
+        const [close, open] = splitPiece(p, at);
+        out.push({ ...close, end: 'verse', verse });
         verse++;
-        out.push({ text: p.text.slice(at).trim(), end: p.end, verse });
+        out.push({ ...open, verse });
         afterMediant = p.end === 'mediant';
         continue;
       }
@@ -140,7 +163,7 @@ function inferLines(stanza: string, printed: number | undefined): string[] | nul
   /* Die gedruckte Zahl zählt Zeilenumbrüche — je nach Auszug mit oder ohne den letzten. */
   if (printed !== undefined && starts.length !== printed && starts.length !== printed + 1) return null;
   if (printed === undefined && (starts.length < 2 || starts.length > 12)) return null;
-  return starts.map((s, k) => stanza.slice(s, starts[k + 1] ?? stanza.length).trim());
+  return starts.map((s, k) => stanza.slice(s, starts[k + 1] ?? stanza.length));
 }
 
 const CONCLUSION = /\s(Przez naszego Pana|Przez Chrystusa|Przez Niego|Który żyje|Który żyjesz|Który z Tobą żyje|Który z Bogiem Ojcem|Bo Ty żyjesz|Through our Lord|Who lives and reigns|Through Christ)/;
@@ -238,19 +261,20 @@ export function upgradeText(input: Raw): Upgraded {
 
   /* -- Stücke -------------------------------------------------------------------------------------- */
   const pieces: Piece[] = [];
-  const seps: string[] = [];
-  const push = (p: Piece, sep: string) => { if (pieces.length > 0) seps.push(sep); pieces.push(p); };
   const lineCounts = Array.isArray(meta.layout_summary) ? meta.layout_summary.map((x) => (isObj(x) && typeof x.pdf_linebreak_count === 'number' ? x.pdf_linebreak_count : undefined)) : [];
   const stanzaNumbers = Array.isArray(meta.stanza_numbers_as_printed) ? meta.stanza_numbers_as_printed : [];
   let linesInferred = false, linesMissing = false;
 
   body.forEach((b, k) => {
-    const blockSep = b.kind === 'response' ? '\n' : b.kind === 'verse' ? ' ' : '\n\n';
-    let cut = cutByMarks(b.text, b.marks);
+    let cut = cutByMarks(b.text, b.marks, missing);
     if (type === 'hymn' && cut.length === 1 && b.kind === 'stanza') {
       const lines = inferLines(cut[0].text, lineCounts[k]);
       if (lines === null) linesMissing = true;
-      else { cut = lines.map((t) => ({ text: t })); linesInferred = true; }
+      else {
+        /* Was zwischen zwei Zeilen stand (der Leerraum am Ende der vorigen), bleibt im Brzmienie. */
+        cut = lines.map((t, i) => ({ text: t.trim(), ...(i === 0 ? {} : { pre: lines[i - 1].slice(lines[i - 1].trimEnd().length) }) }));
+        linesInferred = true;
+      }
     }
     cut.forEach((p, i) => {
       const last = i === cut.length - 1;
@@ -262,7 +286,7 @@ export function upgradeText(input: Raw): Upgraded {
       } else if (last && piece.end === undefined) {
         piece.end = b.kind === 'verse' ? 'verse' : b.kind === 'response' ? 'line' : b.kind === 'stanza' || b.kind === 'paragraph' ? 'stanza' : undefined;
       }
-      push(piece, i === 0 ? blockSep : ' ');
+      pieces.push(piece);
     });
   });
 
@@ -292,14 +316,20 @@ export function upgradeText(input: Raw): Upgraded {
     if (folded.steps !== null) out.performance = folded.steps;
   }
 
-  /* Das Brzmienie und die Stücke darüber. Zwischen zwei Stücken steht, was der Block wollte: Leerzeichen, Zeile, Absatz. */
+  /*
+   * Das Brzmienie und die Stücke darüber. Innerhalb eines Blocks steht zwischen zwei Stücken genau, was im Original stand
+   * (`pre`); zwischen Blöcken, was der Block wollte: Absatz nach Strophe oder Teil, Zeile nach einer Antwort, sonst ein Leerzeichen.
+   */
   let text = '';
   finalPieces.forEach((p, k) => {
-    if (k > 0) text += p.kind === 'incipit' ? ' ' : (finalPieces[k - 1].end === 'stanza' || finalPieces[k - 1].end === 'part') ? '\n\n' : finalPieces[k - 1].end === 'line' && type !== 'hymn' ? '\n' : ' ';
+    if (k > 0) {
+      const prev = finalPieces[k - 1];
+      text += prev.end === 'stanza' || prev.end === 'part' ? '\n\n' : p.pre !== undefined ? p.pre : prev.end === 'line' && type !== 'hymn' ? '\n' : ' ';
+    }
     text += p.text;
   });
   out.text = text;
-  out.layout = finalPieces.map(({ text: piece, ...rest }) => ({ text: piece, ...Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) }));
+  out.layout = finalPieces.map(({ text: piece, pre: _pre, ...rest }) => ({ text: piece, ...Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) }));
 
   /* Bezeugte andere Teilungen derselben Antiphon (andere Stellen, nicht nur * statt /). */
   const variants = Array.isArray(meta.recitation_mark_variants) ? meta.recitation_mark_variants.filter(isObj) : [];
@@ -314,7 +344,7 @@ export function upgradeText(input: Raw): Upgraded {
       if (seen.has(k)) continue;
       seen.add(k);
       const alt = cutByMarks(body[0].text, ms);
-      layouts.push({ id: `attested-${layouts.length + 1}`, source: String(v.surface_sha256 ?? '').slice(0, 16) || undefined, units: alt.map(({ text: t, ...rest }) => ({ text: t, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x !== undefined)) })) });
+      layouts.push({ id: `attested-${layouts.length + 1}`, source: String(v.surface_sha256 ?? '').slice(0, 16) || undefined, units: alt.map(({ text: t, pre: _pre, ...rest }) => ({ text: t, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x !== undefined)) })) });
     }
     if (layouts.length > 0) out.layouts = layouts.map((l) => Object.fromEntries(Object.entries(l).filter(([, x]) => x !== undefined)));
   }
@@ -379,16 +409,18 @@ function splitPrayer(pieces: Piece[], missing: Set<string>): Piece[] {
     if (!inConclusion) {
       const m = CONCLUSION.exec(` ${rest.text}`);
       if (m !== null && m.index > 0) {
-        const at = m.index;
-        out.push({ ...rest, text: rest.text.slice(0, at).trim(), end: undefined, kind: 'body' });
-        rest = { ...rest, text: rest.text.slice(at).trim(), cross: undefined };
+        /* Geteilt, ohne den Wortlaut zu ändern (`splitPiece`). */
+        const [bodyPart, conclusionPart] = splitPiece(rest, m.index);
+        out.push({ ...bodyPart, kind: 'body' });
+        rest = conclusionPart;
         inConclusion = true;
       } else if (m !== null) inConclusion = true;
     }
     const amen = /\s?Amen\.?$/.exec(rest.text);
     if (amen !== null && rest.text.trim() !== 'Amen.' && rest.text.trim() !== 'Amen') {
-      out.push({ ...rest, text: rest.text.slice(0, amen.index).trim(), kind: inConclusion ? 'conclusion' : 'body' });
-      out.push({ text: rest.text.slice(amen.index).trim(), kind: 'response', role: 'all', id: 'amen' });
+      const [said, answer] = splitPiece(rest, amen.index);
+      out.push({ ...said, kind: inConclusion ? 'conclusion' : 'body' });
+      out.push({ text: answer.text, pre: answer.pre, kind: 'response', role: 'all', id: 'amen' });
       continue;
     }
     out.push({ ...rest, kind: rest.kind ?? (inConclusion ? 'conclusion' : 'body') });

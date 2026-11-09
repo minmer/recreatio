@@ -20,7 +20,7 @@ export function textVersion(text: string): string {
     const c = s.charCodeAt(i);
     a = Math.imul(a ^ c, 0x01000193) >>> 0;
     b = Math.imul(b ^ c, 0x5bd1e995) >>> 0;
-    b ^= b >>> 15;
+    b = (b ^ (b >>> 15)) >>> 0;
   }
   return `v${a.toString(16).padStart(8, '0')}${b.toString(16).padStart(8, '0')}`;
 }

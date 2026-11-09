@@ -113,7 +113,7 @@ const passage = z.strictObject({ ...base, entity_type: z.literal('passage_defini
   resource_id: id.optional(), ranges: z.array(range).min(1).max(200), numbering_system: z.string().optional(),
   omitted_verses: z.array(integer(1, 100000)).optional(), authority_reference: z.string().optional(),
   /** Ein benannter Podział (z. B. „dwie części", „Ps 119 — 22 części") und welcher Teil dieser ist. */
-  division: id.optional(), part: z.string().min(1).max(80).optional(), order: integer(0, 10000).optional(),
+  division: z.string().min(1).max(120).optional(), part: z.string().min(1).max(80).optional(), order: integer(0, 10000).optional(),
   /** Die Fassung des Quelltexts, für die die Bereiche gelten. */
   on: version.optional()
 });
