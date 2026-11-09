@@ -77,5 +77,12 @@ for (const [rel, uses] of seen) {
 }
 for (const rel of Object.keys(ALLOWED)) if (!seen.has(rel) && rel !== 'cogita/worldmap/wmState.ts') fail(`exemption ${rel} is stale`, 'the file no longer uses an entry point — remove it from ALLOWED');
 
+/* Step 3 §2.4 — die schwachen Zeichen der Sechsecke (LandscapeView) zählen nur Karten, die wiederholt werden dürfen. */
+{
+  const lv = await readFile(join(ROOT, 'cogita/LandscapeView.tsx'), 'utf8');
+  if (/const reviewable = useMemo\(\(\) => new Set\(\[\.\.\.fp\.keys\(\)\]\.filter\(\(k\) => mayReview\(k, reviewScope\)\)\)/.test(lv)) ok('Step 3 §2.4: LandscapeView passes only reviewable cards to the weak marks');
+  else fail('Step 3 §2.4: LandscapeView passes only reviewable cards to the weak marks', 'landscapeState gets every card as reviewable');
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

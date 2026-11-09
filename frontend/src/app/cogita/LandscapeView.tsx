@@ -381,7 +381,9 @@ function HexLandscape({ view, cards, learner, onOpen, compact = false, rewards =
   const shownAskable = useMemo(() => (stories.length === 0 ? gauge : { ...gauge, askable: new Set([...gauge.askable, ...stories.map((x) => x.flow.unit!)]) }), [gauge, stories]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const input = useMemo(() => landscapeInput({ select: lib.selectContext(), deps: lib.dependencies(), label: (e) => lib.label(e) }, list, view.group, shownAskable), [lib, lib.revision, listKey, groupKey, cards, stories]);
-  const reviewable = useMemo(() => new Set(fp.keys()), [fp]);
+  const reviewScope = useMemo(() => reviewScopeFor(lib, cards, learner), [lib, lib.revision, cards, learner, learner?.progress]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* Step 3 §2.4 — die schwachen Zeichen zählen nur Karten, die wiederholt werden dürfen (Weltkarte: eroberte Orte). */
+  const reviewable = useMemo(() => new Set([...fp.keys()].filter((k) => mayReview(k, reviewScope))), [fp, reviewScope]);
   const state = useMemo(() => landscapeState(input, gauge, lowered, reviewable), [input, gauge, lowered, reviewable]);
   const asks = useMemo(() => questionIds(cards), [cards]);
   /* 2026-11-04 (Prompt 11) — die Themen (nie Pytania) und ihre Kanten: daraus die Gebiete. */
@@ -549,7 +551,6 @@ function HexLandscape({ view, cards, learner, onOpen, compact = false, rewards =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stand, tg, goal, goalSteps, depthOfTopic]);
   /* 2026-11-09 (Weltkarte, Korrektur 5) — mit Stufen werden nur Karten eroberter Orte wiederholt. */
-  const reviewScope = useMemo(() => reviewScopeFor(lib, cards, learner), [lib, lib.revision, cards, learner, learner?.progress]); // eslint-disable-line react-hooks/exhaustive-deps
   /* Was fällig ist (Karten der Themen dieses Widoku). */
   const dueCards = useMemo(() => {
     const topics = new Set(tg.graph.ids);
