@@ -187,6 +187,7 @@ interface Build {
   to: string;
   kind: SectionKind;
   steps: string[];
+  questions: string[];
   slides: number;
   introduces: string[];
   ticket: TicketPart[];
@@ -196,6 +197,7 @@ interface Build {
 
 interface Pending {
   steps: string[];
+  questions: string[];
   slides: number;
   asks: string[];
   ticket: TicketPart[];
@@ -214,12 +216,12 @@ interface End {
   converge: string | null;
 }
 
-const emptyPending = (): Pending => ({ steps: [], slides: 0, asks: [], ticket: [] });
+const emptyPending = (): Pending => ({ steps: [], questions: [], slides: 0, asks: [], ticket: [] });
 const mergePending = (list: readonly Pending[]): Pending => {
   if (list.length === 0) return emptyPending();
   const start = list.find((p) => p.start !== undefined)?.start;
   return {
-    steps: [...new Set(list.flatMap((p) => p.steps))], slides: Math.max(...list.map((p) => p.slides)), asks: [...new Set(list.flatMap((p) => p.asks))],
+    steps: [...new Set(list.flatMap((p) => p.steps))], questions: [...new Set(list.flatMap((p) => p.questions))], slides: Math.max(...list.map((p) => p.slides)), asks: [...new Set(list.flatMap((p) => p.asks))],
     ticket: list.flatMap((p) => p.ticket), ...(start === undefined ? {} : { start })
   };
 };
@@ -326,7 +328,7 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
     const sec: Build = {
       id: `${flow.id}:${counter}`, line: flow.id, branch: e.branch, from: e.stop, to,
       kind: e.stop === START ? 'entry' : 'main',
-      steps: [...e.pending.steps], slides: e.pending.slides, introduces: [...e.pending.asks],
+      steps: [...e.pending.steps], questions: [...e.pending.questions], slides: e.pending.slides, introduces: [...e.pending.asks],
       ticket: [...e.pending.ticket, ...e.gate],
       ...(e.pending.start !== undefined ? { start: e.pending.start } : e.stop === START && flow.start !== null ? { start: { step: flow.start } } : firstStep !== null ? { start: { step: firstStep } } : {})
     };
@@ -340,12 +342,14 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
     for (const k of fresh) e.seen.add(k);
     if (e.secs.length === 0) {
       e.pending.steps.push(step);
+      if (asks.length > 0) e.pending.questions.push(step);
       e.pending.slides += slide ? 1 : 0;
       for (const k of fresh) if (!e.pending.asks.includes(k)) e.pending.asks.push(k);
       return;
     }
     for (const s of e.secs) {
       s.steps.push(step);
+      if (asks.length > 0) s.questions.push(step);
       s.slides += slide ? 1 : 0;
       for (const k of fresh) if (!s.introduces.includes(k)) s.introduces.push(k);
       if (e.gate.length > 0) s.ticket.push(...e.gate);
@@ -405,6 +409,7 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
       for (const k of fresh) e.seen.add(k);
       const sec = newSection(e, target, n.orig);
       sec.steps.push(id);
+      if (asks.length > 0) sec.questions.push(id);
       sec.slides += slide ? 1 : 0;
       for (const k of fresh) if (!sec.introduces.includes(k)) sec.introduces.push(k);
       created.push(sec);
@@ -672,7 +677,7 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
       }
       for (const place of stationList) for (const f of finalStops) {
         if (f === place) continue;
-        keep({ id: `${id}:back@${f}${SEP}${place}`, line: id, branch: id, from: f, to: place, kind: 'return', steps: [], slides: 0, introduces: [], ticket: [], callers: [...stations.get(place)!].sort(byCode) });
+        keep({ id: `${id}:back@${f}${SEP}${place}`, line: id, branch: id, from: f, to: place, kind: 'return', steps: [], questions: [], slides: 0, introduces: [], ticket: [], callers: [...stations.get(place)!].sort(byCode) });
       }
     }
     /* Zweige, Gabeln, Treffpunkte. */

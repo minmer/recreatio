@@ -6,7 +6,7 @@
  *   Höhe       Σ der fehlenden Karten von Ort und Grundlage; mit Stufen zählt ein nicht eroberter Ort ganz, ohne Stufen nur seine
  *              nicht gekonnten Karten
  *   Fahrkarte  die Bedingungen des Abschnitts ausgewertet (`wmConditions.ts`); die eigenen Karten des Abschnitts verlangt sie nicht
- *   befahren   aus „besucht" und „zu Ende" (Korrektur 2) — monoton entlang eines Zweiges
+ *   befahren   aus „besucht" und „zu Ende" (Korrektur 2): nur, was selbst befahren wurde (Step 3 · 4)
  *   Weg        Dijkstra vom Haus über Abschnitte: 1 + 4·neu + 1,5·Wiederholung + andere offene Bedingungen − 0,5 (befahren)
  * </code>
  * Und `reviewable` (Korrektur 5): welche Karten in die Wiederholungen dürfen — überall dieselbe Regel.
@@ -210,19 +210,24 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     const owner = stepOwner(lines, s.line, step);
     return learner.progress(owner.flow)?.visited.has(owner.step) === true || learner.progress(s.line)?.visited.has(owner.step) === true;
   };
-  /* Befahren: sein letzter Schritt ist besucht — oder ein späterer Abschnitt desselben Zweiges hat schon begonnen. */
+  /*
+    Step 3 · 4 — BEFAHREN IST NUR, WAS SELBST BEFAHREN WURDE: sein letzter Schritt besucht, oder jede seiner Fragen. Ein späterer
+    Abschnitt macht frühere nicht befahren (wer an B einsteigt und B→C fährt, fuhr nie Haus→A und A→B), und „zu Ende" zählt nur
+    für Abschnitte, von denen etwas besucht ist. Die Rückfahrt eines Abstechers: zu Ende, und der Abschnitt davor befahren.
+  */
   const travelled = new Map<string, boolean>();
   for (const line of lines.lines.values()) {
     const done = learner.progress(line.id)?.done === true;
     for (const b of line.branches) {
-      let laterStarted = false;
-      for (let i = b.sections.length - 1; i >= 0; i -= 1) {
-        const s = lines.sections.get(b.sections[i])!;
-        if (s.kind === 'return') { travelled.set(s.id, done); continue; }
+      let before = false;
+      for (const id of b.sections) {
+        const s = lines.sections.get(id)!;
+        if (s.kind === 'return') { travelled.set(s.id, done && before); continue; }
         const last = s.steps[s.steps.length - 1];
-        const t: boolean = laterStarted || (last !== undefined && seenStep(s, last)) || (done && b.parent === null);
+        const own = (last !== undefined && seenStep(s, last)) || (s.questions.length > 0 && s.questions.every((x) => seenStep(s, x)));
+        const t = own || (done && s.steps.some((x) => seenStep(s, x)));
         travelled.set(s.id, t);
-        laterStarted = t || s.steps.some((x) => seenStep(s, x));
+        before = t;
       }
     }
   }

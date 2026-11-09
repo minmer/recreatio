@@ -170,11 +170,33 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   const toWysn = fresh.routeTo('wysn');
   const gate = fresh.summary(toWysn);
   check('Dijkstra: a locked section costs its missing cards, shown in the summary', [toWysn.at(-1), gate.fresh > 0], ['f/L1:18', true]);
-  const ridden = S.stateOf(world, lines, F.fakeLearner({ progress: { 'f/L1': { visited: ['sh25'] } } }), { levels: 0, knownShare: 1 });
-  check('travelled: from "visited", monotone along the branch', ['f/L1:0', 'f/L1:1', 'f/L1:2', 'f/L1:3'].map((s) => ridden.sections.get(s).travelled), [true, true, false, false]);
+  /* Step 3 · 4 — nicht mehr „monoton entlang des Zweiges": befahren ist, was selbst befahren wurde. */
+  const ridden = S.stateOf(world, lines, F.fakeLearner({ progress: { 'f/L1': { visited: [...lines.sections.get('f/L1:1').steps] } } }), { levels: 0, knownShare: 1 });
+  check('travelled: from "visited" — the section whose steps were visited, not the ones before it', ['f/L1:0', 'f/L1:1', 'f/L1:2', 'f/L1:3'].map((s) => ridden.sections.get(s).travelled), [false, true, false, false]);
   check('travelled: … and a travelled section is 0.5 cheaper', ridden.sections.get('f/L1:1').cost, fresh.sections.get('f/L1:1').cost - 0.5);
-  const done = S.stateOf(world, lines, F.fakeLearner({ progress: { 'f/L4': { visited: [], done: true } } }), { levels: 0, knownShare: 1 });
-  check('travelled: a finished story marks its trunk, not its branches', [done.sections.get('f/L4:7').travelled, done.sections.get('f/L4:1').travelled], [true, false]);
+  const done = S.stateOf(world, lines, F.fakeLearner({ progress: { 'f/L4': { visited: [...lines.sections.get('f/L4:7').steps], done: true } } }), { levels: 0, knownShare: 1 });
+  check('travelled: a finished story — its visited trunk section, not its branches', [done.sections.get('f/L4:7').travelled, done.sections.get('f/L4:1').travelled], [true, false]);
+  const doneOnly = S.stateOf(world, lines, F.fakeLearner({ progress: { 'f/L4': { visited: [], done: true } } }), { levels: 0, knownShare: 1 });
+  check('travelled: "done" alone travels nothing (no step of the section was visited)', doneOnly.sections.get('f/L4:7').travelled, false);
+  /* Step 3 · 4 — befahren ist nur, was selbst befahren wurde (sein letzter Schritt oder jede seiner Fragen). */
+  const trunkOf = (ls, line) => ls.lines.get(line).branches.find((x) => x.parent === null).sections.map((id) => ls.sections.get(id)).filter((s) => s.kind !== 'return');
+  const [t0, t1, t2] = trunkOf(lines, 'f/L1');
+  const tv = (learner) => { const st = S.stateOf(world, lines, learner, { levels: 0, knownShare: 1 }); return [t0, t1, t2].map((s) => st.sections.get(s.id).travelled); };
+  check('Step 3 · 4: boarding at B and riding B→C travels only B→C (not Home→A, not A→B)', tv(F.fakeLearner({ progress: { 'f/L1': { visited: [...t2.steps] } } })), [false, false, true]);
+  check('Step 3 · 4: "done" counts only for sections whose steps were visited', tv(F.fakeLearner({ progress: { 'f/L1': { visited: [...t2.steps], done: true } } })), [false, false, true]);
+  const qb = new F.FlowBuilder('Q');
+  const [pa, pb] = world.order.slice(0, 2);
+  qb.show(`s/${pa}`); qb.ask(world.places.get(pa).cards[0]);
+  qb.show(`s/${pb}`); qb.ask(world.places.get(pb).cards[0]); qb.ask(world.places.get(pb).cards[1]); qb.show(`s/${pb}`);
+  qb.end();
+  const qf = qb.flow('f/q', { name: 'Pytania', unit: 'u/L1' });
+  const ql = L.linesOf(world, [qf]);
+  const toB = [...ql.sections.values()].find((s) => s.to === pb && s.kind !== 'return');
+  const asksB = toB.steps.filter((id) => qf.graph.nodes.find((n) => n.id === id)?.type === 'question');
+  const qst = S.stateOf(world, ql, F.fakeLearner({ progress: { 'f/q': { visited: asksB } } }), { levels: 0, knownShare: 1 });
+  check('Step 3 · 4: every question of a section asked (its last slide not yet shown) — travelled', [asksB.length, toB.steps.at(-1) !== asksB.at(-1), qst.sections.get(toB.id).travelled], [2, true, true]);
+  const one = S.stateOf(world, ql, F.fakeLearner({ progress: { 'f/q': { visited: [toB.steps[0]] } } }), { levels: 0, knownShare: 1 });
+  check('Step 3 · 4: one step of a section is not the section', one.sections.get(toB.id).travelled, false);
   check('conquest order: the unconquered base, base first', fresh.conquestOrder('kuglarz'), ['becchi', 'sen', 'kuglarz']);
 }
 
@@ -251,7 +273,11 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   const S_ = 12, N_ = 36, D_ = 9;
   const nodes = (S_ + 2) + 2 * N_ + (4 * N_ + 1) + (N_ + 1) + 1 + D_ + 1;
   check('cap: the largest Bosko-shaped flow has fewer steps than the cap (each step is kept once)', nodes < 400, true);
-  /* Eine sehr lange Linie: nur die letzten 400 Schritte sind gemerkt — die frühen Abschnitte bleiben befahren (monoton). */
+  /*
+    Eine sehr lange Linie: nur die letzten 400 Schritte sind gemerkt. Step 3 · 4 — befahren ist nur, was selbst befahren wurde:
+    ein Abschnitt, dessen Schritte alle aus „besucht" fielen, gilt nicht mehr als befahren. Kein echter Ablauf ist so lang (der
+    grösste in Bosko-Gestalt bleibt unter 400, oben); wäre einer es, käme die kleine Menge „sections" (Korrektur 2).
+  */
   const b = new F.FlowBuilder('LONG');
   const places = world.order.slice(0, 45);
   for (const p of places) { b.show(`s/${p}`); for (const k of world.places.get(p).cards.slice(0, 9)) b.ask(k); }
@@ -262,7 +288,10 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   const kept = all.slice(-400);
   const st = S.stateOf(world, lw, F.fakeLearner({ progress: { 'f/long': { visited: kept } } }), { levels: 0, knownShare: 1 });
   check('cap: a 450-step flow keeps only its last 400 steps…', [all.length > 400, kept.includes(all[0])], [true, false]);
-  check('cap: … and still every section up to the learner\'s place is travelled', [...lw.sections.values()].every((s) => st.sections.get(s.id).travelled), true);
+  const secs = [...lw.sections.values()].filter((s) => s.kind !== 'return');
+  const fellOut = secs.filter((s) => s.steps.every((x) => !kept.includes(x)));
+  const stayed = secs.filter((s) => s.steps.includes(all[all.length - 2]));
+  check('cap: … a section whose steps all fell out of the kept steps is no longer travelled; the last one is', [fellOut.length > 0, fellOut.every((s) => !st.sections.get(s.id).travelled), stayed.every((s) => st.sections.get(s.id).travelled)], [true, true, true]);
 }
 
 /* -- 2./3. Erzeugte Welten: 1 000 Orte / 40 Erzählungen, 5 000 Orte ------------------------------------------------------------ */

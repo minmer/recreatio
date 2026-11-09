@@ -160,6 +160,8 @@ export interface Section {
   readonly kind: SectionKind;
   /** Die Schritte (Kennungen im Ablauf der Linie; ein eingebetteter Abschnitt als `<subflow>>…`). */
   readonly steps: readonly string[];
+  /** Step 3 · 4 — die Schritte, die eine Karte fragen: sind alle besucht, ist der Abschnitt befahren (auch ohne seinen letzten). */
+  readonly questions: readonly string[];
   readonly slides: number;
   /** Die Karten, die hier zuerst gefragt werden (geborgte eingeschlossen). */
   readonly introduces: readonly string[];

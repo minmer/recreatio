@@ -43,7 +43,8 @@ const PILLARS = { light: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4',
 const bx = F.boskoWorld();
 const world = G.readWorld(bx.input);
 const lines = L.linesOf(world, bx.input.flows);
-const state = S.stateOf(world, lines, F.fakeLearner({ progress: { 'f/L1': { visited: ['sh25'] } } }), { levels: 3, knownShare: 1 });
+/* Step 3 · 4 — befahren ist, was selbst befahren wurde: die Schritte der ersten zwei Abschnitte. */
+const state = S.stateOf(world, lines, F.fakeLearner({ progress: { 'f/L1': { visited: [...lines.sections.get('f/L1:0').steps, ...lines.sections.get('f/L1:1').steps] } } }), { levels: 3, knownShare: 1 });
 const geometry = GEO.geometryOf(GEO.geometryInputOf(world, lines));
 
 /* -- Die Farben der Linien (Entscheidung 5) --------------------------------------------------------------------------------- */
