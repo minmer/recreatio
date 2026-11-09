@@ -243,6 +243,28 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   check('evaluate: unknown = not met, unknown type, impassable', [unk.met, unk.unknown, C.costOf(C.readTicketCondition({ type: 'qr' }), fresh.ctx)], [false, true, Infinity]);
   check('evaluate: or with an unknown and a met part is met', C.evaluateCondition(C.readTicketCondition({ type: 'or', items: [{ type: 'qr' }, { type: 'time' }] }), fresh.ctx).met, true);
   check('describe: unknown types have their own lock', C.describeCondition(C.readTicketCondition({ type: 'qr' }), fresh.ctx).symbol, 'unknown');
+  /* Step 3 · 6 — ein unbekannter Teil öffnet auch in `xor` und `not(or …)` nichts (geschlossen bei Unbekanntem). */
+  {
+    const ev = (raw) => { const r = C.evaluateCondition(C.readTicketCondition(raw), fresh.ctx); return [r.met, r.unknown === true]; };
+    const MET = { type: 'time' };
+    const UNMET = { type: 'knowness', of: 'becchi', band: 'known' };
+    const QR = { type: 'qr' };
+    check('Step 3 · 6: (the parts) time is met, knowness of becchi is not, qr is unknown', [ev(MET), ev(UNMET), ev(QR)], [[true, false], [false, false], [false, true]]);
+    check('Step 3 · 6: or with an unknown and an unmet part carries unknown', ev({ type: 'or', items: [QR, UNMET] }), [false, true]);
+    check('Step 3 · 6: not(or(unknown, unmet)) is not met', ev({ type: 'not', items: [{ type: 'or', items: [QR, UNMET] }] }), [false, true]);
+    check('Step 3 · 6: xor with an unknown part is not met (with a met or an unmet other part)', [ev({ type: 'xor', items: [QR, MET] }), ev({ type: 'xor', items: [QR, UNMET] }), ev({ type: 'xor', items: [{ type: 'and', items: [MET, QR] }, UNMET] })], [[false, true], [false, true], [false, true]]);
+    const xq = C.readTicketCondition({ type: 'xor', items: [QR, MET] });
+    check('Step 3 · 6: … impassable, with the unknown lock', [C.costOf(xq, fresh.ctx) === Infinity, C.describeCondition(xq, fresh.ctx).symbol], [true, 'unknown']);
+    check('Step 3 · 6: known parts still decide (xor of met and unmet, not of unmet, or with a met part)', [ev({ type: 'xor', items: [MET, UNMET] }), ev({ type: 'not', items: [UNMET] }), ev({ type: 'or', items: [QR, MET] })[0]], [[true, false], [true, false], true]);
+    /* Auf der Karte: ein Tor not(or(qr, …)) sperrt seinen Abschnitt mit dem Schloss „unbekannt". */
+    const ub = new F.FlowBuilder('U');
+    const [ua, ub2] = world.order.slice(0, 2);
+    ub.show(`s/${ua}`); ub.gate({ type: 'not', items: [{ type: 'or', items: [QR, UNMET] }] }); ub.show(`s/${ub2}`); ub.end();
+    const uls = L.linesOf(world, [ub.flow('f/u', { name: 'Nieznane', unit: 'u/L1' })]);
+    const usec = [...uls.sections.values()].find((s) => s.from === ua && s.to === ub2);
+    const ust = S.stateOf(world, uls, F.fakeLearner({}), { levels: 0, knownShare: 1 }).sections.get(usec.id).ticket;
+    check('Step 3 · 6: a ticket not(or(unknown, unmet)) is locked with the unknown lock', [ust.met, ust.unknown, ust.symbol], [false, true, 'unknown']);
+  }
   /* Ein künftiger Typ — angemeldet, mit asynchronem prepare. */
   C.register({
     type: 'group', symbol: 'value',

@@ -241,7 +241,10 @@ const UNKNOWN: ConditionEvaluator = {
   describe: (c) => ({ symbol: 'unknown', key: 'cogitaWorld.condition.unknown', params: { type: sv(c.name) ?? '?' }, action: 'none' })
 };
 
-/** Die Tore: über ihren Teilen. */
+/**
+ * Die Tore: über ihren Teilen. Step 3 · 6 — geschlossen bei Unbekanntem: ist irgendein Teil unbekannt, trägt das Ganze
+ * `unknown` (auch `or`); `not` und `xor` über etwas Unbekanntem sind nie erfüllt. Nur Fahrkarten und Freigaben; Abläufe nicht.
+ */
 const gate = (type: 'and' | 'or' | 'not' | 'xor'): ConditionEvaluator => ({
   type,
   symbol: 'knowledge',
@@ -260,11 +263,11 @@ const gate = (type: 'and' | 'or' | 'not' | 'xor'): ConditionEvaluator => ({
         return { met, progress: parts.length === 0 ? 0 : parts.reduce((s, p) => s + (p.r.progress ?? (p.r.met ? 1 : 0)), 0) / parts.length, missing: merge(parts.filter((p) => !p.r.met)), ...(unknown ? { unknown } : {}), ...(pending ? { pending } : {}) };
       }
       case 'or': {
-        if (metCount > 0) return { met: true, progress: 1, missing: { new: [], review: [] } };
+        if (metCount > 0) return { met: true, progress: 1, missing: { new: [], review: [] }, ...(unknown ? { unknown } : {}) };
         const best = parts.slice().sort((a, b) => costOf(a.c, ctx, a.r) - costOf(b.c, ctx, b.r))[0];
-        return { met: false, progress: Math.max(0, ...parts.map((p) => p.r.progress ?? 0)), missing: best === undefined ? { new: [], review: [] } : merge([best]), ...(parts.every((p) => p.r.unknown === true) && parts.length > 0 ? { unknown: true } : {}) };
+        return { met: false, progress: Math.max(0, ...parts.map((p) => p.r.progress ?? 0)), missing: best === undefined ? { new: [], review: [] } : merge([best]), ...(unknown ? { unknown } : {}) };
       }
-      case 'xor': return { met: metCount % 2 === 1, progress: metCount % 2 === 1 ? 1 : 0, ...(unknown ? { unknown } : {}) };
+      case 'xor': return unknown ? { met: false, progress: 0, unknown } : { met: metCount % 2 === 1, progress: metCount % 2 === 1 ? 1 : 0 };
       default: {
         const inner = parts[0];
         if (inner === undefined) return { met: false, progress: 0 };
