@@ -1,0 +1,82 @@
+{
+  "condition": {
+    "knowledge": "Znać „{name}”",
+    "knowledgeRel": "Znać powiązane karty",
+    "story": "Ukończyć opowieść „{name}”",
+    "flow": "Opowieść „{name}”",
+    "conquered": "Zdobyć „{name}”",
+    "value": "Wartość „{value}”",
+    "answered": "Odpowiedź na „{value}”",
+    "visited": "Odwiedzony krok",
+    "time": "Tylko w określonym czasie",
+    "place": "Tylko w określonym miejscu",
+    "zone": "Tylko w strefie",
+    "and": "Wszystkie warunki",
+    "or": "Jeden z warunków",
+    "not": "Nie ten warunek",
+    "xor": "Nieparzysta liczba warunków",
+    "unknown": "Niespełniony — nieznany typ „{type}”"
+  },
+  "settings": {
+    "title": "Mapa świata: poziomy",
+    "says": "Zdobyć miejsce to odpowiedzieć poprawnie na jego karty w jednym przebiegu. Przy poziomach powtarza się tylko zdobyte miejsca; bez poziomów nic się nie zmienia.",
+    "levels": "Poziomy",
+    "levelsNone": "Brak",
+    "levelN": "Poziom {n}",
+    "pct": "Próg (%)",
+    "attempts": "Co się liczy",
+    "attemptsAny": "Dobrze w ogóle",
+    "attemptsOne": "Dobrze po jednej poprawce",
+    "attemptsFirst": "Dobrze za pierwszym razem",
+    "gap": "Dni po poprzednim poziomie",
+    "knownShare": "Bez poziomów miejsce jest osiągnięte, gdy znana jest taka część jego kart (%)",
+    "pillar": "Szerokość filarów",
+    "pillarSays": "{pct} % pełnej szerokości",
+    "mayChange": "Uczący się mogą to zmienić dla siebie",
+    "save": "Zapisz",
+    "saved": "Zapisano",
+    "clear": "Wróć do domyślnych (bez poziomów)",
+    "leaving": {
+      "one": "Przy tym ustawieniu {count} karta wypada z regularnych powtórek, dopóki jej miejsce nie zostanie zdobyte.",
+      "few": "Przy tym ustawieniu {count} karty wypadają z regularnych powtórek, dopóki ich miejsca nie zostaną zdobyte.",
+      "many": "Przy tym ustawieniu {count} kart wypada z regularnych powtórek, dopóki ich miejsca nie zostaną zdobyte.",
+      "other": "Przy tym ustawieniu {count} karty wypada z regularnych powtórek, dopóki ich miejsca nie zostaną zdobyte."
+    },
+    "leavingNone": "Przy tym ustawieniu żadna karta nie wypada z powtórek.",
+    "leavingYou": {
+      "one": "U ciebie: {count} karta.",
+      "few": "U ciebie: {count} karty.",
+      "many": "U ciebie: {count} kart.",
+      "other": "U ciebie: {count} karty."
+    },
+    "fromArea": "ustawione przez kurs",
+    "fromDefault": "domyślne",
+    "own": "Moja mapa świata",
+    "ownSays": "Twoje własne poziomy i szerokość filarów w tym kursie. Poziomy zawsze liczą się na nowo z twoich przebiegów — nic nie przepada.",
+    "locked": "Kurs ustala te ustawienia.",
+    "useArea": "Użyj ustawienia kursu"
+  },
+  "run": {
+    "title": "Przebieg · {name}",
+    "forLevel": "Przebieg na poziom {level}",
+    "rule": "{pct} % · {attempts}",
+    "intro": {
+      "one": "{count} karta w losowej kolejności. Błędna odpowiedź wraca raz na końcu.",
+      "few": "{count} karty w losowej kolejności. Błędna odpowiedź wraca raz na końcu.",
+      "many": "{count} kart w losowej kolejności. Błędna odpowiedź wraca raz na końcu.",
+      "other": "{count} karty w losowej kolejności. Błędna odpowiedź wraca raz na końcu."
+    },
+    "start": "Rozpocznij przebieg",
+    "of": "Karta {n} z {all}",
+    "again": "Jeszcze raz",
+    "result": "{first} z {all} dobrze za pierwszym razem, {after} po jednej poprawce",
+    "reached": "Osiągnięto poziom {level}",
+    "notReached": "Poziom {level} tym razem nieosiągnięty — potrzeba {pct} %",
+    "conquered": "Miejsce zdobyte",
+    "close": "Wróć",
+    "waitFrom": "Poziom {level} od {date}",
+    "serverOld": "Przebiegi będą możliwe po aktualizacji serwera.",
+    "locked": "Najpierw niech każda karta pojawi się raz i zdobądź miejsca przed tym.",
+    "saving": "Zapisywanie przebiegu…"
+  }
+}

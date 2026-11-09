@@ -164,7 +164,7 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
     places.set(id, { ...s, height: h });
   }
 
-  const ctx: LearnerContext = { world, lines, knowness, facts: learner.facts, storyPassed, ...(learner.prepared === undefined ? {} : { prepared: learner.prepared }) };
+  const ctx: LearnerContext = { world, lines, knowness, facts: learner.facts, storyPassed, conquered: (p) => places.get(p)?.conquered === true, ...(learner.prepared === undefined ? {} : { prepared: learner.prepared }) };
 
   /* -- Fahrkarten ------------------------------------------------------------------------------------------------------------ */
   const ticketOf = (s: Section): TicketState => {
@@ -308,7 +308,13 @@ export function stateOf(world: World, lines: Lines, learner: LearnerInput, setti
  * Ort gehört oder einer ihrer Orte erobert ist (§7.1: nur eroberte Orte werden wiederholt). Jede Stelle, die eine Wiederholung
  * oder eine Zahl fälliger Karten baut, fragt hier (`scripts/app-wm-review-guard-check.mjs`).
  */
-export function reviewable(card: string, state: Pick<WorldState, 'world' | 'settings' | 'places'> | null | undefined): boolean {
+export interface ReviewScope {
+  readonly world: { readonly cardPlaces: ReadonlyMap<string, readonly string[]> };
+  readonly settings: { readonly levels: number };
+  readonly places: ReadonlyMap<string, { readonly conquered: boolean }>;
+}
+
+export function reviewable(card: string, state: ReviewScope | null | undefined): boolean {
   if (state === null || state === undefined || state.settings.levels === 0) return true;
   const places = state.world.cardPlaces.get(card);
   if (places === undefined || places.length === 0) return true;

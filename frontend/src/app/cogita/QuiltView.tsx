@@ -161,7 +161,7 @@ export function QuiltView({ view, cards, answers, learner = null, list, onOpen, 
   const counts = useMemo(() => bandCounts(tiles), [tiles]);
 
   if (practise !== null) {
-    return <RevisionRun lib={lib} learner={learner} source={{ plan: practise.plan, cards, title: practise.title }} onClose={() => setPractise(null)} />;
+    return <RevisionRun lib={lib} learner={learner} source={{ plan: practise.plan, cards, title: practise.title, review: true }} onClose={() => setPractise(null)} />;
   }
   if (tiles.length === 0) return <p className="cg-muted" data-quilt-empty="">{t('cogitaLearnLogic.quiltView.empty')}</p>;
 

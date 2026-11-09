@@ -225,7 +225,7 @@ export const PRIVATE_KEYS: ReadonlySet<string> = new Set(['marks', 'correctness'
 
 /** Die Einstellungen einer Baza, die zu ihrem Bau gehören (nicht: wohin Antworten gehen, wohin Vorschläge). */
 /* 2026-11-05 (Prompt 24) — dazu der bleibende Name der Baza ("handle") und die anderen Welten, auf die sie verweist ("worlds"). */
-const SETUP_SETTINGS = ['sources', 'dependencies', 'tags', 'motivation', 'dailyGoal', 'rewards', 'offline', 'joinPage', 'language', 'handle', 'worlds'] as const;
+const SETUP_SETTINGS = ['sources', 'dependencies', 'tags', 'motivation', 'dailyGoal', 'rewards', 'offline', 'joinPage', 'language', 'handle', 'worlds', 'levelsSetup'] as const;
 
 /** Die Schlüssel eines Objekts unter „fields" sind Feldnamen eines Rodzaju (ein Formularz: „answers") — Bau, sie bleiben. */
 const withoutPrivate = (v: unknown, named = false): unknown => {

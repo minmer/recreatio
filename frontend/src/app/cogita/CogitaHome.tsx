@@ -53,6 +53,8 @@ import { SpacingLine } from './SpacingSettings';
 import { AddHub, LearnFrom, SchemaHub } from './KnowledgeParts';
 import type { Learner } from './learn';
 import { renamer } from './learn';
+import { reviewScopeFor } from './worldmap/wmReview';
+import { reviewable } from './worldmap/wmState';
 import { cogitaPath, tabLabel, KNOWLEDGE_MORE, KNOWLEDGE_READER_TABS, KNOWLEDGE_TABS, LEARN_MORE, LEARN_READER_TABS, LEARN_TABS, type CogitaPart } from './parts';
 import { LearnersProgress, OwnProgress } from './Progress';
 import { Pending } from './Pending';
@@ -207,7 +209,9 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
       onOpenRevision={(id) => go('nauka', id)} rewards={rewards.on ? rewards.rules : null} />;
   }
   const now = Date.now();
-  const due = cards === null || learner === null ? null : cards.filter((c) => { const m = learner.marks(c.key, c.fingerprint, rename); const d = dueAt(m, learner.spacing); return d !== null && d <= now; }).length;
+  /* 2026-11-09 (Weltkarte, Korrektur 5) — mit Stufen zählen nur Karten eroberter Orte. */
+  const scope = reviewScopeFor(lib, cards, learner);
+  const due = cards === null || learner === null ? null : cards.filter((c) => { if (!reviewable(c.key, scope)) return false; const m = learner.marks(c.key, c.fingerprint, rename); const d = dueAt(m, learner.spacing); return d !== null && d <= now; }).length;
   const fresh = cards === null || learner === null ? null : cards.filter((c) => learner.marks(c.key, c.fingerprint, rename).length === 0).length;
   return (
     <div className="cg">

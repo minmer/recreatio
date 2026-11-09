@@ -1,0 +1,76 @@
+{
+  "condition": {
+    "knowledge": "„{name}” können",
+    "knowledgeRel": "Die zugehörigen Karten können",
+    "story": "Die Geschichte „{name}” abschließen",
+    "flow": "Geschichte „{name}”",
+    "conquered": "„{name}” erobern",
+    "value": "Wert „{value}”",
+    "answered": "Eine Antwort auf „{value}”",
+    "visited": "Ein besuchter Schritt",
+    "time": "Nur zu bestimmten Zeiten",
+    "place": "Nur an einem bestimmten Ort",
+    "zone": "Nur in einer Zone",
+    "and": "Alle Bedingungen",
+    "or": "Eine der Bedingungen",
+    "not": "Nicht diese Bedingung",
+    "xor": "Eine ungerade Zahl von Bedingungen",
+    "unknown": "Nicht erfüllt — unbekannter Typ „{type}”"
+  },
+  "settings": {
+    "title": "Weltkarte: Stufen",
+    "says": "Einen Ort erobern heißt, seine Karten in einem Durchgang richtig zu beantworten. Mit Stufen werden nur eroberte Orte wiederholt; ohne Stufen ändert sich nichts.",
+    "levels": "Stufen",
+    "levelsNone": "Keine",
+    "levelN": "Stufe {n}",
+    "pct": "Schwelle (%)",
+    "attempts": "Was zählt",
+    "attemptsAny": "Überhaupt richtig",
+    "attemptsOne": "Richtig nach einer Korrektur",
+    "attemptsFirst": "Beim ersten Mal richtig",
+    "gap": "Tage nach der vorigen Stufe",
+    "knownShare": "Ohne Stufen ist ein Ort erreicht, wenn dieser Anteil seiner Karten gekonnt ist (%)",
+    "pillar": "Breite der Säulen",
+    "pillarSays": "{pct} % der vollen Breite",
+    "mayChange": "Lernende dürfen das für sich ändern",
+    "save": "Speichern",
+    "saved": "Gespeichert",
+    "clear": "Zurück zur Vorgabe (keine Stufen)",
+    "leaving": {
+      "one": "Mit dieser Einstellung verlässt {count} Karte die regulären Wiederholungen, bis ihr Ort erobert ist.",
+      "other": "Mit dieser Einstellung verlassen {count} Karten die regulären Wiederholungen, bis ihre Orte erobert sind."
+    },
+    "leavingNone": "Mit dieser Einstellung verlässt keine Karte die Wiederholungen.",
+    "leavingYou": {
+      "one": "Für dich: {count} Karte.",
+      "other": "Für dich: {count} Karten."
+    },
+    "fromArea": "vom Kurs festgelegt",
+    "fromDefault": "Vorgabe",
+    "own": "Meine Weltkarte",
+    "ownSays": "Deine eigenen Stufen und Säulenbreite in diesem Kurs. Die Stufen werden immer aus deinen Durchgängen neu berechnet — nichts geht verloren.",
+    "locked": "Der Kurs legt diese Einstellungen fest.",
+    "useArea": "Die Einstellung des Kurses verwenden"
+  },
+  "run": {
+    "title": "Durchgang · {name}",
+    "forLevel": "Durchgang für Stufe {level}",
+    "rule": "{pct} % · {attempts}",
+    "intro": {
+      "one": "{count} Karte in zufälliger Reihenfolge. Eine falsche Antwort kommt am Ende einmal wieder.",
+      "other": "{count} Karten in zufälliger Reihenfolge. Eine falsche Antwort kommt am Ende einmal wieder."
+    },
+    "start": "Durchgang starten",
+    "of": "Karte {n} von {all}",
+    "again": "Noch einmal",
+    "result": "{first} von {all} beim ersten Mal richtig, {after} nach einer Korrektur",
+    "reached": "Stufe {level} erreicht",
+    "notReached": "Stufe {level} diesmal nicht erreicht — {pct} % nötig",
+    "conquered": "Ort erobert",
+    "close": "Zurück",
+    "waitFrom": "Stufe {level} ab {date}",
+    "serverOld": "Durchgänge sind möglich, sobald der Server aktualisiert ist.",
+    "locked": "Lass zuerst jede Karte einmal erscheinen und erobere die Orte davor.",
+    "saving": "Der Durchgang wird gespeichert…"
+  }
+}

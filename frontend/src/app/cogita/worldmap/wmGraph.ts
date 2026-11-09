@@ -36,6 +36,7 @@ function derivePlaceKinds(input: WorldInput, entries: ReadonlyMap<string, WmEntr
   for (const u of units) { const e = entries.get(u); if (e !== undefined && e.kinds[0] !== undefined) unitKinds.add(e.kinds[0]); }
   const candidates = new Map<string, number>();
   for (const c of input.cards) {
+    if (c.fromTemplate === true) continue;
     for (const a of c.about) {
       const e = entries.get(a);
       const k = e?.kinds[0];

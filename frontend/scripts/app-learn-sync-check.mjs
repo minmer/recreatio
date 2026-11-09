@@ -14,6 +14,9 @@
  *      Stapel dieser Arten (einer älteren Fassung) wird beim Laden aufgenommen, nicht so gesendet.
  *   4. Ohne Netz gelernt: die Abstände der Abschrift (`spacingOfCopy` → `areaSpacing`).
  *   5. `postDue` wirft nie, bevor es ein Versprechen gibt (Termine ausserhalb des Kalenders).
+ *   6. 2026-11-09 (Weltkarte, 0140): Durchgänge — nur für den Halter versiegelt, einmal je Kennung, live gehört, ohne Konto
+ *      behalten; ein Dienst vor 0140 lehnt sie ab (409), ohne dass Antworten in der Ablage hängen; die Frage nach dem
+ *      Dienst (`learnFeatures`); `reportDue` zählt mit Stufen nur Karten eroberter Orte.
  *
  *   node scripts/app-learn-sync-check.mjs
  */
@@ -47,7 +50,7 @@ export async function idbForget(...stores: readonly StoreName[]): Promise<void> 
 `);
 const entry = join(workspace, 'entry.ts');
 await writeFile(entry, `
-export { Learner, absorb, EMPTY_PROGRESS, sealBatch, flushOutbox, pending, areaProgress, postDue, allPages } from '${app}cogita/learn';
+export { Learner, absorb, EMPTY_PROGRESS, sealBatch, flushOutbox, pending, areaProgress, postDue, allPages, learnFeatures } from '${app}cogita/learn';
 export { newWrapPair } from '${app}core/crypto';
 export { idbPut, idbKeys } from '${app}core/idb';
 export { PRESET_SPACING, OWN_FIRST, OWN_GROWTH, OWN_STACK, DEFAULT_STACK } from '${app}cogita/spacing';
@@ -86,10 +89,10 @@ const service = {
   rows: [],
   clock: Date.now() - 3_600_000,
   /* Stapel je Millisekunde (> 1: gleiche Zeiten), Seite, ein älterer Dienst ohne Seiten, einer, der nicht weiterkommt. */
-  perTick: 1, page: 1000, legacy: false, stuck: false, offline: false,
+  perTick: 1, page: 1000, legacy: false, stuck: false, offline: false, runs: true,
   log: [],
   due: [],
-  reset() { this.rows = []; this.log = []; this.due = []; this.perTick = 1; this.page = 1000; this.legacy = false; this.stuck = false; this.offline = false; },
+  reset() { this.rows = []; this.log = []; this.due = []; this.perTick = 1; this.page = 1000; this.legacy = false; this.stuck = false; this.offline = false; this.runs = true; },
   stamp() { const at = this.clock; this.ticks = (this.ticks ?? 0) + 1; if (this.ticks >= this.perTick) { this.ticks = 0; this.clock += 1; } return at; },
   newest(kind) { return this.rows.filter((r) => r.kind === kind).sort((x, y) => x.createdAt - y.createdAt).at(-1); },
   posts(kind) { return this.log.filter((l) => l.method === 'POST' && (kind === undefined || l.kinds.includes(kind))).length; }
@@ -126,6 +129,8 @@ globalThis.fetch = async (input, init = {}) => {
   if (method === 'POST' && url.pathname === '/workspace/learn/batches') {
     const { batches } = JSON.parse(init.body);
     service.log.push({ method, path: url.pathname, kinds: batches.map((b) => b.kind) });
+    /* Wie Cogita.cs vor 0140: ein Durchgang wird mit 409 abgelehnt. */
+    if (!service.runs && batches.some((b) => b.kind === 'run')) return json({ error: 'Przebiegi mapy świata przyjmie usługa po migracji 0140.' }, 409);
     const stored = [];
     for (const b of batches) {
       if (service.rows.some((r) => r.batchId === b.batchId)) { stored.push(b.batchId); continue; }
@@ -148,6 +153,7 @@ globalThis.fetch = async (input, init = {}) => {
     service.due.push(JSON.parse(init.body));
     return json({ ok: true });
   }
+  if (method === 'GET' && url.pathname === '/workspace/learn/features') return json({ run: service.runs });
   if (method === 'GET' && url.pathname.startsWith('/intake/')) return json({ error: 'none' }, 404);
   throw new Error(`unexpected ${method} ${url.pathname}`);
 };
@@ -370,6 +376,53 @@ try {
     check('5 postDue returns a promise for every date (no synchronous RangeError)', results.every(([threw, isPromise]) => !threw && isPromise), true);
     check('5 … out of range is clamped or dropped, the count is a number', service.due.map((d) => [d.dueAt, d.dueCount]),
       [['9999-01-01T00:00:00.000Z', 0], [null, 0], [null, 0], ['1970-01-01T00:00:00.000Z', 0], ['2027-01-01T00:00:00.000Z', 0]]);
+  }
+
+  /* ══ 6. Durchgänge der Weltkarte (0140) ════════════════════════════════════════════════════════════════════ */
+  {
+    service.reset();
+    const R = await device('runs');
+    const run = (id, place, firstTry = 9) => ({ id, place, participants: [holder.roleId], startedAt: 1000, finishedAt: 2000, cards: 10, firstTry, afterCorrection: 1, attempts: 11 });
+    const a = await learner(R);
+    const b = await learner(R);
+    await a.keepRun(run('run-1', 'p1'));
+    check('6 a run is in the progress at once and heard live by the same person', [a.progress.runs.size, b.progress.runs.has('run-1')], [1, true]);
+    const row = service.rows.find((r) => r.kind === 'run');
+    check('6 it goes out as a batch "run", sealed for the holder only (no key for the area)', [row !== undefined, row?.keyForArea === undefined, typeof row?.keyForHolder], [true, true, 'string']);
+    check('6 the same run twice counts once', R.absorb(R.absorb(R.EMPTY_PROGRESS, { kind: 'run', runs: [run('x', 'p')] }), { kind: 'run', runs: [run('x', 'p'), { id: 'bad' }] }).runs.size, 1);
+    check('6 another device loads it', (await reload()).progress.runs.get('run-1')?.place, 'p1');
+    check('6 the service says it takes runs', await R.learnFeatures(), { run: true });
+
+    service.reset();
+    service.runs = false;
+    const Old = await device('runs-old');
+    check('6 a service before 0140 says no', await Old.learnFeatures(), { run: false });
+    const c = await learner(Old);
+    await c.keepRun(run('run-2', 'p2'));
+    c.record(card('t:q9'), 1);
+    await c.flush();
+    check('6 before 0140: the run waits in the outbox, the answers still go out', [(await Old.pending(holder)).map((x) => x.kind), service.rows.filter((r) => r.kind === 'answers').length], [['run'], 1]);
+    service.runs = true;
+    await Old.flushOutbox(holder);
+    check('6 … and the run goes out once the service takes runs', [(await Old.pending(holder)).length, service.rows.filter((r) => r.kind === 'run').length], [0, 1]);
+
+    const Loc = await device('runs-local');
+    const lone = new Loc.Learner(LIB, { kind: 'local', id: 'lone' }, null);
+    await lone.load();
+    await lone.keepRun(run('run-3', 'p3'));
+    const again = new Loc.Learner(LIB, { kind: 'local', id: 'lone' }, null);
+    await again.load();
+    check('6 without an account the run stays in this browser', again.progress.runs.has('run-3'), true);
+
+    service.reset();
+    const Due = await device('runs-due');
+    const d = await learner(Due);
+    const keys = ['t:a1', 't:a2', 't:b1', 't:free'];
+    for (const k of keys) d.record(card(k), 1, {}, Date.now() - 400 * 86_400_000);
+    const scope = { world: { cardPlaces: new Map([['t:a1', ['A']], ['t:a2', ['A']], ['t:b1', ['B']]]) }, settings: { levels: 3 }, places: new Map([['A', { conquered: true }], ['B', { conquered: false }]]) };
+    const all = await d.reportDue(keys.map(card));
+    const some = await d.reportDue(keys.map(card), undefined, Date.now(), scope);
+    check('6 reportDue with levels counts only cards of conquered places (and cards of no place)', [all.count, some.count, service.due.at(-1)?.dueCount], [4, 3, 3]);
   }
 } finally {
   globalThis.fetch = realFetch;

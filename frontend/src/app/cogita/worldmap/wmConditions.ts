@@ -33,6 +33,8 @@ export interface LearnerContext {
   readonly subject?: string;
   /** Karten, die der Abschnitt selbst einführt — seine eigene Fahrkarte verlangt sie nicht. */
   readonly exclude?: ReadonlySet<string>;
+  /** Ist ein Ort erobert (die Freigabe eines Durchgangs, `wmRuns.ts`)? */
+  readonly conquered?: (place: string) => boolean;
   /** Was `prepare` geliefert hat, je Bedingung (`conditionKey`). */
   readonly prepared?: ReadonlyMap<string, unknown>;
 }

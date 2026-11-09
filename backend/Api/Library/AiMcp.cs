@@ -732,7 +732,7 @@ public sealed partial class AiMcpTools
     /// </summary>
     public static readonly HashSet<string> Private = ["marks", "correctness", "knowness", "dueAt", "progress", "learners", "accountId", "answeredAt"];
     /* 2026-11-05 (Prompt 24) — dazu der bleibende Name der Baza (handle) und die Bazy, auf die sie verweist (worlds). */
-    private static readonly HashSet<string> SettingsKept = ["ref", "sources", "dependencies", "tags", "motivation", "offline", "joinPage", "handle", "worlds"];
+    private static readonly HashSet<string> SettingsKept = ["ref", "sources", "dependencies", "tags", "motivation", "offline", "joinPage", "handle", "worlds", "levelsSetup"];
 
     public static void Scrub(JsonNode? node, bool named = false)
     {

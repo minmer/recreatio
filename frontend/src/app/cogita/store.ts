@@ -38,6 +38,7 @@ import type { RevisionContext } from './revision';
 import type { FlowFacts } from './logic';
 import { DEPENDENCY_KINDS } from './knowness';
 import { readAreaSpacing, readAreaStack, spacingFor, type AreaSpacing, type AreaStack } from './spacing';
+import { readLevelsSetup, type LevelsSetup } from './worldmap/wmRuns';
 import { readDailyGoal } from './lessons';
 import { fieldDependencies, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
@@ -99,6 +100,11 @@ export interface CogitaSettings {
   readonly spacing?: AreaSpacing;
   /** 2026-11-05 — wie viele Karten eine Wiederholung zugleich hat (`spacing.ts`, Stapel), und ob die Lernenden es ändern dürfen. */
   readonly stack?: AreaStack;
+  /**
+   * 2026-11-09 (Weltkarte) — STUFEN DER EROBERUNG (`worldmap/wmRuns.ts`): wie viele (0–5), ihre Regeln, der Anteil gekonnter
+   * Karten ohne Stufen, die Breite der Säulen, und ob die Lernenden es ändern dürfen. Fehlt es: 0 Stufen (wie bisher).
+   */
+  readonly levelsSetup?: LevelsSetup;
   /**
    * 2026-11-05 (Prompt 24) — der bleibende Name dieser Baza für Verweise aus anderen („@@historia:@…", `worlds.ts`):
    * klein, ohne Leerzeichen; bleibt, auch wenn die Baza umbenannt wird.
@@ -167,6 +173,7 @@ export function readSettings(raw: unknown): CogitaSettings {
     ...(d.language === 'pl' || d.language === 'de' || d.language === 'en' ? { language: d.language } : {}),
     ...(readAreaSpacing(d.spacing) === undefined ? {} : { spacing: readAreaSpacing(d.spacing)! }),
     ...(readAreaStack(d.stack) === undefined ? {} : { stack: readAreaStack(d.stack)! }),
+    ...(readLevelsSetup(d.levelsSetup) === undefined ? {} : { levelsSetup: readLevelsSetup(d.levelsSetup)! }),
     ...(readHandle(d.handle) === undefined ? {} : { handle: readHandle(d.handle)! }),
     worlds: readWorlds(d.worlds)
   };

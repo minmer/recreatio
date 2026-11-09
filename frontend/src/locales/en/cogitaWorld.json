@@ -1,0 +1,76 @@
+{
+  "condition": {
+    "knowledge": "Know „{name}”",
+    "knowledgeRel": "Know the related cards",
+    "story": "Finish the story „{name}”",
+    "flow": "Story „{name}”",
+    "conquered": "Conquer „{name}”",
+    "value": "Value „{value}”",
+    "answered": "An answer to „{value}”",
+    "visited": "A visited step",
+    "time": "Only at certain times",
+    "place": "Only at a certain place",
+    "zone": "Only in a zone",
+    "and": "All conditions",
+    "or": "One of the conditions",
+    "not": "Not this condition",
+    "xor": "An odd number of conditions",
+    "unknown": "Not met — unknown type „{type}”"
+  },
+  "settings": {
+    "title": "World map: levels",
+    "says": "Conquering a place means answering its cards correctly in one run. With levels, only conquered places are reviewed; without levels, nothing changes.",
+    "levels": "Levels",
+    "levelsNone": "None",
+    "levelN": "Level {n}",
+    "pct": "Threshold (%)",
+    "attempts": "What counts",
+    "attemptsAny": "Right at all",
+    "attemptsOne": "Right after one correction",
+    "attemptsFirst": "Right the first time",
+    "gap": "Days after the previous level",
+    "knownShare": "Without levels, a place is reached when this share of its cards is known (%)",
+    "pillar": "Pillar width",
+    "pillarSays": "{pct} % of the full width",
+    "mayChange": "Learners may change this for themselves",
+    "save": "Save",
+    "saved": "Saved",
+    "clear": "Back to the default (no levels)",
+    "leaving": {
+      "one": "With this setting {count} card leaves the regular reviews until its place is conquered.",
+      "other": "With this setting {count} cards leave the regular reviews until their places are conquered."
+    },
+    "leavingNone": "With this setting no card leaves the reviews.",
+    "leavingYou": {
+      "one": "For you: {count} card.",
+      "other": "For you: {count} cards."
+    },
+    "fromArea": "set by the course",
+    "fromDefault": "default",
+    "own": "My world map",
+    "ownSays": "Your own levels and pillar width for this course. Levels are always recomputed from your runs — nothing is lost.",
+    "locked": "The course fixes these settings.",
+    "useArea": "Use the course's setting"
+  },
+  "run": {
+    "title": "Run · {name}",
+    "forLevel": "Run for level {level}",
+    "rule": "{pct} % · {attempts}",
+    "intro": {
+      "one": "{count} card in random order. A wrong answer comes back once at the end.",
+      "other": "{count} cards in random order. A wrong answer comes back once at the end."
+    },
+    "start": "Start the run",
+    "of": "Card {n} of {all}",
+    "again": "Once more",
+    "result": "{first} of {all} right the first time, {after} after one correction",
+    "reached": "Level {level} reached",
+    "notReached": "Level {level} not reached this time — {pct} % needed",
+    "conquered": "Place conquered",
+    "close": "Back",
+    "waitFrom": "Level {level} from {date}",
+    "serverOld": "Runs will be possible once the server is updated.",
+    "locked": "First let every card appear once and conquer the places before this one.",
+    "saving": "Saving the run…"
+  }
+}

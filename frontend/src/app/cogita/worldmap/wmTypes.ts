@@ -39,6 +39,8 @@ export interface WmCardInput {
   /** Was davor kommt (Fragen oder Einträge) — nur für die Reihenfolge der Karten eines Ortes (Entscheidung 6). */
   readonly needs?: readonly string[];
   readonly core?: boolean;
+  /** Aus einer Vorlage (sie prüft ihren Eintrag): zählt für den Ort, bestimmt aber nicht, welche Arten Orte sind. */
+  readonly fromTemplate?: boolean;
 }
 
 export interface WorldInput {
