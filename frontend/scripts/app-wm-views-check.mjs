@@ -162,6 +162,16 @@ const cardsOf = (places, k) => Object.fromEntries(places.flatMap((p) => world.pl
   check('pick: after a given pillar only nearer ones count', [P.pickAt(g2, 105, 250), P.pickAt(g2, 105, 250, 1)], ['front', null]);
 }
 
+/* Step 3 §2.2 — der orange Punkt und der Knopf „Powtórz" meinen dieselben Karten (auch eine, die unter 0,1 verfiel). */
+{
+  const p = [...world.places.values()].find((x) => x.needs.length === 0 && x.cards.length >= 2);
+  const know = Object.fromEntries(p.cards.map((k, i) => [k, i === 0 ? 0.05 : 3]));
+  const st = S.stateOf(world, lines, F.fakeLearner({ knowness: know, levels: { [p.id]: 3 } }), { levels: 3, knownShare: 1 });
+  check('Step 3 §2.2: a card decayed below 0.1 makes the dot orange — and the review button offers it', [st.places.get(p.id).dot, V.dueOf(st, p.id)], ['orange', [p.cards[0]]]);
+  const src = await (await import('node:fs/promises')).readFile('src/app/cogita/worldmap/WorldPanels.tsx', 'utf8');
+  check('Step 3 §2.2: the place panel takes its review cards from dueOf', /const due = ps\.conquered \? dueOf\(state, id\) : \[\];/.test(src), true);
+}
+
 /* Step 3 · 10 — „jetzt" bleibt nicht stehen: neu, wenn der Tab sichtbar wird, und alle 10 Minuten (fällige Karten, Punkte). */
 {
   const { readFile } = await import('node:fs/promises');

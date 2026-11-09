@@ -15,6 +15,7 @@ import { stepKey, type Timetable } from './wmNav';
 import type { PlanStep } from './wmPlan';
 import { runGate, type LevelProgress, type LevelRule } from './wmRuns';
 import { reviewable, type SectionState, type WorldState } from './wmState';
+import { dueOf } from './wmViews';
 import { HOME, type Section, type WmIssue } from './wmTypes';
 import './worldmap.css';
 
@@ -245,7 +246,7 @@ export function PlacePanel({ id, ctx, levels, rules, onClose, settings, onSettin
   const unseen = ps.cards.filter((k) => state.band(k) === 'unseen');
   const notKnown = ps.cards.filter((k) => state.band(k) !== 'known');
   const hiddenOrder = Math.max(0, state.conquestOrder(id).length - 1 - ORDER_SHOWN);
-  const due = ps.conquered ? ps.cards.filter((k) => state.band(k) === 'learning' && reviewable(k, state)) : [];
+  const due = ps.conquered ? dueOf(state, id) : [];
   const order = gate.kind === 'locked' || (L === 0 && !ps.conquered) ? state.conquestOrder(id).filter((p) => p !== id) : [];
   const total = order.reduce((sum, p) => sum + (state.places.get(p)?.missing ?? 0), 0) + ps.missing;
   const rule = gate.kind === 'ready' ? rules[gate.level - 1] : undefined;

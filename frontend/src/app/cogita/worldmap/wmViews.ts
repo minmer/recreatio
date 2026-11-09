@@ -35,7 +35,10 @@ export function readyNow(state: WorldState, id: string): boolean {
 
 /** Die Karten eines Ortes, die jetzt zu wiederholen sind: fällig und wiederholbar (`reviewable`); ausgesetzte nie. */
 export function dueOf(state: WorldState, id: string): string[] {
-  return (state.places.get(id)?.cards ?? []).filter((k) => state.band(k) === 'learning' && reviewable(k, state));
+  /* Step 3 §2.2 — auf einem eroberten Ort alles, was den Punkt orange macht (auch eine Karte, die unter 0,1 verfiel). */
+  const ps = state.places.get(id);
+  const due = (k: string) => (ps?.conquered === true ? state.band(k) !== 'known' : state.band(k) === 'learning');
+  return (ps?.cards ?? []).filter((k) => due(k) && reviewable(k, state));
 }
 
 /** Welche Orte in einer Ansicht farbig stehen (`null`: alle). */
