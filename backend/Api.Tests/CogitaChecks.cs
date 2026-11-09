@@ -63,5 +63,15 @@ internal static class CogitaChecks
         Cogita.Tick(rules, state, fresh, t0.AddSeconds(113));
         fresh.Add("bart");
         check(Cogita.Tick(rules, state, fresh, t0.AddSeconds(114)).Count == 0, "game: a once trigger stays fired after the crowd parts and gathers again");
+
+        /* 2026-11-09 (world map, 0140) — a run is a learn batch of its own kind: kept like answers, never only the newest. */
+        check(Cogita.IsLearnKind("run") && Cogita.IsLearnKind("answers") && !Cogita.IsLearnKind("counts") && !Cogita.IsLearnKind("nope") && !Cogita.IsLearnKind(null),
+            "learn kinds: run and answers are a holder's batches; counts are anonymous; unknown kinds are refused");
+        check(!Cogita.IsLatestKind("run") && Cogita.IsLatestKind("position") && Cogita.IsLatestKind("values"),
+            "learn kinds: runs are never replaced by the newest batch (positions and values are)");
+        const string before = "([kind]=N'counts' OR [kind]=N'flags' OR [kind]=N'suspend' OR [kind]=N'values' OR [kind]=N'position' OR [kind]=N'snapshots' OR [kind]=N'answers')";
+        const string after = "([kind]=N'run' OR [kind]=N'counts' OR [kind]=N'flags' OR [kind]=N'suspend' OR [kind]=N'values' OR [kind]=N'position' OR [kind]=N'snapshots' OR [kind]=N'answers')";
+        check(!Cogita.AllowsRun(before) && Cogita.AllowsRun(after) && !Cogita.AllowsRun(null) && !Cogita.AllowsRun("([kind]=N'running')"),
+            "0140 probe: the CHECK definition allows runs only after the migration (the quoted word, not a prefix)");
     }
 }

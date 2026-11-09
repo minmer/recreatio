@@ -105,4 +105,31 @@ internal static class Schema
         if (there) learnEpoch = true;
         return there;
     }
+
+    private static volatile bool learnRun;
+    private static long learnRunCheckedAt;
+
+    /// <summary>
+    /// 0140 — ein Stapel des Lernens kann die Art <c>run</c> haben (ein Durchgang der Weltkarte). Bis die Migration
+    /// läuft, lehnt die CHECK-Bedingung solche Stapel ab: der Dienst nimmt sie erst danach an, und der Browser blendet
+    /// die Durchgänge bis dahin aus (<c>GET /workspace/learn/features</c>).
+    /// </summary>
+    internal static async Task<bool> LearnRunAsync(SqlConnection connection, CancellationToken ct)
+    {
+        if (learnRun) return true;
+
+        var now = Environment.TickCount64;
+        var last = Interlocked.Read(ref learnRunCheckedAt);
+        if (last != 0 && now - last < 30_000) return false;
+
+        await using var cmd = new SqlCommand("""
+            SELECT TOP 1 definition FROM sys.check_constraints
+            WHERE name = N'ck_learn_batch_kind' AND parent_object_id = OBJECT_ID('app.learn_batch');
+            """, connection);
+        var there = Cogita.AllowsRun(await cmd.ExecuteScalarAsync(ct) as string);
+
+        Interlocked.Exchange(ref learnRunCheckedAt, now);
+        if (there) learnRun = true;
+        return there;
+    }
 }

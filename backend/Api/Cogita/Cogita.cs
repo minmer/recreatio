@@ -40,11 +40,28 @@ public static partial class Cogita
     private const int MaxBatchesPerDay = 2000;
     private const int MaxKey = 2048;
 
-    /// <summary>Was ein Stapel sein kann. Die letzten drei gelten nur in ihrer jüngsten Fassung.</summary>
+    /// <summary>
+    /// Was ein Stapel sein kann. <c>position</c>, <c>values</c>, <c>suspend</c> gelten nur in ihrer jüngsten Fassung
+    /// (<see cref="Latest"/>). 2026-11-09 — <c>run</c>: ein Durchgang der Weltkarte (0140), wie Antworten nie ersetzt;
+    /// angenommen erst, wenn die Datenbank ihn kennt (<see cref="Schema.LearnRunAsync"/>).
+    /// </summary>
     private static readonly HashSet<string> Kinds = new(StringComparer.Ordinal)
     {
-        "answers", "snapshots", "position", "values", "suspend", "flags", "counts"
+        "answers", "snapshots", "position", "values", "suspend", "flags", "counts", "run"
     };
+
+    /// <summary>Ein Stapel dieser Art wird von einem Halter geschrieben (nicht anonym an die Autoren).</summary>
+    public static bool IsLearnKind(string? kind) => kind is not null && Kinds.Contains(kind) && !Anonymous.Contains(kind);
+
+    /// <summary>Von dieser Art bleibt nur der jüngste Stapel je Halter, Bibliothek, Bereich und Art.</summary>
+    public static bool IsLatestKind(string? kind) => kind is not null && Latest.Contains(kind);
+
+    /// <summary>
+    /// 0140 — erlaubt die CHECK-Bedingung <c>ck_learn_batch_kind</c> (ihr Text aus <c>sys.check_constraints</c>) die Art
+    /// <c>run</c>? SQL Server schreibt die Liste als <c>[kind]=N'run' OR …</c> um; gesucht wird das Wort in Anführungszeichen.
+    /// </summary>
+    public static bool AllowsRun(string? checkDefinition) =>
+        checkDefinition is not null && checkDefinition.Contains("'run'", StringComparison.Ordinal);
 
     /// <summary>Der Stand von heute ersetzt den von gestern: nur der jüngste Stapel je Halter, Bibliothek, Bereich und Art bleibt.</summary>
     private static readonly HashSet<string> Latest = new(StringComparer.Ordinal) { "position", "values", "suspend" };
@@ -73,6 +90,8 @@ public static partial class Cogita
         app.MapGet("/workspace/learn/library/{id:guid}/reports", ReportsAsync);
         /* 2026-11-01 — in welche Bereiche die Antworten zu einer Baza gingen (eine Baza steht in vielen Kursen). */
         app.MapGet("/workspace/learn/library/{id:guid}/areas", AnswerAreasAsync);
+        /* 2026-11-09 — was der Dienst schon kann (die Weltkarte blendet Durchgänge aus, bis 0140 läuft); ohne Anmeldung, auch für Plätze. */
+        app.MapGet("/workspace/learn/features", FeaturesAsync);
 
         app.MapPost("/seat/{token}/learn/batches", SeatPostBatchesAsync);
         app.MapGet("/seat/{token}/learn/batches", SeatBatchesAsync);
@@ -85,6 +104,17 @@ public static partial class Cogita
 
         MapSessions(app);
         MapGame(app);
+    }
+
+    /// <summary>
+    /// 2026-11-09 — WAS DER DIENST BEIM LERNEN SCHON ANNIMMT: <c>run</c> = Durchgänge der Weltkarte (Migration 0140). Der
+    /// Browser fragt einmal und blendet die Durchgänge aus, solange es <c>false</c> ist. Keine Daten, nur der Stand des Schemas.
+    /// </summary>
+    private static async Task FeaturesAsync(HttpContext ctx, Db db)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var run = await Schema.LearnRunAsync(connection, ctx.RequestAborted);
+        await ctx.Response.WriteAsJsonAsync(new { run });
     }
 
     /* -- Prüfen, was hereinkommt ------------------------------------------------------------ */
@@ -112,7 +142,7 @@ public static partial class Cogita
         if (!Guid.TryParse(one.BatchId, out var id) || !Guid.TryParse(one.LibraryId, out var library) || !Guid.TryParse(one.AreaId, out var area))
             return (null, "Nieczytelny pakiet odpowiedzi.");
         var kind = (one.Kind ?? string.Empty).Trim();
-        if (!Kinds.Contains(kind) || Anonymous.Contains(kind)) return (null, "Nieznany rodzaj pakietu.");
+        if (!IsLearnKind(kind)) return (null, "Nieznany rodzaj pakietu.");
         if (!Blob(one.Sealed, MaxBatch, out var sealedBytes) || sealedBytes.Length < 32) return (null, "Pakiet odpowiedzi może mieć najwyżej 512 kB.");
         if (!Blob(one.KeyForHolder, MaxKey, out var forHolder)) return (null, "Brakuje klucza dla uczącego się.");
         byte[]? forArea = null;
@@ -279,6 +309,12 @@ public static partial class Cogita
             if (batch.AreaEpoch is not null && !await Schema.LearnEpochAsync(connection, ctx.RequestAborted))
             {
                 await RefuseArea(ctx, "Odpowiedzi do obszaru osoby przyjmie usługa po migracji 0136.");
+                return;
+            }
+            if (batch.Kind == "run" && !await Schema.LearnRunAsync(connection, ctx.RequestAborted))
+            {
+                /* 2026-11-09 — Durchgänge der Weltkarte erst nach 0140 (sonst lehnte die CHECK-Bedingung den Stapel mit 500 ab). */
+                await Fail(ctx, StatusCodes.Status409Conflict, "Przebiegi mapy świata przyjmie usługa po migracji 0140.");
                 return;
             }
 
@@ -776,6 +812,12 @@ public static partial class Cogita
             if (batch.AreaEpoch is not null && !await Schema.LearnEpochAsync(connection, ctx.RequestAborted))
             {
                 await RefuseArea(ctx, "Odpowiedzi do obszaru osoby przyjmie usługa po migracji 0136.");
+                return;
+            }
+            if (batch.Kind == "run" && !await Schema.LearnRunAsync(connection, ctx.RequestAborted))
+            {
+                /* 2026-11-09 — Durchgänge der Weltkarte erst nach 0140 (sonst lehnte die CHECK-Bedingung den Stapel mit 500 ab). */
+                await Fail(ctx, StatusCodes.Status409Conflict, "Przebiegi mapy świata przyjmie usługa po migracji 0140.");
                 return;
             }
             if (stored.Count == 0 && await TodayAsync(connection, null, seat.Value.Id, ctx.RequestAborted) + given.Count > MaxBatchesPerDay)
