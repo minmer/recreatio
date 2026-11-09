@@ -13,6 +13,7 @@ import { baseLang } from '../lang';
 import type { Learner } from '../learn';
 import type { CogitaLibrary } from '../store';
 import { effectiveWorldFor, leavingReviews, worldOf } from './wmReview';
+import { useServerRuns } from './useServerRuns';
 import { ATTEMPTS, DEFAULT_SETUP, defaultRules, levelsSetupDoc, MAX_LEVELS, PILLAR_MIN, type Attempts, type LevelRule, type LevelsSetup } from './wmRuns';
 import './worldmap.css';
 
@@ -90,6 +91,8 @@ export function PillarSlider({ value, onLive, onCommit, disabled = false, t }: {
 /** FÜR DEN BEREICH (Ustawienia der Baza): erst ein Entwurf — davor, wie viele Karten die Wiederholungen verlassen würden. */
 export function AreaWorldSettings({ lib, busy, onSave }: { lib: CogitaLibrary; busy: boolean; onSave: (levelsSetup: unknown) => void }) {
   const t = tFor(baseLang(lib));
+  /* PR A — bevor der Dienst Durchgänge speichert, lassen sich keine Stufen einschalten (sie gälten ohnehin als 0). */
+  const runs = useServerRuns();
   const area = lib.settings().levelsSetup;
   const areaKey = JSON.stringify(area === undefined ? null : levelsSetupDoc(area));
   const [draft, setDraft] = useState<LevelsSetup>(area ?? DEFAULT_SETUP);
@@ -121,8 +124,9 @@ export function AreaWorldSettings({ lib, busy, onSave }: { lib: CogitaLibrary; b
         <span>{t('cogitaWorld.settings.mayChange')}</span>
       </label>
       {leaving !== null && <p className={leaving > 0 ? 'wk-note' : 'cg-muted'} data-world-leaving={leaving}>{leaving === 0 ? t('cogitaWorld.settings.leavingNone') : t('cogitaWorld.settings.leaving', { count: leaving })}</p>}
+      {!runs && <p className="wk-note" data-world-server-old="">{t('cogitaWorld.settings.serverOldArea')}</p>}
       <div className="wk-actions">
-        <button type="button" className="wk-btn" disabled={busy || !changed} onClick={() => onSave(levelsSetupDoc(draft))} data-world-save="">{t('cogitaWorld.settings.save')}</button>
+        <button type="button" className="wk-btn" disabled={busy || !changed || (!runs && draft.levels > 0)} onClick={() => onSave(levelsSetupDoc(draft))} data-world-save="">{t('cogitaWorld.settings.save')}</button>
         {area !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onSave(undefined)} data-world-clear="">{t('cogitaWorld.settings.clear')}</button>}
       </div>
     </section>
@@ -133,7 +137,10 @@ export function AreaWorldSettings({ lib, busy, onSave }: { lib: CogitaLibrary; b
 export function OwnWorldSettings({ lib, learner, onPillarLive }: { lib: CogitaLibrary; learner: Learner | null; onPillarLive?: (w: number) => void }) {
   const t = tFor(baseLang(lib));
   const [busy, setBusy] = useState(false);
+  const runs = useServerRuns();
   if (learner === null) return null;
+  /* PR A — mit Konto erst, wenn der Dienst Durchgänge speichert; ohne Konto bleiben sie im Browser. */
+  const on = learner.holder.kind === 'local' || runs;
   const eff = effectiveWorldFor(lib, learner);
   const keep = (work: Promise<void>) => { setBusy(true); void work.catch(() => undefined).finally(() => setBusy(false)); };
   const from = eff.from === 'own' ? null : eff.from === 'area' ? t('cogitaWorld.settings.fromArea') : t('cogitaWorld.settings.fromDefault');
@@ -141,10 +148,10 @@ export function OwnWorldSettings({ lib, learner, onPillarLive }: { lib: CogitaLi
     <section className="cg-card" data-world-own={eff.from} data-world-levels={eff.levels}>
       <h3>{t('cogitaWorld.settings.own')}</h3>
       <p className="cg-muted">{t('cogitaWorld.settings.ownSays')}{from !== null && <> <span>({from})</span></>}</p>
-      {eff.changeable
-        ? <LevelsEditor levels={eff.levels} rules={eff.rules} disabled={busy} t={t} onChange={(v) => keep(learner.keepLevels(v))} />
-        : <p className="cg-muted" data-world-locked="">{t('cogitaWorld.settings.locked')} {t('cogitaWorld.settings.levels')}: {eff.levels}</p>}
-      {eff.changeable && eff.from === 'own' && (
+      {!on && <p className="cg-muted" data-world-server-old="">{t('cogitaWorld.settings.serverOld')}</p>}
+      {on && eff.changeable && <LevelsEditor levels={eff.levels} rules={eff.rules} disabled={busy} t={t} onChange={(v) => keep(learner.keepLevels(v))} />}
+      {on && !eff.changeable && <p className="cg-muted" data-world-locked="">{t('cogitaWorld.settings.locked')} {t('cogitaWorld.settings.levels')}: {eff.levels}</p>}
+      {on && eff.changeable && eff.from === 'own' && (
         <button type="button" className="wk-link-btn" disabled={busy} onClick={() => keep(learner.keepLevels(null))} data-world-own-reset="">{t('cogitaWorld.settings.useArea')}</button>
       )}
       <PillarSlider value={eff.pillarWidth} disabled={busy} t={t} onLive={onPillarLive} onCommit={(w) => keep(learner.keepPillar(w))} />

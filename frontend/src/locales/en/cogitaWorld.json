@@ -50,6 +50,8 @@
     "own": "My world map",
     "ownSays": "Your own levels and pillar width for this course. Levels are always recomputed from your runs — nothing is lost.",
     "locked": "The course fixes these settings.",
+    "serverOld": "Levels and runs start once the server has been updated. Until then, reviews work as before.",
+    "serverOldArea": "The server cannot store runs yet, so levels cannot be switched on. Until it is updated, every learner works with 0 levels.",
     "useArea": "Use the course's setting"
   },
   "run": {

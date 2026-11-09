@@ -14,17 +14,25 @@ import type { Card } from '../cardBasics';
 import type { CogitaLibrary } from '../store';
 import { readWorld } from './wmGraph';
 import { worldInputOf } from './wmInput';
+import { runsOn } from './wmFeatures';
 import { effectiveWorld, levelsByPlace, ownWorld, type EffectiveWorld, type LevelsSetup, type RunRecord } from './wmRuns';
 import type { ReviewScope } from './wmState';
 import type { World } from './wmTypes';
 
 interface LearnerLike {
   readonly progress: { readonly values: Readonly<Record<string, number>>; readonly runs: ReadonlyMap<string, RunRecord> };
+  /** Wer lernt: ohne Konto (`local`) bleiben Durchgänge im Browser; mit Konto braucht es den Dienst nach 0140. */
+  readonly holder?: { readonly kind: string };
 }
 
-/** Die Stufen, die für diesen Lernenden in dieser Baza gelten. */
-export const effectiveWorldFor = (lib: Pick<CogitaLibrary, 'settings'> | null | undefined, learner: LearnerLike | null | undefined, area?: LevelsSetup): EffectiveWorld =>
-  effectiveWorld(lib?.settings().levelsSetup ?? area, ownWorld(learner?.progress.values));
+/**
+ * Die Stufen, die für diesen Lernenden in dieser Baza gelten. 2026-11-09 (PR A) — speichert der Dienst noch keine Durchgänge
+ * (`wmFeatures.ts`), gelten 0 Stufen: keine Durchgänge, keine Bögen, jede Wiederholung wie bisher (`serverOld` sagt warum).
+ */
+export function effectiveWorldFor(lib: Pick<CogitaLibrary, 'settings'> | null | undefined, learner: LearnerLike | null | undefined, area?: LevelsSetup): EffectiveWorld {
+  const eff = effectiveWorld(lib?.settings().levelsSetup ?? area, ownWorld(learner?.progress.values));
+  return eff.levels === 0 || runsOn(learner?.holder) ? eff : { ...eff, levels: 0, rules: [], serverOld: true };
+}
 
 const WORLDS = new WeakMap<object, { revision: number; count: number; world: World }>();
 

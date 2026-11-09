@@ -54,6 +54,8 @@
     "own": "Moja mapa świata",
     "ownSays": "Twoje własne poziomy i szerokość filarów w tym kursie. Poziomy zawsze liczą się na nowo z twoich przebiegów — nic nie przepada.",
     "locked": "Kurs ustala te ustawienia.",
+    "serverOld": "Poziomy i przebiegi zaczną działać po aktualizacji serwera. Do tego czasu powtórki działają jak dotąd.",
+    "serverOldArea": "Serwer nie zapisuje jeszcze przebiegów, więc nie można włączyć poziomów. Do czasu aktualizacji wszyscy uczą się bez poziomów (0).",
     "useArea": "Użyj ustawienia kursu"
   },
   "run": {

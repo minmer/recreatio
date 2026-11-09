@@ -28,6 +28,7 @@ import { readParams, readSeed, type Card, type ParamValue } from './cardBasics';
 import { dueAt, snapshotOf, type Mark, type Snapshot, type Spacing } from './knowness';
 import { AWARD_PREFIX, withAwards } from './rewards';
 import { effectiveSpacing, OWN_PREFIX, ownSpacing, withOwnSpacing, withOwnStack, type AreaSpacing } from './spacing';
+import { keepServerRuns, serverRuns } from './worldmap/wmFeatures';
 import { readRun, withOwnLevels, withOwnPillar, type LevelRule, type RunRecord } from './worldmap/wmRuns';
 import { reviewable, type ReviewScope } from './worldmap/wmState';
 
@@ -537,18 +538,17 @@ export async function flushOutbox(holder: Exclude<Holder, { kind: 'local' }>): P
 
 /*
  * 2026-11-09 (Weltkarte) — WAS DER DIENST SCHON ANNIMMT (`GET /workspace/learn/features`, ohne Anmeldung): Durchgänge erst
- * nach 0140. Einmal je Fenster gefragt; die letzte Antwort bleibt in diesem Browser (ohne Netz gilt sie weiter).
+ * nach 0140. Einmal je Fenster gefragt; die letzte Antwort bleibt in diesem Browser (ohne Netz gilt sie weiter) —
+ * `worldmap/wmFeatures.ts`: bis dahin gibt es für Lernende mit Konto keine Stufen (die Weltkarte zeigt keine Durchgänge).
  */
-const FEATURES_KEY = 'cg-learn-features';
 let features: Promise<{ readonly run: boolean }> | null = null;
 export function learnFeatures(): Promise<{ readonly run: boolean }> {
   if (features !== null) return features;
-  const kept = (): { run: boolean } => { try { return { run: localStorage.getItem(FEATURES_KEY) === 'run' }; } catch { return { run: false }; } };
   features = call<{ run?: unknown }>('/workspace/learn/features').then((r) => {
     const run = r.run === true;
-    try { localStorage.setItem(FEATURES_KEY, run ? 'run' : ''); } catch { /* nur in diesem Fenster */ }
+    keepServerRuns(run);
     return { run };
-  }, () => { features = null; return kept(); });
+  }, () => { features = null; return { run: serverRuns() }; });
   return features;
 }
 

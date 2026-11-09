@@ -17,7 +17,8 @@ import { pathToFileURL } from 'node:url';
 const workspace = await mkdtemp(join(tmpdir(), 'app-wm-runs-'));
 const entries = {
   runs: 'src/app/cogita/worldmap/wmRuns.ts', graph: 'src/app/cogita/worldmap/wmGraph.ts', lines: 'src/app/cogita/worldmap/wmLines.ts',
-  state: 'src/app/cogita/worldmap/wmState.ts', fx: 'src/app/cogita/worldmap/wmFixtures.ts', store: 'src/app/cogita/store.ts'
+  state: 'src/app/cogita/worldmap/wmState.ts', fx: 'src/app/cogita/worldmap/wmFixtures.ts', store: 'src/app/cogita/store.ts',
+  review: 'src/app/cogita/worldmap/wmReview.ts', features: 'src/app/cogita/worldmap/wmFeatures.ts'
 };
 await build({
   entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' },
@@ -25,7 +26,7 @@ await build({
 });
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [R, G, L, S, F, ST] = await Promise.all(Object.keys(entries).map(load));
+const [R, G, L, S, F, ST, RV, FE] = await Promise.all(Object.keys(entries).map(load));
 
 let failed = 0;
 let passed = 0;
@@ -136,6 +137,33 @@ const run = (id, place, startDay, first, after = 0, cards = 20) => ({ id, place,
   check('session: right first time / after one correction / attempts', [rec.cards, rec.firstTry, rec.afterCorrection, rec.attempts], [4, 1, 2, 7]);
   check('session: partly right is not right', R.runScore(rec, 'one'), 0.75);
   check('session: an answer for another card than asked is ignored', R.runAnswer(R.startRun('y', 'P', ['a', 'b'], T0), 'zz', 1).attempts, 0);
+}
+
+/* -- PR A: bis der Dienst Durchgänge speichert, gelten 0 Stufen (wmFeatures.ts) ---------------------------------------- */
+{
+  const kept = new Map();
+  globalThis.localStorage = { getItem: (k) => kept.get(k) ?? null, setItem: (k, v) => { kept.set(k, String(v)); }, removeItem: (k) => { kept.delete(k); } };
+  const area = { ...R.DEFAULT_SETUP, levels: 3, rules: R.defaultRules(3) };
+  const lib = { settings: () => ({ levelsSetup: area }) };
+  const learner = (kind) => ({ holder: { kind }, progress: { values: {}, runs: new Map() } });
+  const role = learner('role');
+  const offRole = RV.effectiveWorldFor(lib, role);
+  check('probe: no answer yet — an account learner gets 0 levels (serverOld), so no review leaves', [offRole.levels, offRole.rules.length, offRole.serverOld], [0, 0, true]);
+  check('probe: a learner without an account keeps the levels (runs stay in the browser)', [RV.effectiveWorldFor(lib, learner('local')).levels, RV.effectiveWorldFor(lib, learner('local')).serverOld], [3, undefined]);
+  check('probe: without levels nothing is marked', RV.effectiveWorldFor({ settings: () => ({}) }, role).serverOld, undefined);
+  check('probe: the review scope is empty while runs are off (every card reviewable)', RV.reviewScopeFor(lib, [], role), null);
+  let heard = 0;
+  const stop = FE.onServerRuns(() => { heard += 1; });
+  FE.keepServerRuns(true);
+  const onRole = RV.effectiveWorldFor(lib, role);
+  check('probe: once the server stores runs, the levels apply (and listeners hear it)', [onRole.levels, onRole.serverOld, heard, FE.serverRuns()], [3, undefined, 1, true]);
+  FE.keepServerRuns(false);
+  check('probe: an older server again — 0 levels', RV.effectiveWorldFor(lib, role).levels, 0);
+  stop();
+  FE.keepServerRuns(true);
+  check('probe: a stopped listener hears nothing', heard, 2);
+  delete globalThis.localStorage;
+  check('probe: no storage at all (node, private window) — no', [FE.serverRuns(), FE.runsOn({ kind: 'role' }), FE.runsOn({ kind: 'local' }), FE.runsOn(null)], [false, false, true, false]);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

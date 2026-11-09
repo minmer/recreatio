@@ -50,6 +50,8 @@
     "own": "Meine Weltkarte",
     "ownSays": "Deine eigenen Stufen und Säulenbreite in diesem Kurs. Die Stufen werden immer aus deinen Durchgängen neu berechnet — nichts geht verloren.",
     "locked": "Der Kurs legt diese Einstellungen fest.",
+    "serverOld": "Stufen und Durchgänge gibt es, sobald der Server aktualisiert ist. Bis dahin laufen die Wiederholungen wie bisher.",
+    "serverOldArea": "Der Server kann noch keine Durchgänge speichern, deshalb lassen sich keine Stufen einschalten. Bis zur Aktualisierung lernen alle mit 0 Stufen.",
     "useArea": "Die Einstellung des Kurses verwenden"
   },
   "run": {

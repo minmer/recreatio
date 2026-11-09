@@ -149,6 +149,8 @@ export interface EffectiveWorld {
   /** Woher die Stufen kommen. */
   readonly from: 'own' | 'area' | 'default';
   readonly changeable: boolean;
+  /** Stufen sind eingestellt, aber der Dienst speichert noch keine Durchgänge (vor 0140): sie gelten als 0 (`wmFeatures.ts`). */
+  readonly serverOld?: boolean;
 }
 
 /** GESPERRT BEIM ADMIN — SONST DAS EIGENE — SONST DAS DES ADMINS — SONST DIE VORGABE (0 Stufen). */

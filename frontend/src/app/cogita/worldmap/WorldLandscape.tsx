@@ -47,6 +47,7 @@ import { effectiveWorldFor } from './wmReview';
 import { levelsByPlace, type LevelRule } from './wmRuns';
 import { sceneOf } from './wmScene';
 import { reviewable, stateOf, type LearnerInput } from './wmState';
+import { useServerRuns } from './useServerRuns';
 import { keepLayout, storedLayout } from './wmStore';
 import { HOME } from './wmTypes';
 import './worldmap.css';
@@ -96,6 +97,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   useEffect(() => (learner === null ? undefined : learner.subscribe(() => setLearnTick((n) => n + 1))), [learner]);
   const progress = learner?.progress;
   const gauge = useMemo(() => (learner === null ? null : learnerGauge(lib, cards, learner)), [lib, lib.revision, cards, learner, progress]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* PR A — bis der Dienst Durchgänge speichert, gelten 0 Stufen (`wmFeatures.ts`); kommt seine Antwort, zeichnet es neu. */
+  useServerRuns();
   const eff = effectiveWorldFor(lib, learner);
   const rulesKey = JSON.stringify(eff.rules);
   const rules = useMemo((): readonly LevelRule[] => eff.rules, [rulesKey]); // eslint-disable-line react-hooks/exhaustive-deps
