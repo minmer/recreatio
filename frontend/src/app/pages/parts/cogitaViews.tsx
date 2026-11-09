@@ -44,6 +44,8 @@ import { Loading } from '../../ui/Loading';
 import { later } from '../../ui/later';
 import { FogMap } from '../../cogita/FogMap';
 import { positionFor, renamer } from '../../cogita/learn';
+import { reviewScopeFor } from '../../cogita/worldmap/wmReview';
+import { reviewable } from '../../cogita/worldmap/wmState';
 import { DEFAULT_REWARDS, rewardsFor, type RewardRules } from '../../cogita/rewards';
 import { RewardBoard } from '../../cogita/RewardViews';
 import { usePageRewards, usePlaceRewards } from '../../cogita/pageRewards';
@@ -581,8 +583,10 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
   }
 
   const now = Date.now();
+  /* 2026-11-09 (Weltkarte, Korrektur 5) — mit Stufen zählen nur Karten eroberter Orte. */
+  const scope = reviewScopeFor(lib, cards, learner);
   const due = cards == null || learner === null ? null : cards.filter((c: Card) => {
-    if (learner.progress.suspended.has(c.key)) return false;
+    if (learner.progress.suspended.has(c.key) || !reviewable(c.key, scope)) return false;
     const marks = learner.marks(c.key, c.fingerprint);
     const at = marks.length === 0 ? null : dueAt(marks, learner.spacing);
     return at !== null && at <= now;

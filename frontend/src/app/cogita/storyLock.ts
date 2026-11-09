@@ -20,6 +20,8 @@ import { answeredCards, renamer, type FlowPosition, type Learner } from './learn
 import { authorOrder } from './PathLearn';
 import type { CogitaLibrary } from './store';
 import { storyNext, type StoryNext } from './storyNext';
+import { reviewScopeFor } from './worldmap/wmReview';
+import { reviewable, type ReviewScope } from './worldmap/wmState';
 
 export interface StoryLock {
   /** Was vor der Einheit noch nicht gelernt ist, in der Reihenfolge des Weges (die Grundlagen zuerst). */
@@ -49,6 +51,8 @@ interface LockContext {
   readonly stories: ReadonlyMap<string, Flow>;
   readonly learned: (id: string) => boolean;
   readonly order: (a: string, b: string) => number;
+  /** 2026-11-09 (Weltkarte) — mit Stufen: welche Karten wiederholt werden dürfen. */
+  readonly review: ReviewScope | null;
 }
 
 function lockContext(lib: CogitaLibrary, cards: readonly Card[], learner: Learner): LockContext {
@@ -62,7 +66,7 @@ function lockContext(lib: CogitaLibrary, cards: readonly Card[], learner: Learne
     if (story !== undefined) return storyStage(story, flows.get(story.id), flowQuestionsKnown(story, cardOfQuestion(cards), (key) => cardKnowness(gauge, key) >= KNOWN)) === 'passed';
     return isLearned(itemKnowness(gauge, id));
   };
-  return { lib, cards, learner, gauge, graph, stories, learned, order: authorOrder(lib) };
+  return { lib, cards, learner, gauge, graph, stories, learned, order: authorOrder(lib), review: reviewScopeFor(lib, cards, learner) };
 }
 
 function lockWith(c: LockContext, unit: string): StoryLock {
@@ -71,7 +75,8 @@ function lockWith(c: LockContext, unit: string): StoryLock {
     .filter((id) => id !== unit && lib.entity(id) !== undefined && (gauge.askable.has(id) || stories.has(id)) && !c.learned(id))
     .sort((a, b) => (graph.level.get(a) ?? 0) - (graph.level.get(b) ?? 0) || c.order(a, b));
   if (missing.length > 0) return { missing, weak: [] };
-  const groups = lockCards(gauge, graph, unit, c.cards).map((g) => ({ entry: g.entry, cards: g.cards.filter((x) => !c.learner.progress.suspended.has(x.key)) })).filter((g) => g.cards.length > 0);
+  /* 2026-11-09 (Weltkarte, Korrektur 5) — „Najpierw powtórz" ist eine Wiederholung: mit Stufen nur Karten eroberter Orte. */
+  const groups = lockCards(gauge, graph, unit, c.cards).map((g) => ({ entry: g.entry, cards: g.cards.filter((x) => !c.learner.progress.suspended.has(x.key) && reviewable(x.key, c.review)) })).filter((g) => g.cards.length > 0);
   return { missing, weak: groups.flatMap((g) => g.cards), due: groups.map((g) => g.entry) };
 }
 

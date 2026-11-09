@@ -28,6 +28,9 @@ import { readParams, readSeed, type Card, type ParamValue } from './cardBasics';
 import { dueAt, snapshotOf, type Mark, type Snapshot, type Spacing } from './knowness';
 import { AWARD_PREFIX, withAwards } from './rewards';
 import { effectiveSpacing, OWN_PREFIX, ownSpacing, withOwnSpacing, withOwnStack, type AreaSpacing } from './spacing';
+import { keepServerRuns, serverRuns } from './worldmap/wmFeatures';
+import { readRun, withOwnLevels, withOwnPillar, type LevelRule, type RunRecord } from './worldmap/wmRuns';
+import { reviewable, type ReviewScope } from './worldmap/wmState';
 
 /* -- Was gespeichert wird ---------------------------------------------------------------- */
 
@@ -143,11 +146,16 @@ export interface Progress {
   readonly positions: ReadonlyMap<string, FlowPosition>;
   /** Die Werte des Lernenden im Kurs (Gestalten, Punkte, Nähe) [H1, H4, H7]. */
   readonly values: Readonly<Record<string, number>>;
+  /**
+   * 2026-11-09 (Weltkarte, 0140) — DIE DURCHGÄNGE der Orte (`worldmap/wmRuns.ts`): roh behalten, die Stufe wird aus ihnen
+   * gerechnet. Nur für den Halter versiegelt (ohne Schlüssel des Bereichs).
+   */
+  readonly runs: ReadonlyMap<string, RunRecord>;
 }
 
-export const EMPTY_PROGRESS: Progress = { answers: new Map(), snapshots: new Map(), suspended: new Set(), positions: new Map(), values: {} };
+export const EMPTY_PROGRESS: Progress = { answers: new Map(), snapshots: new Map(), suspended: new Set(), positions: new Map(), values: {}, runs: new Map() };
 
-type BatchKind = 'answers' | 'snapshots' | 'position' | 'values' | 'suspend';
+type BatchKind = 'answers' | 'snapshots' | 'position' | 'values' | 'suspend' | 'run';
 
 interface BatchBody {
   readonly v: 1;
@@ -157,6 +165,7 @@ interface BatchBody {
   readonly positions?: readonly FlowPosition[];
   readonly values?: Readonly<Record<string, number>>;
   readonly suspended?: readonly string[];
+  readonly runs?: readonly RunRecord[];
 }
 
 const batchAad = (batchId: string) => aad('cogita', 'learn_batch', batchId, Field.LearnBatch, 1);
@@ -196,6 +205,12 @@ export function absorb(into: Progress, body: unknown): Progress {
   let suspended = into.suspended;
   const positions = new Map(into.positions);
   let values = into.values;
+  let runs = into.runs;
+  if (Array.isArray(body.runs) && body.runs.length > 0) {
+    const next = new Map(into.runs);
+    for (const raw of body.runs) { const r = readRun(raw); if (r !== null) next.set(r.id, r); }
+    runs = next;
+  }
   for (const raw of Array.isArray(body.answers) ? body.answers : []) {
     const one = readAnswer(raw);
     if (one !== null) answers.set(one.id, one);
@@ -218,7 +233,7 @@ export function absorb(into: Progress, body: unknown): Progress {
     for (const [k, v] of Object.entries(body.values)) if (typeof v === 'number' && Number.isFinite(v)) next[k] = v;
     values = next;
   }
-  return { answers, snapshots, suspended, positions, values };
+  return { answers, snapshots, suspended, positions, values, runs };
 }
 
 /**
@@ -501,7 +516,9 @@ export async function pending(holder: Holder): Promise<SealedBatch[]> {
  * ein anderes Gerät inzwischen schrieb. Solche (von einer älteren Fassung abgelegt) nimmt der Lernende beim Laden auf.
  */
 export async function flushOutbox(holder: Exclude<Holder, { kind: 'local' }>): Promise<number> {
-  const waiting = (await pending(holder)).filter((b) => !LATEST_KINDS.has(b.kind));
+  const all = (await pending(holder)).filter((b) => !LATEST_KINDS.has(b.kind));
+  /* 2026-11-09 (Weltkarte) — Durchgänge für sich: ein Dienst vor 0140 lehnt sie ab (409) und hielte sonst die Antworten neben ihnen fest. */
+  const waiting = all.filter((b) => b.kind !== 'run');
   let sent = 0;
   for (let at = 0; at < waiting.length; at += 40) {
     const chunk = waiting.slice(at, at + 40);
@@ -509,8 +526,34 @@ export async function flushOutbox(holder: Exclude<Holder, { kind: 'local' }>): P
     for (const id of done.stored) await idbDelete('outbox', outboxKey(holder, id));
     sent += done.stored.length;
   }
+  for (const run of all.filter((b) => b.kind === 'run')) {
+    try {
+      const done = await postBatches(holder, [run]);
+      for (const id of done.stored) await idbDelete('outbox', outboxKey(holder, id));
+      sent += done.stored.length;
+    } catch { /* wartet, bis der Dienst Durchgänge annimmt */ }
+  }
   return sent;
 }
+
+/*
+ * 2026-11-09 (Weltkarte) — WAS DER DIENST SCHON ANNIMMT (`GET /workspace/learn/features`, ohne Anmeldung): Durchgänge erst
+ * nach 0140. Einmal je Fenster gefragt; die letzte Antwort bleibt in diesem Browser (ohne Netz gilt sie weiter) —
+ * `worldmap/wmFeatures.ts`: bis dahin gibt es für Lernende mit Konto keine Stufen (die Weltkarte zeigt keine Durchgänge).
+ */
+let features: Promise<{ readonly run: boolean }> | null = null;
+export function learnFeatures(): Promise<{ readonly run: boolean }> {
+  if (features !== null) return features;
+  features = call<{ run?: unknown }>('/workspace/learn/features').then((r) => {
+    const run = r.run === true;
+    keepServerRuns(run);
+    return { run };
+  }, () => { features = null; return { run: serverRuns() }; });
+  return features;
+}
+
+/** Ein Ziel ohne Schlüssel des Bereichs — nur der Halter öffnet, was dorthin geht (die Durchgänge, Entscheidung 9). */
+export const holderOnly = (target: Target): Target => ({ areaId: target.areaId, intake: null });
 
 /**
  * 2026-10-28 — NACH DER ZEIT OHNE NETZ: was für Personen in der Ablage wartet, hinaus — gleich, ob dafür noch eine
@@ -679,11 +722,12 @@ interface LocalKept {
   readonly positions?: FlowPosition[];
   readonly values?: Record<string, number>;
   readonly suspended?: string[];
+  readonly runs?: RunRecord[];
 }
 
 /** Das Behaltene in einen Stand: Antworten, Momentaufnahmen und Stellen kommen dazu; Werte und Sperren sind die behaltenen. */
 function withKept(p: Progress, kept: LocalKept): Progress {
-  let out = absorb(p, { kind: 'answers', answers: kept.answers ?? [], snapshots: kept.snapshots ?? [], positions: kept.positions ?? [] });
+  let out = absorb(p, { kind: 'answers', answers: kept.answers ?? [], snapshots: kept.snapshots ?? [], positions: kept.positions ?? [], runs: kept.runs ?? [] });
   if (kept.values !== undefined) out = absorb(out, { kind: 'values', values: kept.values });
   if (kept.suspended !== undefined) out = absorb(out, { kind: 'suspend', suspended: kept.suspended });
   return out;
@@ -705,10 +749,11 @@ const LIVE_CHANNEL = 'recreatio-cogita-learn';
  * ein Lernender, der erst später entsteht — Nauka nach einer Erzählung auf einer Seite —, sieht es beim Laden sofort,
  * auch wenn es noch nicht hinaus ist (der Lernende der Seite schickt beim Gehen, der neue lädt vielleicht schon).
  */
-const SESSION = new Map<string, { answers: AnswerRecord[]; snapshots: Snapshot[]; positions: FlowPosition[] }>();
-function remember(key: string, add: { answers?: readonly AnswerRecord[]; snapshots?: readonly Snapshot[]; positions?: readonly FlowPosition[] }): void {
-  const s = SESSION.get(key) ?? { answers: [], snapshots: [], positions: [] };
+const SESSION = new Map<string, { answers: AnswerRecord[]; snapshots: Snapshot[]; positions: FlowPosition[]; runs: RunRecord[] }>();
+function remember(key: string, add: { answers?: readonly AnswerRecord[]; snapshots?: readonly Snapshot[]; positions?: readonly FlowPosition[]; runs?: readonly RunRecord[] }): void {
+  const s = SESSION.get(key) ?? { answers: [], snapshots: [], positions: [], runs: [] };
   s.answers.push(...(add.answers ?? []));
+  s.runs.push(...(add.runs ?? []));
   s.snapshots.push(...(add.snapshots ?? []));
   s.positions.push(...(add.positions ?? []));
   if (s.answers.length > 4000) s.answers.splice(0, s.answers.length - 4000);
@@ -728,7 +773,7 @@ function liveChannel(): BroadcastChannel | null {
   channel?.addEventListener('message', (e: MessageEvent) => {
     const d: unknown = e.data;
     if (!isObject(d) || typeof d.who !== 'string' || !Array.isArray(d.answers)) return;
-    for (const one of LIVE.get(d.who) ?? []) one.hear(d.answers, Array.isArray(d.snapshots) ? d.snapshots : [], Array.isArray(d.positions) ? d.positions : [], d.values, d.suspended);
+    for (const one of LIVE.get(d.who) ?? []) one.hear(d.answers, Array.isArray(d.snapshots) ? d.snapshots : [], Array.isArray(d.positions) ? d.positions : [], d.values, d.suspended, Array.isArray(d.runs) ? d.runs : []);
   });
   return channel;
 }
@@ -776,7 +821,7 @@ export class Learner {
       if (batch.areaId !== from) continue;
       const body = await openOwn(holder, { ...batch, holderRoleId: batch.holderRoleId ?? null, holderSeatId: null, key: batch.keyForHolder, createdAt: '' });
       if (body !== null) {
-        const again = await sealBatch(batch.libraryId, holder, fallback, body as BatchBody);
+        const again = await sealBatch(batch.libraryId, holder, batch.kind === 'run' ? holderOnly(fallback) : fallback, body as BatchBody);
         await idbPut('outbox', outboxKey(holder, again.batchId), again);
       }
       await idbDelete('outbox', outboxKey(holder, batch.batchId));
@@ -815,16 +860,19 @@ export class Learner {
    * 2026-11-05 (Durchsicht): auch geänderte Werte und Sperren — `null`: gelöscht).
    */
   private tell(answers: readonly AnswerRecord[], snapshots: readonly Snapshot[], positions: readonly FlowPosition[] = [],
-    values: Readonly<Record<string, number | null>> = {}, suspended: Readonly<Record<string, boolean>> = {}): void {
+    values: Readonly<Record<string, number | null>> = {}, suspended: Readonly<Record<string, boolean>> = {}, runs: readonly RunRecord[] = []): void {
     const changes = Object.keys(values).length > 0 || Object.keys(suspended).length > 0;
-    if (answers.length === 0 && positions.length === 0 && !changes) return;
-    remember(this.liveKey(), { answers, snapshots, positions });
-    for (const other of LIVE.get(this.liveKey()) ?? []) if (other !== this) other.hear(answers, snapshots, positions, values, suspended);
-    try { liveChannel()?.postMessage({ who: this.liveKey(), answers, snapshots, positions, ...(changes ? { values, suspended } : {}) }); } catch { /* ein anderer Tab hört es beim nächsten Laden */ }
+    if (answers.length === 0 && positions.length === 0 && runs.length === 0 && !changes) return;
+    remember(this.liveKey(), { answers, snapshots, positions, runs });
+    for (const other of LIVE.get(this.liveKey()) ?? []) if (other !== this) other.hear(answers, snapshots, positions, values, suspended, runs);
+    try { liveChannel()?.postMessage({ who: this.liveKey(), answers, snapshots, positions, ...(runs.length > 0 ? { runs } : {}), ...(changes ? { values, suspended } : {}) }); } catch { /* ein anderer Tab hört es beim nächsten Laden */ }
   }
 
   /** 2026-11-02 — was ein anderer Lernender derselben Person festhielt: nur aufnehmen, nicht senden. */
-  hear(answers: readonly unknown[], snapshots: readonly unknown[], positions: readonly unknown[] = [], values?: unknown, suspended?: unknown): void {
+  hear(answers: readonly unknown[], snapshots: readonly unknown[], positions: readonly unknown[] = [], values?: unknown, suspended?: unknown, runs: readonly unknown[] = []): void {
+    /* 2026-11-09 (Weltkarte) — ein Durchgang, den ein anderer Baustein derselben Person eben festhielt. */
+    const newRuns = runs.filter((r) => isObject(r) && typeof r.id === 'string' && !this.progress.runs.has(r.id));
+    if (newRuns.length > 0) { this.progress = absorb(this.progress, { kind: 'run', runs: newRuns }); this.changed(); }
     const fresh = answers.filter((a) => isObject(a) && typeof a.id === 'string' && !this.progress.answers.has(a.id));
     const moved = positions.filter((p) => isObject(p) && typeof p.flow === 'string' && typeof p.at === 'number' && (this.progress.positions.get(p.flow)?.at ?? -1) < p.at);
     /* 2026-11-05 (Durchsicht) — auch Werte und Sperren: sonst schriebe dieser Baustein beim nächsten Mal seinen alten Stand. */
@@ -922,7 +970,7 @@ export class Learner {
     if (kept.length > 0) { this.progress = absorb(this.progress, { kind: 'position', positions: kept }); this.positionsDirty = true; }
     /* 2026-11-03 (G) — was in diesem Fenster schon festgehalten wurde (auch noch nicht hinaus). */
     const here = SESSION.get(this.liveKey());
-    if (here !== undefined) this.progress = absorb(this.progress, { kind: 'answers', answers: here.answers, snapshots: here.snapshots, positions: here.positions });
+    if (here !== undefined) this.progress = absorb(this.progress, { kind: 'answers', answers: here.answers, snapshots: here.snapshots, positions: here.positions, runs: here.runs });
     this.progress = withWaiting(this.progress, readWaiting(this.waitKey()));
     this.waiting = (await pending(holder)).length;
     this.changed();
@@ -1200,6 +1248,28 @@ export class Learner {
     await this.change(valueChanges(this.progress.values, withOwnStack(this.progress.values, size)));
   }
 
+  /**
+   * 2026-11-09 (Weltkarte) — EIN DURCHGANG IST ZU ENDE: sofort im Fortschritt (die Stufe rechnet sich neu), bei den anderen
+   * Lernenden derselben Person, und hinaus als Stapel `run` — nur für den Halter versiegelt (Entscheidung 9). Ohne Netz oder
+   * vor 0140 wartet er in der Ablage (für sich, `flushOutbox`).
+   */
+  async keepRun(run: RunRecord): Promise<void> {
+    this.progress = absorb(this.progress, { kind: 'run', runs: [run] });
+    this.changed();
+    this.tell([], [], [], {}, {}, [run]);
+    await this.send({ v: 1, kind: 'run', runs: [run] });
+  }
+
+  /** 2026-11-09 (Weltkarte) — die eigenen Stufen (`~world.*`); `null`: keine eigenen (die des Admins, sonst 0). */
+  async keepLevels(own: { readonly levels: number; readonly rules: readonly LevelRule[] } | null): Promise<void> {
+    await this.change(valueChanges(this.progress.values, withOwnLevels(this.progress.values, own)));
+  }
+
+  /** 2026-11-09 (Weltkarte) — die eigene Breite der Säulen (0,4–1); `null`: die des Admins. */
+  async keepPillar(width: number | null): Promise<void> {
+    await this.change(valueChanges(this.progress.values, withOwnPillar(this.progress.values, width)));
+  }
+
   /** 2026-11-04 (Prompt 15) — was der Bereich (die Baza) einstellt; setzt `useLearner` aus den Ustawienia der Baza. */
   areaSpacing: AreaSpacing | undefined;
 
@@ -1222,7 +1292,7 @@ export class Learner {
     this.progress = p;
     const ok = await idbPut('progress', this.localKey(), {
       answers: [...p.answers.values()], snapshots: [...p.snapshots.values()],
-      positions: [...p.positions.values()], values: p.values, suspended: [...p.suspended]
+      positions: [...p.positions.values()], values: p.values, suspended: [...p.suspended], runs: [...p.runs.values()]
     });
     if (!ok) return;
     dropWaiting(this.waitKey(), waiting);
@@ -1235,7 +1305,7 @@ export class Learner {
     if (this.holder.kind === 'local') { await this.keepLocal(); return; }
     if (this.target === null) return;
     const holder = this.holder;
-    const batch = await sealBatch(this.libraryId, holder, this.target, body);
+    const batch = await sealBatch(this.libraryId, holder, body.kind === 'run' ? holderOnly(this.target) : this.target, body);
     await idbPut('outbox', outboxKey(holder, batch.batchId), batch);
     try {
       const done = await postBatches(holder, [batch]);
@@ -1267,11 +1337,13 @@ export class Learner {
   }
 
   /** Wann wieder dran — die eine offene Zeit [E8]; dazu, wie viele Karten jetzt dran sind. */
-  async reportDue(cards: readonly Card[], rename?: (key: string) => string, now = Date.now()): Promise<{ next: number | null; count: number }> {
+  async reportDue(cards: readonly Card[], rename?: (key: string) => string, now = Date.now(), scope?: ReviewScope | null): Promise<{ next: number | null; count: number }> {
     let next: number | null = null;
     let count = 0;
     for (const card of cards) {
       if (this.progress.suspended.has(card.key)) continue;
+      /* 2026-11-09 (Weltkarte, Korrektur 5) — mit Stufen nur Karten eroberter Orte: die Erinnerung des Dienstes zählt dasselbe. */
+      if (!reviewable(card.key, scope)) continue;
       const marks = this.marks(card.key, card.fingerprint, rename);
       if (marks.length === 0) continue;
       const due = dueAt(marks, this.spacing);

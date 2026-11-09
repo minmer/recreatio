@@ -395,10 +395,11 @@ const countSaves = (lib) => { let n = 0; const was = lib.store.saveAll.bind(lib.
     const input = A.landscapeInput({ select: lib.selectContext(), deps: lib.dependencies(), label: (e) => lib.label(e) }, topics, null, { askable: new Set(topics.map((e) => e.id)) });
     const st = A.landscapeState(input, g);
     const e = new A.LandscapeEngine(); e.setInput(input); e.setState(st);
-    const lay = e.layout({ budget: 1_000_000 }).layout;
+    /* 2026-11-09 (Entscheidung 2) — die alte Gestalt (`layout`) ist entfernt: der Stand je Knoten ist, was die Landschaft zeichnet. */
+    const stand = e.stand();
     check('history: the deleted question\'s card is no longer a card; its answers stay in the progress', [before.length - after.length, answers.size], [1, before.length]);
     check('history: statistics count only today\'s cards (the old answers neither break nor count)', [stats.cards, stats.answers], [after.length, after.length]);
-    check('history: the landscape draws the remaining topics, the deleted ones are not on it', [lay.fields.some((f) => f.id === d1 || f.id === d2), lay.fields.some((f) => f.id === e1)], [false, true]);
+    check('history: the landscape draws the remaining topics, the deleted ones are not on it', [input.ids.includes(d1) || input.ids.includes(d2), input.ids.includes(e1) && stand.band.length === input.ids.length], [false, true]);
   } catch (err) { problem = err; }
   check('history: no error anywhere', problem === null ? null : String(problem), null);
 }

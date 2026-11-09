@@ -37,6 +37,7 @@ import { LITURGY_KINDS } from '../library/liturgy/kinds';
 import { projectLiturgyEntries } from '../library/liturgy/projection';
 import { entitiesOf as liturgicalEntities } from '../library/liturgy/resources';
 import { landscapeLayouts, type LandscapeLayoutDoc } from '../cogita/landscapeExport';
+import { worldLayouts, type WorldLayoutDoc } from '../cogita/worldmap/wmExport';
 import { exportSetup, type KnowledgeSetup } from '../cogita/json';
 import { CogitaLibrary } from '../cogita/store';
 import { fieldData, textTypeKind } from '../cogita/kinds';
@@ -74,8 +75,11 @@ export type Readers = 'members' | 'everyone' | 'members-until-opened';
  */
 export interface SnapshotSetup extends KnowledgeSetup {
   readonly readers?: Readers;
-  /** 2026-11-03 (H) — die feste Karte jedes Widoku im Modus „landscape" (Zellen, Bereiche, Werte — ohne Höhen). */
-  readonly landscapes?: readonly LandscapeLayoutDoc[];
+  /**
+   * 2026-11-03 (H) — die feste Karte jedes Widoku im Modus „landscape" (Zellen, Bereiche, Werte — ohne Höhen); 2026-11-09 — ein
+   * Widok `style: "world"` als Weltkarte ([x, y] je Ort, Linien, Umsteigeorte; Entscheidung 13).
+   */
+  readonly landscapes?: readonly (LandscapeLayoutDoc | WorldLayoutDoc)[];
 }
 
 /** Ein Text eines Werks: sein Verzeichnis und seine Teile (die schweren Einträge, vorher geholt — `aiAccess.ts`). */
@@ -475,8 +479,11 @@ export async function snapshotSetup(parts: readonly ScopePart[], libraryId: stri
   if (part === undefined || lib === undefined) return undefined;
   const setup = await exportSetup(lib, part.name);
   /* 2026-11-03 (H) — die Karten sind eben gerechnet (gemerkt je Stand der Baza): die feste Karte jedes Krajobraz dazu. */
-  let landscapes: readonly LandscapeLayoutDoc[] = [];
-  try { landscapes = landscapeLayouts(lib, (await lib.cards()).cards); } catch { /* ohne Karte: der Rest kommt */ }
+  let landscapes: readonly (LandscapeLayoutDoc | WorldLayoutDoc)[] = [];
+  try {
+    const cards = (await lib.cards()).cards;
+    landscapes = [...landscapeLayouts(lib, cards), ...(await worldLayouts(lib, cards).catch(() => []))];
+  } catch { /* ohne Karte: der Rest kommt */ }
   return { ...setup, ...(landscapes.length === 0 ? {} : { landscapes }), ...(part.readers === undefined ? {} : { readers: part.readers }) };
 }
 

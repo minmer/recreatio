@@ -21,6 +21,8 @@ import { readGraph } from './graph';
 import { learnerFlows } from './flowFacts';
 import { LEVEL_LABEL, type Dependency } from './knowness';
 import { spacingFor } from './spacing';
+import { reviewScopeFor } from './worldmap/wmReview';
+import { reviewable, type ReviewScope } from './worldmap/wmState';
 import { renamer, sendReport, type Learner } from './learn';
 import { answerIndex } from './measures';
 import { later } from '../ui/later';
@@ -60,6 +62,11 @@ export interface RunSource {
   readonly cards?: readonly Card[];
   readonly deps?: readonly Dependency[];
   readonly title?: string;
+  /**
+   * 2026-11-09 (Weltkarte) — eine Wiederholung (fällige Karten, „Najpierw powtórz", Üben eines Feldes): mit Stufen nur Karten
+   * eroberter Orte (`reviewable`). Eine Powtórka der Baza (`revisionId`) ist es immer; ein Lauf zum Lernen nie.
+   */
+  readonly review?: boolean;
 }
 
 /** Den Plan einer Wiederholung der Bibliothek rechnen — mit dem Fortschritt dieses Lernenden. */
@@ -184,6 +191,8 @@ function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via
    * was vor diesem Lauf galt.
    */
   const keptCopy = useRef<{ copy: OfflineRevision; who: Who } | null>(null);
+  /* 2026-11-09 (Weltkarte) — der Bereich der Wiederholungen dieses Laufs (auch für die Erinnerung des Dienstes). */
+  const reviewScope = useRef<ReviewScope | null>(null);
   const learnerNow = useRef(learner);
   learnerNow.current = learner;
   const renameNow = useRef<((key: string) => string) | undefined>(undefined);
@@ -233,7 +242,9 @@ function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via
       return;
     }
     const { cards: _cards, ...config } = plan;
-    const cards = plan.cards.filter((c) => !needsFiles(c));
+    /* 2026-11-09 (Weltkarte) — ohne Netz gibt es keine Baza: was wiederholt werden darf, nimmt die Abschrift gleich mit. */
+    const scope = reviewScopeFor(lib, plan.cards, made);
+    const cards = plan.cards.filter((c) => !needsFiles(c) && (reviewable(c.key, scope) || made.marks(c.key, c.fingerprint, rename).length === 0));
     const copy: OfflineRevision = {
       libraryId: lib.libraryId, revisionId: source.revisionId, name: source.title ?? t('cogitaLearnRun.run.revision'), plan: config as Record<string, unknown>,
       cards, deps: lib.dependencies(),
@@ -295,7 +306,11 @@ function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via
         if (plan === null) { if (alive) setFailed(t('cogitaLearnRun.run.nothing')); return; }
         if (plan.cards.length === 0) { if (alive) setFailed(t('cogitaLearnRun.run.noCards')); return; }
         const fp = new Map(all.map((c) => [c.key, c.fingerprint]));
+        /* 2026-11-09 (Weltkarte, Korrektur 5) — eine Wiederholung: mit Stufen nur Karten eroberter Orte. */
+        const scope: ReviewScope | null = source.revisionId !== undefined || source.review === true ? reviewScopeFor(lib, all.length > 0 ? all : plan.cards, learner) : null;
+        reviewScope.current = scope;
         const session = start({
+          review: scope,
           plan, all: all.length > 0 ? all : plan.cards, deps: source.deps ?? lib?.dependencies() ?? [], now: Date.now(), seed,
           marks: (key) => learner?.marks(key, fp.get(key), rename) ?? [],
           /*
@@ -352,7 +367,7 @@ function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via
     void (async () => {
       await learner.flush().catch(() => undefined);
       refreshKept();
-      setDue(await learner.reportDue(state.all, rename).catch(() => null));
+      setDue(await learner.reportDue(state.all, rename, undefined, reviewScope.current ?? reviewScopeFor(lib, state.all, learner)).catch(() => null));
     })();
   }, [finished, learner, state, rename]);
 

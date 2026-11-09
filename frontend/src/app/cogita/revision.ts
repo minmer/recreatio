@@ -41,6 +41,7 @@ import { fieldsOf, labelOf, valuesOf, type Entity, type Lookup } from './schema'
 import { pick, runSteps, STEP_WORDS, type SelectContext, type Step } from './selection';
 import { t, texts } from '../core/i18n';
 import { orderByPlace } from './structure';
+import { reviewable, type ReviewScope } from './worldmap/wmState';
 
 /* -- Was durch den Auswahlgraphen fliesst ----------------------------------------- */
 
@@ -624,6 +625,11 @@ export interface Start {
   readonly levelsBefore?: ReadonlyMap<string, number>;
   /** 2026-11-04 (Prompt 15) — die Abstände, die für diesen Lernenden gelten; fehlt es: die Vorgabe. */
   readonly spacing?: Spacing;
+  /**
+   * 2026-11-09 (Weltkarte, Korrektur 5) — mit Stufen: welche Karten wiederholt werden dürfen (`worldmap/wmReview.ts`); `null`:
+   * alle (wie bisher). Nur für Wiederholungen — ein Lauf zum Lernen oder Üben reicht nichts.
+   */
+  readonly review?: ReviewScope | null;
 }
 
 interface Internal extends Session {
@@ -646,6 +652,12 @@ interface Fixed {
   readonly tie: (key: string) => number;
   /** Der Zustand aus den gespeicherten Antworten, einmal je Karte abgespielt. */
   readonly stored: Map<string, CardState | null>;
+  /**
+   * 2026-11-09 (Weltkarte) — keine Wiederholung: schon gelernt (beim Beginn des Laufs) und zu keinem eroberten Ort gehörig.
+   * Neues bleibt — Lernen ist keine Wiederholung; einmal beim Beginn bestimmt, damit eine eben falsch beantwortete Karte im
+   * Lauf wiederkommt.
+   */
+  readonly blocked: ReadonlySet<string>;
 }
 
 const rngAt = (seed: string, step: number) => rngOf(`${seed}#${step}`);
@@ -660,12 +672,13 @@ function stateIn(s: Internal, key: string): CardState | null {
 
 const gaugeIn = (s: Internal, now: number): Gauge => gauge(s.all, (key) => stateIn(s, key), s.deps, now, s.graph);
 
-/** Was jetzt in Frage kommt: die Karten des Plans, deren Bedingungen gelten. */
+/** Was jetzt in Frage kommt: die Karten des Plans, deren Bedingungen gelten (und die wiederholt werden dürfen, `reviewable`). */
 function eligible(s: Internal, now: number): Card[] {
   const when = s.plan.when;
-  if (when === undefined) return [...s.fixed.unique];
+  const open = (c: Card) => !s.fixed.blocked.has(c.key);
+  if (when === undefined) return s.fixed.unique.filter(open);
   const g = gaugeIn(s, now);
-  return s.fixed.unique.filter((c) => { const gate = when[c.key]; return gate === undefined || gateHolds(gate, g); });
+  return s.fixed.unique.filter((c) => { if (!open(c)) return false; const gate = when[c.key]; return gate === undefined || gateHolds(gate, g); });
 }
 
 const cmp = (a: number, b: number): number => (a === b ? 0 : a < b ? -1 : 1);
@@ -767,7 +780,8 @@ function weightOf(s: Internal, key: string, now: number): number {
 function spacerFor(s: Internal, previous: string, now: number): string | null {
   const prev = s.fixed.byKey.get(previous);
   const topics = new Set(prev === undefined ? [] : cardEntities(prev).filter((e) => e !== (prev.entity ?? prev.question)));
-  const known = (k: string) => k !== previous && !s.wrongSinceCorrect.has(k) && levelOfState(stateIn(s, k), now) === 'known';
+  /* 2026-11-09 (Weltkarte) — ein Przerywnik ist eine Wiederholung: nur, was wiederholt werden darf. */
+  const known = (k: string) => k !== previous && !s.fixed.blocked.has(k) && !s.wrongSinceCorrect.has(k) && levelOfState(stateIn(s, k), now) === 'known';
   const all = [...s.fixed.byKey.values()];
   return all.find((c) => known(c.key) && cardEntities(c).some((e) => topics.has(e)))?.key
     ?? s.fixed.unique.find((c) => known(c.key))?.key
@@ -852,8 +866,10 @@ export function start(input: Start): Session {
   for (const c of [...unique, ...input.all]) if (!byKey.has(c.key)) byKey.set(c.key, c);
   const levelMemo = new Map<string, number>();
   const tieMemo = new Map<string, number>();
+  const blocked = new Set<string>();
+  if (input.review != null) for (const k of byKey.keys()) if (!reviewable(k, input.review) && input.marks(k).length > 0) blocked.add(k);
   const fixed: Fixed = {
-    unique, byKey,
+    unique, byKey, blocked,
     index: new Map(unique.map((c, i) => [c.key, i])),
     level: (key) => {
       let at = levelMemo.get(key);

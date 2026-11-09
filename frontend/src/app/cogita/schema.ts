@@ -170,6 +170,12 @@ export interface FieldDef {
    */
   readonly prerequisite?: 'up' | 'down';
   /**
+   * 2026-11-09 (Weltkarte, Entscheidung 3) — `ref` ALS TEIL EINES BLOCKS: `up` — dieser Eintrag ist ein Teil des Blocks, auf den
+   * er zeigt; `down` — was er nennt, sind seine Teile. Auf der Weltkarte steht ein Block als flache Scheibe mit seinen Teilen
+   * als Säulen darauf. Nie zugleich mit `prerequisite` (die Weltkarte nimmt das Feld dann als Voraussetzung und meldet es).
+   */
+  readonly part?: 'up' | 'down';
+  /**
    * 2026-11-05 (Prompt 24) — `ref` IN ANDERE BAZY („Inne światy", `worlds.ts`): ein Wert darf auch "@@historia:@…" sein — ein
    * Angebot, nie eine Voraussetzung (darum nie zugleich `prerequisite` oder `structure`). Der Editor bietet „Link do innego świata".
    */
@@ -369,6 +375,7 @@ export function readField(raw: unknown): FieldDef | null {
     locator: type === 'ref' && raw.locator === true ? true : undefined,
     structure: type === 'ref' && raw.external !== true && (raw.structure === 'up' || raw.structure === 'down') ? raw.structure : undefined,
     prerequisite: type === 'ref' && raw.external !== true && (raw.prerequisite === 'up' || raw.prerequisite === 'down') ? raw.prerequisite : undefined,
+    part: type === 'ref' && raw.external !== true && (raw.part === 'up' || raw.part === 'down') ? raw.part : undefined,
     external: type === 'ref' && raw.external === true ? true : undefined,
     when: readWhen(raw.when, key),
     media: type === 'media' ? (media && media.length > 0 ? media : [...MEDIA_TYPES]) : undefined,

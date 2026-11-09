@@ -64,6 +64,8 @@ import { TexText } from '../ui/tex/Tex';
 import { baseLang, words, type Words } from './lang';
 import { skipStep } from './flowAsk';
 import { spacingFor, stackFor } from './spacing';
+import { reviewScopeFor } from './worldmap/wmReview';
+import { reviewable as mayReview } from './worldmap/wmState';
 import { landscapeWords, type LandscapeWords } from './landscapeWords';
 import { globalDepth, nestAsRegions, topicGraphOf, type TopicGraph } from './levelMap';
 import { stepFor } from './worldView';
@@ -76,6 +78,7 @@ import type { RegionTree } from './regions';
 import { useT } from '../core/i18n';
 import { ProgressRing } from '../ui/ProgressRing';
 import './landscape.css';
+import { WorldLandscape } from './worldmap/WorldLandscape';
 
 /* -- Worte -------------------------------------------------------------------------------------------------------- */
 
@@ -329,7 +332,18 @@ interface TopicInfo {
   readonly mean: number;
 }
 
-export function LandscapeView({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope, busy = false }: LandscapeProps) {
+/**
+ * 2026-11-09 (Weltkarte, Entscheidung 2) — EIN WIDOK KRAJOBRAZ: das Sechseck (Vorgabe) oder, mit `landscape.style: "world"`,
+ * die Weltkarte in derselben Hülle.
+ */
+export function LandscapeView(props: LandscapeProps) {
+  if (props.view.landscape?.style === 'world') {
+    return <WorldLandscape view={props.view} cards={props.cards} learner={props.learner} viewKey={props.viewKey} {...(props.compact === undefined ? {} : { compact: props.compact })} {...(props.more === undefined ? {} : { more: props.more })} {...(props.onOpen === undefined ? {} : { onOpen: props.onOpen })} {...(props.rewards === undefined ? {} : { rewards: props.rewards })} />;
+  }
+  return <HexLandscape {...props} />;
+}
+
+function HexLandscape({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope, busy = false }: LandscapeProps) {
   const { lib, writes, name: baseName, learnerLoading } = useCtx();
   const tr = useT();
   const lang = baseLang(lib);
@@ -534,19 +548,21 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stand, tg, goal, goalSteps, depthOfTopic]);
+  /* 2026-11-09 (Weltkarte, Korrektur 5) — mit Stufen werden nur Karten eroberter Orte wiederholt. */
+  const reviewScope = useMemo(() => reviewScopeFor(lib, cards, learner), [lib, lib.revision, cards, learner, learner?.progress]); // eslint-disable-line react-hooks/exhaustive-deps
   /* Was fällig ist (Karten der Themen dieses Widoku). */
   const dueCards = useMemo(() => {
     const topics = new Set(tg.graph.ids);
     const keys = new Set<string>();
     const out: Card[] = [];
     for (const c of cards) {
-      if (keys.has(c.key) || !gauge.states.has(c.key) || cardKnowness(gauge, c.key) >= 1 || (learner?.progress.suspended.has(c.key) ?? false)) continue;
+      if (keys.has(c.key) || !gauge.states.has(c.key) || cardKnowness(gauge, c.key) >= 1 || (learner?.progress.suspended.has(c.key) ?? false) || !mayReview(c.key, reviewScope)) continue;
       if (!cardEntities(c).some((e) => topics.has(e))) continue;
       keys.add(c.key);
       out.push(c);
     }
     return out;
-  }, [cards, gauge, tg, learner]);
+  }, [cards, gauge, tg, learner, reviewScope]);
 
   /*
     2026-11-04 (Prompt 13) — WAS DAS BILD GERADE FÜLLT (die Brotkrumen folgen dem Zoom) und was gezeigt werden soll (ein
@@ -685,19 +701,19 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const reviewCards = (title: string, list: readonly Card[]) => {
     setNote(null);
     if (list.length === 0) { setNote(T.nothingNext); return; }
-    setRunning({ key: `review:${title}:${Date.now()}`, source: { plan: readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: stackFor(lib, learner), endWhenDone: true }), cards, title } });
+    setRunning({ key: `review:${title}:${Date.now()}`, source: { plan: readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: stackFor(lib, learner), endWhenDone: true }), cards, title, review: true } });
   };
   const reviewFirst = (id: string, after?: () => void) => {
     setNote(null);
     addPiece(id);
     const groups = lockCards(gauge, lib.prerequisites(), id, cards);
-    const list = groups.flatMap((g) => g.cards).filter((c) => !(learner?.progress.suspended.has(c.key) ?? false));
+    const list = groups.flatMap((g) => g.cards).filter((c) => !(learner?.progress.suspended.has(c.key) ?? false) && mayReview(c.key, reviewScope));
     const nextUp = after ?? (() => learnEntry(id));
     if (list.length === 0) { nextUp(); return; }
     const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: stackFor(lib, learner), endWhenDone: true });
-    setRunning({ key: `review:${id}:${Date.now()}`, source: { plan, cards, title: `${W.reviewFirstWhat}: ${labelOf(id)}` }, then: nextUp, origin: id }); // i18n-ignore
+    setRunning({ key: `review:${id}:${Date.now()}`, source: { plan, cards, title: `${W.reviewFirstWhat}: ${labelOf(id)}`, review: true }, then: nextUp, origin: id }); // i18n-ignore
   };
-  const lockCount = (id: string): number => lockCards(gauge, lib.prerequisites(), id, cards).reduce((s, g) => s + g.cards.length, 0);
+  const lockCount = (id: string): number => lockCards(gauge, lib.prerequisites(), id, cards).reduce((s, g) => s + g.cards.filter((c) => mayReview(c.key, reviewScope)).length, 0);
   const storyUnit = (id: string): Flow | undefined => (gauge.testing.has(id) ? undefined : storyOf(id));
   const openStory = (flow: Flow, review: boolean) => {
     const find = (x: string) => { const d = lib.docs('flow').find((one) => one.id === x); return d === undefined ? undefined : readFlow(d.id, d.data); };
