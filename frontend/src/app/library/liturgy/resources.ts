@@ -14,7 +14,7 @@ export const entitiesOf = (entries: readonly LibEntry[]): LitEntity[] => entries
   if (!Object.values(KIND).includes(e.kind)) return [];
   const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith('_')));
   const parsed = EntitySchema.safeParse(data);
-  return parsed.success ? [parsed.data] : [];
+  return parsed.success && KIND[parsed.data.entity_type] === e.kind ? [parsed.data] : [];
 });
 export const indexOf = (entities: readonly LitEntity[]): Map<string, LitEntity> => new Map(entities.map(e => [e.id, e]));
 
@@ -36,7 +36,11 @@ function normalize(raw: unknown): unknown {
     if (r.numbering !== undefined) r.metadata = { ...(r.metadata as object ?? {}), numbering: r.numbering };
     delete r.verses; delete r.text; delete r.numbering;
   }
-  return r;
+  // Match LibraryStore's shallow empty-value normalization, so re-imports remain idempotent after a real save.
+  return Object.fromEntries(Object.entries(r).flatMap(([key, value]) => {
+    if (value === undefined || value === null || typeof value === 'string' && !value.trim() || Array.isArray(value) && value.length === 0) return [];
+    return [[key, typeof value === 'string' ? value.trimEnd() : value]];
+  }));
 }
 export function readImport(raw: unknown): { entities: LitEntity[]; provenance: string } | { problems: Problem[] } {
   const parsed = ImportSchema.safeParse(normalize(raw));
@@ -45,19 +49,22 @@ export function readImport(raw: unknown): { entities: LitEntity[]; provenance: s
 }
 
 export function dependencies(e: LitEntity): string[] {
-  const conditions = (c: Conditions) => [...(c.observances ?? []), ...(c.edition_id ? [c.edition_id] : [])];
+  const conditions = (c: Conditions) => [...(c.observances ?? []), ...(c.commemorations ?? []), ...(c.edition_id ? [c.edition_id] : [])];
   switch (e.entity_type) {
     case 'text_resource': return [e.edition_id, ...(e.work_id ? [e.work_id] : [])];
     case 'passage_definition': return [e.work_id, e.edition_id, ...(e.resource_id ? [e.resource_id] : [])];
     case 'liturgical_template': return [...conditions(e.applicability), ...e.slots.flatMap(s => [...conditions(s.conditions), ...(s.resource_ref ? [s.resource_ref.id] : [])])];
-    case 'liturgical_assignment': return [e.resource_ref.id, ...(e.antiphon_ref ? [e.antiphon_ref] : []), ...(e.fallback_refs ?? []).map(r => r.id), ...(e.target_context.observances ?? []), ...(e.target_context.edition_id ? [e.target_context.edition_id] : [])];
+    case 'liturgical_assignment': return [e.resource_ref.id, ...(e.antiphon_ref ? [e.antiphon_ref] : []), ...(e.fallback_refs ?? []).map(r => r.id), ...conditions(e.target_context)];
     case 'calendar_observance': return [...(e.proper_references ?? []), ...(e.replaces ? [e.replaces] : [])];
     case 'liturgical_rule': return [...('observance_id' in e.action ? [e.action.observance_id] : []), ...('resource_ref' in e.action ? [e.action.resource_ref.id] : []), ...conditions(e.conditions)];
     case 'calendar_profile': return e.edition_id ? [e.edition_id] : [];
     default: return [];
   }
 }
-export const usageOf = (id: string, entities: readonly LitEntity[]): LitEntity[] => entities.filter(e => dependencies(e).includes(id) || (e.entity_type === 'passage_definition' && e.resource_id === undefined && passageSource(e, indexOf(entities))?.id === id));
+export const usageOf = (id: string, entities: readonly LitEntity[]): LitEntity[] => {
+  const index = indexOf(entities);
+  return entities.filter(e => dependencies(e).includes(id) || (e.entity_type === 'passage_definition' && e.resource_id === undefined && passageSource(e, index)?.id === id));
+};
 /** Include offices reached through a passage, without repeating or looping through resources. */
 export function allUsageOf(id: string, entities: readonly LitEntity[]): LitEntity[] {
   const seen = new Set([id]), result: LitEntity[] = [], queue = [id];
@@ -148,7 +155,7 @@ export function validateEntities(entities: readonly LitEntity[]): Problem[] {
       if (e.coverage === 'reviewed' && (e.status !== 'approved' || !e.reviewed_from || !e.reviewed_until || e.reviewed_until < e.reviewed_from)) fail(e, 'calendar_review', e.id);
     }
     const contexts = e.entity_type === 'liturgical_assignment' ? [e.target_context] : e.entity_type === 'liturgical_rule' ? [e.conditions] : e.entity_type === 'liturgical_template' ? [e.applicability, ...e.slots.map(s => s.conditions)] : [];
-    for (const c of contexts) { for (const id of c.observances ?? []) expect(e, id, ['calendar_observance']); if (c.edition_id) expect(e, c.edition_id, ['text_edition']); }
+    for (const c of contexts) { for (const id of [...(c.observances ?? []), ...(c.commemorations ?? [])]) expect(e, id, ['calendar_observance']); if (c.edition_id) expect(e, c.edition_id, ['text_edition']); }
   }
   return problems.slice(0, 200);
 }

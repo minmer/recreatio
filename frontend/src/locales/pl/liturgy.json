@@ -178,7 +178,8 @@
     "private_edition": "To wydanie dopuszcza użytek prywatny; zaimportuj je do prywatnego zbioru.",
     "print_usage": "Metadane wydania nie dopuszczają drukowania.",
     "range": "Wybierz poprawny zakres do 366 dni.",
-    "file_size": "Plik importu może mieć do 16 MB."
+    "file_size": "Plik importu może mieć do 16 MB.",
+    "missing_entry": "Nie ma tego wpisu w tej bibliotece."
   },
   "diagnostic": {
     "calendar_partial": "Zakres kalendarza nie został w pełni sprawdzony",
@@ -246,5 +247,7 @@
     "13": "Pozostałe dni powszednie"
   },
   "loadExample": "Wczytaj przykład do podglądu",
-  "exampleHint": "Przykład pokazuje pełny tekst, jego podział i przypisanie do godziny. Zawiera wyłącznie tekst testowy; sam podgląd niczego nie zapisuje."
+  "exampleHint": "Przykład pokazuje pełny tekst, jego podział i przypisanie do godziny. Zawiera wyłącznie tekst testowy; sam podgląd niczego nie zapisuje.",
+  "json": "JSON",
+  "checksum": "SHA-256"
 }

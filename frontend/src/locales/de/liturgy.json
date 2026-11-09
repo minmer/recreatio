@@ -178,7 +178,8 @@
     "private_edition": "Diese Ausgabe erlaubt nur private Nutzung; in eine private Sammlung importieren.",
     "print_usage": "Die Metadaten der Ausgabe erlauben kein Drucken.",
     "range": "Einen gültigen Zeitraum bis 366 Tage wählen.",
-    "file_size": "Importdateien dürfen bis zu 16 MB groß sein."
+    "file_size": "Importdateien dürfen bis zu 16 MB groß sein.",
+    "missing_entry": "Dieser Eintrag ist nicht in dieser Sammlung."
   },
   "diagnostic": {
     "calendar_partial": "Kalenderabdeckung nicht vollständig geprüft",
@@ -246,5 +247,7 @@
     "13": "Übrige Werktage"
   },
   "loadExample": "Beispiel zur Vorschau laden",
-  "exampleHint": "Das Beispiel enthält einen vollständigen Text, einen Abschnitt und eine Zuordnung zu einer Hore. Alle Texte sind Testtexte; die Vorschau speichert nichts."
+  "exampleHint": "Das Beispiel enthält einen vollständigen Text, einen Abschnitt und eine Zuordnung zu einer Hore. Alle Texte sind Testtexte; die Vorschau speichert nichts.",
+  "json": "JSON",
+  "checksum": "SHA-256"
 }

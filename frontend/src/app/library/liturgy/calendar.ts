@@ -6,7 +6,7 @@ import type { CalendarContext, Conditions, DateRule, Hour, LitEntity, OfType, Se
 export const NORMS = 'https://kkbids-old.episkopat.pl/index.php?id=301';
 export const GILH = 'https://liturgyoffice.org.uk/Resources/Rites/GILH.pdf';
 /** Full precedence classes; labels are localized by the presentation, not used to decide priority. */
-export const PRECEDENCE = Array.from({ length: 13 }, (_, i) => ({ level: i + 1, label: `liturgy.precedence.${i + 1}`, authority: `${NORMS}#59` }));
+export const PRECEDENCE = Array.from({ length: 13 }, (_, i) => ({ level: i + 1, label: `liturgy.precedence.${i + 1}`, authority: `${NORMS}#59` })); // i18n-ignore — translation key or imported title and a date.
 export interface Candidate {
   id: string; title: string; precedence: number; rank: string; color: string; firstVespers: boolean;
   scope: string; common?: string; from?: string; rule?: string; status: string;
@@ -36,7 +36,7 @@ export function matches(c: Conditions, x: SelectionContext): boolean {
   const { day: d, calendar: k } = x;
   const has = <T>(list: readonly T[] | undefined, v: T) => list === undefined || list.includes(v);
   return has(c.dates, d.date) && has(c.seasons, d.season) && has(c.weekdays, d.weekday) && has(c.weeks, d.week) && has(c.psalter_weeks, d.psalterWeek as number)
-    && has(c.observances, d.selected.id) && (c.scopes === undefined || c.scopes.every(s => k.scopes.includes(s)))
+    && has(c.observances, d.selected.id) && has(c.commemorations, d.commemoration?.id as string) && (c.scopes === undefined || c.scopes.every(s => k.scopes.includes(s)))
     && has(c.hours, x.hour!) && has(c.sunday_cycles, d.sundayCycle) && has(c.weekday_cycles, d.weekdayCycle)
     && (c.vespers === undefined || c.vespers === x.vespers) && (c.psalmody === undefined || c.psalmody === (x.psalmody ?? 'current'))
     && (c.common === undefined || c.common === d.selected.common) && (c.edition_id === undefined || c.edition_id === k.edition_id)
@@ -73,7 +73,7 @@ function yearCandidates(year: number, k: CalendarContext, entities: readonly Lit
       for (const at of actual) if (at >= low && at <= high) {
         const occurrence = { ...c, ...(at === date ? {} : { from: date }), ...(override ? { rule: override.id, status: override.status === 'approved' ? c.status : 'draft' } : {}) };
         add(at, occurrence);
-        if (at !== date) moved.set(date, [...(moved.get(date) ?? []), { ...occurrence, title: `${c.title} → ${at}` }]);
+        if (at !== date) moved.set(date, [...(moved.get(date) ?? []), { ...occurrence, title: `${c.title} → ${at}` }]); // i18n-ignore — translation key or imported title and a date.
       }
     }
   }
@@ -100,7 +100,7 @@ function yearCandidates(year: number, k: CalendarContext, entities: readonly Lit
     if (!target) { warn(date, `unresolved_transfer:${c.id}`); continue; }
     dates.set(date, (dates.get(date) ?? []).filter(other => other !== c));
     const shifted = { ...c, from: date, rule: rule.id, status: rule.status === 'approved' ? c.status : 'draft' };
-    add(target, shifted); moved.set(date, [...(moved.get(date) ?? []), { ...shifted, title: `${c.title} → ${target}` }]);
+    add(target, shifted); moved.set(date, [...(moved.get(date) ?? []), { ...shifted, title: `${c.title} → ${target}` }]); // i18n-ignore — translation key or imported title and a date.
   }
   const result = { dates, moved, problems }; if (cached.size > 12) cached.clear(); cached.set(key, result); return result;
 }

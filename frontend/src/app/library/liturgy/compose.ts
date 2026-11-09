@@ -20,11 +20,11 @@ export function composeOffice(date: string, hour: Hour, context: CalendarContext
   const day = vespers?.day ?? resolveLiturgicalDay(date, context, entities);
   const x: SelectionContext = { day, calendar: context, hour, vespers: vespers?.vespers, psalmody: options.psalmody, afterInvitatory: options.afterInvitatory };
   const result: Composition = { requestedDate: date, hour, day, ...(vespers ? { vespers: vespers.vespers } : {}), slots: [], diagnostics: [...day.diagnostics], complete: false };
-  if (day.commemoration) result.diagnostics.push(`commemoration_requires_template:${day.commemoration.id}`);
   const templates = entities.filter((e): e is OfType<'liturgical_template'> => e.entity_type === 'liturgical_template' && e.hour_or_rite === hour && matches(e.applicability, x) && (!options.templateId || e.id === options.templateId)).sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
   const template = templates[0];
   if (!template) { result.diagnostics.push('missing_template'); return result; }
   result.templateId = template.id;
+  if (day.commemoration && !template.applicability.commemorations?.includes(day.commemoration.id)) result.diagnostics.push(`commemoration_requires_template:${day.commemoration.id}`);
   if (hour === 'mass' && day.season === 'triduum' && template.id === 'roman.template.mass') { result.diagnostics.push('special_rite_required'); return result; }
   if (templates[1]?.priority === template.priority) result.diagnostics.push('ambiguous_template');
   if (template.status !== 'approved') result.diagnostics.push(`unreviewed_template:${template.id}`);
@@ -44,7 +44,7 @@ export function composeOffice(date: string, hour: Hour, context: CalendarContext
     const assignments = entities.filter((e): e is OfType<'liturgical_assignment'> => {
       if (e.entity_type !== 'liturgical_assignment' || e.slot_name !== s.name || !layers.includes(e.source_layer)) return false;
       if (e.source_layer === 'common' && (!day.selected.common || e.target_context.common !== day.selected.common)) return false;
-      if (e.source_layer === 'saints' && !e.target_context.observances?.includes(day.selected.id)) return false;
+      if (e.source_layer === 'saints' && !e.target_context.observances?.includes(day.selected.id) && !(day.commemoration && e.target_context.commemorations?.includes(day.commemoration.id))) return false;
       if (psalm && e.source_layer === 'psalter' && festive && ['readings', 'vespers'].includes(hour)) return false;
       if (psalm && options.psalmody === 'complementary' && e.target_context.psalmody !== 'complementary') return false;
       return matches(e.target_context, e.source_layer === 'psalter' ? psalterContext : x);

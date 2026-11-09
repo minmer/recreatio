@@ -1,3 +1,4 @@
+// i18n-ignore-file — canonical titles in the bundled Polish calendar data, not interface labels.
 /** Structural defaults only: no prayers or copyrighted editions are bundled. */
 import { GILH, NORMS } from './calendar';
 import { EntitySchema, HOURS, type Hour, type LitEntity, type OfType, type SourceLayer } from './schema';

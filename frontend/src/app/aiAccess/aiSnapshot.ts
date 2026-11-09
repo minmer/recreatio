@@ -33,7 +33,7 @@
  * gemacht ([s. 46] für einen Seitenwechsel, [^3] für einen Przypis, [?] für Unsicheres).
  */
 
-import { LITURGY_KINDS } from '../library/liturgy/kinds';
+import { LITURGY_KINDS, projectLiturgyEntries } from '../library/liturgy/kinds';
 import { landscapeLayouts, type LandscapeLayoutDoc } from '../cogita/landscapeExport';
 import { exportSetup, type KnowledgeSetup } from '../cogita/json';
 import { CogitaLibrary } from '../cogita/store';
@@ -262,7 +262,7 @@ export function refsOf(entry: { readonly id: string; readonly data: Readonly<Rec
 function sourceEntries(part: ScopePart, look: Lookup): SnapshotEntry[] {
   const own = new Set((part.kind === 'liturgy' ? LITURGY_KINDS : part.kind === 'books' ? LIBRARY_KINDS : WRITING_KINDS).map((k) => k.kind));
   const out: SnapshotEntry[] = [];
-  for (const entry of part.store.all()) {
+  for (const entry of part.kind === 'liturgy' ? projectLiturgyEntries(part.store.all()) : part.store.all()) {
     const def = kindOf(entry.kind);
     if (def === undefined || !own.has(entry.kind)) continue;
     const typeId = entry.kind === 'text' ? ids(entry.data, 'textType')[0] : undefined;

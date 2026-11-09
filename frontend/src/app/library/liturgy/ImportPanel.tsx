@@ -32,15 +32,15 @@ export function ImportPanel({ store, library, initial }: { store: LibraryStore; 
       <button className="wk-btn wk-btn-quiet" onClick={() => download('liturgy.schema.json', JSON.stringify(jsonSchema(), null, 2))}>{t('liturgy.schema')}</button>
       <button className="wk-btn wk-btn-quiet" onClick={() => download('liturgy.json', JSON.stringify(exportEntities(entitiesOf(store.all())), null, 2))}>{t('liturgy.exportJson')}</button>
     </div>
-    <p className="wk-hint">{t('liturgy.exampleHint')}</p>
+    <p className="lit-meta">{t('liturgy.exampleHint')}</p>
     {library.writes && <button className="wk-btn wk-btn-quiet" disabled={busy || text.trim().length > 0} onClick={() => setText(JSON.stringify(example, null, 2))}>{t('liturgy.loadExample')}</button>}
-    {!library.writes ? <p className="wk-hint">{t('liturgy.readOnly')}</p> : <>
+    {!library.writes ? <p className="lit-meta">{t('liturgy.readOnly')}</p> : <>
       <label className="wk-field"><span>{t('liturgy.jsonFile')}</span><input type="file" accept="application/json,.json" disabled={busy} onChange={async e => {
         const file = e.target.files?.[0]; if (!file) return;
         if (file.size > 16 * 1024 * 1024) { setFailed(t('liturgy.errors.file_size')); return; }
         try { setText(await file.text()); setFailed(''); } catch { setFailed(t('common.failed')); }
       }} /></label>
-      <label className="wk-field"><span>JSON</span><textarea className="lit-json" value={text} onChange={e => { setText(e.target.value); setMessage(''); }} disabled={busy} spellCheck={false} rows={14} /></label>
+      <label className="wk-field"><span>{t('liturgy.json')}</span><textarea className="lit-json" value={text} onChange={e => { setText(e.target.value); setMessage(''); }} disabled={busy} spellCheck={false} rows={14} /></label>
       <div className="lit-controls">
         <label className="wk-field"><span>{t('liturgy.mode')}</span><select value={mode} onChange={e => setMode(e.target.value as 'add' | 'update')} disabled={busy}><option value="add">{t('liturgy.additive')}</option><option value="update">{t('liturgy.controlled')}</option></select></label>
         <label className="wk-field"><span>{t('liturgy.provenance')}</span><input value={provenance} onChange={e => setProvenance(e.target.value)} disabled={busy} /></label>

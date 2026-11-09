@@ -18,7 +18,7 @@ const ref = z.strictObject({ id, type: z.enum(['text_resource', 'psalm_passage',
 const conditions = z.strictObject({
   dates: z.array(date).max(400).optional(), seasons: z.array(z.enum(SEASONS)).optional(), weekdays: z.array(integer(1, 7)).optional(),
   psalter_weeks: z.array(integer(1, 4)).optional(), weeks: z.array(integer(0, 34)).optional(),
-  observances: z.array(id).optional(), scopes: z.array(id).optional(), hours: z.array(z.enum(HOURS)).optional(),
+  observances: z.array(id).optional(), commemorations: z.array(id).optional(), scopes: z.array(id).optional(), hours: z.array(z.enum(HOURS)).optional(),
   sunday_cycles: z.array(z.enum(['A', 'B', 'C'])).optional(), weekday_cycles: z.array(z.enum(['I', 'II'])).optional(),
   vespers: z.enum(['first', 'second']).optional(), psalmody: z.enum(['current', 'complementary']).optional(),
   common: id.optional(), te_deum: z.boolean().optional(), after_invitatory: z.boolean().optional(),

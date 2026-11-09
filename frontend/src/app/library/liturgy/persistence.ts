@@ -18,13 +18,13 @@ export const exportEntities = (entities: readonly LitEntity[], provenance?: stri
 export const storeStamp = (store: LibraryStore): string => canonicalJson(store.all().map(e => [e.id, e.version]).sort(([a], [b]) => String(a).localeCompare(String(b))));
 export async function commitImport(store: LibraryStore, raw: unknown, preview: ImportPlan, mode: 'add' | 'update', allowApproved: boolean, stamp: string, areaPublic = false): Promise<number> {
   await store.sync();
-  if (storeStamp(store) !== stamp) throw new WorkspaceError('liturgy.errors.stale');
+  if (storeStamp(store) !== stamp) throw new WorkspaceError('liturgy.errors.stale'); // i18n-ignore — machine-readable error code, translated by the import UI.
   const plan = planImport(raw, effectiveEntities(entitiesOf(store.all())), mode, allowApproved);
-  if (canonicalJson(plan) !== canonicalJson(preview) || plan.problems.length > 0) throw new WorkspaceError('liturgy.errors.stale');
+  if (canonicalJson(plan) !== canonicalJson(preview) || plan.problems.length > 0) throw new WorkspaceError('liturgy.errors.stale'); // i18n-ignore — machine-readable error code, translated by the import UI.
   const changes = [...plan.create, ...plan.update.map(p => p.after)];
   if (changes.length === 0) return 0;
   const all = effectiveEntities([...entitiesOf(store.all()).filter(e => !changes.some(c => c.id === e.id)), ...changes]);
-  if (areaPublic && all.some(e => e.entity_type === 'text_edition' && !e.permitted_usage.includes('share'))) throw new WorkspaceError('liturgy.errors.private_edition');
+  if (areaPublic && all.some(e => e.entity_type === 'text_edition' && !e.permitted_usage.includes('share'))) throw new WorkspaceError('liturgy.errors.private_edition'); // i18n-ignore — machine-readable error code, translated by the import UI.
   const ids = new Map<string, string>();
   for (const e of all) ids.set(e.id, store.all().find(row => row.data.id === e.id && Object.values(KIND).includes(row.kind))?.id ?? await entryIdFor(store.libraryId, e.id));
   const at = new Date().toISOString(), receiptId = newId();

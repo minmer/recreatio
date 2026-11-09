@@ -24,8 +24,9 @@ export function LiturgyHome({ me, library, trail }: { me: Me; library: OpenLibra
   const entities = useMemo(() => effectiveEntities(own), [own]);
   if (!store || !store.loaded) return failed ? <p className="wk-error">{failed}</p> : <Loading label={t('common.loading')} />;
   const first = trail[0] ?? 'resources';
-  const row = store.own(first);
-  const selected = entities.find(e => e.id === row?.data.id || e.id === first);
+  const resourceId = first === 'resource' ? trail[1] : TABS.includes(first as typeof TABS[number]) ? undefined : first;
+  const row = resourceId ? store.own(resourceId) : undefined;
+  const selected = resourceId ? entities.find(e => e.id === row?.data.id || e.id === resourceId) : undefined;
   const tab = TABS.includes(first as typeof TABS[number]) ? first : 'resources';
   return <section className="lit-home">
     <p className="lit-eyebrow"><a href={viewPath('library')}>{t('library.list.title')}</a> / {t('liturgy.name')}</p>
@@ -50,9 +51,9 @@ function ResourceList({ own, entities, library }: { own: LitEntity[]; entities: 
       <label className="wk-field"><span>{t('liturgy.type')}</span><select value={type} onChange={e => { setType(e.target.value); setLimit(50); }}><option value="">{t('liturgy.allTypes')}</option>{Object.keys(KIND).map(k => <option key={k} value={k}>{t(`liturgy.types.${k}`)}</option>)}</select></label>
     </div>
     <label className="lit-check"><input type="checkbox" checked={builtins} onChange={e => setBuiltins(e.target.checked)} />{t('liturgy.showDefaults')}</label>
-    <p className="wk-hint">{t('liturgy.count', { count: found.length })}</p>
+    <p className="lit-meta">{t('liturgy.count', { count: found.length })}</p>
     {found.length === 0 && <div className="lit-empty"><h2>{t('liturgy.empty')}</h2><p>{t('liturgy.emptyHint')}</p>{library.writes && <a className="wk-btn" href={viewPath('library', library.libraryId, 'import')}>{t('liturgy.importTitle')}</a>}</div>}
-    <ul className="lit-resources">{found.slice(0, limit).map(e => <li key={e.id}><a href={viewPath('library', library.libraryId, e.id)}><strong>{e.title}</strong><span>{t(`liturgy.types.${e.entity_type}`)} · {e.id}</span></a><span className={`lit-badge is-${e.status}`}>{t(`liturgy.status.${e.status}`)}</span></li>)}</ul>
+    <ul className="lit-resources">{found.slice(0, limit).map(e => <li key={e.id}><a href={viewPath('library', library.libraryId, 'resource', e.id)}><strong>{e.title}</strong><span>{t(`liturgy.types.${e.entity_type}`)} · {e.id}</span></a><span className={`lit-badge is-${e.status}`}>{t(`liturgy.status.${e.status}`)}</span></li>)}</ul>
     {found.length > limit && <button className="wk-btn wk-btn-quiet" onClick={() => setLimit(n => n + 50)}>{t('liturgy.more')}</button>}
     <aside className="lit-connect"><h2 className="wk-h2">{t('liturgy.cogita')}</h2><p>{t('liturgy.cogitaHint')}</p><a href={viewPath('knowledge')}>{t('liturgy.openCogita')} →</a></aside>
     {own.length > 0 && <div className="wk-actions"><button className="wk-btn wk-btn-quiet" onClick={() => download('liturgy-offline.html', offlineDocument(library.name, own), 'text/html')}>{t('liturgy.offline')}</button><button className="wk-btn wk-btn-quiet" onClick={() => download('liturgy.json', JSON.stringify(exportEntities(own), null, 2))}>{t('liturgy.exportJson')}</button></div>}
@@ -65,7 +66,7 @@ function ResourceDetail({ entity, entities, store, library }: { entity: LitEntit
   const t = useT(), [edit, setEdit] = useState<LitEntity | null>(null), [versions, setVersions] = useState<readonly VersionRow[] | null>(null), [failed, setFailed] = useState('');
   const index = indexOf(entities), resolved = resolveText(entity.id, index), uses = allUsageOf(entity.id, entities);
   const stored = store.all().find(e => e.data.id === entity.id && Object.values(KIND).includes(e.kind));
-  const link = (id: string) => <a href={viewPath('library', library.libraryId, id)}>{index.get(id)?.title ?? id}</a>;
+  const link = (id: string) => <a href={viewPath('library', library.libraryId, 'resource', id)}>{index.get(id)?.title ?? id}</a>;
   const edition = resolved ? index.get(resolved.resource.edition_id) : undefined;
   return <>
     <a href={viewPath('library', library.libraryId)}>{t('liturgy.back')}</a><h2>{entity.title}</h2>
@@ -142,7 +143,7 @@ function CompositionView({ composition: c, libraryId, details }: { composition: 
       <h3>{t(`liturgy.slots.${s.label.replace(/\./g, '_')}`) === `liturgy.slots.${s.label.replace(/\./g, '_')}` ? s.label : t(`liturgy.slots.${s.label.replace(/\./g, '_')}`)}</h3>
       {s.status !== 'ready' && <p className="lit-status">{t(`liturgy.status.${s.status}`)}</p>}
       {s.antiphon && <div className="lit-antiphon"><TextBlocks blocks={s.antiphon.blocks} /></div>}<TextBlocks blocks={s.blocks} />{s.antiphon && <div className="lit-antiphon"><TextBlocks blocks={s.antiphon.blocks} /></div>}
-      {s.resourceId && <a className="lit-meta" href={viewPath('library', libraryId, s.resourceId)}>{s.resourceId}</a>}
+      {s.resourceId && <a className="lit-meta" href={viewPath('library', libraryId, 'resource', s.resourceId)}>{s.resourceId}</a>}
       {details && <details><summary>{t('liturgy.why')}</summary><dl className="lit-facts"><div><dt>{t('liturgy.reason')}</dt><dd>{t(`liturgy.reasons.${s.reason}`)}</dd></div>{s.sourceLayer && <div><dt>{t('liturgy.layer')}</dt><dd>{t(`liturgy.layers.${s.sourceLayer}`)}</dd></div>}</dl><p className="lit-meta">{[s.assignmentId, s.ruleId, s.celebrationId, s.editionId, s.authority].filter(Boolean).join(' · ')}</p>{s.fallback && <p>{t('liturgy.fallback')}: {s.fallback}</p>}{s.rejected.length > 0 && <p>{s.rejected.join(', ')}</p>}</details>}
     </section>)}
     {details && c.diagnostics.length > 0 && <ul>{c.diagnostics.map((d, i) => <li key={i}>{t(`liturgy.diagnostic.${d.split(':')[0]}`)}{d.includes(':') ? ` · ${d.slice(d.indexOf(':') + 1)}` : ''}</li>)}</ul>}
@@ -150,5 +151,5 @@ function CompositionView({ composition: c, libraryId, details }: { composition: 
 }
 function ImportHistory({ store, library }: { store: LibraryStore; library: OpenLibrary }) {
   const t = useT(), rows = store.ofKind('lit_import').sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return <><h2>{t('liturgy.tabs.history')}</h2>{rows.length === 0 && <p>{t('liturgy.noHistory')}</p>}<ul className="lit-history">{rows.map(e => <li key={e.id}><strong>{String(e.data.at)}</strong><p>{String(e.data.provenance ?? '')}</p><ul>{(Array.isArray(e.data.records) ? e.data.records as { entryId: string; canonicalId: string; beforeVersion: number; afterVersion: number; checksum: string }[] : []).map(r => <li key={r.entryId}><a href={viewPath('library', library.libraryId, r.entryId)}>{r.canonicalId}</a> · {r.beforeVersion} → {r.afterVersion}<details><summary>SHA-256</summary><code>{r.checksum}</code></details></li>)}</ul></li>)}</ul></>;
+  return <><h2>{t('liturgy.tabs.history')}</h2>{rows.length === 0 && <p>{t('liturgy.noHistory')}</p>}<ul className="lit-history">{rows.map(e => <li key={e.id}><strong>{String(e.data.at)}</strong><p>{String(e.data.provenance ?? '')}</p><ul>{(Array.isArray(e.data.records) ? e.data.records as { entryId: string; canonicalId: string; beforeVersion: number; afterVersion: number; checksum: string }[] : []).map(r => <li key={r.entryId}><a href={viewPath('library', library.libraryId, 'resource', r.entryId)}>{r.canonicalId}</a> · {r.beforeVersion} → {r.afterVersion}<details><summary>{t('liturgy.checksum')}</summary><code>{r.checksum}</code></details></li>)}</ul></li>)}</ul></>;
 }

@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { areaKeys, newestKey } from '../chat/chat';
 import { idbDelete, idbForget, idbGet, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
+import { t } from '../core/i18n';
 import type { Ring } from '../core/keys';
 import {
   forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntries, putEntry, removeEntries, removeEntry, sealEntry, withdrawEntries,
@@ -449,7 +450,7 @@ export class LibraryStore implements Lookup {
 
   /** Open a selected earlier envelope using the existing Library revision service. */
   async version(id: string, revision: VersionRow): Promise<EntryDoc | null> {
-    if (this.own(id) === undefined) throw new WorkspaceError('Nie ma tego wpisu w tej bibliotece.');
+    if (this.own(id) === undefined) throw new WorkspaceError(t('liturgy.errors.missing_entry'));
     return openVersion(this.libraryId, id, revision.version, await this.keysFor([revision.epoch]));
   }
 

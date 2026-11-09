@@ -178,7 +178,8 @@
     "private_edition": "This edition permits private use only; import it into a private collection.",
     "print_usage": "The edition metadata does not permit printing.",
     "range": "Choose a valid range of up to 366 days.",
-    "file_size": "Import files can be up to 16 MB."
+    "file_size": "Import files can be up to 16 MB.",
+    "missing_entry": "This entry is not in this collection."
   },
   "diagnostic": {
     "calendar_partial": "Calendar coverage is not fully reviewed",
@@ -246,5 +247,7 @@
     "13": "Other weekdays"
   },
   "loadExample": "Preview an example",
-  "exampleHint": "The example contains a complete text, a division and an hour assignment. All text is synthetic; previewing saves nothing."
+  "exampleHint": "The example contains a complete text, a division and an hour assignment. All text is synthetic; previewing saves nothing.",
+  "json": "JSON",
+  "checksum": "SHA-256"
 }

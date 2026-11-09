@@ -1,7 +1,7 @@
 /** Structural fixtures contain synthetic text, never an official liturgical translation. */
 import { useLocale } from './i18n-node.mjs';
 import { build } from 'esbuild';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -13,7 +13,7 @@ const dir = await mkdtemp(join(tmpdir(), 'liturgy-check-'));
 try {
   const root = resolve('src/app').replaceAll('\\', '/');
   const entry = join(dir, 'entry.ts');
-  await writeFile(entry, `export * from '${root}/library/liturgy/schema';\nexport * from '${root}/library/liturgy/resources';\nexport * from '${root}/library/liturgy/defaults';\nexport * from '${root}/library/liturgy/calendar';\nexport * from '${root}/library/liturgy/compose';\nexport * from '${root}/library/liturgy/persistence';\nexport * from '${root}/library/liturgy/export';\nexport * from '${root}/library/liturgy/kinds';\nexport {CogitaLibrary,readSources} from '${root}/cogita/store';\nexport {libraryKindOf,sealEntry,openEntry} from '${root}/library/library';`);
+  await writeFile(entry, `export * from '${root}/library/liturgy/schema';\nexport * from '${root}/library/liturgy/resources';\nexport * from '${root}/library/liturgy/defaults';\nexport * from '${root}/library/liturgy/calendar';\nexport * from '${root}/library/liturgy/compose';\nexport * from '${root}/library/liturgy/persistence';\nexport * from '${root}/library/liturgy/export';\nexport * from '${root}/library/liturgy/kinds';\nexport {CogitaLibrary,readSources} from '${root}/cogita/store';\nexport {libraryKindOf,sealEntry,openEntry} from '${root}/library/library';\nexport {cleanData} from '${root}/library/libraryStore';\nexport {snapshotDoc} from '${root}/aiAccess/aiSnapshot';`);
   await build({ entryPoints: [entry], outfile: join(dir, 'check.mjs'), bundle: true, format: 'esm', platform: 'node', nodePaths: [resolve('node_modules')],
     define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) }, logLevel: 'error' });
   const m = await import(pathToFileURL(join(dir, 'check.mjs')).href);
@@ -28,8 +28,14 @@ try {
   const prayer = entity('text_resource', 'prayer.test', { edition_id: ed.id, resource_type: 'prayer', language: 'pl-PL', complete: true, structured_content: [{ type: 'paragraph', text: 'Synthetic prayer fixture' }] });
   const ant = entity('text_resource', 'antiphon.test', { ...prayer, id: 'antiphon.test', resource_type: 'antiphon' });
   const assignment = entity('liturgical_assignment', 'assignment.test', { target_context: { hours: ['lauds'], weekdays: [1] }, slot_name: 'psalmody.1', resource_ref: { id: passage.id, type: 'psalm_passage' }, antiphon_ref: ant.id, source_layer: 'psalter', authority_reference: 'Synthetic structural test' });
+  const cleanImport=m.readImport(packetForClean());
+  function packetForClean(){return {...ps,title:ps.title+'  ',source_reference:'',metadata:{original:'preserved'}}}
+  const normalized=m.entitiesOf([{id:'test',kind:'lit_text',data:m.cleanData(cleanImport.entities[0])}]);
+  equal(m.planImport(cleanImport.entities[0],[work,ed,...normalized]).unchanged,1,'a re-import stays idempotent after real Library empty-value normalization');
   const corpus = [work, ed, ps, passage, prayer, ant, assignment];
   const packet = (entities, provenance) => m.exportEntities(entities, provenance);
+  const example = JSON.parse(await readFile(new URL('../../templates/liturgy/example.json', import.meta.url), 'utf8'));
+  equal(m.planImport(example, m.effectiveEntities([])).problems, [], 'the UI example is a valid independent import');
   const plan = m.planImport(packet([...corpus].reverse()), []);
   equal(plan.problems, [], 'batch references resolve independently of input order');
   equal(plan.create.length, 7, 'one record per canonical entity');
@@ -37,6 +43,7 @@ try {
   equal(m.resolveText(ps.id, m.indexOf(corpus)).blocks.length, 4, 'the complete psalm remains available');
   check(!JSON.stringify(passage).includes('Synthetic verse'), 'passages store no copied verses');
   equal(m.usageOf(ant.id, [...corpus, { ...assignment, id:'assignment.two' }]).length, 2, 'shared antiphon has both uses');
+  check(m.allUsageOf(ps.id, corpus).some(e => e.id === assignment.id), 'canonical text usage includes assignments reached through divisions');
   equal(m.usageOf(ps.id, corpus).map(e => e.id), [passage.id], 'implicit work/edition passage usage links to its text');
   const secondEdition = { ...ed, id: 'edition.en', language: 'en-GB' };
   equal(m.planImport(packet([secondEdition, { ...ps, id:'psalm.test.en', language:'en-GB', edition_id:secondEdition.id }]), corpus).problems, [], 'another translation does not overwrite the first');
@@ -80,6 +87,7 @@ try {
   equal(day('2026-06-08').psalterWeek,2,'Ordinary Time resumes its own numbered week after Pentecost');
   equal(m.PRECEDENCE.map(p=>p.level),Array.from({length:13},(_,i)=>i+1),'all thirteen precedence classes are represented');
   const obs=(id,precedence,more={})=>entity('calendar_observance',id,{precedence_class:precedence,liturgical_rank:precedence===12?'optional':precedence<=4?'solemnity':'memorial',date_rule:{r:'fixed',month:7,day:14},calendar_scope:'roman',liturgical_color:'white',authority_reference:'Synthetic reference fixture',status:'approved',...more});
+  check(m.planImport(packet([obs('bad.date',10,{date_rule:{r:'fixed',month:2,day:30}})]),data).problems.some(p=>p.code==='invalid_date'),'impossible recurring dates are rejected');
   const options=[obs('opt.a',12),obs('opt.b',12)];
   equal(m.resolveLiturgicalDay('2026-07-14',ctx,[...data,...options]).optional.length,2,'both optional memorials remain choices');
   equal(m.resolveLiturgicalDay('2026-07-14',{...ctx,optional_observance:'opt.b'},[...data,...options]).selected.id,'opt.b','a permitted optional memorial can be selected');
@@ -91,6 +99,9 @@ try {
   const equalVespers=[obs('today',3,{first_vespers:true}),obs('tomorrow',3,{first_vespers:true,date_rule:{r:'fixed',month:7,day:15}})];
   equal(m.resolveVespers('2026-07-14',ctx,[...data,...equalVespers]).day.selected.id,'today','equal precedence retains current-day Vespers');
   equal(m.resolveVespers('2026-07-11',ctx,data).vespers,'first','ordinary Saturday takes Sunday first Vespers');
+  equal(m.resolveVespers('2025-11-01',ctx,data).day.selected.id,'roman.all-saints','All Souls does not acquire first Vespers just because it falls on Sunday');
+  check(!m.teDeum(day('2025-11-02')),'the commemoration of the dead does not acquire a festal Te Deum');
+  check(m.resolveVespers('4099-12-31',ctx,data).day.diagnostics.includes('calendar_boundary'),'the last supported evening reports its boundary without crashing');
   equal(m.calendarRange('2026-03-28','2026-03-30',ctx,data).length,3,'DST does not drop calendar dates');
   assert.throws(()=>m.resolveLiturgicalDay('2026-02-30',ctx,data));checks++;
   equal(m.todayIn('Europe/Warsaw',new Date('2026-11-08T23:30:00Z')),'2026-11-09','local date follows the requested time zone');
@@ -107,6 +118,13 @@ try {
   equal(composed.slots[0].blocks.map(b=>b.verse),[1,2,4],'composition resolves the division without modifying canonical text');
   equal(composed.slots[1].sourceLayer,'saints','selection exposes the actual source layer');
   check(!composed.complete,'unreviewed calendar coverage cannot claim a complete approved office');
+  const reviewedProfile=entity('calendar_profile','test.profile',{scopes:['roman','PL'],country:'PL',time_zone:'Europe/Warsaw',language:'pl-PL',coverage:'reviewed',status:'approved',reviewed_from:'2026-01-01',reviewed_until:'2026-12-31',authority_reference:'Synthetic fixture review'});
+  check(m.composeOffice('2026-07-14','lauds',ctx,[...data,...approved.filter(e=>e.entity_type!=='liturgical_assignment'),template,a1,a2,proper,p2,reviewedProfile]).complete,'a fully specified reviewed configuration can produce a complete result');
+  const commemorationTemplate={...template,id:'test.commemoration',applicability:{commemorations:[lent.id]},slots:[{name:'commemoration.prayer',label:'Test commemoration',required:true,conditions:{}}]};
+  const commemorationAssignment=assign('a.commemoration','commemoration.prayer',prayer.id,{source_layer:'saints',target_context:{hours:['lauds'],commemorations:[lent.id]}});
+  const commemoration=m.composeOffice('2026-03-05','lauds',{...ctx,optional_observance:lent.id},[...data,...approved,lent,commemorationTemplate,commemorationAssignment,reviewedProfile]);
+  equal(commemoration.slots[0].assignmentId,commemorationAssignment.id,'an explicit commemoration template uses the commemoration proper without replacing the weekday');
+  check(commemoration.complete,'an approved explicit commemoration configuration resolves');
   const missing=m.composeOffice('2026-07-14','lauds',ctx,data);
   check(missing.slots.every(s=>s.status==='missing'),'missing texts stay missing; no generated prayers');
   const complementary=m.composeOffice('2026-07-14','lauds',ctx,[...data,...approved,template,a1,a2],{psalmody:'complementary'});
@@ -117,6 +135,8 @@ try {
   equal(once.filter(c=>c.hour==='invitatory').length,1,'all-hours output contains the invitatory once');
   check(!once.find(c=>c.hour==='readings').slots.some(s=>s.name==='opening'),'opening is not duplicated immediately after the invitatory');
   check(m.composeMass('2026-04-03',ctx,data).diagnostics.includes('special_rite_required'),'ordinary Mass template does not stand in for Good Friday rites');
+  const specialMass=entity('liturgical_template','test.triduum',{hour_or_rite:'mass',priority:100,applicability:{seasons:['triduum']},authority_reference:'Synthetic special rite',slots:[{name:'prayer',label:'Test',resource_ref:{id:prayer.id}}]});
+  check(!m.composeMass('2026-04-03',ctx,[...data,...approved,specialMass]).diagnostics.includes('special_rite_required'),'an imported specific Triduum template remains usable');
   const html=m.offlineDocument('<script>alert(1)</script>',[{...prayer,structured_content:[{type:'paragraph',text:'<script>bad()</script>'}]}]);
   check(!html.includes('<script>alert')&&!html.includes('<script>bad'),'offline export escapes content and titles');
   check(m.printDocument([composed],'A5').includes('size:A5'),'print output supports A5');
@@ -131,8 +151,12 @@ try {
   const own={all:()=>[],libraryId:'knowledge',areaId:'area',revision:1};
   const cogita=new m.CogitaLibrary(own,true);cogita.setSources([{store:source,kind:'liturgy',name:'Liturgy'}]);
   check(cogita.materialKinds.some(k=>k.id==='lit_text'),'liturgical texts are selectable kinds in Cogita');
+  check(!cogita.kinds.some(k=>k.id==='lit_text') && cogita.isForeignKind('lit_text'),'canonical sources remain owned by Library, not editable as local Cogita entries');
   check(cogita.entity(entries[2].id)?.data.text.includes('Synthetic verse 1'),'Cogita resolves the referenced text');
 
+  const snapshot=m.snapshotDoc([{store:source,kind:'liturgy',name:'Liturgy'}],'lit-library','now');
+  equal(snapshot.part,'liturgy','an authorized AI snapshot retains the parallel collection type');
+  check(snapshot.entries.find(e=>e.id===entries[3].id).data.text.includes('Synthetic verse 4'),'authorized snapshots resolve passage text without a stored duplicate');
   let rows=[],writes=0;
   const fake={libraryId:'12345678-1234-4234-8234-123456789012',all:()=>rows,own:id=>rows.find(e=>e.id===id),sync:async()=>{},saveAll:async inputs=>{writes++;rows=inputs.map(e=>({...e,version:1}));}};
   const importPlan=m.planImport(packet(corpus),m.effectiveEntities([]));
