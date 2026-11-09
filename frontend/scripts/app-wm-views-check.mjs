@@ -162,5 +162,13 @@ const cardsOf = (places, k) => Object.fromEntries(places.flatMap((p) => world.pl
   check('pick: after a given pillar only nearer ones count', [P.pickAt(g2, 105, 250), P.pickAt(g2, 105, 250, 1)], ['front', null]);
 }
 
+/* Step 3 · 10 — „jetzt" bleibt nicht stehen: neu, wenn der Tab sichtbar wird, und alle 10 Minuten (fällige Karten, Punkte). */
+{
+  const { readFile } = await import('node:fs/promises');
+  const src = (await readFile('src/app/cogita/worldmap/WorldLandscape.tsx', 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '');
+  check('Step 3 · 10: the learner input reads a clock that moves (not Date.now() frozen in the memo)', [/const now = clock;/.test(src), /\[gauge, progress, learner, flowFacts, flowById, cardOfQ, levels, clock\]/.test(src)], [true, true]);
+  check('Step 3 · 10: the clock moves when the tab becomes visible and every 10 minutes', [/visibilitychange/.test(src), /CLOCK_MS/.test(src)], [true, true]);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -99,6 +99,9 @@ export interface WorldLandscapeProps {
   readonly rewards?: RewardRules | null;
 }
 
+/** Wie oft „jetzt" neu gilt, solange die Karte offen ist. */
+const CLOCK_MS = 10 * 60 * 1000;
+
 export function WorldLandscape({ view, cards, learner, onOpen, compact = false, viewKey, more, rewards = null }: WorldLandscapeProps) {
   const { lib, writes, name: baseName } = useCtx();
   const lang = baseLang(lib);
@@ -129,9 +132,17 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const levels = useMemo(() => levelsByPlace(progress?.runs.values() ?? [], rules, eff.levels), [progress, eff.levels, rules]);
   const flowFacts = useMemo(() => learnerFlows(lib, progress?.positions), [lib, lib.revision, progress]); // eslint-disable-line react-hooks/exhaustive-deps
   const cardOfQ = useMemo(() => cardOfQuestion(cards), [cards]);
+  /* Step 3 · 10 — „jetzt" bewegt sich: wenn der Tab wieder sichtbar wird und alle CLOCK_MS (Karten werden mit der Zeit fällig). */
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = () => { if (document.visibilityState === 'visible') setClock(Date.now()); };
+    document.addEventListener('visibilitychange', tick);
+    const id = window.setInterval(tick, CLOCK_MS);
+    return () => { document.removeEventListener('visibilitychange', tick); window.clearInterval(id); };
+  }, []);
   const learnerInput = useMemo((): LearnerInput => {
     const know = (k: string) => (gauge === null ? 0 : cardKnowness(gauge, k));
-    const now = Date.now();
+    const now = clock;
     const facts: Facts = {
       values: progress?.values ?? {}, knowness: (id) => (gauge === null ? 0 : itemKnowness(gauge, id)),
       answered: (id) => { const m = learner?.marks(id) ?? []; return m.length === 0 ? null : m[m.length - 1].correctness; },
@@ -149,10 +160,11 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
         return f !== undefined && storyStage(f, flowFacts.get(flow), flowQuestionsKnown(f, cardOfQ, (key) => know(key) >= KNOWN)) === 'passed';
       },
       level: (place) => levels.get(place)?.level ?? 0,
+      perfect: (place) => levels.get(place)?.perfect === true,
       /* Step 3 · 1 — ausgesetzte Karten zählen nirgends (sonst sperrte eine einzige ihren Ort für immer). */
       suspended: (card) => progress?.suspended.has(card) === true
     };
-  }, [gauge, progress, learner, flowFacts, flowById, cardOfQ, levels]);
+  }, [gauge, progress, learner, flowFacts, flowById, cardOfQ, levels, clock]);
   const state = useMemo(() => stateOf(world, lines, learnerInput, { levels: eff.levels, knownShare: eff.knownShare }), [world, lines, learnerInput, eff.levels, eff.knownShare]);
 
   /* -- Wie im Krajobraz (Step-1-Bericht §3: behalten): Ansichten, Luki, Portale, das Ziel ------------------------------------ */
