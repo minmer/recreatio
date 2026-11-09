@@ -1596,6 +1596,7 @@ ${t('cogitaDataFormat.kinds.s04Builtin')}
 ${t('cogitaDataFormat.kinds.s05Fields')}
 ${t('cogitaDataFormat.kinds.s06Structure')}
 ${t('cogitaDataFormat.kinds.s07Prerequisite')}
+${t('cogitaDataFormat.kinds.s07Part')}
 ${t('cogitaDataFormat.kinds.s08External')}
 ${t('cogitaDataFormat.kinds.s09When')}
 ${t('cogitaDataFormat.kinds.s10Quantity')}
@@ -1719,6 +1720,7 @@ ${t('cogitaDataFormat.course.main.s48FilterWhen')}
 ${t('cogitaDataFormat.course.main.s49Sort')}
 ${t('cogitaDataFormat.course.main.s50Mode')}
 ${t('cogitaDataFormat.course.main.s51Mode')}
+${t('cogitaDataFormat.course.main.s51World')}
 ${t('cogitaDataFormat.course.main.s52Mode')}
 ${t('cogitaDataFormat.course.main.s53Group')}
 ${t('cogitaDataFormat.course.main.s54')}

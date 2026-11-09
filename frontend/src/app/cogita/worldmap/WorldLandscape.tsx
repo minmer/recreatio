@@ -22,12 +22,10 @@ import { baseLang } from '../lang';
 import { positionFor, type Learner } from '../learn';
 import type { Facts } from '../logic';
 import { landscapeClient } from '../landscapeClient';
-import { readNest } from '../landscapeNest';
 import type { RegionTree } from '../regions';
 import { readPlan } from '../revision';
 import { RevisionRun, type RunSource } from '../RevisionRun';
 import { stackFor } from '../spacing';
-import type { CogitaLibrary } from '../store';
 import { learnerGauge } from '../storyLock';
 import { useCtx } from '../ui';
 import type { ViewDoc } from '../views';
@@ -36,6 +34,7 @@ import { AuthorList, HomePanel, NavPanel, PlacePanel, SectionPanel, type PanelAc
 import { WorldPillars, type PillarsHandle } from './WorldPillars';
 import { WorldRun } from './WorldRun';
 import { authorIssues } from './wmAuthors';
+import { colourKeys, placeKindsOf, regionGraphOf } from './wmExport';
 import { lineColours, oklch, type Rgb } from './wmColors';
 import { geometryInputOf, type Geometry } from './wmGeometry';
 import { geometryFor } from './wmGeometryClient';
@@ -49,7 +48,7 @@ import { levelsByPlace, type LevelRule } from './wmRuns';
 import { sceneOf } from './wmScene';
 import { reviewable, stateOf, type LearnerInput } from './wmState';
 import { keepLayout, storedLayout } from './wmStore';
-import { HOME, type World } from './wmTypes';
+import { HOME } from './wmTypes';
 import './worldmap.css';
 
 /** Die Farben der Themen: wie im Krajobraz die acht des Bereichs, sonst grau (hell und dunkel). */
@@ -59,31 +58,6 @@ const TOPIC = {
 } as const;
 const NONE = { light: '#8d8a82', dark: '#6f6b62' } as const;
 const hex = (h: string): Rgb => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-
-/**
- * Wozu ein Ort farblich gehört (wie im Krajobraz): der oberste Knoten des Widoku (`nest`), sonst sein oberstes Gebiet
- * (`regions.ts`, aus den Voraussetzungen gerechnet), sonst seine Grundlage ganz unten.
- */
-function colourKeys(lib: CogitaLibrary, world: World, view: ViewDoc, regions: RegionTree | null): Map<string, string> {
-  const out = new Map<string, string>();
-  const nestField = view.landscape?.nest;
-  if (nestField !== undefined) {
-    const tree = readNest(lib, world.order, nestField, view.landscape?.nestSort ?? 'nr');
-    for (const id of world.order) {
-      let at = tree.home.get(id) ?? null;
-      let guard = 0;
-      while (at !== null && guard < 32) { const parent = tree.nodes.get(at)?.parent ?? null; if (parent === null) break; at = parent; guard += 1; }
-      if (at !== null) out.set(id, at);
-    }
-  }
-  if (regions !== null) for (const id of world.order) { const top = regions.assignment[id]?.[0]; if (top !== undefined && !out.has(id)) out.set(id, top); }
-  for (const id of world.order) {
-    if (out.has(id)) continue;
-    const roots = [...world.base(id)].filter((b) => world.places.get(b)?.depth === 0);
-    out.set(id, roots.sort()[0] ?? id);
-  }
-  return out;
-}
 
 /** Was an Stelle der Karte läuft: eine Erzählung, Karten (lernen, wiederholen) oder ein Durchgang. */
 type Running =
@@ -110,7 +84,7 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const dark = useDark();
 
   /* -- Das Modell (einmal je Stand der Baza) ------------------------------------------------------------------------- */
-  const placeKinds = useMemo(() => (view.steps ?? []).filter((s) => s.type === 'source.kind').map((s) => String((s.config as Record<string, unknown>).kind ?? '')).filter((k) => k !== ''), [view]);
+  const placeKinds = useMemo(() => placeKindsOf(view), [view]);
   const input = useMemo(() => worldInputOf(lib, cards, { placeKinds }), [lib, lib.revision, cards, placeKinds]); // eslint-disable-line react-hooks/exhaustive-deps
   const world = useMemo(() => readWorld(input), [input]);
   const lines = useMemo(() => linesOf(world, input.flows), [world, input]);
@@ -164,10 +138,8 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
     setRegionsDone(false);
     let alive = true;
     const client = landscapeClient();
-    const ids = world.order;
-    const index = new Map(ids.map((id, i) => [id, i] as const));
-    const graph = { ids, labels: ids.map((id) => world.places.get(id)!.label), needs: ids.map((id) => world.places.get(id)!.needs.map((n) => index.get(n)!).filter((i) => i !== undefined)) };
-    void client.regions({ key: `wm:${ids.length}:${ids[0] ?? ''}`, graph, lang }).then((tree) => { if (alive) { setRegions(tree); setRegionsDone(true); } }, () => { if (alive) setRegionsDone(true); });
+    const graph = regionGraphOf(world);
+    void client.regions({ key: `wm:${graph.ids.length}:${graph.ids[0] ?? ''}`, graph, lang }).then((tree) => { if (alive) { setRegions(tree); setRegionsDone(true); } }, () => { if (alive) setRegionsDone(true); });
     return () => { alive = false; client.dispose(); };
   }, [world, view, lang]);
   const keys = useMemo(() => colourKeys(lib, world, view, regions), [lib, world, view, regions]);

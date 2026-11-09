@@ -210,6 +210,11 @@ internal static class AiAccessChecks
             check(Fails(() => AiMcpTools.GetImportFormat("nie-ma")) == "not_found" && Fails(() => AiMcpTools.GetImportFormat("library", 0)) == "not_found" && Fails(() => AiMcpTools.GetImportFormat("library", 2)) == "not_found",
                 "MCP get_import_format: an unknown format or part says not_found");
             check(AiMcp.Instructions.Contains("list_import_formats") && AiMcp.Instructions.Contains("get_import_format"), "MCP instructions: read the format before preparing an import");
+            /* 2026-11-09 — die Weltkarte: ihr Leitfaden über MCP (spec §9, §13 Teil 6). */
+            var worldGuide = AiMcpTools.GetImportFormat("guide-world-map");
+            check(formatList.Formats.Any(f => f.Id == "guide-world-map" && f.Group == "Przewodniki dla AI") && worldGuide.Parts == 1 && worldGuide.Text.Contains("\"style\": \"world\"") && worldGuide.Text.Contains("\"part\": \"up\"") && worldGuide.Text.Contains("levelsSetup")
+                && ImportFormats.Find("guide-stories")!.Parts.Any(p => p.Contains("guide-world-map")) && ImportFormats.Find("guide-schemes")!.Parts.Any(p => p.Contains("\"part\": \"up\"")),
+                "MCP get_import_format: the world map guide (places, part blocks, lines, tickets, levels), linked from the stories guide; the schemes guide documents \"part\"");
 
             /* 2026-10-30 — get_knowledge_setup: was das Lernen einer Baza wiedzy steuert, als Kurs ohne Einträge. */
             using var setupDoc = JsonDocument.Parse("""

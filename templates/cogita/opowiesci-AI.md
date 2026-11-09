@@ -133,6 +133,10 @@ Opowieść może zaprosić do **innej bazy wiedzy** („świata”) — Fizyka p
 
 **Jak aplikacja używa tych danych:** na stronie wpisu i tematu stoi „W innych światach” (karty z nazwą bazy, zdaniem i stanem uczącego się w tamtej bazie); w krajobrazie przy polu znak portalu (z bliska) i lista w panelu tematu, bez linii między bazami. Widzi je tylko ten, kto może czytać tamtą bazę — inni nie widzą nic, właściciel widzi „niedostępne”. **Postęp zostaje tam, gdzie powstaje**: odpowiedzi w Historii liczą się w Historii, nie w Fizyce. Odwołania nie liczą się do znajomości, krajobrazu, celów, przeglądu ani powtórek tej bazy, a tamta baza sama decyduje, co jest w niej wcześniej („Najpierw: …”). Odwołanie, które się zerwało (wpis usunięty, nazwa nieznana), uczący się nie widzi; właściciel ma je w „Do zrobienia”. Import przyjmuje każde `@@…` i tylko ostrzega (nieznany świat, świat bez dostępu, brak wpisu, zagłębienie do czegoś, co nie jest opowieścią); eksport zapisuje je tak samo.
 
+## 8d. Mapa świata: opowieści jako linie (2026-11-09)
+
+W widoku z `"landscape": {"style": "world"}` każda opowieść jest **linią** między miejscami (tematami), rozwidlenie — **węzłem przesiadkowym**, a „Wymaga” jednostki, warunek opcji wyboru i krok "condition" — **biletem** odcinka. Żeby ta mapa była czytelna: każdy slajd i każde pytanie wskazuje właściwy temat, przebieg zaczyna się od pierwszego slajdu, etykiety opcji są krótkie (to nazwy gałęzi), a zagłębienia wołają opowieści, które naprawdę należą do wątku. Wszystko o miejscach, blokach (`"part": "up"`), przystankach, biletach, poziomach i liście dla autorów: **guide-world-map** (templates/cogita/weltkarte-AI.md).
+
 ## 9. Kolejność importu
 
 1. Utwórz stronę (sam adres), jeśli opowieść jest prezentacją — przebieg musi znać jej adres.

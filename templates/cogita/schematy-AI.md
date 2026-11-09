@@ -44,6 +44,7 @@ Każdy rodzaj: `"name"`, `"label"` (np. `"{haslo}"`), `"tells"` (pole, które od
 - `"prerequisite": "up"` — to, na co pole wskazuje, trzeba znać wcześniej (orbital → atom; fakt → fakty, których wymaga);
 - `"prerequisite": "down"` — to, na co wskazuje, buduje na tym wpisie;
 - `"structure": "up"` — wpis leży pod tym, na co wskazuje (fakt pod okresem, rok pod etapem życia): od ogółu do szczegółu.
+- `"part": "up"` — wpis jest **częścią bloku**, na który wskazuje (mapa świata: większy temat jako płaski dysk, na nim części jako stykające się filary); `"part": "down"` — blok wskazuje swoje części. **Nigdy na tym samym polu co `"prerequisite"`** (takie pole liczy się tylko jako wymaganie i trafia na listę dla autorów); część należy do jednego bloku. Bez pola z `"part"` nie ma bloków. Więcej: **guide-world-map** (templates/cogita/weltkarte-AI.md).
 
 Pole ze strukturą zwykle jest też `"prerequisite": "up"` (ogólne przed szczegółem). Kolejność deklaruj tylko tam, gdzie zrozumienie naprawdę wymaga wcześniejszego — nie z przyzwyczajenia do spisu treści.
 
