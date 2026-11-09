@@ -36,6 +36,7 @@
 import { LITURGY_KINDS } from '../library/liturgy/kinds';
 import { projectLiturgyEntries } from '../library/liturgy/projection';
 import { entitiesOf as liturgicalEntities } from '../library/liturgy/resources';
+import { docEntity as liturgicalDoc } from '../library/liturgy/liturgyJson';
 import { landscapeLayouts, type LandscapeLayoutDoc } from '../cogita/landscapeExport';
 import { worldLayouts, type WorldLayoutDoc } from '../cogita/worldmap/wmExport';
 import { exportSetup, type KnowledgeSetup } from '../cogita/json';
@@ -260,7 +261,8 @@ export function refsOf(entry: { readonly id: string; readonly data: Readonly<Rec
 function sourceEntries(part: ScopePart, look: Lookup): SnapshotEntry[] {
   const own = new Set((part.kind === 'liturgy' ? LITURGY_KINDS : part.kind === 'books' ? LIBRARY_KINDS : WRITING_KINDS).map((k) => k.kind));
   const out: SnapshotEntry[] = [];
-  const canonical = part.kind === 'liturgy' ? new Map(liturgicalEntities(part.store.all()).map(e => [e.id, e])) : null;
+  /* 2026-11-09 — kanonisch heisst: wie die App exportiert (Teilungen als Stücke, ohne was die App zählt) — importierbar wie es ist. */
+  const canonical = part.kind === 'liturgy' ? new Map(liturgicalEntities(part.store.all()).map(e => [e.id, liturgicalDoc(e)])) : null;
   for (const entry of part.kind === 'liturgy' ? projectLiturgyEntries(part.store.all()) : part.store.all()) {
     const def = kindOf(entry.kind);
     if (def === undefined || !own.has(entry.kind)) continue;

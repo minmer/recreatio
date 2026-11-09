@@ -20,7 +20,9 @@
     "onTitle": "This conversation goes to the archive",
     "offTitle": "This conversation is not archived",
     "on": "in archive",
-    "off": "not archived"
+    "off": "not archived",
+    "add": "Archive it",
+    "addTitle": "This conversation is not archived — add it with one tap"
   },
   "log": {
     "you": "You",
@@ -68,5 +70,20 @@
     "year": "At most a year ahead.",
     "exact": "Exact time",
     "plan": "Schedule"
+  },
+  "fwd": {
+    "how": "How to forward",
+    "remembered": "Forward — the choice is remembered",
+    "one": "As one message",
+    "each": {
+      "one": "Each as a separate SMS ({count})",
+      "other": "Each as a separate SMS ({count})"
+    },
+    "oneTitle": "Forward as one message",
+    "eachTitle": {
+      "one": "Forward as {count} separate SMS",
+      "other": "Forward as {count} separate SMS"
+    },
+    "noText": "The selected messages have no text to forward"
   }
 }

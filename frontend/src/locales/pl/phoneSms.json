@@ -48,7 +48,13 @@
     "photos": "Zdjęcia i filmy",
     "fileAsLink": "Plik — wyślę jako link",
     "sending": "Wysyłanie",
-    "planNote": "Telefon wyśle ją o tej porze sam — także bez internetu."
+    "planNote": "Telefon wyśle ją o tej porze sam — także bez internetu.",
+    "queued": {
+      "one": "{count} przekazywana wiadomość — osobno",
+      "few": "{count} przekazywane wiadomości — każda osobno",
+      "many": "{count} przekazywanych wiadomości — każda osobno",
+      "other": "{count} przekazywanej wiadomości — każda osobno"
+    }
   },
   "title": "SMS",
   "needsAccount": "Ta część potrzebuje konta — zaloguj się, gdy będzie połączenie.",
@@ -85,7 +91,8 @@
     "searching": "Szukanie…",
     "noHits": "Żadna wiadomość tego nie zawiera.",
     "hits": "Znalezione wiadomości",
-    "empty": "Nie ma jeszcze wiadomości."
+    "empty": "Nie ma jeszcze wiadomości.",
+    "draft": "Szkic:"
   },
   "check": {
     "notDefault": "Ta aplikacja nie jest aplikacją SMS telefonu — nowe wiadomości trafiają do innej.",
@@ -133,7 +140,8 @@
     "dropUnsent": "Usuń niewysłane w tej rozmowie ({count})…",
     "block": "Zablokuj (spam)…",
     "remove": "Usuń rozmowę z telefonu…",
-    "forward": "Przekaż"
+    "forward": "Przekaż",
+    "archiveStarted": "Archiwum SMS włączone — na razie z tą jedną rozmową (cała, także starsze wiadomości). Inne dodasz tak samo albo w Archiwum."
   },
   "planned": {
     "failed": "Nie wysłano",
@@ -169,6 +177,14 @@
       "few": "Wysłano do {count} osób.",
       "many": "Wysłano do {count} osób.",
       "other": "Wysłano do {count} osoby."
-    }
+    },
+    "forwardList": "Przekazywane wiadomości",
+    "forwardHead": {
+      "one": "Przekazywana wiadomość — pójdzie jako osobny SMS, po tekście z pola:",
+      "few": "{count} przekazywane wiadomości — każda pójdzie jako osobny SMS, w tej kolejności, po tekście z pola:",
+      "many": "{count} przekazywanych wiadomości — każda pójdzie jako osobny SMS, w tej kolejności, po tekście z pola:",
+      "other": "{count} przekazywanej wiadomości — każda pójdzie jako osobny SMS, w tej kolejności, po tekście z pola:"
+    },
+    "forwardDrop": "Nie przekazuj wiadomości {n}"
   }
 }

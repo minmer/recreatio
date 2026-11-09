@@ -23,6 +23,10 @@
  * aus dem Kalender gerechnet). Mit `presence` sagt der Mensch VOR jedem
  * Termin będę / jeszcze nie wiem / nie będę und wählt eine Funktion darin;
  * danach steht, ob er da war (ein Tag in `days`) oder nicht (`absence`).
+ *
+ * <b>0141 — RAZ W TYGODNIU / RAZ W MIESIĄCU</b> (`week`, `month`): jeder Tag
+ * des Zeitraums gilt, aber JEDE Woche (Mo–So) bzw. jeder Monat braucht
+ * `needed` getane Tage (sonst einen) — `periodProgress`.
  */
 
 import type { Absence, PresenceAnswer, PresenceState, TaskAnswer, TaskDate, TaskPlan, TaskState } from './steps';
@@ -139,13 +143,96 @@ export function doneDays(plan: TaskPlan, state: TaskState | undefined, today: st
   return [...days].sort();
 }
 
-/** Was der Mensch dazu gesagt hat, wie viele Tage er hat — und ob es reicht (mit Zahl: genug Tage; ohne: eine Antwort). */
-export function progressOf(plan: TaskPlan, state: TaskState | undefined): {
-  answer: TaskAnswer | null; done: number; needed: number | null; fulfilled: boolean;
+/* -- 0141: raz w tygodniu / raz w miesiącu ----------------------------------------------------------- */
+
+/** Eine Aufgabe, die JE Woche (`week`) oder JE Monat (`month`) getan sein will. */
+export const perPeriod = (plan: Pick<TaskPlan, 'schedule'>): plan is Pick<TaskPlan, 'schedule'> & { schedule: 'week' | 'month' } =>
+  plan.schedule === 'week' || plan.schedule === 'month';
+
+/** Eine Woche (ein Monat) des Zeitraums — am Rand nur mit ihren Tagen darin. */
+export interface PeriodUnit {
+  readonly first: string;
+  readonly last: string;
+  /** Wie viele Tage sie im Zeitraum hat. */
+  readonly length: number;
+}
+
+/** Die Wochen (Mo–So) oder Monate des Zeitraums, der Reihe nach. */
+export function unitsOf(plan: TaskPlan): PeriodUnit[] {
+  if (!perPeriod(plan)) return [];
+  const out: { first: string; last: string; length: number }[] = [];
+  let key = '';
+  for (let day = plan.startsOn; day <= plan.endsOn; day = plusDays(day, 1)) {
+    const here = plan.schedule === 'month' ? day.slice(0, 7) : plusDays(day, -((dateOf(day).getDay() + 6) % 7));
+    if (here !== key || out.length === 0) { key = here; out.push({ first: day, last: day, length: 0 }); }
+    const unit = out[out.length - 1];
+    unit.last = day;
+    unit.length += 1;
+  }
+  return out;
+}
+
+/** Wie oft es je Woche (Monat) braucht — fehlt die Zahl: einmal. */
+export const perUnitOf = (plan: TaskPlan): number => Math.max(1, plan.needed ?? 1);
+
+/**
+ * 0141 — WIE WEIT, JE WOCHE (MONAT): eine Woche ist geschafft mit so vielen
+ * getanen Tagen, wie verlangt — eine angebrochene am Rand mit höchstens so
+ * vielen, wie sie Tage im Zeitraum hat. Vorbei ist eine Woche, wenn ihr letzter
+ * Tag vor heute liegt; vorbei und nicht geschafft heisst VERPASST.
+ */
+export interface PeriodProgress {
+  readonly unit: 'week' | 'month';
+  /** Wie oft je Woche (Monat). */
+  readonly per: number;
+  readonly total: number;
+  /** Geschafft (auch die laufende, wenn schon genug). */
+  readonly done: number;
+  /** Schon vorbei. */
+  readonly ended: number;
+  /** Vorbei und nicht geschafft. */
+  readonly missed: number;
+  /** Die Woche (der Monat) von heute — `null`: heute liegt nicht im Zeitraum. */
+  readonly current: { readonly first: string; readonly last: string; readonly done: number; readonly need: number } | null;
+}
+
+export function periodProgress(plan: TaskPlan, state: TaskState | undefined, today: string = isoDay(new Date())): PeriodProgress | null {
+  if (!perPeriod(plan)) return null;
+  const per = perUnitOf(plan);
+  const days = doneDays(plan, state, today);
+  let done = 0;
+  let ended = 0;
+  let missed = 0;
+  let current: PeriodProgress['current'] = null;
+  const units = unitsOf(plan);
+  for (const u of units) {
+    const need = Math.min(per, u.length);
+    const count = days.filter((d) => d >= u.first && d <= u.last).length;
+    const ok = count >= need;
+    const over = u.last < today;
+    if (ok) done += 1;
+    if (over) ended += 1;
+    if (over && !ok) missed += 1;
+    if (u.first <= today && today <= u.last) current = { first: u.first, last: u.last, done: count, need };
+  }
+  return { unit: plan.schedule as 'week' | 'month', per, total: units.length, done, ended, missed, current };
+}
+
+/**
+ * Was der Mensch dazu gesagt hat, wie viele Tage er hat — und ob es reicht (mit Zahl: genug Tage; ohne: eine Antwort).
+ *
+ * 0141 — JE WOCHE (MONAT): erfüllt, solange keine vorbei ist, ohne geschafft zu sein, und schon eine geschafft
+ * ist — die laufende hält es nicht auf (es ist noch Zeit: „na bieżąco"). Nach dem Zeitraum also: jede geschafft.
+ * `needed` bleibt dann `null` (gezählt wird je Woche, in `units`).
+ */
+export function progressOf(plan: TaskPlan, state: TaskState | undefined, today: string = isoDay(new Date())): {
+  answer: TaskAnswer | null; done: number; needed: number | null; fulfilled: boolean; units: PeriodProgress | null;
 } {
-  const done = doneDays(plan, state).length;
+  const done = doneDays(plan, state, today).length;
+  const units = periodProgress(plan, state, today);
+  if (units !== null) return { answer: state?.answer ?? null, done, needed: null, fulfilled: units.missed === 0 && units.done > 0, units };
   const needed = neededOf(plan);
-  return { answer: state?.answer ?? null, done, needed, fulfilled: needed === null ? respondedTo(plan, state) : done >= needed };
+  return { answer: state?.answer ?? null, done, needed, fulfilled: needed === null ? respondedTo(plan, state, today) : done >= needed, units: null };
 }
 
 /** Der nächste Tag, der zählt — heute eingeschlossen; `null`: keiner mehr. */
@@ -206,6 +293,9 @@ export function scheduleWord(plan: TaskPlan): string {
   }
   if (plan.schedule === 'daily') return t('steps.schedule.daily');
   if (plan.schedule === 'any') return t('steps.schedule.any');
+  /* 0141 — „raz w tygodniu", „2 razy w miesiącu". */
+  if (plan.schedule === 'week') return t('steps.schedule.perWeek', { count: perUnitOf(plan) });
+  if (plan.schedule === 'month') return t('steps.schedule.perMonth', { count: perUnitOf(plan) });
   const days = WEEKDAYS.filter((w) => ((plan.weekdays ?? 0) & w.bit) !== 0).map((w) => w.many);
   return t('steps.schedule.onDays', { days: days.length === 0 ? '—' : new (Intl as unknown as { ListFormat: new (l: string, o: { type: string }) => { format(x: readonly string[]): string } }).ListFormat(localeOf(appLang()), { type: 'conjunction' }).format(days) });
 }
@@ -280,6 +370,8 @@ export const answerOpen = (date: TaskDate, now: Date = new Date()): boolean => n
 
 /** Wie viel es braucht, in Worten — „5 razy", oder nichts (einmal, oder: es zählt die Antwort). */
 export const neededText = (plan: TaskPlan): string | null => {
+  /* 0141 — je Woche / Monat steht die Zahl schon im Plan („2 razy w tygodniu"). */
+  if (perPeriod(plan)) return null;
   const n = neededOf(plan);
   return n === null || n === 1 ? null : t('steps.times', { count: n });
 };

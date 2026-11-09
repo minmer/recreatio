@@ -44,7 +44,8 @@ import { archiveNow } from './phoneJobs';
 import { SharesView } from './Shares';
 import { conversationKey, dropConversation } from './smsArchive';
 import { SmsArchiveView } from './SmsArchiveView';
-import { ArchiveMark, BlockDialog, LineChip, MuteDialog, PlannedRow, SmsHeader, SmsLog, useRoomFrame, type SmsItem } from './smsChat';
+import { ArchiveMark, BlockDialog, ForwardButton, LineChip, MuteDialog, PlannedRow, SmsHeader, SmsLog, useRoomFrame, type SmsItem } from './smsChat';
+import { draftOf } from './smsDrafts';
 import { aheadWhen, around, barStyle, conversationMatches, isMode, SEARCH, type SearchMode } from './smsShared';
 import './phone.css';
 
@@ -385,6 +386,8 @@ function Threads({ who }: { who: Who | null }) {
   const row = (th: NativeThread) => {
     const title = titleOf(th);
     const line = lineOf.get(th.threadId);
+    /* 2026-11-09 — was im Feld liegen blieb, steht statt der letzten Nachricht da. */
+    const draft = draftOf(`thread:${th.threadId}`);
     return (
       <li key={th.threadId}>
         <a className={cls('ch-item', th.unread > 0 && 'is-unread')} href={viewPath('sms', th.threadId)}>
@@ -395,7 +398,9 @@ function Threads({ who }: { who: Who | null }) {
               <time className="ch-item-time" dateTime={new Date(th.date).toISOString()}>{listTime(new Date(th.date).toISOString())}</time>
             </span>
             <span className="ch-item-bottom">
-              <span className="ch-item-sub">{th.error ? '⚠ ' : ''}{th.attachment && th.snippet === '' ? t('phoneSms.list.photo') : th.snippet}</span>
+              {draft !== null
+                ? <span className="ch-item-sub"><span className="ph-draft">{t('phoneSms.list.draft')}</span> {draft.text}</span>
+                : <span className="ch-item-sub">{th.error ? '⚠ ' : ''}{th.attachment && th.snippet === '' ? t('phoneSms.list.photo') : th.snippet}</span>}
               {line !== undefined && (
                 <span className="ph-item-line" title={t('phoneSms.list.fromNumber', { name: line.name, why: whyText(line.choice) })} data-why={line.choice.why}>
                   <Icon name={whyIcon(line.choice.why)} />{line.name}
@@ -632,6 +637,20 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
     if (on) void archiveNow(who, pluginSource).catch(() => undefined);
   };
 
+  /*
+    „Dodaj do archiwum" im Kopf (2026-11-09): diese Rozmowa kommt hinein, ein Tipp. Gibt es noch
+    kein Archiv, beginnt es mit ihr allein (nur wybrane rozmowy, bei der eigenen Person) — wer alle
+    will, stellt es unter Archiwum um.
+  */
+  const addToArchive = () => {
+    if (who === null) return;
+    const fresh = settings.areaId === null;
+    if (settings.areaId !== null && settings.mode === 'all') return;
+    saveSettings({ ...settings, mode: 'chosen', chosen: [...new Set([...settings.chosen, key])] });
+    toast(fresh ? t('phoneSms.thread.archiveStarted') : t('phoneSms.thread.archiveOn'));
+    void archiveNow(who, pluginSource).catch((e: unknown) => toast(e instanceof Error && e.message !== '' ? e.message : t('phoneArchive.setup.failed')));
+  };
+
   const block = async (alsoArchive: boolean) => {
     try {
       const done = await Phone.block({ numbers: peers, threadId });
@@ -696,7 +715,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
   const subtitle = (
     <>
       <LineChip lines={lines} choice={choice} onChoose={(l) => setThreadRule(peers, l === null ? null : lineKeyOf(l))} />
-      <ArchiveMark on={archived} />
+      <ArchiveMark on={archived} onAdd={who === null || peers.length === 0 ? undefined : addToArchive} />
       {numbers !== null && <span className="ph-head-numbers">{numbers}</span>}
     </>
   );
@@ -708,12 +727,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
 
       <SmsLog items={messages === null ? null : items} failed={failed} title={title} group={group} search={search} follow={follow}
         more={page?.more === true} onEarlier={() => void loadOlder()} place={`thread:${threadId}`} lasting firstNew={firstNew}
-        pickActions={(chosen, done) => chosen.length === 1 && chosen[0].body !== '' ? (
-          <button type="button" className="wk-link-btn" onClick={() => {
-            done();
-            window.location.hash = `${viewPath('sms', 'nowa')}?tekst=${encodeURIComponent(chosen[0].body)}`;
-          }}>{t('phoneSms.thread.forward')}</button>
-        ) : null}
+        pickActions={(chosen, done) => <ForwardButton chosen={chosen} done={done} />}
         tail={planned.length === 0 ? undefined : planned.map((p) => {
           const notSent = p.state === 'failed';
           const meta = notSent ? (p.error !== undefined ? t('phoneSms.planned.failedWhy', { error: p.error }) : t('phoneSms.planned.failed')) : p.state === 'sending' ? t('phoneSms.planned.sending') : t('phoneSms.planned.at', { when: aheadWhen(p.sendAt) });
@@ -726,7 +740,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
         })} />
 
       {peers.length > 0 && (
-        <Composer to={peers} sub={sub} sims={status?.sims ?? []} who={who ?? undefined} initial={initial}
+        <Composer to={peers} sub={sub} sims={status?.sims ?? []} who={who ?? undefined} initial={initial} draft={`thread:${threadId}`}
           disabled={status !== null && !status.defaultSms}
           onSent={() => { setFollow((n) => n + 1); void load(); }}
           onWrite={() => setFollow((n) => n + 1)}
@@ -830,14 +844,23 @@ function hashQuery(): URLSearchParams {
 function Compose({ who }: { who: Who | null }) {
   const t = useT();
   const query = useMemo(hashQuery, []);
-  const [to, setTo] = useState<readonly string[]>(() => (query.get('do') ?? '').split(',').map((n) => n.trim()).filter(Boolean));
+  /*
+    Mit Empfänger oder Text in der Adresse (Kontakty, Przekaż, eine andere App) steht alles in ihr —
+    ohne das bleibt die Nachricht als Entwurf `new` (mit den Empfängern), solange die App offen ist.
+  */
+  const linked = query.has('do') || query.has('tekst') || query.has('sms');
+  const [to, setTo] = useState<readonly string[]>(() => (linked
+    ? (query.get('do') ?? '').split(',').map((n) => n.trim()).filter(Boolean)
+    : draftOf('new')?.to ?? []));
+  /* Przekaż — każda osobno: diese gehen einzeln hinaus, nach dem Text des Feldes. */
+  const [many, setMany] = useState<readonly string[]>(() => query.getAll('sms').filter((s) => s.trim() !== ''));
   /*
     EINE NUMMER (aus Kontakty, aus einer anderen App — „Wyślij wiadomość"): gleich das Gespräch,
     nicht erst das Feld mit den Empfängern (2026-10-26). Gab es noch keins, ist es leer.
   */
-  const [opening, setOpening] = useState(to.length === 1);
+  const [opening, setOpening] = useState(query.has('do') && to.length === 1);
   useEffect(() => {
-    if (to.length !== 1) return undefined;
+    if (!query.has('do') || to.length !== 1) return undefined;
     let alive = true;
     void Phone.threadOf({ addresses: [to[0]] })
       .then(({ threadId }) => {
@@ -932,8 +955,23 @@ function Compose({ who }: { who: Who | null }) {
           <label className="wk-check"><input type="radio" checked={!separate} onChange={() => setSeparate(false)} /><span>{t('phoneSms.compose2.asGroup')}</span></label>
         </div>
       )}
+      {many.length > 0 && (
+        <section className="ph-fwd" aria-label={t('phoneSms.compose2.forwardList')}>
+          <p className="ph-fwd-head">{t('phoneSms.compose2.forwardHead', { count: many.length })}</p>
+          <ol className="ph-fwd-list">
+            {many.map((text, i) => (
+              <li key={i}>
+                <span className="ph-fwd-text">{text}</span>
+                <button type="button" className="ch-icon-btn is-small" aria-label={t('phoneSms.compose2.forwardDrop', { n: i + 1 })} title={t('common.remove')}
+                  onClick={() => setMany(many.filter((_, j) => j !== i))}><Icon name="x" /></button>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
       <div className="ph-compose-box">
         <Composer to={to} sub={choice.line?.subId ?? status?.defaultSubId ?? null} sims={status?.sims ?? []} separate={separate} who={who ?? undefined}
+          draft={linked ? undefined : 'new'} draftTo={to} queue={many} onQueueSent={() => setMany((had) => had.slice(1))}
           disabled={status !== null && !status.defaultSms} initial={query.get('tekst') ?? ''}
           onSent={(threadId) => {
             if (to.length > 1 && separate) {

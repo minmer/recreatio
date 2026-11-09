@@ -51,7 +51,15 @@
     "noDatesChanged": "keine Termine in diesem Zeitraum (Termin geändert oder aus dem Kalender entfernt)",
     "daily": "täglich",
     "any": "an einem beliebigen Tag",
-    "onDays": "{days}"
+    "onDays": "{days}",
+    "perWeek": {
+      "one": "einmal pro Woche",
+      "other": "{count}-mal pro Woche"
+    },
+    "perMonth": {
+      "one": "einmal pro Monat",
+      "other": "{count}-mal pro Monat"
+    }
   },
   "presence": {
     "yes": "ich komme",
@@ -201,7 +209,23 @@
     "answerOf": "{day}: Antwort",
     "duty": "Funktion",
     "dutyLabel": "Funktion:",
-    "attendanceOf": "{day}: Anwesenheit"
+    "attendanceOf": "{day}: Anwesenheit",
+    "missedWeeks": {
+      "one": "verpasste Woche",
+      "other": "verpasste Wochen: {count}"
+    },
+    "missedMonths": {
+      "one": "verpasster Monat",
+      "other": "verpasste Monate: {count}"
+    },
+    "weekNot": "diese Woche noch nicht",
+    "monthNot": "diesen Monat noch nicht",
+    "weekDone": "Diese Woche: erledigt.",
+    "monthDone": "Diesen Monat: erledigt.",
+    "weekNow": "Diese Woche: {done} von {need}.",
+    "monthNow": "Diesen Monat: {done} von {need}.",
+    "weeksOf": "Geschaffte Wochen: {done} von {total}.",
+    "monthsOf": "Geschaffte Monate: {done} von {total}."
   },
   "problem": {
     "period": "gib den Zeitraum an",
@@ -210,7 +234,9 @@
     "showFrom": "„sichtbar ab“ nach dem Beginn",
     "reportUntil": "„eintragen bis“ vor dem Ende",
     "item": "wähle einen Termin aus dem Kalender",
-    "capacity": "Personen pro Funktion: eine Zahl von 1 bis 500 oder leer"
+    "capacity": "Personen pro Funktion: eine Zahl von 1 bis 500 oder leer",
+    "perWeek": "pro Woche höchstens 7-mal",
+    "perMonth": "pro Monat höchstens 31-mal"
   },
   "editor": {
     "taskWrong": "Aufgabe „{name}“: {problem}.",
@@ -292,6 +318,10 @@
     "previewItem": "Die Person sieht die Termine aus dem Zeitraum {period}{ask}{duty}.",
     "previewAsk": " und antwortet vor jedem: ich komme / weiß ich noch nicht / ich komme nicht",
     "previewDuty": ", wählt dann eine Funktion",
-    "preview": "Die Person sieht: {plan}"
+    "preview": "Die Person sieht: {plan}",
+    "perWeek": "einmal pro Woche (an einem beliebigen Tag jeder Woche)",
+    "perMonth": "einmal pro Monat (an einem beliebigen Tag jedes Monats)",
+    "timesPerWeek": "wie oft pro Woche",
+    "timesPerMonth": "wie oft pro Monat"
   }
 }

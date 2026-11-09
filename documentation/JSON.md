@@ -61,7 +61,9 @@ What each import may do, in short (the descriptions say it in full):
 
 - **liturgy** — the nine kinds of a liturgical collection by `id`: a known one changes in place (only the fields named, `null`
   clears), a new one is created, `{"id", "remove": true}` deletes (a changed built-in returns to its default); the whole
-  graph is checked first and anything pointing to nothing stops the import; saved in one go with a receipt.
+  graph is checked first and anything pointing to nothing stops the import; saved in one go with a receipt. Version 2: a
+  text is one wording with its structure beside it (`layout` as pieces of the text, `layouts`, `performance`, `notes`,
+  `variants`); identical wordings merge into one with aliases; earlier versions are read and migrated (LITURGY.md).
 - **calendar** — appointments, series (a weekly timetable), program points, the scheme and its values, days of a series
   (cancel, restore, move, day values); deletes only with `"remove": true`; never intentions, entries, reservations.
 - **masses** — masses and services (single or series, celebrants, „ta i następne” with `changeFrom`) and their

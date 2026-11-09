@@ -20,7 +20,8 @@ try {
   let checks = 0;
   const check = (condition, why) => { assert.ok(condition, why); checks++; };
   const equal = (actual, expected, why) => { assert.deepEqual(actual, expected, why); checks++; };
-  const entity = (type, id, more = {}) => m.EntitySchema.parse({ schema_version: '1.0', entity_type: type, id, title: id, ...more });
+  /* 2026-11-09 — Fixtures dürfen 1.0-Blöcke tragen: sie gehen über denselben Leseweg wie gespeicherte Daten (placeText) in 2.0. */
+  const entity = (type, id, more = {}) => m.EntitySchema.parse({ ...m.placeText({ schema_version: '2.0', entity_type: type, id, title: id, ...more }).raw, schema_version: '2.0' });
   const work = entity('canonical_work', 'psalm.test', { work_type: 'psalm', numbering_systems: { hebrew: 51, vulgate: 50 } });
   const ed = entity('text_edition', 'edition.test', { language: 'pl-PL', license: 'Synthetic test fixture', permitted_usage: ['private','print'], source_reference: 'Test fixture, not an approved translation' });
   const ps = entity('text_resource', 'psalm.test.pl', { work_id: work.id, edition_id: ed.id, resource_type: 'psalm', language: 'pl-PL', complete: true, expected_verses: 4, structured_content: [1,2,3,4].map(verse => ({ type: 'verse', verse, text: `Synthetic verse ${verse}` })) });
@@ -36,7 +37,8 @@ try {
   const raw = { ...ps, title: ps.title + '  ', source_reference: '', metadata: { original: 'preserved' } };
   const normalized = m.entitiesOf([{ id: 'test', kind: 'lit_text', data: m.cleanData({ ...raw, title: raw.title.trimEnd() }) }]);
   equal(plan(packet([raw]), [work, ed, ...normalized]).unchanged, 1, 'a re-import stays idempotent after real Library empty-value normalization');
-  const corpus = [work, ed, ps, passage, prayer, ant, assignment];
+  /* Wie ein Import sie speichert (missing, die Fassung der Fragmente) — sonst wäre jeder Rücklauf eine Änderung. */
+  const corpus = (() => { const raw = [work, ed, ps, passage, prayer, ant, assignment]; const settled = plan(packet(raw), []); assert.deepEqual(settled.problems, []); return raw.map(e => settled.create.find(x => x.id === e.id)); })();
   const fullExample = JSON.parse(await readFile(new URL('../../templates/liturgy/complete-example.json', import.meta.url), 'utf8'));
   const fullPlan = plan(fullExample, m.effectiveEntities([]));
   equal(fullPlan.problems, [], 'the complete collection example validates against actual defaults');
@@ -48,15 +50,16 @@ try {
   const imported = plan(packet([...corpus].reverse()), []);
   equal(imported.problems, [], 'batch references resolve independently of input order');
   equal(imported.create.length, 7, 'one record per canonical entity');
-  equal(m.resolveText(passage.id, m.indexOf(corpus)).blocks.map(b => b.verse), [1,2,4], 'non-contiguous divisions reuse the source verses');
-  equal(m.resolveText(ps.id, m.indexOf(corpus)).blocks.length, 4, 'the complete psalm remains available');
+  equal([...new Set(m.resolveText(passage.id, m.indexOf(corpus)).units.map(u => u.verse))], [1,2,4], 'non-contiguous divisions reuse the source verses');
+  equal(m.resolveText(ps.id, m.indexOf(corpus)).units.length, 4, 'the complete psalm remains available');
   check(!JSON.stringify(passage).includes('Synthetic verse'), 'passages store no copied verses');
   equal(m.usageOf(ant.id, [...corpus, { ...assignment, id:'assignment.two' }]).length, 2, 'shared antiphon has both uses');
   check(m.allUsageOf(ps.id, corpus).some(e => e.id === assignment.id), 'canonical text usage includes assignments reached through divisions');
   equal(m.usageOf(ps.id, corpus).map(e => e.id), [passage.id], 'implicit work/edition passage usage links to its text');
   const secondEdition = { ...ed, id: 'edition.en', language: 'en-GB' };
   equal(plan(packet([secondEdition, { ...ps, id:'psalm.test.en', language:'en-GB', edition_id:secondEdition.id }]), corpus).problems, [], 'another translation does not overwrite the first');
-  check(plan(packet([{...ps, id:'duplicate'}]), corpus).problems.some(p => p.code === 'duplicate_psalm'), 'same work and edition cannot acquire another canonical psalm copy');
+  check(plan(packet([{...ps, id:'duplicate', text: ps.text.split('Synthetic').join('Other')}]), corpus).problems.some(p => p.code === 'duplicate_psalm'), 'same work and edition cannot acquire another full psalm text');
+  equal(plan(packet([{...ps, id:'same.wording'}]), corpus).update.map(u => u.after.aliases), [['same.wording']], 'an identical wording merges into the psalm instead (the id stays as alias)');
   equal(plan(packet(corpus), corpus).unchanged, 7, 'idempotent re-import');
   check(plan(packet([ps, ps]), []).problems.some(p => p.code === 'duplicate_id'), 'duplicate IDs in one import fail');
   for (const ranges of [[{start_verse:3,end_verse:2}],[{start_verse:4,end_verse:5}],[{start_verse:1,end_verse:3},{start_verse:2,end_verse:4}]])
@@ -66,7 +69,7 @@ try {
   check(plan(packet([{...passage,id:'bad',omitted_verses:[2]}]),corpus).problems.some(p=>p.code==='omission_authority'),'omissions need authority');
   check(plan(packet([{...ps,complete:true,expected_verses:5}]),[]).problems.some(p=>p.code==='incomplete_psalm'),'complete psalms must match their declared verse count');
   const patched = plan(change([{ id: prayer.id, title: 'Corrected', metadata: { note: 'New' } }]), corpus);
-  equal([patched.update[0].after.revision, patched.update[0].after.structured_content, patched.update[0].after.metadata], [2, prayer.structured_content, { note: 'New' }], 'a change in place increments the revision and preserves omitted text');
+  equal([patched.update[0].after.revision, patched.update[0].after.text, patched.update[0].after.metadata], [2, prayer.text, { note: 'New' }], 'a change in place increments the revision and preserves omitted text');
   equal(plan(change([{ id: prayer.id, title: prayer.title }]), corpus).unchanged, 1, 'an unchanged entity has no write');
   const lastRevision = { ...prayer, revision: 1000000 };
   check(plan(change([{ id: prayer.id, title: 'Revised' }]), corpus.map(e => e.id === prayer.id ? lastRevision : e)).problems.some(p => p.code === 'schema'), 'automatic revision increments respect the canonical schema limit');
@@ -88,7 +91,7 @@ try {
   const approvedCorpus = corpus.map(e => e.id === ps.id ? approvedPs : e);
   const revised = plan(change([{ id: ps.id, title: 'Revision 2' }]), approvedCorpus);
   check(revised.problems.length === 0 && revised.warnings.some(w => w.includes(ps.id)), 'an approved text may be changed; the preview warns');
-  check(plan(change([{ id: ps.id, structured_content: approvedPs.structured_content.slice(0, 2), expected_verses: 2 }]), approvedCorpus).problems.some(p => p.code === 'verse_range'), 'changes validate existing passages as well as new records');
+  check(plan(change([{ id: ps.id, text: 'Synthetic verse 1 Synthetic verse 2', layout: [{ text: 'Synthetic verse 1', verse: 1, end: 'verse' }, { text: 'Synthetic verse 2', verse: 2, end: 'verse' }], expected_verses: 2 }]), approvedCorpus).problems.some(p => p.code === 'verse_range'), 'changes validate existing passages as well as new records');
   const shorthand = plan({ entity_type: 'psalm_text', id: 'short', work_id: work.id, edition_id: ed.id, language: 'pl-PL', verses: [{ number: 1, text: 'Synthetic verse' }], numbering: { hebrew: 51, vulgate: 50 } }, [work, ed]);
   equal(shorthand.create[0].entity_type, 'text_resource', 'psalm JSON shorthand normalizes to the canonical text resource');
   equal(await m.checksum({b:2,a:1}), await m.checksum({a:1,b:2}), 'checksum ignores property order');
@@ -139,7 +142,7 @@ try {
   const p2=assign('proper.prayer','prayer',ant.id,{source_layer:'saints',target_context:{hours:['lauds'],observances:[proper.id]}});
   const composed=m.composeOffice('2026-07-14','lauds',ctx,[...data,...approved.filter(e=>e.entity_type!=='liturgical_assignment'),template,a1,a2,proper,p2]);
   equal(composed.slots.map(s=>s.assignmentId),[a1.id,p2.id],'proper prayer overrides only its slot, not psalmody');
-  equal(composed.slots[0].blocks.map(b=>b.verse),[1,2,4],'composition resolves the division without modifying canonical text');
+  equal([...new Set(composed.slots[0].units.map(u=>u.verse))],[1,2,4],'composition resolves the division without modifying canonical text');
   equal(composed.slots[1].sourceLayer,'saints','selection exposes the actual source layer');
   check(!composed.complete,'unreviewed calendar coverage cannot claim a complete approved office');
   const reviewedProfile=entity('calendar_profile','test.profile',{scopes:['roman','PL'],country:'PL',time_zone:'Europe/Warsaw',language:'pl-PL',coverage:'reviewed',status:'approved',reviewed_from:'2026-01-01',reviewed_until:'2026-12-31',authority_reference:'Synthetic fixture review'});
@@ -161,17 +164,17 @@ try {
   check(m.composeMass('2026-04-03',ctx,data).diagnostics.includes('special_rite_required'),'ordinary Mass template does not stand in for Good Friday rites');
   const specialMass=entity('liturgical_template','test.triduum',{hour_or_rite:'mass',priority:100,applicability:{seasons:['triduum']},authority_reference:'Synthetic special rite',slots:[{name:'prayer',label:'Test',resource_ref:{id:prayer.id}}]});
   check(!m.composeMass('2026-04-03',ctx,[...data,...approved,specialMass]).diagnostics.includes('special_rite_required'),'an imported specific Triduum template remains usable');
-  const html=m.offlineDocument('<script>alert(1)</script>',[{...prayer,structured_content:[{type:'paragraph',text:'<script>bad()</script>'}]}]);
+  const html=m.offlineDocument('<script>alert(1)</script>',[{...prayer,text:'<script>bad()</script>',layout:undefined}]);
   check(!html.includes('<script>alert')&&!html.includes('<script>bad'),'offline export escapes content and titles');
   check(m.printDocument([composed],'A5').includes('size:A5'),'print output supports A5');
 
   const entries=corpus.map((e,i)=>({id:`entry-${i}`,kind:m.KIND[e.entity_type],data:{...e,_refs:[]}}));
   const projected=m.projectLiturgyEntries(entries);
-  equal(projected.find(e=>e.data.id===passage.id).data.text,'1. Synthetic verse 1\n2. Synthetic verse 2\n4. Synthetic verse 4','Cogita gets passage text as a computed projection');
+  equal(projected.find(e=>e.data.id===passage.id).data.text,'Synthetic verse 1 Synthetic verse 2 Synthetic verse 4','Cogita gets the passage wording as a computed projection, without numbers inside it');
   check(entries.find(e=>e.data.id===passage.id).data.text===undefined,'Cogita projection never mutates canonical storage');
   equal(m.readSources([{id:'lit-library',kind:'liturgy',name:'Liturgy'}])[0].kind,'liturgy','Cogita preserves the collection kind');
   equal(m.libraryKindOf({kind:'liturgy'}),'liturgy','the library recognises the parallel structure');
-  equal(projected.find(e=>e.data.id===passage.id).data.text.split('\n').length,3,'derived passage text stays separate');
+  equal(projected.find(e=>e.data.id===passage.id).data.text.includes('Synthetic verse 3'),false,'the passage reads only its verses');
   const source={all:()=>entries,libraryId:'lit-library',areaId:'area',revision:1};
   const own={all:()=>[],libraryId:'knowledge',areaId:'area',revision:1};
   const cogita=new m.CogitaLibrary(own,true);cogita.setSources([{store:source,kind:'liturgy',name:'Liturgy'}]);
@@ -183,8 +186,8 @@ try {
   equal(snapshot.part,'liturgy','an authorized AI snapshot retains the parallel collection type');
   check(snapshot.entries.find(e=>e.id===entries[3].id).data.text.includes('Synthetic verse 4'),'authorized snapshots resolve passage text without a stored duplicate');
   const exact=snapshot.entries.find(e=>e.id===entries[3].id).canonical;
-  equal(exact,passage,'MCP snapshot preserves the exact canonical passage without derived text');
-  equal(plan(m.exportLiturgy('Snapshot', snapshot.entries.map(e => e.canonical)), []).problems, [], 'a whole MCP canonical export reimports without guessed fields');
+  equal(exact,m.docEntity(passage),'MCP snapshot carries the passage exactly as the app exports it, without derived text');
+  equal(plan({ format: 'recreatio/liturgy', version: 2, entities: snapshot.entries.map(e => e.canonical) }, []).problems, [], 'a whole MCP canonical export reimports without guessed fields');
   const contract = JSON.parse(await readFile(new URL('../../backend/Api/Library/ImportFormats.json', import.meta.url), 'utf8'));
   const spec = contract.formats.find(f => f.id === 'liturgy');
   check(spec && spec.parts.join('\n').includes('"remove": true') && spec.parts.join('\n').includes('"entity_type" — '), 'the server catalog carries the described format');

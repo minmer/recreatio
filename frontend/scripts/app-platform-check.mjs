@@ -117,7 +117,7 @@ export {
 export { hostPair, askNameFor, openAskNames } from '${app}core/holderNames';
 export { taskDays, taskDay, phaseOf, progressOf as taskProgress, planText, weekdayBit, nextDay, reportsUntil, chipText as taskChip } from '${app}steps/candidateTasks';
 export { byReadingOrder } from '${app}pages/layout';
-export { respondedTo, doneDays } from '${app}steps/candidateTasks';
+export { respondedTo, doneDays, unitsOf } from '${app}steps/candidateTasks';
 export { pack } from '${app}core/masonry';
 export { chatMatches, chatTargetText, unreadIn } from '${app}steps/steps';
 export { newMessages } from '${app}seats/seatUnread';
@@ -1824,7 +1824,7 @@ try {
     assert.equal(m.phaseOf(film, '2026-11-12'), 'reporting', 'until its own „zaznaczać do"');
 
     const days = (...d) => ({ stepId: 's', answer: 'accepted', days: d });
-    assert.deepEqual(m.taskProgress(rosary, days('2026-10-01', '2026-10-02', '2026-10-03')), { answer: 'accepted', done: 3, needed: 5, fulfilled: false });
+    assert.deepEqual(m.taskProgress(rosary, days('2026-10-01', '2026-10-02', '2026-10-03')), { answer: 'accepted', done: 3, needed: 5, fulfilled: false, units: null });
     assert.equal(m.taskProgress(rosary, days('2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05')).fulfilled, true, 'five days: done');
     assert.equal(m.taskProgress(fridays, days('2026-10-03')).done, 0, 'a Saturday does not count for a Friday task');
     assert.equal(m.taskProgress(film, undefined).answer, null);
@@ -1851,7 +1851,43 @@ try {
     assert.equal(states('2026-11-02', [])[0].status, 'overdue', 'over, without days');
     assert.equal(states('2026-11-02', [{ stepId: 'rosary', answer: 'refused', days: [] }])[0].status, 'todo', 'refused is a decision, not overdue');
     assert.equal(states('2026-10-12', [])[0].task.phase, 'active');
-    ok('tasks for people (0098): which days count, phases from „widoczne od" to „zaznaczać do", done with enough days, the plan in words, in the progress');
+
+    /* 0141 — raz w tygodniu / raz w miesiącu: jeder Tag gilt, jede Woche (Mo–So) bzw. jeder Monat braucht genug Tage. */
+    const weekly = plan({ schedule: 'week', atMinute: null, minutes: null });
+    assert.deepEqual(m.unitsOf(weekly).map((u) => [u.first, u.last, u.length]), [
+      ['2026-10-01', '2026-10-04', 4], ['2026-10-05', '2026-10-11', 7], ['2026-10-12', '2026-10-18', 7],
+      ['2026-10-19', '2026-10-25', 7], ['2026-10-26', '2026-10-31', 6]
+    ], 'the weeks of October, cut at its edges');
+    const monthly = plan({ schedule: 'month', endsOn: '2026-12-15', needed: 2, atMinute: null, minutes: null });
+    assert.deepEqual(m.unitsOf(monthly).map((u) => u.first), ['2026-10-01', '2026-11-01', '2026-12-01'], 'three months, December cut');
+    assert.equal(m.taskDays(weekly).length, 31, 'once a week: every day counts');
+    assert.equal(m.planText(weekly), '1–31 października · raz w tygodniu');
+    assert.equal(m.planText(monthly), '1 października – 15 grudnia · 2 razy w miesiącu');
+    const w = (today, ...d) => m.taskProgress(weekly, days(...d), today);
+    assert.equal(w('2026-10-03').fulfilled, false, 'the first week runs, nothing yet: not yet fulfilled, not missed');
+    assert.equal(w('2026-10-03').units.missed, 0);
+    assert.equal(w('2026-10-03', '2026-10-02').fulfilled, true, 'done in the first week: up to date');
+    assert.equal(w('2026-10-08', '2026-10-02').fulfilled, true, 'the second week runs, not done yet: still up to date');
+    assert.deepEqual(w('2026-10-08', '2026-10-02').units.current, { first: '2026-10-05', last: '2026-10-11', done: 0, need: 1 });
+    assert.equal(w('2026-10-13', '2026-10-02').fulfilled, false, 'the second week ended without a day: missed');
+    assert.equal(w('2026-10-13', '2026-10-02').units.missed, 1);
+    const all = ['2026-10-02', '2026-10-07', '2026-10-14', '2026-10-20', '2026-10-30'];
+    assert.equal(w('2026-11-03', ...all).fulfilled, true, 'every week once: done');
+    assert.deepEqual([w('2026-11-03', ...all).units.done, w('2026-11-03', ...all).units.total, w('2026-11-03', ...all).needed], [5, 5, null]);
+    const p = (today, ...d) => m.taskProgress(monthly, days(...d), today);
+    assert.equal(p('2026-11-05', '2026-10-01').fulfilled, false, 'twice a month: once in October is not enough');
+    assert.equal(p('2026-11-05', '2026-10-01', '2026-10-20').fulfilled, true, 'twice in October, November still runs');
+    const cut = plan({ schedule: 'week', startsOn: '2026-10-04', endsOn: '2026-10-11', needed: 3 });
+    assert.equal(m.taskProgress(cut, days('2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07'), '2026-10-20').fulfilled, true,
+      'a week of one day at the edge needs only that one day');
+    const weekStates = (now, said) => m.stepsFor({
+      hasSeat: false, confirmedAt: null, extensions: [], filled: new Map(), marks: [], forPerson: true, now: at(now),
+      steps: [step('weekly', weekly)], tasks: said
+    });
+    assert.equal(weekStates('2026-10-13', [{ stepId: 'weekly', answer: null, days: ['2026-10-02'] }])[0].status, 'overdue', 'a missed week is overdue within the period');
+    assert.equal(weekStates('2026-10-08', [{ stepId: 'weekly', answer: null, days: ['2026-10-02'] }])[0].status, 'done', 'on track counts as done');
+    assert.equal(weekStates('2026-10-03', [])[0].status, 'todo', 'the first week still runs');
+    ok('tasks for people (0098): which days count, phases from „widoczne od" to „zaznaczać do", done with enough days, the plan in words, in the progress; 0141 once a week / a month');
   }
 
   /* -- 24. Seite und Formular (0099) --------------------------------------------------------------- */

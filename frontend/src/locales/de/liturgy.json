@@ -149,7 +149,7 @@
     "incomplete_psalm": "Dem als vollständig markierten Psalm fehlen Verse",
     "approval_source": "Die Freigabe benötigt vollständigen Inhalt und einen Quellenbeleg",
     "passage_source": "Der Abschnitt muss genau einen Text desselben Werks und derselben Ausgabe bestimmen",
-    "verse_range": "Der Versbereich ist ungültig, überlappt oder fehlt",
+    "verse_range": "Verse {from}–{to}: der Text hat die Verse 1–{max} (oder die Bereiche überschneiden sich)",
     "omission_authority": "Ausgelassene Verse benötigen einen Normbeleg",
     "duplicate_slot": "Die Platznamen einer Vorlage müssen eindeutig sein",
     "transfer_rank": "Nur Hochfeste dürfen eine Verlegungsregel nutzen",
@@ -162,7 +162,22 @@
     "missing_entry": "Dieser Eintrag ist nicht in dieser Sammlung.",
     "default_readonly": "Eingebaut — lässt sich nicht löschen; ändern lässt er sich, indem man seine id mit den zu ändernden Feldern nennt",
     "batch_limit": "Zu viele Änderungen für eine Transaktion (höchstens 4999). In Pakete mit gültigen Abhängigkeiten aufteilen.",
-    "other_type": "Diese id gehört zu einer anderen Art von Eintrag"
+    "other_type": "Diese id gehört zu einer anderen Art von Eintrag",
+    "layout_mismatch": "Teilung „{layout}\", Einheit {unit}: „{expected}\" passt nicht zum Text an Stelle {at} (dort steht: „{found}\")",
+    "layout_unit": "Teilung „{layout}\", Einheit {unit}: „text\" (das Stück des Wortlauts) oder „at\" und „to\" angeben",
+    "layout_stale": "Teilung „{layout}\" wurde für eine andere Fassung des Texts gemacht — mit dem neuen Wortlaut erneut senden",
+    "layout_bounds": "Eine Einheit liegt ausserhalb des Texts",
+    "layout_overlap": "Einheiten überschneiden sich",
+    "layout_gap": "Ein Teil des Texts gehört zu keiner Einheit",
+    "layout_ids": "Kennungen von Einheiten wiederholen sich",
+    "performance_step": "Nicht unterstützte Vortragsstruktur: Schritt {step} braucht genau eines von „say\", „resource\" oder „rubric\"",
+    "performance_unit": "Vortragsschritt {step}: Einheit „{unit}\" gibt es nicht",
+    "performance_unsupported": "Nicht unterstützte Vortragsstruktur: {type} wird Vers für Vers gesprochen — Wiederholungen gehören zum Przypisanie (antiphon_repeat)",
+    "note_anchor": "Ein Hinweis zeigt auf Einheit „{unit}\", die es nicht gibt",
+    "incipit_unit": "Das Incipit zeigt auf Einheit „{unit}\", die es nicht gibt",
+    "variant_unit": "Variante „{variant}\" ersetzt Einheit „{unit}\", die es nicht gibt",
+    "division_stale": "Teilung „{division}\" wurde für eine andere Fassung von „{text}\" gemacht — ihre Abschnitte erneut senden",
+    "layout_unknown": "„{text}\" hat keine bezeugte Teilung „{layout}\""
   },
   "diagnostic": {
     "calendar_partial": "Kalenderabdeckung nicht vollständig geprüft",
@@ -251,12 +266,12 @@
     "moreProblems": "…und {count} weitere",
     "changedMeanwhile": "Die Sammlung hat sich inzwischen geändert — importiere das Dokument noch einmal.",
     "title": "Liturgie — die ganze Sammlung ({format}, Version {version})",
-    "intro": "Eine liturgische Sammlung der Bibliothek: Werke, Ausgaben, Texte, Abschnitte, Vorlagen der Horen und der Messe, Feiern, Zuordnungen, Regeln und Kalenderprofile — neun Arten von Einträgen, die über \"id\" aufeinander verweisen. Ein Text wird einmal gespeichert, in seiner Ausgabe; alles andere verweist nur auf ihn.",
+    "intro": "Eine liturgische Sammlung der Bibliothek: Werke, Ausgaben, Texte, Abschnitte, Vorlagen der Horen und der Messe, Feiern, Zuordnungen, Regeln und Kalenderprofile — neun Arten von Einträgen, die über \"id\" aufeinander verweisen. Jeder Text hat EINEN ganzen Wortlaut in seiner Ausgabe und Sprache (\"text\"); alles, was zum Vortrag gehört — Versnummern, Pausen (* und †), Zeilen und Strophen, V./A., Überschriften, Rubriken, Wiederholungen — ist Struktur daneben, nie darin. Derselbe Wortlaut gibt zwei Ansichten: fortlaufend (wie gelesen, mit Satzzeichen und Absätzen) und liturgisch (mit dieser Struktur).",
     "doc": "Das Dokument:",
     "entity": "Jeder Eintrag:",
-    "rules": "- Eine \"id\", die es schon gibt (in dieser Sammlung oder eingebaut), ändert diesen Eintrag an Ort und Stelle: nur die genannten Felder ändern sich, ein Feld mit null wird geleert, der Rest bleibt. Ein geänderter eingebauter Eintrag wird zum eigenen der Sammlung.\n- Eine unbekannte \"id\" legt einen Eintrag an: dann braucht es \"entity_type\" und alle als Pflicht markierten Felder.\n- {\"id\": \"…\", \"remove\": true} löscht den Eintrag; ein hier geänderter eingebauter kehrt zur Vorgabe zurück. Sonst wird nichts gelöscht — was das Dokument auslässt, bleibt.\n- Verweise sind ids dieser Sammlung oder eingebaute; die Reihenfolge im Dokument spielt keine Rolle.\n- Vor dem Speichern wird alles zusammen geprüft: ein Verweis ins Leere, ein Text in einer anderen Sprache als seine Ausgabe, ein falscher Versbereich … halten den Import an, und die Vorschau nennt jedes. Dann wird alles auf einmal gespeichert — alles oder nichts — und im Importverlauf vermerkt.\n- Einen \"approved\"-Eintrag zu ändern ist erlaubt; die Vorschau warnt davor.",
+    "rules": "- Eine \"id\", die es schon gibt (in dieser Sammlung oder eingebaut), ändert diesen Eintrag an Ort und Stelle: nur die genannten Felder ändern sich, ein Feld mit null wird geleert, der Rest bleibt. Ein geänderter eingebauter Eintrag wird zum eigenen der Sammlung.\n- Eine unbekannte \"id\" legt einen Eintrag an: dann braucht es \"entity_type\" und alle als Pflicht markierten Felder.\n- {\"id\": \"…\", \"remove\": true} löscht den Eintrag; ein hier geänderter eingebauter kehrt zur Vorgabe zurück. Sonst wird nichts gelöscht — was das Dokument auslässt, bleibt.\n- Verweise sind ids dieser Sammlung oder eingebaute; die Reihenfolge im Dokument spielt keine Rolle. Eine id, die in einem anderen Text aufging, gilt weiter.\n- Eine Teilung steht als Stücke des Wortlauts da (\"layout\": [{\"text\": \"…\"}, …]): die Stücke folgen dem Wortlaut der Reihe nach, dazwischen nur Leerraum. Ein Stück, das nicht passt, hält den Import an, und die Vorschau sagt, wo. Eine Teilung gehört immer zu einer Fassung ihres Wortlauts: wer \"text\" ändert, sendet die Teilung neu.\n- Gleicher Wortlaut derselben Ausgabe und Art wird ein Text; die anderen ids bleiben als \"aliases\", ihre Quellen und Teilungen bleiben erhalten. Texte, die nur gleich beginnen oder deren einer der Anfang des anderen ist, nennt die Vorschau als Kandidaten zum Vergleich — nie zusammengeführt; der kürzere bekommt \"possibly_truncated\".\n- Vor dem Speichern wird alles zusammen geprüft: ein Verweis ins Leere, ein Text in einer anderen Sprache als seine Ausgabe, ein falscher Versbereich, eine veraltete Teilung, eine nicht unterstützte Vortragsstruktur … halten den Import an, und die Vorschau nennt jedes. Dann wird alles auf einmal gespeichert — alles oder nichts — und im Importverlauf vermerkt.\n- Was einem Text noch fehlt, steht in \"missing\"; ein solcher Text ist \"incomplete\", bis er geprüft ist.",
     "example": "Beispiel (die Texte sind erfunden, keine liturgische Übersetzung):",
-    "sampleLabel": "Eine kleine Sammlung: Ausgabe, Psalm, Abschnitt, Antiphon, Zuordnung, Hochfest",
+    "sampleLabel": "Eine kleine Sammlung: Ausgabe, Psalm mit Versen, Abschnitt, Antiphon mit Teilung, Doxologie, Gebet mit Schlüssen, Zuordnung, Hochfest",
     "required": "Pflicht",
     "byDefault": "Vorgabe {value}",
     "top": {
@@ -277,8 +292,8 @@
     "type": {
       "canonical_work": "Ein Werk als solches — Psalm, Canticum, Hymnus oder Lesung — unabhängig von jeder Übersetzung; seine Nummern in jeder Zählung stehen ausgeschrieben.",
       "text_edition": "Eine Ausgabe oder Übersetzung: Sprache, Verlag, Lizenz und was die Lizenz erlaubt. Jeder Text gehört zu einer.",
-      "text_resource": "Ein konkreter Text in einer Ausgabe — ein ganzer Psalm, eine Antiphon, ein Gebet, eine Lesung — in Blöcken.",
-      "passage_definition": "Ein Teil eines Textes nach Versbereichen (z. B. Ps 51,3-12); kopiert nichts — die Verse werden aus dem Text gelesen.",
+      "text_resource": "Ein konkreter Text in einer Ausgabe — Psalm, Canticum, Antiphon, Hymnus, Lesung, Responsorium, Dialog, Versikel, Bitten, Antwort, Gebet, Doxologie, Segen — als EIN Wortlaut (\"text\") mit seiner Struktur (\"layout\", siehe „Wortlaut und Struktur\").",
+      "passage_definition": "Ein Teil eines Psalms oder Canticums nach Versbereichen (innere Versnummern seines Texts); kopiert nichts. Teile mit derselben \"division\" bilden eine benannte Teilung („zwei Teile\", „Ps 119 — 22 Teile\") in ihrer \"order\"; den ganzen Text oder eine Teilung zu lesen braucht keine zweite Abschrift.",
       "liturgical_template": "Die Teile (Plätze) einer Hore oder der Messe, der Reihe nach, mit dem, wo ihre Texte gesucht werden. Eingebaute Vorlagen gibt es für jede Hore und die Messe (siehe „Eingebaut“).",
       "calendar_observance": "Eine Feier in einem Kalender: Datumsregel, Rang, Farbe und Vorrang.",
       "liturgical_assignment": "Welcher Text welchen Platz füllt, und wann (Bedingungen).",
@@ -302,7 +317,6 @@
       "resource_type": "Was der Text ist, ein englisches Wort: \"psalm\", \"antiphon\" (nötig für \"antiphon_ref\"), \"prayer\", \"reading\", \"hymn\", \"responsory\" …",
       "work_id": "Die \"id\" seines Werks (nötig für einen Psalm)",
       "edition_id": "Die \"id\" seiner Ausgabe",
-      "structured_content": "Der Text in Blöcken (siehe „Teile der Einträge“)",
       "source_citation": "Genau, woher der Text stammt (nötig für \"approved\")",
       "attribution": "Urheberangabe, die mit dem Text gezeigt wird",
       "complete": "true: der ganze Text steht hier — ein Psalm braucht dann \"expected_verses\" und jeden Vers ab 1",
@@ -340,24 +354,45 @@
       "office_cycle": "Zyklus des Stundengebets (ein Wort)",
       "coverage": "\"reviewed\" nur, wenn jemand den Kalender für die Daten unten geprüft hat",
       "reviewed_from": "Erster Tag der Prüfung (JJJJ-MM-TT)",
-      "reviewed_until": "Letzter Tag der Prüfung (JJJJ-MM-TT)"
+      "reviewed_until": "Letzter Tag der Prüfung (JJJJ-MM-TT)",
+      "text": "Der ganze Wortlaut, einmal — wie gelesen, mit Satzzeichen; Absätze durch eine Leerzeile getrennt. Kann fehlen, wenn \"layout\" jedes Stück angibt (dann wird er daraus gefügt)",
+      "text_version": "Die Fassung des Wortlauts, von der App gezählt; jede Teilung merkt sich die Fassung, für die sie gemacht ist",
+      "layout": "Die Hauptteilung als Stücke des Wortlauts, siehe „Wortlaut und Struktur\"",
+      "layouts": "Andere bezeugte Teilungen desselben Wortlauts (z. B. eine anders geteilte Antiphon), jede mit \"id\" — gewählt von einer Zuordnung",
+      "performance": "Die Folge des Vortrags: wer welche Einheit spricht, Wiederholungen als Verweise auf schon geschriebene Einheiten, andere Texte, Rubriken",
+      "notes": "Überschriften, Untertitel, Sentenzen, Rubriken und Quellen — nur in der liturgischen Ansicht, nie Teil des Wortlauts",
+      "origin": "Lesung: die Herkunftszeile („Aus dem Buch Jesaja\", „Aus einer Homilie …\")",
+      "reference": "Die Stelle, wie gedruckt („Jes 1, 1-18\", „Ps 141, 1-9\")",
+      "incipit": "Lesung: {\"text\": \"…\"} — ein eigenes Incipit — oder {\"unit\": \"id\"} — der Anfang des Wortlauts selbst, als Incipit gezeigt, ohne Wiederholung",
+      "intro_formula": "Eine eigene Einleitungsformel der Ausgabe („Lasset uns beten.\", „Lesung aus …\")",
+      "variants": "Bezeugte Varianten: ein anderer Schluss, eine andere Doxologie-Strophe — ersetzen eine Einheit, wahlweise unter Bedingungen (z. B. der kurze Schluss in den Kleinen Horen)",
+      "response_ref": "Die Antwort der Gemeinde als eigener, wiederverwendbarer Text (der Ruf der Bitten, Amen)",
+      "doxology": "Psalm oder Canticum: \"after\" — „Ehre sei dem Vater\" folgt, wo der Platz es verlangt; \"none\" — bezeugt ohne (z. B. ein Canticum mit eigenem Schluss)",
+      "doxology_ref": "Welcher Doxologie-Text (sonst die Doxologie derselben Ausgabe)",
+      "variant_group": "Texte derselben Gruppe sind bezeugte Alternativen zueinander (z. B. Hymnen zur Wahl)",
+      "aliases": "ids gleicher Texte, die in diesem aufgingen — Verweise auf sie gelten weiter",
+      "missing": "Was noch fehlt oder gefolgert ist und geprüft werden muss (Codes); die App füllt es, eine leere Liste bestätigt das Gefolgerte",
+      "numbering": "Nach welcher Zählung das \"label\" der Verse geht (z. B. \"as_printed\", \"hebrew\")",
+      "biblical_reference": "Canticum: die biblische Stelle („Lk 1, 68-79\")",
+      "division": "Die benannte Teilung, zu der dieser Teil gehört",
+      "part": "Die Bezeichnung dieses Teils („I\", „II\", „XXII (Taw)\")",
+      "order": "Die Stelle dieses Teils in seiner Teilung",
+      "on": "Die Fassung des Texts, für die die Bereiche gemacht sind — setzt die App",
+      "antiphon_layout": "Welche bezeugte Teilung der Antiphon (die \"id\" aus ihren \"layouts\")",
+      "antiphon_repeat": "Wo die Antiphon wiederkehrt: \"around\" (davor und danach), \"before\", \"after\", \"strophes\" (nach jeder Strophe, Invitatorium), \"none\"",
+      "main_layout": "Welche bezeugte Teilung des Haupttexts",
+      "liturgical_assignment": {
+        "doxology": "false: kein „Ehre sei dem Vater\", obwohl der Platz es verlangt (bezeugte Ausnahme); true: mit, obwohl der Platz es nicht verlangt"
+      }
     },
     "parts": {
       "title": "Teile der Einträge",
-      "block": "\"structured_content\" — der Text als Liste von Blöcken:",
       "range": "\"ranges\" — Versbereiche, beide Enden eingeschlossen:",
       "ref": "\"resource_ref\", \"fallback_refs\" und \"resource_ref\" eines Platzes — ein Verweis:",
       "slot": "\"slots\" — die Teile einer Vorlage, der Reihe nach:",
       "conditions": "Bedingungen (\"applicability\", \"conditions\", \"target_context\" und \"conditions\" eines Platzes) — jeder genannte Schlüssel muss passen; eine Liste heisst: einer ihrer Werte:",
       "date": "\"date_rule\" (auch \"earliest\" und \"latest\" einer Verlegung) — eine von:",
       "action": "\"action\" einer Regel — eine von:"
-    },
-    "block": {
-      "type": "\"verse\", \"paragraph\", \"stanza\", \"response\", \"rubric\" oder \"heading\"",
-      "text": "Der Text (Zeilenumbruch als \\n)",
-      "verse": "Versnummer — nötig für \"verse\", eindeutig im Text",
-      "speaker": "Wer es spricht (z. B. \"V.\", \"A.\")",
-      "emphasis": "\"italic\" oder \"bold\""
     },
     "range": {
       "start_verse": "Erster Vers",
@@ -373,7 +408,9 @@
       "required": "false: darf leer bleiben (Vorgabe true)",
       "conditions": "Wann es den Platz überhaupt gibt",
       "resource_ref": "Ein fester Text für diesen Platz",
-      "source_order": "Wo seine Texte gesucht werden, in dieser Reihenfolge: {values}"
+      "source_order": "Wo seine Texte gesucht werden, in dieser Reihenfolge: {values}",
+      "doxology": "true: „Ehre sei dem Vater\" nach dem Psalm oder Canticum dieses Platzes",
+      "antiphon_repeat": "Wo Antiphonen hier wiederkehren, wenn die Zuordnung nichts anderes sagt: {values}"
     },
     "cond": {
       "dates": "Genaue Daten (JJJJ-MM-TT)",
@@ -423,7 +460,7 @@
     },
     "usage": {
       "title": "Wie die App diese Daten nutzt",
-      "text": "- Speicher: jeder Eintrag ist ein Eintrag dieser Sammlung, im Browser mit dem Schlüssel seines Bereichs versiegelt; jeder Import fügt dem Importverlauf einen Eintrag hinzu. Wer liest, entscheidet der Bereich: seine Mitglieder — alle nur, wenn der Bereich öffentlich ist und seine Regel für Sammlungen bestätigt ist.\n- In der Sammlung: Ressourcen (jeder Eintrag mit seinem Text, seinen Verweisen, allem, was ihn benutzt, und seinen Versionen) und Kalender und Lesen — der liturgische Tag und die Horen und die Messe, beim Lesen zusammengesetzt aus Texten, Abschnitten, Vorlagen, Zuordnungen, Regeln und den eingebauten Daten; Druck/PDF, die Zusammenstellung als JSON und eine HTML-Datei zum Lesen ohne Netz.\n- Anderswo: eine Wissensbasis (Cogita), die die Sammlung unter Einstellungen → Quellen hinzufügt, sieht ihre Einträge als Stoff nur zum Lesen — Abschnitte mit ihrem errechneten Text; andere Sammlungen der Bibliothek können auf sie verweisen; ein KI-Link, der die Sammlung umfasst, trägt die genauen Einträge (MCP get_liturgy_library) und die errechneten Texte (search_entries).\n- Der Import löscht nicht, was das Dokument auslässt, holt keine Texte von aussen und schreibt nichts in Cogita oder eine andere Sammlung; in einem öffentlichen Bereich wird er abgelehnt, solange einer Ausgabe \"share\" in \"permitted_usage\" fehlt."
+      "text": "- Speicher: jeder Eintrag ist ein Eintrag dieser Sammlung, im Browser mit dem Schlüssel seines Bereichs versiegelt; jeder Import fügt dem Importverlauf einen Eintrag hinzu. Wer liest, entscheidet der Bereich: seine Mitglieder — alle nur, wenn der Bereich öffentlich ist und seine Regel für Sammlungen bestätigt ist.\n- In der Sammlung: Ressourcen (jeder Text in fortlaufender und liturgischer Ansicht, mit seinen Teilungen, Verweisen, allem, was ihn benutzt, und seinen Versionen) und Kalender und Lesen — der liturgische Tag und die Horen und die Messe, beim Lesen zusammengesetzt, in beiden Ansichten; Druck/PDF, die Zusammenstellung als JSON und eine HTML-Datei zum Lesen ohne Netz.\n- Anderswo: eine Wissensbasis (Cogita), die die Sammlung unter Einstellungen → Quellen hinzufügt, sieht ihre Einträge als Stoff nur zum Lesen — den Wortlaut, Abschnitte mit ihren Versen; andere Sammlungen der Bibliothek können auf sie verweisen; ein KI-Link, der die Sammlung umfasst, trägt die genauen Einträge in diesem Format (MCP get_liturgy_library) und die Wortlaute (search_entries).\n- Der Import löscht nicht, was das Dokument auslässt, holt keine Texte von aussen und schreibt nichts in Cogita oder eine andere Sammlung; in einem öffentlichen Bereich wird er abgelehnt, solange einer Ausgabe \"share\" in \"permitted_usage\" fehlt."
     },
     "warn": {
       "firstFormat": "Das ist das erste Format \"{given}\": gelesen als {format} — die genannten Felder ändern sich, der Rest bleibt; \"mode\", \"schema_version\" und \"expected_revision\" braucht es nicht mehr.",
@@ -433,7 +470,12 @@
       "internal": "„{id}“: \"{key}\" ist intern — überlesen.",
       "unknownField": "„{id}“: diese Art hat kein Feld \"{key}\" — überlesen.",
       "nothingToRemove": "„{id}“: nicht in der Sammlung — nichts zu löschen.",
-      "approved": "„{title}“ ({id}) ist geprüft — dieser Import ändert ihn."
+      "approved": "„{title}“ ({id}) ist geprüft — dieser Import ändert ihn.",
+      "olderVersion": "Version {given} des Formats: gelesen als Version {version}.",
+      "alias": "„{alias}\" ging in „{id}\" auf — gelesen als „{id}\".",
+      "candidatePrefix": "„{a}\" ist der Anfang von „{b}\" — vergleichen: gekürzter Text oder gültige Variante?",
+      "candidateIncipit": "„{a}\" und „{b}\" beginnen gleich — vergleichen (nicht zusammengeführt).",
+      "moreCandidates": "…und {count} weitere Kandidaten zum Vergleich."
     },
     "err": {
       "notFormat": "Das ist kein Liturgie-Dokument: es braucht \"format\": \"{format}\" und eine Liste \"entities\".",
@@ -443,7 +485,10 @@
       "counts": "Neu: {created} · geändert: {updated} · gelöscht: {removed} · zur Vorgabe zurück: {reset} · unverändert: {unchanged}",
       "removed": "Gelöscht: „{title}“ ({id})",
       "reset": "Zur Vorgabe zurück: „{title}“ ({id})",
-      "nothing": "Keine Änderungen — alles ist schon in der Sammlung."
+      "nothing": "Keine Änderungen — alles ist schon in der Sammlung.",
+      "merged": "Gleicher Wortlaut zusammengeführt: „{title}\" ({id}) ← {ids}",
+      "migrated": "Aus einem früheren Format gelesen: {count} Texte (je ein Wortlaut, Struktur daneben).",
+      "incomplete": "Als unvollständig markiert (etwas fehlt oder ist gefolgert): {count}"
     },
     "sample": {
       "provenance": "Beispiel — erfundene Texte, keine liturgische Übersetzung",
@@ -451,13 +496,135 @@
       "license": "Nur ein Beispiel",
       "work": "Psalm 117 (116)",
       "text": "Psalm 117 — Beispieltext",
-      "verse": "Beispieltext des Verses {n}.",
       "passage": "Psalm 117, Vers 1",
       "antiphonTitle": "Beispiel-Antiphon",
-      "antiphon": "Text der Beispiel-Antiphon.",
       "assignment": "Laudes, Montag der I. Woche — erster Psalm",
       "observance": "Patron der Pfarrei (Beispiel)",
-      "authority": "Beispiel — ohne Grundlage"
+      "authority": "Beispiel — ohne Grundlage",
+      "psalmTitle": "Lob des Herrn (Beispiel)",
+      "half": "Beispieltext von Vers {v}, Hälfte {h}",
+      "antiphonA": "Erste Hälfte der Beispiel-Antiphon,",
+      "antiphonB": "ihre zweite Hälfte.",
+      "doxologyTitle": "Beispiel-Doxologie",
+      "doxologyA": "Erste Hälfte der Beispiel-Doxologie,",
+      "doxologyB": "zweite Hälfte, in Ewigkeit. Amen.",
+      "prayerTitle": "Beispielgebet",
+      "letUsPray": "Lasset uns beten.",
+      "prayerBody": "Beispielhaftes Schlussgebet des Tages.",
+      "prayerEnd": "Durch den langen Beispielschluss.",
+      "prayerShortEnd": "Durch den kurzen Beispielschluss.",
+      "amen": "Amen."
+    },
+    "wording": {
+      "title": "Wortlaut und Struktur",
+      "intro": "Ein Text hat ein \"text\". Seine Struktur steht als Einheiten da — Stücke dieses Wortlauts der Reihe nach, mit dem, was jedes im Vortrag ist. Gespeichert als Stellen; der Export schreibt wieder Stücke.",
+      "unit": "\"layout\" (und \"units\" einer bezeugten Teilung) — eine Liste von Einheiten:",
+      "layouts": "\"layouts\" — bezeugte andere Teilungen:",
+      "performance": "\"performance\" — Schritte der Reihe nach (jeder mit genau einem von \"say\", \"resource\", \"rubric\"):",
+      "notes": "\"notes\" — nur in der liturgischen Ansicht:",
+      "variants": "\"variants\" — bezeugte Varianten:",
+      "types": "\"resource_type\": {types}. Psalmen, Cantica und die Doxologie stehen in Verszeilen, Hymnen in Strophen, alles andere als Prosa mit seinen Zeichen.",
+      "checks": "Geprüft wird: die Stücke folgen dem Wortlaut; Einheiten überschneiden sich nicht und lassen keinen Text aus; ids sind eindeutig; Schritte, Hinweise, Incipit und Varianten zeigen auf vorhandene Einheiten; eine Teilung gilt für die aktuelle Fassung; die Bereiche eines Abschnitts gibt es in seinem Text."
+    },
+    "unit": {
+      "text": "Das Stück des Wortlauts (genau wie in \"text\", Leerraum darf abweichen)",
+      "id": "Ihr Name — für Schritte, Hinweise, Incipit und Varianten (z. B. \"R\", \"conclusion\")",
+      "verse": "Innere Versnummer (1, 2, …) — stabil, von Abschnittsbereichen benutzt",
+      "label": "Die Nummer, wie die Ausgabe sie druckt („2a\", „116\"); im Hymnus die Strophennummer",
+      "end": "Wie die Einheit endet: {values} — mediant zeigt *, flex zeigt †; verse, stanza und part brechen die Zeile",
+      "role": "Wer spricht: {values}",
+      "kind": "Was sie ist: {values}",
+      "cross": "true: davor ein Kreuzzeichen ✠",
+      "style": "\"italic\" oder \"bold\""
+    },
+    "alt": {
+      "id": "Ihr Name, den Zuordnungen benutzen",
+      "title": "Ihr Titel",
+      "source": "Wo diese Teilung bezeugt ist",
+      "units": "Die Einheiten, wie in \"layout\""
+    },
+    "step": {
+      "say": "Einheiten dieses Texts (ids) — eine schon gesprochene Einheit ist eine Wiederholung: der Wortlaut wird nicht noch einmal geschrieben",
+      "resource": "Ein anderer Text (seine id), z. B. die gemeinsame Antwort oder die Doxologie",
+      "units": "Mit \"resource\": nur diese seiner Einheiten",
+      "role": "Wer spricht: {values}",
+      "rubric": "Eine Rubrikzeile der Ausgabe"
+    },
+    "note": {
+      "type": "Art: {values}",
+      "text": "Sein Text",
+      "at": "\"start\", \"end\" oder die id der Einheit, vor der er steht",
+      "source": "Woher er stammt (z. B. die Quelle einer Sentenz)"
+    },
+    "variant": {
+      "id": "Ihr Name",
+      "replaces": "Die id der Einheit, die sie ersetzt (mit den folgenden Einheiten derselben Art); ohne: den ganzen Text",
+      "text": "Ihr Wortlaut",
+      "when": "Bedingungen ihres Gebrauchs (wie in \"conditions\")",
+      "source": "Wo sie bezeugt ist"
+    },
+    "hours": {
+      "title": "Wie eine Hore zusammengesetzt wird",
+      "text": "- Ein Platz nimmt den Text der besten Zuordnung (Schichten nach \"source_order\", dann Priorität); ein Abschnitt liest nur seine Verse.\n- Die Antiphon einer Zuordnung (\"antiphon_ref\", Teilung \"antiphon_layout\") kehrt wieder, wie \"antiphon_repeat\" sagt: {repeats}. Beim Wiederholen steht ihre Mediante als „/\".\n- „Ehre sei dem Vater\" folgt einem Psalm oder Canticum (und jedem Teil eines geteilten Psalms), wo der Platz oder die Zuordnung es verlangt (\"doxology\"), ausser der Text sagt \"doxology\": \"none\" oder die Zuordnung false. Die Ansicht des Psalms selbst zeigt es nie.\n- Ein Gebet nimmt die Variante, deren \"when\" passt (z. B. den kurzen Schluss); Schluss und Amen bleiben eigene Einheiten; Segen oder Entlassung sind eigene Texte an eigenen Plätzen.\n- Responsorien, Dialoge und Bitten folgen ihrer \"performance\"; die gemeinsame Antwort fällt dort, wo die Schritte es sagen.\n- Der Eröffnungsdialog, Versikel, der Segen und die Entlassung sind einzelne wiederverwendbare Texte, auf die Zuordnungen verweisen."
+    },
+    "migration": {
+      "title": "Frühere Formate",
+      "text": "- Version 1 (\"recreatio/liturgy\", 1) und das erste Format (\"recreatio.liturgy\" 1.0/1.1 mit \"operations\") werden gelesen und als Version 2 geschrieben.\n- Blöcke (\"structured_content\") werden ein Wortlaut: Strophen und Absätze als Absätze, Antworten als Zeilen; Rubrik- und Überschriftsblöcke werden \"notes\". \" * \" und \" † \" im Text werden Enden von Einheiten und verlassen den Wortlaut.\n- \"metadata.performance_markers\" ({\"at\", \"mark\"} je Block) werden Einheiten: * Mediante, † Flexa, / Mediante (beim Wiederholen gezeigt), ✢ ✣ Kreuzzeichen; andere bezeugte Stellen (\"recitation_mark_variants\") werden \"layouts\".\n- Sprecher P/K/V werden V. (cantor), W/R werden A. (all); wiederholte Zeilen werden Schritte von \"performance\" statt einer zweiten Abschrift.\n- Psalmen ohne Versgrenzen bekommen aus den Pausen gefolgerte Verse; Hymnen Zeilen aus Grossbuchstaben, wenn ihre Zahl zum Druck passt — beides in \"missing\" vermerkt, bis es geprüft ist.\n- Bitten „A, — B.\" werden Einleitung, Bitte und zweiter Teil; der Ruf (refrain_resource_id) wird \"response_ref\". Gebete bekommen Hauptteil, Schluss und Amen; \"introduction_formula\" wird \"intro_formula\". Lesungen bekommen \"origin\", \"reference\", den Titel als Überschrift und Überschriftszeilen, die in den Text übergehen, als Incipit.\n- Arten: psalm_fragment → psalm, gospel_canticle → canticle, intercession_refrain → response, blessing_and_conclusion → blessing, office_rubric → dialog (mit Sprechern) oder rubric.\n- \"metadata\" bleibt unverändert (Quellen, Vorkommen, bezeugte Abweichungen). Ein gespeicherter Eintrag der Version 1 wird als Version 2 gelesen; ein Import, der ihn nennt, schreibt ihn als Version 2."
     }
+  },
+  "view": {
+    "label": "Ansicht",
+    "plain": "Fortlaufend",
+    "liturgical": "Liturgisch",
+    "layout": "Teilung",
+    "mainLayout": "Hauptteilung",
+    "division": "Lesen",
+    "whole": "Der ganze Text",
+    "divisionParts": "{name} ({count} Teile)",
+    "origin": "Herkunft",
+    "reference": "Stelle",
+    "incipit": "Incipit",
+    "introFormula": "Einleitungsformel",
+    "variants": "Bezeugte Varianten ({count})",
+    "missing": "Noch zu ergänzen oder zu prüfen:",
+    "aliases": "Auch als (zusammengeführter gleicher Wortlaut): {list}",
+    "ant": "Ant.",
+    "cross": "Kreuzzeichen",
+    "variantUsed": "Verwendete Variante: {id}",
+    "doxology": {
+      "appended": "„Ehre sei dem Vater\" angefügt (Rubrik des Platzes).",
+      "omitted": "„Ehre sei dem Vater\" weggelassen (bezeugt).",
+      "missing": "„Ehre sei dem Vater\" verlangt, aber diese Ausgabe hat keinen Doxologie-Text."
+    }
+  },
+  "roles": {
+    "presider": "Z.",
+    "cantor": "V.",
+    "reader": "L.",
+    "all": "A.",
+    "choir1": "I.",
+    "choir2": "II."
+  },
+  "missing": {
+    "resource_type": "Art des Texts nicht erkannt",
+    "verses": "Verseinteilung",
+    "work": "kanonisches Werk",
+    "lines": "Zeilen des Hymnus",
+    "origin": "Herkunft der Lesung",
+    "reference": "Stelle",
+    "roles": "Rollen (V./A.)",
+    "response": "gemeinsame Antwort",
+    "petitions": "Bitten mit ihren zweiten Teilen",
+    "conclusion": "Schluss des Gebets",
+    "verses_inferred": "Versgrenzen aus den Pausen gefolgert — prüfen",
+    "lines_inferred": "Zeilen aus Grossbuchstaben gefolgert — prüfen",
+    "roles_inferred": "Rollen aus V./A.-Zeichen im Text gelesen — prüfen",
+    "incipit_unverified": "Incipit aus einer Überschriftszeile — prüfen",
+    "performance_inferred": "Wiederkehr der Antwort gefolgert — prüfen",
+    "doxology_removed": "ein eingebettetes „Ehre sei dem Vater\" herausgenommen — Teilgrenze prüfen",
+    "full_text": "nur ein Teil des Texts — der ganze Wortlaut fehlt",
+    "possibly_truncated": "vielleicht gekürzt: ein anderer Text beginnt gleich und ist länger",
+    "links_pending": "eine Verbindung (Doxologie, gemeinsame Antwort) wartet auf ihren Text — sie wird verbunden, sobald er importiert ist",
+    "marks_unverified": "ein Pausenzeichen steht mitten im Wort — prüfen"
   }
 }

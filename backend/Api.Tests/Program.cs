@@ -104,6 +104,15 @@ Check(Chat.AvailableAt(fold, DateTimeOffset.Parse("2026-10-25T01:30:00Z")), "sec
     Check(Form.ReadTaskPlan("2026-10-01", "2026-10-31", "any", null, null, null, null, "2026-10-05", null).Error is not null, "visible from after the start is refused");
     Check(Form.ReadTaskPlan("2026-10-01", "2026-10-31", "any", null, null, null, null, "2026-09-25", "2026-11-15").Plan is { ReportsUntil.Month: 11, ReportsUntil.Day: 15 }, "a film any day in October, shown from 25 September, marks until 15 November");
 
+    /* 2026-11-09 — raz w tygodniu / raz w miesiącu: every day of the period counts; `needed` is per week / month. */
+    var weekly = Form.ReadTaskPlan("2026-10-01", "2026-12-31", "week", 16, null, null, 2, null, null);
+    Check(weekly.Plan is { Schedule: "week", Weekdays: null, Needed: 2 }, "twice a week from October to December (weekdays dropped)");
+    Check(Form.TaskDay(weekly.Plan!, new DateOnly(2026, 10, 15)) && Form.TaskDay(weekly.Plan!, new DateOnly(2026, 12, 31)) && !Form.TaskDay(weekly.Plan!, new DateOnly(2027, 1, 1)), "once a week: every day of the period counts");
+    Check(Form.ReadTaskPlan("2026-10-01", "2026-12-31", "week", null, null, null, 8, null, null).Error is not null, "eight times a week is refused");
+    Check(Form.ReadTaskPlan("2026-10-01", "2026-12-31", "month", null, null, null, 31, null, null).Error is null, "31 times a month is allowed");
+    Check(Form.ReadTaskPlan("2026-10-01", "2026-12-31", "month", null, null, null, 32, null, null).Error is not null, "32 times a month is refused");
+    Check(Form.ReadTaskPlan("2026-10-05", "2026-10-06", "month", null, null, null, 4, null, null).Error is null, "per month: needed is not checked against the days of the whole period");
+
     /* 0099 — an Terminen eines Kalenders: welcher, vorher fragen, wer die Liste führt; die Tage sind die Termine. */
     var item = Guid.NewGuid();
     var meetings = Form.ReadTaskPlan("2026-10-01", "2026-12-31", "item", null, 19 * 60, 90, 2, null, null, item.ToString(), true, "office");

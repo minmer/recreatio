@@ -1,8 +1,7 @@
 {
   "format": "recreatio/liturgy",
-  "version": 1,
+  "version": 2,
   "name": "Liturgia — przykład",
-  "provenance": "Complete synthetic collection example: every entity type, all hours and Mass. Not an approved corpus.",
   "entities": [
     {
       "entity_type": "canonical_work",
@@ -19,14 +18,32 @@
       "id": "example.edition",
       "title": "Synthetic demonstration edition",
       "status": "draft",
+      "source_reference": "Recreatio import demonstration",
       "language": "pl-PL",
       "license": "CC0 — synthetic demonstration text, not a liturgical translation",
       "permitted_usage": [
         "private",
         "print",
         "share"
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.antiphon",
+      "title": "Example antiphon — synthetic text",
+      "status": "draft",
+      "resource_type": "antiphon",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Przykładowa antyfona do sprawdzenia struktury.",
+      "layout": [
+        {
+          "text": "Przykładowa antyfona do sprawdzenia struktury.",
+          "end": "line"
+        }
       ],
-      "source_reference": "Recreatio import demonstration"
+      "source_citation": "Recreatio import demonstration; not for liturgical use",
+      "complete": true
     },
     {
       "entity_type": "text_resource",
@@ -37,31 +54,669 @@
       "work_id": "example.psalm",
       "edition_id": "example.edition",
       "language": "pl-PL",
-      "complete": true,
-      "expected_verses": 4,
-      "source_citation": "Recreatio import demonstration; not for liturgical use",
-      "structured_content": [
+      "text": "Przykładowy werset 1. To tekst testowy, a nie przekład liturgiczny. Przykładowy werset 2. To tekst testowy, a nie przekład liturgiczny. Przykładowy werset 3. To tekst testowy, a nie przekład liturgiczny. Przykładowy werset 4. To tekst testowy, a nie przekład liturgiczny.",
+      "layout": [
         {
-          "type": "verse",
+          "text": "Przykładowy werset 1. To tekst testowy, a nie przekład liturgiczny.",
           "verse": 1,
-          "text": "Przykładowy werset 1. To tekst testowy, a nie przekład liturgiczny."
+          "label": "1",
+          "end": "verse"
         },
         {
-          "type": "verse",
+          "text": "Przykładowy werset 2. To tekst testowy, a nie przekład liturgiczny.",
           "verse": 2,
-          "text": "Przykładowy werset 2. To tekst testowy, a nie przekład liturgiczny."
+          "label": "2",
+          "end": "verse"
         },
         {
-          "type": "verse",
+          "text": "Przykładowy werset 3. To tekst testowy, a nie przekład liturgiczny.",
           "verse": 3,
-          "text": "Przykładowy werset 3. To tekst testowy, a nie przekład liturgiczny."
+          "label": "3",
+          "end": "verse"
         },
         {
-          "type": "verse",
+          "text": "Przykładowy werset 4. To tekst testowy, a nie przekład liturgiczny.",
           "verse": 4,
-          "text": "Przykładowy werset 4. To tekst testowy, a nie przekład liturgiczny."
+          "label": "4",
+          "end": "verse"
         }
-      ]
+      ],
+      "source_citation": "Recreatio import demonstration; not for liturgical use",
+      "complete": true,
+      "expected_verses": 4
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.acclamation",
+      "title": "example.text.acclamation",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "versicle",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: acclamation. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: acclamation. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "roles"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.blessing",
+      "title": "example.text.blessing",
+      "status": "draft",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "blessing",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: blessing. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: blessing. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.collect",
+      "title": "example.text.collect",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "prayer",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: collect. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: collect. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza",
+          "kind": "body"
+        }
+      ],
+      "missing": [
+        "conclusion"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.communion",
+      "title": "example.text.communion",
+      "status": "draft",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "antiphon",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: communion. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: communion. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.conclusion",
+      "title": "example.text.conclusion",
+      "status": "draft",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "blessing",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: conclusion. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: conclusion. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.entrance",
+      "title": "example.text.entrance",
+      "status": "draft",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "antiphon",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: entrance. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: entrance. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.examination",
+      "title": "example.text.examination",
+      "status": "draft",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "rubric",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: examination. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: examination. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.gospel",
+      "title": "example.text.gospel",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "reading",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: gospel. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: gospel. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "reference"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.gospel_canticle",
+      "title": "example.text.gospel_canticle",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "canticle",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: gospel_canticle. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: gospel_canticle. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "verses",
+        "reference"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.hymn",
+      "title": "example.text.hymn",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "hymn",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: hymn. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: hymn. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "lines"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.intercessions",
+      "title": "example.text.intercessions",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "intercessions",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: intercessions. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: intercessions. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "response",
+        "petitions"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.lords_prayer",
+      "title": "example.text.lords_prayer",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "other",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: lords_prayer. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: lords_prayer. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "resource_type"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.marian_antiphon",
+      "title": "example.text.marian_antiphon",
+      "status": "draft",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "antiphon",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: marian_antiphon. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: marian_antiphon. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.offertory",
+      "title": "example.text.offertory",
+      "status": "draft",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "antiphon",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: offertory. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: offertory. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.opening",
+      "title": "example.text.opening",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "dialog",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: opening. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: opening. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "roles"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.prayer",
+      "title": "example.text.prayer",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "prayer",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: prayer. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: prayer. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza",
+          "kind": "body"
+        }
+      ],
+      "missing": [
+        "conclusion"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.prayer_after_communion",
+      "title": "example.text.prayer_after_communion",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "prayer",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: prayer_after_communion. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: prayer_after_communion. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza",
+          "kind": "body"
+        }
+      ],
+      "missing": [
+        "conclusion"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.prayer_over_offerings",
+      "title": "example.text.prayer_over_offerings",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "prayer",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: prayer_over_offerings. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: prayer_over_offerings. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza",
+          "kind": "body"
+        }
+      ],
+      "missing": [
+        "conclusion"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.preface",
+      "title": "example.text.preface",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "other",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: preface. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: preface. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "resource_type"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.reading",
+      "title": "example.text.reading",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "reading",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: reading. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: reading. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "reference"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.reading.1",
+      "title": "example.text.reading.1",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "reading",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: reading.1. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: reading.1. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "reference"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.reading.2",
+      "title": "example.text.reading.2",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "reading",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: reading.2. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: reading.2. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "reference"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.responsory",
+      "title": "example.text.responsory",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "responsory",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: responsory. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: responsory. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "roles"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.responsory.1",
+      "title": "example.text.responsory.1",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "responsory",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: responsory.1. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: responsory.1. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "roles"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.responsory.2",
+      "title": "example.text.responsory.2",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "responsory",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: responsory.2. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: responsory.2. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "roles"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.te_deum",
+      "title": "example.text.te_deum",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "hymn",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: te_deum. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: te_deum. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "lines"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "example.text.versicle",
+      "title": "example.text.versicle",
+      "status": "incomplete",
+      "metadata": {
+        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
+      },
+      "resource_type": "versicle",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "text": "Tekst testowy: versicle. To przykład struktury, nie tekst liturgiczny.",
+      "layout": [
+        {
+          "text": "Tekst testowy: versicle. To przykład struktury, nie tekst liturgiczny.",
+          "end": "stanza"
+        }
+      ],
+      "missing": [
+        "roles"
+      ],
+      "source_citation": "Synthetic test fixture — not for liturgical use",
+      "complete": true
     },
     {
       "entity_type": "passage_definition",
@@ -83,21 +738,110 @@
       ]
     },
     {
-      "entity_type": "text_resource",
-      "id": "example.antiphon",
-      "title": "Example antiphon — synthetic text",
+      "entity_type": "liturgical_template",
+      "id": "example.template.compline",
+      "title": "example.template.compline",
       "status": "draft",
-      "resource_type": "antiphon",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Recreatio import demonstration; not for liturgical use",
-      "structured_content": [
+      "hour_or_rite": "compline",
+      "applicability": {
+        "scopes": [
+          "example"
+        ]
+      },
+      "priority": 100,
+      "slots": [
         {
-          "type": "response",
-          "text": "Przykładowa antyfona do sprawdzenia struktury."
+          "name": "opening",
+          "label": "opening",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "examination",
+          "label": "examination",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "hymn",
+          "label": "hymn",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.1",
+          "label": "psalmody.1",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "reading",
+          "label": "reading",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "responsory",
+          "label": "responsory",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "gospel_canticle",
+          "label": "gospel_canticle",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "prayer",
+          "label": "prayer",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "blessing",
+          "label": "blessing",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "marian_antiphon",
+          "label": "marian_antiphon",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
         }
-      ]
+      ],
+      "authority_reference": "Synthetic structural demonstration — requires rubrical review"
     },
     {
       "entity_type": "liturgical_template",
@@ -111,12 +855,12 @@
         ]
       },
       "priority": 100,
-      "authority_reference": "Synthetic structural demonstration — requires rubrical review",
       "slots": [
         {
           "name": "opening",
           "label": "opening",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -125,635 +869,13 @@
           "name": "invitatory",
           "label": "invitatory",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
-        }
-      ]
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.opening",
-      "title": "example.text.opening",
-      "status": "draft",
-      "resource_type": "opening",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: opening. To przykład struktury, nie tekst liturgiczny."
         }
       ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.invitatory.opening",
-      "title": "example.assignment.invitatory.opening",
-      "status": "draft",
-      "slot_name": "opening",
-      "resource_ref": {
-        "id": "example.text.opening"
-      },
-      "target_context": {
-        "hours": [
-          "invitatory"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.invitatory.invitatory",
-      "title": "example.assignment.invitatory.invitatory",
-      "status": "draft",
-      "slot_name": "invitatory",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "invitatory"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_template",
-      "id": "example.template.readings",
-      "title": "example.template.readings",
-      "status": "draft",
-      "hour_or_rite": "readings",
-      "applicability": {
-        "scopes": [
-          "example"
-        ]
-      },
-      "priority": 100,
-      "authority_reference": "Synthetic structural demonstration — requires rubrical review",
-      "slots": [
-        {
-          "name": "opening",
-          "label": "opening",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "hymn",
-          "label": "hymn",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.1",
-          "label": "psalmody.1",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.2",
-          "label": "psalmody.2",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.3",
-          "label": "psalmody.3",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "versicle",
-          "label": "versicle",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "reading.1",
-          "label": "reading.1",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "responsory.1",
-          "label": "responsory.1",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "reading.2",
-          "label": "reading.2",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "responsory.2",
-          "label": "responsory.2",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "te_deum",
-          "label": "te_deum",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "prayer",
-          "label": "prayer",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "conclusion",
-          "label": "conclusion",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        }
-      ]
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.opening",
-      "title": "example.assignment.readings.opening",
-      "status": "draft",
-      "slot_name": "opening",
-      "resource_ref": {
-        "id": "example.text.opening"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.hymn",
-      "title": "example.text.hymn",
-      "status": "draft",
-      "resource_type": "hymn",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: hymn. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.hymn",
-      "title": "example.assignment.readings.hymn",
-      "status": "draft",
-      "slot_name": "hymn",
-      "resource_ref": {
-        "id": "example.text.hymn"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.psalmody.1",
-      "title": "example.assignment.readings.psalmody.1",
-      "status": "draft",
-      "slot_name": "psalmody.1",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.psalmody.2",
-      "title": "example.assignment.readings.psalmody.2",
-      "status": "draft",
-      "slot_name": "psalmody.2",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.psalmody.3",
-      "title": "example.assignment.readings.psalmody.3",
-      "status": "draft",
-      "slot_name": "psalmody.3",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.versicle",
-      "title": "example.text.versicle",
-      "status": "draft",
-      "resource_type": "versicle",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: versicle. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.versicle",
-      "title": "example.assignment.readings.versicle",
-      "status": "draft",
-      "slot_name": "versicle",
-      "resource_ref": {
-        "id": "example.text.versicle"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.reading.1",
-      "title": "example.text.reading.1",
-      "status": "draft",
-      "resource_type": "reading_1",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: reading.1. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.reading.1",
-      "title": "example.assignment.readings.reading.1",
-      "status": "draft",
-      "slot_name": "reading.1",
-      "resource_ref": {
-        "id": "example.text.reading.1"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.responsory.1",
-      "title": "example.text.responsory.1",
-      "status": "draft",
-      "resource_type": "responsory_1",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: responsory.1. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.responsory.1",
-      "title": "example.assignment.readings.responsory.1",
-      "status": "draft",
-      "slot_name": "responsory.1",
-      "resource_ref": {
-        "id": "example.text.responsory.1"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.reading.2",
-      "title": "example.text.reading.2",
-      "status": "draft",
-      "resource_type": "reading_2",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: reading.2. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.reading.2",
-      "title": "example.assignment.readings.reading.2",
-      "status": "draft",
-      "slot_name": "reading.2",
-      "resource_ref": {
-        "id": "example.text.reading.2"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.responsory.2",
-      "title": "example.text.responsory.2",
-      "status": "draft",
-      "resource_type": "responsory_2",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: responsory.2. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.responsory.2",
-      "title": "example.assignment.readings.responsory.2",
-      "status": "draft",
-      "slot_name": "responsory.2",
-      "resource_ref": {
-        "id": "example.text.responsory.2"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.te_deum",
-      "title": "example.text.te_deum",
-      "status": "draft",
-      "resource_type": "te_deum",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: te_deum. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.te_deum",
-      "title": "example.assignment.readings.te_deum",
-      "status": "draft",
-      "slot_name": "te_deum",
-      "resource_ref": {
-        "id": "example.text.te_deum"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.prayer",
-      "title": "example.text.prayer",
-      "status": "draft",
-      "resource_type": "prayer",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: prayer. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.prayer",
-      "title": "example.assignment.readings.prayer",
-      "status": "draft",
-      "slot_name": "prayer",
-      "resource_ref": {
-        "id": "example.text.prayer"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.conclusion",
-      "title": "example.text.conclusion",
-      "status": "draft",
-      "resource_type": "conclusion",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: conclusion. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.readings.conclusion",
-      "title": "example.assignment.readings.conclusion",
-      "status": "draft",
-      "slot_name": "conclusion",
-      "resource_ref": {
-        "id": "example.text.conclusion"
-      },
-      "target_context": {
-        "hours": [
-          "readings"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
+      "authority_reference": "Synthetic structural demonstration — requires rubrical review"
     },
     {
       "entity_type": "liturgical_template",
@@ -767,12 +889,12 @@
         ]
       },
       "priority": 100,
-      "authority_reference": "Synthetic structural demonstration — requires rubrical review",
       "slots": [
         {
           "name": "opening",
           "label": "opening",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -781,6 +903,7 @@
           "name": "hymn",
           "label": "hymn",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -789,6 +912,7 @@
           "name": "psalmody.1",
           "label": "psalmody.1",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -797,6 +921,7 @@
           "name": "psalmody.2",
           "label": "psalmody.2",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -805,6 +930,7 @@
           "name": "psalmody.3",
           "label": "psalmody.3",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -813,6 +939,7 @@
           "name": "reading",
           "label": "reading",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -821,6 +948,7 @@
           "name": "responsory",
           "label": "responsory",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -829,6 +957,7 @@
           "name": "gospel_canticle",
           "label": "gospel_canticle",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -837,6 +966,7 @@
           "name": "intercessions",
           "label": "intercessions",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -845,6 +975,7 @@
           "name": "lords_prayer",
           "label": "lords_prayer",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -853,6 +984,7 @@
           "name": "prayer",
           "label": "prayer",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -861,1879 +993,13 @@
           "name": "conclusion",
           "label": "conclusion",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
-        }
-      ]
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.opening",
-      "title": "example.assignment.lauds.opening",
-      "status": "draft",
-      "slot_name": "opening",
-      "resource_ref": {
-        "id": "example.text.opening"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.hymn",
-      "title": "example.assignment.lauds.hymn",
-      "status": "draft",
-      "slot_name": "hymn",
-      "resource_ref": {
-        "id": "example.text.hymn"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.psalmody.1",
-      "title": "example.assignment.lauds.psalmody.1",
-      "status": "draft",
-      "slot_name": "psalmody.1",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.psalmody.2",
-      "title": "example.assignment.lauds.psalmody.2",
-      "status": "draft",
-      "slot_name": "psalmody.2",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.psalmody.3",
-      "title": "example.assignment.lauds.psalmody.3",
-      "status": "draft",
-      "slot_name": "psalmody.3",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.reading",
-      "title": "example.text.reading",
-      "status": "draft",
-      "resource_type": "reading",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: reading. To przykład struktury, nie tekst liturgiczny."
         }
       ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.reading",
-      "title": "example.assignment.lauds.reading",
-      "status": "draft",
-      "slot_name": "reading",
-      "resource_ref": {
-        "id": "example.text.reading"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.responsory",
-      "title": "example.text.responsory",
-      "status": "draft",
-      "resource_type": "responsory",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: responsory. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.responsory",
-      "title": "example.assignment.lauds.responsory",
-      "status": "draft",
-      "slot_name": "responsory",
-      "resource_ref": {
-        "id": "example.text.responsory"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.gospel_canticle",
-      "title": "example.text.gospel_canticle",
-      "status": "draft",
-      "resource_type": "gospel_canticle",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: gospel_canticle. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.gospel_canticle",
-      "title": "example.assignment.lauds.gospel_canticle",
-      "status": "draft",
-      "slot_name": "gospel_canticle",
-      "resource_ref": {
-        "id": "example.text.gospel_canticle"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.intercessions",
-      "title": "example.text.intercessions",
-      "status": "draft",
-      "resource_type": "intercessions",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: intercessions. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.intercessions",
-      "title": "example.assignment.lauds.intercessions",
-      "status": "draft",
-      "slot_name": "intercessions",
-      "resource_ref": {
-        "id": "example.text.intercessions"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.lords_prayer",
-      "title": "example.text.lords_prayer",
-      "status": "draft",
-      "resource_type": "lords_prayer",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: lords_prayer. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.lords_prayer",
-      "title": "example.assignment.lauds.lords_prayer",
-      "status": "draft",
-      "slot_name": "lords_prayer",
-      "resource_ref": {
-        "id": "example.text.lords_prayer"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.prayer",
-      "title": "example.assignment.lauds.prayer",
-      "status": "draft",
-      "slot_name": "prayer",
-      "resource_ref": {
-        "id": "example.text.prayer"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.lauds.conclusion",
-      "title": "example.assignment.lauds.conclusion",
-      "status": "draft",
-      "slot_name": "conclusion",
-      "resource_ref": {
-        "id": "example.text.conclusion"
-      },
-      "target_context": {
-        "hours": [
-          "lauds"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_template",
-      "id": "example.template.terce",
-      "title": "example.template.terce",
-      "status": "draft",
-      "hour_or_rite": "terce",
-      "applicability": {
-        "scopes": [
-          "example"
-        ]
-      },
-      "priority": 100,
-      "authority_reference": "Synthetic structural demonstration — requires rubrical review",
-      "slots": [
-        {
-          "name": "opening",
-          "label": "opening",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "hymn",
-          "label": "hymn",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.1",
-          "label": "psalmody.1",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.2",
-          "label": "psalmody.2",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.3",
-          "label": "psalmody.3",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "reading",
-          "label": "reading",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "versicle",
-          "label": "versicle",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "prayer",
-          "label": "prayer",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "conclusion",
-          "label": "conclusion",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        }
-      ]
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.terce.opening",
-      "title": "example.assignment.terce.opening",
-      "status": "draft",
-      "slot_name": "opening",
-      "resource_ref": {
-        "id": "example.text.opening"
-      },
-      "target_context": {
-        "hours": [
-          "terce"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.terce.hymn",
-      "title": "example.assignment.terce.hymn",
-      "status": "draft",
-      "slot_name": "hymn",
-      "resource_ref": {
-        "id": "example.text.hymn"
-      },
-      "target_context": {
-        "hours": [
-          "terce"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.terce.psalmody.1",
-      "title": "example.assignment.terce.psalmody.1",
-      "status": "draft",
-      "slot_name": "psalmody.1",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "terce"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.terce.psalmody.2",
-      "title": "example.assignment.terce.psalmody.2",
-      "status": "draft",
-      "slot_name": "psalmody.2",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "terce"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.terce.psalmody.3",
-      "title": "example.assignment.terce.psalmody.3",
-      "status": "draft",
-      "slot_name": "psalmody.3",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "terce"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.terce.reading",
-      "title": "example.assignment.terce.reading",
-      "status": "draft",
-      "slot_name": "reading",
-      "resource_ref": {
-        "id": "example.text.reading"
-      },
-      "target_context": {
-        "hours": [
-          "terce"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.terce.versicle",
-      "title": "example.assignment.terce.versicle",
-      "status": "draft",
-      "slot_name": "versicle",
-      "resource_ref": {
-        "id": "example.text.versicle"
-      },
-      "target_context": {
-        "hours": [
-          "terce"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.terce.prayer",
-      "title": "example.assignment.terce.prayer",
-      "status": "draft",
-      "slot_name": "prayer",
-      "resource_ref": {
-        "id": "example.text.prayer"
-      },
-      "target_context": {
-        "hours": [
-          "terce"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.terce.conclusion",
-      "title": "example.assignment.terce.conclusion",
-      "status": "draft",
-      "slot_name": "conclusion",
-      "resource_ref": {
-        "id": "example.text.conclusion"
-      },
-      "target_context": {
-        "hours": [
-          "terce"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_template",
-      "id": "example.template.sext",
-      "title": "example.template.sext",
-      "status": "draft",
-      "hour_or_rite": "sext",
-      "applicability": {
-        "scopes": [
-          "example"
-        ]
-      },
-      "priority": 100,
-      "authority_reference": "Synthetic structural demonstration — requires rubrical review",
-      "slots": [
-        {
-          "name": "opening",
-          "label": "opening",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "hymn",
-          "label": "hymn",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.1",
-          "label": "psalmody.1",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.2",
-          "label": "psalmody.2",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.3",
-          "label": "psalmody.3",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "reading",
-          "label": "reading",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "versicle",
-          "label": "versicle",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "prayer",
-          "label": "prayer",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "conclusion",
-          "label": "conclusion",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        }
-      ]
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.sext.opening",
-      "title": "example.assignment.sext.opening",
-      "status": "draft",
-      "slot_name": "opening",
-      "resource_ref": {
-        "id": "example.text.opening"
-      },
-      "target_context": {
-        "hours": [
-          "sext"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.sext.hymn",
-      "title": "example.assignment.sext.hymn",
-      "status": "draft",
-      "slot_name": "hymn",
-      "resource_ref": {
-        "id": "example.text.hymn"
-      },
-      "target_context": {
-        "hours": [
-          "sext"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.sext.psalmody.1",
-      "title": "example.assignment.sext.psalmody.1",
-      "status": "draft",
-      "slot_name": "psalmody.1",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "sext"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.sext.psalmody.2",
-      "title": "example.assignment.sext.psalmody.2",
-      "status": "draft",
-      "slot_name": "psalmody.2",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "sext"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.sext.psalmody.3",
-      "title": "example.assignment.sext.psalmody.3",
-      "status": "draft",
-      "slot_name": "psalmody.3",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "sext"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.sext.reading",
-      "title": "example.assignment.sext.reading",
-      "status": "draft",
-      "slot_name": "reading",
-      "resource_ref": {
-        "id": "example.text.reading"
-      },
-      "target_context": {
-        "hours": [
-          "sext"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.sext.versicle",
-      "title": "example.assignment.sext.versicle",
-      "status": "draft",
-      "slot_name": "versicle",
-      "resource_ref": {
-        "id": "example.text.versicle"
-      },
-      "target_context": {
-        "hours": [
-          "sext"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.sext.prayer",
-      "title": "example.assignment.sext.prayer",
-      "status": "draft",
-      "slot_name": "prayer",
-      "resource_ref": {
-        "id": "example.text.prayer"
-      },
-      "target_context": {
-        "hours": [
-          "sext"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.sext.conclusion",
-      "title": "example.assignment.sext.conclusion",
-      "status": "draft",
-      "slot_name": "conclusion",
-      "resource_ref": {
-        "id": "example.text.conclusion"
-      },
-      "target_context": {
-        "hours": [
-          "sext"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_template",
-      "id": "example.template.none",
-      "title": "example.template.none",
-      "status": "draft",
-      "hour_or_rite": "none",
-      "applicability": {
-        "scopes": [
-          "example"
-        ]
-      },
-      "priority": 100,
-      "authority_reference": "Synthetic structural demonstration — requires rubrical review",
-      "slots": [
-        {
-          "name": "opening",
-          "label": "opening",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "hymn",
-          "label": "hymn",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.1",
-          "label": "psalmody.1",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.2",
-          "label": "psalmody.2",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.3",
-          "label": "psalmody.3",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "reading",
-          "label": "reading",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "versicle",
-          "label": "versicle",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "prayer",
-          "label": "prayer",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "conclusion",
-          "label": "conclusion",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        }
-      ]
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.none.opening",
-      "title": "example.assignment.none.opening",
-      "status": "draft",
-      "slot_name": "opening",
-      "resource_ref": {
-        "id": "example.text.opening"
-      },
-      "target_context": {
-        "hours": [
-          "none"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.none.hymn",
-      "title": "example.assignment.none.hymn",
-      "status": "draft",
-      "slot_name": "hymn",
-      "resource_ref": {
-        "id": "example.text.hymn"
-      },
-      "target_context": {
-        "hours": [
-          "none"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.none.psalmody.1",
-      "title": "example.assignment.none.psalmody.1",
-      "status": "draft",
-      "slot_name": "psalmody.1",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "none"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.none.psalmody.2",
-      "title": "example.assignment.none.psalmody.2",
-      "status": "draft",
-      "slot_name": "psalmody.2",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "none"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.none.psalmody.3",
-      "title": "example.assignment.none.psalmody.3",
-      "status": "draft",
-      "slot_name": "psalmody.3",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "none"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.none.reading",
-      "title": "example.assignment.none.reading",
-      "status": "draft",
-      "slot_name": "reading",
-      "resource_ref": {
-        "id": "example.text.reading"
-      },
-      "target_context": {
-        "hours": [
-          "none"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.none.versicle",
-      "title": "example.assignment.none.versicle",
-      "status": "draft",
-      "slot_name": "versicle",
-      "resource_ref": {
-        "id": "example.text.versicle"
-      },
-      "target_context": {
-        "hours": [
-          "none"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.none.prayer",
-      "title": "example.assignment.none.prayer",
-      "status": "draft",
-      "slot_name": "prayer",
-      "resource_ref": {
-        "id": "example.text.prayer"
-      },
-      "target_context": {
-        "hours": [
-          "none"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.none.conclusion",
-      "title": "example.assignment.none.conclusion",
-      "status": "draft",
-      "slot_name": "conclusion",
-      "resource_ref": {
-        "id": "example.text.conclusion"
-      },
-      "target_context": {
-        "hours": [
-          "none"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_template",
-      "id": "example.template.vespers",
-      "title": "example.template.vespers",
-      "status": "draft",
-      "hour_or_rite": "vespers",
-      "applicability": {
-        "scopes": [
-          "example"
-        ]
-      },
-      "priority": 100,
-      "authority_reference": "Synthetic structural demonstration — requires rubrical review",
-      "slots": [
-        {
-          "name": "opening",
-          "label": "opening",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "hymn",
-          "label": "hymn",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.1",
-          "label": "psalmody.1",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.2",
-          "label": "psalmody.2",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.3",
-          "label": "psalmody.3",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "reading",
-          "label": "reading",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "responsory",
-          "label": "responsory",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "gospel_canticle",
-          "label": "gospel_canticle",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "intercessions",
-          "label": "intercessions",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "lords_prayer",
-          "label": "lords_prayer",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "prayer",
-          "label": "prayer",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "conclusion",
-          "label": "conclusion",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        }
-      ]
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.opening",
-      "title": "example.assignment.vespers.opening",
-      "status": "draft",
-      "slot_name": "opening",
-      "resource_ref": {
-        "id": "example.text.opening"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.hymn",
-      "title": "example.assignment.vespers.hymn",
-      "status": "draft",
-      "slot_name": "hymn",
-      "resource_ref": {
-        "id": "example.text.hymn"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.psalmody.1",
-      "title": "example.assignment.vespers.psalmody.1",
-      "status": "draft",
-      "slot_name": "psalmody.1",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.psalmody.2",
-      "title": "example.assignment.vespers.psalmody.2",
-      "status": "draft",
-      "slot_name": "psalmody.2",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.psalmody.3",
-      "title": "example.assignment.vespers.psalmody.3",
-      "status": "draft",
-      "slot_name": "psalmody.3",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.reading",
-      "title": "example.assignment.vespers.reading",
-      "status": "draft",
-      "slot_name": "reading",
-      "resource_ref": {
-        "id": "example.text.reading"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.responsory",
-      "title": "example.assignment.vespers.responsory",
-      "status": "draft",
-      "slot_name": "responsory",
-      "resource_ref": {
-        "id": "example.text.responsory"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.gospel_canticle",
-      "title": "example.assignment.vespers.gospel_canticle",
-      "status": "draft",
-      "slot_name": "gospel_canticle",
-      "resource_ref": {
-        "id": "example.text.gospel_canticle"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.intercessions",
-      "title": "example.assignment.vespers.intercessions",
-      "status": "draft",
-      "slot_name": "intercessions",
-      "resource_ref": {
-        "id": "example.text.intercessions"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.lords_prayer",
-      "title": "example.assignment.vespers.lords_prayer",
-      "status": "draft",
-      "slot_name": "lords_prayer",
-      "resource_ref": {
-        "id": "example.text.lords_prayer"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.prayer",
-      "title": "example.assignment.vespers.prayer",
-      "status": "draft",
-      "slot_name": "prayer",
-      "resource_ref": {
-        "id": "example.text.prayer"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.vespers.conclusion",
-      "title": "example.assignment.vespers.conclusion",
-      "status": "draft",
-      "slot_name": "conclusion",
-      "resource_ref": {
-        "id": "example.text.conclusion"
-      },
-      "target_context": {
-        "hours": [
-          "vespers"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_template",
-      "id": "example.template.compline",
-      "title": "example.template.compline",
-      "status": "draft",
-      "hour_or_rite": "compline",
-      "applicability": {
-        "scopes": [
-          "example"
-        ]
-      },
-      "priority": 100,
-      "authority_reference": "Synthetic structural demonstration — requires rubrical review",
-      "slots": [
-        {
-          "name": "opening",
-          "label": "opening",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "examination",
-          "label": "examination",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "hymn",
-          "label": "hymn",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "psalmody.1",
-          "label": "psalmody.1",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "reading",
-          "label": "reading",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "responsory",
-          "label": "responsory",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "gospel_canticle",
-          "label": "gospel_canticle",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "prayer",
-          "label": "prayer",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "blessing",
-          "label": "blessing",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        },
-        {
-          "name": "marian_antiphon",
-          "label": "marian_antiphon",
-          "required": true,
-          "source_order": [
-            "local"
-          ]
-        }
-      ]
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.compline.opening",
-      "title": "example.assignment.compline.opening",
-      "status": "draft",
-      "slot_name": "opening",
-      "resource_ref": {
-        "id": "example.text.opening"
-      },
-      "target_context": {
-        "hours": [
-          "compline"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.examination",
-      "title": "example.text.examination",
-      "status": "draft",
-      "resource_type": "examination",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: examination. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.compline.examination",
-      "title": "example.assignment.compline.examination",
-      "status": "draft",
-      "slot_name": "examination",
-      "resource_ref": {
-        "id": "example.text.examination"
-      },
-      "target_context": {
-        "hours": [
-          "compline"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.compline.hymn",
-      "title": "example.assignment.compline.hymn",
-      "status": "draft",
-      "slot_name": "hymn",
-      "resource_ref": {
-        "id": "example.text.hymn"
-      },
-      "target_context": {
-        "hours": [
-          "compline"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.compline.psalmody.1",
-      "title": "example.assignment.compline.psalmody.1",
-      "status": "draft",
-      "slot_name": "psalmody.1",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "compline"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.compline.reading",
-      "title": "example.assignment.compline.reading",
-      "status": "draft",
-      "slot_name": "reading",
-      "resource_ref": {
-        "id": "example.text.reading"
-      },
-      "target_context": {
-        "hours": [
-          "compline"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.compline.responsory",
-      "title": "example.assignment.compline.responsory",
-      "status": "draft",
-      "slot_name": "responsory",
-      "resource_ref": {
-        "id": "example.text.responsory"
-      },
-      "target_context": {
-        "hours": [
-          "compline"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.compline.gospel_canticle",
-      "title": "example.assignment.compline.gospel_canticle",
-      "status": "draft",
-      "slot_name": "gospel_canticle",
-      "resource_ref": {
-        "id": "example.text.gospel_canticle"
-      },
-      "target_context": {
-        "hours": [
-          "compline"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.compline.prayer",
-      "title": "example.assignment.compline.prayer",
-      "status": "draft",
-      "slot_name": "prayer",
-      "resource_ref": {
-        "id": "example.text.prayer"
-      },
-      "target_context": {
-        "hours": [
-          "compline"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.blessing",
-      "title": "example.text.blessing",
-      "status": "draft",
-      "resource_type": "blessing",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: blessing. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.compline.blessing",
-      "title": "example.assignment.compline.blessing",
-      "status": "draft",
-      "slot_name": "blessing",
-      "resource_ref": {
-        "id": "example.text.blessing"
-      },
-      "target_context": {
-        "hours": [
-          "compline"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.marian_antiphon",
-      "title": "example.text.marian_antiphon",
-      "status": "draft",
-      "resource_type": "marian_antiphon",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: marian_antiphon. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.compline.marian_antiphon",
-      "title": "example.assignment.compline.marian_antiphon",
-      "status": "draft",
-      "slot_name": "marian_antiphon",
-      "resource_ref": {
-        "id": "example.text.marian_antiphon"
-      },
-      "target_context": {
-        "hours": [
-          "compline"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
+      "authority_reference": "Synthetic structural demonstration — requires rubrical review"
     },
     {
       "entity_type": "liturgical_template",
@@ -2747,12 +1013,12 @@
         ]
       },
       "priority": 100,
-      "authority_reference": "Synthetic structural demonstration — requires rubrical review",
       "slots": [
         {
           "name": "entrance",
           "label": "entrance",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2761,6 +1027,7 @@
           "name": "collect",
           "label": "collect",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2769,6 +1036,7 @@
           "name": "reading.1",
           "label": "reading.1",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2777,6 +1045,7 @@
           "name": "psalm",
           "label": "psalm",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2785,6 +1054,7 @@
           "name": "reading.2",
           "label": "reading.2",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2793,6 +1063,7 @@
           "name": "acclamation",
           "label": "acclamation",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2801,6 +1072,7 @@
           "name": "gospel",
           "label": "gospel",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2809,6 +1081,7 @@
           "name": "offertory",
           "label": "offertory",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2817,6 +1090,7 @@
           "name": "prayer_over_offerings",
           "label": "prayer_over_offerings",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2825,6 +1099,7 @@
           "name": "preface",
           "label": "preface",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2833,6 +1108,7 @@
           "name": "communion",
           "label": "communion",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
@@ -2841,432 +1117,561 @@
           "name": "prayer_after_communion",
           "label": "prayer_after_communion",
           "required": true,
+          "conditions": {},
           "source_order": [
             "local"
           ]
         }
-      ]
+      ],
+      "authority_reference": "Synthetic structural demonstration — requires rubrical review"
     },
     {
-      "entity_type": "text_resource",
-      "id": "example.text.entrance",
-      "title": "example.text.entrance",
+      "entity_type": "liturgical_template",
+      "id": "example.template.none",
+      "title": "example.template.none",
       "status": "draft",
-      "resource_type": "entrance",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
+      "hour_or_rite": "none",
+      "applicability": {
+        "scopes": [
+          "example"
+        ]
+      },
+      "priority": 100,
+      "slots": [
         {
-          "type": "paragraph",
-          "text": "Tekst testowy: entrance. To przykład struktury, nie tekst liturgiczny."
+          "name": "opening",
+          "label": "opening",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "hymn",
+          "label": "hymn",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.1",
+          "label": "psalmody.1",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.2",
+          "label": "psalmody.2",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.3",
+          "label": "psalmody.3",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "reading",
+          "label": "reading",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "versicle",
+          "label": "versicle",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "prayer",
+          "label": "prayer",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "conclusion",
+          "label": "conclusion",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
         }
       ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
+      "authority_reference": "Synthetic structural demonstration — requires rubrical review"
     },
     {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.entrance",
-      "title": "example.assignment.mass.entrance",
+      "entity_type": "liturgical_template",
+      "id": "example.template.readings",
+      "title": "example.template.readings",
       "status": "draft",
-      "slot_name": "entrance",
-      "resource_ref": {
-        "id": "example.text.entrance"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
+      "hour_or_rite": "readings",
+      "applicability": {
         "scopes": [
           "example"
         ]
       },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.collect",
-      "title": "example.text.collect",
-      "status": "draft",
-      "resource_type": "collect",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
+      "priority": 100,
+      "slots": [
         {
-          "type": "paragraph",
-          "text": "Tekst testowy: collect. To przykład struktury, nie tekst liturgiczny."
+          "name": "opening",
+          "label": "opening",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "hymn",
+          "label": "hymn",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.1",
+          "label": "psalmody.1",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.2",
+          "label": "psalmody.2",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.3",
+          "label": "psalmody.3",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "versicle",
+          "label": "versicle",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "reading.1",
+          "label": "reading.1",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "responsory.1",
+          "label": "responsory.1",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "reading.2",
+          "label": "reading.2",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "responsory.2",
+          "label": "responsory.2",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "te_deum",
+          "label": "te_deum",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "prayer",
+          "label": "prayer",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "conclusion",
+          "label": "conclusion",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
         }
       ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
+      "authority_reference": "Synthetic structural demonstration — requires rubrical review"
     },
     {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.collect",
-      "title": "example.assignment.mass.collect",
+      "entity_type": "liturgical_template",
+      "id": "example.template.sext",
+      "title": "example.template.sext",
       "status": "draft",
-      "slot_name": "collect",
-      "resource_ref": {
-        "id": "example.text.collect"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
+      "hour_or_rite": "sext",
+      "applicability": {
         "scopes": [
           "example"
         ]
       },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.reading.1",
-      "title": "example.assignment.mass.reading.1",
-      "status": "draft",
-      "slot_name": "reading.1",
-      "resource_ref": {
-        "id": "example.text.reading.1"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.psalm",
-      "title": "example.assignment.mass.psalm",
-      "status": "draft",
-      "slot_name": "psalm",
-      "resource_ref": {
-        "id": "example.psalm.part"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only",
-      "antiphon_ref": "example.antiphon"
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.reading.2",
-      "title": "example.assignment.mass.reading.2",
-      "status": "draft",
-      "slot_name": "reading.2",
-      "resource_ref": {
-        "id": "example.text.reading.2"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.acclamation",
-      "title": "example.text.acclamation",
-      "status": "draft",
-      "resource_type": "acclamation",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
+      "priority": 100,
+      "slots": [
         {
-          "type": "paragraph",
-          "text": "Tekst testowy: acclamation. To przykład struktury, nie tekst liturgiczny."
+          "name": "opening",
+          "label": "opening",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "hymn",
+          "label": "hymn",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.1",
+          "label": "psalmody.1",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.2",
+          "label": "psalmody.2",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.3",
+          "label": "psalmody.3",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "reading",
+          "label": "reading",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "versicle",
+          "label": "versicle",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "prayer",
+          "label": "prayer",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "conclusion",
+          "label": "conclusion",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
         }
       ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
+      "authority_reference": "Synthetic structural demonstration — requires rubrical review"
     },
     {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.acclamation",
-      "title": "example.assignment.mass.acclamation",
+      "entity_type": "liturgical_template",
+      "id": "example.template.terce",
+      "title": "example.template.terce",
       "status": "draft",
-      "slot_name": "acclamation",
-      "resource_ref": {
-        "id": "example.text.acclamation"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
+      "hour_or_rite": "terce",
+      "applicability": {
         "scopes": [
           "example"
         ]
       },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.gospel",
-      "title": "example.text.gospel",
-      "status": "draft",
-      "resource_type": "gospel",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
+      "priority": 100,
+      "slots": [
         {
-          "type": "paragraph",
-          "text": "Tekst testowy: gospel. To przykład struktury, nie tekst liturgiczny."
+          "name": "opening",
+          "label": "opening",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "hymn",
+          "label": "hymn",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.1",
+          "label": "psalmody.1",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.2",
+          "label": "psalmody.2",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.3",
+          "label": "psalmody.3",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "reading",
+          "label": "reading",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "versicle",
+          "label": "versicle",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "prayer",
+          "label": "prayer",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "conclusion",
+          "label": "conclusion",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
         }
       ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
+      "authority_reference": "Synthetic structural demonstration — requires rubrical review"
     },
     {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.gospel",
-      "title": "example.assignment.mass.gospel",
+      "entity_type": "liturgical_template",
+      "id": "example.template.vespers",
+      "title": "example.template.vespers",
       "status": "draft",
-      "slot_name": "gospel",
-      "resource_ref": {
-        "id": "example.text.gospel"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
+      "hour_or_rite": "vespers",
+      "applicability": {
         "scopes": [
           "example"
         ]
       },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.offertory",
-      "title": "example.text.offertory",
-      "status": "draft",
-      "resource_type": "offertory",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
+      "priority": 100,
+      "slots": [
         {
-          "type": "paragraph",
-          "text": "Tekst testowy: offertory. To przykład struktury, nie tekst liturgiczny."
+          "name": "opening",
+          "label": "opening",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "hymn",
+          "label": "hymn",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.1",
+          "label": "psalmody.1",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.2",
+          "label": "psalmody.2",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "psalmody.3",
+          "label": "psalmody.3",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "reading",
+          "label": "reading",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "responsory",
+          "label": "responsory",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "gospel_canticle",
+          "label": "gospel_canticle",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "intercessions",
+          "label": "intercessions",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "lords_prayer",
+          "label": "lords_prayer",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "prayer",
+          "label": "prayer",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
+        },
+        {
+          "name": "conclusion",
+          "label": "conclusion",
+          "required": true,
+          "conditions": {},
+          "source_order": [
+            "local"
+          ]
         }
       ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.offertory",
-      "title": "example.assignment.mass.offertory",
-      "status": "draft",
-      "slot_name": "offertory",
-      "resource_ref": {
-        "id": "example.text.offertory"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.prayer_over_offerings",
-      "title": "example.text.prayer_over_offerings",
-      "status": "draft",
-      "resource_type": "prayer_over_offerings",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: prayer_over_offerings. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.prayer_over_offerings",
-      "title": "example.assignment.mass.prayer_over_offerings",
-      "status": "draft",
-      "slot_name": "prayer_over_offerings",
-      "resource_ref": {
-        "id": "example.text.prayer_over_offerings"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.preface",
-      "title": "example.text.preface",
-      "status": "draft",
-      "resource_type": "preface",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: preface. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.preface",
-      "title": "example.assignment.mass.preface",
-      "status": "draft",
-      "slot_name": "preface",
-      "resource_ref": {
-        "id": "example.text.preface"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.communion",
-      "title": "example.text.communion",
-      "status": "draft",
-      "resource_type": "communion",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: communion. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.communion",
-      "title": "example.assignment.mass.communion",
-      "status": "draft",
-      "slot_name": "communion",
-      "resource_ref": {
-        "id": "example.text.communion"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
-    },
-    {
-      "entity_type": "text_resource",
-      "id": "example.text.prayer_after_communion",
-      "title": "example.text.prayer_after_communion",
-      "status": "draft",
-      "resource_type": "prayer_after_communion",
-      "edition_id": "example.edition",
-      "language": "pl-PL",
-      "complete": true,
-      "source_citation": "Synthetic test fixture — not for liturgical use",
-      "structured_content": [
-        {
-          "type": "paragraph",
-          "text": "Tekst testowy: prayer_after_communion. To przykład struktury, nie tekst liturgiczny."
-        }
-      ],
-      "metadata": {
-        "editorial_note": "Replace this synthetic fixture with a licensed source before review."
-      }
-    },
-    {
-      "entity_type": "liturgical_assignment",
-      "id": "example.assignment.mass.prayer_after_communion",
-      "title": "example.assignment.mass.prayer_after_communion",
-      "status": "draft",
-      "slot_name": "prayer_after_communion",
-      "resource_ref": {
-        "id": "example.text.prayer_after_communion"
-      },
-      "target_context": {
-        "hours": [
-          "mass"
-        ],
-        "scopes": [
-          "example"
-        ]
-      },
-      "source_layer": "local",
-      "authority_reference": "Synthetic demonstration only"
+      "authority_reference": "Synthetic structural demonstration — requires rubrical review"
     },
     {
       "entity_type": "calendar_observance",
@@ -3282,24 +1687,1896 @@
       },
       "calendar_scope": "example",
       "liturgical_color": "white",
+      "first_vespers": false,
       "authority_reference": "Synthetic calendar fixture"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.compline.blessing",
+      "title": "example.assignment.compline.blessing",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "compline"
+        ]
+      },
+      "slot_name": "blessing",
+      "resource_ref": {
+        "id": "example.text.blessing"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.compline.examination",
+      "title": "example.assignment.compline.examination",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "compline"
+        ]
+      },
+      "slot_name": "examination",
+      "resource_ref": {
+        "id": "example.text.examination"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.compline.gospel_canticle",
+      "title": "example.assignment.compline.gospel_canticle",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "compline"
+        ]
+      },
+      "slot_name": "gospel_canticle",
+      "resource_ref": {
+        "id": "example.text.gospel_canticle"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.compline.hymn",
+      "title": "example.assignment.compline.hymn",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "compline"
+        ]
+      },
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "example.text.hymn"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.compline.marian_antiphon",
+      "title": "example.assignment.compline.marian_antiphon",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "compline"
+        ]
+      },
+      "slot_name": "marian_antiphon",
+      "resource_ref": {
+        "id": "example.text.marian_antiphon"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.compline.opening",
+      "title": "example.assignment.compline.opening",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "compline"
+        ]
+      },
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "example.text.opening"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.compline.prayer",
+      "title": "example.assignment.compline.prayer",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "compline"
+        ]
+      },
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "example.text.prayer"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.compline.psalmody.1",
+      "title": "example.assignment.compline.psalmody.1",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "compline"
+        ]
+      },
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.compline.reading",
+      "title": "example.assignment.compline.reading",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "compline"
+        ]
+      },
+      "slot_name": "reading",
+      "resource_ref": {
+        "id": "example.text.reading"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.compline.responsory",
+      "title": "example.assignment.compline.responsory",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "compline"
+        ]
+      },
+      "slot_name": "responsory",
+      "resource_ref": {
+        "id": "example.text.responsory"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.invitatory.invitatory",
+      "title": "example.assignment.invitatory.invitatory",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "invitatory"
+        ]
+      },
+      "slot_name": "invitatory",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.invitatory.opening",
+      "title": "example.assignment.invitatory.opening",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "invitatory"
+        ]
+      },
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "example.text.opening"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.conclusion",
+      "title": "example.assignment.lauds.conclusion",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "conclusion",
+      "resource_ref": {
+        "id": "example.text.conclusion"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.gospel_canticle",
+      "title": "example.assignment.lauds.gospel_canticle",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "gospel_canticle",
+      "resource_ref": {
+        "id": "example.text.gospel_canticle"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.hymn",
+      "title": "example.assignment.lauds.hymn",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "example.text.hymn"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.intercessions",
+      "title": "example.assignment.lauds.intercessions",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "intercessions",
+      "resource_ref": {
+        "id": "example.text.intercessions"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.lords_prayer",
+      "title": "example.assignment.lauds.lords_prayer",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "lords_prayer",
+      "resource_ref": {
+        "id": "example.text.lords_prayer"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.opening",
+      "title": "example.assignment.lauds.opening",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "example.text.opening"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.prayer",
+      "title": "example.assignment.lauds.prayer",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "example.text.prayer"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.psalmody.1",
+      "title": "example.assignment.lauds.psalmody.1",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.psalmody.2",
+      "title": "example.assignment.lauds.psalmody.2",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "psalmody.2",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.psalmody.3",
+      "title": "example.assignment.lauds.psalmody.3",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "psalmody.3",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.reading",
+      "title": "example.assignment.lauds.reading",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "reading",
+      "resource_ref": {
+        "id": "example.text.reading"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.lauds.responsory",
+      "title": "example.assignment.lauds.responsory",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "lauds"
+        ]
+      },
+      "slot_name": "responsory",
+      "resource_ref": {
+        "id": "example.text.responsory"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.acclamation",
+      "title": "example.assignment.mass.acclamation",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "acclamation",
+      "resource_ref": {
+        "id": "example.text.acclamation"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.collect",
+      "title": "example.assignment.mass.collect",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "collect",
+      "resource_ref": {
+        "id": "example.text.collect"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.communion",
+      "title": "example.assignment.mass.communion",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "communion",
+      "resource_ref": {
+        "id": "example.text.communion"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.entrance",
+      "title": "example.assignment.mass.entrance",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "entrance",
+      "resource_ref": {
+        "id": "example.text.entrance"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.gospel",
+      "title": "example.assignment.mass.gospel",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "gospel",
+      "resource_ref": {
+        "id": "example.text.gospel"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.offertory",
+      "title": "example.assignment.mass.offertory",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "offertory",
+      "resource_ref": {
+        "id": "example.text.offertory"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.prayer_after_communion",
+      "title": "example.assignment.mass.prayer_after_communion",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "prayer_after_communion",
+      "resource_ref": {
+        "id": "example.text.prayer_after_communion"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.prayer_over_offerings",
+      "title": "example.assignment.mass.prayer_over_offerings",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "prayer_over_offerings",
+      "resource_ref": {
+        "id": "example.text.prayer_over_offerings"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.preface",
+      "title": "example.assignment.mass.preface",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "preface",
+      "resource_ref": {
+        "id": "example.text.preface"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.psalm",
+      "title": "example.assignment.mass.psalm",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "psalm",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.reading.1",
+      "title": "example.assignment.mass.reading.1",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "reading.1",
+      "resource_ref": {
+        "id": "example.text.reading.1"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.mass.reading.2",
+      "title": "example.assignment.mass.reading.2",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "mass"
+        ]
+      },
+      "slot_name": "reading.2",
+      "resource_ref": {
+        "id": "example.text.reading.2"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.none.conclusion",
+      "title": "example.assignment.none.conclusion",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "none"
+        ]
+      },
+      "slot_name": "conclusion",
+      "resource_ref": {
+        "id": "example.text.conclusion"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.none.hymn",
+      "title": "example.assignment.none.hymn",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "none"
+        ]
+      },
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "example.text.hymn"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.none.opening",
+      "title": "example.assignment.none.opening",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "none"
+        ]
+      },
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "example.text.opening"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.none.prayer",
+      "title": "example.assignment.none.prayer",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "none"
+        ]
+      },
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "example.text.prayer"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.none.psalmody.1",
+      "title": "example.assignment.none.psalmody.1",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "none"
+        ]
+      },
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.none.psalmody.2",
+      "title": "example.assignment.none.psalmody.2",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "none"
+        ]
+      },
+      "slot_name": "psalmody.2",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.none.psalmody.3",
+      "title": "example.assignment.none.psalmody.3",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "none"
+        ]
+      },
+      "slot_name": "psalmody.3",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.none.reading",
+      "title": "example.assignment.none.reading",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "none"
+        ]
+      },
+      "slot_name": "reading",
+      "resource_ref": {
+        "id": "example.text.reading"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.none.versicle",
+      "title": "example.assignment.none.versicle",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "none"
+        ]
+      },
+      "slot_name": "versicle",
+      "resource_ref": {
+        "id": "example.text.versicle"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.conclusion",
+      "title": "example.assignment.readings.conclusion",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "conclusion",
+      "resource_ref": {
+        "id": "example.text.conclusion"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.hymn",
+      "title": "example.assignment.readings.hymn",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "example.text.hymn"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.opening",
+      "title": "example.assignment.readings.opening",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "example.text.opening"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.prayer",
+      "title": "example.assignment.readings.prayer",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "example.text.prayer"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.psalmody.1",
+      "title": "example.assignment.readings.psalmody.1",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.psalmody.2",
+      "title": "example.assignment.readings.psalmody.2",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "psalmody.2",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.psalmody.3",
+      "title": "example.assignment.readings.psalmody.3",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "psalmody.3",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.reading.1",
+      "title": "example.assignment.readings.reading.1",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "reading.1",
+      "resource_ref": {
+        "id": "example.text.reading.1"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.reading.2",
+      "title": "example.assignment.readings.reading.2",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "reading.2",
+      "resource_ref": {
+        "id": "example.text.reading.2"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.responsory.1",
+      "title": "example.assignment.readings.responsory.1",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "responsory.1",
+      "resource_ref": {
+        "id": "example.text.responsory.1"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.responsory.2",
+      "title": "example.assignment.readings.responsory.2",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "responsory.2",
+      "resource_ref": {
+        "id": "example.text.responsory.2"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.te_deum",
+      "title": "example.assignment.readings.te_deum",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "te_deum",
+      "resource_ref": {
+        "id": "example.text.te_deum"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.readings.versicle",
+      "title": "example.assignment.readings.versicle",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "readings"
+        ]
+      },
+      "slot_name": "versicle",
+      "resource_ref": {
+        "id": "example.text.versicle"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.sext.conclusion",
+      "title": "example.assignment.sext.conclusion",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "sext"
+        ]
+      },
+      "slot_name": "conclusion",
+      "resource_ref": {
+        "id": "example.text.conclusion"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.sext.hymn",
+      "title": "example.assignment.sext.hymn",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "sext"
+        ]
+      },
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "example.text.hymn"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.sext.opening",
+      "title": "example.assignment.sext.opening",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "sext"
+        ]
+      },
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "example.text.opening"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.sext.prayer",
+      "title": "example.assignment.sext.prayer",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "sext"
+        ]
+      },
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "example.text.prayer"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.sext.psalmody.1",
+      "title": "example.assignment.sext.psalmody.1",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "sext"
+        ]
+      },
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.sext.psalmody.2",
+      "title": "example.assignment.sext.psalmody.2",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "sext"
+        ]
+      },
+      "slot_name": "psalmody.2",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.sext.psalmody.3",
+      "title": "example.assignment.sext.psalmody.3",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "sext"
+        ]
+      },
+      "slot_name": "psalmody.3",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.sext.reading",
+      "title": "example.assignment.sext.reading",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "sext"
+        ]
+      },
+      "slot_name": "reading",
+      "resource_ref": {
+        "id": "example.text.reading"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.sext.versicle",
+      "title": "example.assignment.sext.versicle",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "sext"
+        ]
+      },
+      "slot_name": "versicle",
+      "resource_ref": {
+        "id": "example.text.versicle"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.terce.conclusion",
+      "title": "example.assignment.terce.conclusion",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "terce"
+        ]
+      },
+      "slot_name": "conclusion",
+      "resource_ref": {
+        "id": "example.text.conclusion"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.terce.hymn",
+      "title": "example.assignment.terce.hymn",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "terce"
+        ]
+      },
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "example.text.hymn"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.terce.opening",
+      "title": "example.assignment.terce.opening",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "terce"
+        ]
+      },
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "example.text.opening"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.terce.prayer",
+      "title": "example.assignment.terce.prayer",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "terce"
+        ]
+      },
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "example.text.prayer"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.terce.psalmody.1",
+      "title": "example.assignment.terce.psalmody.1",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "terce"
+        ]
+      },
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.terce.psalmody.2",
+      "title": "example.assignment.terce.psalmody.2",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "terce"
+        ]
+      },
+      "slot_name": "psalmody.2",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.terce.psalmody.3",
+      "title": "example.assignment.terce.psalmody.3",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "terce"
+        ]
+      },
+      "slot_name": "psalmody.3",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.terce.reading",
+      "title": "example.assignment.terce.reading",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "terce"
+        ]
+      },
+      "slot_name": "reading",
+      "resource_ref": {
+        "id": "example.text.reading"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.terce.versicle",
+      "title": "example.assignment.terce.versicle",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "terce"
+        ]
+      },
+      "slot_name": "versicle",
+      "resource_ref": {
+        "id": "example.text.versicle"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.conclusion",
+      "title": "example.assignment.vespers.conclusion",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "conclusion",
+      "resource_ref": {
+        "id": "example.text.conclusion"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.gospel_canticle",
+      "title": "example.assignment.vespers.gospel_canticle",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "gospel_canticle",
+      "resource_ref": {
+        "id": "example.text.gospel_canticle"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.hymn",
+      "title": "example.assignment.vespers.hymn",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "example.text.hymn"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.intercessions",
+      "title": "example.assignment.vespers.intercessions",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "intercessions",
+      "resource_ref": {
+        "id": "example.text.intercessions"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.lords_prayer",
+      "title": "example.assignment.vespers.lords_prayer",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "lords_prayer",
+      "resource_ref": {
+        "id": "example.text.lords_prayer"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.opening",
+      "title": "example.assignment.vespers.opening",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "example.text.opening"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.prayer",
+      "title": "example.assignment.vespers.prayer",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "example.text.prayer"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.psalmody.1",
+      "title": "example.assignment.vespers.psalmody.1",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.psalmody.2",
+      "title": "example.assignment.vespers.psalmody.2",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "psalmody.2",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.psalmody.3",
+      "title": "example.assignment.vespers.psalmody.3",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "psalmody.3",
+      "resource_ref": {
+        "id": "example.psalm.part"
+      },
+      "antiphon_ref": "example.antiphon",
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.reading",
+      "title": "example.assignment.vespers.reading",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "reading",
+      "resource_ref": {
+        "id": "example.text.reading"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "example.assignment.vespers.responsory",
+      "title": "example.assignment.vespers.responsory",
+      "status": "draft",
+      "target_context": {
+        "scopes": [
+          "example"
+        ],
+        "hours": [
+          "vespers"
+        ]
+      },
+      "slot_name": "responsory",
+      "resource_ref": {
+        "id": "example.text.responsory"
+      },
+      "priority": 0,
+      "source_layer": "local",
+      "authority_reference": "Synthetic demonstration only"
     },
     {
       "entity_type": "liturgical_rule",
       "id": "example.rule",
       "title": "example.rule",
       "status": "draft",
+      "conditions": {},
       "applicable_calendar": "example",
       "authority_reference": "Synthetic example, not an actual decree",
+      "priority": 0,
       "action": {
         "type": "date_override",
         "observance_id": "example.observance",
-        "year": 2026,
         "date_rule": {
           "r": "fixed",
           "month": 7,
           "day": 15
-        }
+        },
+        "year": 2026
       }
     },
     {
@@ -3319,5 +3596,6 @@
       "coverage": "partial",
       "authority_reference": "Synthetic demonstration. Not a reviewed calendar."
     }
-  ]
+  ],
+  "provenance": "Complete synthetic collection example: every entity type, all hours and Mass. Not an approved corpus."
 }

@@ -38,6 +38,8 @@ export async function commitImport(store: LibraryStore, doc: unknown, areaPublic
   const stored = new Map(store.all().filter(row => Object.values(KIND).includes(row.kind)).map(row => [String(row.data.id), row]));
   const ids = new Map<string, string>();
   for (const e of all) ids.set(e.id, stored.get(e.id)?.id ?? await entryIdFor(store.libraryId, e.id));
+  /* Zusammengeführte Texte: ihre alten Kennungen zeigen auf den Eintrag, in dem sie aufgingen. */
+  for (const e of all) if (e.entity_type === 'text_resource') for (const alias of e.aliases ?? []) if (!ids.has(alias)) ids.set(alias, ids.get(e.id)!);
   const at = new Date().toISOString(), receiptId = newId();
   const records: SaveInput[] = [];
   const history = [];

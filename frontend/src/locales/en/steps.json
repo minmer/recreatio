@@ -51,7 +51,15 @@
     "noDatesChanged": "no dates in this period (the date was changed or removed from the calendar)",
     "daily": "daily",
     "any": "on any day",
-    "onDays": "on {days}"
+    "onDays": "on {days}",
+    "perWeek": {
+      "one": "once a week",
+      "other": "{count} times a week"
+    },
+    "perMonth": {
+      "one": "once a month",
+      "other": "{count} times a month"
+    }
   },
   "presence": {
     "yes": "I'll be there",
@@ -201,7 +209,23 @@
     "answerOf": "{day}: answer",
     "duty": "Role",
     "dutyLabel": "Role:",
-    "attendanceOf": "{day}: attendance"
+    "attendanceOf": "{day}: attendance",
+    "missedWeeks": {
+      "one": "missed week",
+      "other": "missed weeks: {count}"
+    },
+    "missedMonths": {
+      "one": "missed month",
+      "other": "missed months: {count}"
+    },
+    "weekNot": "not yet this week",
+    "monthNot": "not yet this month",
+    "weekDone": "This week: done.",
+    "monthDone": "This month: done.",
+    "weekNow": "This week: {done} of {need}.",
+    "monthNow": "This month: {done} of {need}.",
+    "weeksOf": "Weeks completed: {done} of {total}.",
+    "monthsOf": "Months completed: {done} of {total}."
   },
   "problem": {
     "period": "give the period",
@@ -210,7 +234,9 @@
     "showFrom": "“visible from” after the start",
     "reportUntil": "“mark until” before the end",
     "item": "choose a date from the calendar",
-    "capacity": "people per role: a number from 1 to 500 or empty"
+    "capacity": "people per role: a number from 1 to 500 or empty",
+    "perWeek": "at most 7 times a week",
+    "perMonth": "at most 31 times a month"
   },
   "editor": {
     "taskWrong": "Task “{name}”: {problem}.",
@@ -292,6 +318,10 @@
     "previewItem": "The person will see the dates from the period {period}{ask}{duty}.",
     "previewAsk": " and answer before each: I'll be there / I don't know yet / I won't be there",
     "previewDuty": ", then choose a role",
-    "preview": "The person will see: {plan}"
+    "preview": "The person will see: {plan}",
+    "perWeek": "once a week (any day of each week)",
+    "perMonth": "once a month (any day of each month)",
+    "timesPerWeek": "how many times a week",
+    "timesPerMonth": "how many times a month"
   }
 }

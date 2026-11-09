@@ -15,6 +15,7 @@ import { Avatar, clock, cls, COPY_WHO_PREF, dayKey, dayLabel, full, Icon, PopMen
 import { DayChip, flashRow, SEEK_PAGES } from '../chat/DayJump';
 import { useT } from '../core/i18n';
 import { useRemembered } from '../core/prefs';
+import { viewPath } from '../routes';
 import { Modal } from '../ui/Modal';
 import type { Line } from './native';
 import { lineName, lineText, whyIcon, whyText, type LineChoice } from './lines';
@@ -140,9 +141,19 @@ export function LineChip({ lines, choice, onChoose }: {
   );
 }
 
-/** Geht dieses Gespräch ins Archiv? */
-export function ArchiveMark({ on }: { on: boolean }) {
+/**
+ * Geht dieses Gespräch ins Archiv? Wenn nicht und `onAdd` gesetzt ist (2026-11-09): ein Knopf,
+ * der es gleich hineinnimmt — statt des Umwegs über ⋮ oder die Einstellungen des Archivs.
+ */
+export function ArchiveMark({ on, onAdd }: { on: boolean; onAdd?: () => void }) {
   const t = useT();
+  if (!on && onAdd !== undefined) {
+    return (
+      <button type="button" className="ch-chip ph-line-chip ph-arch-add" title={t('phoneChat.arch.addTitle')} onClick={onAdd}>
+        <Icon name="plus" />{t('phoneChat.arch.add')}
+      </button>
+    );
+  }
   return (
     <span className={cls('ph-arch', on && 'is-on')} title={on ? t('phoneChat.arch.onTitle') : t('phoneChat.arch.offTitle')}>
       <Icon name="archive" />{on ? t('phoneChat.arch.on') : t('phoneChat.arch.off')}
@@ -708,6 +719,52 @@ function SmsRow({ m, start, group, search, picked, onPick }: {
         {m.tools !== undefined && !picking && <div className="ph-tools">{m.tools}</div>}
       </div>
     </div>
+  );
+}
+
+/** Wie mehrere weitergeleitet werden — gemerkt, wie beim Kopieren. */
+const FORWARD_PREF = 'sms.forwardHow';
+
+/**
+ * PRZEKAŻ (2026-11-09) — die markierten Nachrichten in eine neue SMS, der dritte Knopf der Leiste
+ * neben Wyświetl und Kopiuj. Eine allein wie bisher (`nowa?tekst=`); mehrere als EINE lange
+ * Nachricht (untereinander) oder JEDE ALS EIGENE SMS (`nowa?sms=…&sms=…`, gesendet der Reihe
+ * nach). Die Wahl steht unter ▾ und bleibt gemerkt. Nur Text: eine MMS ohne Text geht nicht mit.
+ */
+export function ForwardButton({ chosen, done }: { chosen: readonly SmsItem[]; done: () => void }) {
+  const t = useT();
+  const [howText, setHowText] = useRemembered(FORWARD_PREF, 'one');
+  const menu = useButtonMenu();
+  const texts = chosen.map((m) => m.body).filter((b) => b.trim() !== '');
+  const each = howText === 'each';
+  const go = (separately: boolean) => {
+    if (texts.length === 0) return;
+    done();
+    const query = texts.length > 1 && separately
+      ? texts.map((b) => `sms=${encodeURIComponent(b)}`).join('&')
+      : `tekst=${encodeURIComponent(texts.join('\n'))}`;
+    window.location.hash = `${viewPath('sms', 'nowa')}?${query}`;
+  };
+  const items: MenuItem[] = [
+    { label: t('phoneChat.fwd.one'), icon: 'forward', checked: !each, onSelect: () => { setHowText('one'); go(false); } },
+    { label: t('phoneChat.fwd.each', { count: texts.length }), icon: 'forward', checked: each, onSelect: () => { setHowText('each'); go(true); } }
+  ];
+  const many = texts.length > 1;
+  return (
+    <span className="ch-copy">
+      <button type="button" className="wk-link-btn" disabled={texts.length === 0}
+        title={texts.length === 0 ? t('phoneChat.fwd.noText') : many ? (each ? t('phoneChat.fwd.eachTitle', { count: texts.length }) : t('phoneChat.fwd.oneTitle')) : undefined}
+        onClick={() => go(each)}>{t('phoneSms.thread.forward')}</button>
+      {many && (
+        <button type="button" className="wk-link-btn ch-copy-how" aria-label={t('phoneChat.fwd.how')} aria-haspopup="menu" aria-expanded={menu.open !== null}
+          onClick={(e) => menu.toggle(e.currentTarget)}><Icon name="down" /></button>
+      )}
+      {menu.open !== null && (
+        <PopMenu anchor={{ rect: menu.open.rect }} from={menu.open.from} label={t('phoneChat.fwd.how')} items={items} onClose={menu.close}>
+          <p className="ch-pop-head">{t('phoneChat.fwd.remembered')}</p>
+        </PopMenu>
+      )}
+    </span>
   );
 }
 

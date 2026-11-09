@@ -23,3 +23,25 @@
 .lit-antiphon{border-left:2px solid var(--lit-accent);padding-left:1rem}.lit-slot.is-missing{padding:.5rem 1rem;background:var(--wk-soft)}
 .lit-history>li{border-bottom:1px solid var(--wk-line,#d9d2c5);padding:1rem 0}.lit-history code{word-break:break-all}
 @media(max-width:37.5rem){.lit-diff{grid-template-columns:1fr}.lit-resources>li{align-items:start;flex-wrap:wrap}.lit-day{padding:1rem}.lit-home .wk-panel{padding:1rem}.lit-export button{width:100%}}
+/* 2026-11-09 — zwei Ansichten eines Brzmienie: fortlaufend (Absätze) und liturgisch (Zeilen mit * † /, K./W., Versnummern). */
+.lit-view-switch{display:flex;gap:.4rem;flex-wrap:wrap}
+.lit-text .lit-controls{align-items:center}
+.lit-plain p{font-family:Georgia,serif;font-size:var(--wk-text-lg);line-height:1.75;margin:0 0 .9em;white-space:pre-line}
+.lit-lines{font-family:Georgia,serif;font-size:var(--wk-text-lg);line-height:1.6}
+.lit-line{margin:.1em 0;padding-left:1.4rem;text-indent:-1.4rem}
+.lit-line.is-verse{margin-top:.7em}.lit-line.is-stanza{margin-top:1.3em}
+.lit-role{font-weight:700;color:var(--lit-accent)}
+.lit-verse{font-size:var(--wk-text-xs);color:var(--wk-muted);margin-right:.25em}
+.lit-mark{color:var(--wk-danger);font-weight:700}
+.lit-cross{color:var(--wk-danger)}
+.lit-line .is-italic{font-style:italic}.lit-line .is-bold{font-weight:700}
+.lit-note{margin:.6em 0 .2em;font-size:var(--wk-text-sm)}
+.lit-note.is-heading,.lit-note.is-subtitle,.lit-note.is-part{font-weight:700;color:var(--lit-accent)}
+.lit-note.is-sentence{font-style:italic;color:var(--wk-muted)}
+.lit-note.is-rubric{font-style:italic;color:var(--wk-danger)}
+.lit-note.is-source{color:var(--wk-muted)}
+.lit-part{margin:.6rem 0}
+.lit-part.is-antiphon,.lit-part.is-antiphon_repeat{display:flex;gap:.4rem;align-items:baseline}
+.lit-part.is-antiphon .lit-lines,.lit-part.is-antiphon_repeat .lit-lines{flex:1;min-width:0}
+.lit-ant-label{font-weight:700;color:var(--wk-danger);flex:none}
+.lit-part.is-doxology{color:var(--wk-ink-2)}
