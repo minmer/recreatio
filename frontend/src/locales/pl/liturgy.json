@@ -192,7 +192,8 @@
     "missing_template": "Brak pasującego szablonu",
     "ambiguous_template": "Szablony mają jednakowy priorytet",
     "unreviewed_template": "Szablon nie został sprawdzony",
-    "unreviewed_rule": "Reguła nie została sprawdzona"
+    "unreviewed_rule": "Reguła nie została sprawdzona",
+    "calendar_boundary": "Następny dzień wykracza poza obsługiwany zakres kalendarza."
   },
   "slots": {
     "opening": "Rozpoczęcie",
@@ -243,5 +244,7 @@
     "11": "Własne wspomnienia obowiązkowe",
     "12": "Wspomnienia dowolne",
     "13": "Pozostałe dni powszednie"
-  }
+  },
+  "loadExample": "Wczytaj przykład do podglądu",
+  "exampleHint": "Przykład pokazuje pełny tekst, jego podział i przypisanie do godziny. Zawiera wyłącznie tekst testowy; sam podgląd niczego nie zapisuje."
 }

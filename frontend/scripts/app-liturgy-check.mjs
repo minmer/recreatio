@@ -74,7 +74,7 @@ try {
   check(day('2026-05-03').selected.id!=='PL.queen-mary','the solemnity is not left on the original date');
   equal(day('2024-04-08').selected.id,'roman.annunciation','Annunciation in Holy Week transfers beyond the Easter octave');
   equal(day('2008-03-15').selected.id,'roman.joseph','Saint Joseph in Holy Week transfers before Palm Sunday');
-  equal([day('2026-11-28').liturgicalYear,day('2026-11-29').liturgicalYear,day('2026-11-29').sundayCycle,day('2026-11-29').weekdayCycle],[2026,2027,'B','I'],'Advent changes liturgical year and cycles');
+  equal([day('2026-11-28').liturgicalYear,day('2026-11-29').liturgicalYear,day('2026-11-29').sundayCycle,day('2026-11-29').weekdayCycle],[2026,2027,'B','II'],'Advent changes the Sunday cycle independently of the calendar-year weekday cycle');
   equal(day('2026-11-29').psalterWeek,1,'Advent resets the psalter');
   equal(day('2026-02-22').psalterWeek,1,'Lent I resets the psalter');
   equal(day('2026-06-08').psalterWeek,2,'Ordinary Time resumes its own numbered week after Pentecost');
@@ -130,7 +130,7 @@ try {
   const source={all:()=>entries,libraryId:'lit-library',areaId:'area',revision:1};
   const own={all:()=>[],libraryId:'knowledge',areaId:'area',revision:1};
   const cogita=new m.CogitaLibrary(own,true);cogita.setSources([{store:source,kind:'liturgy',name:'Liturgy'}]);
-  check(cogita.kinds.some(k=>k.id==='lit_text'),'liturgical texts are selectable kinds in Cogita');
+  check(cogita.materialKinds.some(k=>k.id==='lit_text'),'liturgical texts are selectable kinds in Cogita');
   check(cogita.entity(entries[2].id)?.data.text.includes('Synthetic verse 1'),'Cogita resolves the referenced text');
 
   let rows=[],writes=0;

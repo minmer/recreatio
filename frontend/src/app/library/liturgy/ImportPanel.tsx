@@ -7,6 +7,7 @@ import { effectiveEntities } from './defaults';
 import { commitImport, exportEntities, storeStamp } from './persistence';
 import { jsonSchema, type LitEntity } from './schema';
 import { download } from './export';
+import example from '../../../../../templates/liturgy/example.json';
 
 export function ImportPanel({ store, library, initial }: { store: LibraryStore; library: OpenLibrary; initial?: LitEntity }) {
   const t = useT();
@@ -31,6 +32,8 @@ export function ImportPanel({ store, library, initial }: { store: LibraryStore; 
       <button className="wk-btn wk-btn-quiet" onClick={() => download('liturgy.schema.json', JSON.stringify(jsonSchema(), null, 2))}>{t('liturgy.schema')}</button>
       <button className="wk-btn wk-btn-quiet" onClick={() => download('liturgy.json', JSON.stringify(exportEntities(entitiesOf(store.all())), null, 2))}>{t('liturgy.exportJson')}</button>
     </div>
+    <p className="wk-hint">{t('liturgy.exampleHint')}</p>
+    {library.writes && <button className="wk-btn wk-btn-quiet" disabled={busy || text.trim().length > 0} onClick={() => setText(JSON.stringify(example, null, 2))}>{t('liturgy.loadExample')}</button>}
     {!library.writes ? <p className="wk-hint">{t('liturgy.readOnly')}</p> : <>
       <label className="wk-field"><span>{t('liturgy.jsonFile')}</span><input type="file" accept="application/json,.json" disabled={busy} onChange={async e => {
         const file = e.target.files?.[0]; if (!file) return;

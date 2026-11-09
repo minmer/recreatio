@@ -192,7 +192,8 @@
     "missing_template": "No matching template",
     "ambiguous_template": "Templates have equal priority",
     "unreviewed_template": "The template is unreviewed",
-    "unreviewed_rule": "The rule is unreviewed"
+    "unreviewed_rule": "The rule is unreviewed",
+    "calendar_boundary": "The following day is outside the supported calendar range."
   },
   "slots": {
     "opening": "Opening",
@@ -243,5 +244,7 @@
     "11": "Proper obligatory memorials",
     "12": "Optional memorials",
     "13": "Other weekdays"
-  }
+  },
+  "loadExample": "Preview an example",
+  "exampleHint": "The example contains a complete text, a division and an hour assignment. All text is synthetic; previewing saves nothing."
 }

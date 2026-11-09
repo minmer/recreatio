@@ -7,7 +7,7 @@ import { Loading } from '../../ui/Loading';
 import { type OpenLibrary } from '../library';
 import { useLibraryStore, type Entry, type LibraryStore } from '../libraryStore';
 import { DEFAULT_CONTEXT, HOURS, KIND, type CalendarContext, type Hour, type LitEntity, type TextBlock } from './schema';
-import { dependencies, entitiesOf, indexOf, resolveText, usageOf } from './resources';
+import { dependencies, entitiesOf, indexOf, resolveText, allUsageOf } from './resources';
 import { effectiveEntities } from './defaults';
 import { calendarRange, isDate, PRECEDENCE, resolveLiturgicalDay, todayIn } from './calendar';
 import { composeAllHours, composeOffice, type Composition } from './compose';
@@ -63,7 +63,7 @@ export function TextBlocks({ blocks }: { blocks: readonly TextBlock[] }) {
 }
 function ResourceDetail({ entity, entities, store, library }: { entity: LitEntity; entities: LitEntity[]; store: LibraryStore; library: OpenLibrary }) {
   const t = useT(), [edit, setEdit] = useState<LitEntity | null>(null), [versions, setVersions] = useState<readonly VersionRow[] | null>(null), [failed, setFailed] = useState('');
-  const index = indexOf(entities), resolved = resolveText(entity.id, index), uses = usageOf(entity.id, entities);
+  const index = indexOf(entities), resolved = resolveText(entity.id, index), uses = allUsageOf(entity.id, entities);
   const stored = store.all().find(e => e.data.id === entity.id && Object.values(KIND).includes(e.kind));
   const link = (id: string) => <a href={viewPath('library', library.libraryId, id)}>{index.get(id)?.title ?? id}</a>;
   const edition = resolved ? index.get(resolved.resource.edition_id) : undefined;
@@ -122,7 +122,7 @@ export function CalendarReader({ entities, libraryId }: { entities: readonly Lit
         <button className="wk-btn wk-btn-quiet" onClick={() => { try {
           const days = calendarRange(date, until, context, entities);
           const docs = days.flatMap(d => hour === 'all' ? composeAllHours(d.date, context, entities) : [composeOffice(d.date, hour, context, entities, { psalmody })]);
-          const editions = new Set(docs.flatMap(c => c.slots.flatMap(s => s.editionId ? [s.editionId] : [])));
+          const editions = new Set(docs.flatMap(c => c.slots.flatMap(s => [...(s.editionId ? [s.editionId] : []), ...(s.antiphon ? [s.antiphon.editionId] : [])])));
           if (entities.some(e => e.entity_type === 'text_edition' && editions.has(e.id) && !e.permitted_usage.includes('print'))) { setError(t('liturgy.errors.print_usage')); return; }
           openPrint(printDocument(docs, paper)); setError('');
         } catch { setError(t('liturgy.errors.range')); } }}>{t('liturgy.printPdf')}</button>

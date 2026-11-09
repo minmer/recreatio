@@ -192,7 +192,8 @@
     "missing_template": "Keine passende Vorlage",
     "ambiguous_template": "Vorlagen haben gleichen Vorrang",
     "unreviewed_template": "Die Vorlage ist ungeprüft",
-    "unreviewed_rule": "Die Regel ist ungeprüft"
+    "unreviewed_rule": "Die Regel ist ungeprüft",
+    "calendar_boundary": "Der folgende Tag liegt außerhalb des unterstützten Kalenderbereichs."
   },
   "slots": {
     "opening": "Eröffnung",
@@ -243,5 +244,7 @@
     "11": "Eigene gebotene Gedenktage",
     "12": "Fakultative Gedenktage",
     "13": "Übrige Werktage"
-  }
+  },
+  "loadExample": "Beispiel zur Vorschau laden",
+  "exampleHint": "Das Beispiel enthält einen vollständigen Text, einen Abschnitt und eine Zuordnung zu einer Hore. Alle Texte sind Testtexte; die Vorschau speichert nichts."
 }

@@ -1,0 +1,144 @@
+{
+  "format": "recreatio.liturgy",
+  "schema_version": "1.0",
+  "provenance": "Synthetic demonstration; not an approved liturgical corpus",
+  "entities": [
+    {
+      "schema_version": "1.0",
+      "revision": 1,
+      "status": "draft",
+      "entity_type": "canonical_work",
+      "id": "example.psalm",
+      "title": "Example psalm structure — synthetic text",
+      "work_type": "psalm",
+      "numbering_systems": {
+        "example": 1
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "revision": 1,
+      "status": "draft",
+      "entity_type": "text_edition",
+      "id": "example.edition",
+      "title": "Synthetic demonstration edition",
+      "language": "pl-PL",
+      "license": "CC0 — synthetic demonstration text, not a liturgical translation",
+      "permitted_usage": [
+        "private",
+        "print",
+        "share"
+      ],
+      "source_reference": "Recreatio import demonstration"
+    },
+    {
+      "schema_version": "1.0",
+      "revision": 1,
+      "status": "draft",
+      "entity_type": "text_resource",
+      "id": "example.psalm.pl",
+      "title": "Example full text — four synthetic verses",
+      "resource_type": "psalm",
+      "work_id": "example.psalm",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "complete": true,
+      "expected_verses": 4,
+      "source_citation": "Recreatio import demonstration; not for liturgical use",
+      "structured_content": [
+        {
+          "type": "verse",
+          "verse": 1,
+          "text": "Przykładowy werset 1. To tekst testowy, a nie przekład liturgiczny."
+        },
+        {
+          "type": "verse",
+          "verse": 2,
+          "text": "Przykładowy werset 2. To tekst testowy, a nie przekład liturgiczny."
+        },
+        {
+          "type": "verse",
+          "verse": 3,
+          "text": "Przykładowy werset 3. To tekst testowy, a nie przekład liturgiczny."
+        },
+        {
+          "type": "verse",
+          "verse": 4,
+          "text": "Przykładowy werset 4. To tekst testowy, a nie przekład liturgiczny."
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "revision": 1,
+      "status": "draft",
+      "entity_type": "passage_definition",
+      "id": "example.psalm.part",
+      "title": "Example division: verses 1–2 and 4",
+      "work_id": "example.psalm",
+      "edition_id": "example.edition",
+      "resource_id": "example.psalm.pl",
+      "ranges": [
+        {
+          "start_verse": 1,
+          "end_verse": 2
+        },
+        {
+          "start_verse": 4,
+          "end_verse": 4
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "revision": 1,
+      "status": "draft",
+      "entity_type": "text_resource",
+      "id": "example.antiphon",
+      "title": "Example antiphon — synthetic text",
+      "resource_type": "antiphon",
+      "edition_id": "example.edition",
+      "language": "pl-PL",
+      "complete": true,
+      "source_citation": "Recreatio import demonstration; not for liturgical use",
+      "structured_content": [
+        {
+          "type": "response",
+          "text": "Przykładowa antyfona do sprawdzenia struktury."
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "revision": 1,
+      "status": "draft",
+      "entity_type": "liturgical_assignment",
+      "id": "example.lauds",
+      "title": "Example Lauds assignment — ordinary weekdays",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ],
+        "seasons": [
+          "ordinary"
+        ],
+        "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "example.psalm.part",
+        "type": "passage_definition"
+      },
+      "antiphon_ref": "example.antiphon",
+      "source_layer": "psalter",
+      "authority_reference": "Synthetic demonstration, requires replacement and review"
+    }
+  ]
+}

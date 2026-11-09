@@ -6,7 +6,7 @@ import type { CalendarContext, Hour, LitEntity, OfType, SourceLayer, TextBlock }
 
 export interface ResolvedSlot {
   name: string; label: string; required: boolean; resourceId?: string; canonicalResourceId?: string; editionId?: string;
-  blocks: TextBlock[]; antiphon?: { id: string; blocks: TextBlock[] }; status: 'ready' | 'missing' | 'unreviewed' | 'omitted';
+  blocks: TextBlock[]; antiphon?: { id: string; editionId: string; blocks: TextBlock[] }; status: 'ready' | 'missing' | 'unreviewed' | 'omitted';
   sourceLayer?: SourceLayer; assignmentId?: string; ruleId?: string; celebrationId: string;
   reason: string; authority?: string; fallback?: string; rejected: string[];
 }
@@ -21,17 +21,17 @@ export function composeOffice(date: string, hour: Hour, context: CalendarContext
   const x: SelectionContext = { day, calendar: context, hour, vespers: vespers?.vespers, psalmody: options.psalmody, afterInvitatory: options.afterInvitatory };
   const result: Composition = { requestedDate: date, hour, day, ...(vespers ? { vespers: vespers.vespers } : {}), slots: [], diagnostics: [...day.diagnostics], complete: false };
   if (day.commemoration) result.diagnostics.push(`commemoration_requires_template:${day.commemoration.id}`);
-  if (hour === 'mass' && ['triduum'].includes(day.season)) { result.diagnostics.push('special_rite_required'); return result; }
   const templates = entities.filter((e): e is OfType<'liturgical_template'> => e.entity_type === 'liturgical_template' && e.hour_or_rite === hour && matches(e.applicability, x) && (!options.templateId || e.id === options.templateId)).sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
   const template = templates[0];
   if (!template) { result.diagnostics.push('missing_template'); return result; }
   result.templateId = template.id;
+  if (hour === 'mass' && day.season === 'triduum' && template.id === 'roman.template.mass') { result.diagnostics.push('special_rite_required'); return result; }
   if (templates[1]?.priority === template.priority) result.diagnostics.push('ambiguous_template');
   if (template.status !== 'approved') result.diagnostics.push(`unreviewed_template:${template.id}`);
   const index = indexOf(entities);
   const rules = entities.filter((e): e is OfType<'liturgical_rule'> => e.entity_type === 'liturgical_rule' && context.scopes.includes(e.applicable_calendar) && matches(e.conditions, x)).sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
   for (const s of template.slots) {
-    if (!matches(s.conditions, x)) continue;
+    if (!matches(s.conditions, x) && !(template.id === 'roman.template.mass' && s.name === 'reading.2' && day.selected.rank === 'solemnity')) continue;
     const slot: ResolvedSlot = { name: s.name, label: s.label, required: s.required, blocks: [], status: 'missing', celebrationId: day.selected.id, reason: 'missing_assignment', rejected: [] };
     result.slots.push(slot);
     const rulesForSlot = rules.filter(r => 'slot_name' in r.action && r.action.slot_name === s.name), rule = rulesForSlot[0];
@@ -72,7 +72,7 @@ export function composeOffice(date: string, hour: Hour, context: CalendarContext
     if (assignment?.antiphon_ref && !rule) {
       const antiphon = resolveText(assignment.antiphon_ref, index);
       if (!antiphon || antiphon.resource.language !== context.language) { slot.status = 'missing'; slot.reason = 'missing_antiphon'; }
-      else { slot.antiphon = { id: assignment.antiphon_ref, blocks: antiphon.blocks }; if (antiphon.resource.status !== 'approved' || !antiphon.resource.complete) slot.status = 'unreviewed'; }
+      else { slot.antiphon = { id: assignment.antiphon_ref, editionId: antiphon.resource.edition_id, blocks: antiphon.blocks }; if (antiphon.resource.status !== 'approved' || !antiphon.resource.complete) slot.status = 'unreviewed'; }
     }
   }
   result.complete = result.diagnostics.length === 0 && result.slots.every(s => s.status === 'ready' || s.status === 'omitted' || !s.required && s.status === 'missing');

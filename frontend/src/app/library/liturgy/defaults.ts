@@ -2,7 +2,7 @@
 import { GILH, NORMS } from './calendar';
 import { EntitySchema, HOURS, type Hour, type LitEntity, type OfType, type SourceLayer } from './schema';
 const structural = (hour: Hour, names: string[]): OfType<'liturgical_template'> => EntitySchema.parse({
-  schema_version: '1.0', entity_type: 'liturgical_template', id: `roman.template.${hour}`, title: hour, status: 'approved',
+  schema_version: '1.0', entity_type: 'liturgical_template', id: `roman.template.${hour}`, title: hour, status: 'draft',
   hour_or_rite: hour, authority_reference: `${GILH}#II`, slots: names.map(name => ({ name, label: name, required: !['psalmody.2.optional', 'examination'].includes(name),
     ...(name === 'te_deum' ? { conditions: { te_deum: true } } : name === 'opening' && (hour === 'readings' || hour === 'lauds') ? { conditions: { after_invitatory: false } } : {}),
     source_order: name === 'opening' || name === 'lords_prayer' || name === 'conclusion' || name === 'blessing' ? ['ordinary', 'time', 'saints'] : ['local', 'saints', 'time', 'common', 'psalter', 'lectionary', 'ordinary']
@@ -17,8 +17,8 @@ export const TEMPLATES = [
   structural('compline', ['opening', 'examination', 'hymn', 'psalmody.1', 'psalmody.2.optional', 'reading', 'responsory', 'gospel_canticle', 'prayer', 'blessing', 'marian_antiphon']),
   structural('mass', ['entrance', 'collect', 'reading.1', 'psalm', 'reading.2', 'acclamation', 'gospel', 'offertory', 'prayer_over_offerings', 'preface', 'communion', 'prayer_after_communion'])
 ];
-// The generic Mass structure leaves the second reading optional; particular templates make it obligatory.
-TEMPLATES.find(t => t.hour_or_rite === 'mass')!.slots.find(s => s.name === 'reading.2')!.required = false;
+// Weekday variants and special rites supply their own reviewed templates.
+TEMPLATES.find(t => t.hour_or_rite === 'mass')!.slots.find(s => s.name === 'reading.2')!.conditions = { weekdays: [7] };
 const obs = (id: string, title: string, precedence: number, rule: unknown, color = 'white', scope = 'roman'): LitEntity => EntitySchema.parse({
   schema_version: '1.0', entity_type: 'calendar_observance', id, title, status: 'approved',
   precedence_class: precedence, liturgical_rank: precedence <= 4 ? 'solemnity' : 'feast', date_rule: rule,
@@ -42,7 +42,7 @@ export const CORE_OBSERVANCES: LitEntity[] = [
   obs('roman.annunciation', 'Zwiastowanie Pańskie', 3, fixed(3, 25)),
   obs('roman.assumption', 'Wniebowzięcie Najświętszej Maryi Panny', 3, fixed(8, 15)),
   obs('roman.all-saints', 'Wszystkich Świętych', 3, fixed(11, 1)),
-  { ...obs('roman.all-souls', 'Wspomnienie wszystkich wiernych zmarłych', 3, fixed(11, 2), 'violet'), first_vespers: false } as LitEntity,
+  { ...obs('roman.all-souls', 'Wspomnienie wszystkich wiernych zmarłych', 3, fixed(11, 2), 'violet'), liturgical_rank: 'day', first_vespers: false } as LitEntity,
   obs('roman.immaculate-conception', 'Niepokalane Poczęcie Najświętszej Maryi Panny', 3, fixed(12, 8)),
   obs('PL.queen-mary', 'Najświętszej Maryi Panny, Królowej Polski', 4, fixed(5, 3), 'white', 'PL')
 ];

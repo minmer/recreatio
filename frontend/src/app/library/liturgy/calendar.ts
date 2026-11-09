@@ -27,7 +27,7 @@ export function temporal(date: string): Omit<LiturgicalDay, 'selected' | 'candid
   // The Christmas proper supplies its psalter directions; do not guess a week from January 1.
   const psalterWeek = season === 'christmas' || season === 'triduum' ? null : ((info.week === 0 ? 4 : info.week) - 1) % 4 + 1;
   return { date, civilYear: y, liturgicalYear, season, week: info.week, weekday: info.weekday, psalterWeek,
-    sundayCycle: (['C', 'A', 'B'] as const)[liturgicalYear % 3], weekdayCycle: liturgicalYear % 2 === 0 ? 'II' : 'I',
+    sundayCycle: (['C', 'A', 'B'] as const)[liturgicalYear % 3], weekdayCycle: y % 2 === 0 ? 'II' : 'I',
     base: { id: `day.${date}`, title: info.dayName, precedence: info.dayRank, rank: 'day', color: info.special === 'goodFriday' || info.special === 'pentecost' || info.special === 'palm' ? 'red' : ['christmas', 'easter', 'easter_octave'].includes(season) ? 'white' : season === 'ordinary' ? 'green' : 'violet', firstVespers: info.sunday, scope: 'roman', status: 'approved' }
   };
 }
@@ -44,13 +44,13 @@ export function matches(c: Conditions, x: SelectionContext): boolean {
     && (c.after_invitatory === undefined || c.after_invitatory === (x.afterInvitatory ?? false))
     && (c.te_deum === undefined || c.te_deum === teDeum(d)) && (c.from === undefined || d.date >= c.from) && (c.until === undefined || d.date <= c.until);
 }
-export const teDeum = (d: LiturgicalDay): boolean => d.selected.rank === 'solemnity' || d.selected.rank === 'feast' || d.season === 'easter_octave' || d.date.slice(5) >= '12-25' || d.weekday === 7 && !['lent', 'holy_week', 'triduum'].includes(d.season);
+export const teDeum = (d: LiturgicalDay): boolean => d.selected.id !== 'roman.all-souls' && (d.selected.rank === 'solemnity' || d.selected.rank === 'feast' || d.season === 'easter_octave' || d.date.slice(5) >= '12-25' || d.weekday === 7 && !['lent', 'holy_week', 'triduum'].includes(d.season));
 const fromObservance = (e: OfType<'calendar_observance'>): Candidate => ({ id: e.id, title: e.title, precedence: e.precedence_class, rank: e.liturgical_rank, color: e.liturgical_color, firstVespers: e.first_vespers, scope: e.calendar_scope, common: e.common_type, status: e.status });
 const order = (a: Candidate, b: Candidate) => a.precedence - b.precedence || a.id.localeCompare(b.id, 'en');
 const cache = new WeakMap<readonly LitEntity[], Map<string, { dates: Map<string, Candidate[]>; moved: Map<string, Candidate[]>; problems: Map<string, string[]> }>>();
 function yearCandidates(year: number, k: CalendarContext, entities: readonly LitEntity[]) {
   let cached = cache.get(entities); if (!cached) { cached = new Map(); cache.set(entities, cached); }
-  const key = `${year}:${JSON.stringify(k.scopes)}`;
+  const key = `${year}:${JSON.stringify({ ...k, optional_observance: undefined })}`;
   const old = cached.get(key); if (old) return old;
   const dates = new Map<string, Candidate[]>(), moved = new Map<string, Candidate[]>(), problems = new Map<string, string[]>();
   const add = (date: string, c: Candidate) => dates.set(date, [...(dates.get(date) ?? []), c]);
@@ -92,7 +92,7 @@ function yearCandidates(year: number, k: CalendarContext, entities: readonly Lit
     let target: string | null = null;
     for (let n = 1; n <= a.max_days; n++) {
       const at = addDays(date, step * n);
-      if (at < low || at > high || earliest && at < earliest || latest && at > latest) continue;
+      if (yearOf(at) < 1583 || yearOf(at) > 4099 || at < low || at > high || earliest && at < earliest || latest && at > latest) continue;
       // GNLYC 60: do not displace any day in classes 1–8. Same-priority arrivals never overwrite.
       if (temporal(at).base.precedence <= 8 || (dates.get(at) ?? []).some(other => other.precedence <= 8)) continue;
       target = at; break;
@@ -131,8 +131,10 @@ export function resolveLiturgicalDay(date: string, context: CalendarContext, ent
     omitted: list.filter(c => c !== selected && !optional.includes(c) && !commemorations.includes(c)), transferred: year.moved.get(date) ?? [], diagnostics };
 }
 export function resolveVespers(date: string, context: CalendarContext, entities: readonly LitEntity[]): { day: LiturgicalDay; vespers: 'first' | 'second'; reason: string } {
-  const today = resolveLiturgicalDay(date, context, entities), tomorrow = resolveLiturgicalDay(addDays(date, 1), { ...context, optional_observance: undefined }, entities);
-  const nextFirst = tomorrow.selected.firstVespers || tomorrow.weekday === 7 && tomorrow.selected.precedence <= 6;
+  const today = resolveLiturgicalDay(date, context, entities);
+  if (date === '4099-12-31') return { day: { ...today, diagnostics: [...today.diagnostics, 'calendar_boundary'] }, vespers: 'second', reason: 'calendar_boundary' };
+  const tomorrow = resolveLiturgicalDay(addDays(date, 1), { ...context, optional_observance: undefined }, entities);
+  const nextFirst = tomorrow.selected.firstVespers || tomorrow.weekday === 7 && tomorrow.selected.precedence === 5;
   // GNLYC 61: equal precedence retains the current day's Second Vespers.
   if (nextFirst && tomorrow.selected.precedence < today.selected.precedence) return { day: tomorrow, vespers: 'first', reason: `${NORMS}#61` };
   return { day: today, vespers: 'second', reason: `${NORMS}#61` };

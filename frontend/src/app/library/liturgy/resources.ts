@@ -1,5 +1,5 @@
 /** Canonical identities, dependency validation, and passage resolution. No calendar decisions here. */
-import { EntitySchema, ImportSchema, KIND, type LitEntity, type OfType, type TextBlock } from './schema';
+import { EntitySchema, ImportSchema, KIND, type Conditions, type LitEntity, type OfType, type ResourceRef, type TextBlock } from './schema';
 import type { LibEntry } from '../libraryKinds';
 import { isDate } from '../../calendar/flow/liturgy';
 
@@ -45,18 +45,25 @@ export function readImport(raw: unknown): { entities: LitEntity[]; provenance: s
 }
 
 export function dependencies(e: LitEntity): string[] {
+  const conditions = (c: Conditions) => [...(c.observances ?? []), ...(c.edition_id ? [c.edition_id] : [])];
   switch (e.entity_type) {
     case 'text_resource': return [e.edition_id, ...(e.work_id ? [e.work_id] : [])];
     case 'passage_definition': return [e.work_id, e.edition_id, ...(e.resource_id ? [e.resource_id] : [])];
-    case 'liturgical_template': return e.slots.flatMap(s => s.resource_ref ? [s.resource_ref.id] : []);
+    case 'liturgical_template': return [...conditions(e.applicability), ...e.slots.flatMap(s => [...conditions(s.conditions), ...(s.resource_ref ? [s.resource_ref.id] : [])])];
     case 'liturgical_assignment': return [e.resource_ref.id, ...(e.antiphon_ref ? [e.antiphon_ref] : []), ...(e.fallback_refs ?? []).map(r => r.id), ...(e.target_context.observances ?? []), ...(e.target_context.edition_id ? [e.target_context.edition_id] : [])];
     case 'calendar_observance': return [...(e.proper_references ?? []), ...(e.replaces ? [e.replaces] : [])];
-    case 'liturgical_rule': return [...('observance_id' in e.action ? [e.action.observance_id] : []), ...('resource_ref' in e.action ? [e.action.resource_ref.id] : []), ...(e.conditions.observances ?? [])];
+    case 'liturgical_rule': return [...('observance_id' in e.action ? [e.action.observance_id] : []), ...('resource_ref' in e.action ? [e.action.resource_ref.id] : []), ...conditions(e.conditions)];
     case 'calendar_profile': return e.edition_id ? [e.edition_id] : [];
     default: return [];
   }
 }
 export const usageOf = (id: string, entities: readonly LitEntity[]): LitEntity[] => entities.filter(e => dependencies(e).includes(id) || (e.entity_type === 'passage_definition' && e.resource_id === undefined && passageSource(e, indexOf(entities))?.id === id));
+/** Include offices reached through a passage, without repeating or looping through resources. */
+export function allUsageOf(id: string, entities: readonly LitEntity[]): LitEntity[] {
+  const seen = new Set([id]), result: LitEntity[] = [], queue = [id];
+  for (let i = 0; i < queue.length; i++) for (const e of usageOf(queue[i], entities)) if (!seen.has(e.id)) { seen.add(e.id); queue.push(e.id); result.push(e); }
+  return result;
+}
 export function passageSource(p: OfType<'passage_definition'>, index: ReadonlyMap<string, LitEntity>): OfType<'text_resource'> | null {
   const list = [...index.values()].filter((e): e is OfType<'text_resource'> => e.entity_type === 'text_resource' && e.work_id === p.work_id && e.edition_id === p.edition_id && e.structured_content.some(b => b.type === 'verse'));
   return (p.resource_id ? list.find(e => e.id === p.resource_id) : list.length === 1 ? list[0] : null) ?? null;
@@ -76,13 +83,19 @@ export function validateEntities(entities: readonly LitEntity[]): Problem[] {
   const fail = (e: LitEntity, code: string, detail: string) => problems.push({ id: e.id, code, detail });
   const seen = new Set<string>(), psalms = new Map<string, string>();
   const expect = (e: LitEntity, id: string, kinds: readonly LitEntity['entity_type'][]) => { const found = index.get(id); if (found && !kinds.includes(found.entity_type)) fail(e, 'reference_type', id); };
+  const checkRef = (e: LitEntity, ref: ResourceRef) => expect(e, ref.id, ref.type === 'psalm_passage' || ref.type === 'passage_definition' ? ['passage_definition'] : ref.type ? ['text_resource'] : ['text_resource', 'passage_definition']);
   for (const e of entities) {
     if (seen.has(e.id)) fail(e, 'duplicate_id', e.id); seen.add(e.id);
     for (const id of dependencies(e)) if (!index.has(id)) fail(e, 'missing_reference', id);
     const walkDates = (value: unknown, key = '') => {
       if (typeof value === 'string' && ['date', 'from', 'until', 'reviewed_from', 'reviewed_until'].includes(key) && !isDate(value)) fail(e, 'invalid_date', value);
       if (Array.isArray(value)) { for (const v of value) walkDates(v, key === 'dates' ? 'date' : key); }
-      else if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) walkDates(v, k);
+      else if (value && typeof value === 'object') {
+        const v = value as Record<string, unknown>;
+        if ((v.r === 'fixed' || v.r === 'sunday-after') && !isDate(`2000-${String(v.month).padStart(2, '0')}-${String(v.day).padStart(2, '0')}`)) fail(e, 'invalid_date', `${v.month}/${v.day}`);
+        if (typeof v.from === 'string' && typeof v.until === 'string' && v.until < v.from) fail(e, 'invalid_date', `${v.from}–${v.until}`);
+        for (const [k, child] of Object.entries(v)) walkDates(child, k);
+      }
     };
     walkDates(e);
     if (e.entity_type === 'text_resource') {
@@ -113,16 +126,16 @@ export function validateEntities(entities: readonly LitEntity[]): Problem[] {
     }
     if (e.entity_type === 'liturgical_template') {
       if (new Set(e.slots.map(s => s.name)).size !== e.slots.length) fail(e, 'duplicate_slot', e.id);
-      for (const s of e.slots) if (s.resource_ref) expect(e, s.resource_ref.id, ['text_resource', 'passage_definition']);
+      for (const s of e.slots) if (s.resource_ref) checkRef(e, s.resource_ref);
     }
     if (e.entity_type === 'liturgical_assignment') {
-      for (const r of [e.resource_ref, ...(e.fallback_refs ?? [])]) expect(e, r.id, ['text_resource', 'passage_definition']);
+      for (const r of [e.resource_ref, ...(e.fallback_refs ?? [])]) checkRef(e, r);
       if (e.antiphon_ref) { expect(e, e.antiphon_ref, ['text_resource']); const ant = index.get(e.antiphon_ref); if (ant?.entity_type === 'text_resource' && ant.resource_type !== 'antiphon') fail(e, 'reference_type', e.antiphon_ref); }
     }
     if (e.entity_type === 'liturgical_rule') {
       if ('observance_id' in e.action) expect(e, e.action.observance_id, ['calendar_observance']);
       if (e.action.type === 'transfer') { const obs = index.get(e.action.observance_id); if (obs?.entity_type === 'calendar_observance' && obs.liturgical_rank !== 'solemnity') fail(e, 'transfer_rank', obs.id); }
-      if (e.action.type === 'replace') expect(e, e.action.resource_ref.id, ['text_resource', 'passage_definition']);
+      if (e.action.type === 'replace') checkRef(e, e.action.resource_ref);
     }
     if (e.entity_type === 'calendar_observance' && e.replaces) {
       expect(e, e.replaces, ['calendar_observance']);
@@ -130,9 +143,12 @@ export function validateEntities(entities: readonly LitEntity[]): Problem[] {
       while (at?.entity_type === 'calendar_observance') { if (chain.has(at.id)) { fail(e, 'reference_cycle', at.id); break; } chain.add(at.id); at = at.replaces ? index.get(at.replaces) : undefined; }
     }
     if (e.entity_type === 'calendar_profile') {
+      if (e.edition_id) expect(e, e.edition_id, ['text_edition']);
       try { new Intl.DateTimeFormat('en', { timeZone: e.time_zone }).format(); } catch { fail(e, 'time_zone', e.time_zone); }
       if (e.coverage === 'reviewed' && (e.status !== 'approved' || !e.reviewed_from || !e.reviewed_until || e.reviewed_until < e.reviewed_from)) fail(e, 'calendar_review', e.id);
     }
+    const contexts = e.entity_type === 'liturgical_assignment' ? [e.target_context] : e.entity_type === 'liturgical_rule' ? [e.conditions] : e.entity_type === 'liturgical_template' ? [e.applicability, ...e.slots.map(s => s.conditions)] : [];
+    for (const c of contexts) { for (const id of c.observances ?? []) expect(e, id, ['calendar_observance']); if (c.edition_id) expect(e, c.edition_id, ['text_edition']); }
   }
   return problems.slice(0, 200);
 }
