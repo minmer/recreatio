@@ -125,6 +125,7 @@ await ApiErrorChecks.RunAsync(Check);
 FileLoggerChecks.Run(Check);
 PageFileChecks.Run(Check);
 LibraryChecks.Run(Check);
+LiturgyMcpChecks.Run(Check);
 PlatformChecks.Run(Check);
 CogitaChecks.Run(Check);
 PhoneChecks.Run(Check);

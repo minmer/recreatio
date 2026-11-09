@@ -121,6 +121,7 @@ public static partial class AiAccess
 
     public sealed class Item
     {
+        public JsonElement Canonical { get; init; }
         public required string Id { get; init; }
         public required Snapshot From { get; init; }
         public required string Kind { get; init; }
@@ -162,6 +163,7 @@ public static partial class AiAccess
     {
         "books" => "Biblioteka",
         "writing" => "Skryptorium",
+        "liturgy" => "Liturgia",
         _ => "Baza wiedzy"
     };
 
@@ -209,6 +211,7 @@ public static partial class AiAccess
                     Ref = Str(e, "ref"),
                     UpdatedAt = Str(e, "updatedAt"),
                     Refs = Strs(e, "refs").Select(r => r.ToLowerInvariant()).ToArray(),
+                    Canonical = part == "liturgy" && e.TryGetProperty("canonical", out var canonical) && canonical.ValueKind == JsonValueKind.Object ? canonical : default,
                     Data = e.TryGetProperty("data", out var data) ? data : default
                 });
             }
@@ -1095,6 +1098,7 @@ public static partial class AiAccess
 
     private static string PartWords(string part) => part switch
     {
+        "liturgy" => "Liturgia — kanoniczne teksty, wydania, fragmenty, kalendarze, szablony i reguły; format importu: liturgy",
         "books" => "Biblioteka — źródła: dzieła, cytaty, osoby",
         "writing" => "Skryptorium — własne teksty, ich wygłoszenia, projekty i rodzaje tekstów",
         _ => "Baza wiedzy (Cogita) — wpisy własnych rodzajów, pytania"

@@ -71,7 +71,7 @@
   "layer": "Część źródłowa",
   "fallback": "Dozwolone zastępstwo dla",
   "importTitle": "Importuj zasoby",
-  "importHint": "Wgraj lub wklej jeden zasób albo pakiet. Teksty i ich przypisania pozostają oddzielne. Wszystkie zależności są sprawdzane przed jednym zapisem całego importu.",
+  "importHint": "Zaimportuj cały zbiór albo dokument zmian: dodawanie, rewizje, poprawki pól, jawne usuwanie i przywracanie wartości domyślnych. Końcowe powiązania są sprawdzane przed jednym zapisem całej operacji.",
   "schema": "Pobierz schemat JSON",
   "readOnly": "Możesz czytać ten zbiór. Edycja wymaga prawa zapisu w jego obszarze.",
   "jsonFile": "Plik JSON",
@@ -81,7 +81,7 @@
   "provenance": "Źródło / powód zmiany",
   "allowApproved": "Zatwierdzam widoczne w podglądzie zmiany zatwierdzonych wpisów.",
   "preview": "Podgląd importu",
-  "importCounts": "Nowe: {created} · zmiany: {updated} · bez zmian: {unchanged}",
+  "importCounts": "Nowe: {created} · Zmiany: {updated} · Usunięcia: {removed} · Przywrócenia: {reset} · Bez zmian: {unchanged}",
   "saved": "Zapisano wpisy: {count}.",
   "confirmImport": "Importuj zmiany z podglądu",
   "tabs": {
@@ -179,7 +179,15 @@
     "print_usage": "Metadane wydania nie dopuszczają drukowania.",
     "range": "Wybierz poprawny zakres do 366 dni.",
     "file_size": "Plik importu może mieć do 16 MB.",
-    "missing_entry": "Nie ma tego wpisu w tej bibliotece."
+    "missing_entry": "Nie ma tego wpisu w tej bibliotece.",
+    "operation_version": "Operacje zmian wymagają schema_version 1.1 w dokumencie.",
+    "operation_missing": "Wpis do zmiany lub usunięcia nie istnieje.",
+    "operation_stale": "Oczekiwana rewizja różni się od bieżącej. Odczytaj wpis ponownie.",
+    "patch_identity": "Poprawka nie może zmieniać tożsamości, schematu, rewizji ani pól wewnętrznych.",
+    "default_readonly": "To wartość wbudowana, a nie zapisane nadpisanie, które można usunąć.",
+    "not_default": "Ten wpis nie ma wbudowanej wartości domyślnej do przywrócenia.",
+    "use_reset_default": "Użyj reset_default, aby usunąć to nadpisanie i przywrócić wartość wbudowaną.",
+    "batch_limit": "Za dużo zmian na jeden zapis (najwyżej 4999). Podziel operację na pakiety zachowujące poprawne powiązania."
   },
   "diagnostic": {
     "calendar_partial": "Zakres kalendarza nie został w pełni sprawdzony",
@@ -247,7 +255,21 @@
     "13": "Pozostałe dni powszednie"
   },
   "loadExample": "Wczytaj przykład do podglądu",
-  "exampleHint": "Przykład pokazuje pełny tekst, jego podział i przypisanie do godziny. Zawiera wyłącznie tekst testowy; sam podgląd niczego nie zapisuje.",
+  "exampleHint": "Pełny przykład obejmuje wszystkie rodzaje wpisów, godziny i Mszę. Zawiera wyłącznie tekst testowy. Podgląd niczego nie zapisuje; po imporcie wybierz demonstracyjny profil kalendarza.",
   "json": "JSON",
-  "checksum": "SHA-256"
+  "checksum": "SHA-256",
+  "fullGuide": "Pełny opis importu i zmian",
+  "removeTitle": "Wpisy do usunięcia",
+  "removeHint": "Te wpisy zostaną usunięte w tym samym zapisie. Pozostałe odwołania w zbiorze muszą być poprawne; powiązania z innych zbiorów sprawdź osobno.",
+  "resetTitle": "Nadpisania do przywrócenia wartości domyślnych",
+  "actions": {
+    "create": "Dodano",
+    "update": "Zmieniono",
+    "remove": "Usunięto",
+    "reset_default": "Przywrócono domyślne"
+  },
+  "refreshSnapshot": "Odśwież istniejące kopie dla MCP",
+  "snapshotFailed": "Nie udało się odświeżyć kopii dla MCP. Sprawdź istniejący dostęp dla AI do tego zbioru.",
+  "snapshotRefreshed": "Odświeżono istniejące kopie dla AI: {count}. Nie utworzono nowego dostępu.",
+  "savedSnapshotFailed": "Import zapisano, ale nie udało się odświeżyć kopii dla MCP. Użyj „Odśwież istniejące kopie dla MCP” przed odczytem zmian przez MCP."
 }

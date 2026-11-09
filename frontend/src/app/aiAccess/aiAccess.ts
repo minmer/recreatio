@@ -476,9 +476,9 @@ function flushWhenHidden(): void {
  * 2026-11-03 — GLEICH AUFFRISCHEN (nach einem Import): die Abschriften dieses Behälters entstehen sofort, nicht erst
  * nach der Ruhe — ein Assistent, der über MCP prüft, was der Import gespeichert hat, sieht es gleich. Ohne Link: nichts.
  */
-export async function libraryWrittenNow(ring: Ring, areaId: string, libraryId: string): Promise<Refreshed> {
+export async function libraryWrittenNow(ring: Ring, areaId: string, libraryId: string, all = false): Promise<Refreshed> {
   const pending = timers.get(libraryId);
   if (pending !== undefined) { window.clearTimeout(pending.timer); timers.delete(libraryId); }
   forgetAiWatch(areaId);
-  return refreshAiAccess(ring, areaId, { only: libraryId });
+  return refreshAiAccess(ring, areaId, { only: libraryId, all });
 }

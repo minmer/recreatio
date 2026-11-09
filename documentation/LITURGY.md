@@ -6,7 +6,7 @@ The implementation is a resource and composition system. It does **not** ship a 
 
 ## Model and storage
 
-`frontend/src/app/library/liturgy/schema.ts` is the source of truth for the version 1.0 import contract. The Import tab downloads its generated JSON Schema. The normalized entities are:
+`frontend/src/app/library/liturgy/schema.ts` is the source of truth for the import contract: batch version **1.1**, canonical entity version **1.0**. Legacy 1.0 imports remain supported. The Import tab downloads the generated JSON Schema and the complete guide from `description.ts`; the MCP catalog embeds the same documents. The normalized entities are:
 
 | Entity | Stored Library kind | Responsibility |
 | --- | --- | --- |
@@ -28,9 +28,9 @@ The trusted browser validates the decrypted graph. The backend enforces area aut
 
 ## Import and revision workflow
 
-1. Open the collection's **Import JSON** tab and paste/upload a document. **Preview an example** loads `templates/liturgy/example.json`; all of its text is explicitly synthetic.
-2. Inspect new records, unchanged records, proposed updates, and errors. Previewing saves nothing.
-3. Confirm the import. Resources and their checksum/provenance receipt are written in one existing Library batch transaction.
+1. Open the collection's **Import / export** tab and paste/upload a document. **Preview an example** loads `templates/liturgy/complete-example.json`: 132 entities covering all nine types, all eight hours and Mass. All text is explicitly synthetic and all resources are drafts.
+2. Inspect new records, unchanged records, before/after updates, explicit removals, default resets and errors. Previewing saves nothing.
+3. Confirm the import. Resources, deletions and their checksum/provenance receipt are written in one existing Library batch transaction. Existing authorized AI snapshots refresh immediately after a successful import; a refresh failure is reported separately from the saved import.
 4. Browse resources or open Calendar and reading. A passage resolves the canonical text at read time. The resource's usage view includes assignments reached through a passage.
 
 A batch has this envelope:
@@ -38,19 +38,48 @@ A batch has this envelope:
 ```json
 {
   "format": "recreatio.liturgy",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
+  "mode": "update",
   "provenance": "Source publication or reason for this import",
-  "entities": []
+  "entities": [],
+  "operations": []
 }
 ```
 
-One entity may also be imported without the batch envelope. Full schemas and a working six-entity example are available in the UI; the example has one four-verse text, one non-contiguous division, one antiphon, and a Lauds assignment.
+One entity may also be imported without the batch envelope. Full entities are complete replacements; omitted entities in a batch are always kept. Each entity still carries `schema_version: "1.0"`. The smaller `templates/liturgy/example.json` remains available; `maintenance-example.json` demonstrates additions, full-text corrections, dependent edits and explicit removals against the complete example.
 
 Imports are additive by default. Identical re-imports do nothing. Controlled updates need the same ID and entity type, a higher revision, and provenance; changing an approved entity additionally requires the explicit approved-update checkbox. Existing dependants are revalidated, so shortening a psalm cannot leave an existing passage outside its verse range. A changed server/store state invalidates the import preview. Concurrent writes to the same canonical ID encounter the existing version checks.
 
+Version 1.1 adds explicit operations, which can be combined with full entities in one document:
+
+| Operation | Fields | Effect |
+| --- | --- | --- |
+| `patch` | `id`, `expected_revision`, `patch` | Recursively merge objects, remove fields with `null`, replace arrays in full, and increment the canonical revision when changed. Omitted fields are preserved. |
+| `remove` | `id`, `expected_revision` | Soft-delete the stored resource without cascading. Remaining dependants must be corrected or removed in the same valid final graph. |
+| `reset_default` | `id`, `expected_revision` | Discard a stored override and reveal the bundled default. A storage marker preserves its UUID/version for future overrides. |
+
+Operations require `mode: "update"`, provenance and an exact current revision. Approved records also require the approved-update checkbox. A canonical ID can occur only once across `entities` and `operations`; identity/type/schema/revision and internal fields cannot be patched. Bundled defaults cannot be removed. Deletions retain version history but the importer does not automatically resurrect deleted records. References from other collections, including Cogita, must be checked separately.
+
+The parser accepts up to 50,000 full entities; unchanged records do not consume write operations. The existing atomic storage limit permits at most 4,999 changed/deleted resources plus the import receipt. The file upload limit is 16 MiB, with the existing encrypted entry and batch byte limits also enforced. Larger jobs need dependency-safe transactions prepared from the complete graph; no entity or text is silently truncated.
+
 Validation includes missing/wrong-type references, duplicate IDs, duplicate psalms in one work/edition, language/edition mismatches, verse numbering, full-psalm verse counts, overlapping or unavailable ranges, documented omissions, replacement cycles, invalid dates, timezone names and calendar review intervals. Reference-only assignments can be imported separately once their dependencies exist. A batch may list dependencies in any order.
 
-A resource's **Revision history** uses the existing Library version endpoints. Restoring an earlier revision opens a new controlled-update preview; it does not erase history. The import-history tab lists changed canonical IDs, stored versions and SHA-256 checksums.
+A resource's **Revision history** uses the existing Library version endpoints. Restoring an earlier revision opens a new controlled-update preview; it does not erase history. The import-history tab lists each action, changed canonical IDs, stored versions and SHA-256 checksums.
+
+## Complete MCP description and actual-data export
+
+The read-only MCP server advertises Liturgia through its instructions, collection listing and import-format catalog:
+
+- `get_import_format("liturgy")`: the full workflow and all entity fields generated from the runtime schemas.
+- `get_import_format("liturgy-schema")`: the complete JSON Schema, including full entities and maintenance operations.
+- `get_import_format("liturgy-defaults")`: every bundled default, separate from the collection's stored resources.
+- `get_import_format("example-liturgy")` and `get_import_format("example-liturgy-maintenance")`: the complete collection example and its mixed maintenance document.
+
+Read every `nextPart` and concatenate raw parts with newlines for JSON documents. `frontend/scripts/import-formats.mjs` generates the embedded catalog; `--check` detects drift.
+
+`get_liturgy_library(collection, offset, limit, snapshotId)` exports exact canonical data from an authorized liturgical collection, including complete structured texts and current canonical revisions. Search projections remain separate. Follow `nextOffset` until null, passing the first response's `snapshotId`, and concatenate `Document.entities`. Pages never clip an entity, even when one text exceeds the normal page budget. `Complete` means that one response alone contains the whole collection, not merely the last page. Snapshot changes invalidate continuation; stale snapshots are explicitly marked. Older snapshots without canonical data require a refresh instead of reconstruction from search text.
+
+The Import / export tab's **Refresh existing MCP snapshots** action upgrades already-authorized snapshots even when no resources have changed. It creates no access. The MCP connection remains read-only: an assistant reads the actual collection and prepares a complete import document; the application's preview and confirmation apply it to the encrypted store. Resource links from MCP now open the Library resource route.
 
 ## Calendar and composition
 
@@ -113,7 +142,8 @@ No source's official Polish liturgical translations are bundled. Populate and re
 
 ### Verification recorded for this integration
 
-- 89 focused liturgy checks passed, including a complete reviewed configuration, explicit commemoration templates, storage normalization, and AI/Cogita projections.
-- 624 backend checks passed. TypeScript and the Vite production build passed; the build still reports large application chunks.
+- 123 focused liturgy checks passed, including the 132-entity example, a 1,200-record correction, combined patch/removal dependency validation, exact canonical snapshots, reset followed by a new override, atomic audit receipts, and the existing calendar/composition checks.
+- 644 backend checks passed, including exact MCP exports, oversized complete texts, snapshot-pinned pagination, stale/legacy snapshots, collection-type restrictions and the embedded import documents. TypeScript and the Vite production build passed; the build still reports large application chunks.
 - Headless Edge exercised the actual `LiturgyHome` components with an in-memory store: preview before writing, atomic import receipt, full text/division rendering, indirect usage links, calendar antiphons, history, read-only access, and 390-pixel mobile layouts in both themes. No live database or deployment was used.
+- Additional browser checks exercised the full 132-record import, mixed additions/corrections/removals, dangling-reference rejection, action history and immediate/forced MCP snapshot refresh on a 390-pixel layout.
 - Broader repository checks remain non-green: the Library suite reaches an unchanged localized music-group assertion; Cogita checks report flow expectations and a React hook invocation in the test harness. Global style checks still report existing hint/inline-style counts, and localization checks report missing keys in unrelated sections. The new liturgy section adds no hard-coded-interface-text or CSS-token violations.

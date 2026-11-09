@@ -47,6 +47,7 @@ public static class AiMcp
         "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", a page of a separately numbered part written as printed, e.g. \"s. xii\", \"s. 12*\", \"s. 3'\", \"s. A12\", or part by part) and search_text. " +
         "In textbooks, formulas are LaTeX between $…$ (inline) and $$…$$ (displayed, numbered with \\tag{…}); definitions, theorems, lemmas, proofs and examples are blocks of type \"statement\" (their head in bold, their content quoted with \"> \"); read_text also takes such a label as printed (\"Twierdzenie 2.3\", \"(2.4)\", \"Rys. 1.2\"). " +
         "Cite entries by title and url, passages by work and place; quote texts exactly; never invent entries or text. Content is mostly Polish. " +
+        "Liturgia is a parallel Library collection (part liturgy), connected to Cogita as a source. Read get_import_format liturgy for the complete model and create/update/patch/remove contract, liturgy-schema for the generated JSON Schema, and get_liturgy_library for exact importable canonical data. Follow nextOffset with the returned snapshotId until null; do not polish a whole collection from search snippets or one page. Full text, assignments, templates, calendar profiles and rules are included. Use expected_revision for patch/remove, preserve canonical IDs and provenance, and review the proposed JSON in the app. " +
         "To prepare data the user will import into any part (Library entries, a work with its full text, a knowledge base with questions, a page, a calendar, masses and intentions, tasks, contacts…), first read the format: list_import_formats, then get_import_format part by part — the specification is generated from the app itself. Nothing is written from here: the user imports the JSON in the app and reviews the changes.";
 
     public static void AddServices(IServiceCollection services)
@@ -246,6 +247,7 @@ public sealed partial class AiMcpTools
     /// <summary>Der Eintrag in der App — öffnet ihn nur, wer seinen Bereich liest.</summary>
     internal static string AppUrl(string app, AiAccess.Item item) => item.From.Part switch
     {
+        "liturgy" => $"{app}/#/workspace/library/{Ids.ToText(item.From.LibraryId)}/resource/{item.Id}",
         "books" => $"{app}/#/workspace/library/{Ids.ToText(item.From.LibraryId)}/{item.Id}",
         "writing" => $"{app}/#/workspace/scriptorium/{Ids.ToText(item.From.LibraryId)}/{item.Id}",
         _ => $"{app}/#/workspace/knowledge/{Ids.ToText(item.From.LibraryId)}/wpisy/{item.Id}"
@@ -365,7 +367,7 @@ public sealed partial class AiMcpTools
     }
 
     [McpServerTool(Name = "search_entries", Title = "Szukaj wpisów", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Search or list entries. All words must occur (in title, key, kind or content); case and Polish letters do not matter; words of 1–2 characters count only as whole words, and entries where the words stand together (\"J 21\" in \"J 21,15-17\") come first. Without a query it lists everything in a stable order. Filter by collection (id, name, a knowledge base's lasting name such as \"historia\", or books/writing/knowledge) — several at once with collections (or a comma-separated collection) — and kind (kind id or name, e.g. Komentarz, Cytat, Kazanie). Page with offset/limit until nextOffset is null.")]
+    [Description("Search or list entries. All words must occur (in title, key, kind or content); case and Polish letters do not matter; words of 1–2 characters count only as whole words, and entries where the words stand together (\"J 21\" in \"J 21,15-17\") come first. Without a query it lists everything in a stable order. Filter by collection (id, name, a knowledge base's lasting name such as \"historia\", or books/writing/knowledge/liturgy) — several at once with collections (or a comma-separated collection) — and kind (kind id or name, e.g. Komentarz, Cytat, Kazanie). Page with offset/limit until nextOffset is null.")]
     public static async Task<SearchResult> SearchEntries(
         IHttpContextAccessor http, Db db, IConfiguration config,
         [Description("Words to find; empty to list all.")] string? query = null,
@@ -844,7 +846,7 @@ public sealed partial class AiMcpTools
     }
 
     [McpServerTool(Name = "list_import_formats",Title = "Formaty importu JSON", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("The JSON formats the user can import into Recreatio — read this before preparing data for an import (every part of the app: Library entries, a work with its full text, quotes, a knowledge base with questions and revisions, Scriptorium texts and plans, a page with its modules, a form and its list of entries, an area, a calendar's appointments, schemes and plans, masses and their intentions, tasks, bookings, a conversation, contacts, roles, the registry, lamps, one's own data and progress, addresses and domains), plus ready knowledge-base schemes and guides for AI. For each: id, what it is for, where in the app it is imported, size and number of parts. Read one with get_import_format. Nothing is written from here: the user pastes the JSON in the app, sees the list of changes with warnings and confirms.")]
+    [Description("The JSON formats the user can import into Recreatio — read this before preparing data for an import (every part of the app: liturgical libraries (whole collections, revisions, merge patches, explicit removal), Library entries, a work with its full text, quotes, a knowledge base with questions and revisions, Scriptorium texts and plans, a page with its modules, a form and its list of entries, an area, a calendar's appointments, schemes and plans, masses and their intentions, tasks, bookings, a conversation, contacts, roles, the registry, lamps, one's own data and progress, addresses and domains), plus ready knowledge-base schemes and guides for AI. For each: id, what it is for, where in the app it is imported, size and number of parts. Read one with get_import_format. Nothing is written from here: the user pastes the JSON in the app, sees the list of changes with warnings and confirms.")]
     public static ImportFormatsResult ListImportFormats()
     {
         var all = ImportFormats.All;
@@ -858,7 +860,7 @@ public sealed partial class AiMcpTools
     [McpServerTool(Name = "get_import_format", Title = "Format importu JSON", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("One import format exactly as the app describes it next to its import: the document's keys, what each means, what the import does with it, rules and examples — or a ready scheme / a guide for AI (ids from list_import_formats). Long formats come in parts: part 1 also returns the contents (headings with the part they are in, e.g. every module kind of a page); continue with nextPart until it is null.")]
     public static ImportFormatPart GetImportFormat(
-        [Description("Format id from list_import_formats, e.g. library, work-with-text, knowledge-base, scriptorium, page, form, calendar, masses, tasks, bookings, chat, contacts, roles, guide-book, scheme-fakty.")] string format,
+        [Description("Format id from list_import_formats, e.g. liturgy, liturgy-schema, liturgy-defaults, example-liturgy, example-liturgy-maintenance, library, work-with-text, knowledge-base, scriptorium, page, form, calendar, masses, tasks, bookings, chat, contacts, roles, guide-book, scheme-fakty.")] string format,
         [Description("Part to read, from 1 (default 1).")] int part = 1)
     {
         var found = ImportFormats.Find(format)

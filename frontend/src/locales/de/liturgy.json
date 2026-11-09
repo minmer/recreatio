@@ -71,7 +71,7 @@
   "layer": "Quellenbereich",
   "fallback": "Zulässiger Ersatz für",
   "importTitle": "Ressourcen importieren",
-  "importHint": "Eine Ressource oder ein Paket hochladen oder einfügen. Texte und Zuordnungen bleiben getrennt. Alle Abhängigkeiten werden vor einem gemeinsamen atomaren Speichern geprüft.",
+  "importHint": "Eine ganze Sammlung oder ein Änderungsdokument importieren: Erstellen, Überarbeiten, Felder ändern, ausdrücklich entfernen und Vorgaben wiederherstellen. Alle resultierenden Verweise werden vor einer gemeinsamen Transaktion geprüft.",
   "schema": "JSON-Schema herunterladen",
   "readOnly": "Diese Sammlung ist lesbar. Zum Bearbeiten ist Schreibzugriff auf ihren Bereich nötig.",
   "jsonFile": "JSON-Datei",
@@ -81,7 +81,7 @@
   "provenance": "Quelle / Grund der Änderung",
   "allowApproved": "Ich erlaube die hier angezeigten Änderungen an geprüften Einträgen.",
   "preview": "Importvorschau",
-  "importCounts": "{created} neu · {updated} Revisionen · {unchanged} unverändert",
+  "importCounts": "{created} neu · {updated} Änderungen · {removed} Entfernungen · {reset} Rücksetzungen · {unchanged} unverändert",
   "saved": "{count} Einträge gespeichert.",
   "confirmImport": "Angezeigte Änderungen importieren",
   "tabs": {
@@ -179,7 +179,15 @@
     "print_usage": "Die Metadaten der Ausgabe erlauben kein Drucken.",
     "range": "Einen gültigen Zeitraum bis 366 Tage wählen.",
     "file_size": "Importdateien dürfen bis zu 16 MB groß sein.",
-    "missing_entry": "Dieser Eintrag ist nicht in dieser Sammlung."
+    "missing_entry": "Dieser Eintrag ist nicht in dieser Sammlung.",
+    "operation_version": "Änderungsoperationen benötigen schema_version 1.1 im Dokument.",
+    "operation_missing": "Der zu ändernde oder entfernende Eintrag existiert nicht.",
+    "operation_stale": "Die erwartete Revision stimmt nicht mit der aktuellen überein. Den Eintrag erneut lesen.",
+    "patch_identity": "Ein Patch darf Identität, Schema, Revision oder interne Felder nicht ändern.",
+    "default_readonly": "Dies ist eine integrierte Vorgabe, keine gespeicherte Anpassung, die entfernt werden kann.",
+    "not_default": "Für diesen Eintrag gibt es keine integrierte Vorgabe.",
+    "use_reset_default": "Mit reset_default diese Anpassung entfernen und die integrierte Vorgabe wiederherstellen.",
+    "batch_limit": "Zu viele Änderungen für eine Transaktion (höchstens 4999). In Pakete mit gültigen Abhängigkeiten aufteilen."
   },
   "diagnostic": {
     "calendar_partial": "Kalenderabdeckung nicht vollständig geprüft",
@@ -247,7 +255,21 @@
     "13": "Übrige Werktage"
   },
   "loadExample": "Beispiel zur Vorschau laden",
-  "exampleHint": "Das Beispiel enthält einen vollständigen Text, einen Abschnitt und eine Zuordnung zu einer Hore. Alle Texte sind Testtexte; die Vorschau speichert nichts.",
+  "exampleHint": "Das vollständige Beispiel enthält alle Eintragsarten, Horen und die Messe. Alle Texte sind Testtexte. Die Vorschau speichert nichts; nach dem Import das Beispiel-Kalenderprofil wählen.",
   "json": "JSON",
-  "checksum": "SHA-256"
+  "checksum": "SHA-256",
+  "fullGuide": "Vollständige Anleitung für Import und Änderungen",
+  "removeTitle": "Zu entfernende Einträge",
+  "removeHint": "Diese Einträge werden in derselben Transaktion entfernt. Verbleibende Verweise in dieser Sammlung müssen gültig sein; Verknüpfungen aus anderen Sammlungen separat prüfen.",
+  "resetTitle": "Auf Vorgaben zurückzusetzende Anpassungen",
+  "actions": {
+    "create": "Erstellt",
+    "update": "Überarbeitet",
+    "remove": "Entfernt",
+    "reset_default": "Auf Vorgabe zurückgesetzt"
+  },
+  "refreshSnapshot": "Vorhandene MCP-Abbilder aktualisieren",
+  "snapshotFailed": "Das MCP-Abbild konnte nicht aktualisiert werden. Den vorhandenen KI-Zugang zu dieser Sammlung prüfen.",
+  "snapshotRefreshed": "Aktualisierte vorhandene KI-Abbilder: {count}. Es wurde kein neuer Zugang erstellt.",
+  "savedSnapshotFailed": "Der Import wurde gespeichert, das MCP-Abbild aber nicht aktualisiert. Vor dem Lesen über MCP „Vorhandene MCP-Abbilder aktualisieren“ verwenden."
 }

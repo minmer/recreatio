@@ -767,11 +767,11 @@ export class LibraryStore implements Lookup {
    * 2026-11-03 — DIE ABSCHRIFT FÜR AI GLEICH NEU (nach einem Import): ohne die Ruhe abzuwarten, die sonst nach dem
    * Schreiben gilt — damit ein Assistent über den Link (MCP) sofort sieht, was gespeichert ist. `null`: hier kein Konto.
    */
-  async refreshAiNow(): Promise<{ refreshed: number; failed: number; reason?: string } | null> {
+  async refreshAiNow(all = false): Promise<{ refreshed: number; failed: number; reason?: string } | null> {
     const ring = this.ring;
     if (ring === null) return null;
     const m = await import('../aiAccess/aiAccess');
-    return m.libraryWrittenNow(ring, this.areaId, this.libraryId);
+    return m.libraryWrittenNow(ring, this.areaId, this.libraryId, all);
   }
 
   async remove(id: string): Promise<void> {

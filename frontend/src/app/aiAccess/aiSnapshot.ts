@@ -34,6 +34,7 @@
  */
 
 import { LITURGY_KINDS, projectLiturgyEntries } from '../library/liturgy/kinds';
+import { entitiesOf as liturgicalEntities } from '../library/liturgy/resources';
 import { landscapeLayouts, type LandscapeLayoutDoc } from '../cogita/landscapeExport';
 import { exportSetup, type KnowledgeSetup } from '../cogita/json';
 import { CogitaLibrary } from '../cogita/store';
@@ -110,6 +111,8 @@ export interface SnapshotText {
 }
 
 export interface SnapshotEntry {
+  /** Exact importable canonical data; projections remain in data for search/readers. */
+  readonly canonical?: Readonly<Record<string, unknown>>;
   readonly id: string;
   readonly kind: string;
   /** Mehrere Arten: ein Eintrag einer Baza wiedzy, ein Text mit seinem Rodzaj tekstu. */
@@ -262,6 +265,7 @@ export function refsOf(entry: { readonly id: string; readonly data: Readonly<Rec
 function sourceEntries(part: ScopePart, look: Lookup): SnapshotEntry[] {
   const own = new Set((part.kind === 'liturgy' ? LITURGY_KINDS : part.kind === 'books' ? LIBRARY_KINDS : WRITING_KINDS).map((k) => k.kind));
   const out: SnapshotEntry[] = [];
+  const canonical = part.kind === 'liturgy' ? new Map(liturgicalEntities(part.store.all()).map(e => [e.id, e])) : null;
   for (const entry of part.kind === 'liturgy' ? projectLiturgyEntries(part.store.all()) : part.store.all()) {
     const def = kindOf(entry.kind);
     if (def === undefined || !own.has(entry.kind)) continue;
@@ -274,6 +278,7 @@ function sourceEntries(part: ScopePart, look: Lookup): SnapshotEntry[] {
       kind: entry.kind,
       ...(typed ? { kinds: [entry.kind, typeId] } : {}),
       kindName: def.label,
+      ...(canonical?.has(String(entry.data.id)) ? { canonical: canonical.get(String(entry.data.id))! } : {}),
       ...(typeName === '' ? {} : { typeName }),
       title: entryTitle(entry, look),
       ...(entry.key === undefined || entry.key === '' ? {} : { key: entry.key }),

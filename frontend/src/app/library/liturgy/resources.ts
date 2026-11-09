@@ -1,7 +1,8 @@
 /** Canonical identities, dependency validation, and passage resolution. No calendar decisions here. */
-import { EntitySchema, ImportSchema, KIND, type Conditions, type LitEntity, type OfType, type ResourceRef, type TextBlock } from './schema';
+import { EntitySchema, ImportSchema, KIND, MAX_IMPORT_CHANGES, type ImportOperation, type Conditions, type LitEntity, type OfType, type ResourceRef, type TextBlock } from './schema';
 import type { LibEntry } from '../libraryKinds';
 import { isDate } from '../../calendar/flow/liturgy';
+import { BUILTINS } from './defaults';
 
 export interface Problem { code: string; id: string; detail: string }
 export const canonicalJson = (value: unknown): string => JSON.stringify(sort(value));
@@ -19,12 +20,12 @@ export const entitiesOf = (entries: readonly LibEntry[]): LitEntity[] => entries
 export const indexOf = (entities: readonly LitEntity[]): Map<string, LitEntity> => new Map(entities.map(e => [e.id, e]));
 
 /** Accept the document's shorthand for a psalm or a single prayer; keep one canonical representation. */
-function normalize(raw: unknown): unknown {
+function normalize(raw: unknown, supplyTitle = true): unknown {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
   const r = { ...(raw as Record<string, unknown>) };
-  if (Array.isArray(r.entities)) return { ...r, entities: r.entities.map(normalize) };
+  if (Array.isArray(r.entities)) return { ...r, entities: r.entities.map(e => normalize(e)) };
   if (typeof r.entity_type !== 'string') return r;
-  r.title ??= r.canonical_name ?? r.label ?? r.id;
+  if (supplyTitle) r.title ??= r.canonical_name ?? r.label ?? r.id;
   delete r.canonical_name; delete r.label;
   if (r.entity_type === 'psalm_text' || r.entity_type === 'liturgical_text') {
     if (r.entity_type === 'psalm_text') r.resource_type = 'psalm';
@@ -42,10 +43,23 @@ function normalize(raw: unknown): unknown {
     return [[key, typeof value === 'string' ? value.trimEnd() : value]];
   }));
 }
-export function readImport(raw: unknown): { entities: LitEntity[]; provenance: string } | { problems: Problem[] } {
+export function readImport(raw: unknown): { entities: LitEntity[]; operations: ImportOperation[]; provenance: string; mode?: 'add' | 'update' } | { problems: Problem[] } {
+  // Inspect raw keys before schema parsers can discard special JavaScript property names.
+  const unsafe = (value: unknown): boolean => {
+    if (!value || typeof value !== 'object') return false;
+    return Object.entries(value).some(([key, child]) => ['__proto__', 'prototype', 'constructor'].includes(key) || unsafe(child));
+  };
+  if (raw && typeof raw === 'object' && 'operations' in raw && Array.isArray(raw.operations)) {
+    const bad = raw.operations.find(op => op?.op === 'patch' && unsafe(op.patch));
+    if (bad) return { problems: [{ code: 'patch_identity', id: String(bad.id ?? ''), detail: 'unsafe_patch' }] };
+  }
   const parsed = ImportSchema.safeParse(normalize(raw));
   if (!parsed.success) return { problems: parsed.error.issues.map(p => ({ code: 'schema', id: p.path.join('.'), detail: p.message })) };
-  return 'entities' in parsed.data ? { entities: parsed.data.entities, provenance: parsed.data.provenance ?? '' } : { entities: [parsed.data], provenance: '' };
+  if ('format' in parsed.data) {
+    if (parsed.data.schema_version === '1.0' && parsed.data.operations.length > 0) return { problems: [{ code: 'operation_version', id: '', detail: '1.1' }] };
+    return { entities: parsed.data.entities, operations: parsed.data.operations, provenance: parsed.data.provenance ?? '', mode: parsed.data.mode };
+  }
+  return { entities: [parsed.data], operations: [], provenance: '' };
 }
 
 export function dependencies(e: LitEntity): string[] {
@@ -160,21 +174,73 @@ export function validateEntities(entities: readonly LitEntity[]): Problem[] {
   return problems.slice(0, 200);
 }
 
-export interface ImportPlan { entities: LitEntity[]; create: LitEntity[]; update: { before: LitEntity; after: LitEntity }[]; unchanged: number; problems: Problem[]; provenance: string }
-export function planImport(raw: unknown, current: readonly LitEntity[], mode: 'add' | 'update' = 'add', allowApproved = false): ImportPlan {
-  const parsed = readImport(raw);
-  if ('problems' in parsed) return { entities: [], create: [], update: [], unchanged: 0, problems: parsed.problems, provenance: '' };
-  const plan: ImportPlan = { ...parsed, create: [], update: [], unchanged: 0, problems: [] };
-  const existing = indexOf(current), incoming = new Set<string>();
-  for (const e of parsed.entities) {
-    if (incoming.has(e.id)) plan.problems.push({ code: 'duplicate_id', id: e.id, detail: e.id }); incoming.add(e.id);
-    const before = existing.get(e.id);
-    if (!before) plan.create.push(e);
-    else if (canonicalJson(before) === canonicalJson(e)) plan.unchanged++;
-    else if (mode !== 'update' || before.entity_type !== e.entity_type || e.revision <= before.revision || before.status === 'approved' && !allowApproved || !parsed.provenance) plan.problems.push({ code: 'update_conflict', id: e.id, detail: String(before.revision) });
-    else plan.update.push({ before, after: e });
+/** JSON Merge Patch on JSON data: objects merge, null removes, arrays replace in full. */
+export function mergePatch(before: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...before };
+  for (const [key, value] of Object.entries(patch)) {
+    if (['__proto__', 'prototype', 'constructor'].includes(key)) throw new Error('unsafe_patch');
+    if (value === null) delete result[key];
+    else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const old = result[key];
+      result[key] = mergePatch(old && typeof old === 'object' && !Array.isArray(old) ? old as Record<string, unknown> : {}, value as Record<string, unknown>);
+    } else result[key] = value;
   }
-  const combined = [...current.filter(e => !incoming.has(e.id)), ...parsed.entities];
-  plan.problems.push(...validateEntities(combined));
+  return result;
+}
+export interface ImportPlan {
+  entities: LitEntity[]; create: LitEntity[]; update: { before: LitEntity; after: LitEntity }[];
+  remove: LitEntity[]; reset: { before: LitEntity; after: LitEntity }[];
+  unchanged: number; problems: Problem[]; provenance: string; mode: 'add' | 'update';
+}
+export function planImport(raw: unknown, current: readonly LitEntity[], mode: 'add' | 'update' = 'add', allowApproved = false, owned?: readonly LitEntity[]): ImportPlan {
+  const parsed = readImport(raw);
+  const plan: ImportPlan = { entities: [], create: [], update: [], remove: [], reset: [], unchanged: 0, problems: [], provenance: '', mode };
+  if ('problems' in parsed) { plan.problems = parsed.problems; return plan; }
+  plan.provenance = parsed.provenance.trim(); plan.mode = parsed.mode ?? mode;
+  const existing = indexOf(current), defaults = indexOf(BUILTINS), incoming = new Set<string>();
+  const stored = new Set((owned ?? current.filter(e => canonicalJson(e) !== canonicalJson(defaults.get(e.id)))).map(e => e.id));
+  const changed = new Map(existing);
+  const fail = (code: string, id: string, detail = id) => plan.problems.push({ code, id, detail });
+  const once = (id: string) => { if (incoming.has(id)) { fail('duplicate_id', id); return false; } incoming.add(id); return true; };
+  const canChange = (before: LitEntity) => plan.mode === 'update' && Boolean(plan.provenance) && (before.status !== 'approved' || allowApproved);
+  const upsert = (e: LitEntity) => {
+    const before = existing.get(e.id);
+    plan.entities.push(e);
+    if (!before) { plan.create.push(e); changed.set(e.id, e); }
+    else if (canonicalJson(before) === canonicalJson(e)) plan.unchanged++;
+    else if (!canChange(before) || before.entity_type !== e.entity_type || e.revision <= before.revision) fail('update_conflict', e.id, String(before.revision));
+    else { plan.update.push({ before, after: e }); changed.set(e.id, e); }
+  };
+  for (const e of parsed.entities) if (once(e.id)) upsert(e);
+  for (const op of parsed.operations) {
+    if (!once(op.id)) continue;
+    const before = existing.get(op.id);
+    if (!before) { fail('operation_missing', op.id); continue; }
+    if (before.revision !== op.expected_revision) { fail('operation_stale', op.id, String(before.revision)); continue; }
+    if (!canChange(before)) { fail('update_conflict', op.id, String(before.revision)); continue; }
+    if (op.op === 'patch') {
+      if (Object.keys(op.patch).some(k => ['id', 'entity_type', 'schema_version', 'revision'].includes(k) || k.startsWith('_'))) { fail('patch_identity', op.id); continue; }
+      let data;
+      try { data = mergePatch(before, op.patch); } catch { fail('patch_identity', op.id); continue; }
+      const parsed = EntitySchema.safeParse(normalize(data, false));
+      if (!parsed.success) { for (const issue of parsed.error.issues) fail('schema', op.id, `${issue.path.join('.')}: ${issue.message}`); continue; }
+      if (canonicalJson(parsed.data) === canonicalJson(before)) { plan.unchanged++; continue; }
+      const next = EntitySchema.safeParse({ ...parsed.data, revision: before.revision + 1 });
+      if (!next.success) { for (const issue of next.error.issues) fail('schema', op.id, `${issue.path.join('.')}: ${issue.message}`); continue; }
+      upsert(next.data);
+    } else {
+      if (!stored.has(op.id)) { fail('default_readonly', op.id); continue; }
+      const builtin = defaults.get(op.id);
+      if (op.op === 'reset_default') {
+        if (!builtin) { fail('not_default', op.id); continue; }
+        plan.reset.push({ before, after: builtin }); changed.set(op.id, builtin);
+      } else {
+        if (builtin) { fail('use_reset_default', op.id); continue; }
+        plan.remove.push(before); changed.delete(op.id);
+      }
+    }
+  }
+  if (plan.create.length + plan.update.length + plan.remove.length + plan.reset.length > MAX_IMPORT_CHANGES) fail('batch_limit', '', String(MAX_IMPORT_CHANGES));
+  plan.problems.push(...validateEntities([...changed.values()]));
   return plan;
 }

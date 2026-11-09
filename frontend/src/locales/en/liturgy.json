@@ -71,7 +71,7 @@
   "layer": "Source layer",
   "fallback": "Authorized replacement for",
   "importTitle": "Import resources",
-  "importHint": "Upload or paste one resource or a batch. Content and assignments remain separate. All dependencies are checked together before a single atomic save.",
+  "importHint": "Import a whole collection or a maintenance document: create, revise, patch, explicitly remove records or reset defaults. The final dependency graph is validated before one atomic save.",
   "schema": "Download JSON Schema",
   "readOnly": "You can read this collection. Editing requires write access to its area.",
   "jsonFile": "JSON file",
@@ -81,7 +81,7 @@
   "provenance": "Source / reason for this revision",
   "allowApproved": "I authorize the changes to approved records shown in this preview.",
   "preview": "Import preview",
-  "importCounts": "{created} new · {updated} revisions · {unchanged} unchanged",
+  "importCounts": "{created} new · {updated} revisions · {removed} removals · {reset} resets · {unchanged} unchanged",
   "saved": "Saved {count} records.",
   "confirmImport": "Import the previewed changes",
   "tabs": {
@@ -179,7 +179,15 @@
     "print_usage": "The edition metadata does not permit printing.",
     "range": "Choose a valid range of up to 366 days.",
     "file_size": "Import files can be up to 16 MB.",
-    "missing_entry": "This entry is not in this collection."
+    "missing_entry": "This entry is not in this collection.",
+    "operation_version": "Maintenance operations require envelope schema_version 1.1.",
+    "operation_missing": "The record to modify or remove does not exist.",
+    "operation_stale": "The expected revision differs from the current one. Read the current record again.",
+    "patch_identity": "A patch cannot change identity, schema, revision or internal fields.",
+    "default_readonly": "This is a bundled default, not a stored override that can be removed.",
+    "not_default": "This record has no bundled default to restore.",
+    "use_reset_default": "Use reset_default to remove this override and reveal its bundled default.",
+    "batch_limit": "Too many changes for one atomic transaction (maximum 4999). Split the maintenance into dependency-safe batches."
   },
   "diagnostic": {
     "calendar_partial": "Calendar coverage is not fully reviewed",
@@ -247,7 +255,21 @@
     "13": "Other weekdays"
   },
   "loadExample": "Preview an example",
-  "exampleHint": "The example contains a complete text, a division and an hour assignment. All text is synthetic; previewing saves nothing.",
+  "exampleHint": "The complete example covers every entity type, all hours and Mass. Its texts are synthetic. Previewing does not save anything; choose its demonstration calendar profile after import.",
   "json": "JSON",
-  "checksum": "SHA-256"
+  "checksum": "SHA-256",
+  "fullGuide": "Complete import and maintenance guide",
+  "removeTitle": "Records to remove",
+  "removeHint": "The listed records will be removed in the same transaction. Remaining references in this collection must resolve; check links from other collections separately.",
+  "resetTitle": "Overrides to reset to bundled defaults",
+  "actions": {
+    "create": "Created",
+    "update": "Revised",
+    "remove": "Removed",
+    "reset_default": "Reset to default"
+  },
+  "refreshSnapshot": "Refresh existing MCP snapshots",
+  "snapshotFailed": "The MCP snapshot could not be refreshed. Check the collection’s existing AI access.",
+  "snapshotRefreshed": "Existing AI snapshots refreshed: {count}. This creates no new access.",
+  "savedSnapshotFailed": "The import was saved, but its MCP snapshot could not be refreshed. Use “Refresh existing MCP snapshots” before reading the changes through MCP."
 }
