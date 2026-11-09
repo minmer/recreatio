@@ -50,7 +50,16 @@ export interface ReviewWorld {
   readonly places: readonly string[];
 }
 
-const WORLDS = new WeakMap<object, { revision: number; count: number; world: ReviewWorld | null }>();
+/**
+ * Step 3 · 9 — gemerkt je Baza: für denselben Stand und DIESELBEN Karten (dasselbe Feld, sonst dieselben Schlüssel in
+ * derselben Reihenfolge — nicht nur dieselbe Zahl).
+ */
+const WORLDS = new WeakMap<object, { revision: number; cards: readonly Card[]; hash: string; world: ReviewWorld | null }>();
+const cardsHash = (cards: readonly Card[]): string => {
+  let h = 0x811c9dc5;
+  for (const c of cards) { for (let i = 0; i < c.key.length; i += 1) { h ^= c.key.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } h ^= 0x1f; h = Math.imul(h, 0x01000193) >>> 0; }
+  return `${cards.length}:${h.toString(36)}`;
+};
 
 /**
  * Step 3 · 2 — DIE ORTE DER WIEDERHOLUNGEN sind die Orte der Weltkarten dieser Baza, mit denselben Ortsarten wie die Karte
@@ -59,7 +68,9 @@ const WORLDS = new WeakMap<object, { revision: number; count: number; world: Rev
  */
 export function reviewWorldOf(lib: CogitaLibrary, cards: readonly Card[]): ReviewWorld | null {
   const had = WORLDS.get(lib.store);
-  if (had !== undefined && had.revision === lib.revision && had.count === cards.length) return had.world;
+  if (had !== undefined && had.revision === lib.revision && had.cards === cards) return had.world;
+  const hash = cardsHash(cards);
+  if (had !== undefined && had.revision === lib.revision && had.hash === hash) { WORLDS.set(lib.store, { ...had, cards }); return had.world; }
   const kinds = worldViewKinds(lib);
   let world: ReviewWorld | null = null;
   if (kinds.length > 0) {
@@ -76,7 +87,7 @@ export function reviewWorldOf(lib: CogitaLibrary, cards: readonly Card[]): Revie
     }
     world = { cardPlaces, places: [...places] };
   }
-  WORLDS.set(lib.store, { revision: lib.revision, count: cards.length, world });
+  WORLDS.set(lib.store, { revision: lib.revision, cards, hash, world });
   return world;
 }
 

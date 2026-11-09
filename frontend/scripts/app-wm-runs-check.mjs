@@ -219,6 +219,13 @@ const run = (id, place, startDay, first, after = 0, cards = 20) => ({ id, place,
   await report(made.lib, cards, learnerWith(new Map([['r1', conquering]])));
   check('due report: reported with all cards of the base and the scope of now (before the run: the topic card waits)', [reported.length, reported[0]?.count, reported[0] === undefined ? 'none' : S.reviewable(topicCard.key, reported[0].scope)], [2, cards.length, false]);
   check('due report: after the conquering run the same card is a review again (a fresh scope, not a kept one)', reported[1] === undefined ? 'none' : S.reviewable(topicCard.key, reported[1].scope), true);
+
+  /* Step 3 · 9 — der Speicher der Welt hängt an den Karten selbst, nicht an ihrer Zahl. */
+  const first = RV.reviewWorldOf(made.lib, cards);
+  const swapped = cards.map((c) => (c.key === topicCard.key ? { ...c, key: 'q/swapped' } : c));
+  const second = RV.reviewWorldOf(made.lib, swapped);
+  check('Step 3 · 9: other cards of the same count → the world is computed again', [first.cardPlaces.has('q/swapped'), second.cardPlaces.has('q/swapped'), second.cardPlaces.has(topicCard.key)], [false, true, false]);
+  check('Step 3 · 9: the same cards again → the kept world', RV.reviewWorldOf(made.lib, swapped) === second, true);
 }
 
 /* -- PR A: bis der Dienst Durchgänge speichert, gelten 0 Stufen (wmFeatures.ts) ---------------------------------------- */
