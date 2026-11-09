@@ -11,9 +11,10 @@ import { dependencies, entitiesOf, indexOf, resolveText, allUsageOf } from './re
 import { effectiveEntities } from './defaults';
 import { calendarRange, isDate, PRECEDENCE, resolveLiturgicalDay, todayIn } from './calendar';
 import { composeAllHours, composeOffice, type Composition } from './compose';
-import { ImportPanel } from './ImportPanel';
+import { LiturgyJsonPanel } from './LiturgyJsonPanel';
 import { download, offlineDocument, openPrint, printDocument } from './export';
-import { exportEntities } from './persistence';
+import { docEntity, LITURGY_FORMAT, LITURGY_VERSION } from './liturgyJson';
+import { commitImport } from './persistence';
 import './liturgy.css';
 
 const TABS = ['resources', 'calendar', 'import', 'history'] as const;
@@ -34,9 +35,9 @@ export function LiturgyHome({ me, library, trail }: { me: Me; library: OpenLibra
     {failed && <p className="wk-note">{t('liturgy.cached')}</p>}
     <nav className="wk-tabs" aria-label={t('liturgy.sections')}>{TABS.map(name => <a key={name} className={`wk-tab${!selected && tab === name ? ' wk-tab-on' : ''}`} href={viewPath('library', library.libraryId, name)}>{t(`liturgy.tabs.${name}`)}</a>)}</nav>
     <div className="wk-panel">
-      {selected ? <ResourceDetail key={selected.id} entity={selected} entities={entities} store={store} library={library} />
+      {selected ? <ResourceDetail key={selected.id} entity={selected} entities={entities} store={store} library={library} revision={revision} />
         : tab === 'calendar' ? <CalendarReader entities={entities} libraryId={library.libraryId} />
-        : tab === 'import' ? <ImportPanel store={store} library={library} />
+        : tab === 'import' ? <LiturgyJsonPanel store={store} library={library} revision={revision} open />
         : tab === 'history' ? <ImportHistory store={store} library={library} />
         : <ResourceList own={own} entities={entities} library={library} />}
     </div>
@@ -52,19 +53,32 @@ function ResourceList({ own, entities, library }: { own: LitEntity[]; entities: 
     </div>
     <label className="lit-check"><input type="checkbox" checked={builtins} onChange={e => setBuiltins(e.target.checked)} />{t('liturgy.showDefaults')}</label>
     <p className="lit-meta">{t('liturgy.count', { count: found.length })}</p>
-    {found.length === 0 && <div className="lit-empty"><h2>{t('liturgy.empty')}</h2><p>{t('liturgy.emptyHint')}</p>{library.writes && <a className="wk-btn" href={viewPath('library', library.libraryId, 'import')}>{t('liturgy.importTitle')}</a>}</div>}
+    {found.length === 0 && <div className="lit-empty"><h2>{t('liturgy.empty')}</h2><p>{t('liturgy.emptyHint')}</p>{library.writes && <a className="wk-btn" href={viewPath('library', library.libraryId, 'import')}>{t('liturgy.tabs.import')}</a>}</div>}
     <ul className="lit-resources">{found.slice(0, limit).map(e => <li key={e.id}><a href={viewPath('library', library.libraryId, 'resource', e.id)}><strong>{e.title}</strong><span>{t(`liturgy.types.${e.entity_type}`)} · {e.id}</span></a><span className={`lit-badge is-${e.status}`}>{t(`liturgy.status.${e.status}`)}</span></li>)}</ul>
     {found.length > limit && <button className="wk-btn wk-btn-quiet" onClick={() => setLimit(n => n + 50)}>{t('liturgy.more')}</button>}
     <aside className="lit-connect"><h2 className="wk-h2">{t('liturgy.cogita')}</h2><p>{t('liturgy.cogitaHint')}</p><a href={viewPath('knowledge')}>{t('liturgy.openCogita')} →</a></aside>
-    {own.length > 0 && <div className="wk-actions"><button className="wk-btn wk-btn-quiet" onClick={() => download('liturgy-offline.html', offlineDocument(library.name, own), 'text/html')}>{t('liturgy.offline')}</button><button className="wk-btn wk-btn-quiet" onClick={() => download('liturgy.json', JSON.stringify(exportEntities(own), null, 2))}>{t('liturgy.exportJson')}</button></div>}
+    {own.length > 0 && <div className="wk-actions"><button className="wk-btn wk-btn-quiet" onClick={() => download('liturgy-offline.html', offlineDocument(library.name, own), 'text/html')}>{t('liturgy.offline')}</button><a className="wk-btn wk-btn-quiet" href={viewPath('library', library.libraryId, 'import')}>{t('liturgy.tabs.import')}</a></div>}
   </>;
 }
 export function TextBlocks({ blocks }: { blocks: readonly TextBlock[] }) {
   return <>{blocks.map((b, i) => <p key={i} className={`lit-block is-${b.type}${b.emphasis ? ` is-${b.emphasis}` : ''}`}>{b.verse !== undefined && <sup>{b.verse} </sup>}{b.speaker && <strong>{b.speaker} </strong>}{b.text}</p>)}</>;
 }
-function ResourceDetail({ entity, entities, store, library }: { entity: LitEntity; entities: LitEntity[]; store: LibraryStore; library: OpenLibrary }) {
-  const t = useT(), [edit, setEdit] = useState<LitEntity | null>(null), [versions, setVersions] = useState<readonly VersionRow[] | null>(null), [failed, setFailed] = useState('');
+function ResourceDetail({ entity, entities, store, library, revision }: { entity: LitEntity; entities: LitEntity[]; store: LibraryStore; library: OpenLibrary; revision: number }) {
+  const t = useT(), [versions, setVersions] = useState<readonly VersionRow[] | null>(null), [failed, setFailed] = useState(''), [note, setNote] = useState(''), [busy, setBusy] = useState(false);
   const index = indexOf(entities), resolved = resolveText(entity.id, index), uses = allUsageOf(entity.id, entities);
+  /* Eine frühere Fassung zurück: als Import dieser Encja — geprüft wie jeder Import, gespeichert als neue Revision. */
+  const restore = async (v: VersionRow, storedId: string) => {
+    setBusy(true); setFailed(''); setNote('');
+    try {
+      const doc = await store.version(storedId, v);
+      const old = doc && entitiesOf([doc])[0];
+      if (!old) throw new Error(t('common.failed'));
+      const cleared = Object.fromEntries(Object.keys(entity).filter((key) => !(key in old)).map((key) => [key, null]));
+      const done = await commitImport(store, { format: LITURGY_FORMAT, version: LITURGY_VERSION, provenance: t('liturgy.restoredFrom', { version: v.version }), entities: [{ ...cleared, ...docEntity(old) }] }, library.areaPublic === true);
+      setNote(done.saved === 0 ? t('liturgy.json.line.nothing') : t('liturgy.restored', { version: v.version }));
+      setVersions(null);
+    } catch (e) { setFailed(e instanceof Error ? e.message : t('common.failed')); } finally { setBusy(false); }
+  };
   const stored = store.all().find(e => e.data.id === entity.id && Object.values(KIND).includes(e.kind));
   const link = (id: string) => <a href={viewPath('library', library.libraryId, 'resource', id)}>{index.get(id)?.title ?? id}</a>;
   const edition = resolved ? index.get(resolved.resource.edition_id) : undefined;
@@ -80,10 +94,19 @@ function ResourceDetail({ entity, entities, store, library }: { entity: LitEntit
     <h3>{t('liturgy.references')}</h3><ul>{dependencies(entity).map(id => <li key={id}>{link(id)}</li>)}</ul>
     <h3>{t('liturgy.usedBy', { count: uses.length })}</h3><ul>{uses.map(e => <li key={e.id}>{link(e.id)} · {t(`liturgy.types.${e.entity_type}`)}</li>)}</ul>
     <details><summary>{t('liturgy.metadata')}</summary><pre className="lit-json">{JSON.stringify(entity, null, 2)}</pre></details>
-    <div className="wk-actions"><button className="wk-btn wk-btn-quiet" onClick={() => download(`${entity.id}.json`, JSON.stringify(exportEntities([entity]), null, 2))}>{t('liturgy.exportJson')}</button>{library.writes && <button className="wk-btn" onClick={() => setEdit({ ...entity })}>{t('liturgy.edit')}</button>}{stored && library.writes && <button className="wk-btn wk-btn-quiet" onClick={async () => { try { setVersions((await loadVersions(store.libraryId, stored.id)).versions); } catch (e) { setFailed(e instanceof Error ? e.message : t('common.failed')); } }}>{t('liturgy.revisions')}</button>}</div>
-    {failed && <p className="wk-error">{failed}</p>}
-    {versions && <ul>{versions.map(v => <li key={v.version}>{v.writtenAt} · {t('liturgy.revision', { revision: v.version })}<button className="wk-link-btn" onClick={async () => { if (!stored) return; try { const doc = await store.version(stored.id, v); const old = doc && entitiesOf([doc])[0]; if (!old) throw new Error(t('common.failed')); setEdit({ ...old, revision: entity.revision }); } catch (e) { setFailed(e instanceof Error ? e.message : t('common.failed')); } }}>{t('liturgy.restorePreview')}</button></li>)}{versions.length === 0 && <li>{t('liturgy.noHistory')}</li>}</ul>}
-    {edit && <ImportPanel key={JSON.stringify(edit)} store={store} library={library} initial={edit} />}
+    {stored && library.writes && <div className="wk-actions"><button className="wk-btn wk-btn-quiet" disabled={busy} onClick={async () => { try { setVersions((await loadVersions(store.libraryId, stored.id)).versions); } catch (e) { setFailed(e instanceof Error ? e.message : t('common.failed')); } }}>{t('liturgy.revisions')}</button></div>}
+    {versions && <ul>
+      {versions.map(v => <li key={v.version}>
+        {new Date(v.writtenAt).toLocaleString(t.locale, { dateStyle: 'medium', timeStyle: 'short' })} · {t('liturgy.revision', { revision: v.version })}
+        {stored && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void restore(v, stored.id)}>{t('liturgy.restore')}</button>}
+      </li>)}
+      {versions.length === 0 && <li>{t('liturgy.noHistory')}</li>}
+    </ul>}
+    {failed && (failed.includes('\n')
+      ? <div className="wk-error" role="alert"><p>{failed.split('\n')[0]}</p><ul>{failed.split('\n').slice(1).map((line, i) => <li key={i}>{line}</li>)}</ul></div>
+      : <p className="wk-error" role="alert">{failed}</p>)}
+    {note && <p className="wk-note" role="status">{note}</p>}
+    <LiturgyJsonPanel store={store} library={library} revision={revision} entity={entity} />
   </>;
 }
 export function CalendarReader({ entities, libraryId }: { entities: readonly LitEntity[]; libraryId: string }) {

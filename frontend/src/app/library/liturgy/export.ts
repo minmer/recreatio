@@ -2,7 +2,7 @@
 import type { LitEntity, TextBlock } from './schema';
 import { indexOf, resolveText } from './resources';
 import type { Composition } from './compose';
-import { exportEntities } from './persistence';
+import { exportLiturgy } from './liturgyJson';
 import { t } from '../../core/i18n';
 const escape = (text: unknown): string => String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const blockHtml = (blocks: readonly TextBlock[]) => blocks.map(b => `<p class="${b.type}${b.emphasis ? ` ${b.emphasis}` : ''}">${b.verse === undefined ? '' : `<sup>${b.verse}</sup> `}${b.speaker ? `<b>${escape(b.speaker)}</b> ` : ''}${escape(b.text).replace(/\n/g, '<br>')}</p>`).join('\n');
@@ -12,7 +12,7 @@ export function printDocument(compositions: readonly Composition[], size: 'A4' |
 }
 export function offlineDocument(title: string, entities: readonly LitEntity[]): string {
   const index = indexOf(entities);
-  return page(title, `<p>${escape(t('liturgy.offlineHint'))}</p><nav><ul>${entities.map(e => `<li><a href="#${escape(e.id)}">${escape(e.title)}</a></li>`).join('')}</ul></nav>${entities.map(e => `<article id="${escape(e.id)}"><h2>${escape(e.title)}</h2><p class="meta">${escape(e.id)} · ${escape(t(`liturgy.types.${e.entity_type}`))} · ${escape(e.status)}</p>${blockHtml(resolveText(e.id, index)?.blocks ?? [])}<details><summary>${escape(t('liturgy.metadata'))}</summary><pre>${escape(JSON.stringify(e, null, 2))}</pre></details></article>`).join('')}<details><summary>JSON</summary><pre>${escape(JSON.stringify(exportEntities(entities), null, 2))}</pre></details>`, 'A4');
+  return page(title, `<p>${escape(t('liturgy.offlineHint'))}</p><nav><ul>${entities.map(e => `<li><a href="#${escape(e.id)}">${escape(e.title)}</a></li>`).join('')}</ul></nav>${entities.map(e => `<article id="${escape(e.id)}"><h2>${escape(e.title)}</h2><p class="meta">${escape(e.id)} · ${escape(t(`liturgy.types.${e.entity_type}`))} · ${escape(e.status)}</p>${blockHtml(resolveText(e.id, index)?.blocks ?? [])}<details><summary>${escape(t('liturgy.metadata'))}</summary><pre>${escape(JSON.stringify(e, null, 2))}</pre></details></article>`).join('')}<details><summary>JSON</summary><pre>${escape(JSON.stringify(exportLiturgy(title, entities), null, 2))}</pre></details>`, 'A4');
 }
 export function download(name: string, body: string, type = 'application/json'): void {
   const url = URL.createObjectURL(new Blob([body], { type })), link = document.createElement('a');
