@@ -1,0 +1,4335 @@
+{
+  "format": "recreatio/liturgy",
+  "version": 2,
+  "name": "Liturgia Godzin — zbiór testowy",
+  "provenance": "Zbiór testowy: wszystkie teksty wymyślone, bez praw do tekstów liturgicznych",
+  "entities": [
+    {
+      "entity_type": "text_edition",
+      "id": "test.ed",
+      "title": "Wydanie testowe",
+      "language": "pl-PL",
+      "license": "Teksty wymyślone na potrzeby testu",
+      "permitted_usage": [
+        "private",
+        "print",
+        "share"
+      ]
+    },
+    {
+      "entity_type": "canonical_work",
+      "id": "test.ps1",
+      "title": "Psalm testowy",
+      "work_type": "psalm",
+      "numbering_systems": {
+        "test": 1
+      }
+    },
+    {
+      "entity_type": "canonical_work",
+      "id": "test.ps119",
+      "title": "Psalm 119 (testowy)",
+      "work_type": "psalm",
+      "numbering_systems": {
+        "hebrew": 119,
+        "vulgate": 118
+      }
+    },
+    {
+      "entity_type": "canonical_work",
+      "id": "test.ps95",
+      "title": "Psalm wezwania (testowy)",
+      "work_type": "psalm"
+    },
+    {
+      "entity_type": "canonical_work",
+      "id": "test.zach",
+      "title": "Pieśń Zachariasza (testowa)",
+      "work_type": "canticle",
+      "alternative_names": [
+        "Benedictus"
+      ]
+    },
+    {
+      "entity_type": "canonical_work",
+      "id": "test.sym",
+      "title": "Pieśń Symeona (testowa)",
+      "work_type": "canticle",
+      "alternative_names": [
+        "Nunc dimittis"
+      ]
+    },
+    {
+      "entity_type": "canonical_work",
+      "id": "test.ot",
+      "title": "Kantyk starotestamentowy (testowy)",
+      "work_type": "canticle"
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.doxology",
+      "title": "Doksologia testowa",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "doxology",
+      "text": "Chwała przykładowa pierwsza połowa, druga połowa na wieki. Amen.",
+      "layout": [
+        {
+          "text": "Chwała przykładowa pierwsza połowa,",
+          "end": "mediant"
+        },
+        {
+          "text": "druga połowa na wieki. Amen.",
+          "end": "verse"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ant.a",
+      "title": "Antyfona testowa A",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "antiphon",
+      "text": "Przykładowa antyfona, część przed podziałem, a oto jej część po podziale.",
+      "layout": [
+        {
+          "text": "Przykładowa antyfona, część przed podziałem,",
+          "end": "mediant"
+        },
+        {
+          "text": "a oto jej część po podziale."
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ant.a.copy",
+      "title": "Antyfona testowa A (kopia z innego tomu)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "antiphon",
+      "text": "Przykładowa antyfona,  część przed podziałem, a oto jej część po podziale.",
+      "layout": [
+        {
+          "text": "Przykładowa antyfona,",
+          "end": "mediant"
+        },
+        {
+          "text": "część przed podziałem, a oto jej część po podziale."
+        }
+      ],
+      "source_citation": "Tom testowy II"
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ant.b",
+      "title": "Antyfona testowa B",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "antiphon",
+      "text": "Antyfona do kantyku, przed pauzą, po pauzie.",
+      "layout": [
+        {
+          "text": "Antyfona do kantyku, przed pauzą,",
+          "end": "mediant"
+        },
+        {
+          "text": "po pauzie."
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ant.c",
+      "title": "Antyfona testowa C",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "antiphon",
+      "text": "Antyfona do drugiej części psalmu."
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ant.zach",
+      "title": "Antyfona do Pieśni Zachariasza",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "antiphon",
+      "text": "Antyfona poranna, przed podziałem, po podziale.",
+      "layout": [
+        {
+          "text": "Antyfona poranna, przed podziałem,",
+          "end": "mediant"
+        },
+        {
+          "text": "po podziale."
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ant.sym",
+      "title": "Antyfona do Pieśni Symeona",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "antiphon",
+      "text": "Antyfona wieczorna, przed podziałem, po podziale.",
+      "layout": [
+        {
+          "text": "Antyfona wieczorna, przed podziałem,",
+          "end": "mediant"
+        },
+        {
+          "text": "po podziale."
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ant.inv",
+      "title": "Antyfona wezwania",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "antiphon",
+      "text": "Antyfona wezwania, przed podziałem, po podziale.",
+      "layout": [
+        {
+          "text": "Antyfona wezwania, przed podziałem,",
+          "end": "mediant"
+        },
+        {
+          "text": "po podziale."
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ant.119",
+      "title": "Antyfona do Psalmu 119",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "antiphon",
+      "text": "Antyfona do długiego psalmu."
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.marian",
+      "title": "Antyfona maryjna testowa",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "antiphon",
+      "text": "Antyfona maryjna na zakończenie dnia."
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.hymn",
+      "title": "Hymn testowy",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "hymn",
+      "text": "Pierwsza linijka hymnu testowego, druga linijka tej samej zwrotki, trzecia linijka z obrazem świtu, czwarta kończy pierwszą zwrotkę.\n\nDruga zwrotka zaczyna się tutaj, jej drugi wers prowadzi dalej, trzeci wers niesie prośbę dnia, a czwarty zamyka tę zwrotkę.\n\nChwała przykładowa w trzeciej zwrotce, Ojcu i Synowi w drugim wersie, i Duchowi w wersie trzecim, na wieki w czwartym. Amen.",
+      "layout": [
+        {
+          "text": "Pierwsza linijka hymnu testowego,",
+          "label": "1",
+          "end": "line"
+        },
+        {
+          "text": "druga linijka tej samej zwrotki,",
+          "end": "line"
+        },
+        {
+          "text": "trzecia linijka z obrazem świtu,",
+          "end": "line"
+        },
+        {
+          "text": "czwarta kończy pierwszą zwrotkę.",
+          "end": "stanza"
+        },
+        {
+          "text": "Druga zwrotka zaczyna się tutaj,",
+          "label": "2",
+          "end": "line"
+        },
+        {
+          "text": "jej drugi wers prowadzi dalej,",
+          "end": "line"
+        },
+        {
+          "text": "trzeci wers niesie prośbę dnia,",
+          "end": "line"
+        },
+        {
+          "text": "a czwarty zamyka tę zwrotkę.",
+          "end": "stanza"
+        },
+        {
+          "text": "Chwała przykładowa w trzeciej zwrotce,",
+          "label": "3",
+          "id": "dox",
+          "kind": "conclusion",
+          "end": "line"
+        },
+        {
+          "text": "Ojcu i Synowi w drugim wersie,",
+          "kind": "conclusion",
+          "end": "line"
+        },
+        {
+          "text": "i Duchowi w wersie trzecim,",
+          "kind": "conclusion",
+          "end": "line"
+        },
+        {
+          "text": "na wieki w czwartym. Amen.",
+          "kind": "conclusion",
+          "end": "stanza"
+        }
+      ],
+      "variants": [
+        {
+          "id": "dox-alt",
+          "replaces": "dox",
+          "text": "Inna poświadczona zwrotka doksologii, na wieki. Amen.",
+          "source": "Tom testowy II",
+          "when": {
+            "hours": [
+              "vespers"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ps1.text",
+      "title": "Psalm testowy",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "psalm",
+      "work_id": "test.ps1",
+      "expected_verses": 6,
+      "doxology": "after",
+      "doxology_ref": "test.doxology",
+      "text": "Werset 1 psalmu testowego, pierwsza połowa, a to druga połowa wersetu 1. Werset 2 psalmu testowego, pierwsza połowa, a to druga połowa wersetu 2. Werset 3 psalmu testowego, pierwsza połowa, a to druga połowa wersetu 3. Werset 4 psalmu testowego, pierwsza linia, jego druga linia przed pauzą, a to trzecia linia wersetu 4. Werset 5 psalmu testowego, pierwsza połowa, a to druga połowa wersetu 5. Werset 6 psalmu testowego, pierwsza połowa, a to druga połowa wersetu 6.",
+      "layout": [
+        {
+          "text": "Werset 1 psalmu testowego, pierwsza połowa,",
+          "verse": 1,
+          "label": "1",
+          "end": "mediant"
+        },
+        {
+          "text": "a to druga połowa wersetu 1.",
+          "verse": 1,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 2 psalmu testowego, pierwsza połowa,",
+          "verse": 2,
+          "label": "2",
+          "end": "mediant"
+        },
+        {
+          "text": "a to druga połowa wersetu 2.",
+          "verse": 2,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 3 psalmu testowego, pierwsza połowa,",
+          "verse": 3,
+          "label": "3",
+          "end": "mediant"
+        },
+        {
+          "text": "a to druga połowa wersetu 3.",
+          "verse": 3,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 4 psalmu testowego, pierwsza linia,",
+          "verse": 4,
+          "label": "4",
+          "end": "flex"
+        },
+        {
+          "text": "jego druga linia przed pauzą,",
+          "verse": 4,
+          "end": "mediant"
+        },
+        {
+          "text": "a to trzecia linia wersetu 4.",
+          "verse": 4,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 5 psalmu testowego, pierwsza połowa,",
+          "verse": 5,
+          "label": "5",
+          "end": "mediant"
+        },
+        {
+          "text": "a to druga połowa wersetu 5.",
+          "verse": 5,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 6 psalmu testowego, pierwsza połowa,",
+          "verse": 6,
+          "label": "6",
+          "end": "mediant"
+        },
+        {
+          "text": "a to druga połowa wersetu 6.",
+          "verse": 6,
+          "end": "verse"
+        }
+      ],
+      "notes": [
+        {
+          "type": "subtitle",
+          "text": "Tytuł psalmu testowego"
+        },
+        {
+          "type": "sentence",
+          "text": "Sentencja do psalmu testowego",
+          "source": "Źródło sentencji"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ps119.text",
+      "title": "Psalm 119 (testowy)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "psalm",
+      "work_id": "test.ps119",
+      "expected_verses": 176,
+      "doxology": "after",
+      "text": "Werset 1 długiego psalmu, jego druga połowa numer 1. Werset 2 długiego psalmu, jego druga połowa numer 2. Werset 3 długiego psalmu, jego druga połowa numer 3. Werset 4 długiego psalmu, jego druga połowa numer 4. Werset 5 długiego psalmu, jego druga połowa numer 5. Werset 6 długiego psalmu, jego druga połowa numer 6. Werset 7 długiego psalmu, jego druga połowa numer 7. Werset 8 długiego psalmu, jego druga połowa numer 8. Werset 9 długiego psalmu, jego druga połowa numer 9. Werset 10 długiego psalmu, jego druga połowa numer 10. Werset 11 długiego psalmu, jego druga połowa numer 11. Werset 12 długiego psalmu, jego druga połowa numer 12. Werset 13 długiego psalmu, jego druga połowa numer 13. Werset 14 długiego psalmu, jego druga połowa numer 14. Werset 15 długiego psalmu, jego druga połowa numer 15. Werset 16 długiego psalmu, jego druga połowa numer 16. Werset 17 długiego psalmu, jego druga połowa numer 17. Werset 18 długiego psalmu, jego druga połowa numer 18. Werset 19 długiego psalmu, jego druga połowa numer 19. Werset 20 długiego psalmu, jego druga połowa numer 20. Werset 21 długiego psalmu, jego druga połowa numer 21. Werset 22 długiego psalmu, jego druga połowa numer 22. Werset 23 długiego psalmu, jego druga połowa numer 23. Werset 24 długiego psalmu, jego druga połowa numer 24. Werset 25 długiego psalmu, jego druga połowa numer 25. Werset 26 długiego psalmu, jego druga połowa numer 26. Werset 27 długiego psalmu, jego druga połowa numer 27. Werset 28 długiego psalmu, jego druga połowa numer 28. Werset 29 długiego psalmu, jego druga połowa numer 29. Werset 30 długiego psalmu, jego druga połowa numer 30. Werset 31 długiego psalmu, jego druga połowa numer 31. Werset 32 długiego psalmu, jego druga połowa numer 32. Werset 33 długiego psalmu, jego druga połowa numer 33. Werset 34 długiego psalmu, jego druga połowa numer 34. Werset 35 długiego psalmu, jego druga połowa numer 35. Werset 36 długiego psalmu, jego druga połowa numer 36. Werset 37 długiego psalmu, jego druga połowa numer 37. Werset 38 długiego psalmu, jego druga połowa numer 38. Werset 39 długiego psalmu, jego druga połowa numer 39. Werset 40 długiego psalmu, jego druga połowa numer 40. Werset 41 długiego psalmu, jego druga połowa numer 41. Werset 42 długiego psalmu, jego druga połowa numer 42. Werset 43 długiego psalmu, jego druga połowa numer 43. Werset 44 długiego psalmu, jego druga połowa numer 44. Werset 45 długiego psalmu, jego druga połowa numer 45. Werset 46 długiego psalmu, jego druga połowa numer 46. Werset 47 długiego psalmu, jego druga połowa numer 47. Werset 48 długiego psalmu, jego druga połowa numer 48. Werset 49 długiego psalmu, jego druga połowa numer 49. Werset 50 długiego psalmu, jego druga połowa numer 50. Werset 51 długiego psalmu, jego druga połowa numer 51. Werset 52 długiego psalmu, jego druga połowa numer 52. Werset 53 długiego psalmu, jego druga połowa numer 53. Werset 54 długiego psalmu, jego druga połowa numer 54. Werset 55 długiego psalmu, jego druga połowa numer 55. Werset 56 długiego psalmu, jego druga połowa numer 56. Werset 57 długiego psalmu, jego druga połowa numer 57. Werset 58 długiego psalmu, jego druga połowa numer 58. Werset 59 długiego psalmu, jego druga połowa numer 59. Werset 60 długiego psalmu, jego druga połowa numer 60. Werset 61 długiego psalmu, jego druga połowa numer 61. Werset 62 długiego psalmu, jego druga połowa numer 62. Werset 63 długiego psalmu, jego druga połowa numer 63. Werset 64 długiego psalmu, jego druga połowa numer 64. Werset 65 długiego psalmu, jego druga połowa numer 65. Werset 66 długiego psalmu, jego druga połowa numer 66. Werset 67 długiego psalmu, jego druga połowa numer 67. Werset 68 długiego psalmu, jego druga połowa numer 68. Werset 69 długiego psalmu, jego druga połowa numer 69. Werset 70 długiego psalmu, jego druga połowa numer 70. Werset 71 długiego psalmu, jego druga połowa numer 71. Werset 72 długiego psalmu, jego druga połowa numer 72. Werset 73 długiego psalmu, jego druga połowa numer 73. Werset 74 długiego psalmu, jego druga połowa numer 74. Werset 75 długiego psalmu, jego druga połowa numer 75. Werset 76 długiego psalmu, jego druga połowa numer 76. Werset 77 długiego psalmu, jego druga połowa numer 77. Werset 78 długiego psalmu, jego druga połowa numer 78. Werset 79 długiego psalmu, jego druga połowa numer 79. Werset 80 długiego psalmu, jego druga połowa numer 80. Werset 81 długiego psalmu, jego druga połowa numer 81. Werset 82 długiego psalmu, jego druga połowa numer 82. Werset 83 długiego psalmu, jego druga połowa numer 83. Werset 84 długiego psalmu, jego druga połowa numer 84. Werset 85 długiego psalmu, jego druga połowa numer 85. Werset 86 długiego psalmu, jego druga połowa numer 86. Werset 87 długiego psalmu, jego druga połowa numer 87. Werset 88 długiego psalmu, jego druga połowa numer 88. Werset 89 długiego psalmu, jego druga połowa numer 89. Werset 90 długiego psalmu, jego druga połowa numer 90. Werset 91 długiego psalmu, jego druga połowa numer 91. Werset 92 długiego psalmu, jego druga połowa numer 92. Werset 93 długiego psalmu, jego druga połowa numer 93. Werset 94 długiego psalmu, jego druga połowa numer 94. Werset 95 długiego psalmu, jego druga połowa numer 95. Werset 96 długiego psalmu, jego druga połowa numer 96. Werset 97 długiego psalmu, jego druga połowa numer 97. Werset 98 długiego psalmu, jego druga połowa numer 98. Werset 99 długiego psalmu, jego druga połowa numer 99. Werset 100 długiego psalmu, jego druga połowa numer 100. Werset 101 długiego psalmu, jego druga połowa numer 101. Werset 102 długiego psalmu, jego druga połowa numer 102. Werset 103 długiego psalmu, jego druga połowa numer 103. Werset 104 długiego psalmu, jego druga połowa numer 104. Werset 105 długiego psalmu, jego druga połowa numer 105. Werset 106 długiego psalmu, jego druga połowa numer 106. Werset 107 długiego psalmu, jego druga połowa numer 107. Werset 108 długiego psalmu, jego druga połowa numer 108. Werset 109 długiego psalmu, jego druga połowa numer 109. Werset 110 długiego psalmu, jego druga połowa numer 110. Werset 111 długiego psalmu, jego druga połowa numer 111. Werset 112 długiego psalmu, jego druga połowa numer 112. Werset 113 długiego psalmu, jego druga połowa numer 113. Werset 114 długiego psalmu, jego druga połowa numer 114. Werset 115 długiego psalmu, jego druga połowa numer 115. Werset 116 długiego psalmu, jego druga połowa numer 116. Werset 117 długiego psalmu, jego druga połowa numer 117. Werset 118 długiego psalmu, jego druga połowa numer 118. Werset 119 długiego psalmu, jego druga połowa numer 119. Werset 120 długiego psalmu, jego druga połowa numer 120. Werset 121 długiego psalmu, jego druga połowa numer 121. Werset 122 długiego psalmu, jego druga połowa numer 122. Werset 123 długiego psalmu, jego druga połowa numer 123. Werset 124 długiego psalmu, jego druga połowa numer 124. Werset 125 długiego psalmu, jego druga połowa numer 125. Werset 126 długiego psalmu, jego druga połowa numer 126. Werset 127 długiego psalmu, jego druga połowa numer 127. Werset 128 długiego psalmu, jego druga połowa numer 128. Werset 129 długiego psalmu, jego druga połowa numer 129. Werset 130 długiego psalmu, jego druga połowa numer 130. Werset 131 długiego psalmu, jego druga połowa numer 131. Werset 132 długiego psalmu, jego druga połowa numer 132. Werset 133 długiego psalmu, jego druga połowa numer 133. Werset 134 długiego psalmu, jego druga połowa numer 134. Werset 135 długiego psalmu, jego druga połowa numer 135. Werset 136 długiego psalmu, jego druga połowa numer 136. Werset 137 długiego psalmu, jego druga połowa numer 137. Werset 138 długiego psalmu, jego druga połowa numer 138. Werset 139 długiego psalmu, jego druga połowa numer 139. Werset 140 długiego psalmu, jego druga połowa numer 140. Werset 141 długiego psalmu, jego druga połowa numer 141. Werset 142 długiego psalmu, jego druga połowa numer 142. Werset 143 długiego psalmu, jego druga połowa numer 143. Werset 144 długiego psalmu, jego druga połowa numer 144. Werset 145 długiego psalmu, jego druga połowa numer 145. Werset 146 długiego psalmu, jego druga połowa numer 146. Werset 147 długiego psalmu, jego druga połowa numer 147. Werset 148 długiego psalmu, jego druga połowa numer 148. Werset 149 długiego psalmu, jego druga połowa numer 149. Werset 150 długiego psalmu, jego druga połowa numer 150. Werset 151 długiego psalmu, jego druga połowa numer 151. Werset 152 długiego psalmu, jego druga połowa numer 152. Werset 153 długiego psalmu, jego druga połowa numer 153. Werset 154 długiego psalmu, jego druga połowa numer 154. Werset 155 długiego psalmu, jego druga połowa numer 155. Werset 156 długiego psalmu, jego druga połowa numer 156. Werset 157 długiego psalmu, jego druga połowa numer 157. Werset 158 długiego psalmu, jego druga połowa numer 158. Werset 159 długiego psalmu, jego druga połowa numer 159. Werset 160 długiego psalmu, jego druga połowa numer 160. Werset 161 długiego psalmu, jego druga połowa numer 161. Werset 162 długiego psalmu, jego druga połowa numer 162. Werset 163 długiego psalmu, jego druga połowa numer 163. Werset 164 długiego psalmu, jego druga połowa numer 164. Werset 165 długiego psalmu, jego druga połowa numer 165. Werset 166 długiego psalmu, jego druga połowa numer 166. Werset 167 długiego psalmu, jego druga połowa numer 167. Werset 168 długiego psalmu, jego druga połowa numer 168. Werset 169 długiego psalmu, jego druga połowa numer 169. Werset 170 długiego psalmu, jego druga połowa numer 170. Werset 171 długiego psalmu, jego druga połowa numer 171. Werset 172 długiego psalmu, jego druga połowa numer 172. Werset 173 długiego psalmu, jego druga połowa numer 173. Werset 174 długiego psalmu, jego druga połowa numer 174. Werset 175 długiego psalmu, jego druga połowa numer 175. Werset 176 długiego psalmu, jego druga połowa numer 176.",
+      "layout": [
+        {
+          "text": "Werset 1 długiego psalmu,",
+          "verse": 1,
+          "label": "1",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 1.",
+          "verse": 1,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 2 długiego psalmu,",
+          "verse": 2,
+          "label": "2",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 2.",
+          "verse": 2,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 3 długiego psalmu,",
+          "verse": 3,
+          "label": "3",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 3.",
+          "verse": 3,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 4 długiego psalmu,",
+          "verse": 4,
+          "label": "4",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 4.",
+          "verse": 4,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 5 długiego psalmu,",
+          "verse": 5,
+          "label": "5",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 5.",
+          "verse": 5,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 6 długiego psalmu,",
+          "verse": 6,
+          "label": "6",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 6.",
+          "verse": 6,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 7 długiego psalmu,",
+          "verse": 7,
+          "label": "7",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 7.",
+          "verse": 7,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 8 długiego psalmu,",
+          "verse": 8,
+          "label": "8",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 8.",
+          "verse": 8,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 9 długiego psalmu,",
+          "verse": 9,
+          "label": "9",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 9.",
+          "verse": 9,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 10 długiego psalmu,",
+          "verse": 10,
+          "label": "10",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 10.",
+          "verse": 10,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 11 długiego psalmu,",
+          "verse": 11,
+          "label": "11",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 11.",
+          "verse": 11,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 12 długiego psalmu,",
+          "verse": 12,
+          "label": "12",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 12.",
+          "verse": 12,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 13 długiego psalmu,",
+          "verse": 13,
+          "label": "13",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 13.",
+          "verse": 13,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 14 długiego psalmu,",
+          "verse": 14,
+          "label": "14",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 14.",
+          "verse": 14,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 15 długiego psalmu,",
+          "verse": 15,
+          "label": "15",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 15.",
+          "verse": 15,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 16 długiego psalmu,",
+          "verse": 16,
+          "label": "16",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 16.",
+          "verse": 16,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 17 długiego psalmu,",
+          "verse": 17,
+          "label": "17",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 17.",
+          "verse": 17,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 18 długiego psalmu,",
+          "verse": 18,
+          "label": "18",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 18.",
+          "verse": 18,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 19 długiego psalmu,",
+          "verse": 19,
+          "label": "19",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 19.",
+          "verse": 19,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 20 długiego psalmu,",
+          "verse": 20,
+          "label": "20",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 20.",
+          "verse": 20,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 21 długiego psalmu,",
+          "verse": 21,
+          "label": "21",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 21.",
+          "verse": 21,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 22 długiego psalmu,",
+          "verse": 22,
+          "label": "22",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 22.",
+          "verse": 22,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 23 długiego psalmu,",
+          "verse": 23,
+          "label": "23",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 23.",
+          "verse": 23,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 24 długiego psalmu,",
+          "verse": 24,
+          "label": "24",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 24.",
+          "verse": 24,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 25 długiego psalmu,",
+          "verse": 25,
+          "label": "25",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 25.",
+          "verse": 25,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 26 długiego psalmu,",
+          "verse": 26,
+          "label": "26",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 26.",
+          "verse": 26,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 27 długiego psalmu,",
+          "verse": 27,
+          "label": "27",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 27.",
+          "verse": 27,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 28 długiego psalmu,",
+          "verse": 28,
+          "label": "28",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 28.",
+          "verse": 28,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 29 długiego psalmu,",
+          "verse": 29,
+          "label": "29",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 29.",
+          "verse": 29,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 30 długiego psalmu,",
+          "verse": 30,
+          "label": "30",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 30.",
+          "verse": 30,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 31 długiego psalmu,",
+          "verse": 31,
+          "label": "31",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 31.",
+          "verse": 31,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 32 długiego psalmu,",
+          "verse": 32,
+          "label": "32",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 32.",
+          "verse": 32,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 33 długiego psalmu,",
+          "verse": 33,
+          "label": "33",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 33.",
+          "verse": 33,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 34 długiego psalmu,",
+          "verse": 34,
+          "label": "34",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 34.",
+          "verse": 34,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 35 długiego psalmu,",
+          "verse": 35,
+          "label": "35",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 35.",
+          "verse": 35,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 36 długiego psalmu,",
+          "verse": 36,
+          "label": "36",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 36.",
+          "verse": 36,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 37 długiego psalmu,",
+          "verse": 37,
+          "label": "37",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 37.",
+          "verse": 37,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 38 długiego psalmu,",
+          "verse": 38,
+          "label": "38",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 38.",
+          "verse": 38,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 39 długiego psalmu,",
+          "verse": 39,
+          "label": "39",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 39.",
+          "verse": 39,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 40 długiego psalmu,",
+          "verse": 40,
+          "label": "40",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 40.",
+          "verse": 40,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 41 długiego psalmu,",
+          "verse": 41,
+          "label": "41",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 41.",
+          "verse": 41,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 42 długiego psalmu,",
+          "verse": 42,
+          "label": "42",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 42.",
+          "verse": 42,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 43 długiego psalmu,",
+          "verse": 43,
+          "label": "43",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 43.",
+          "verse": 43,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 44 długiego psalmu,",
+          "verse": 44,
+          "label": "44",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 44.",
+          "verse": 44,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 45 długiego psalmu,",
+          "verse": 45,
+          "label": "45",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 45.",
+          "verse": 45,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 46 długiego psalmu,",
+          "verse": 46,
+          "label": "46",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 46.",
+          "verse": 46,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 47 długiego psalmu,",
+          "verse": 47,
+          "label": "47",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 47.",
+          "verse": 47,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 48 długiego psalmu,",
+          "verse": 48,
+          "label": "48",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 48.",
+          "verse": 48,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 49 długiego psalmu,",
+          "verse": 49,
+          "label": "49",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 49.",
+          "verse": 49,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 50 długiego psalmu,",
+          "verse": 50,
+          "label": "50",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 50.",
+          "verse": 50,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 51 długiego psalmu,",
+          "verse": 51,
+          "label": "51",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 51.",
+          "verse": 51,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 52 długiego psalmu,",
+          "verse": 52,
+          "label": "52",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 52.",
+          "verse": 52,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 53 długiego psalmu,",
+          "verse": 53,
+          "label": "53",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 53.",
+          "verse": 53,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 54 długiego psalmu,",
+          "verse": 54,
+          "label": "54",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 54.",
+          "verse": 54,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 55 długiego psalmu,",
+          "verse": 55,
+          "label": "55",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 55.",
+          "verse": 55,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 56 długiego psalmu,",
+          "verse": 56,
+          "label": "56",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 56.",
+          "verse": 56,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 57 długiego psalmu,",
+          "verse": 57,
+          "label": "57",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 57.",
+          "verse": 57,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 58 długiego psalmu,",
+          "verse": 58,
+          "label": "58",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 58.",
+          "verse": 58,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 59 długiego psalmu,",
+          "verse": 59,
+          "label": "59",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 59.",
+          "verse": 59,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 60 długiego psalmu,",
+          "verse": 60,
+          "label": "60",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 60.",
+          "verse": 60,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 61 długiego psalmu,",
+          "verse": 61,
+          "label": "61",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 61.",
+          "verse": 61,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 62 długiego psalmu,",
+          "verse": 62,
+          "label": "62",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 62.",
+          "verse": 62,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 63 długiego psalmu,",
+          "verse": 63,
+          "label": "63",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 63.",
+          "verse": 63,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 64 długiego psalmu,",
+          "verse": 64,
+          "label": "64",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 64.",
+          "verse": 64,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 65 długiego psalmu,",
+          "verse": 65,
+          "label": "65",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 65.",
+          "verse": 65,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 66 długiego psalmu,",
+          "verse": 66,
+          "label": "66",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 66.",
+          "verse": 66,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 67 długiego psalmu,",
+          "verse": 67,
+          "label": "67",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 67.",
+          "verse": 67,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 68 długiego psalmu,",
+          "verse": 68,
+          "label": "68",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 68.",
+          "verse": 68,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 69 długiego psalmu,",
+          "verse": 69,
+          "label": "69",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 69.",
+          "verse": 69,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 70 długiego psalmu,",
+          "verse": 70,
+          "label": "70",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 70.",
+          "verse": 70,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 71 długiego psalmu,",
+          "verse": 71,
+          "label": "71",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 71.",
+          "verse": 71,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 72 długiego psalmu,",
+          "verse": 72,
+          "label": "72",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 72.",
+          "verse": 72,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 73 długiego psalmu,",
+          "verse": 73,
+          "label": "73",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 73.",
+          "verse": 73,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 74 długiego psalmu,",
+          "verse": 74,
+          "label": "74",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 74.",
+          "verse": 74,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 75 długiego psalmu,",
+          "verse": 75,
+          "label": "75",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 75.",
+          "verse": 75,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 76 długiego psalmu,",
+          "verse": 76,
+          "label": "76",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 76.",
+          "verse": 76,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 77 długiego psalmu,",
+          "verse": 77,
+          "label": "77",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 77.",
+          "verse": 77,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 78 długiego psalmu,",
+          "verse": 78,
+          "label": "78",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 78.",
+          "verse": 78,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 79 długiego psalmu,",
+          "verse": 79,
+          "label": "79",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 79.",
+          "verse": 79,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 80 długiego psalmu,",
+          "verse": 80,
+          "label": "80",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 80.",
+          "verse": 80,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 81 długiego psalmu,",
+          "verse": 81,
+          "label": "81",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 81.",
+          "verse": 81,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 82 długiego psalmu,",
+          "verse": 82,
+          "label": "82",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 82.",
+          "verse": 82,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 83 długiego psalmu,",
+          "verse": 83,
+          "label": "83",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 83.",
+          "verse": 83,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 84 długiego psalmu,",
+          "verse": 84,
+          "label": "84",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 84.",
+          "verse": 84,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 85 długiego psalmu,",
+          "verse": 85,
+          "label": "85",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 85.",
+          "verse": 85,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 86 długiego psalmu,",
+          "verse": 86,
+          "label": "86",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 86.",
+          "verse": 86,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 87 długiego psalmu,",
+          "verse": 87,
+          "label": "87",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 87.",
+          "verse": 87,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 88 długiego psalmu,",
+          "verse": 88,
+          "label": "88",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 88.",
+          "verse": 88,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 89 długiego psalmu,",
+          "verse": 89,
+          "label": "89",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 89.",
+          "verse": 89,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 90 długiego psalmu,",
+          "verse": 90,
+          "label": "90",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 90.",
+          "verse": 90,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 91 długiego psalmu,",
+          "verse": 91,
+          "label": "91",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 91.",
+          "verse": 91,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 92 długiego psalmu,",
+          "verse": 92,
+          "label": "92",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 92.",
+          "verse": 92,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 93 długiego psalmu,",
+          "verse": 93,
+          "label": "93",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 93.",
+          "verse": 93,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 94 długiego psalmu,",
+          "verse": 94,
+          "label": "94",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 94.",
+          "verse": 94,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 95 długiego psalmu,",
+          "verse": 95,
+          "label": "95",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 95.",
+          "verse": 95,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 96 długiego psalmu,",
+          "verse": 96,
+          "label": "96",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 96.",
+          "verse": 96,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 97 długiego psalmu,",
+          "verse": 97,
+          "label": "97",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 97.",
+          "verse": 97,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 98 długiego psalmu,",
+          "verse": 98,
+          "label": "98",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 98.",
+          "verse": 98,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 99 długiego psalmu,",
+          "verse": 99,
+          "label": "99",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 99.",
+          "verse": 99,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 100 długiego psalmu,",
+          "verse": 100,
+          "label": "100",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 100.",
+          "verse": 100,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 101 długiego psalmu,",
+          "verse": 101,
+          "label": "101",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 101.",
+          "verse": 101,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 102 długiego psalmu,",
+          "verse": 102,
+          "label": "102",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 102.",
+          "verse": 102,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 103 długiego psalmu,",
+          "verse": 103,
+          "label": "103",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 103.",
+          "verse": 103,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 104 długiego psalmu,",
+          "verse": 104,
+          "label": "104",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 104.",
+          "verse": 104,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 105 długiego psalmu,",
+          "verse": 105,
+          "label": "105",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 105.",
+          "verse": 105,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 106 długiego psalmu,",
+          "verse": 106,
+          "label": "106",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 106.",
+          "verse": 106,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 107 długiego psalmu,",
+          "verse": 107,
+          "label": "107",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 107.",
+          "verse": 107,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 108 długiego psalmu,",
+          "verse": 108,
+          "label": "108",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 108.",
+          "verse": 108,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 109 długiego psalmu,",
+          "verse": 109,
+          "label": "109",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 109.",
+          "verse": 109,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 110 długiego psalmu,",
+          "verse": 110,
+          "label": "110",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 110.",
+          "verse": 110,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 111 długiego psalmu,",
+          "verse": 111,
+          "label": "111",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 111.",
+          "verse": 111,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 112 długiego psalmu,",
+          "verse": 112,
+          "label": "112",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 112.",
+          "verse": 112,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 113 długiego psalmu,",
+          "verse": 113,
+          "label": "113",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 113.",
+          "verse": 113,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 114 długiego psalmu,",
+          "verse": 114,
+          "label": "114",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 114.",
+          "verse": 114,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 115 długiego psalmu,",
+          "verse": 115,
+          "label": "115",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 115.",
+          "verse": 115,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 116 długiego psalmu,",
+          "verse": 116,
+          "label": "116",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 116.",
+          "verse": 116,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 117 długiego psalmu,",
+          "verse": 117,
+          "label": "117",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 117.",
+          "verse": 117,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 118 długiego psalmu,",
+          "verse": 118,
+          "label": "118",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 118.",
+          "verse": 118,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 119 długiego psalmu,",
+          "verse": 119,
+          "label": "119",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 119.",
+          "verse": 119,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 120 długiego psalmu,",
+          "verse": 120,
+          "label": "120",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 120.",
+          "verse": 120,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 121 długiego psalmu,",
+          "verse": 121,
+          "label": "121",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 121.",
+          "verse": 121,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 122 długiego psalmu,",
+          "verse": 122,
+          "label": "122",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 122.",
+          "verse": 122,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 123 długiego psalmu,",
+          "verse": 123,
+          "label": "123",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 123.",
+          "verse": 123,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 124 długiego psalmu,",
+          "verse": 124,
+          "label": "124",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 124.",
+          "verse": 124,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 125 długiego psalmu,",
+          "verse": 125,
+          "label": "125",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 125.",
+          "verse": 125,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 126 długiego psalmu,",
+          "verse": 126,
+          "label": "126",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 126.",
+          "verse": 126,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 127 długiego psalmu,",
+          "verse": 127,
+          "label": "127",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 127.",
+          "verse": 127,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 128 długiego psalmu,",
+          "verse": 128,
+          "label": "128",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 128.",
+          "verse": 128,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 129 długiego psalmu,",
+          "verse": 129,
+          "label": "129",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 129.",
+          "verse": 129,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 130 długiego psalmu,",
+          "verse": 130,
+          "label": "130",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 130.",
+          "verse": 130,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 131 długiego psalmu,",
+          "verse": 131,
+          "label": "131",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 131.",
+          "verse": 131,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 132 długiego psalmu,",
+          "verse": 132,
+          "label": "132",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 132.",
+          "verse": 132,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 133 długiego psalmu,",
+          "verse": 133,
+          "label": "133",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 133.",
+          "verse": 133,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 134 długiego psalmu,",
+          "verse": 134,
+          "label": "134",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 134.",
+          "verse": 134,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 135 długiego psalmu,",
+          "verse": 135,
+          "label": "135",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 135.",
+          "verse": 135,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 136 długiego psalmu,",
+          "verse": 136,
+          "label": "136",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 136.",
+          "verse": 136,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 137 długiego psalmu,",
+          "verse": 137,
+          "label": "137",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 137.",
+          "verse": 137,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 138 długiego psalmu,",
+          "verse": 138,
+          "label": "138",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 138.",
+          "verse": 138,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 139 długiego psalmu,",
+          "verse": 139,
+          "label": "139",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 139.",
+          "verse": 139,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 140 długiego psalmu,",
+          "verse": 140,
+          "label": "140",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 140.",
+          "verse": 140,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 141 długiego psalmu,",
+          "verse": 141,
+          "label": "141",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 141.",
+          "verse": 141,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 142 długiego psalmu,",
+          "verse": 142,
+          "label": "142",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 142.",
+          "verse": 142,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 143 długiego psalmu,",
+          "verse": 143,
+          "label": "143",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 143.",
+          "verse": 143,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 144 długiego psalmu,",
+          "verse": 144,
+          "label": "144",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 144.",
+          "verse": 144,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 145 długiego psalmu,",
+          "verse": 145,
+          "label": "145",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 145.",
+          "verse": 145,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 146 długiego psalmu,",
+          "verse": 146,
+          "label": "146",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 146.",
+          "verse": 146,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 147 długiego psalmu,",
+          "verse": 147,
+          "label": "147",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 147.",
+          "verse": 147,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 148 długiego psalmu,",
+          "verse": 148,
+          "label": "148",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 148.",
+          "verse": 148,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 149 długiego psalmu,",
+          "verse": 149,
+          "label": "149",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 149.",
+          "verse": 149,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 150 długiego psalmu,",
+          "verse": 150,
+          "label": "150",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 150.",
+          "verse": 150,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 151 długiego psalmu,",
+          "verse": 151,
+          "label": "151",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 151.",
+          "verse": 151,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 152 długiego psalmu,",
+          "verse": 152,
+          "label": "152",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 152.",
+          "verse": 152,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 153 długiego psalmu,",
+          "verse": 153,
+          "label": "153",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 153.",
+          "verse": 153,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 154 długiego psalmu,",
+          "verse": 154,
+          "label": "154",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 154.",
+          "verse": 154,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 155 długiego psalmu,",
+          "verse": 155,
+          "label": "155",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 155.",
+          "verse": 155,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 156 długiego psalmu,",
+          "verse": 156,
+          "label": "156",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 156.",
+          "verse": 156,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 157 długiego psalmu,",
+          "verse": 157,
+          "label": "157",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 157.",
+          "verse": 157,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 158 długiego psalmu,",
+          "verse": 158,
+          "label": "158",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 158.",
+          "verse": 158,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 159 długiego psalmu,",
+          "verse": 159,
+          "label": "159",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 159.",
+          "verse": 159,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 160 długiego psalmu,",
+          "verse": 160,
+          "label": "160",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 160.",
+          "verse": 160,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 161 długiego psalmu,",
+          "verse": 161,
+          "label": "161",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 161.",
+          "verse": 161,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 162 długiego psalmu,",
+          "verse": 162,
+          "label": "162",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 162.",
+          "verse": 162,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 163 długiego psalmu,",
+          "verse": 163,
+          "label": "163",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 163.",
+          "verse": 163,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 164 długiego psalmu,",
+          "verse": 164,
+          "label": "164",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 164.",
+          "verse": 164,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 165 długiego psalmu,",
+          "verse": 165,
+          "label": "165",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 165.",
+          "verse": 165,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 166 długiego psalmu,",
+          "verse": 166,
+          "label": "166",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 166.",
+          "verse": 166,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 167 długiego psalmu,",
+          "verse": 167,
+          "label": "167",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 167.",
+          "verse": 167,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 168 długiego psalmu,",
+          "verse": 168,
+          "label": "168",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 168.",
+          "verse": 168,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 169 długiego psalmu,",
+          "verse": 169,
+          "label": "169",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 169.",
+          "verse": 169,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 170 długiego psalmu,",
+          "verse": 170,
+          "label": "170",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 170.",
+          "verse": 170,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 171 długiego psalmu,",
+          "verse": 171,
+          "label": "171",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 171.",
+          "verse": 171,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 172 długiego psalmu,",
+          "verse": 172,
+          "label": "172",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 172.",
+          "verse": 172,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 173 długiego psalmu,",
+          "verse": 173,
+          "label": "173",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 173.",
+          "verse": 173,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 174 długiego psalmu,",
+          "verse": 174,
+          "label": "174",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 174.",
+          "verse": 174,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 175 długiego psalmu,",
+          "verse": 175,
+          "label": "175",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 175.",
+          "verse": 175,
+          "end": "verse"
+        },
+        {
+          "text": "Werset 176 długiego psalmu,",
+          "verse": 176,
+          "label": "176",
+          "end": "mediant"
+        },
+        {
+          "text": "jego druga połowa numer 176.",
+          "verse": 176,
+          "end": "verse"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ps95.text",
+      "title": "Psalm wezwania (testowy)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "psalm",
+      "work_id": "test.ps95",
+      "expected_verses": 6,
+      "doxology": "after",
+      "text": "Zwrotka 1 psalmu wezwania, werset 1, druga połowa w zwrotce 1. Zwrotka 1 psalmu wezwania, werset 2, druga połowa w zwrotce 1.\n\nZwrotka 2 psalmu wezwania, werset 1, druga połowa w zwrotce 2. Zwrotka 2 psalmu wezwania, werset 2, druga połowa w zwrotce 2.\n\nZwrotka 3 psalmu wezwania, werset 1, druga połowa w zwrotce 3. Zwrotka 3 psalmu wezwania, werset 2, druga połowa w zwrotce 3.",
+      "layout": [
+        {
+          "text": "Zwrotka 1 psalmu wezwania, werset 1,",
+          "verse": 1,
+          "label": "1",
+          "end": "mediant"
+        },
+        {
+          "text": "druga połowa w zwrotce 1.",
+          "verse": 1,
+          "end": "verse",
+          "label": "1"
+        },
+        {
+          "text": "Zwrotka 1 psalmu wezwania, werset 2,",
+          "verse": 2,
+          "label": "2",
+          "end": "mediant"
+        },
+        {
+          "text": "druga połowa w zwrotce 1.",
+          "verse": 2,
+          "end": "stanza",
+          "label": "2"
+        },
+        {
+          "text": "Zwrotka 2 psalmu wezwania, werset 1,",
+          "verse": 3,
+          "label": "3",
+          "end": "mediant"
+        },
+        {
+          "text": "druga połowa w zwrotce 2.",
+          "verse": 3,
+          "end": "verse",
+          "label": "3"
+        },
+        {
+          "text": "Zwrotka 2 psalmu wezwania, werset 2,",
+          "verse": 4,
+          "label": "4",
+          "end": "mediant"
+        },
+        {
+          "text": "druga połowa w zwrotce 2.",
+          "verse": 4,
+          "end": "stanza",
+          "label": "4"
+        },
+        {
+          "text": "Zwrotka 3 psalmu wezwania, werset 1,",
+          "verse": 5,
+          "label": "5",
+          "end": "mediant"
+        },
+        {
+          "text": "druga połowa w zwrotce 3.",
+          "verse": 5,
+          "end": "verse",
+          "label": "5"
+        },
+        {
+          "text": "Zwrotka 3 psalmu wezwania, werset 2,",
+          "verse": 6,
+          "label": "6",
+          "end": "mediant"
+        },
+        {
+          "text": "druga połowa w zwrotce 3.",
+          "verse": 6,
+          "end": "stanza",
+          "label": "6"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.zach.text",
+      "title": "Pieśń Zachariasza (testowa)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "canticle",
+      "work_id": "test.zach",
+      "biblical_reference": "Łk 1, 68-79",
+      "text": "Kantyk przykładowy, werset 1 pierwsza połowa, kantyk przykładowy, werset 1 druga połowa. Kantyk przykładowy, werset 2 pierwsza połowa, kantyk przykładowy, werset 2 druga połowa. Kantyk przykładowy, werset 3 pierwsza połowa, kantyk przykładowy, werset 3 druga połowa. Kantyk przykładowy, werset 4 pierwsza połowa, kantyk przykładowy, werset 4 druga połowa.",
+      "layout": [
+        {
+          "text": "Kantyk przykładowy, werset 1 pierwsza połowa,",
+          "verse": 1,
+          "label": "1",
+          "end": "mediant"
+        },
+        {
+          "text": "kantyk przykładowy, werset 1 druga połowa.",
+          "verse": 1,
+          "end": "verse"
+        },
+        {
+          "text": "Kantyk przykładowy, werset 2 pierwsza połowa,",
+          "verse": 2,
+          "label": "2",
+          "end": "mediant"
+        },
+        {
+          "text": "kantyk przykładowy, werset 2 druga połowa.",
+          "verse": 2,
+          "end": "verse"
+        },
+        {
+          "text": "Kantyk przykładowy, werset 3 pierwsza połowa,",
+          "verse": 3,
+          "label": "3",
+          "end": "mediant"
+        },
+        {
+          "text": "kantyk przykładowy, werset 3 druga połowa.",
+          "verse": 3,
+          "end": "verse"
+        },
+        {
+          "text": "Kantyk przykładowy, werset 4 pierwsza połowa,",
+          "verse": 4,
+          "label": "4",
+          "end": "mediant"
+        },
+        {
+          "text": "kantyk przykładowy, werset 4 druga połowa.",
+          "verse": 4,
+          "end": "verse"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.sym.text",
+      "title": "Pieśń Symeona (testowa)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "canticle",
+      "work_id": "test.sym",
+      "biblical_reference": "Łk 2, 29-32",
+      "text": "Pieśń wieczorna, werset 1 pierwsza połowa, pieśń wieczorna, werset 1 druga połowa. Pieśń wieczorna, werset 2 pierwsza połowa, pieśń wieczorna, werset 2 druga połowa.",
+      "layout": [
+        {
+          "text": "Pieśń wieczorna, werset 1 pierwsza połowa,",
+          "verse": 1,
+          "label": "1",
+          "end": "mediant"
+        },
+        {
+          "text": "pieśń wieczorna, werset 1 druga połowa.",
+          "verse": 1,
+          "end": "verse"
+        },
+        {
+          "text": "Pieśń wieczorna, werset 2 pierwsza połowa,",
+          "verse": 2,
+          "label": "2",
+          "end": "mediant"
+        },
+        {
+          "text": "pieśń wieczorna, werset 2 druga połowa.",
+          "verse": 2,
+          "end": "verse"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.ot.text",
+      "title": "Kantyk starotestamentowy (testowy)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "canticle",
+      "work_id": "test.ot",
+      "biblical_reference": "Dn 3, 57-88 (przykład)",
+      "doxology": "none",
+      "text": "Kantyk starotestamentowy, werset 1, jego zakończenie numer 1. Kantyk starotestamentowy, werset 2, jego zakończenie numer 2. Kantyk starotestamentowy, werset 3, jego zakończenie numer 3.",
+      "layout": [
+        {
+          "text": "Kantyk starotestamentowy, werset 1,",
+          "verse": 1,
+          "label": "1",
+          "end": "mediant"
+        },
+        {
+          "text": "jego zakończenie numer 1.",
+          "verse": 1,
+          "end": "verse"
+        },
+        {
+          "text": "Kantyk starotestamentowy, werset 2,",
+          "verse": 2,
+          "label": "2",
+          "end": "mediant"
+        },
+        {
+          "text": "jego zakończenie numer 2.",
+          "verse": 2,
+          "end": "verse"
+        },
+        {
+          "text": "Kantyk starotestamentowy, werset 3,",
+          "verse": 3,
+          "label": "3",
+          "end": "mediant"
+        },
+        {
+          "text": "jego zakończenie numer 3.",
+          "verse": 3,
+          "end": "verse"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.opening",
+      "title": "Dialog otwarcia (testowy)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "dialog",
+      "text": "Wezwanie otwarcia, prośba o pomoc.\nOdpowiedź otwarcia, pospiesz z pomocą.\nAlleluja.",
+      "layout": [
+        {
+          "text": "Wezwanie otwarcia, prośba o pomoc.",
+          "id": "v",
+          "role": "cantor",
+          "cross": true,
+          "end": "line"
+        },
+        {
+          "text": "Odpowiedź otwarcia, pospiesz z pomocą.",
+          "id": "r",
+          "role": "all",
+          "end": "line"
+        },
+        {
+          "text": "Alleluja.",
+          "id": "alleluia",
+          "end": "line"
+        }
+      ],
+      "performance": [
+        {
+          "say": [
+            "v"
+          ],
+          "role": "cantor"
+        },
+        {
+          "say": [
+            "r"
+          ],
+          "role": "all"
+        },
+        {
+          "resource": "test.doxology"
+        },
+        {
+          "say": [
+            "alleluia"
+          ]
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.invitatory.opening",
+      "title": "Dialog wezwania (testowy)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "dialog",
+      "text": "Otwórz moje wargi, przykładzie.\nA usta moje będą głosić przykład.",
+      "layout": [
+        {
+          "text": "Otwórz moje wargi, przykładzie.",
+          "id": "v",
+          "role": "presider",
+          "cross": true,
+          "end": "line"
+        },
+        {
+          "text": "A usta moje będą głosić przykład.",
+          "id": "r",
+          "role": "all",
+          "end": "line"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.resp.short",
+      "title": "Responsorium krótkie (testowe)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "responsory",
+      "text": "Odpowiedź krótka, pierwsza część, a to jej druga część.\nWerset między odpowiedziami.\nChwała przykładowa pierwsza połowa.",
+      "layout": [
+        {
+          "text": "Odpowiedź krótka, pierwsza część,",
+          "id": "R1",
+          "end": "mediant"
+        },
+        {
+          "text": "a to jej druga część.",
+          "id": "R2",
+          "end": "line"
+        },
+        {
+          "text": "Werset między odpowiedziami.",
+          "id": "V",
+          "end": "line"
+        },
+        {
+          "text": "Chwała przykładowa pierwsza połowa.",
+          "id": "D",
+          "end": "line"
+        }
+      ],
+      "performance": [
+        {
+          "say": [
+            "R1",
+            "R2"
+          ],
+          "role": "cantor"
+        },
+        {
+          "say": [
+            "R1",
+            "R2"
+          ],
+          "role": "all"
+        },
+        {
+          "say": [
+            "V"
+          ],
+          "role": "cantor"
+        },
+        {
+          "say": [
+            "R2"
+          ],
+          "role": "all"
+        },
+        {
+          "say": [
+            "D"
+          ],
+          "role": "cantor"
+        },
+        {
+          "say": [
+            "R1",
+            "R2"
+          ],
+          "role": "all"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.versicle",
+      "title": "Werset (testowy)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "versicle",
+      "text": "Werset testowy przed czytaniem.\nOdpowiedź na werset testowy.",
+      "layout": [
+        {
+          "text": "Werset testowy przed czytaniem.",
+          "role": "cantor",
+          "end": "line"
+        },
+        {
+          "text": "Odpowiedź na werset testowy.",
+          "role": "all",
+          "end": "line"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.preces.response",
+      "title": "Wezwanie próśb (testowe)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "response",
+      "text": "Wysłuchaj nas, przykładzie."
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.preces",
+      "title": "Prośby (testowe)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "intercessions",
+      "response_ref": "test.preces.response",
+      "text": "Wprowadzenie do próśb testowych, wołajmy:\nPierwsza prośba, pierwszy człon, a to jej drugi człon.\nDruga prośba, pierwszy człon, a to jej drugi człon.\nTrzecia prośba, pierwszy człon, a to jej drugi człon.",
+      "layout": [
+        {
+          "text": "Wprowadzenie do próśb testowych, wołajmy:",
+          "id": "intro",
+          "kind": "intro",
+          "role": "presider",
+          "end": "line"
+        },
+        {
+          "text": "Pierwsza prośba, pierwszy człon,",
+          "id": "p1",
+          "kind": "petition",
+          "role": "presider"
+        },
+        {
+          "text": "a to jej drugi człon.",
+          "id": "p1b",
+          "kind": "petition_response",
+          "role": "all",
+          "end": "line"
+        },
+        {
+          "text": "Druga prośba, pierwszy człon,",
+          "id": "p2",
+          "kind": "petition",
+          "role": "presider"
+        },
+        {
+          "text": "a to jej drugi człon.",
+          "id": "p2b",
+          "kind": "petition_response",
+          "role": "all",
+          "end": "line"
+        },
+        {
+          "text": "Trzecia prośba, pierwszy człon,",
+          "id": "p3",
+          "kind": "petition",
+          "role": "presider"
+        },
+        {
+          "text": "a to jej drugi człon.",
+          "id": "p3b",
+          "kind": "petition_response",
+          "role": "all",
+          "end": "line"
+        }
+      ],
+      "performance": [
+        {
+          "say": [
+            "intro"
+          ],
+          "role": "presider"
+        },
+        {
+          "resource": "test.preces.response",
+          "role": "all"
+        },
+        {
+          "say": [
+            "p1"
+          ],
+          "role": "presider"
+        },
+        {
+          "say": [
+            "p1b"
+          ],
+          "role": "all"
+        },
+        {
+          "resource": "test.preces.response",
+          "role": "all"
+        },
+        {
+          "say": [
+            "p2"
+          ],
+          "role": "presider"
+        },
+        {
+          "say": [
+            "p2b"
+          ],
+          "role": "all"
+        },
+        {
+          "resource": "test.preces.response",
+          "role": "all"
+        },
+        {
+          "say": [
+            "p3"
+          ],
+          "role": "presider"
+        },
+        {
+          "say": [
+            "p3b"
+          ],
+          "role": "all"
+        },
+        {
+          "resource": "test.preces.response",
+          "role": "all"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.prayer",
+      "title": "Modlitwa (testowa)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "prayer",
+      "intro_formula": "Módlmy się.",
+      "text": "Treść modlitwy testowej o dobry dzień. Przez długie zakończenie testowe na wieki wieków. Amen.",
+      "layout": [
+        {
+          "text": "Treść modlitwy testowej o dobry dzień.",
+          "kind": "body"
+        },
+        {
+          "text": "Przez długie zakończenie testowe na wieki wieków.",
+          "id": "conclusion",
+          "kind": "conclusion"
+        },
+        {
+          "text": "Amen.",
+          "id": "amen",
+          "kind": "response",
+          "role": "all"
+        }
+      ],
+      "variants": [
+        {
+          "id": "short",
+          "replaces": "conclusion",
+          "text": "Przez krótkie zakończenie testowe.",
+          "when": {
+            "hours": [
+              "terce",
+              "sext",
+              "none"
+            ]
+          },
+          "source": "Rubryka testowa"
+        },
+        {
+          "id": "compline",
+          "replaces": "conclusion",
+          "text": "Który żyje na wieki (zakończenie testowe Komplety).",
+          "when": {
+            "hours": [
+              "compline"
+            ]
+          },
+          "source": "Rubryka testowa"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.blessing",
+      "title": "Błogosławieństwo (testowe)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "blessing",
+      "text": "Niech nas błogosławi przykład i strzeże. Amen.",
+      "layout": [
+        {
+          "text": "Niech nas błogosławi przykład i strzeże.",
+          "cross": true
+        },
+        {
+          "text": "Amen.",
+          "role": "all",
+          "kind": "response"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.dismissal",
+      "title": "Rozesłanie (testowe)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "dialog",
+      "text": "Błogosławmy przykładowi.\nPrzykładowi niech będą dzięki.",
+      "layout": [
+        {
+          "text": "Błogosławmy przykładowi.",
+          "role": "cantor",
+          "end": "line"
+        },
+        {
+          "text": "Przykładowi niech będą dzięki.",
+          "role": "all",
+          "end": "line"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.reading.short",
+      "title": "Czytanie krótkie (testowe)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "reading",
+      "reference": "Prz 1, 1-2",
+      "text": "Krótkie czytanie testowe na tę godzinę."
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.reading.1",
+      "title": "Pierwsze czytanie (testowe)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "reading",
+      "origin": "Z Księgi przykładowej",
+      "reference": "Prz 2, 1-10",
+      "notes": [
+        {
+          "type": "heading",
+          "text": "Tytuł pierwszego czytania"
+        }
+      ],
+      "text": "Początek pierwszego czytania, który jest jego incipitem, a dalej toczy się tekst czytania.\n\nDrugi akapit pierwszego czytania kończy perykopę.",
+      "layout": [
+        {
+          "text": "Początek pierwszego czytania, który jest jego incipitem,",
+          "id": "incipit",
+          "kind": "incipit"
+        },
+        {
+          "text": "a dalej toczy się tekst czytania.",
+          "end": "stanza"
+        },
+        {
+          "text": "Drugi akapit pierwszego czytania kończy perykopę."
+        }
+      ],
+      "incipit": {
+        "unit": "incipit"
+      }
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.reading.2",
+      "title": "Drugie czytanie (testowe)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "reading",
+      "origin": "Z homilii autora przykładowego",
+      "reference": "(rozdz. 1, 1-3)",
+      "incipit": {
+        "text": "Postępujmy według przykładu"
+      },
+      "notes": [
+        {
+          "type": "heading",
+          "text": "Postępujmy według przykładu"
+        }
+      ],
+      "text": "Treść drugiego czytania w jednym akapicie, bez osobnego incipitu w tekście."
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.resp.1",
+      "title": "Responsorium po I czytaniu (testowe)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "responsory",
+      "reference": "Prz 2, 5. 7",
+      "text": "Pierwsza część odpowiedzi, a to jej powtarzana część.\nWerset responsorium po pierwszym czytaniu.",
+      "layout": [
+        {
+          "text": "Pierwsza część odpowiedzi,",
+          "id": "A",
+          "end": "mediant"
+        },
+        {
+          "text": "a to jej powtarzana część.",
+          "id": "B",
+          "end": "line"
+        },
+        {
+          "text": "Werset responsorium po pierwszym czytaniu.",
+          "id": "V",
+          "end": "line"
+        }
+      ],
+      "performance": [
+        {
+          "say": [
+            "A",
+            "B"
+          ],
+          "role": "all"
+        },
+        {
+          "say": [
+            "V"
+          ],
+          "role": "cantor"
+        },
+        {
+          "say": [
+            "B"
+          ],
+          "role": "all"
+        }
+      ]
+    },
+    {
+      "entity_type": "text_resource",
+      "id": "test.resp.2",
+      "title": "Responsorium po II czytaniu (testowe)",
+      "edition_id": "test.ed",
+      "language": "pl-PL",
+      "complete": true,
+      "resource_type": "responsory",
+      "reference": "Ps 1, 1-2",
+      "text": "Odpowiedź po drugim czytaniu, jej część powtarzana.\nWerset po drugim czytaniu.",
+      "layout": [
+        {
+          "text": "Odpowiedź po drugim czytaniu,",
+          "id": "A",
+          "end": "mediant"
+        },
+        {
+          "text": "jej część powtarzana.",
+          "id": "B",
+          "end": "line"
+        },
+        {
+          "text": "Werset po drugim czytaniu.",
+          "id": "V",
+          "end": "line"
+        }
+      ],
+      "performance": [
+        {
+          "say": [
+            "A",
+            "B"
+          ],
+          "role": "all"
+        },
+        {
+          "say": [
+            "V"
+          ],
+          "role": "cantor"
+        },
+        {
+          "say": [
+            "B"
+          ],
+          "role": "all"
+        }
+      ]
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps1.two.I",
+      "title": "Psalm testowy, część I z dwóch",
+      "work_id": "test.ps1",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps1.text",
+      "ranges": [
+        {
+          "start_verse": 1,
+          "end_verse": 3
+        }
+      ],
+      "division": "dwie-części",
+      "part": "I",
+      "order": 1
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps1.two.II",
+      "title": "Psalm testowy, część II z dwóch",
+      "work_id": "test.ps1",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps1.text",
+      "ranges": [
+        {
+          "start_verse": 4,
+          "end_verse": 6
+        }
+      ],
+      "division": "dwie-części",
+      "part": "II",
+      "order": 2
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps1.three.I",
+      "title": "Psalm testowy, część I z trzech",
+      "work_id": "test.ps1",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps1.text",
+      "ranges": [
+        {
+          "start_verse": 1,
+          "end_verse": 2
+        }
+      ],
+      "division": "trzy-części",
+      "part": "I",
+      "order": 1
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps1.three.II",
+      "title": "Psalm testowy, część II z trzech",
+      "work_id": "test.ps1",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps1.text",
+      "ranges": [
+        {
+          "start_verse": 3,
+          "end_verse": 4
+        }
+      ],
+      "division": "trzy-części",
+      "part": "II",
+      "order": 2
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps1.three.III",
+      "title": "Psalm testowy, część III z trzech",
+      "work_id": "test.ps1",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps1.text",
+      "ranges": [
+        {
+          "start_verse": 5,
+          "end_verse": 6
+        }
+      ],
+      "division": "trzy-części",
+      "part": "III",
+      "order": 3
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.1",
+      "title": "Psalm 119, I (Alef)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 1,
+          "end_verse": 8
+        }
+      ],
+      "division": "ps119-22",
+      "part": "I (Alef)",
+      "order": 1
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.2",
+      "title": "Psalm 119, II (Bet)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 9,
+          "end_verse": 16
+        }
+      ],
+      "division": "ps119-22",
+      "part": "II (Bet)",
+      "order": 2
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.3",
+      "title": "Psalm 119, III (Gimel)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 17,
+          "end_verse": 24
+        }
+      ],
+      "division": "ps119-22",
+      "part": "III (Gimel)",
+      "order": 3
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.4",
+      "title": "Psalm 119, IV (Dalet)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 25,
+          "end_verse": 32
+        }
+      ],
+      "division": "ps119-22",
+      "part": "IV (Dalet)",
+      "order": 4
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.5",
+      "title": "Psalm 119, V (He)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 33,
+          "end_verse": 40
+        }
+      ],
+      "division": "ps119-22",
+      "part": "V (He)",
+      "order": 5
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.6",
+      "title": "Psalm 119, VI (Waw)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 41,
+          "end_verse": 48
+        }
+      ],
+      "division": "ps119-22",
+      "part": "VI (Waw)",
+      "order": 6
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.7",
+      "title": "Psalm 119, VII (Zajin)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 49,
+          "end_verse": 56
+        }
+      ],
+      "division": "ps119-22",
+      "part": "VII (Zajin)",
+      "order": 7
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.8",
+      "title": "Psalm 119, VIII (Chet)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 57,
+          "end_verse": 64
+        }
+      ],
+      "division": "ps119-22",
+      "part": "VIII (Chet)",
+      "order": 8
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.9",
+      "title": "Psalm 119, IX (Tet)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 65,
+          "end_verse": 72
+        }
+      ],
+      "division": "ps119-22",
+      "part": "IX (Tet)",
+      "order": 9
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.10",
+      "title": "Psalm 119, X (Jod)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 73,
+          "end_verse": 80
+        }
+      ],
+      "division": "ps119-22",
+      "part": "X (Jod)",
+      "order": 10
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.11",
+      "title": "Psalm 119, XI (Kaf)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 81,
+          "end_verse": 88
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XI (Kaf)",
+      "order": 11
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.12",
+      "title": "Psalm 119, XII (Lamed)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 89,
+          "end_verse": 96
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XII (Lamed)",
+      "order": 12
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.13",
+      "title": "Psalm 119, XIII (Mem)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 97,
+          "end_verse": 104
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XIII (Mem)",
+      "order": 13
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.14",
+      "title": "Psalm 119, XIV (Nun)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 105,
+          "end_verse": 112
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XIV (Nun)",
+      "order": 14
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.15",
+      "title": "Psalm 119, XV (Samek)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 113,
+          "end_verse": 120
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XV (Samek)",
+      "order": 15
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.16",
+      "title": "Psalm 119, XVI (Ajin)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 121,
+          "end_verse": 128
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XVI (Ajin)",
+      "order": 16
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.17",
+      "title": "Psalm 119, XVII (Pe)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 129,
+          "end_verse": 136
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XVII (Pe)",
+      "order": 17
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.18",
+      "title": "Psalm 119, XVIII (Sade)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 137,
+          "end_verse": 144
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XVIII (Sade)",
+      "order": 18
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.19",
+      "title": "Psalm 119, XIX (Kof)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 145,
+          "end_verse": 152
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XIX (Kof)",
+      "order": 19
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.20",
+      "title": "Psalm 119, XX (Resz)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 153,
+          "end_verse": 160
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XX (Resz)",
+      "order": 20
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.21",
+      "title": "Psalm 119, XXI (Szin)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 161,
+          "end_verse": 168
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XXI (Szin)",
+      "order": 21
+    },
+    {
+      "entity_type": "passage_definition",
+      "id": "test.ps119.22",
+      "title": "Psalm 119, XXII (Taw)",
+      "work_id": "test.ps119",
+      "edition_id": "test.ed",
+      "resource_id": "test.ps119.text",
+      "ranges": [
+        {
+          "start_verse": 169,
+          "end_verse": 176
+        }
+      ],
+      "division": "ps119-22",
+      "part": "XXII (Taw)",
+      "order": 22
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.opening",
+      "title": "a.lauds.opening",
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "test.opening"
+      },
+      "source_layer": "ordinary",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.hymn",
+      "title": "a.lauds.hymn",
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "test.hymn"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.ps1",
+      "title": "a.lauds.ps1",
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "test.ps1.text"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.a",
+      "antiphon_repeat": "around"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.ps2",
+      "title": "a.lauds.ps2",
+      "slot_name": "psalmody.2",
+      "resource_ref": {
+        "id": "test.ot.text"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.b"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.ps3",
+      "title": "a.lauds.ps3",
+      "slot_name": "psalmody.3",
+      "resource_ref": {
+        "id": "test.ps1.three.II"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.c"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.reading",
+      "title": "a.lauds.reading",
+      "slot_name": "reading",
+      "resource_ref": {
+        "id": "test.reading.short"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.responsory",
+      "title": "a.lauds.responsory",
+      "slot_name": "responsory",
+      "resource_ref": {
+        "id": "test.resp.short"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.canticle",
+      "title": "a.lauds.canticle",
+      "slot_name": "gospel_canticle",
+      "resource_ref": {
+        "id": "test.zach.text"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.zach"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.preces",
+      "title": "a.lauds.preces",
+      "slot_name": "intercessions",
+      "resource_ref": {
+        "id": "test.preces"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.prayer",
+      "title": "a.lauds.prayer",
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "test.prayer"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.lauds.blessing",
+      "title": "a.lauds.blessing",
+      "slot_name": "conclusion",
+      "resource_ref": {
+        "id": "test.blessing"
+      },
+      "source_layer": "ordinary",
+      "target_context": {
+        "hours": [
+          "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.vespers.ps1",
+      "title": "a.vespers.ps1",
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "test.ps1.two.I"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "vespers"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.a",
+      "antiphon_layout": "attested-test.ant.a.copy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.opening",
+      "title": "a.readings.opening",
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "test.opening"
+      },
+      "source_layer": "ordinary",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.hymn",
+      "title": "a.readings.hymn",
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "test.hymn"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.ps1",
+      "title": "a.readings.ps1",
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "test.ps119.1"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.119"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.ps2",
+      "title": "a.readings.ps2",
+      "slot_name": "psalmody.2",
+      "resource_ref": {
+        "id": "test.ps119.2"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.119"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.ps3",
+      "title": "a.readings.ps3",
+      "slot_name": "psalmody.3",
+      "resource_ref": {
+        "id": "test.ps119.3"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.119"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.versicle",
+      "title": "a.readings.versicle",
+      "slot_name": "versicle",
+      "resource_ref": {
+        "id": "test.versicle"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.r1",
+      "title": "a.readings.r1",
+      "slot_name": "reading.1",
+      "resource_ref": {
+        "id": "test.reading.1"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.resp1",
+      "title": "a.readings.resp1",
+      "slot_name": "responsory.1",
+      "resource_ref": {
+        "id": "test.resp.1"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.r2",
+      "title": "a.readings.r2",
+      "slot_name": "reading.2",
+      "resource_ref": {
+        "id": "test.reading.2"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.resp2",
+      "title": "a.readings.resp2",
+      "slot_name": "responsory.2",
+      "resource_ref": {
+        "id": "test.resp.2"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.prayer",
+      "title": "a.readings.prayer",
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "test.prayer"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.readings.conclusion",
+      "title": "a.readings.conclusion",
+      "slot_name": "conclusion",
+      "resource_ref": {
+        "id": "test.dismissal"
+      },
+      "source_layer": "ordinary",
+      "target_context": {
+        "hours": [
+          "readings"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.sext.opening",
+      "title": "a.sext.opening",
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "test.opening"
+      },
+      "source_layer": "ordinary",
+      "target_context": {
+        "hours": [
+          "sext"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.sext.hymn",
+      "title": "a.sext.hymn",
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "test.hymn"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "sext"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.sext.ps1",
+      "title": "a.sext.ps1",
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "test.ps119.20"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "sext"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.119"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.sext.ps2",
+      "title": "a.sext.ps2",
+      "slot_name": "psalmody.2",
+      "resource_ref": {
+        "id": "test.ps119.21"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "sext"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.119"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.sext.ps3",
+      "title": "a.sext.ps3",
+      "slot_name": "psalmody.3",
+      "resource_ref": {
+        "id": "test.ps119.22"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "sext"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.119"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.sext.reading",
+      "title": "a.sext.reading",
+      "slot_name": "reading",
+      "resource_ref": {
+        "id": "test.reading.short"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "sext"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.sext.versicle",
+      "title": "a.sext.versicle",
+      "slot_name": "versicle",
+      "resource_ref": {
+        "id": "test.versicle"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "sext"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.sext.prayer",
+      "title": "a.sext.prayer",
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "test.prayer"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "sext"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.sext.conclusion",
+      "title": "a.sext.conclusion",
+      "slot_name": "conclusion",
+      "resource_ref": {
+        "id": "test.dismissal"
+      },
+      "source_layer": "ordinary",
+      "target_context": {
+        "hours": [
+          "sext"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.compline.opening",
+      "title": "a.compline.opening",
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "test.opening"
+      },
+      "source_layer": "ordinary",
+      "target_context": {
+        "hours": [
+          "compline"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.compline.hymn",
+      "title": "a.compline.hymn",
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "test.hymn"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "compline"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.compline.ps1",
+      "title": "a.compline.ps1",
+      "slot_name": "psalmody.1",
+      "resource_ref": {
+        "id": "test.ps1.text"
+      },
+      "source_layer": "psalter",
+      "target_context": {
+        "hours": [
+          "compline"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.c"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.compline.reading",
+      "title": "a.compline.reading",
+      "slot_name": "reading",
+      "resource_ref": {
+        "id": "test.reading.short"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "compline"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.compline.responsory",
+      "title": "a.compline.responsory",
+      "slot_name": "responsory",
+      "resource_ref": {
+        "id": "test.resp.short"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "compline"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.compline.canticle",
+      "title": "a.compline.canticle",
+      "slot_name": "gospel_canticle",
+      "resource_ref": {
+        "id": "test.sym.text"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "compline"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.sym"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.compline.prayer",
+      "title": "a.compline.prayer",
+      "slot_name": "prayer",
+      "resource_ref": {
+        "id": "test.prayer"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "compline"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.compline.blessing",
+      "title": "a.compline.blessing",
+      "slot_name": "blessing",
+      "resource_ref": {
+        "id": "test.blessing"
+      },
+      "source_layer": "ordinary",
+      "target_context": {
+        "hours": [
+          "compline"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.compline.marian",
+      "title": "a.compline.marian",
+      "slot_name": "marian_antiphon",
+      "resource_ref": {
+        "id": "test.marian"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "compline"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.inv.opening",
+      "title": "a.inv.opening",
+      "slot_name": "opening",
+      "resource_ref": {
+        "id": "test.invitatory.opening"
+      },
+      "source_layer": "ordinary",
+      "target_context": {
+        "hours": [
+          "invitatory"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.inv.psalm",
+      "title": "a.inv.psalm",
+      "slot_name": "invitatory",
+      "resource_ref": {
+        "id": "test.ps95.text"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "invitatory"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy",
+      "antiphon_ref": "test.ant.inv"
+    }
+  ]
+}

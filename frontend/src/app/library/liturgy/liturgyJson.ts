@@ -143,10 +143,8 @@ export function structuralMissing(e: TextResource): string[] {
       if (e.resource_type === 'canticle' && e.biblical_reference === undefined && e.reference === undefined) out.push('reference');
       break;
     case 'hymn': if (!units.some((u) => u.end === 'line')) out.push('lines'); break;
-    case 'reading':
-      if (e.origin === undefined) out.push('origin');
-      if (e.reference === undefined) out.push('reference');
-      break;
+    /* Eine kurze Lesung hat nur ihre Stelle (Brewiarz: „2 P 3, 13-15a"); die Herkunftszeile tragen die langen. */
+    case 'reading': if (e.reference === undefined) out.push('reference'); break;
     case 'responsory': case 'dialog': case 'versicle': if (!roles) out.push('roles'); break;
     case 'intercessions':
       if (e.response_ref === undefined && !units.some((u) => u.kind === 'response')) out.push('response');
