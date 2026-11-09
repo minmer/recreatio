@@ -345,7 +345,7 @@ try {
     check(P, 'the list of places: every place, and a row opens its panel (no mouse needed)', rows === placesN, { rows, placesN });
     await shot('p6-list');
     /* Portale: wer schreibt, sieht jeden Verweis in andere Welten (der Lernende nur, was er dort lesen kann). */
-    check(P, 'a learner sees no portal to a world he cannot read', (await canvas('wmPortals')) === '0');
+    check(P, 'a learner sees no portal to a world they cannot read', (await canvas('wmPortals')) === '0');
     await open('none', true);
     const portals = await canvas('wmPortals');
     /* Über die Liste gewählt: die Kamera fliegt hin (nah genug für das Zeichen und den Namen). */

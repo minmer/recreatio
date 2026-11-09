@@ -1,16 +1,23 @@
 # Cogita World Map: Step 2 report
 
 **Date:** 9 November 2026
-**Branch:** `cogita/world-map` (PR B), stacked on `cogita/world-map-server` (PR A, #6); base `main` `8e05c08a`
+**Branch:** `cogita/world-map` (PR B), stacked on `cogita/world-map-server` (PR A, #6); base `main` `8e05c08a`, merged with `main` `122be75c` in the second pass
 **Follows:** `STEP2_DECISIONS.md` §3 — PR A first, then PR B with parts 1–6, one commit per part
 
 ## Summary
 
 - **Everything in §3 of the decisions file is built.** PR A (migration 0140 and the server probe) and PR B parts 1–6 are one commit each. A small follow-up commit after part 6 makes topic colours cycle the way the hex landscape does (see deviation 13).
-- **Every acceptance check in spec §13 passes.** The four click paths of part 5 run in the real app with real mouse clicks (25/25 checks, including an extra run path). The guide is readable through the MCP tools.
+- **A second pass closed what the first report missed** (§1, "Second pass"). A review against the decisions and the spec found three gaps, now built:
+  1. The dead code listed in Step 1 is removed (decision 2).
+  2. The run probe now hides run features: levels count as 0 until the server stores runs.
+  3. The world view has the hex view's modes, self-check, portals, goal and playback (Step 1 §3).
+
+  The same pass added picking through a screen grid, names hidden behind nearer pillars, and a keyboard list of places (the former deviation 15).
+- **Every acceptance check in spec §13 passes.** The four click paths of part 5 run in the real app with real mouse clicks: 38/38 checks, including an extra run path and a sixth path for the second pass. The guide is readable through the MCP tools.
 - **Deploy order:**
   1. PR A: migration 0140, then the API.
   2. PR B: the API again (it changes `ImportFormats.json`, the MCP texts and `SettingsKept`), then the frontend.
+
   Hex stays the default. The world map only appears in a view with `"landscape": {"style": "world"}`.
 - **Bosko today:** 124 places, 63 lines, 20 interchange stations, no blocks, no branch stations. Layout and tracks take 244 ms, with no straight fallbacks and no clearance violations. Writers see an author list with 164 notes, all at "info" level.
 
@@ -56,7 +63,7 @@ Everything is pure TypeScript under `frontend/src/app/cogita/worldmap/`.
 | `revision.ts`, `RevisionRun.tsx`, `LandscapeView.tsx`, `CogitaHome.tsx`, `pages/parts/cogitaViews.tsx`, `QuiltView.tsx`, `storyLock.ts`, the offline copy | Every review and due-count site calls `reviewable`. |
 | `store.ts`, `json.ts`, `CogitaSettings.tsx`, `backend/Api/Library/AiMcp.cs` | `levelsSetup` in the base settings (read, export, MCP `SettingsKept`). |
 | `locales/{en,de,pl}/cogitaWorld.json` | Texts. |
-| Checks | `app-wm-runs-check` (39), `app-wm-review-guard-check` (18; fails when a new review site skips `reviewable`), `app-learn-sync-check` §6 (409 before the migration, the probe). |
+| Checks | `app-wm-runs-check` (39; 47 after the second pass), `app-wm-review-guard-check` (18; fails when a new review site skips `reviewable`), `app-learn-sync-check` §6 (409 before the migration, the probe). |
 
 ### Part 3 · Geometry (`6e38cee0`)
 
@@ -93,7 +100,7 @@ Everything is pure TypeScript under `frontend/src/app/cogita/worldmap/`.
 | `worldmap/wmPlan.ts` | Branch options exclude complements (deviation 2). |
 | `preview/PreviewKnowledge.tsx` | `knowledge({ author: true })` renders as a writer. |
 | `scripts/wm-courses.mjs` | Maps references inside nested conditions. |
-| Checks | `app-wm-interaction-check` (34); `scripts/wm-click-paths.mjs` (the click paths, 25 checks). |
+| Checks | `app-wm-interaction-check` (34); `scripts/wm-click-paths.mjs` (the click paths, 25 checks; 38 with path 6 of the second pass). |
 
 The panels in `WorldPanels.tsx`:
 - **Place** (§7.3): card count; level N of M; knowledge dot with "Powtórz"; "Start run for level X" with its rule, or "Level X from <date>"; the conquest order with card counts and a total; sources of never-seen cards with "Learn directly"; lines here; "Moje ustawienia".
@@ -118,6 +125,71 @@ The panels in `WorldPanels.tsx`:
 
 Topic colours cycle through the eight colours like the hex landscape, and the click-path screenshots are WebP.
 
+### Second pass
+
+A review of the first report against the decisions and the spec found three gaps. They are now built, one commit each.
+
+**Merge with `main`** (`a2efd1c3` on PR A, `bef1e8ab` on PR B).
+- `main` had a new commit (`122be75c`) whose site build deleted `docs/world-map/STEP1_REPORT.md`, the file this branch had moved to `documentation/world-map/`. PR A could not merge.
+- Both branches now include `main`; the moved file is kept.
+
+**1 · The dead code is gone** (`0b557c4b`, decision 2).
+
+| File | Removed |
+|---|---|
+| `landscape.ts` | `fixedLayout`, `layoutOf` and `LandscapeEngine.layout`/`map`/`positionOf`, with everything only they used |
+| `landscapeClient.ts`, `landscape.worker.ts` | the `run` request (and `spoken`, which only translated its fields) |
+| `levelMap.ts` | `layoutLevel` (and `unitsOf`, `fanAngle`) |
+| `landscapeNest.ts` | `nestLayout` (and `nestSlots`, `ringSlots`, `nestPath`) |
+
+- 2,275 lines in all.
+- A reference scan before and after the cut decided what went: only what the listed code had left without callers (deviation 16).
+- `app-landscape-check` keeps its 70 checks of live code; the 72 checks of the removed layout went with it.
+- `app-levels-check` now checks regions and step heights (22 checks).
+- `app-import-check` uses the engine's state (69 checks).
+
+**2 · The probe hides run features** (`a93367bd`, PR A).
+
+| File | What |
+|---|---|
+| `worldmap/wmFeatures.ts`, `worldmap/useServerRuns.ts` | The server's last answer, kept in the browser. `learnFeatures()` writes it; views redraw when it arrives. |
+| `worldmap/wmReview.ts` | `effectiveWorldFor` gives 0 levels (`serverOld`) to a learner with an account while the server cannot store runs. This hides the level arcs and "Start run", and keeps every review and due count as today, including `reportDue` for the reminder. Learners without an account keep their levels, because their runs stay in the browser. |
+| `worldmap/WorldLevels.tsx` | The admin cannot save levels before the server is updated, with a note. The learner's own settings say why levels are missing. |
+| Checks | `app-wm-runs-check` 47: 8 new — no answer yet, a local learner, the answer arriving, an older server, listeners, no storage, the empty review scope. |
+
+**3 · What the world view keeps from the hex view** (`453e2c5c`, Step 1 §3).
+
+| File | What |
+|---|---|
+| `worldmap/wmViews.ts` | Pure: which places each mode means; the place memory for the playback (one number per place) and what changed; the playback schedule for each motion level. |
+| `worldmap/wmPick.ts` | Pure: the screen grid of drawn pillars, picking the front-most pillar, and names covered by nearer pillars. |
+| `worldmap/WorldLandscape.tsx` | The mode bar with "Sprawdź, co wiesz", gaps and "Uzupełnij luki", portals, the goal line, the playback memory, the points counter (with rewards), the conquest note, "Pokaż zmiany", exploration-badge measures and the list of places. |
+| `worldmap/WorldPillars.tsx` | The playback animation, grey places in a mode, the outline of the places a mode means, the portal sign, the goal flag, picking through the grid and covered names. |
+| `worldmap/WorldPanels.tsx` | "Ustaw jako cel" / "Zrezygnuj z tego celu" and the place's links into other worlds (`WorldsSection`). |
+| `LandscapeView.tsx` | Passes `rewards` on to the world view. |
+| Checks | `app-wm-views-check` (27, new, part of `npm run app:check`); click path 6 (13). |
+
+What a learner sees in the world view now:
+- **Modes** (kept per view and learner, as in the hex view):
+  - Ogólny
+  - Co umiem: conquered places
+  - Do odkrycia: not conquered, with everything before it conquered
+  - Do powtórki: due cards that may be reviewed
+  - Luki
+
+  Places a mode does not mean turn grey (opaque). The places it means stand in full colour with an outline.
+- **Self-check:** "Sprawdź, co wiesz" asks every place's core question once. Afterwards Luki shows the gaps, with "Uzupełnij luki".
+- **Portals:** a two-ring sign on a pillar that links into other worlds, and the links in its panel. A writer sees every link; a learner sees only what they can read there. Never a prerequisite.
+- **Goal:** "Ustaw jako cel" works as in the hex view, with the same stored goal and the same steps. The goal shows as a flag in the goal colour and as a line above the map: "Cel: … — N tematów do celu", with "Pokaż" and "Usuń cel". When the goal is conquered, the map says "Cel osiągnięty".
+- **Playback** of what changed since the map was last seen:
+  - columns sink, or rise on a first visit;
+  - new levels light up, and a ring runs over the ground around a conquered place;
+  - neighbours follow in a wave;
+  - with rewards, points rise over their places into the counter;
+  - a note names newly conquered places, and "Pokaż zmiany" plays it again;
+  - a click or key skips the rest. "Animacje: ograniczone" gives only a short glow; "wyłączone" shows the change at once.
+- **List of places:** "Wszystkie miejsca (N)" for the keyboard. In a mode it lists only the places the mode means; a row opens the place as a click would.
+
 ---
 
 ## 2. Acceptance checks (spec §13)
@@ -125,10 +197,10 @@ Topic colours cycle through the eight colours like the hex landscape, and the cl
 | Part | Acceptance | Result |
 |---|---|---|
 | 1 · Model | Unit tests on all test worlds | **123/123** (`app-wm-model-check`): the Bosko-shape fixture with 0/1/3/5 levels, 1,000 and 5,000 generated places, and the broken world. |
-| 2 · Runs | Tests for 0, 1, 3 and 5 levels; the level changes when the setting changes; waiting gaps | **39/39** (`app-wm-runs-check`), for example: <br>• "3 levels: L1 by r1, L2 by r3 (r2 too early), L3 by r5 (r4 too early)" <br>• "setting changed: stricter rules → a lower level, recomputed" <br>• "setting changed back: the old level returns (nothing lost)" <br>• "waiting gap: after L1 the next counts from one day later" <br>Review guard **18/18**; learn sync **41/41**. |
+| 2 · Runs | Tests for 0, 1, 3 and 5 levels; the level changes when the setting changes; waiting gaps | **47/47** (`app-wm-runs-check`, 8 of them for the probe in the second pass), for example: <br>• "3 levels: L1 by r1, L2 by r3 (r2 too early), L3 by r5 (r4 too early)" <br>• "setting changed: stricter rules → a lower level, recomputed" <br>• "setting changed back: the old level returns (nothing lost)" <br>• "waiting gap: after L1 the next counts from one day later" <br>• "probe: no answer yet — an account learner gets 0 levels (serverOld), so no review leaves" <br>Review guard **18/18**; learn sync **41/41**. |
 | 3 · Geometry | Track test green; 1,000 places < 3 s; 5,000 places < 20 s; adding 10 places moves no existing place | **41/41** (`app-wm-geometry-check`). Clearance: 0 violations and 0 straight fallbacks on every world. Timings are below. |
-| 4 · Presentation | Screenshots desktop and phone, light and dark; smooth rotation with 1,000 places; no transparency | **26/26** (`app-wm-presentation-check`); screenshots in §3. Rotating 1,000 places over 180 steps (headless Edge, slider): draw time avg 3.3 ms, p95 3.6 ms, max 3.9 ms per frame. No `globalAlpha` < 1 and no rgba/hsla/transparent/opacity in the renderer; distant places are mixed with the background. |
-| 5 · Interaction | The four click paths | **25/25** (`scripts/wm-click-paths.mjs`, results in `step2/click-paths.json`), plus **34/34** (`app-wm-interaction-check`). The paths are listed below. |
+| 4 · Presentation | Screenshots desktop and phone, light and dark; smooth rotation with 1,000 places; no transparency | **26/26** (`app-wm-presentation-check`); screenshots in §3, retaken after the second pass. Rotating 1,000 places over 180 steps (headless Edge, slider): draw time avg 3.3 ms, p95 3.7 ms, max 4.8 ms per frame (before the second pass: 3.3 / 3.6 / 3.9). No `globalAlpha` < 1 and no rgba/hsla/transparent/opacity in the renderer; distant places, and the grey of a mode, are mixed with the background. |
+| 5 · Interaction | The four click paths | **38/38** (`scripts/wm-click-paths.mjs`, results in `step2/click-paths.json`): the four paths, the extra run path, path 6 of the second pass, and no page exceptions. Plus **34/34** (`app-wm-interaction-check`) and **27/27** (`app-wm-views-check`). The paths are listed below. |
 | 6 · Guide | Guide retrievable via MCP | `AiMcpTools.ListImportFormats()` lists `guide-world-map` and `GetImportFormat("guide-world-map")` returns it: **648/648** backend checks. `app-wm-guide-check` **16/16**. `import-formats.mjs --check` OK. |
 
 **Part 3 timings** (`app-wm-geometry-check`, this machine):
@@ -158,24 +230,33 @@ In the preview, a map goes from course JSON to its first frame in about 2.6 s fo
    - The route is recomputed from that stop: the earlier stops are unchanged and nothing is marked done. The map shows the route, the pennant and the flag. The navigation survives opening a story and coming back.
 4. **Pillar width changes continuously without recomputation.**
    - 30 slider positions from 98 % to 40 % are each drawn immediately; the drawn radius shrinks strictly.
-   - The geometry version and the number of layouts stay the same. Draw time: median 2.9 ms, max 4.5 ms.
+   - The geometry version and the number of layouts stay the same. Draw time: median 2.9 ms, max 3.3 ms.
 5. **Extra: a run.**
    - "Moje ustawienia" → 1 level, then the run is locked until the cards appear.
    - Learn directly → "Rozpocznij przebieg na poziom 1" → 13 cards → level 1 reached → the place is conquered.
+6. **Extra (second pass): what the world view keeps from the hex view.**
+   - **First visit and modes.** The first visit plays the columns rising. For a new learner, "Co umiem" lights nothing, "Do odkrycia" lights the places without prerequisites, and "Do powtórki" lights nothing, with its note. "Ogólny" colours everything again.
+   - **Self-check.** "Sprawdź, co wiesz" with the first core question wrong: back on the map, mode Luki shows exactly that one place, with "Uzupełnij luki". Coming back plays the change (`return`), and "Pokaż zmiany" plays it again.
+   - **Goal.** "Ustaw jako cel" on Magone shows the goal line with its steps, the flag and "Zrezygnuj z tego celu"; "Usuń cel" removes line and flag.
+   - **List of places.** It lists all 50 places, and a row opens its panel.
+   - **Portals.** The one link into another world in the fixture is not shown to a learner, because they cannot read that world. A writer sees it on the pillar and in the panel.
+   - **Motion off.** With "Animacje: wyłączone", the change is shown at once.
 
-**Other suites.**
+**Other suites** (after the second pass, on the branch merged with `main` `122be75c`).
 - `tsc` is clean, and `app:i18n` holds (ratchet 1, unchanged).
-- `app-json-check` now passes. It failed on `main`, because `ImportFormats.json` was stale.
-- Pre-existing failures, identical on the base `8e05c08a` and not touched by this work:
-  - `app-style-check`: `wk-hint` 558 > 548 and inline styles 91 > 90. The world-map files add neither.
-  - `app-cogita-check`: the four JSON examples of the book guide.
-  - `app-selfcheck-check`: times out.
+- `app-json-check` (23) and `app-json-parts-check` (13) pass. `app-json-check` failed on the original base, because `ImportFormats.json` was stale.
+- `app-landscape-check` 70 and `app-levels-check` 22 test only live code now (second pass, 1).
+- `app-import-check` 69, `app-worldmap-check` 109, `app-regions-check` 112, `app-library-check` 25, `app-preview-check` 7 and `app-learn-sync-check` 41 pass.
+- `app-selfcheck-check` passes (92). In the first report it timed out; this time it finished.
+- Failures that are not this work's, unchanged:
+  - `app-style-check`: `wk-hint` 554 > 548, identical on `main` `122be75c`. The inline-style count is at its limit (90); the world-map files add neither.
+  - `app-cogita-check`: the four JSON examples of the book guide (482 checks pass before it, then the check stops on the missing example).
 
 ---
 
 ## 3. Screenshots (parts 4 and 5)
 
-All screenshots come from the preview (headless Edge), with progress "partial" for parts 4 and none for part 5. Light and dark follow `prefers-color-scheme`.
+All screenshots come from the preview (headless Edge), with progress "partial" for parts 4 and none for part 5. Light and dark follow `prefers-color-scheme`. All were retaken after the second pass, so they show the current UI with the mode bar above the map and the list of places below it.
 
 | | Desktop 1440 × 1000 | Phone 390 × 844 @2x |
 |---|---|---|
@@ -198,6 +279,14 @@ Part 5, in order:
 7. Pillar width 40 %: ![](step2/p4-pillar-40.webp)
 8. Run result: ![](step2/p5-run-result.webp)
 9. Conquered place: ![](step2/p5-conquered.webp)
+
+Second pass (path 6):
+
+10. "Do odkrycia" for a new learner (the one place to start, in colour, outlined): ![](step2/p6-mode-discover.webp)
+11. Luki after "Sprawdź, co wiesz", with "Uzupełnij luki": ![](step2/p6-gaps.webp)
+12. The goal — line, flag, "Pokaż zmiany" after the return: ![](step2/p6-goal.webp)
+13. The list of places: ![](step2/p6-list.webp)
+14. A portal on Comollo (seen by a writer): ![](step2/p6-portal.webp)
 
 ---
 
@@ -224,9 +313,21 @@ Part 5, in order:
     - Grey now marks only a place without any area.
     - The line palette is unchanged: one hue per big line.
 14. **Test aid in the preview.** `recreatioPreview.knowledge({ author: true })` renders as a writer, so the author list and the `worldmap` write path can be seen. Nothing leaves the browser.
-15. **Places can only be picked on the canvas.**
-    - Places are picked with mouse or touch. The keyboard pans, zooms and rotates, and every panel works from the keyboard.
-    - There is no keyboard list of places yet, as the hex view's topic list provides. This is a follow-up.
+15. **Resolved in the second pass: a keyboard list of places.** The first report had places only on the canvas. "Wszystkie miejsca (N)" below the map now lists them; in a mode it lists only the places the mode means, and a row opens the place as a click would.
+16. **Dead code: only what the listed code left without callers.** A reference scan before and after the cut decided what went. Code that had no callers already before this pass, and was not on the Step 1 list, stays, as decision 2 says "only". These are candidates for when the hex map is retired:
+    - `landscape.ts`: `hexAt`, `polygonsOverlap`, `LS_FORE`/`LS_TILE`/`LS_SHRINK`/`LS_BAND_MARK`
+    - `levelMap.ts`: `levelItems`, `sketchOf`, `outlineOf`, `gateAnglesFor`, `routeOrder`, `routeMetrics`, `rotated`, `viewScale`, `stepRange`, `groundOf`. Several of them take the shape `layoutLevel` produced.
+    - `landscapeNest.ts`: `nestSubtree`
+    - the test hook `setLandscapeWorker`
+17. **The probe does more than hide.** Until the server stores runs, a learner with an account has 0 levels, not just hidden run buttons. With hidden buttons alone, the cards of unconquered places would leave reviews while nobody could conquer them. For the same reason, the admin cannot save levels before the server is updated.
+18. **Playback, adapted to the world map.**
+    - The camera stays where the learner left it. The hex view flies to the changes; here "Pokaż zmiany" replays them where the learner is looking.
+    - Points rise over their places and then join the counter. The hex view flies them to the counter.
+    - The conquest note names places ("Zdobyte: …"). The hex view names regions.
+    - The exploration badges count colour areas whose places are all conquered, and the share of conquered places.
+    - The last-shown state is kept under the key `world:<view>`, separate from a hex view.
+19. **Self-check covers the whole map.** The hex view checks the region in view, and the world map has no zoom regions. **The goal is a flag only**, with no pawn, as the owner decided for the hex map on 2026-11-06 ("only aims stay").
+20. **How the modes look.** The places a mode means stand in full colour with a dark outline; the hex view outlines them in its land and ready colours. With levels, "Do powtórki" counts only conquered places, because only they are reviewed.
 
 ---
 
@@ -276,11 +377,11 @@ These numbers come from the read-only copy (MCP snapshot of 5 November), seen th
 cd frontend
 node scripts/app-wm-model-check.mjs && node scripts/app-wm-runs-check.mjs && node scripts/app-wm-review-guard-check.mjs
 node scripts/app-wm-geometry-check.mjs && node scripts/app-wm-presentation-check.mjs
-node scripts/app-wm-interaction-check.mjs && node scripts/app-wm-guide-check.mjs   # all are part of npm run app:check
+node scripts/app-wm-interaction-check.mjs && node scripts/app-wm-views-check.mjs && node scripts/app-wm-guide-check.mjs   # all are part of npm run app:check
 # click paths and screenshots against a preview build:
 npx vite build --outDir <dist> && npx vite preview --outDir <dist> --port 4791
 node scripts/wm-courses.mjs <dir> [read-only-copy.json]
-node scripts/wm-click-paths.mjs http://localhost:4791 <dir>/fixture.json <out> [1,2,3,4,5]
+node scripts/wm-click-paths.mjs http://localhost:4791 <dir>/fixture.json <out> [1,2,3,4,5,6]
 ```
 
 Not in this pass (decisions §4): Bosko content changes, removing the hex map or `LearningPath`, and future condition types beyond the registry slot and the async `prepare` hook.
