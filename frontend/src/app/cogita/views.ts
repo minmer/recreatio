@@ -96,6 +96,11 @@ export interface LandscapeDisplay {
   readonly nest?: string;
   readonly nestSort?: string;
   /**
+   * 2026-11-09 (Weltkarte, Entscheidung 2) — DIE GESTALT: `hex` (Vorgabe, das Sechseck) oder `world` (die Weltkarte: Säulen
+   * und Linien, `cogita/worldmap/`).
+   */
+  readonly style?: 'hex' | 'world';
+  /**
    * 2026-11-04 (Prompt 11) — WAS DER BESITZER AN DEN GEBIETEN GEÄNDERT HAT (sie kommen aus den Verbindungen, `regions.ts`):
    * Namen (mit den Themen, die das Gebiet damals hatte — so findet der Name sein Gebiet wieder, wenn es neu gerechnet
    * wird) und Themen, die er in ein anderes Gebiet gelegt hat.
@@ -140,12 +145,14 @@ export function readLandscape(raw: unknown): LandscapeDisplay | null {
   const nest = typeof raw.nest === 'string' ? raw.nest.trim() : '';
   const nestSort = typeof raw.nestSort === 'string' ? raw.nestSort.trim() : '';
   const regions = readRegionEdits(raw.regions);
+  const style = raw.style === 'world' ? 'world' : undefined;
   return {
     budget: Number.isFinite(n) ? Math.max(6, Math.min(400, Math.round(n))) : LANDSCAPE_BUDGET,
     ...(Object.keys(bands).length > 0 ? { bands } : {}),
     ...(nest === '' ? {} : { nest }),
     ...(nestSort === '' ? {} : { nestSort }),
-    ...(regions === null ? {} : { regions })
+    ...(regions === null ? {} : { regions }),
+    ...(style === undefined ? {} : { style })
   };
 }
 

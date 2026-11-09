@@ -1,0 +1,280 @@
+{
+  "condition": {
+    "knowledge": "Znać „{name}”",
+    "knowledgeRel": "Znać powiązane karty",
+    "story": "Ukończyć opowieść „{name}”",
+    "flow": "Opowieść „{name}”",
+    "conquered": "Zdobyć „{name}”",
+    "value": "Wartość „{value}”",
+    "answered": "Odpowiedź na „{value}”",
+    "visited": "Odwiedzony krok",
+    "time": "Tylko w określonym czasie",
+    "place": "Tylko w określonym miejscu",
+    "zone": "Tylko w strefie",
+    "and": "Wszystkie warunki",
+    "or": "Jeden z warunków",
+    "not": "Nie ten warunek",
+    "xor": "Nieparzysta liczba warunków",
+    "unknown": "Niespełniony — nieznany typ „{type}”"
+  },
+  "settings": {
+    "title": "Mapa świata: poziomy",
+    "says": "Zdobyć miejsce to odpowiedzieć poprawnie na jego karty w jednym przebiegu. Przy poziomach powtarza się tylko zdobyte miejsca; bez poziomów nic się nie zmienia.",
+    "levels": "Poziomy",
+    "levelsNone": "Brak",
+    "levelN": "Poziom {n}",
+    "pct": "Próg (%)",
+    "attempts": "Co się liczy",
+    "attemptsAny": "Dobrze w ogóle",
+    "attemptsOne": "Dobrze po jednej poprawce",
+    "attemptsFirst": "Dobrze za pierwszym razem",
+    "gap": "Dni po poprzednim poziomie",
+    "knownShare": "Bez poziomów miejsce jest osiągnięte, gdy znana jest taka część jego kart (%)",
+    "pillar": "Szerokość filarów",
+    "pillarSays": "{pct} % pełnej szerokości",
+    "mayChange": "Uczący się mogą to zmienić dla siebie",
+    "save": "Zapisz",
+    "saved": "Zapisano",
+    "clear": "Wróć do domyślnych (bez poziomów)",
+    "leaving": {
+      "one": "Przy tym ustawieniu {count} karta wypada z regularnych powtórek, dopóki jej miejsce nie zostanie zdobyte.",
+      "few": "Przy tym ustawieniu {count} karty wypadają z regularnych powtórek, dopóki ich miejsca nie zostaną zdobyte.",
+      "many": "Przy tym ustawieniu {count} kart wypada z regularnych powtórek, dopóki ich miejsca nie zostaną zdobyte.",
+      "other": "Przy tym ustawieniu {count} karty wypada z regularnych powtórek, dopóki ich miejsca nie zostaną zdobyte."
+    },
+    "leavingNone": "Przy tym ustawieniu żadna karta nie wypada z powtórek.",
+    "leavingYou": {
+      "one": "U ciebie: {count} karta.",
+      "few": "U ciebie: {count} karty.",
+      "many": "U ciebie: {count} kart.",
+      "other": "U ciebie: {count} karty."
+    },
+    "fromArea": "ustawione przez kurs",
+    "fromDefault": "domyślne",
+    "own": "Moja mapa świata",
+    "ownSays": "Twoje własne poziomy i szerokość filarów w tym kursie. Poziomy zawsze liczą się na nowo z twoich przebiegów — nic nie przepada.",
+    "locked": "Kurs ustala te ustawienia.",
+    "serverOld": "Poziomy i przebiegi zaczną działać po aktualizacji serwera. Do tego czasu powtórki działają jak dotąd.",
+    "serverOldArea": "Serwer nie zapisuje jeszcze przebiegów, więc nie można włączyć poziomów. Do czasu aktualizacji wszyscy uczą się bez poziomów (0).",
+    "useArea": "Użyj ustawienia kursu"
+  },
+  "run": {
+    "title": "Przebieg · {name}",
+    "forLevel": "Przebieg na poziom {level}",
+    "rule": "{pct} % · {attempts}",
+    "intro": {
+      "one": "{count} karta w losowej kolejności. Błędna odpowiedź wraca raz na końcu.",
+      "few": "{count} karty w losowej kolejności. Błędna odpowiedź wraca raz na końcu.",
+      "many": "{count} kart w losowej kolejności. Błędna odpowiedź wraca raz na końcu.",
+      "other": "{count} karty w losowej kolejności. Błędna odpowiedź wraca raz na końcu."
+    },
+    "start": "Rozpocznij przebieg",
+    "of": "Karta {n} z {all}",
+    "again": "Jeszcze raz",
+    "result": "{first} z {all} dobrze za pierwszym razem, {after} po jednej poprawce",
+    "reached": "Osiągnięto poziom {level}",
+    "notReached": "Poziom {level} tym razem nieosiągnięty — potrzeba {pct} %",
+    "conquered": "Miejsce zdobyte",
+    "close": "Wróć",
+    "waitFrom": "Poziom {level} od {date}",
+    "serverOld": "Przebiegi będą możliwe po aktualizacji serwera.",
+    "locked": "Najpierw niech każda karta pojawi się raz i zdobądź miejsca przed tym.",
+    "saving": "Zapisywanie przebiegu…"
+  },
+  "map": {
+    "start": "Start",
+    "label": {
+      "one": "Mapa świata z {count} miejscem",
+      "few": "Mapa świata z {count} miejscami",
+      "many": "Mapa świata z {count} miejscami",
+      "other": "Mapa świata z {count} miejscami"
+    },
+    "zoomIn": "Przybliż",
+    "zoomOut": "Oddal",
+    "whole": "Cały świat",
+    "rotate": "Obróć",
+    "tilt": "Nachyl",
+    "height": "Wysokość {pct} %",
+    "cardsToGo": {
+      "one": "jeszcze {count} karta",
+      "few": "jeszcze {count} karty",
+      "many": "jeszcze {count} kart",
+      "other": "jeszcze {count} karty"
+    },
+    "conquered": "Zdobyte",
+    "conqueredNow": "Zdobyte: {names}",
+    "noRoute": "Żadna linia nie prowadzi tu jeszcze z domu",
+    "fromHome": "Z domu:",
+    "sections": {
+      "one": "{count} odcinek",
+      "few": "{count} odcinki",
+      "many": "{count} odcinków",
+      "other": "{count} odcinka"
+    },
+    "fresh": {
+      "one": "{count} nowa",
+      "few": "{count} nowe",
+      "many": "{count} nowych",
+      "other": "{count} nowej"
+    },
+    "review": {
+      "one": "{count} do powtórki",
+      "few": "{count} do powtórki",
+      "many": "{count} do powtórki",
+      "other": "{count} do powtórki"
+    },
+    "empty": "Jeszcze brak miejsc: miejsce to temat, który pytania wskazują w „about”.",
+    "computing": "Układanie mapy…",
+    "relay": "Ułóż mapę od nowa",
+    "places": "Wszystkie miejsca ({count})"
+  },
+  "panel": {
+    "close": "Zamknij",
+    "cards": {
+      "one": "{count} karta",
+      "few": "{count} karty",
+      "many": "{count} kart",
+      "other": "{count} karty"
+    },
+    "levelOf": "Poziom {level} z {levels}",
+    "partOf": "Część: {name}",
+    "knowledge": "Wiedza",
+    "dot": {
+      "green": "aktualna",
+      "yellow": "wkrótce powtórka",
+      "orange": "czas na powtórkę"
+    },
+    "reviewN": "Powtórz ({count})",
+    "conquer": "Zdobywanie",
+    "startRun": "Rozpocznij przebieg na poziom {level}",
+    "conquerFirst": "Najpierw zdobądź",
+    "orderTotal": {
+      "one": "razem {count} karta",
+      "few": "razem {count} karty",
+      "many": "razem {count} kart",
+      "other": "razem {count} karty"
+    },
+    "moreN": "i jeszcze {count}",
+    "neverSeen": {
+      "one": "{count} karta jeszcze się nie pojawiła",
+      "few": "{count} karty jeszcze się nie pojawiły",
+      "many": "{count} kart jeszcze się nie pojawiło",
+      "other": "{count} karty jeszcze się nie pojawiło"
+    },
+    "whereFrom": "skąd je wziąć:",
+    "noSlide": "bez slajdu — ucz się bezpośrednio",
+    "openNow": "otwarte teraz",
+    "needs": "wymaga: {what}",
+    "learnDirectlyN": "Ucz się bezpośrednio ({count})",
+    "learnN": "Ucz się ({count})",
+    "linesHere": "Linie tutaj",
+    "station": "Węzeł przesiadkowy",
+    "noLines": "Żadna linia się tu nie zatrzymuje — ucz się kart bezpośrednio.",
+    "directions": "Stąd",
+    "choose": "Wybierz",
+    "details": "Szczegóły",
+    "travel": "Jedź",
+    "travelAgain": "Jedź jeszcze raz",
+    "travelled": "przejechany",
+    "slides": {
+      "one": "{count} slajd",
+      "few": "{count} slajdy",
+      "many": "{count} slajdów",
+      "other": "{count} slajdu"
+    },
+    "ticket": "Bilet",
+    "ticketOk": "Bilet ważny",
+    "ticketMissing": "Brak biletu",
+    "ticketUnknown": "Niespełnione — nieznany warunek",
+    "reviewOnly": "Tylko powtórka",
+    "newCards": {
+      "one": "{count} nowa karta",
+      "few": "{count} nowe karty",
+      "many": "{count} nowych kart",
+      "other": "{count} nowej karty"
+    },
+    "branch": "Odgałęzienie: {label}",
+    "back": "powrót do: {name}",
+    "leadMe": "Prowadź mnie tutaj",
+    "mySettings": "Moje ustawienia",
+    "openEntry": "Otwórz wpis",
+    "homeSays": "Linie, które tu się zaczynają",
+    "backToMap": "Wróć do mapy",
+    "mapShort": "Mapa",
+    "nothing": "Tu nie ma teraz nic do nauki."
+  },
+  "nav": {
+    "target": "Cel: {name}",
+    "progress": "{done} z {all} kroków",
+    "travel": "{line}: {from} → {to}",
+    "learn": "Ucz się bezpośrednio: {place}",
+    "run": "Przebieg na poziom {level}: {place}",
+    "wait": "{place}: poziom {level} od {date}",
+    "know": "Ucz się aż do opanowania: {place}",
+    "locked": "najpierw potrzebne karty",
+    "turnHint": "Tu możesz też skręcić",
+    "covers": {
+      "one": "{count} z tych kart",
+      "few": "{count} z tych kart",
+      "many": "{count} z tych kart",
+      "other": "{count} z tych kart"
+    },
+    "opens": "otwiera też: {names}",
+    "costMore": "+{n} wysiłku",
+    "costLess": "−{n} wysiłku",
+    "costSame": "ten sam wysiłek",
+    "end": "Zakończ nawigację",
+    "arrived": "Jesteś na miejscu: {name}",
+    "startHere": "Zacznij tutaj"
+  },
+  "issue": {
+    "title": {
+      "one": "Dla autorów: {count} uwaga",
+      "few": "Dla autorów: {count} uwagi",
+      "many": "Dla autorów: {count} uwag",
+      "other": "Dla autorów: {count} uwagi"
+    },
+    "none": "Dla autorów: dane mapy nie mają problemów.",
+    "level": {
+      "error": "Błąd",
+      "warning": "Ostrzeżenie",
+      "info": "Uwaga"
+    },
+    "cycle": "Wymagania tworzą koło (trzymane razem): {names}",
+    "dangling": "Odwołanie w „{field}” prowadzi donikąd: {names}",
+    "partAndPrerequisite": "Pole „{field}” jest jednocześnie częścią i wymaganiem — czytane tylko jako wymaganie: {names}",
+    "partOfSeveral": "Część kilku bloków: {names}",
+    "flowNoPlaces": "Opowieść bez rozpoznawalnych miejsc (nie rysowana): {names}",
+    "unknownCondition": "Nieznany typ warunku „{type}” — traktowany jako niespełniony: {names}",
+    "unreachableSteps": {
+      "one": "{count} krok jest nieosiągalny: {names}",
+      "few": "{count} kroki są nieosiągalne: {names}",
+      "many": "{count} kroków jest nieosiągalnych: {names}",
+      "other": "{count} kroku jest nieosiągalne: {names}"
+    },
+    "flowStartsLate": "Opowieść zaczyna się od kroku „{step}”, a nie od pierwszego slajdu „{first}”: {names}",
+    "membersNotDetoured": {
+      "one": "{count} część wątku nie ma prowadzącego do niej zagłębienia: {names}",
+      "few": "{count} części wątku nie mają prowadzącego do nich zagłębienia: {names}",
+      "many": "{count} części wątku nie ma prowadzącego do nich zagłębienia: {names}",
+      "other": "{count} części wątku nie ma prowadzącego do nich zagłębienia: {names}"
+    },
+    "requiresSiblingPrerequisite": "Wymaga tego, czego wymaga sąsiedni etap, zamiast samego etapu: {names}",
+    "placesWithoutLine": {
+      "one": "{count} miejsce bez linii (nauka bezpośrednia): {names}",
+      "few": "{count} miejsca bez linii (nauka bezpośrednia): {names}",
+      "many": "{count} miejsc bez linii (nauka bezpośrednia): {names}",
+      "other": "{count} miejsca bez linii (nauka bezpośrednia): {names}"
+    },
+    "cardsWithoutSlide": {
+      "one": "{count} karta bez slajdu (nauka bezpośrednia): {names}",
+      "few": "{count} karty bez slajdu (nauka bezpośrednia): {names}",
+      "many": "{count} kart bez slajdu (nauka bezpośrednia): {names}",
+      "other": "{count} karty bez slajdu (nauka bezpośrednia): {names}"
+    },
+    "lineStartsMid": "Linia zaczyna się w środku świata (tam węzeł przesiadkowy): {names}",
+    "noRoute": "Nie znaleziono toru — narysowany prosto: {names}",
+    "mislabelledRegion": "Obszar koloru nazwany od tematu, który nie jest jego środkiem: „{name}” (środek: {names}) — nadaj mu nazwę w widoku",
+    "unitMissing": "Część opowieści nie istnieje: {names}"
+  }
+}

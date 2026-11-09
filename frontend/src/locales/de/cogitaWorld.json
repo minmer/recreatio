@@ -1,0 +1,242 @@
+{
+  "condition": {
+    "knowledge": "„{name}” können",
+    "knowledgeRel": "Die zugehörigen Karten können",
+    "story": "Die Geschichte „{name}” abschließen",
+    "flow": "Geschichte „{name}”",
+    "conquered": "„{name}” erobern",
+    "value": "Wert „{value}”",
+    "answered": "Eine Antwort auf „{value}”",
+    "visited": "Ein besuchter Schritt",
+    "time": "Nur zu bestimmten Zeiten",
+    "place": "Nur an einem bestimmten Ort",
+    "zone": "Nur in einer Zone",
+    "and": "Alle Bedingungen",
+    "or": "Eine der Bedingungen",
+    "not": "Nicht diese Bedingung",
+    "xor": "Eine ungerade Zahl von Bedingungen",
+    "unknown": "Nicht erfüllt — unbekannter Typ „{type}”"
+  },
+  "settings": {
+    "title": "Weltkarte: Stufen",
+    "says": "Einen Ort erobern heißt, seine Karten in einem Durchgang richtig zu beantworten. Mit Stufen werden nur eroberte Orte wiederholt; ohne Stufen ändert sich nichts.",
+    "levels": "Stufen",
+    "levelsNone": "Keine",
+    "levelN": "Stufe {n}",
+    "pct": "Schwelle (%)",
+    "attempts": "Was zählt",
+    "attemptsAny": "Überhaupt richtig",
+    "attemptsOne": "Richtig nach einer Korrektur",
+    "attemptsFirst": "Beim ersten Mal richtig",
+    "gap": "Tage nach der vorigen Stufe",
+    "knownShare": "Ohne Stufen ist ein Ort erreicht, wenn dieser Anteil seiner Karten gekonnt ist (%)",
+    "pillar": "Breite der Säulen",
+    "pillarSays": "{pct} % der vollen Breite",
+    "mayChange": "Lernende dürfen das für sich ändern",
+    "save": "Speichern",
+    "saved": "Gespeichert",
+    "clear": "Zurück zur Vorgabe (keine Stufen)",
+    "leaving": {
+      "one": "Mit dieser Einstellung verlässt {count} Karte die regulären Wiederholungen, bis ihr Ort erobert ist.",
+      "other": "Mit dieser Einstellung verlassen {count} Karten die regulären Wiederholungen, bis ihre Orte erobert sind."
+    },
+    "leavingNone": "Mit dieser Einstellung verlässt keine Karte die Wiederholungen.",
+    "leavingYou": {
+      "one": "Für dich: {count} Karte.",
+      "other": "Für dich: {count} Karten."
+    },
+    "fromArea": "vom Kurs festgelegt",
+    "fromDefault": "Vorgabe",
+    "own": "Meine Weltkarte",
+    "ownSays": "Deine eigenen Stufen und Säulenbreite in diesem Kurs. Die Stufen werden immer aus deinen Durchgängen neu berechnet — nichts geht verloren.",
+    "locked": "Der Kurs legt diese Einstellungen fest.",
+    "serverOld": "Stufen und Durchgänge gibt es, sobald der Server aktualisiert ist. Bis dahin laufen die Wiederholungen wie bisher.",
+    "serverOldArea": "Der Server kann noch keine Durchgänge speichern, deshalb lassen sich keine Stufen einschalten. Bis zur Aktualisierung lernen alle mit 0 Stufen.",
+    "useArea": "Die Einstellung des Kurses verwenden"
+  },
+  "run": {
+    "title": "Durchgang · {name}",
+    "forLevel": "Durchgang für Stufe {level}",
+    "rule": "{pct} % · {attempts}",
+    "intro": {
+      "one": "{count} Karte in zufälliger Reihenfolge. Eine falsche Antwort kommt am Ende einmal wieder.",
+      "other": "{count} Karten in zufälliger Reihenfolge. Eine falsche Antwort kommt am Ende einmal wieder."
+    },
+    "start": "Durchgang starten",
+    "of": "Karte {n} von {all}",
+    "again": "Noch einmal",
+    "result": "{first} von {all} beim ersten Mal richtig, {after} nach einer Korrektur",
+    "reached": "Stufe {level} erreicht",
+    "notReached": "Stufe {level} diesmal nicht erreicht — {pct} % nötig",
+    "conquered": "Ort erobert",
+    "close": "Zurück",
+    "waitFrom": "Stufe {level} ab {date}",
+    "serverOld": "Durchgänge sind möglich, sobald der Server aktualisiert ist.",
+    "locked": "Lass zuerst jede Karte einmal erscheinen und erobere die Orte davor.",
+    "saving": "Der Durchgang wird gespeichert…"
+  },
+  "map": {
+    "start": "Start",
+    "label": {
+      "one": "Weltkarte mit {count} Ort",
+      "other": "Weltkarte mit {count} Orten"
+    },
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "whole": "Ganze Welt",
+    "rotate": "Drehen",
+    "tilt": "Neigen",
+    "height": "Höhe {pct} %",
+    "cardsToGo": {
+      "one": "noch {count} Karte",
+      "other": "noch {count} Karten"
+    },
+    "conquered": "Erobert",
+    "conqueredNow": "Erobert: {names}",
+    "noRoute": "Noch führt keine Linie vom Haus hierher",
+    "fromHome": "Vom Haus:",
+    "sections": {
+      "one": "{count} Abschnitt",
+      "other": "{count} Abschnitte"
+    },
+    "fresh": {
+      "one": "{count} neu",
+      "other": "{count} neu"
+    },
+    "review": {
+      "one": "{count} zu wiederholen",
+      "other": "{count} zu wiederholen"
+    },
+    "empty": "Noch keine Orte: ein Ort ist ein Thema, das Fragen in „about” nennen.",
+    "computing": "Die Karte wird gelegt…",
+    "relay": "Die ganze Karte neu legen",
+    "places": "Alle Orte ({count})"
+  },
+  "panel": {
+    "close": "Schließen",
+    "cards": {
+      "one": "{count} Karte",
+      "other": "{count} Karten"
+    },
+    "levelOf": "Stufe {level} von {levels}",
+    "partOf": "Teil von {name}",
+    "knowledge": "Kenntnis",
+    "dot": {
+      "green": "aktuell",
+      "yellow": "bald wiederholen",
+      "orange": "Wiederholung fällig"
+    },
+    "reviewN": "Wiederholen ({count})",
+    "conquer": "Erobern",
+    "startRun": "Durchgang für Stufe {level} starten",
+    "conquerFirst": "Zuerst erobern",
+    "orderTotal": {
+      "one": "{count} Karte insgesamt",
+      "other": "{count} Karten insgesamt"
+    },
+    "moreN": "und {count} weitere",
+    "neverSeen": {
+      "one": "{count} Karte ist noch nie erschienen",
+      "other": "{count} Karten sind noch nie erschienen"
+    },
+    "whereFrom": "woher sie kommen:",
+    "noSlide": "keine Folie — direkt lernen",
+    "openNow": "jetzt offen",
+    "needs": "braucht: {what}",
+    "learnDirectlyN": "Direkt lernen ({count})",
+    "learnN": "Lernen ({count})",
+    "linesHere": "Linien hier",
+    "station": "Umsteigeort",
+    "noLines": "Hier hält keine Linie — die Karten direkt lernen.",
+    "directions": "Von hier",
+    "choose": "Wählen",
+    "details": "Details",
+    "travel": "Fahren",
+    "travelAgain": "Nochmals fahren",
+    "travelled": "befahren",
+    "slides": {
+      "one": "{count} Folie",
+      "other": "{count} Folien"
+    },
+    "ticket": "Fahrkarte",
+    "ticketOk": "Fahrkarte gültig",
+    "ticketMissing": "Fahrkarte fehlt",
+    "ticketUnknown": "Nicht erfüllt — unbekannte Bedingung",
+    "reviewOnly": "Nur wiederholen",
+    "newCards": {
+      "one": "{count} neue Karte",
+      "other": "{count} neue Karten"
+    },
+    "branch": "Zweig: {label}",
+    "back": "zurück nach {name}",
+    "leadMe": "Bring mich hin",
+    "mySettings": "Meine Einstellungen",
+    "openEntry": "Eintrag öffnen",
+    "homeSays": "Linien, die hier beginnen",
+    "backToMap": "Zurück zur Karte",
+    "mapShort": "Karte",
+    "nothing": "Hier gibt es gerade nichts zu lernen."
+  },
+  "nav": {
+    "target": "Ziel: {name}",
+    "progress": "{done} von {all} Schritten",
+    "travel": "{line}: {from} → {to}",
+    "learn": "Direkt lernen: {place}",
+    "run": "Durchgang für Stufe {level}: {place}",
+    "wait": "{place}: Stufe {level} ab {date}",
+    "know": "Lernen, bis es sitzt: {place}",
+    "locked": "braucht erst Karten",
+    "turnHint": "Hier kannst du auch abbiegen",
+    "covers": {
+      "one": "{count} dieser Karten",
+      "other": "{count} dieser Karten"
+    },
+    "opens": "öffnet auch {names}",
+    "costMore": "+{n} Aufwand",
+    "costLess": "−{n} Aufwand",
+    "costSame": "gleicher Aufwand",
+    "end": "Navigation beenden",
+    "arrived": "Du bist da: {name}",
+    "startHere": "Hier beginnen"
+  },
+  "issue": {
+    "title": {
+      "one": "Für Autoren: {count} Hinweis",
+      "other": "Für Autoren: {count} Hinweise"
+    },
+    "none": "Für Autoren: die Daten der Karte zeigen keine Probleme.",
+    "level": {
+      "error": "Fehler",
+      "warning": "Warnung",
+      "info": "Hinweis"
+    },
+    "cycle": "Voraussetzungen im Kreis (zusammen gehalten): {names}",
+    "dangling": "Ein Verweis in „{field}” zeigt ins Leere: {names}",
+    "partAndPrerequisite": "Das Feld „{field}” ist zugleich Teil und Voraussetzung — nur als Voraussetzung gelesen: {names}",
+    "partOfSeveral": "Teil mehrerer Blöcke: {names}",
+    "flowNoPlaces": "Geschichte ohne erkennbare Orte (nicht gezeichnet): {names}",
+    "unknownCondition": "Unbekannter Bedingungstyp „{type}” — gilt als nicht erfüllt: {names}",
+    "unreachableSteps": {
+      "one": "{count} Schritt ist nie erreichbar: {names}",
+      "other": "{count} Schritte sind nie erreichbar: {names}"
+    },
+    "flowStartsLate": "Die Geschichte beginnt bei Schritt „{step}”, nicht bei ihrer ersten Folie „{first}”: {names}",
+    "membersNotDetoured": {
+      "one": "{count} Mitglied dieses Erzählstrangs hat keine Vertiefung, die zu ihm führt: {names}",
+      "other": "{count} Mitglieder dieses Erzählstrangs haben keine Vertiefung, die zu ihnen führt: {names}"
+    },
+    "requiresSiblingPrerequisite": "Verlangt, was eine Nachbaretappe verlangt, statt dieser Etappe: {names}",
+    "placesWithoutLine": {
+      "one": "{count} Ort ohne Linie (direkt gelernt): {names}",
+      "other": "{count} Orte ohne Linie (direkt gelernt): {names}"
+    },
+    "cardsWithoutSlide": {
+      "one": "{count} Karte ohne Folie (direkt gelernt): {names}",
+      "other": "{count} Karten ohne Folie (direkt gelernt): {names}"
+    },
+    "lineStartsMid": "Die Linie beginnt mitten in der Welt (dort ein Umsteigeort): {names}",
+    "noRoute": "Kein Gleis gefunden — gerade gezogen: {names}",
+    "mislabelledRegion": "Farbgebiet nach einem Thema benannt, das nicht seine Mitte ist: „{name}” (Mitte: {names}) — im Widok selbst benennen",
+    "unitMissing": "Der Teil der Geschichte existiert nicht: {names}"
+  }
+}

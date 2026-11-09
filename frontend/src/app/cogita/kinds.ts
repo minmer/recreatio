@@ -61,7 +61,8 @@ export const ENTITY = 'entity';
 export const LEGACY_KNOWLEDGE = 'knowledge';
 
 /** Was das Schema, die Karten, die Abläufe und die Einstellungen beschreibt — kein Eintrag, den man lernt. */
-export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward'] as const;
+/* 2026-11-09 — `worldmap`: die gespeicherte Lage der Weltkarte (nur Schreibende legen sie ab; nie im JSON des Kurses). */
+export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward', 'worldmap'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export const DOC_LABEL: Readonly<Record<DocKind, string>> = texts({
@@ -78,6 +79,7 @@ export const DOC_LABEL: Readonly<Record<DocKind, string>> = texts({
   collection: 'cogitaData.docKind.collection',
   view: 'cogitaData.docKind.view',
   settings: 'cogitaData.docKind.settings',
+  worldmap: 'cogitaData.docKind.worldmap',
   merge: 'cogitaData.docKind.merge',
   contribution: 'cogitaData.docKind.contribution',
   /* 2026-11-02 — punkty, seria, cel dnia, poziomy, odznaki (`rewards.ts`). */
@@ -319,6 +321,8 @@ export function kindDoc(kind: KindDef): Record<string, unknown> {
       if (f.locator === true) out.locator = true;
       if (f.structure !== undefined) out.structure = f.structure;
       if (f.prerequisite !== undefined) out.prerequisite = f.prerequisite;
+      /* 2026-11-09 (Weltkarte) — ein Teil eines Blocks. */
+      if (f.part !== undefined) out.part = f.part;
       /* 2026-11-05 (Prompt 24) — ein Verweisfeld, das auch in andere Bazy zeigen darf ("@@historia:@…"). */
       if (f.external === true) out.external = true;
       if (f.when !== undefined) out.when = { field: f.when.field, values: [...f.when.values] };

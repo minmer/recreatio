@@ -59,6 +59,8 @@ export function landscapeLayouts(lib: CogitaLibrary, cards: readonly Card[]): La
   for (const doc of lib.docs('view')) {
     const view = readView(doc.data);
     if (view.mode !== 'landscape') continue;
+    /* 2026-11-09 — die Weltkarte hat ihre eigene Ausfuhr ([x, y], `worldmap/wmExport.ts`). */
+    if (view.landscape?.style === 'world') continue;
     /* Nur die Struktur: Schritte, die von der Kenntnis abhängen, fallen weg (die Karte ist für jeden dieselbe). */
     const plain = { ...view, query: '', steps: view.steps.filter((s) => s.type !== 'filter.when') };
     const list = viewList(lib, plain);
