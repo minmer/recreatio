@@ -92,7 +92,7 @@ public static partial class AiAccess
             INSERT INTO app.ai_access_part (access_id, library_id)
             SELECT a.id, l.id
             FROM app.ai_access a
-            JOIN app.library l ON l.area_id = a.area_id AND l.kind IN (N'books', N'writing', N'knowledge')
+            JOIN app.library l ON l.area_id = a.area_id AND l.kind IN (N'books', N'writing', N'knowledge', N'liturgy')
             WHERE a.area_id = @area AND a.whole_area = 1
               AND NOT EXISTS (SELECT 1 FROM app.ai_access_part p WHERE p.access_id = a.id AND p.library_id = l.id)
               AND (SELECT COUNT(*) FROM app.ai_access_part c WHERE c.access_id = a.id) < {MaxParts};
@@ -113,7 +113,7 @@ public static partial class AiAccess
     {
         var out_ = new List<Guid>();
         await using var cmd = new SqlCommand($"""
-            SELECT TOP ({MaxParts}) id FROM app.library WHERE area_id = @area AND kind IN (N'books', N'writing', N'knowledge') ORDER BY created_at;
+            SELECT TOP ({MaxParts}) id FROM app.library WHERE area_id = @area AND kind IN (N'books', N'writing', N'knowledge', N'liturgy') ORDER BY created_at;
             """, connection, tx);
         cmd.Parameters.AddWithValue("@area", areaId);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -242,7 +242,7 @@ public static partial class AiAccess
     {
         var names = string.Join(", ", ids.Select((_, i) => $"@l{i}"));
         await using var cmd = new SqlCommand($"""
-            SELECT COUNT(*) FROM app.library WHERE area_id = @area AND kind IN (N'books', N'writing', N'knowledge') AND id IN ({names});
+            SELECT COUNT(*) FROM app.library WHERE area_id = @area AND kind IN (N'books', N'writing', N'knowledge', N'liturgy') AND id IN ({names});
             """, connection, tx);
         cmd.Parameters.AddWithValue("@area", areaId);
         for (var i = 0; i < ids.Count; i++) cmd.Parameters.AddWithValue($"@l{i}", ids[i]);

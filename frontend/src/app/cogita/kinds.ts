@@ -231,7 +231,7 @@ export const QUESTION: KindDef = {
 
 /** In dieser Reihenfolge stehen sie in Listen. */
 const BASE: readonly KindDef[] = [
-  ...['person', 'work', 'quote', 'text', 'delivery', 'project'].map(builtin),
+  ...['person', 'work', 'quote', 'text', 'delivery', 'project', ...LIBRARY_KINDS.filter(k => k.kind.startsWith('lit_')).map(k => k.kind)].map(builtin),
   QUESTION
 ];
 

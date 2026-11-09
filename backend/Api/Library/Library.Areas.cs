@@ -199,7 +199,7 @@ public static partial class Library
     /// Skryptorium (0124) in einem öffentlichen Bereich, deren Umstellung bestätigt ist.
     /// </summary>
     private static async Task<bool> PublicLibraryAsync(SqlConnection connection, Guid id, Guid areaId, CancellationToken ct) =>
-        await KindOfLibraryAsync(connection, id, ct) is "books" or "knowledge" or "writing"
+        await KindOfLibraryAsync(connection, id, ct) is "books" or "knowledge" or "writing" or "liturgy"
         && await AreaIsPublicAsync(connection, areaId, ct)
         && await AreaRuleSetAsync(connection, id, ct);
 
@@ -264,7 +264,7 @@ public static partial class Library
         var names = string.Join(", ", wanted.Select((_, i) => $"@e{i}"));
         await using (var cmd = new SqlCommand($"""
             SELECT e.id, l.id, l.area_id, l.kind FROM app.library_entry e JOIN app.library l ON l.id = e.library_id
-            WHERE e.id IN ({names}) AND e.deleted_at IS NULL AND l.kind IN (N'books', N'knowledge', N'writing');
+            WHERE e.id IN ({names}) AND e.deleted_at IS NULL AND l.kind IN (N'books', N'knowledge', N'writing', N'liturgy');
             """, connection))
         {
             for (var i = 0; i < wanted.Count; i++) cmd.Parameters.AddWithValue($"@e{i}", wanted[i]);
@@ -281,7 +281,7 @@ public static partial class Library
             open[area] = await AreaIsPublicAsync(connection, area, ctx.RequestAborted);
         }
         var settled = new Dictionary<Guid, bool>();
-        foreach (var base_ in rows.Where(r => r.Kind == "knowledge").Select(r => r.Library).Distinct())
+        foreach (var base_ in rows.Where(r => r.Kind is "knowledge" or "liturgy").Select(r => r.Library).Distinct())
             settled[base_] = await AreaRuleSetAsync(connection, base_, ctx.RequestAborted);
         bool Readable((Guid Entry, Guid Library, Guid Area, string Kind) r) =>
             member[r.Area] || (open[r.Area] && (r.Kind is "books" or "writing" || settled.GetValueOrDefault(r.Library)));
