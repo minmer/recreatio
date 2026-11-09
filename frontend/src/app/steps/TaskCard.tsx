@@ -82,11 +82,25 @@ export function TaskCard({ label, help, task, office = false, taken, onPresence 
    * blasse Aufgabe der eigenen Liste.)
    */
   const over = phase === 'reporting' || phase === 'over' || coming === null;
-  const status = task.fulfilled ? (counted || over ? t('steps.card.done') : t('steps.chat.upToDate'))
+  /* 0141 — je Woche / Monat: verpasste zählen; sonst, ob es diese Woche (diesen Monat) schon getan ist. */
+  const units = task.units ?? null;
+  const week = units?.unit === 'week';
+  const status = units !== null && !task.fulfilled
+    ? (units.missed > 0 ? t(week ? 'steps.card.missedWeeks' : 'steps.card.missedMonths', { count: units.missed })
+      : units.current !== null ? t(week ? 'steps.card.weekNot' : 'steps.card.monthNot')
+      : t('steps.card.waiting'))
+    : task.fulfilled ? (counted || over ? t('steps.card.done') : t('steps.chat.upToDate'))
     : days.length === 1 ? (said[0] === null ? t('steps.card.waiting') : asked ? words[said[0]] : t(WORD[said[0]]))
     : yes + no + maybe === 0 ? t('steps.card.waiting')
     : [yes > 0 && t('steps.card.yesN', { count: yes }), no > 0 && t('steps.card.noN', { count: no }), maybe > 0 && `? ${maybe}`].filter(Boolean).join(' · ');
-  const tone = task.fulfilled ? 'fulfilled' : yes > 0 ? 'accepted' : no > 0 ? 'refused' : maybe > 0 ? 'passed' : 'open';
+  const tone = task.fulfilled ? 'fulfilled' : (units?.missed ?? 0) > 0 ? 'refused' : yes > 0 ? 'accepted' : no > 0 ? 'refused' : maybe > 0 ? 'passed' : 'open';
+  /* „W tym tygodniu: 1 z 2. Zaliczone tygodnie: 3 z 9." */
+  const unitLine = units === null ? null : [
+    units.current !== null && !over && (units.current.done >= units.current.need
+      ? t(week ? 'steps.card.weekDone' : 'steps.card.monthDone')
+      : t(week ? 'steps.card.weekNow' : 'steps.card.monthNow', { done: units.current.done, need: units.current.need })),
+    units.total > 1 && (units.ended > 0 || units.done > 0) && t(week ? 'steps.card.weeksOf' : 'steps.card.monthsOf', { done: units.done, total: units.total })
+  ].filter(Boolean).join(' ');
 
   /* 0101 — zugeklappt am Anfang: erst die Karte, der Kalender auf einen Klick. */
   const [open, setOpen] = useState(false);
@@ -125,7 +139,7 @@ export function TaskCard({ label, help, task, office = false, taken, onPresence 
           {coming !== null && phase === 'active' && at !== null && (coming === today ? t('steps.card.today', { at }) : t('steps.card.next', { day: dayText(coming), at }))}
           {phase === 'reporting' && t('steps.card.reporting', { day: dayText(reportsUntil(plan)) })}
           {phase === 'over' && t('steps.card.over')}
-          {task.done > 0 && ` ${t(item ? (task.needed !== null && task.needed > 1 ? 'steps.card.presentOf' : 'steps.card.present') : (task.needed !== null && task.needed > 1 ? 'steps.card.doneOf' : 'steps.card.doneN'), { done: task.done, needed: task.needed ?? 0 })}`}
+          {unitLine !== null ? (unitLine !== '' && ` ${unitLine}`) : task.done > 0 && ` ${t(item ? (task.needed !== null && task.needed > 1 ? 'steps.card.presentOf' : 'steps.card.present') : (task.needed !== null && task.needed > 1 ? 'steps.card.doneOf' : 'steps.card.doneN'), { done: task.done, needed: task.needed ?? 0 })}`}
         </p>
         {onPresence !== undefined && (rows
           /* Bei der Kanzlei, für Termine mit Fragen vorher: je Termin eine Zeile, mit der Liste. */

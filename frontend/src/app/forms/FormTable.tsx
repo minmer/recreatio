@@ -97,6 +97,8 @@ function stepCell(st: StepState): string {
   if (st.status === 'done') return st.doneAt === null ? t('formsOffice.desk.stepDone') : stamp(st.doneAt, false);
   if (st.status === 'overdue') return t('formsOffice.table.overdue');
   if (st.task !== undefined && st.task.needed !== null) return `${st.task.done}/${st.task.needed}`;
+  /* 0141 — je Woche / Monat: geschaffte Wochen (Monate) von allen. */
+  if (st.task?.units != null) return `${st.task.units.done}/${st.task.units.total}`;
   return '';
 }
 

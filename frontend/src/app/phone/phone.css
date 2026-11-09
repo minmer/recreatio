@@ -295,6 +295,26 @@
 .ph-arch { display: inline-flex; flex: none; align-items: center; gap: 0.2rem; color: var(--wk-muted); font-size: var(--wk-text-xs); }
 .ph-arch .ch-i { width: 0.75rem; height: 0.75rem; }
 .ph-arch.is-on { color: var(--wk-accent); }
+/* 2026-11-09 — nicht im Archiv: ein Knopf, der das Gespräch hineinnimmt. */
+.ph-arch-add { color: var(--wk-accent); }
+
+/* Ein Entwurf in der Liste („Szkic: …") — wie in anderen SMS-Apps hervorgehoben. */
+.ph-draft { color: var(--wk-accent); font-weight: 600; }
+
+/* Przekaż — każda osobno (2026-11-09): die weitergeleiteten über dem Feld, jede in ihrem Kasten. */
+.ph-fwd { margin: var(--wk-space-2) 0; }
+.ph-fwd-head { margin: 0 0 var(--wk-space-1); color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.ph-fwd-list { margin: 0; padding: 0; list-style: none; }
+.ph-fwd-list li {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: var(--wk-space-1);
+  padding: var(--wk-space-1) var(--wk-space-1) var(--wk-space-1) var(--wk-space-3);
+  border: 1px dashed var(--wk-line-strong);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+}
+.ph-fwd-text { flex: 1; min-width: 0; max-height: 6.5em; padding-top: var(--wk-space-1); overflow: auto; font-size: var(--wk-text-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* Zwischen Nachrichten derselben Person etwas Luft (2026-10-21) — im Abschnitt eines Tages standen
    sie Kante an Kante; eine neue Folge (anderer Absender, später) bekommt etwas mehr. */

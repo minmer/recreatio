@@ -20,7 +20,9 @@
     "onTitle": "Dieses Gespräch kommt ins Archiv",
     "offTitle": "Dieses Gespräch wird nicht archiviert",
     "on": "im Archiv",
-    "off": "nicht im Archiv"
+    "off": "nicht im Archiv",
+    "add": "Zum Archiv hinzufügen",
+    "addTitle": "Dieses Gespräch wird nicht archiviert — mit einem Tipp hinzufügen"
   },
   "log": {
     "you": "Du",
@@ -68,5 +70,20 @@
     "year": "Höchstens in einem Jahr.",
     "exact": "Genauer Zeitpunkt",
     "plan": "Planen"
+  },
+  "fwd": {
+    "how": "Wie weiterleiten",
+    "remembered": "Weiterleiten — die Wahl wird gemerkt",
+    "one": "Als eine Nachricht",
+    "each": {
+      "one": "Jede als eigene SMS ({count})",
+      "other": "Jede als eigene SMS ({count})"
+    },
+    "oneTitle": "Als eine Nachricht weiterleiten",
+    "eachTitle": {
+      "one": "Als {count} eigene SMS weiterleiten",
+      "other": "Als {count} eigene SMS weiterleiten"
+    },
+    "noText": "Die ausgewählten Nachrichten haben keinen Text zum Weiterleiten"
   }
 }

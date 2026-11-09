@@ -20,7 +20,9 @@
     "onTitle": "Ta rozmowa trafia do archiwum",
     "offTitle": "Ta rozmowa nie jest archiwizowana",
     "on": "w archiwum",
-    "off": "poza archiwum"
+    "off": "poza archiwum",
+    "add": "Dodaj do archiwum",
+    "addTitle": "Ta rozmowa nie jest archiwizowana — dodaj ją jednym dotknięciem"
   },
   "log": {
     "you": "Ty",
@@ -68,5 +70,24 @@
     "year": "Najdalej za rok.",
     "exact": "Dokładny termin",
     "plan": "Zaplanuj"
+  },
+  "fwd": {
+    "how": "Jak przekazać",
+    "remembered": "Przekaż — wybór zostaje zapamiętany",
+    "one": "Jako jedna wiadomość",
+    "each": {
+      "one": "Każda jako osobny SMS ({count})",
+      "few": "Każda jako osobny SMS ({count})",
+      "many": "Każda jako osobny SMS ({count})",
+      "other": "Każda jako osobny SMS ({count})"
+    },
+    "oneTitle": "Przekaż jako jedną wiadomość",
+    "eachTitle": {
+      "one": "Przekaż jako {count} osobny SMS",
+      "few": "Przekaż jako {count} osobne SMS-y",
+      "many": "Przekaż jako {count} osobnych SMS-ów",
+      "other": "Przekaż jako {count} osobnego SMS-a"
+    },
+    "noText": "Zaznaczone wiadomości nie mają tekstu do przekazania"
   }
 }

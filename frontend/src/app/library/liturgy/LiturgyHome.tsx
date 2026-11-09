@@ -6,8 +6,10 @@ import { viewPath } from '../../routes';
 import { Loading } from '../../ui/Loading';
 import { type OpenLibrary } from '../library';
 import { useLibraryStore, type Entry, type LibraryStore } from '../libraryStore';
-import { DEFAULT_CONTEXT, HOURS, KIND, type CalendarContext, type Hour, type LitEntity, type TextBlock } from './schema';
-import { dependencies, entitiesOf, indexOf, resolveText, allUsageOf } from './resources';
+import { DEFAULT_CONTEXT, HOURS, KIND, type CalendarContext, type Hour, type LitEntity, type OfType, type TextResource, type Unit } from './schema';
+import { dependencies, entitiesOf, indexOf, passageSource, resolveText, allUsageOf } from './resources';
+import { layoutOf, modeOf, paragraphs, resourceLines, sliceOf, unitLines, type Line } from './text';
+import { LinesView, PlainView, ViewSwitch, type View } from './LiturgyText';
 import { effectiveEntities } from './defaults';
 import { calendarRange, isDate, PRECEDENCE, resolveLiturgicalDay, todayIn } from './calendar';
 import { composeAllHours, composeOffice, type Composition } from './compose';
@@ -60,8 +62,47 @@ function ResourceList({ own, entities, library }: { own: LitEntity[]; entities: 
     {own.length > 0 && <div className="wk-actions"><button className="wk-btn wk-btn-quiet" onClick={() => download('liturgy-offline.html', offlineDocument(library.name, own), 'text/html')}>{t('liturgy.offline')}</button><a className="wk-btn wk-btn-quiet" href={viewPath('library', library.libraryId, 'import')}>{t('liturgy.tabs.import')}</a></div>}
   </>;
 }
-export function TextBlocks({ blocks }: { blocks: readonly TextBlock[] }) {
-  return <>{blocks.map((b, i) => <p key={i} className={`lit-block is-${b.type}${b.emphasis ? ` is-${b.emphasis}` : ''}`}>{b.verse !== undefined && <sup>{b.verse} </sup>}{b.speaker && <strong>{b.speaker} </strong>}{b.text}</p>)}</>;
+/** 2026-11-09 — ein Text in beiden Ansichten: fortlaufend (das Brzmienie) oder liturgisch (seine Teilung, gewählte bezeugte Teilung, ein Podział). */
+export function ResourceText({ resource, entities, units, initialView = 'liturgical' }: { resource: TextResource; entities: readonly LitEntity[]; units?: readonly Unit[]; initialView?: View }) {
+  const t = useT();
+  const [view, setView] = useState<View>(initialView);
+  const [layout, setLayout] = useState('');
+  const [division, setDivision] = useState('');
+  const index = useMemo(() => indexOf(entities), [entities]);
+  const look = (id: string) => { const e = index.get(id); return e?.entity_type === 'text_resource' ? e : undefined; };
+  /* Die Podziały dieses Texts: Fragmente desselben Werks und derselben Ausgabe, nach ihrem Namen gruppiert, in ihrer Reihenfolge. */
+  const divisions = useMemo(() => {
+    const groups = new Map<string, OfType<'passage_definition'>[]>();
+    for (const e of entities) if (e.entity_type === 'passage_definition' && passageSource(e, index)?.id === resource.id) groups.set(e.division ?? e.id, [...(groups.get(e.division ?? e.id) ?? []), e]);
+    return [...groups.entries()].map(([key, parts]) => [key, parts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id.localeCompare(b.id))] as const);
+  }, [entities, index, resource.id]);
+  const mode = modeOf(resource.resource_type);
+  const chosen = divisions.find(([key]) => key === division)?.[1];
+  const sections: { label?: string; lines: Line[]; plain: string[] }[] = units !== undefined
+    ? [{ lines: unitLines(resource.text, units, mode, { notes: resource.notes }), plain: [units.map((u) => sliceOf(resource.text, u)).join(' ')] }]
+    : chosen !== undefined
+      ? chosen.map((p) => { const r = resolveText(p.id, index); const us = r?.units ?? []; return { label: p.part ?? p.title, lines: unitLines(resource.text, us, mode, { notes: [{ type: 'part' as const, text: p.part ?? p.title, at: 'start' }] }), plain: [us.map((u) => sliceOf(resource.text, u)).join(' ')] }; })
+      : [{ lines: resourceLines(resource, { ...(layout === '' ? {} : { layout }), look }), plain: paragraphs(resource.text) }];
+  const incipit = resource.incipit === undefined ? undefined : 'text' in resource.incipit ? resource.incipit.text : (() => { const u = layoutOf(resource).find((x) => x.id === (resource.incipit as { unit: string }).unit); return u === undefined ? undefined : sliceOf(resource.text, u); })();
+  return <section className="lit-text" data-lit-resource={resource.id}>
+    <div className="lit-controls">
+      <ViewSwitch view={view} onChange={setView} />
+      {units === undefined && (resource.layouts?.length ?? 0) > 0 && view === 'liturgical' && <label className="wk-field"><span>{t('liturgy.view.layout')}</span><select value={layout} onChange={(e) => setLayout(e.target.value)}><option value="">{t('liturgy.view.mainLayout')}</option>{resource.layouts!.map((l) => <option key={l.id} value={l.id}>{l.title ?? l.id}{l.source ? ` · ${l.source}` : ''}</option>)}</select></label>}
+      {units === undefined && divisions.length > 0 && <label className="wk-field"><span>{t('liturgy.view.division')}</span><select value={division} onChange={(e) => setDivision(e.target.value)}><option value="">{t('liturgy.view.whole')}</option>{divisions.map(([key, parts]) => <option key={key} value={key}>{t('liturgy.view.divisionParts', { name: key, count: parts.length })}</option>)}</select></label>}
+    </div>
+    {(resource.origin || resource.reference || resource.biblical_reference || incipit || resource.intro_formula) && <dl className="lit-facts">
+      {resource.origin && <div><dt>{t('liturgy.view.origin')}</dt><dd>{resource.origin}</dd></div>}
+      {(resource.reference || resource.biblical_reference) && <div><dt>{t('liturgy.view.reference')}</dt><dd>{resource.reference ?? resource.biblical_reference}</dd></div>}
+      {incipit && <div><dt>{t('liturgy.view.incipit')}</dt><dd>{incipit}</dd></div>}
+      {resource.intro_formula && <div><dt>{t('liturgy.view.introFormula')}</dt><dd>{resource.intro_formula}</dd></div>}
+    </dl>}
+    <article className="lit-reading">
+      {sections.map((s, i) => <div key={i}>{view === 'plain' ? <PlainView paragraphs={s.plain} /> : <LinesView lines={s.lines} />}</div>)}
+    </article>
+    {(resource.variants?.length ?? 0) > 0 && <details><summary>{t('liturgy.view.variants', { count: resource.variants!.length })}</summary><ul>{resource.variants!.map((v) => <li key={v.id}><strong>{v.id}</strong>{v.replaces ? ` (${v.replaces})` : ''}: {v.text}{v.when?.hours ? ` · ${v.when.hours.map((h) => t(`liturgy.hours.${h}`)).join(', ')}` : ''}{v.source ? ` · ${v.source}` : ''}</li>)}</ul></details>}
+    {(resource.missing?.length ?? 0) > 0 && <div className="wk-note" data-lit-missing={resource.missing!.join(' ')}><strong>{t('liturgy.view.missing')}</strong><ul>{resource.missing!.map((m) => <li key={m}>{t(`liturgy.missing.${m}`)}</li>)}</ul></div>}
+    {(resource.aliases?.length ?? 0) > 0 && <p className="lit-meta">{t('liturgy.view.aliases', { list: resource.aliases!.join(', ') })}</p>}
+  </section>;
 }
 function ResourceDetail({ entity, entities, store, library, revision }: { entity: LitEntity; entities: LitEntity[]; store: LibraryStore; library: OpenLibrary; revision: number }) {
   const t = useT(), [versions, setVersions] = useState<readonly VersionRow[] | null>(null), [failed, setFailed] = useState(''), [note, setNote] = useState(''), [busy, setBusy] = useState(false);
@@ -87,7 +128,8 @@ function ResourceDetail({ entity, entities, store, library, revision }: { entity
     <p className="lit-meta">{t(`liturgy.types.${entity.entity_type}`)} · <code>{entity.id}</code> · {t('liturgy.revision', { revision: entity.revision })} · {t(`liturgy.status.${entity.status}`)}</p>
     {edition?.entity_type === 'text_edition' && <p className="wk-note">{link(edition.id)} · {edition.language} · {edition.license} · {edition.copyright_holder}</p>}
     {entity.entity_type === 'canonical_work' && entity.numbering_systems && <dl className="lit-facts">{Object.entries(entity.numbering_systems).map(([system, number]) => <div key={system}><dt>{system}</dt><dd>{Array.isArray(number) ? number.join(', ') : number}</dd></div>)}</dl>}
-    {resolved && <article className="lit-reading"><TextBlocks blocks={resolved.blocks} /></article>}
+    {entity.entity_type === 'text_resource' && <ResourceText key={entity.id} resource={entity} entities={entities} />}
+    {entity.entity_type === 'passage_definition' && resolved && <ResourceText key={entity.id} resource={resolved.resource} entities={entities} units={resolved.units} />}
     {entity.entity_type === 'passage_definition' && <p>{t('liturgy.passageHint')} {link(resolved?.resource.id ?? entity.resource_id ?? entity.work_id)}</p>}
     {entity.source_reference && <p className="lit-meta">{entity.source_reference}</p>}
     {'library_entry_id' in entity && entity.library_entry_id && <p><a href={store.get(entity.library_entry_id) ? viewPath('library', (store.get(entity.library_entry_id) as Entry).libraryId, entity.library_entry_id) : viewPath('library')}>{t('liturgy.librarySource')}</a></p>}
@@ -113,7 +155,7 @@ export function CalendarReader({ entities, libraryId }: { entities: readonly Lit
   const t = useT();
   const [date, setDate] = useState(() => todayIn(DEFAULT_CONTEXT.time_zone)), [until, setUntil] = useState(date), [hour, setHour] = useState<Hour | 'all'>('lauds');
   const [profile, setProfile] = useState(''), [optional, setOptional] = useState(''), [psalmody, setPsalmody] = useState<'current' | 'complementary'>('current');
-  const [paper, setPaper] = useState<'A4' | 'A5'>('A4'), [details, setDetails] = useState(false), [error, setError] = useState('');
+  const [paper, setPaper] = useState<'A4' | 'A5'>('A4'), [details, setDetails] = useState(false), [error, setError] = useState(''), [view, setView] = useState<View>('liturgical');
   const profiles = entities.filter(e => e.entity_type === 'calendar_profile');
   const chosen = profiles.find(e => e.id === profile);
   const context: CalendarContext = { ...(chosen?.entity_type === 'calendar_profile' ? chosen : DEFAULT_CONTEXT), ...(optional ? { optional_observance: optional } : {}) };
@@ -137,6 +179,7 @@ export function CalendarReader({ entities, libraryId }: { entities: readonly Lit
       </dl></div>
       {(day.optional.length > 0 || day.commemorations.length > 0) && <label className="wk-field"><span>{t('liturgy.optional')}</span><select value={optional} onChange={e => setOptional(e.target.value)}><option value="">{t('liturgy.ofDay')}</option>{[...day.optional, ...day.commemorations].map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label>}
       {(['terce', 'sext', 'none'] as string[]).includes(hour) && <label className="wk-field"><span>{t('liturgy.psalmody')}</span><select value={psalmody} onChange={e => setPsalmody(e.target.value as 'current' | 'complementary')}><option value="current">{t('liturgy.currentPsalms')}</option><option value="complementary">{t('liturgy.complementaryPsalms')}</option></select></label>}
+      <ViewSwitch view={view} onChange={setView} />
       <label className="lit-check"><input type="checkbox" checked={details} onChange={e => setDetails(e.target.checked)} />{t('liturgy.diagnostics')}</label>
       {day.diagnostics.length > 0 && <p className="wk-note">{t('liturgy.calendarPartial')}</p>}
       {details && <div className="lit-preview"><h3>{t('liturgy.decisions')}</h3><ul>{day.candidates.map(c => <li key={c.id}>{c.title} · {c.precedence} · {c.scope}{c.from ? ` ← ${c.from}` : ''}{c.rule ? ` · ${c.rule}` : ''}</li>)}</ul>{day.transferred.length > 0 && <p>{t('liturgy.transferred')}: {day.transferred.map(c => c.title).join('; ')}</p>}{day.omitted.length > 0 && <p>{t('liturgy.omitted')}: {day.omitted.map(c => c.title).join('; ')}</p>}<details><summary>{t('liturgy.precedenceTable')}</summary><ol>{PRECEDENCE.map(p => <li key={p.level}>{t(p.label)}</li>)}</ol></details></div>}
@@ -153,11 +196,12 @@ export function CalendarReader({ entities, libraryId }: { entities: readonly Lit
         <button className="wk-btn wk-btn-quiet" onClick={() => download(`${date}-${hour}.json`, JSON.stringify(compositions, null, 2))}>{t('liturgy.exportResolved')}</button>
       </div>
       {error && <p className="wk-error">{error}</p>}
-      {compositions.map(c => <CompositionView key={c.hour} composition={c} libraryId={libraryId} details={details} />)}
+      {compositions.map(c => <CompositionView key={c.hour} composition={c} libraryId={libraryId} details={details} view={view} />)}
     </>}
   </>;
 }
-function CompositionView({ composition: c, libraryId, details }: { composition: Composition; libraryId: string; details: boolean }) {
+/** Eine zusammengesetzte Hore: jeder Platz mit seinen Teilen (Antiphon, Text, Doxologie, Antiphon) in der gewählten Ansicht. */
+export function CompositionView({ composition: c, libraryId, details, view }: { composition: Composition; libraryId: string; details: boolean; view: View }) {
   const t = useT();
   return <article className="lit-office"><h2>{t(`liturgy.hours.${c.hour}`)}{c.vespers ? ` · ${t(`liturgy.${c.vespers}Vespers`)}` : ''}</h2>
     {c.day.date !== c.requestedDate && <p>{c.day.date} · {c.day.selected.title}</p>}
@@ -165,9 +209,12 @@ function CompositionView({ composition: c, libraryId, details }: { composition: 
     {c.slots.map(s => s.status === 'omitted' && !details || !s.required && s.status === 'missing' && !details ? null : <section key={s.name} className={`lit-slot is-${s.status}`}>
       <h3>{t(`liturgy.slots.${s.label.replace(/\./g, '_')}`) === `liturgy.slots.${s.label.replace(/\./g, '_')}` ? s.label : t(`liturgy.slots.${s.label.replace(/\./g, '_')}`)}</h3>
       {s.status !== 'ready' && <p className="lit-status">{t(`liturgy.status.${s.status}`)}</p>}
-      {s.antiphon && <div className="lit-antiphon"><TextBlocks blocks={s.antiphon.blocks} /></div>}<TextBlocks blocks={s.blocks} />{s.antiphon && <div className="lit-antiphon"><TextBlocks blocks={s.antiphon.blocks} /></div>}
+      {s.parts.map((p, i) => <div key={i} className={`lit-part is-${p.kind}`} data-lit-part={p.kind}>
+        {view === 'liturgical' && (p.kind === 'antiphon' || p.kind === 'antiphon_repeat') && <span className="lit-ant-label">{t('liturgy.view.ant')} </span>}
+        {view === 'plain' ? <PlainView paragraphs={p.plain} /> : <LinesView lines={p.lines} />}
+      </div>)}
       {s.resourceId && <a className="lit-meta" href={viewPath('library', libraryId, 'resource', s.resourceId)}>{s.resourceId}</a>}
-      {details && <details><summary>{t('liturgy.why')}</summary><dl className="lit-facts"><div><dt>{t('liturgy.reason')}</dt><dd>{t(`liturgy.reasons.${s.reason}`)}</dd></div>{s.sourceLayer && <div><dt>{t('liturgy.layer')}</dt><dd>{t(`liturgy.layers.${s.sourceLayer}`)}</dd></div>}</dl><p className="lit-meta">{[s.assignmentId, s.ruleId, s.celebrationId, s.editionId, s.authority].filter(Boolean).join(' · ')}</p>{s.fallback && <p>{t('liturgy.fallback')}: {s.fallback}</p>}{s.rejected.length > 0 && <p>{s.rejected.join(', ')}</p>}</details>}
+      {details && <details><summary>{t('liturgy.why')}</summary><dl className="lit-facts"><div><dt>{t('liturgy.reason')}</dt><dd>{t(`liturgy.reasons.${s.reason}`)}</dd></div>{s.sourceLayer && <div><dt>{t('liturgy.layer')}</dt><dd>{t(`liturgy.layers.${s.sourceLayer}`)}</dd></div>}</dl><p className="lit-meta">{[s.assignmentId, s.ruleId, s.celebrationId, s.editionId, s.authority].filter(Boolean).join(' · ')}</p>{s.doxology && <p>{t(`liturgy.view.doxology.${s.doxology}`)}</p>}{s.variantId && <p>{t('liturgy.view.variantUsed', { id: s.variantId })}</p>}{s.fallback && <p>{t('liturgy.fallback')}: {s.fallback}</p>}{s.rejected.length > 0 && <p>{s.rejected.join(', ')}</p>}</details>}
     </section>)}
     {details && c.diagnostics.length > 0 && <ul>{c.diagnostics.map((d, i) => <li key={i}>{t(`liturgy.diagnostic.${d.split(':')[0]}`)}{d.includes(':') ? ` · ${d.slice(d.indexOf(':') + 1)}` : ''}</li>)}</ul>}
   </article>;

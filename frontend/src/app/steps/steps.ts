@@ -21,7 +21,7 @@
  * er davon nichts.
  */
 
-import { declinedAll, phaseOf, progressOf as taskProgressOf, type TaskPhase } from './candidateTasks';
+import { declinedAll, phaseOf, progressOf as taskProgressOf, type PeriodProgress, type TaskPhase } from './candidateTasks';
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
 import type { StepMark } from '../forms/submissions';
 import { openFormNames, type FormNameIn } from '../core/names';
@@ -80,9 +80,11 @@ export const unreadIn = (
 /**
  * 0098 — wann eine Aufgabe gilt: einmal in beliebigem Tag, jeden Tag, an
  * Wochentagen; 0099 — an den TERMINEN eines Kalendereintrags (`item`): eine
- * Reihe von Treffen, ein Fest, das Nabożeństwo der Pfarrei.
+ * Reihe von Treffen, ein Fest, das Nabożeństwo der Pfarrei. 0141 — in JEDER
+ * Woche (`week`) oder jedem Monat (`month`) des Zeitraums, an einem beliebigen
+ * Tag darin (`needed`: wie oft je Woche / Monat).
  */
-export type TaskSchedule = 'any' | 'daily' | 'weekly' | 'item';
+export type TaskSchedule = 'any' | 'daily' | 'weekly' | 'week' | 'month' | 'item';
 
 /** 0099 — ein Termin der Aufgabe, wie der Dienst ihn aus dem Kalender rechnet. */
 export interface TaskDate {
@@ -560,6 +562,8 @@ export interface StepState {
     /** `null`: keine Zahl — erledigt ist sie mit einer Antwort (`respondedTo`). */
     readonly needed: number | null;
     readonly fulfilled: boolean;
+    /** 0141 — „raz w tygodniu / w miesiącu": wie viele Wochen (Monate) geschafft, vorbei, verpasst; sonst `null`. */
+    readonly units: PeriodProgress | null;
     /** 0099 — die Funktionen in den Terminen (geöffnet), und wer die Teilnahme einträgt. */
     readonly duties: readonly TaskDuty[];
     readonly doneBy: DoneBy;
@@ -647,8 +651,9 @@ export function stepsFor(input: {
       const phase = phaseOf(plan, today);
       if (input.forPerson === true && phase === 'hidden') continue;
       const said = input.tasks?.find((x) => x.stepId === one.stepId);
-      const progress = taskProgressOf(plan, said);
-      const ended = phase === 'reporting' || phase === 'over';
+      const progress = taskProgressOf(plan, said, today);
+      /* 0141 — je Woche / Monat: eine VERPASSTE (vorbei, ohne genug Tage) ist schon im Zeitraum überfällig. */
+      const ended = phase === 'reporting' || phase === 'over' || (progress.units?.missed ?? 0) > 0;
       const last = said?.days.length ? said.days[said.days.length - 1] : null;
       /* 0099 — wer zu jedem Termin abgesagt hat (oder entschuldigt fehlte), ist nicht überfällig. */
       const declined = declinedAll(plan, said);

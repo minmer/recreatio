@@ -52,7 +52,8 @@ import {
 import { DropVeil, usePageDrop } from './fileDrop';
 import { daysLabel, shareFile } from './share';
 import { SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
-import { PlanDialog, PlannedRow, SmsHeader, SmsLog, useRoomFrame, type SmsItem } from './smsChat';
+import { ForwardButton, PlanDialog, PlannedRow, SmsHeader, SmsLog, useRoomFrame, type SmsItem } from './smsChat';
+import { draftOf, keepDraft } from './smsDrafts';
 import { aheadWhen, around, barStyle, conversationMatches, isMode, SEARCH, timeOf, type SearchMode } from './smsShared';
 import './phone.css';
 
@@ -722,7 +723,8 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
       <SmsHeader back={back} title={title} seed={conversation.key || '?'} group={group} sub={sub} menu={[]} search={search} onSearch={setSearch} />
       <SmsLog items={messages === null ? null : items} failed={failed} title={title} group={group} search={search} follow={follow}
         more={more} onEarlier={earlier} tail={tail} empty={t('phoneArchive.conv.empty')}
-        place={`archive:${ctx.areaId}:${conversation.key}`} firstNew={null} />
+        place={`archive:${ctx.areaId}:${conversation.key}`} firstNew={null}
+        pickActions={native ? (chosen, done) => <ForwardButton chosen={chosen} done={done} /> : undefined} />
       {!native && (
         <ReplyBox who={who} ctx={ctx} conversation={conversation} line={line} mayWrite={mayWrite} dropped={dropped}
           onQueued={() => { setFollow((n) => n + 1); reloadOutbox(); }} onWrite={() => setFollow((n) => n + 1)} />
@@ -773,7 +775,10 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, o
   onWrite: () => void;
 }) {
   const t = useT();
-  const [text, setText] = useState('');
+  /* 2026-11-09 — der Entwurf bleibt, solange die Seite offen ist (der Name trägt Nummern: nicht im Gerät). */
+  const draft = `archive:${ctx.areaId}:${conversation.key}`;
+  const [text, setText] = useState(() => draftOf(draft)?.text ?? '');
+  useEffect(() => { keepDraft(draft, text); }, [draft, text]);
   const [busy, setBusy] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [sendMenu, setSendMenu] = useState<{ rect: DOMRect; from: Element } | null>(null);

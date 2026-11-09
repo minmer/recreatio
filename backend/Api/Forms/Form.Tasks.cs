@@ -55,7 +55,11 @@ public static partial class Form
     /// <summary>Wochentag als Bit: Mo 1, Di 2, Mi 4, Do 8, Fr 16, Sa 32, So 64.</summary>
     public static int WeekdayBit(DateOnly day) => 1 << (((int)day.DayOfWeek + 6) % 7);
 
-    /// <summary>Gilt dieser Tag für den Plan — im Zeitraum, (wöchentlich) an einem der Wochentage, (0099) an einem der Termine?</summary>
+    /// <summary>
+    /// Gilt dieser Tag für den Plan — im Zeitraum, (wöchentlich) an einem der Wochentage, (0099) an einem der Termine?
+    /// <c>week</c> / <c>month</c> (2026-11-09, „raz w tygodniu", „raz w miesiącu"): jeder Tag des Zeitraums — ob jede
+    /// Woche (jeder Monat) genug getane Tage hat, rechnet der Browser.
+    /// </summary>
     public static bool TaskDay(TaskPlan plan, DateOnly day) =>
         day >= plan.StartsOn && day <= plan.EndsOn
         && (plan.Schedule != "weekly" || ((plan.Weekdays ?? 0) & WeekdayBit(day)) != 0)
@@ -79,12 +83,15 @@ public static partial class Form
         if (ends.Value.DayNumber - starts.Value.DayNumber + 1 > MaxTaskDays) return (null, "Okres zadania: najwyżej rok.");
 
         var kind = (schedule ?? "any").Trim().ToLowerInvariant();
-        if (kind is not ("any" or "daily" or "weekly" or "item"))
-            return (null, "Kiedy: any (w dowolnym dniu), daily (codziennie), weekly (w wybrane dni tygodnia) albo item (terminy z kalendarza).");
+        if (kind is not ("any" or "daily" or "weekly" or "week" or "month" or "item"))
+            return (null, "Kiedy: any (w dowolnym dniu), daily (codziennie), weekly (w wybrane dni tygodnia), week (raz w tygodniu), month (raz w miesiącu) albo item (terminy z kalendarza).");
         if (kind == "weekly" && weekdays is not (>= 1 and <= 127)) return (null, "Wybierz dni tygodnia.");
         if (atMinute is not null and (< 0 or > 1439)) return (null, "Nieczytelna godzina.");
         if (minutes is not null and (< 1 or > 1440)) return (null, "Czas trwania: od 1 minuty do doby.");
         if (needed is not null and (< 1 or > 400)) return (null, "Ile razy: od 1.");
+        /* 2026-11-09 — `week` / `month`: `needed` zählt JE Woche / Monat (fehlt: einmal). */
+        if (kind == "week" && needed is > 7) return (null, "W tygodniu najwyżej 7 razy.");
+        if (kind == "month" && needed is > 31) return (null, "W miesiącu najwyżej 31 razy.");
 
         Guid? item = null;
         if (kind == "item")
@@ -109,7 +116,7 @@ public static partial class Form
             var count = 0;
             for (var d = plan.StartsOn; d <= plan.EndsOn; d = d.AddDays(1)) if (TaskDay(plan, d)) count++;
             if (count == 0) return (null, "W tym okresie nie wypada żaden z wybranych dni.");
-            if (plan.Needed is { } n && plan.Schedule != "any" && n > count) return (null, $"W tym okresie jest tylko {count} takich dni.");
+            if (plan.Needed is { } n && plan.Schedule is "daily" or "weekly" && n > count) return (null, $"W tym okresie jest tylko {count} takich dni.");
         }
 
         return (plan, null);

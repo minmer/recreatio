@@ -46,7 +46,11 @@
     "photos": "Fotos und Videos",
     "fileAsLink": "Datei — als Link senden",
     "sending": "Senden",
-    "planNote": "Das Telefon sendet sie zu dieser Zeit selbst — auch ohne Internet."
+    "planNote": "Das Telefon sendet sie zu dieser Zeit selbst — auch ohne Internet.",
+    "queued": {
+      "one": "{count} weitergeleitete Nachricht — einzeln",
+      "other": "{count} weitergeleitete Nachrichten — jede einzeln"
+    }
   },
   "title": "SMS",
   "needsAccount": "Dieser Teil braucht ein Konto — melde dich an, wenn eine Verbindung besteht.",
@@ -83,7 +87,8 @@
     "searching": "Suche…",
     "noHits": "Keine Nachricht enthält das.",
     "hits": "Gefundene Nachrichten",
-    "empty": "Noch keine Nachrichten."
+    "empty": "Noch keine Nachrichten.",
+    "draft": "Entwurf:"
   },
   "check": {
     "notDefault": "Diese App ist nicht die SMS-App des Telefons — neue Nachrichten gehen in eine andere.",
@@ -131,7 +136,8 @@
     "dropUnsent": "Nicht gesendete in diesem Gespräch löschen ({count})…",
     "block": "Blockieren (Spam)…",
     "remove": "Gespräch vom Telefon löschen…",
-    "forward": "Weiterleiten"
+    "forward": "Weiterleiten",
+    "archiveStarted": "SMS-Archiv eingeschaltet — vorerst mit diesem einen Gespräch (ganz, auch ältere Nachrichten). Weitere fügst du genauso oder unter Archiv hinzu."
   },
   "planned": {
     "failed": "Nicht gesendet",
@@ -165,6 +171,12 @@
     "sentMany": {
       "one": "An {count} Person gesendet.",
       "other": "An {count} Personen gesendet."
-    }
+    },
+    "forwardList": "Weitergeleitete Nachrichten",
+    "forwardHead": {
+      "one": "Weitergeleitete Nachricht — sie geht als eigene SMS, nach dem Text im Feld:",
+      "other": "{count} weitergeleitete Nachrichten — jede geht als eigene SMS, in dieser Reihenfolge, nach dem Text im Feld:"
+    },
+    "forwardDrop": "Nachricht {n} nicht weiterleiten"
   }
 }

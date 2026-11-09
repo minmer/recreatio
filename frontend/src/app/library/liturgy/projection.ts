@@ -4,14 +4,16 @@
  */
 import type { LibEntry } from '../libraryKinds';
 import { KIND } from './names';
-import { entitiesOf, indexOf, resolveText } from './resources';
+import { entitiesOf, indexOf, resolvedWording, resolveText } from './resources';
 
+/** Für Leser das Brzmienie (ein Fragment: die Verse seiner Bereiche) — 1.0-Blöcke werden dabei nicht gezeigt, sondern umgelesen. */
 export function projectLiturgyEntries(entries: readonly LibEntry[]): LibEntry[] {
   const index = indexOf(entitiesOf(entries));
   const kinds: readonly string[] = Object.values(KIND);
   return entries.map(e => {
     if (!kinds.includes(e.kind)) return e;
     const resolved = resolveText(String(e.data.id), index);
-    return { ...e, data: { ...e.data, references: e.data._refs ?? [], ...(resolved ? { text: resolved.blocks.map(b => `${b.verse === undefined ? '' : `${b.verse}. `}${b.text}`).join('\n') } : {}) } };
+    const { structured_content: _old, layout: _layout, layouts: _layouts, ...data } = e.data;
+    return { ...e, data: { ...data, references: e.data._refs ?? [], ...(resolved ? { text: resolvedWording(resolved) } : {}) } };
   });
 }

@@ -46,7 +46,11 @@
     "photos": "Photos and videos",
     "fileAsLink": "File — I'll send it as a link",
     "sending": "Sending",
-    "planNote": "The phone will send it at that time by itself — even without internet."
+    "planNote": "The phone will send it at that time by itself — even without internet.",
+    "queued": {
+      "one": "{count} forwarded message — separately",
+      "other": "{count} forwarded messages — each separately"
+    }
   },
   "title": "SMS",
   "needsAccount": "This part needs an account — sign in when you have a connection.",
@@ -83,7 +87,8 @@
     "searching": "Searching…",
     "noHits": "No message contains this.",
     "hits": "Messages found",
-    "empty": "No messages yet."
+    "empty": "No messages yet.",
+    "draft": "Draft:"
   },
   "check": {
     "notDefault": "This app is not the phone's SMS app — new messages go to another one.",
@@ -131,7 +136,8 @@
     "dropUnsent": "Delete unsent in this conversation ({count})…",
     "block": "Block (spam)…",
     "remove": "Delete the conversation from the phone…",
-    "forward": "Forward"
+    "forward": "Forward",
+    "archiveStarted": "SMS archive turned on — for now with this one conversation (all of it, including older messages). Add others the same way or in Archive."
   },
   "planned": {
     "failed": "Not sent",
@@ -165,6 +171,12 @@
     "sentMany": {
       "one": "Sent to {count} person.",
       "other": "Sent to {count} people."
-    }
+    },
+    "forwardList": "Forwarded messages",
+    "forwardHead": {
+      "one": "Forwarded message — it goes as a separate SMS, after the text in the field:",
+      "other": "{count} forwarded messages — each goes as a separate SMS, in this order, after the text in the field:"
+    },
+    "forwardDrop": "Do not forward message {n}"
   }
 }

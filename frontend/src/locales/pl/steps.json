@@ -57,7 +57,19 @@
     "noDatesChanged": "brak terminów w tym okresie (termin zmieniony albo usunięty z kalendarza)",
     "daily": "codziennie",
     "any": "w dowolnym dniu",
-    "onDays": "w {days}"
+    "onDays": "w {days}",
+    "perWeek": {
+      "one": "raz w tygodniu",
+      "few": "{count} razy w tygodniu",
+      "many": "{count} razy w tygodniu",
+      "other": "{count} razy w tygodniu"
+    },
+    "perMonth": {
+      "one": "raz w miesiącu",
+      "few": "{count} razy w miesiącu",
+      "many": "{count} razy w miesiącu",
+      "other": "{count} razy w miesiącu"
+    }
   },
   "presence": {
     "yes": "będę",
@@ -209,7 +221,27 @@
     "answerOf": "{day}: odpowiedź",
     "duty": "Funkcja",
     "dutyLabel": "Funkcja:",
-    "attendanceOf": "{day}: obecność"
+    "attendanceOf": "{day}: obecność",
+    "missedWeeks": {
+      "one": "zaległy tydzień",
+      "few": "zaległe tygodnie: {count}",
+      "many": "zaległe tygodnie: {count}",
+      "other": "zaległe tygodnie: {count}"
+    },
+    "missedMonths": {
+      "one": "zaległy miesiąc",
+      "few": "zaległe miesiące: {count}",
+      "many": "zaległe miesiące: {count}",
+      "other": "zaległe miesiące: {count}"
+    },
+    "weekNot": "w tym tygodniu jeszcze nie",
+    "monthNot": "w tym miesiącu jeszcze nie",
+    "weekDone": "W tym tygodniu: zrobione.",
+    "monthDone": "W tym miesiącu: zrobione.",
+    "weekNow": "W tym tygodniu: {done} z {need}.",
+    "monthNow": "W tym miesiącu: {done} z {need}.",
+    "weeksOf": "Zaliczone tygodnie: {done} z {total}.",
+    "monthsOf": "Zaliczone miesiące: {done} z {total}."
   },
   "problem": {
     "period": "podaj okres",
@@ -218,7 +250,9 @@
     "showFrom": "„widoczne od\" po początku",
     "reportUntil": "„zaznaczać do\" przed końcem",
     "item": "wybierz termin z kalendarza",
-    "capacity": "ile osób w funkcji: liczba od 1 do 500 albo puste"
+    "capacity": "ile osób w funkcji: liczba od 1 do 500 albo puste",
+    "perWeek": "w tygodniu najwyżej 7 razy",
+    "perMonth": "w miesiącu najwyżej 31 razy"
   },
   "editor": {
     "taskWrong": "Zadanie „{name}\": {problem}.",
@@ -300,6 +334,10 @@
     "previewItem": "Osoba zobaczy terminy z okresu {period}{ask}{duty}.",
     "previewAsk": " i odpowie przed każdym: będę / jeszcze nie wiem / nie będę",
     "previewDuty": ", potem wybierze funkcję",
-    "preview": "Osoba zobaczy: {plan}"
+    "preview": "Osoba zobaczy: {plan}",
+    "perWeek": "raz w tygodniu (w dowolnym dniu każdego tygodnia)",
+    "perMonth": "raz w miesiącu (w dowolnym dniu każdego miesiąca)",
+    "timesPerWeek": "ile razy w tygodniu",
+    "timesPerMonth": "ile razy w miesiącu"
   }
 }

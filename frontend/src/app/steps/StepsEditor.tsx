@@ -11,7 +11,7 @@ import { newId } from '../core/ids';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
 import { rich, useT } from '../core/i18n';
-import { WEEKDAYS, isoDay, periodText, planText } from './candidateTasks';
+import { WEEKDAYS, isoDay, perPeriod, periodText, planText } from './candidateTasks';
 import { type DoneBy, type DutyDraft, type ExtensionInfo, type OpenStep, type StepDraft, type TaskDraft, type TaskSchedule, saveSteps, taskIn } from './steps';
 
 const PickLearn = lazy(() => import('../cogita/LearnStep').then((m) => ({ default: m.PickLearn })));
@@ -64,6 +64,9 @@ function taskProblem(task: TaskDraft): string | null {
   if (task.startsOn === '' || task.endsOn === '') return 'steps.problem.period';
   if (task.endsOn < task.startsOn) return 'steps.problem.endBeforeStart';
   if (task.schedule === 'weekly' && task.weekdays === 0) return 'steps.problem.weekdays';
+  /* 0141 — wie oft je Woche / Monat: höchstens so oft, wie sie Tage hat. */
+  if (task.schedule === 'week' && Number(task.needed) > 7) return 'steps.problem.perWeek';
+  if (task.schedule === 'month' && Number(task.needed) > 31) return 'steps.problem.perMonth';
   if (task.showFrom !== '' && task.showFrom > task.startsOn) return 'steps.problem.showFrom';
   if (task.reportUntil !== '' && task.reportUntil < task.endsOn) return 'steps.problem.reportUntil';
   if (task.schedule === 'item' && (task.itemId ?? '') === '') return 'steps.problem.item';
@@ -379,6 +382,7 @@ function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
     return { ...p, schedule: tk.schedule, weekdays: p.weekdays } as const;
   })() : null;
   const item = tk.schedule === 'item';
+  const period = perPeriod(tk);
   const duties = tk.duties ?? [];
   const setDuty = (i: number, patch: Partial<DutyDraft>) => setTask({ duties: duties.map((d, at) => (at === i ? { ...d, ...patch } : d)) });
 
@@ -413,9 +417,15 @@ function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
         <label className="wk-inline"><span className="wk-hint">{t('steps.editor.toLower')}</span>
           <input type="date" value={tk.endsOn} data-task-ends="" onChange={(e) => setTask({ endsOn: e.target.value })} /></label>
         <label className="wk-inline"><span className="wk-hint">{t('steps.editor.when')}</span>
-          <select value={tk.schedule} data-task-schedule="" onChange={(e) => setTask({ schedule: e.target.value as TaskSchedule })}>
+          <select value={tk.schedule} data-task-schedule="" onChange={(e) => {
+            const schedule = e.target.value as TaskSchedule;
+            /* 0141 — je Woche / Monat heisst die Zahl etwas anderes („wie oft je Woche"): beim Wechsel neu. */
+            setTask(perPeriod({ schedule }) !== period ? { schedule, needed: '' } : { schedule });
+          }}>
             <option value="daily">{t('steps.schedule.daily')}</option>
             <option value="weekly">{t('steps.editor.weekly')}</option>
+            <option value="week">{t('steps.editor.perWeek')}</option>
+            <option value="month">{t('steps.editor.perMonth')}</option>
             <option value="any">{t('steps.editor.once')}</option>
             <option value="item">{t('steps.editor.fromCalendar')}</option>
           </select></label>
@@ -486,13 +496,20 @@ function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
           (przyjmuję / pomijam / odmawiam, oder zu jedem Termin będę / nie będę).
           Nur wer es verlangt, nennt eine Zahl: so oft da gewesen, so oft getan.
         */}
-        <label className="wk-inline"><span className="wk-hint">{t('steps.editor.doneWhen')}</span>
-          <select value={tk.needed.trim() === '' ? 'answer' : 'count'} data-task-done-when=""
-            onChange={(e) => setTask({ needed: e.target.value === 'count' ? (tk.needed.trim() === '' ? '1' : tk.needed) : '' })}>
-            <option value="answer">{tk.presence === true ? t('steps.editor.answerEachDate') : t('steps.editor.answerEachDay')}</option>
-            <option value="count">{item ? t('steps.editor.presentTimes') : t('steps.editor.doneTimes')}</option>
-          </select></label>
-        {tk.needed.trim() !== '' && (
+        {/* 0141 — je Woche / Monat: nur, wie oft darin (leer: einmal). */}
+        {period ? (
+          <label className="wk-inline"><span className="wk-hint">{t(tk.schedule === 'week' ? 'steps.editor.timesPerWeek' : 'steps.editor.timesPerMonth')}</span>
+            <input type="number" min={1} max={tk.schedule === 'week' ? 7 : 31} value={tk.needed} placeholder="1" style={{ width: '5em' }} data-task-needed=""
+              onChange={(e) => setTask({ needed: e.target.value })} /></label>
+        ) : (
+          <label className="wk-inline"><span className="wk-hint">{t('steps.editor.doneWhen')}</span>
+            <select value={tk.needed.trim() === '' ? 'answer' : 'count'} data-task-done-when=""
+              onChange={(e) => setTask({ needed: e.target.value === 'count' ? (tk.needed.trim() === '' ? '1' : tk.needed) : '' })}>
+              <option value="answer">{tk.presence === true ? t('steps.editor.answerEachDate') : t('steps.editor.answerEachDay')}</option>
+              <option value="count">{item ? t('steps.editor.presentTimes') : t('steps.editor.doneTimes')}</option>
+            </select></label>
+        )}
+        {!period && tk.needed.trim() !== '' && (
           <label className="wk-inline"><span className="wk-hint">{t('steps.editor.howMany')}</span>
             <input type="number" min={1} max={400} value={tk.needed} style={{ width: '5em' }} data-task-needed=""
               onChange={(e) => setTask({ needed: e.target.value })} /></label>

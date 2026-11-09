@@ -14,6 +14,10 @@
  * 2026-10-19 — WIE DAS FELD DES CHATS: ein rundes Feld mit 📎 (Foto, Film, Datei),
  * Senden als runder Knopf, daneben die Lasche für „Wyślij później". Von welcher Karte
  * gesendet wird, entscheidet der Kopf des Gesprächs (`sub`, `lines.ts`).
+ *
+ * 2026-11-09 — ENTWÜRFE (`draft`, `smsDrafts.ts`): was im Feld steht, bleibt beim Wechsel
+ * der Ansicht. PRZEKAŻ — KAŻDA OSOBNO (`queue`): weitergeleitete Nachrichten gehen nach
+ * dem Text des Feldes einzeln hinaus, jede als eigene SMS, in ihrer Reihenfolge.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -29,6 +33,7 @@ import { openPhone } from './phoneContext';
 import { daysLabel, shareFile } from './share';
 import { SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
 import { PlanDialog } from './smsChat';
+import { keepDraft, startText } from './smsDrafts';
 import { aheadWhen } from './smsShared';
 
 interface Attachment {
@@ -57,10 +62,12 @@ const base64Of = (file: File, failed: string): Promise<string> => new Promise((r
 /** So lang wird ein Link — zum Zählen der SMS. */
 const LINK_SAMPLE = shareLink('x'.repeat(22));
 
+const NO_QUEUE: readonly string[] = [];
+
 /** Der Text mit dem Link darunter. */
 export const withLinkText = (text: string, link: string): string => (text.trim() === '' ? link : `${text.trimEnd()}\n${link}`);
 
-export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial = '', separate = false, media = true, who, onWrite }: {
+export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial = '', separate = false, media = true, who, onWrite, draft, draftTo, queue = NO_QUEUE, onQueueSent }: {
   to: readonly string[];
   /** Die Karte, von der gesendet wird — der Kopf des Gesprächs wählt sie (`null`: die des Telefons). */
   sub: number | null;
@@ -78,9 +85,19 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
   who?: Who;
   /** Man beginnt zu schreiben (das Feld bekommt den Fokus) — das Gespräch geht ans Ende. */
   onWrite?: () => void;
+  /** Unter diesem Namen bleibt der Entwurf (`smsDrafts.ts`) — fehlt er, bleibt nichts. */
+  draft?: string;
+  /** Mit dem Entwurf gemerkt: an wen („Nowa wiadomość"). */
+  draftTo?: readonly string[];
+  /** Weitergeleitete Nachrichten, jede als eigene SMS — nach dem Text des Feldes. */
+  queue?: readonly string[];
+  /** Die erste aus `queue` ist hinaus (gesendet oder geplant). */
+  onQueueSent?: () => void;
 }) {
   const t = useT();
-  const [text, setText] = useState(initial);
+  const [text, setText] = useState(() => (draft === undefined ? initial : startText(draft, initial)));
+  /* Der Entwurf folgt dem Feld — gesendet ist das Feld leer, und er ist vergessen. */
+  useEffect(() => { if (draft !== undefined) keepDraft(draft, text, draftTo); }, [draft, text, draftTo]);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [busy, setBusy] = useState(false);
   const [planning, setPlanning] = useState(false);
@@ -111,7 +128,8 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
   const mms = (attachment !== null && !viaLink) || group;
   const count = smsParts(viaLink ? withLinkText(text, LINK_SAMPLE) : text);
   const mmsMax = sims.find((s) => s.subId === sub)?.mmsMax ?? sims[0]?.mmsMax ?? 300 * 1024;
-  const content = text.trim() !== '' || attachment !== null;
+  const own = text.trim() !== '' || attachment !== null;
+  const content = own || queue.length > 0;
 
   const attach = (file: File) => {
     if (file.size > SHARE_MAX) { toast(t('phoneSms.compose.tooBig')); return; }
@@ -151,13 +169,21 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
   const send = async () => {
     if (busy || disabled || to.length === 0 || !content) return;
     setBusy(true);
+    let threadId: string | null = null;
     try {
-      const body = viaLink && attachment !== null ? await linked(attachment) : text;
-      const file = !viaLink && attachment !== null ? { type: attachment.type, data: await base64Of(attachment.file, t('phoneSms.compose.readFailed')), name: attachment.name } : null;
-      const { threadId } = await Phone.send({ to, body, subId: sub, group, attachment: file });
-      setText('');
-      drop();
-      onSent(threadId);
+      if (own) {
+        const body = viaLink && attachment !== null ? await linked(attachment) : text;
+        const file = !viaLink && attachment !== null ? { type: attachment.type, data: await base64Of(attachment.file, t('phoneSms.compose.readFailed')), name: attachment.name } : null;
+        threadId = (await Phone.send({ to, body, subId: sub, group, attachment: file })).threadId;
+        setText('');
+        drop();
+      }
+      /* Weitergeleitete einzeln, der Reihe nach — was hinaus ist, fällt weg (ein zweiter Versuch sendet nur den Rest). */
+      for (const one of queue) {
+        threadId = (await Phone.send({ to, body: one, subId: sub, group, attachment: null })).threadId;
+        onQueueSent?.();
+      }
+      onSent(threadId!);
     } catch (e) {
       toast(e instanceof WorkspaceError || e instanceof Error ? e.message : t('phoneSms.compose.sendFailed'));
     } finally {
@@ -168,17 +194,24 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
   /* Später: Text (auch mit Link), keine MMS und keine Gruppe. */
   const canLater = onScheduled !== undefined && !group && (attachment === null || viaLink);
   const schedule = async (at: number) => {
-    if (busy || to.length === 0 || (text.trim() === '' && !viaLink)) return;
+    if (busy || to.length === 0 || (text.trim() === '' && !viaLink && queue.length === 0)) return;
     setBusy(true);
     try {
-      const body = viaLink && attachment !== null ? await linked(attachment) : text;
-      /* Mehrere (osobno): je eine — jede in ihrem Gespräch. */
-      const threads: string[] = [];
-      for (const one of to) threads.push((await Phone.schedule({ to: [one], body, sendAt: at, subId: sub ?? -1 })).entry.threadId);
-      setText('');
-      drop();
+      const threads = new Set<string>();
+      if (text.trim() !== '' || viaLink) {
+        const body = viaLink && attachment !== null ? await linked(attachment) : text;
+        /* Mehrere (osobno): je eine — jede in ihrem Gespräch. */
+        for (const one of to) threads.add((await Phone.schedule({ to: [one], body, sendAt: at, subId: sub ?? -1 })).entry.threadId);
+        setText('');
+        drop();
+      }
+      /* Weitergeleitete: je eine Sekunde später — so bleibt ihre Reihenfolge. */
+      for (const [i, body] of queue.entries()) {
+        for (const one of to) threads.add((await Phone.schedule({ to: [one], body, sendAt: at + (i + 1) * 1000, subId: sub ?? -1 })).entry.threadId);
+        onQueueSent?.();
+      }
       toast(t('phoneSms.compose.scheduled', { when: aheadWhen(at) }));
-      onScheduled?.(threads);
+      onScheduled?.([...threads]);
     } catch (e) {
       toast(e instanceof WorkspaceError || e instanceof Error ? e.message : t('phoneSms.compose.scheduleFailed'));
     } finally {
@@ -195,7 +228,9 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
     : noOne && content ? t('phoneSms.compose.chooseTo')
     : busy && progress !== null ? t('phoneSms.compose.uploading', { percent: Math.round(progress * 100) })
     : mms ? (group ? t('phoneSms.compose.mmsGroup', { count: to.length }) : t('phoneSms.compose.mms'))
+    : queue.length > 0 && text === '' && !viaLink ? t('phoneSms.compose.queued', { count: queue.length })
     : text !== '' || viaLink ? [
+      queue.length > 0 ? t('phoneSms.compose.queued', { count: queue.length }) : null,
       count.parts > 1 ? t('phoneSms.compose.parts', { count: count.parts }) : null,
       t('phoneSms.compose.left', { left: count.left }) + (count.unicode ? t('phoneSms.compose.unicode') : ''),
       viaLink ? t('phoneSms.compose.withLink') : null

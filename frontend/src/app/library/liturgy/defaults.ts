@@ -2,11 +2,15 @@
 /** Structural defaults only: no prayers or copyrighted editions are bundled. */
 import { GILH, NORMS } from './calendar';
 import { EntitySchema, HOURS, type Hour, type LitEntity, type OfType, type SourceLayer } from './schema';
+/* OWLG 123–125: nach jedem Psalm (und jedem Teil) „Chwała Ojcu"; Gospel-Cantica ebenso; OWLG 34: die Antiphon des Wezwanie nach jeder Strophe. */
+const DOXOLOGY_SLOTS = new Set(['psalmody.1', 'psalmody.2', 'psalmody.3', 'psalmody.2.optional', 'gospel_canticle', 'invitatory']);
 const structural = (hour: Hour, names: string[]): OfType<'liturgical_template'> => EntitySchema.parse({
-  schema_version: '1.0', entity_type: 'liturgical_template', id: `roman.template.${hour}`, title: hour, status: 'draft',
+  schema_version: '2.0', entity_type: 'liturgical_template', id: `roman.template.${hour}`, title: hour, status: 'draft',
   hour_or_rite: hour, authority_reference: `${GILH}#II`, slots: names.map(name => ({ name, label: name, required: !['psalmody.2.optional', 'examination'].includes(name),
     ...(name === 'te_deum' ? { conditions: { te_deum: true } } : name === 'opening' && (hour === 'readings' || hour === 'lauds') ? { conditions: { after_invitatory: false } } : {}),
-    source_order: name === 'opening' || name === 'lords_prayer' || name === 'conclusion' || name === 'blessing' ? ['ordinary', 'time', 'saints'] : ['local', 'saints', 'time', 'common', 'psalter', 'lectionary', 'ordinary']
+    source_order: name === 'opening' || name === 'lords_prayer' || name === 'conclusion' || name === 'blessing' ? ['ordinary', 'time', 'saints'] : ['local', 'saints', 'time', 'common', 'psalter', 'lectionary', 'ordinary'],
+    ...(DOXOLOGY_SLOTS.has(name) && hour !== 'mass' ? { doxology: true } : {}),
+    ...(name === 'invitatory' ? { antiphon_repeat: 'strophes' } : {})
   }))
 }) as OfType<'liturgical_template'>;
 const psalmody = ['psalmody.1', 'psalmody.2', 'psalmody.3'];
@@ -21,7 +25,7 @@ export const TEMPLATES = [
 // Weekday variants and special rites supply their own reviewed templates.
 TEMPLATES.find(t => t.hour_or_rite === 'mass')!.slots.find(s => s.name === 'reading.2')!.conditions = { weekdays: [7] };
 const obs = (id: string, title: string, precedence: number, rule: unknown, color = 'white', scope = 'roman'): LitEntity => EntitySchema.parse({
-  schema_version: '1.0', entity_type: 'calendar_observance', id, title, status: 'approved',
+  schema_version: '2.0', entity_type: 'calendar_observance', id, title, status: 'approved',
   precedence_class: precedence, liturgical_rank: precedence <= 4 ? 'solemnity' : 'feast', date_rule: rule,
   calendar_scope: scope, liturgical_color: color, first_vespers: precedence <= 4, authority_reference: NORMS
 });
@@ -48,7 +52,7 @@ export const CORE_OBSERVANCES: LitEntity[] = [
   obs('PL.queen-mary', 'Najświętszej Maryi Panny, Królowej Polski', 4, fixed(5, 3), 'white', 'PL')
 ];
 const rule = (id: string, action: unknown, scope = 'roman', authority = `${NORMS}#60`, priority = 0, conditions = {}): LitEntity => EntitySchema.parse({
-  schema_version: '1.0', entity_type: 'liturgical_rule', id, title: id, status: 'approved', applicable_calendar: scope, authority_reference: authority, priority, conditions, action
+  schema_version: '2.0', entity_type: 'liturgical_rule', id, title: id, status: 'approved', applicable_calendar: scope, authority_reference: authority, priority, conditions, action
 });
 export const CORE_RULES: LitEntity[] = [
   rule('PL.ascension.sunday', { type: 'date_override', observance_id: 'roman.ascension', date_rule: relative(42) }, 'PL', 'https://kkbids-old.episkopat.pl/index.php?id=300#25'),
