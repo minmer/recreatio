@@ -145,7 +145,7 @@ const markOf = (end: End | undefined, repeat: boolean): Seg['mark'] => (end === 
  */
 export function unitLines(text: string, units: readonly Unit[], mode: Mode, opts: { readonly repeat?: boolean; readonly role?: Role; readonly notes?: TextResource['notes'] } = {}): Line[] {
   const lines: Line[] = [];
-  const notesAt = (at: string) => (opts.notes ?? []).filter((n) => n.at === at).map((n): Line => ({ kind: n.type, segs: [{ text: n.source === undefined ? n.text : `${n.text} (${n.source})` }] }));
+  const notesAt = (at: string) => (opts.notes ?? []).filter((n) => n.at === at).map((n): Line => ({ kind: n.type, segs: [{ text: n.source === undefined ? n.text : `${n.text} (${n.source})` }] })); // i18n-ignore — a note and its source, as printed
   lines.push(...notesAt('start'));
   let current: Seg[] = [];
   let currentRole: Role | undefined;

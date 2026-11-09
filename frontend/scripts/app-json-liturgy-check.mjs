@@ -32,7 +32,7 @@ try {
   const tree = await import(pathToFileURL(join(out, 'tree.js')).href);
   const builtins = d.effectiveEntities([]);
   const plan = (doc, own = []) => m.planLiturgyImport(doc, d.effectiveEntities(own), own);
-  const doc = (entities) => ({ format: 'recreatio/liturgy', version: 1, entities });
+  const doc = (entities) => ({ format: 'recreatio/liturgy', version: 2, entities });
 
   /* -- Die Beschreibung ---------------------------------------------------------------------------- */
   const text = tree.describe(m.LITURGY_JSON);
@@ -42,7 +42,7 @@ try {
     for (const key of Object.keys(option.shape)) if (key !== 'schema_version') assert.ok(text.includes(`"${key}" — `), `the description explains ${type}.${key}`);
   }
   for (const key of m.LITURGY_COMMON_KEYS) assert.ok(text.includes(`"${key}" — `), `the description explains ${key}`);
-  for (const key of [...m.BLOCK_KEYS, ...m.RANGE_KEYS, ...m.REF_KEYS, ...m.SLOT_KEYS, ...m.CONDITION_KEYS]) assert.ok(text.includes(`"${key}" — `), `the description explains part key ${key}`);
+  for (const key of [...m.UNIT_KEYS, ...m.ALT_KEYS, ...m.STEP_KEYS, ...m.NOTE_KEYS, ...m.VARIANT_KEYS, ...m.RANGE_KEYS, ...m.REF_KEYS, ...m.SLOT_KEYS, ...m.CONDITION_KEYS]) assert.ok(text.includes(`"${key}" — `), `the description explains part key ${key}`);
   for (const r of m.DATE_RULES) assert.ok(text.includes(`"r": "${r}"`), `the description shows the date rule ${r}`);
   for (const a of m.RULE_ACTIONS) assert.ok(text.includes(`"type": "${a}"`), `the description shows the rule action ${a}`);
   assert.ok(!/liturgy\.(json|types)\./.test(text), 'no untranslated key in the description');
@@ -50,7 +50,7 @@ try {
   assert.ok(text.includes('"roman.template.lauds" (lauds): ') && text.includes('"roman.christmas" — '), 'the built-in ids are listed');
   const sample = m.LITURGY_JSON.samples()[0].doc();
   const fromSample = plan(sample);
-  assert.deepEqual([fromSample.problems, fromSample.create.length], [[], 7], 'the sample imports into an empty collection');
+  assert.deepEqual([fromSample.problems, fromSample.create.length], [[], 9], 'the sample imports into an empty collection');
   ok(`every field of the nine kinds, every part and the built-in ids are described; the sample imports (${text.length} characters)`);
 
   /* -- Hinaus und wieder herein -------------------------------------------------------------------- */
@@ -59,14 +59,14 @@ try {
   assert.equal(exported.format, 'recreatio/liturgy');
   assert.ok(exported.entities.every((e) => e.schema_version === undefined && e.revision === undefined), 'the export leaves out what the app counts');
   const same = plan(exported, own);
-  assert.deepEqual([same.create.length, same.update.length, same.unchanged, same.warnings.length, same.lines], [0, 0, 7, 0, ['Bez zmian — wszystko jest już w zbiorze.']]);
+  assert.deepEqual([same.create.length, same.update.length, same.unchanged, same.warnings.length, same.lines], [0, 0, 9, 0, ['Bez zmian — wszystko jest już w zbiorze.']]);
   ok('export → import of an unchanged collection changes nothing');
 
   /* -- An Ort und Stelle --------------------------------------------------------------------------- */
   const changed = plan(doc([{ id: 'sample.psalm117.text', title: 'Psalm 117 — poprawiony', source_citation: 'Nowe źródło' }, { id: 'sample.edition', translator: 'X' }]), own);
   const text117 = changed.update.find((u) => u.after.id === 'sample.psalm117.text').after;
   assert.deepEqual([changed.problems, changed.update.length, text117.title, text117.revision], [[], 2, 'Psalm 117 — poprawiony', 2]);
-  assert.deepEqual(text117.structured_content, own.find((e) => e.id === 'sample.psalm117.text').structured_content, 'what the document does not name stays');
+  assert.deepEqual([text117.text, text117.layout], [own.find((e) => e.id === 'sample.psalm117.text').text, own.find((e) => e.id === 'sample.psalm117.text').layout], 'what the document does not name stays');
   const cleared = plan(doc([{ id: 'sample.psalm117.text', source_citation: null }]), changed.update.map((u) => u.after).concat(own.filter((e) => !changed.update.some((u) => u.after.id === e.id))));
   assert.equal(cleared.update[0].after.source_citation, undefined, 'null clears a field');
   assert.ok(plan(doc([{ id: 'sample.edition', title: null }]), own).problems.some((p) => p.code === 'schema'), 'a required field cannot be cleared');

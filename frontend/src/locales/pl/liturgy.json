@@ -623,6 +623,8 @@
     "performance_inferred": "powtarzanie odpowiedzi wywnioskowane — sprawdzić",
     "doxology_removed": "wyjęto wplecione „Chwała Ojcu” — sprawdzić granicę części",
     "full_text": "tylko część tekstu — brak pełnego brzmienia",
-    "possibly_truncated": "możliwy ubytek: inny tekst zaczyna się tak samo i jest dłuższy"
+    "possibly_truncated": "możliwy ubytek: inny tekst zaczyna się tak samo i jest dłuższy",
+    "links_pending": "odsyłacz (doksologia, wspólna odpowiedź) czeka na swój tekst — połączy się, gdy ten tekst zostanie zaimportowany",
+    "marks_unverified": "znak pauzy wypada w środku słowa — sprawdzić"
   }
 }

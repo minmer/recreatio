@@ -35,16 +35,29 @@ export interface Composition {
 }
 export interface ComposeOptions { psalmody?: 'current' | 'complementary'; afterInvitatory?: boolean; templateId?: string }
 
-/** Ein Schluss oder eine andere bezeugte Variante ersetzt die Folge von Einheiten ab `replaces` (dieselbe Art) — als eigener Text. */
+/** Ein Schluss oder eine andere bezeugte Variante ersetzt die Folge von Einheiten ab `replaces` (dieselbe Art) — als eigener
+ *  Text. Eine Variante über mehrere Zeilen (eine andere Doxologie-Strophe) behält ihre Zeilen. */
 function withVariant(r: TextResource, units: readonly Unit[], variant: NonNullable<TextResource['variants']>[number]): { text: string; units: Unit[] } {
   const start = units.findIndex((u) => u.id === variant.replaces);
   if (start < 0) return { text: r.text, units: [...units] };
   let end = start + 1;
   while (end < units.length && units[start].kind !== undefined && units[end].kind === units[start].kind) end++;
   const text = `${r.text}\n${variant.text}`;
-  const at = r.text.length + 1;
-  const replaced: Unit = { ...units[start], at, to: text.length, end: units[end - 1].end };
-  return { text, units: [...units.slice(0, start), replaced, ...units.slice(end)] };
+  const { id: _id, label: _label, ...rest } = units[start];
+  const replaced: Unit[] = [];
+  let at = r.text.length + 1;
+  for (const line of variant.text.split('\n')) {
+    const lead = line.length - line.trimStart().length;
+    const body = line.trim();
+    if (body !== '') replaced.push({ ...(replaced.length === 0 ? units[start] : rest), at: at + lead, to: at + lead + body.length, end: 'line' });
+    at += line.length + 1;
+  }
+  if (replaced.length === 0) return { text: r.text, units: [...units] };
+  const lastEnd = units[end - 1].end;
+  const last = replaced[replaced.length - 1];
+  if (lastEnd === undefined) { const { end: _end, ...open } = last; replaced[replaced.length - 1] = open; }
+  else replaced[replaced.length - 1] = { ...last, end: lastEnd };
+  return { text, units: [...units.slice(0, start), ...replaced, ...units.slice(end)] };
 }
 
 /** Teile eines Haupttexts als Strophen (für die Antiphon des Wezwanie nach jeder Strophe). */

@@ -161,7 +161,7 @@ export function validateEntities(entities: readonly LitEntity[]): Problem[] {
       const verses = (e.layout?.units ?? []).flatMap(u => (u.verse === undefined ? [] : [u.verse]));
       if (verses.some((v, i) => i > 0 && v < verses[i - 1])) fail(e, 'verse_numbers', e.id);
       if (e.resource_type === 'psalm') {
-        if (!e.work_id) fail(e, 'psalm_work', e.id);
+        /* Ohne Werk: kein Halt, sondern `missing: work` (structuralMissing) — Fragmente aus Vorlagen tragen es oft nicht. */
         if (e.complete) {
           const key = `${e.work_id}\n${e.edition_id}`;
           if (psalms.has(key)) fail(e, 'duplicate_psalm', psalms.get(key)!); else psalms.set(key, e.id);

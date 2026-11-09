@@ -1,3 +1,4 @@
+// i18n-ignore-file — patterns of liturgical source data (speaker names, the doxology, conclusions), not interface text.
 /**
  * 2026-11-09 — VON BLÖCKEN ZU EINEM BRZMIENIE (1.0 → 2.0).
  *
@@ -45,7 +46,12 @@ const TYPE_MAP: Readonly<Record<string, ResourceType>> = {
   psalm: 'psalm', psalm_fragment: 'psalm', psalm_text: 'psalm', canticle: 'canticle', gospel_canticle: 'canticle',
   antiphon: 'antiphon', hymn: 'hymn', reading: 'reading', responsory: 'responsory', dialog: 'dialog', versicle: 'versicle',
   intercessions: 'intercessions', intercession_refrain: 'response', response: 'response', prayer: 'prayer',
-  blessing: 'blessing', blessing_and_conclusion: 'blessing', doxology: 'doxology', rubric_heading: 'rubric', rubric: 'rubric'
+  blessing: 'blessing', blessing_and_conclusion: 'blessing', doxology: 'doxology', rubric_heading: 'rubric', rubric: 'rubric',
+  /* Die ersten Beispiele benannten Texte nach ihrem Platz. */
+  opening: 'dialog', reading_1: 'reading', reading_2: 'reading', responsory_1: 'responsory', responsory_2: 'responsory', te_deum: 'hymn',
+  conclusion: 'blessing', examination: 'rubric', marian_antiphon: 'antiphon', invitatory: 'antiphon',
+  entrance: 'antiphon', communion: 'antiphon', offertory: 'antiphon', collect: 'prayer', prayer_over_offerings: 'prayer', prayer_after_communion: 'prayer',
+  gospel: 'reading', acclamation: 'versicle', lords_prayer: 'other', preface: 'other'
 };
 const ROLE_MAP: Readonly<Record<string, Role>> = { P: 'cantor', K: 'cantor', V: 'cantor', W: 'all', R: 'all', 'Przewodniczący': 'presider', Wszyscy: 'all', presider: 'presider', cantor: 'cantor', all: 'all', reader: 'reader' };
 
@@ -320,6 +326,7 @@ export function upgradeText(input: Raw): Upgraded {
    * Das Brzmienie und die Stücke darüber. Innerhalb eines Blocks steht zwischen zwei Stücken genau, was im Original stand
    * (`pre`); zwischen Blöcken, was der Block wollte: Absatz nach Strophe oder Teil, Zeile nach einer Antwort, sonst ein Leerzeichen.
    */
+  finalPieces = finalPieces.filter((p) => p.text.trim() !== '');
   let text = '';
   finalPieces.forEach((p, k) => {
     if (k > 0) {
@@ -464,10 +471,13 @@ function splitIntercessions(pieces: Piece[], keepResponse: boolean): { pieces: P
       const stops = [...window.matchAll(/[.!?]\s/g)];
       if (stops.length > 0) endAt = (stops[stops.length - 1].index ?? window.length) + 1;
     }
+    const second = window.slice(0, endAt).trim();
+    pos = afterDash + endAt;
+    /* Ein leerer Teil (ein Strich ohne Text davor oder danach) ist keine Bitte. */
+    if (first === '' || second === '') { if (first !== '' || second !== '') out.push({ text: `${first} ${second}`.trim(), kind: 'petition', role: 'presider', end: 'line' }); continue; }
     n++;
     out.push({ text: first, kind: 'petition', role: 'presider', id: `p${n}` });
-    out.push({ text: window.slice(0, endAt).trim(), kind: 'petition_response', role: 'all', id: `p${n}b`, end: 'line' });
-    pos = afterDash + endAt;
+    out.push({ text: second, kind: 'petition_response', role: 'all', id: `p${n}b`, end: 'line' });
   }
   return n === 0 ? null : { pieces: out, petitions: n, inlineResponse };
 }

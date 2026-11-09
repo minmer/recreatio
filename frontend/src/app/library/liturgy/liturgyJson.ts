@@ -156,6 +156,20 @@ export function structuralMissing(e: TextResource): string[] {
   return out;
 }
 
+/** Bitten: nach der Einleitung und nach jedem zweiten Teil die gemeinsame Antwort (OWLG 190–193) — beim Verbinden ergänzt. */
+function withResponseSteps(e: TextResource, response: string): TextResource['performance'] {
+  const units = e.layout?.units ?? [];
+  const answerAfter = new Set(units.filter((u) => u.kind === 'intro' || u.kind === 'petition_response').flatMap((u) => (u.id === undefined ? [] : [u.id])));
+  const steps: NonNullable<TextResource['performance']> = e.performance ?? units.flatMap((u) => (u.id === undefined ? [] : [{ say: [u.id], ...(u.role === undefined ? {} : { role: u.role }) }]));
+  const out: NonNullable<TextResource['performance']> = [];
+  for (const s of steps) {
+    if (s.resource === response) continue;
+    out.push(s);
+    if ((s.say ?? []).some((x) => answerAfter.has(x))) out.push({ resource: response, role: 'all' });
+  }
+  return out;
+}
+
 /* -- Herein: planen -------------------------------------------------------------------------------- */
 
 export interface LiturgyPlan {
@@ -198,6 +212,7 @@ export function planLiturgyImport(doc: unknown, current: readonly LitEntity[], o
   const reset: { before: LitEntity; after: LitEntity }[] = [];
   const seen = new Set<string>();
   const mentioned = new Set<string>();
+  const migratedIds = new Set<string>();
   let unchanged = 0, migrated = 0;
 
   const parse = (record: Record<string, unknown>, id: string): LitEntity | null => {
@@ -223,11 +238,15 @@ export function planLiturgyImport(doc: unknown, current: readonly LitEntity[], o
     const probe = EntitySchema.safeParse({ ...record, missing: undefined, schema_version: '2.0' });
     if (!probe.success || probe.data.entity_type !== 'text_resource') return record;
     const explicitLayout = Array.isArray(given.layout) && !Array.isArray(given.structured_content);
+    /*
+     * Nennt das Dokument `missing`, gilt seine Aussage (ein unveränderter Export bleibt unverändert; eine geleerte Liste
+     * bestätigt das Gefolgerte). Sonst bleibt, was war — ausser das Dokument gibt die Teilung selbst an: dann ist sie geprüft.
+     */
     let kept: string[] = 'missing' in given ? (Array.isArray(given.missing) ? given.missing.filter((x): x is string => typeof x === 'string') : [])
       : [...new Set([...(before?.entity_type === 'text_resource' ? before.missing ?? [] : []), ...fromMigration])];
-    if (explicitLayout) kept = kept.filter((x) => !INFERRED.includes(x) || fromMigration.includes(x));
+    if (explicitLayout && !('missing' in given)) kept = kept.filter((x) => !INFERRED.includes(x) || fromMigration.includes(x));
     kept = kept.filter((x) => !STRUCTURAL.includes(x));
-    const missing = [...new Set([...kept, ...structuralMissing(probe.data)])];
+    const missing = [...new Set([...kept, ...structuralMissing(probe.data)])].sort();
     const status = missing.length > 0 && record.status !== 'approved' && record.status !== 'incomplete' ? 'incomplete' : record.status;
     return { ...record, ...(missing.length > 0 ? { missing } : { missing: undefined }), ...(status === undefined ? {} : { status }) };
   };
@@ -274,7 +293,7 @@ export function planLiturgyImport(doc: unknown, current: readonly LitEntity[], o
     if (Array.isArray(given.structured_content)) {
       const type = given.entity_type ?? before?.entity_type;
       const up = upgradeText({ ...given, entity_type: type, resource_type: given.resource_type ?? (before?.entity_type === 'text_resource' ? before.resource_type : undefined) });
-      if (up.migrated) { migrated += 1; fromMigration = Array.isArray(up.raw.missing) ? up.raw.missing as string[] : []; const { missing: _m, ...rest } = up.raw; given = { ...rest, structured_content: given.structured_content }; }
+      if (up.migrated) { migrated += 1; migratedIds.add(id); fromMigration = Array.isArray(up.raw.missing) ? up.raw.missing as string[] : []; const { missing: _m, ...rest } = up.raw; given = { ...rest, structured_content: given.structured_content }; }
     }
     const contentGiven = Array.isArray(given.structured_content);
     delete given.structured_content;
@@ -321,6 +340,49 @@ export function planLiturgyImport(doc: unknown, current: readonly LitEntity[], o
     else if (was === undefined) { unchanged -= 1; keep({ ...next, revision: p.revision } as LitEntity, p); }
   }
 
+  /*
+   * Odsyłacze aus früheren Formaten (metadata: doxology_resource_id, refrain_resource_id): ist ihr Ziel noch nicht im
+   * Bestand (es kommt mit einer späteren Datei), wartet die Verbindung — der Text trägt `links_pending` — statt den
+   * Import anzuhalten. Jeder Import, der das Ziel bringt, verbindet alle wartenden Texte im selben Zapis.
+   */
+  const setEntity = (e: LitEntity) => {
+    if (create.has(e.id)) { create.set(e.id, e); final.set(e.id, e); }
+    else if (update.has(e.id)) { const u = update.get(e.id)!; update.set(e.id, { before: u.before, after: { ...e, revision: u.after.revision } as LitEntity }); final.set(e.id, update.get(e.id)!.after); }
+    else { const before = final.get(e.id)!; keep({ ...e, revision: before.revision } as LitEntity, before); }
+  };
+  const withMissingCodes = (e: TextResource, add: readonly string[], drop: readonly string[]): TextResource => {
+    const codes = [...new Set([...(e.missing ?? []).filter((x) => !drop.includes(x) && !STRUCTURAL.includes(x)), ...add])];
+    const all = [...new Set([...codes, ...structuralMissing(e)])].sort();
+    return { ...e, ...(all.length > 0 ? { missing: all } : { missing: undefined }), ...(all.length > 0 && e.status === 'draft' ? { status: 'incomplete' } : {}) } as TextResource;
+  };
+  {
+    const idx = indexOf([...final.values()]);
+    for (const id of migratedIds) {
+      const e = final.get(id);
+      if (e?.entity_type !== 'text_resource') continue;
+      const next = { ...e } as TextResource & Record<string, unknown>;
+      let deferred = false;
+      if (next.doxology_ref !== undefined && !idx.has(next.doxology_ref)) { delete next.doxology_ref; deferred = true; }
+      if (next.response_ref !== undefined && !idx.has(next.response_ref)) { const r = next.response_ref; delete next.response_ref; next.performance = next.performance?.filter((s) => s.resource !== r); deferred = true; }
+      if ((next.performance ?? []).some((s) => s.resource !== undefined && !idx.has(s.resource))) { next.performance = next.performance!.filter((s) => s.resource === undefined || idx.has(s.resource)); deferred = true; }
+      if (deferred) setEntity(withMissingCodes(next, ['links_pending'], []));
+    }
+    for (const e of [...final.values()]) {
+      if (e.entity_type !== 'text_resource' || !(e.missing ?? []).includes('links_pending')) continue;
+      const meta = e.metadata ?? {};
+      const dox = typeof meta.doxology_resource_id === 'string' ? meta.doxology_resource_id : undefined;
+      const refrain = typeof meta.refrain_resource_id === 'string' ? meta.refrain_resource_id : undefined;
+      const next = { ...e } as TextResource;
+      let pending = false;
+      if (dox !== undefined && next.doxology_ref === undefined) { if (idx.has(dox)) next.doxology_ref = dox; else pending = true; }
+      if (refrain !== undefined && next.response_ref === undefined) {
+        if (idx.has(refrain)) { next.response_ref = refrain; next.performance = withResponseSteps(next, refrain); } else pending = true;
+      }
+      if (pending && next.doxology_ref === e.doxology_ref && next.response_ref === e.response_ref) continue;
+      setEntity(withMissingCodes(next, pending ? ['links_pending'] : [], pending ? [] : ['links_pending']));
+    }
+  }
+
   /* Gleiches Brzmienie derselben Ausgabe und Art: EIN Text; die anderen Kennungen bleiben als Aliasse, ihre Quellen und Teilungen als bezeugt. */
   const mergedLines: string[] = [];
   const texts = () => [...final.values()].filter((e): e is TextResource => e.entity_type === 'text_resource');
@@ -363,9 +425,10 @@ export function planLiturgyImport(doc: unknown, current: readonly LitEntity[], o
   const candidates: string[] = [];
   const buckets = new Map<string, TextResource[]>();
   for (const e of texts()) {
+    /* Fünf gleiche Anfangswörter — drei fingen zu viele gemeinsame Formeln („Chwała Ojcu i …"). */
     const words = normalizeWording(e.text).toLowerCase().split(' ');
-    if (words.length < 3) continue;
-    const key = `${e.edition_id}\n${e.resource_type}\n${words.slice(0, 3).join(' ')}`;
+    if (words.length < 5) continue;
+    const key = `${e.edition_id}\n${e.resource_type}\n${words.slice(0, 5).join(' ')}`;
     buckets.set(key, [...(buckets.get(key) ?? []), e]);
   }
   for (const list of buckets.values()) {
@@ -376,9 +439,11 @@ export function planLiturgyImport(doc: unknown, current: readonly LitEntity[], o
       const na = normalizeWording(a.text), nb = normalizeWording(b.text);
       const shorter = na.length <= nb.length ? a : b, longer = shorter === a ? b : a;
       const prefix = normalizeWording(longer.text).startsWith(normalizeWording(shorter.text));
+      /* Gleicher Anfang allein ist oft eine gemeinsame Formel: genannt wird nur, was auch im Wortbestand fast gleich ist. */
+      if (!prefix) { const wa = new Set(na.toLowerCase().split(' ')), wb = new Set(nb.toLowerCase().split(' ')); const common = [...wa].filter((w) => wb.has(w)).length; if (common / Math.max(wa.size, wb.size) < 0.75) continue; }
       candidates.push(t(prefix ? 'liturgy.json.warn.candidatePrefix' : 'liturgy.json.warn.candidateIncipit', { a: shorter.id, b: longer.id }));
       if (prefix && touched.has(shorter.id) && shorter.status !== 'approved') {
-        const marked = { ...shorter, status: 'incomplete', missing: [...new Set([...(shorter.missing ?? []), 'possibly_truncated'])] } as LitEntity;
+        const marked = { ...shorter, status: 'incomplete', missing: [...new Set([...(shorter.missing ?? []), 'possibly_truncated'])].sort() } as LitEntity;
         if (create.has(shorter.id)) create.set(shorter.id, marked);
         else if (update.has(shorter.id)) update.set(shorter.id, { ...update.get(shorter.id)!, after: marked });
         final.set(shorter.id, marked);

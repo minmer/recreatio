@@ -623,6 +623,8 @@
     "performance_inferred": "repetition of the response inferred — check",
     "doxology_removed": "an embedded Glory be was taken out — check the part boundary",
     "full_text": "only a part of the text — the full wording is missing",
-    "possibly_truncated": "possibly shortened: another text begins the same and is longer"
+    "possibly_truncated": "possibly shortened: another text begins the same and is longer",
+    "links_pending": "a link (doxology, common response) waits for its text — it is connected when that text is imported",
+    "marks_unverified": "a pause mark falls inside a word — check"
   }
 }

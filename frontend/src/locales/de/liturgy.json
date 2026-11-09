@@ -623,6 +623,8 @@
     "performance_inferred": "Wiederkehr der Antwort gefolgert — prüfen",
     "doxology_removed": "ein eingebettetes „Ehre sei dem Vater\" herausgenommen — Teilgrenze prüfen",
     "full_text": "nur ein Teil des Texts — der ganze Wortlaut fehlt",
-    "possibly_truncated": "vielleicht gekürzt: ein anderer Text beginnt gleich und ist länger"
+    "possibly_truncated": "vielleicht gekürzt: ein anderer Text beginnt gleich und ist länger",
+    "links_pending": "eine Verbindung (Doxologie, gemeinsame Antwort) wartet auf ihren Text — sie wird verbunden, sobald er importiert ist",
+    "marks_unverified": "ein Pausenzeichen steht mitten im Wort — prüfen"
   }
 }

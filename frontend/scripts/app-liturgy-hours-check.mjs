@@ -77,7 +77,15 @@ try {
   assert.equal(hymnLines.filter((l) => l.gap === 'stanza').length, 2, 'two stanza breaks');
   assert.equal(m.paragraphs(hymn.text).length, 3, 'continuous view: three paragraphs');
   assert.ok(m.paragraphs(hymn.text)[0].startsWith('Pierwsza linijka hymnu testowego, druga linijka'), 'continuous view: lines run on');
-  ok('hymn: lines and stanzas in the liturgical view, flowing paragraphs in the continuous view');
+  /* Eine andere bezeugte Doxologie-Strophe (hier zur Vesper) ersetzt die dritte Strophe mit ihren Zeilen. */
+  const hymnAt = (hour) => m.composeOffice('2026-11-16', hour, m.DEFAULT_CONTEXT, all).slots.find((s) => s.name === 'hymn');
+  const vespersHymn = hymnAt('vespers'), laudsHymn = hymnAt('lauds');
+  const lastStanza = (s) => textLines(s.parts[0].lines).slice(8).map(text);
+  assert.equal(vespersHymn.variantId, 'dox-alt', 'the attested doxology strophe at Vespers');
+  assert.deepEqual(lastStanza(vespersHymn), ['Inna poświadczona zwrotka doksologii,', 'Ojcu i Synowi w innych słowach,', 'i Duchowi w innym wersie,', 'na wieki wieków. Amen.'], 'the other doxology keeps its four lines');
+  assert.equal(textLines(vespersHymn.parts[0].lines)[8].verse, '3', 'and the stanza number');
+  assert.deepEqual([laudsHymn.variantId, lastStanza(laudsHymn)[0]], [undefined, 'Chwała przykładowa w trzeciej zwrotce,'], 'Lauds keeps the hymn\'s own doxology');
+  ok('hymn: lines and stanzas in the liturgical view, flowing paragraphs in the continuous view; an attested doxology strophe by its conditions');
 
   /* -- Psalm: ganz, zwei Teile, drei Teile; Psalm 119 in 22 Teilen ---------------------------------- */
   const ps = get('test.ps1.text');

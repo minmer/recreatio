@@ -301,7 +301,7 @@
         {
           "id": "dox-alt",
           "replaces": "dox",
-          "text": "Inna poświadczona zwrotka doksologii, na wieki. Amen.",
+          "text": "Inna poświadczona zwrotka doksologii,\nOjcu i Synowi w innych słowach,\ni Duchowi w innym wersie,\nna wieki wieków. Amen.",
           "source": "Tom testowy II",
           "when": {
             "hours": [
@@ -3788,6 +3788,22 @@
       "target_context": {
         "hours": [
           "lauds"
+        ]
+      },
+      "authority_reference": "Test — bez podstawy"
+    },
+    {
+      "entity_type": "liturgical_assignment",
+      "id": "a.vespers.hymn",
+      "title": "a.vespers.hymn",
+      "slot_name": "hymn",
+      "resource_ref": {
+        "id": "test.hymn"
+      },
+      "source_layer": "time",
+      "target_context": {
+        "hours": [
+          "vespers"
         ]
       },
       "authority_reference": "Test — bez podstawy"

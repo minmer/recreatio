@@ -496,12 +496,7 @@ function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
           (przyjmuję / pomijam / odmawiam, oder zu jedem Termin będę / nie będę).
           Nur wer es verlangt, nennt eine Zahl: so oft da gewesen, so oft getan.
         */}
-        {/* 0141 — je Woche / Monat: nur, wie oft darin (leer: einmal). */}
-        {period ? (
-          <label className="wk-inline"><span className="wk-hint">{t(tk.schedule === 'week' ? 'steps.editor.timesPerWeek' : 'steps.editor.timesPerMonth')}</span>
-            <input type="number" min={1} max={tk.schedule === 'week' ? 7 : 31} value={tk.needed} placeholder="1" style={{ width: '5em' }} data-task-needed=""
-              onChange={(e) => setTask({ needed: e.target.value })} /></label>
-        ) : (
+        {!period && (
           <label className="wk-inline"><span className="wk-hint">{t('steps.editor.doneWhen')}</span>
             <select value={tk.needed.trim() === '' ? 'answer' : 'count'} data-task-done-when=""
               onChange={(e) => setTask({ needed: e.target.value === 'count' ? (tk.needed.trim() === '' ? '1' : tk.needed) : '' })}>
@@ -509,10 +504,11 @@ function TaskEdit({ draft, onChange, onMove, onRemove, first, last }: {
               <option value="count">{item ? t('steps.editor.presentTimes') : t('steps.editor.doneTimes')}</option>
             </select></label>
         )}
-        {!period && tk.needed.trim() !== '' && (
-          <label className="wk-inline"><span className="wk-hint">{t('steps.editor.howMany')}</span>
-            <input type="number" min={1} max={400} value={tk.needed} style={{ width: '5em' }} data-task-needed=""
-              onChange={(e) => setTask({ needed: e.target.value })} /></label>
+        {/* 0141 — je Woche / Monat: nur, wie oft darin (leer: einmal) — dasselbe Feld wie „ile razy". */}
+        {(period || tk.needed.trim() !== '') && (
+          <label className="wk-inline"><span className="wk-hint">{!period ? t('steps.editor.howMany') : t(tk.schedule === 'week' ? 'steps.editor.timesPerWeek' : 'steps.editor.timesPerMonth')}</span>
+            <input type="number" min={1} max={!period ? 400 : tk.schedule === 'week' ? 7 : 31} value={tk.needed} placeholder={period ? '1' : undefined}
+              style={{ width: '5em' }} data-task-needed="" onChange={(e) => setTask({ needed: e.target.value })} /></label>
         )}
         <label className="wk-inline"><span className="wk-hint">{t('steps.editor.marksDone')}</span>
           <select value={draft.doneBy} data-task-done-by="" onChange={(e) => onChange({ doneBy: e.target.value === 'office' ? 'office' : 'person' })}>
