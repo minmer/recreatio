@@ -2,12 +2,11 @@
  * 2026-11-03 — DER KRAJOBRAZ (`cogita/landscape.ts`), nachgemessen: die Höhen (gemeinsame Voraussetzungen einmal,
  * ein Kreis ein Schritt, Einträge ohne Karten durchsichtig, Verblassen: „do powtórki" bleibt gelernt, unter 0,1 fehlt
  * es wieder), die Sperre (schwache, schon gefragte Karten in der Kette; nie gefragte sperren nicht), der Weg zum Ziel
- * (die Grundlagen zuerst, so viele Schritte wie die Höhe), die Gestalt (deterministisch, stabil, Budget und Bereiche,
- * Fokus mit globalen Höhen, ein Eintrag mit zwei Werten zwischen ihnen, ohne Werte aus der Nähe im Graphen) — und die
- * Beziehung `rel: "chain"` der einen Logik (`knowing.ts`), der Modus `landscape` eines Widoku (`views.ts`). 2026-11-03 (E):
- * EINE FESTE KARTE — die Zellen nur aus der Struktur (gleiche Bögen in der Reihenfolge des Autors, der Abstand nach der
- * Tiefe, neue Einträge nehmen freie Zellen), ein Raster Kante an Kante; nur die Höhen ändern sich; das Budget schneidet
- * den Baum (der Ring zuerst, Berge erst, wenn kein Ring verborgen ist; der Rest „+N"); der Zoom ist eine Kamera.
+ * (die Grundlagen zuerst, so viele Schritte wie die Höhe), die Stufen (`liftOf`), die Achse über die Stufen, das Lesen
+ * der Knoten (`landscapeNest.ts`) — und die Beziehung `rel: "chain"` der einen Logik (`knowing.ts`), der Modus
+ * `landscape` eines Widoku (`views.ts`), die Wege und Namen der Zeichnung (`landscapeDraw.ts`).
+ * 2026-11-09 (Weltkarte, Entscheidung 2) — die alte feste Karte und ihre Gestalt je Fokus (`fixedLayout`, `layoutOf`,
+ * `nestLayout`) sind entfernt, mit ihren Prüfungen: die Plätze legt `worldLayout.ts` (app-worldmap-check).
  *
  *   node scripts/app-landscape-check.mjs
  */
@@ -125,216 +124,14 @@ check('lock: only ring entries are locked (a mountain is not)', lockOf(chain, {}
   check('route through a cycle: the cycle is ONE step with both entries', r3.steps.map((s) => s.map((v) => cycle.ids[v])), [['R'], ['P', 'Q']]);
 }
 
-/* ── 2026-11-03 (E): EINE FESTE KARTE — nur die Höhen ändern sich ─────────────────────────────────────────── */
-
-/* Eine Welt: drei Fächer (Mathe, Physik, Geschichte) mit Unterwerten; Voraussetzungen innerhalb und zwischen. */
-function world(size = 12) {
-  const values = [
-    { id: 'math', label: 'Matematyka' }, { id: 'alg', label: 'Algebra', parent: 'math' }, { id: 'geo', label: 'Geometria', parent: 'math' },
-    { id: 'phys', label: 'Fizyka' }, { id: 'mech', label: 'Mechanika', parent: 'phys' }, { id: 'opt', label: 'Optyka', parent: 'phys' },
-    { id: 'hist', label: 'Historia' }, { id: 'ww1', label: 'I wojna', parent: 'hist' }, { id: 'ww2', label: 'II wojna', parent: 'hist' }
-  ];
-  const spec = {};
-  const memberOf = {};
-  for (const leaf of ['alg', 'geo', 'mech', 'opt', 'ww1', 'ww2']) {
-    for (let i = 0; i < size; i += 1) {
-      const id = `${leaf}${i}`;
-      spec[id] = i === 0 ? [] : [`${leaf}${i - 1}`];
-      memberOf[id] = [leaf];
-    }
-  }
-  /* Mechanik braucht Algebra; die Geschichte der Optik steht in beiden. */
-  spec.mech0 = ['alg3'];
-  memberOf['opt5'] = ['opt', 'ww2'];
-  return { ...graphOf(spec, { values, memberOf }), sorted: true };
-}
-const W = world();
-const runLayout = (input, k = {}, options = {}) => {
-  const e = new L.LandscapeEngine();
-  e.setInput(input);
-  e.setState(state(input, k));
-  return { e, run: e.layout(options) };
-};
-/* Wo jeder Eintrag steht (Zelle) — die Karte. */
-const mapOf = (layout, input) => input.ids.map((id, v) => { const i = layout.cellOf[v]; return i < 0 ? `${id}:-` : `${id}:${layout.land[i].q},${layout.land[i].r}`; }).join('|');
-const polarOf = (c) => ({ rho: Math.hypot(c.x, c.y), angle: (Math.atan2(c.y, -c.x) * 180) / Math.PI });
+/* ── Stufen: das Tal 0, die Ebene 1, ein Berg nach seinen Schritten (`liftOf`, die Landschaft) ─────────────────────── */
+/* 2026-11-09 (Weltkarte, Entscheidung 2) — die alte feste Karte (`fixedLayout`, `layoutOf`) und ihre Prüfungen sind entfernt. */
 {
-  const a = runLayout(W, {}, { budget: 40 }).run.layout;
-  const b = runLayout(W, {}, { budget: 40 }).run.layout;
-  check('deterministic: the same base and progress give the same map and fields', [mapOf(a, W) === mapOf(b, W), JSON.stringify(a.fields) === JSON.stringify(b.fields)], [true, true]);
-  /* Die Karte hängt nie vom Fortschritt, Budget, Fokus oder der Breite ab. */
-  const known = Object.fromEntries(W.ids.slice(0, 30).map((id) => [id, 1.3]));
-  const variants = [
-    runLayout(W, known, { budget: 40 }), runLayout(W, {}, { budget: 12 }), runLayout(W, {}, { budget: 200 }),
-    runLayout(W, {}, { budget: 40, focus: ['phys'] }), runLayout(W, {}, { budget: 40, focus: ['ww2'] }), runLayout(W, {}, { budget: 40, narrow: true }),
-    runLayout(W, {}, { budget: 40, goal: 'mech4' })
-  ];
-  check('fixed map: progress, budget, focus, width and goal never move a cell', variants.map((x) => mapOf(x.run.layout, W) === mapOf(a, W)), variants.map(() => true));
-  /* Ein Raster Kante an Kante: jede Zelle einmal, keine allein, nichts hinter oder auf dem Lernenden. */
-  const keys = a.land.map((c) => `${c.q},${c.r}`);
-  const set = new Set(keys);
-  const lonely = a.land.filter((c) => !L.HEX_DIRS.some(([dq, dr]) => set.has(`${c.q + dq},${c.r + dr}`) || (c.q + dq === 0 && c.r + dr === 0)));
-  check('one continuous grid: every cell once, none alone, none on or behind the learner', [set.size === keys.length, lonely.length, set.has('0,0'), a.land.every((c) => c.y >= 0.45)], [true, 0, false, true]);
-  check('every entry has its own cell', W.ids.every((_, v) => a.cellOf[v] >= 0) && new Set(W.ids.map((_, v) => a.cellOf[v])).size === W.ids.length, true);
-  /* Gleich breite Bereiche, in der Reihenfolge des Autors; jeder Eintrag in seinem Bogen. */
-  check('areas: equal sectors in the author’s order (not by size)', a.areas.map((s) => [s.value, Math.round(s.from), Math.round(s.to)]), [['math', 0, 60], ['phys', 60, 120], ['hist', 120, 180]]);
-  const outside = [];
-  const f0 = new L.LandscapeEngine(); f0.setInput(W); const F = f0.map();
-  for (let v = 0; v < W.ids.length; v += 1) {
-    const c = a.land[a.cellOf[v]];
-    const { rho, angle } = polarOf(c);
-    const top = F.dir.top[v];
-    const sec = a.areas[top];
-    const slack = 28.65 / rho;
-    if (F.dir.centre[v] !== 1 && (angle < sec.from - slack || angle > sec.to + slack)) outside.push(W.ids[v]);
-  }
-  check('every entry stands in its own area’s arc', outside, []);
-  /* Der Abstand folgt der Tiefe: im Bereich Stufe für Stufe nach aussen (Bänder, keine Stufe vor der vorigen). */
-  const breaks = [];
-  for (let top = 0; top < a.areas.length; top += 1) {
-    const byDepth = new Map();
-    for (let v = 0; v < W.ids.length; v += 1) if (F.dir.top[v] === top) { const d = F.depth[v]; byDepth.set(d, [...(byDepth.get(d) ?? []), polarOf(a.land[a.cellOf[v]]).rho]); }
-    const levels = [...byDepth.keys()].sort((x, y) => x - y);
-    for (let i = 1; i < levels.length; i += 1) if (Math.max(...byDepth.get(levels[i - 1])) > Math.min(...byDepth.get(levels[i])) + 1e-9) breaks.push(`${a.areas[top].value}: depth ${levels[i - 1]} beyond ${levels[i]}`);
-  }
-  check('distance follows depth: in every area each level stands outside the one before', breaks, []);
-  const rhoOf = (id) => polarOf(a.land[a.cellOf[W.ids.indexOf(id)]]).rho;
-  check('the roots of an area stand next to the learner (its first band)', ['alg0', 'geo0', 'opt0', 'ww10', 'ww20'].map((id) => rhoOf(id) < 4), [true, true, true, true, true]);
-  check('depth counts across areas: Mechanik needs alg0..alg3, so it starts four levels out (behind opt3)', [F.depth[W.ids.indexOf('mech0')], rhoOf('mech0') > rhoOf('opt3')], [4, true]);
-  /* Ein Weg „wymaga" läuft nach aussen: ein Eintrag liegt nahe an seiner Voraussetzung (im Mittel). */
-  const gaps = [];
-  for (let i = 0; i < a.links.length; i += 2) { const c = a.land[a.cellOf[a.links[i]]]; const p = a.land[a.cellOf[a.links[i + 1]]]; if (F.dir.top[a.links[i]] === F.dir.top[a.links[i + 1]]) gaps.push(L.hexDistance(c.q, c.r, p.q, p.r)); }
-  check('a path "wymaga" runs outward close by (mean distance to the prerequisite < 3 cells)', gaps.reduce((s, x) => s + x, 0) / gaps.length < 3, true);
-  /* Zwei Werte: die Geschichte der Optik steht am Rand ihres Bereichs zur anderen hin. */
-  const ang = (id) => polarOf(a.land[a.cellOf[W.ids.indexOf(id)]]).angle;
-  check('an entry with two values stands at the edge towards the other area', ang('opt5') > ang('opt4') - 1e-9 || ang('opt5') > 100, true);
-
-  /* Neue Einträge nehmen freie Zellen: weiter unten schiebt keiner einen anderen. Neue Kennungen kommen zuletzt (wie UUIDv7: nach der Zeit). */
-  const grow = (extra, values) => graphOf({ ...Object.fromEntries(W.ids.map((id, v) => [id, W.needs[v].map((p) => W.ids[p])])), ...extra },
-    { values: W.values.map((x) => ({ id: x.id, label: x.label, parent: x.parent >= 0 ? W.values[x.parent].id : undefined, rank: x.rank })), memberOf: { ...Object.fromEntries(W.ids.map((id, v) => [id, W.memberOf[v].map((x) => W.values[x].id)])), ...values } });
-  const movedIn = (grown) => {
-    const g2 = runLayout({ ...grown, sorted: true }, {}, { budget: 40 }).run.layout;
-    return W.ids.filter((id, v) => { const i = g2.cellOf[grown.ids.indexOf(id)]; const j = a.cellOf[v]; return `${g2.land[i].q},${g2.land[i].r}` !== `${a.land[j].q},${a.land[j].r}`; });
-  };
-  check('new entries deeper down take free cells and push nobody', movedIn(grow({ zz1: ['mech11'], zz2: ['geo5'], zz3: ['alg2'] }, { zz1: ['mech'], zz2: ['geo'], zz3: ['alg'] })), []);
-  const pushed = movedIn(grow({ zz4: [], ww10: ['zz4'] }, { zz4: ['ww1'] }));
-  check('a new root before an area moves only that area (Historia), never another', [pushed.length > 0, pushed.every((id) => id.startsWith('ww'))], [true, true]);
-
-  /* Die Höhen: das Tal versenkt und flach, die Ebene 0, ein Berg nach seinen Schritten — an derselben Stelle. */
-  const lifts = runLayout(W, { alg0: 1.2, alg1: 0.5 }, { budget: 200 }).run.layout;
-  const liftOf = (id) => lifts.land[lifts.cellOf[W.ids.indexOf(id)]].lift;
-  check('heights: known and due sink (flat), the next step is level ground, mountains rise with their steps', [liftOf('alg0'), liftOf('alg1'), liftOf('alg2'), liftOf('alg4') > liftOf('alg3'), liftOf('alg3') > 0], [0, 0, 1, true, true]);
   check('2026-11-04 equal steps: a field 10 steps away stands exactly ten times as high above the learnable level as one 1 step away', (L.liftOf('mountain', 10) - L.liftOf('ring', 0)) / (L.liftOf('mountain', 1) - L.liftOf('ring', 0)), 10);
   check('… no cap: 84 steps stand 84 steps above the learnable level', L.liftOf('mountain', 84) - L.liftOf('ring', 0), 84);
-  check('learning lowers a field where it stands', [mapOf(lifts, W) === mapOf(a, W), liftOf('alg0') < a.land[a.cellOf[W.ids.indexOf('alg0')]].lift], [true, true]);
-  check('due for review is a marker, the field does not move', [lifts.fields.find((f) => f.id === 'alg1')?.band, lifts.land[lifts.cellOf[W.ids.indexOf('alg1')]].due], ['due', true]);
-
-  /* Zoom: eine Kamera auf dieselbe Karte; die anderen Bereiche am Rand in ihrer Richtung. */
-  const physics = runLayout(W, {}, { budget: 60, focus: ['phys'] }).run.layout;
-  check('zoom: the sub-values are the sectors, the path is the breadcrumb, the other areas wait at the rim', [physics.sectors.map((s) => s.value), physics.path.map((p) => p.value), physics.outside.map((o) => o.value)], [['mech', 'opt'], ['phys'], ['math', 'hist']]);
-  check('zoom: the camera frames the focus (narrower than the whole)', physics.camera.x1 - physics.camera.x0 < a.camera.x1 - a.camera.x0, true);
-  check('zoom: only the focus has fields; heights stay global (mech0 waits for alg0..alg3)', [physics.fields.every((f) => (f.kind === 'entry' ? ['mech', 'opt'].some((p) => f.id.startsWith(p)) : true)), physics.fields.find((f) => f.id === 'mech0')?.missing], [true, 4]);
-  check('zoom: the outside areas stay in their direction (left areas left of the focus, right areas right)', physics.outside.map((o) => o.angle < 60 ? 'left' : o.angle > 120 ? 'right' : 'mid'), ['left', 'right']);
-  const deep = runLayout(W, {}, { budget: 60, focus: ['ww2'] }).run.layout;
-  check('zoom at any depth: a leaf value is its own sector', deep.sectors.map((s) => s.value), ['ww2']);
-  /* Ein Feld „+N" zoomt in seinen Bereich: dort teilen ihn seine Teilbereiche, und mehr steht einzeln. */
-  const small = runLayout(W, {}, { budget: 12 }).run.layout;
-  const fold = small.fields.find((f) => f.kind === 'area' && f.value === 'phys');
-  const into = runLayout(W, {}, { budget: 12, focus: [fold?.value] }).run.layout;
-  check('zoom: a "+N" field opens its area — the same cells, more of them single', [fold !== undefined, into.fields.filter((f) => f.kind === 'entry').length > small.fields.filter((f) => f.kind === 'entry' && f.area === 1).length, mapOf(into, W) === mapOf(a, W)], [true, true, true]);
-  check('zoom: inside, every sub-area folds on its own ("+N" per sub-area and band)', into.fields.filter((f) => f.kind === 'area').every((f) => ['mech', 'opt'].includes(f.value) && f.key === `grp:${f.value}:${f.band === 'due' ? 'known' : f.band}` || f.key === `grp:${f.value}:all`), true);
+  check('known and due sink to 0, the ring stands one step up', [L.liftOf('known', 3), L.liftOf('due', 3), L.liftOf('ring', 5)], [0, 0, 1]);
 }
 
-/* ── 2026-11-03 (B.1): das Budget schneidet den Baum — der Ring zuerst, Berge erst, wenn kein Ring verborgen ist ── */
-
-/* Acht Bereiche (in der Reihenfolge des Autors), je 3 sitzen, 2 verblassen, 17 auf dem Ring, 25 dahinter. */
-function bandWorld() {
-  const values = Array.from({ length: 8 }, (_, a) => ({ id: `a${a}`, label: `Obszar ${a + 1}`, rank: a }));
-  const spec = {};
-  const memberOf = {};
-  const k = {};
-  for (let a = 0; a < 8; a += 1) {
-    const base = [`k${a}_0`, `k${a}_1`, `k${a}_2`];
-    for (const id of base) { spec[id] = []; k[id] = 1.2; memberOf[id] = [`a${a}`]; }
-    for (let i = 0; i < 2; i += 1) { const id = `d${a}_${i}`; spec[id] = [base[0]]; k[id] = 0.5; memberOf[id] = [`a${a}`]; }
-    for (let i = 0; i < 17; i += 1) { const id = `r${a}_${i}`; spec[id] = [base[i % 3]]; memberOf[id] = [`a${a}`]; }
-    for (let i = 0; i < 25; i += 1) { const id = `m${a}_${i}`; spec[id] = [`r${a}_${i % 17}`, ...(i > 16 ? [`m${a}_${i - 17}`] : [])]; memberOf[id] = [`a${a}`]; }
-  }
-  return { input: { ...graphOf(spec, { values, memberOf }), sorted: true }, k };
-}
-{
-  const { input, k } = bandWorld();
-  const run = runLayout(input, k, { budget: 60 }).run.layout;
-  const singles = run.fields.filter((f) => f.kind === 'entry');
-  const groups = run.fields.filter((f) => f.kind === 'area');
-  check('budget: the counts (24 known, 16 due, 136 ring, 200 behind)', run.counts, { known: 24, due: 16, ring: 136, mountain: 200 });
-  check('budget: at most 60 fields (singles and their "+N" fields)', run.fields.length <= 60, true);
-  const seen = new Map();
-  for (const f of run.fields) for (const id of f.kind === 'entry' ? [f.id] : f.ids) seen.set(id, (seen.get(id) ?? 0) + 1);
-  check('budget: every entry in exactly one field', seen.size === input.ids.length && [...seen.values()].every((x) => x === 1), true);
-  check('budget: the ring is not starved — the best 3 of every area stand singly (24 of 60)', [0, 1, 2, 3, 4, 5, 6, 7].map((a) => singles.filter((f) => f.band === 'ring' && f.area === a).length), [3, 3, 3, 3, 3, 3, 3, 3]);
-  check('budget: the rest of an area’s ring is ONE "+N" field (○ 14), not the whole area', [0, 1, 2, 3, 4, 5, 6, 7].map((a) => groups.filter((g) => g.area === a && g.band === 'ring').map((g) => g.ring)), Array.from({ length: 8 }, () => [14]));
-  check('budget: the mountains of an area are one field (▲ 25), the valley another', groups.filter((g) => g.area === 0).map((g) => [g.band, g.count]), [['known', 3], ['ring', 14], ['mountain', 25]]);
-  check('budget: the best first — what unlocks most, then the author’s order (r0_0, r0_1, r0_2)', singles.filter((f) => f.band === 'ring' && f.area === 0).map((f) => f.id), ['r0_0', 'r0_1', 'r0_2']);
-  const tiny = runLayout(input, k, { budget: 30 }).run.layout;
-  check('budget: when "+N" fields would take over half, an area folds as one (budget 30: 8 fields + 22 singles)', [tiny.fields.filter((f) => f.kind === 'area').length, tiny.fields.filter((f) => f.kind === 'area').every((g) => g.key.endsWith(':all')), tiny.fields.length], [8, true, 30]);
-  check('budget: no "+1" — a lone rest stands singly', runLayout(input, k, { budget: 120 }).run.layout.fields.every((f) => f.kind === 'entry' || f.count > 1), true);
-  check('budget: mountains never single while a ring topic is hidden', singles.some((f) => f.band === 'mountain') ? groups.every((g) => g.ring === 0) : true, true);
-  check('budget: due topics get their share', singles.filter((f) => f.band === 'due').length >= 4, true);
-  const valleyAreas = new Set(run.fields.filter((f) => f.band === 'known' || f.band === 'due' || f.known > 0).map((f) => f.area));
-  check('budget: the valley is visible in every area (singly or inside a field with its count)', [0, 1, 2, 3, 4, 5, 6, 7].every((a) => valleyAreas.has(a)), true);
-  check('budget: unused share passes on — 400 shows everything singly', runLayout(input, k, { budget: 400 }).run.layout.fields.every((f) => f.kind === 'entry'), true);
-  const goal = runLayout(input, k, { budget: 30, goal: 'm5_3' }).run.layout;
-  check('budget: the goal and its ring step stand singly', ['m5_3', 'r5_3'].every((id) => goal.fields.some((f) => f.kind === 'entry' && f.id === id)), true);
-  check('budget: shares above 1 together are scaled down', L.bandShares({ ring: 1, due: 1, known: 0 }), { ring: 0.5, due: 0.5, known: 0 });
-  /* B.3 — die Zeichen der Sammelfelder sprechen dieselbe Sprache: Band und Zahl, die Teile zusammen die ganze Zahl. */
-  check('B.3: a "+N" field counts by band (ring, due, known, mountains) — together its count', groups.every((g) => g.ring + g.due + g.known + g.mountain === g.count && g.cells.length === g.count), true);
-  check('B.3: a mountain-only field is a mountain field with its count', groups.filter((g) => g.ring === 0 && g.due === 0 && g.known === 0).every((g) => g.band === 'mountain' && g.mountain === g.count), true);
-  /* D — was das Lernen eines Ring-Eintrags frei macht. */
-  const r = runLayout(input, k, { budget: 400 }).run.layout.fields.find((f) => f.id === 'r0_0');
-  check('D: "Co dalej" — what learning r0_0 unlocks (m0_0 needs only it; m0_17 also needs m0_0)', r?.unlocks, ['m0_0']);
-  /* C — die Wege: Voraussetzungen zwischen Feldern, durch Einträge ohne Karten hindurch. */
-  check('C: links between fields (entry, prerequisite)', run.links.length / 2, input.needs.reduce((s, l) => s + l.length, 0));
-  /* C — der Ring des Fortschritts: wie viele Karten sitzen. */
-  const st = { ...state(input, k), cardsKnown: input.ids.map((id) => (id.startsWith('k') ? 4 : 1)), cardsTotal: input.ids.map(() => 4) };
-  const e = new L.LandscapeEngine(); e.setInput(input); e.setState(st);
-  const withCards = e.layout({ budget: 60 }).layout;
-  check('C: a field with several cards carries its progress (known / total)', [withCards.fields.find((f) => f.id === 'r0_0')?.progress, withCards.fields.find((f) => f.key === 'grp:a0:known')?.progress], [{ known: 1, total: 4 }, { known: 12, total: 12 }]);
-}
-{
-  /* Die Reihenfolge des Autors: a, b, c — b und c kommen oft zusammen vor; ohne `sorted` rückt das Gemeinsame zusammen. */
-  const values = [{ id: 'a', rank: 0 }, { id: 'b', rank: 1 }, { id: 'c', rank: 2 }];
-  const spec = { x1: [], x2: [], x3: [], y1: [], y2: [], z1: [] };
-  const memberOf = { x1: ['a', 'c'], x2: ['a', 'c'], x3: ['a', 'c'], y1: ['b'], y2: ['b'], z1: ['c'] };
-  const base = graphOf(spec, { values, memberOf });
-  const free = runLayout(base).run.layout.areas.map((s) => s.value);
-  const sorted = runLayout({ ...base, sorted: true }).run.layout.areas.map((s) => s.value);
-  check('sort: without an order, co-occurrence makes neighbours (a next to c)', Math.abs(free.indexOf('a') - free.indexOf('c')), 1);
-  check('sort: the author’s order (group.sort) stays left → right', sorted, ['a', 'b', 'c']);
-}
-{
-  /* Ohne Wert: in die Mitte beim Lernenden — kein Bereich „bez wartości”. */
-  const values = [{ id: 'p', label: 'P' }, { id: 'q', label: 'Q' }];
-  const g = graphOf({ root: [], p1: ['root'], p2: ['p1'], q1: ['root'], q2: ['q1'] }, { values, memberOf: { p1: ['p'], p2: ['p'], q1: ['q'], q2: ['q'] } });
-  const l = runLayout(g, { root: 1.2 }).run.layout;
-  const root = l.fields.find((f) => f.id === 'root');
-  check('centre: an entry without a value stands next to the learner, in no area', [root?.area, Math.hypot(root.x, root.y) < 2], [-1, true]);
-  check('centre: no made-up area for it', l.areas.map((s) => s.value), ['p', 'q']);
-}
-{
-  /* Ohne Gruppierung: die Teilbäume unter dem allgemeinsten Eintrag (einer → hinab, bis er sich teilt), nach ihm benannt. */
-  const spec = { R: [], M: ['R'] };
-  const sizes = { S1: 3, S2: 5, S3: 7, S4: 9 };
-  for (const [s, n] of Object.entries(sizes)) { spec[s] = ['M']; for (let i = 0; i < n; i += 1) spec[`${s}_${i}`] = [i === 0 ? s : `${s}_${i - 1}`]; }
-  spec.T = ['S1_0', 'S4_0'];
-  const g = graphOf(spec);
-  const l = runLayout(g, {}, { budget: 200 }).run.layout;
-  check('tree: one root descends to where it splits — areas named after their most general topic', l.areas.map((s) => s.label), ['S1', 'S2', 'S3', 'S4']);
-  check('tree: areas count their subtrees (no equal slices of entries)', l.areas.map((s) => s.count), [5, 6, 8, 11]);
-  check('tree: what lies above the areas stands in the middle', ['R', 'M'].map((id) => l.fields.find((f) => f.id === id)?.area), [-1, -1]);
-  const flat = runLayout(graphOf({ A: [], B: [], C: [] })).run.layout;
-  check('tree: no tree at all → one area without a name (never „okolice: …”)', flat.areas.map((s) => s.label), ['']);
-}
 {
   /* Die Achse über die Stufen (Baza im Speicher, derselbe Import wie die App). */
   const doc = {
@@ -385,12 +182,10 @@ function bandWorld() {
   check('through: "depth" reads ("all", a number, nothing without through)', [B.readAxis({ kind: 'k', through: 'f', depth: 'all' }).depth, B.readAxis({ kind: 'k', through: 'f', depth: 2 }).depth, B.readAxis({ kind: 'k', depth: 'all' }).depth, B.readAxis({ kind: 'k', through: 'f', depth: 'x' }).depth], ['all', 2, undefined, undefined]);
   const input = B.landscapeInput({ select: sel, deps: lib.dependencies(), label: (e) => lib.label(e) }, topics, view.group, { askable: new Set(topics.map((e) => e.id)) });
   check('input: the author’s order (sort by nr) and the values in it', [input.sorted, input.values.map((v) => v.label)], [true, ['Pierwszy', 'Drugi']]);
-  const run = runLayout(input).run.layout;
-  check('input: the root overview stands in the middle, no area', run.fields.find((f) => f.id === byName('Przegląd').id)?.area, -1);
   check('view: "bands" read and written back', [view.landscape, VW.viewJson(view).landscape], [{ budget: 60, bands: { ring: 0.4 } }, { budget: 60, bands: { ring: 0.4 } }]);
 }
 
-/* ── Gross: 10 000 Einträge, 50 000 Kanten ─────────────────────────────── */
+/* ── Gross: 10 000 Einträge, 50 000 Kanten (Graph und Höhen; die alte Gestalt je Fokus ist entfernt, 2026-11-09) ── */
 {
   const N = 10000;
   let seed = 7;
@@ -411,19 +206,17 @@ function bandWorld() {
   const t1 = performance.now();
   e.setState(state(input, known));
   const t2 = performance.now();
-  const run = e.layout({ budget: 60 });
-  const t3 = performance.now();
   known.e1500 = 1.1;
   e.setState(state(input, known));
-  e.layout({ budget: 60 });
-  const t4 = performance.now();
-  console.log(`info 10 000 / ${edges}: graph ${(t1 - t0).toFixed(0)} ms, heights ${(t2 - t1).toFixed(0)} ms, layout ${(t3 - t2).toFixed(0)} ms, after one answer ${(t4 - t3).toFixed(0)} ms`);
-  check('10 000 entries: a picture within the budget (singles and "+N" fields)', run.layout.fields.length <= 60 && run.layout.fields.filter((f) => f.kind === 'entry').length >= 30, true);
-  check('10 000 entries: the fixed map (graph + cells) under 4 s in node', t1 - t0 < 4000, true);
-  check('10 000 entries: after one answer (heights + layout) under 1.5 s in node', t4 - t3 < 1500, true);
+  const t3 = performance.now();
+  console.log(`info 10 000 / ${edges}: graph ${(t1 - t0).toFixed(0)} ms, heights ${(t2 - t1).toFixed(0)} ms, after one answer ${(t3 - t2).toFixed(0)} ms`);
+  check('10 000 entries: the graph under 4 s in node', t1 - t0 < 4000, true);
+  check('10 000 entries: after one answer (heights) under 1.5 s in node', t3 - t2 < 1500, true);
+  check('10 000 entries: the state per node covers every entry', e.stand().band.length, N);
 }
 
-/* ── 2026-11-03 — DER VERSCHACHTELTE KRAJOBRAZ (`landscapeNest.ts`) auf dem Beispiel „Świat wiedzy" ────── */
+/* ── 2026-11-03 — DER VERSCHACHTELTE KRAJOBRAZ (`landscapeNest.ts`): die Knoten lesen, auf dem Beispiel „Świat wiedzy" ── */
+/* 2026-11-09 (Weltkarte, Entscheidung 2) — die eigene Lage der Ebenen (`nestLayout`) ist entfernt; gezeichnet wird über `nestAsRegions` (app-levels-check). */
 {
   const doc = JSON.parse(readFileSync(join(process.cwd(), '../templates/cogita/przyklad-swiat.json'), 'utf8'));
   const made = await B.memoryBase(doc);
@@ -442,60 +235,9 @@ function bandWorld() {
   const tree = N.readNest(lib, input.ids, 'pole');
   const order = (a, b) => input.ids.indexOf(a) - input.ids.indexOf(b);
   const at = (n) => input.ids.indexOf(id(n));
-  const levelOf = (k, focus, weak = []) => {
-    const st = { ...state(input, k, weak), cardsKnown: input.ids.map((x) => ((k[x] ?? 0) >= 1 ? 2 : 0)), cardsTotal: input.ids.map(() => 2) };
-    const e = new L.LandscapeEngine(); e.setInput(input); e.setState(st);
-    const base = e.layout({ budget: 1_000_000, focus: [] }).layout;
-    return N.nestLayout(input, base, st, tree, focus === null ? null : id(focus), order);
-  };
-  const labels = (lay) => lay.fields.map((f) => `${f.kind === 'area' ? '▣' : '·'}${f.label}`);
-  const top = levelOf({}, null);
-  check('nest: the overview shows only the top level (three top fields, no topic)', labels(top), ['▣Matematyka', '▣Fizyka', '▣Historia nauki']);
-  check('nest: one zoom opens exactly one level (Matematyka → Liczby, Algebra)', labels(levelOf({}, 'Matematyka')), ['▣Liczby', '▣Algebra']);
-  check('nest: a level mixes nodes and topics standing there directly (Fizyka)', labels(levelOf({}, 'Fizyka')).sort(), ['·Wielkości i jednostki', '▣Ruch', '▣Siły'].sort());
-  const deep = levelOf({}, 'Dziesiętne i procenty');
-  check('nest: the 5-level branch — breadcrumbs from the top to the 5th level', deep.path.map((p) => p.label), ['Matematyka', 'Liczby', 'Działania', 'Ułamki', 'Dziesiętne i procenty']);
-  check('nest: … and the deepest level holds its topics', labels(deep).sort(), ['·Ułamki dziesiętne', '·Procenty'].sort());
-  check('nest: a middle level holds its node and its own topics (Działania)', labels(levelOf({}, 'Działania')).sort(), ['·Dodawanie i odejmowanie', '·Mnożenie i dzielenie', '▣Ułamki'].sort());
-  check('nest: the 2-level branch (Fizyka → Ruch) — breadcrumbs', levelOf({}, 'Ruch').path.map((p) => p.label), ['Fizyka', 'Ruch']);
-  check('nest: back to the top (no focus) — no breadcrumbs', top.path, []);
-  check('nest: no hex without meaning — every cell is a field, every field one cell', [top.land.every((c) => c.field !== null), top.fields.length === top.land.length, levelOf({}, 'Fizyka').land.every((c) => c.field !== null)], [true, true, true]);
-  check('nest: every field of the overview opens (a key, a label)', top.fields.every((f) => typeof f.key === 'string' && f.label !== ''), true);
-  /* Der Ring einer Gruppe: gewusste / alle Karten im GANZEN Teilbaum. */
-  const k1 = { [id('Liczby naturalne')]: 1.4, [id('Dodawanie i odejmowanie')]: 1.4 };
-  const math = levelOf(k1, null).fields.find((f) => f.label === 'Matematyka');
   const mathTopics = N.nestSubtree(tree, id('Matematyka'), input.ids);
   check('nest: the subtree of Matematyka holds its 12 topics (all depths)', mathTopics.length, 12);
-  check('nest: a group’s ring = known / all cards of its subtree (2 known topics × 2 cards of 12 × 2)', math.progress, { known: 4, total: 24 });
-  check('nest: … the same sums one level down (Liczby: 7 topics, 2 known)', levelOf(k1, 'Matematyka').fields.find((f) => f.label === 'Liczby').progress, { known: 4, total: 14 });
-  /* Höhe und Band einer Gruppe. */
-  check('nest: something ready inside → the group is level (ring, height 0)', [math.band, math.height], ['ring', 0]);
-  const hist = top.fields.find((f) => f.label === 'Historia nauki');
-  const histLow = Math.min(...N.nestSubtree(tree, id('Historia nauki'), input.ids).map((x) => Math.max(1, Math.round(top.heights[input.ids.indexOf(x)]))));
-  check('nest: nothing ready inside → a mountain as high as the nearest thing inside', [hist.band, hist.missing], ['mountain', histLow]);
-  check('nest: … and a mountain stands higher than a ring field', hist.lift > top.fields.find((f) => f.label === 'Matematyka').lift, true);
-  const all = Object.fromEntries(N.nestSubtree(tree, id('Fizyka'), input.ids).map((x) => [x, 1.4]));
-  const phys = levelOf({ ...k1, ...all }, null).fields.find((f) => f.label === 'Fizyka');
-  check('nest: everything inside known → the group sinks into the valley', [phys.band, phys.lift === 0], ['known', true]);
-  const half = { ...all, [id('Prędkość')]: 0.5 };
-  const physDue = levelOf({ ...k1, ...half }, null).fields.find((f) => f.label === 'Fizyka');
-  check('nest: learned but one due → deep in the valley with the repeat marker (due > 0)', [physDue.band, physDue.lift === 0, physDue.due], ['due', true, 1]);
-  /* Sperre: alles, was darin dran wäre, braucht erst eine Powtórka. */
-  const weakK = { [id('Liczby naturalne')]: 0.5 };
-  const liczby = levelOf(weakK, 'Liczby', [id('Liczby naturalne')]);
-  const dz = liczby.fields.find((f) => f.label === 'Działania');
-  check('nest: a group whose ring entries all need a review first is locked', [dz.band, dz.locked, liczby.locked[at('Dodawanie i odejmowanie')]], ['ring', true, 1]);
-  check('nest: groups not waiting on a review stay open', levelOf({}, null).fields.every((f) => f.locked === false), true);
-  /* Feste Lage: dicht gepackt, unabhängig vom Fortschritt. */
-  const pos = (lay) => lay.fields.map((f) => `${f.key}@${f.q},${f.r}`).sort().join('|');
-  check('nest: positions are fixed — progress does not move fields', pos(levelOf({}, 'Fizyka')), pos(levelOf({ ...k1, ...half }, 'Fizyka')));
-  const slots = N.nestSlots(7);
-  check('nest: slots are packed (ring 1 first, no cell twice, upper half)', [slots.slice(0, 3).every((s) => s.ring === 1), new Set(slots.map((s) => `${s.q},${s.r}`)).size, slots.every((s) => s.y >= -1e-9)], [true, 7, true]);
-  /* Ohne `nest`: der alte Widok („Krajobraz wiedzy", nach Dziedziny), jetzt ohne Zusammenfassen. */
-  const oldView = VW.readView(lib.docs('view').find((v) => v.data.name === 'Krajobraz wiedzy').data);
-  const flatInput = B.landscapeInput({ select: sel, deps: lib.dependencies(), label: (e) => lib.label(e) }, topics, B.landscapeAxis(sel, oldView.group, topics), { askable: new Set(topics.map((e) => e.id)) });
-  const flat = runLayout(flatInput, {}, { budget: 1_000_000 }).run.layout;
-  check('without nest: every topic with cards its own field (nothing merged)', flat.fields.filter((f) => f.kind === 'entry').length, Array.from(flatInput.learnable).filter(Boolean).length);
+  check('nest: every topic finds its home node (or none: top level)', input.ids.every((x) => !tree.home.has(x) || tree.nodes.has(tree.home.get(x))), true);
 }
 
 /* ── Die eine Logik: rel "chain" ────────────────────────────────────────── */

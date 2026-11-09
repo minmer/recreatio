@@ -3,12 +3,13 @@
  * ein Browser ohne Module-Worker) derselbe Motor im Hauptfaden. Die Ansicht schickt den Graphen nur, wenn er neu ist,
  * den Stand nach jeder Antwort, die Gestalt bei jedem Fokus; veraltete Antworten verwirft sie selbst.
  * 2026-11-04 (Prompt 11): `stand` (der Stand je Knoten ohne Gestalt) und `regions` (die Gebiete, einmal je Baza).
+ * 2026-11-09 (Weltkarte, Entscheidung 2) — die alte Gestalt je Fokus (`run` → `layoutOf`) ist entfernt: niemand fragte sie mehr.
  */
 
-import { LandscapeEngine, type LsInput, type LsOptions, type LsRun, type LsStand, type LsState } from './landscape';
+import { LandscapeEngine, type LsInput, type LsStand, type LsState } from './landscape';
 import type { Lang } from './lang';
 import { landscapeWords } from './landscapeWords';
-import { hasKey, t } from '../core/i18n';
+import { t } from '../core/i18n';
 import { buildRegions, type RegionGraphInput, type RegionOverrides, type RegionTree } from './regions';
 import { worldLayout, type WorldLayout } from './worldLayout';
 
@@ -24,7 +25,6 @@ export interface RegionRequest {
 }
 
 export interface LandscapeClient {
-  run(request: { readonly input?: LsInput; readonly state?: LsState; readonly options: LsOptions }): Promise<LsRun>;
   stand(request: { readonly input?: LsInput; readonly state?: LsState }): Promise<LsStand>;
   regions(request: RegionRequest): Promise<RegionTree>;
   /** 2026-11-04 (Prompt 13) — die Gebiete und die eine Landschaft (feste Plätze aller Themen). */
@@ -39,10 +39,6 @@ type Factory = () => Worker;
 
 /* Der Worker hat keine Wörterbücher: das Muster „Wokół: {label}“ kommt aus dem Hauptfaden mit. */
 const aroundOf = (lang: Lang): string => landscapeWords(lang).around('{label}');
-
-/* Was der Worker ohne Wörterbücher als Schlüssel zurückgab (ein Feld „bez obszaru“), hier in Worten. */
-const spoken = (run: LsRun): LsRun => (run.layout.fields.some((f) => hasKey(f.label))
-  ? { ...run, layout: { ...run.layout, fields: run.layout.fields.map((f) => (hasKey(f.label) ? { ...f, label: t(f.label) } : f)) } } : run);
 
 let factory: Factory | null | undefined;
 
@@ -65,12 +61,6 @@ function mainThread(): LandscapeClient {
   let kept: { key: string; tree: RegionTree } | null = null;
   return {
     inWorker: false,
-    run: async ({ input, state, options }) => {
-      if (input !== undefined) engine.setInput(input);
-      if (state !== undefined) engine.setState(state);
-      /* 2026-11-09 — auch hier: die Rechnung gibt Schlüssel zurück (sie kennt keine Wörterbücher), die Ansicht spricht sie. */
-      return spoken(engine.layout(options));
-    },
     stand: async ({ input, state }) => {
       if (input !== undefined) engine.setInput(input);
       if (state !== undefined) engine.setState(state);
@@ -129,12 +119,6 @@ export function landscapeClient(): LandscapeClient {
   const again = () => ({ ...(lastInput === undefined ? {} : { input: lastInput }), ...(lastState === undefined ? {} : { state: lastState }) });
   return {
     inWorker: true,
-    run: async ({ input, state, options }) => {
-      if (input !== undefined) lastInput = input;
-      if (state !== undefined) lastState = state;
-      if (broken) return viaFallback().run({ ...again(), options });
-      return ask<LsRun>({ type: 'run', input, state, options }).then(spoken);
-    },
     stand: async ({ input, state }) => {
       if (input !== undefined) lastInput = input;
       if (state !== undefined) lastState = state;

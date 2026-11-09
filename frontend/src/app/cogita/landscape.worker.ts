@@ -5,19 +5,18 @@
  * Baza: gemerkt, solange dieselben Themen und Wünsche des Besitzers kommen).
  * 2026-11-09 (Weltkarte, Korrektur 6) — ohne Wörterbücher: das Muster „Wokół: {label}" schickt der Hauptfaden immer mit
  * (`landscapeClient.ts`). Vorher zog `landscapeWords` `core/i18n.tsx` herein, und im Entwicklungsserver brach der Worker an
- * react-refresh (`window`).
+ * react-refresh (`window`). Die alte Gestalt je Fokus (`run`) ist entfernt (Entscheidung 2): niemand fragte sie mehr.
  */
 
 /** Ohne Muster aus dem Hauptfaden: der Name selbst. */
 const aroundOf = (pattern: string | undefined) => (label: string): string => (pattern === undefined ? label : pattern.replace('{label}', label));
 
-import { LandscapeEngine, type LsInput, type LsOptions, type LsState } from './landscape';
+import { LandscapeEngine, type LsInput, type LsState } from './landscape';
 import type { Lang } from './lang';
 import { buildRegions, type RegionGraphInput, type RegionOverrides, type RegionTree } from './regions';
 import { worldLayout, type WorldLayout } from './worldLayout';
 
 type Request =
-  | { readonly id: number; readonly type: 'run'; readonly input?: LsInput; readonly state?: LsState; readonly options: LsOptions }
   | { readonly id: number; readonly type: 'stand'; readonly input?: LsInput; readonly state?: LsState }
   | { readonly id: number; readonly type: 'route'; readonly target: string }
   | { readonly id: number; readonly type: 'world'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly around?: string; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>>; readonly places?: Readonly<Record<string, readonly [number, number]>> }
@@ -55,13 +54,10 @@ self.addEventListener('message', (event: MessageEvent<Request>) => {
       self.postMessage({ id: msg.id, ok: true, result: regionsKept.tree });
       return;
     }
+    /* Der Stand je Knoten (`stand`). */
     if (msg.input !== undefined) engine.setInput(msg.input);
     if (msg.state !== undefined) engine.setState(msg.state);
-    if (msg.type === 'stand') {
-      self.postMessage({ id: msg.id, ok: true, result: engine.stand() });
-      return;
-    }
-    self.postMessage({ id: msg.id, ok: true, result: engine.layout(msg.options) });
+    self.postMessage({ id: msg.id, ok: true, result: engine.stand() });
   } catch (e) {
     self.postMessage({ id: msg.id, ok: false, error: e instanceof Error ? e.message : String(e) });
   }
