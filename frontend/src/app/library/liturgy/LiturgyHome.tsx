@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { loadVersions, type VersionRow } from '../../cogita/versions';
 import type { Me } from '../../core/me';
 import { useT } from '../../core/i18n';
 import { viewPath } from '../../routes';
@@ -61,7 +62,7 @@ export function TextBlocks({ blocks }: { blocks: readonly TextBlock[] }) {
   return <>{blocks.map((b, i) => <p key={i} className={`lit-block is-${b.type}${b.emphasis ? ` is-${b.emphasis}` : ''}`}>{b.verse !== undefined && <sup>{b.verse} </sup>}{b.speaker && <strong>{b.speaker} </strong>}{b.text}</p>)}</>;
 }
 function ResourceDetail({ entity, entities, store, library }: { entity: LitEntity; entities: LitEntity[]; store: LibraryStore; library: OpenLibrary }) {
-  const t = useT(), [edit, setEdit] = useState<LitEntity | null>(null), [versions, setVersions] = useState<Entry[] | null>(null), [failed, setFailed] = useState('');
+  const t = useT(), [edit, setEdit] = useState<LitEntity | null>(null), [versions, setVersions] = useState<readonly VersionRow[] | null>(null), [failed, setFailed] = useState('');
   const index = indexOf(entities), resolved = resolveText(entity.id, index), uses = usageOf(entity.id, entities);
   const stored = store.all().find(e => e.data.id === entity.id && Object.values(KIND).includes(e.kind));
   const link = (id: string) => <a href={viewPath('library', library.libraryId, id)}>{index.get(id)?.title ?? id}</a>;
@@ -78,9 +79,9 @@ function ResourceDetail({ entity, entities, store, library }: { entity: LitEntit
     <h3>{t('liturgy.references')}</h3><ul>{dependencies(entity).map(id => <li key={id}>{link(id)}</li>)}</ul>
     <h3>{t('liturgy.usedBy', { count: uses.length })}</h3><ul>{uses.map(e => <li key={e.id}>{link(e.id)} · {t(`liturgy.types.${e.entity_type}`)}</li>)}</ul>
     <details><summary>{t('liturgy.metadata')}</summary><pre className="lit-json">{JSON.stringify(entity, null, 2)}</pre></details>
-    <div className="wk-actions"><button className="wk-btn wk-btn-quiet" onClick={() => download(`${entity.id}.json`, JSON.stringify(exportEntities([entity]), null, 2))}>{t('liturgy.exportJson')}</button>{library.writes && <button className="wk-btn" onClick={() => setEdit({ ...entity })}>{t('liturgy.edit')}</button>}{stored && library.writes && <button className="wk-btn wk-btn-quiet" onClick={async () => { try { setVersions(await store.history(stored.id)); } catch (e) { setFailed(e instanceof Error ? e.message : t('common.failed')); } }}>{t('liturgy.revisions')}</button>}</div>
+    <div className="wk-actions"><button className="wk-btn wk-btn-quiet" onClick={() => download(`${entity.id}.json`, JSON.stringify(exportEntities([entity]), null, 2))}>{t('liturgy.exportJson')}</button>{library.writes && <button className="wk-btn" onClick={() => setEdit({ ...entity })}>{t('liturgy.edit')}</button>}{stored && library.writes && <button className="wk-btn wk-btn-quiet" onClick={async () => { try { setVersions((await loadVersions(store.libraryId, stored.id)).versions); } catch (e) { setFailed(e instanceof Error ? e.message : t('common.failed')); } }}>{t('liturgy.revisions')}</button>}</div>
     {failed && <p className="wk-error">{failed}</p>}
-    {versions && <ul>{versions.map(v => { const old = entitiesOf([v])[0]; return <li key={v.version}>{v.updatedAt} · {t('liturgy.revision', { revision: v.version })}{old && <button className="wk-link-btn" onClick={() => setEdit({ ...old, revision: entity.revision })}>{t('liturgy.restorePreview')}</button>}</li>; })}{versions.length === 0 && <li>{t('liturgy.noHistory')}</li>}</ul>}
+    {versions && <ul>{versions.map(v => <li key={v.version}>{v.writtenAt} · {t('liturgy.revision', { revision: v.version })}<button className="wk-link-btn" onClick={async () => { if (!stored) return; try { const doc = await store.version(stored.id, v); const old = doc && entitiesOf([doc])[0]; if (!old) throw new Error(t('common.failed')); setEdit({ ...old, revision: entity.revision }); } catch (e) { setFailed(e instanceof Error ? e.message : t('common.failed')); } }}>{t('liturgy.restorePreview')}</button></li>)}{versions.length === 0 && <li>{t('liturgy.noHistory')}</li>}</ul>}
     {edit && <ImportPanel key={JSON.stringify(edit)} store={store} library={library} initial={edit} />}
   </>;
 }

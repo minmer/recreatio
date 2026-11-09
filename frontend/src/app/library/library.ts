@@ -293,7 +293,3 @@ export async function openLibraryName(key: Uint8Array | undefined, libraryId: st
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (value: string): boolean => UUID.test(value);
-
-/** Encrypted revision history, available to editors of this collection only. */
-export const loadEntryHistory = (libraryId: string, entryId: string): Promise<{ entries: readonly SealedEntry[] }> =>
-  call(`/workspace/library/${encodeURIComponent(libraryId)}/entry/${encodeURIComponent(entryId)}/history`);

@@ -41,7 +41,6 @@ public static partial class Library
         app.MapDelete("/workspace/library/{id:guid}", DeleteAsync);
 
         app.MapGet("/workspace/library/{id:guid}/entries", EntriesAsync);
-        app.MapGet("/workspace/library/{id:guid}/entry/{entryId:guid}/history", HistoryAsync);
         app.MapPut("/workspace/library/{id:guid}/entry/{entryId:guid}", SaveAsync);
         app.MapDelete("/workspace/library/{id:guid}/entry/{entryId:guid}", RemoveAsync);
         /* 2026-10-23 — viele auf einmal (Zaznaczone → Usuń, „Stare wpisy"): wie einzeln, in einer Transaktion. */

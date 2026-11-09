@@ -18,7 +18,7 @@ import { idbDelete, idbForget, idbGet, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import {
-  forgetLibraryNames, loadEntries, loadEntryHistory, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntries, putEntry, removeEntries, removeEntry, sealEntry, withdrawEntries,
+  forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntries, putEntry, removeEntries, removeEntry, sealEntry, withdrawEntries,
   type EntryDoc, type EntrySource, type LibraryRow, type PublishedAs, type PutEntryRow, type SealedEntry
 } from './library';
 import { originOf } from './libraryCite';
@@ -32,6 +32,7 @@ import { WorkspaceError } from '../core/session';
 import { fileUrl, removeFile, uploadFile } from '../cogita/files';
 import type { MediaRef } from '../cogita/schema';
 import { mediaOf } from './music';
+import { openVersion, type VersionRow } from '../cogita/versions';
 
 export interface Entry extends LibEntry {
   /** 2026-10-22 — die Bibliothek (und damit der Bereich), in der er liegt. */
@@ -446,14 +447,10 @@ export class LibraryStore implements Lookup {
     this.keySource = source;
   }
 
-  /** Old revisions remain encrypted; unavailable epochs are reported, never treated as empty texts. */
-  async history(id: string): Promise<Entry[]> {
+  /** Open a selected earlier envelope using the existing Library revision service. */
+  async version(id: string, revision: VersionRow): Promise<EntryDoc | null> {
     if (this.own(id) === undefined) throw new WorkspaceError('Nie ma tego wpisu w tej bibliotece.');
-    const { entries } = await loadEntryHistory(this.libraryId, id);
-    const keys = await this.keysFor(entries.map(e => e.epoch));
-    const opened = await Promise.all(entries.map(e => this.opened(keys, e)));
-    if (opened.some(e => e === null)) throw new WorkspaceError('Brakuje klucza wcześniejszej wersji.');
-    return opened.filter((e): e is Entry => e !== null);
+    return openVersion(this.libraryId, id, revision.version, await this.keysFor([revision.epoch]));
   }
 
   private async keysFor(epochs: Iterable<number>): Promise<ReadonlyMap<number, Uint8Array>> {
