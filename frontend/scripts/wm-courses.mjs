@@ -64,10 +64,16 @@ function courseOf(name, prefix, input, opts = {}) {
   /* Fragen ohne eigenen Eintrag (die erzeugten Welten): aus den Karten. */
   const seenQ = new Set(input.entries.filter((e) => questionKinds.has(e.kinds[0])).map((e) => e.id));
   for (const c of input.cards) if (!seenQ.has(c.question)) entities.push({ ref: ref(c.question), kinds: ['question'], data: { form: 'one', prompt: c.question, options: ['Tak', 'Nie'], correct: [0], about: c.about.map(ref) } });
+  /* Verweise auch in verschachtelten Bedingungen (die Bedingung einer Möglichkeit, ein Warunek-Schritt, and/or/not). */
   const mapConfig = (config) => {
-    const out = { ...config };
-    if (typeof out.of === 'string' && out.of !== '') out.of = ref(out.of);
-    if (typeof out.flow === 'string' && out.flow !== '') out.flow = flowRef(out.flow);
+    if (Array.isArray(config)) return config.map(mapConfig);
+    if (config === null || typeof config !== 'object') return config;
+    const out = {};
+    for (const [k, v] of Object.entries(config)) {
+      if (k === 'of' && typeof v === 'string' && v !== '') out[k] = ref(v);
+      else if (k === 'flow' && typeof v === 'string' && v !== '') out[k] = flowRef(v);
+      else out[k] = mapConfig(v);
+    }
     return out;
   };
   const flows = input.flows.map((f) => ({

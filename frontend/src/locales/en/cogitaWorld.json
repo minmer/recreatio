@@ -107,5 +107,132 @@
     "empty": "No places yet: a place is a topic that questions name in „about”.",
     "computing": "Laying out the map…",
     "relay": "Re-lay the whole map"
+  },
+  "panel": {
+    "close": "Close",
+    "cards": {
+      "one": "{count} card",
+      "other": "{count} cards"
+    },
+    "levelOf": "Level {level} of {levels}",
+    "partOf": "Part of {name}",
+    "knowledge": "Knowledge",
+    "dot": {
+      "green": "up to date",
+      "yellow": "review soon",
+      "orange": "review due"
+    },
+    "reviewN": "Review ({count})",
+    "conquer": "Conquer",
+    "startRun": "Start run for level {level}",
+    "conquerFirst": "Conquer first",
+    "orderTotal": {
+      "one": "{count} card in total",
+      "other": "{count} cards in total"
+    },
+    "moreN": "and {count} more",
+    "neverSeen": {
+      "one": "{count} card has never appeared",
+      "other": "{count} cards have never appeared"
+    },
+    "whereFrom": "where they come from:",
+    "noSlide": "no slide — learn directly",
+    "openNow": "open now",
+    "needs": "needs: {what}",
+    "learnDirectlyN": "Learn directly ({count})",
+    "learnN": "Learn ({count})",
+    "linesHere": "Lines here",
+    "station": "Interchange station",
+    "noLines": "No line stops here — learn its cards directly.",
+    "directions": "From here",
+    "choose": "Choose",
+    "details": "Details",
+    "travel": "Travel",
+    "travelAgain": "Travel again",
+    "travelled": "travelled",
+    "slides": {
+      "one": "{count} slide",
+      "other": "{count} slides"
+    },
+    "ticket": "Ticket",
+    "ticketOk": "Ticket valid",
+    "ticketMissing": "Ticket missing",
+    "ticketUnknown": "Not met — unknown condition",
+    "reviewOnly": "Review only",
+    "newCards": {
+      "one": "{count} new card",
+      "other": "{count} new cards"
+    },
+    "branch": "Branch: {label}",
+    "back": "back to {name}",
+    "leadMe": "Take me there",
+    "mySettings": "My settings",
+    "openEntry": "Open entry",
+    "homeSays": "Lines that start here",
+    "backToMap": "Back to the map",
+    "mapShort": "Map",
+    "nothing": "Nothing to learn here right now."
+  },
+  "nav": {
+    "target": "Target: {name}",
+    "progress": "{done} of {all} steps",
+    "travel": "{line}: {from} → {to}",
+    "learn": "Learn directly: {place}",
+    "run": "Run for level {level}: {place}",
+    "wait": "{place}: level {level} from {date}",
+    "know": "Learn until known: {place}",
+    "locked": "needs cards first",
+    "turnHint": "You can also turn here",
+    "covers": {
+      "one": "{count} of these cards",
+      "other": "{count} of these cards"
+    },
+    "opens": "also opens {names}",
+    "costMore": "+{n} effort",
+    "costLess": "−{n} effort",
+    "costSame": "same effort",
+    "end": "End navigation",
+    "arrived": "You are there: {name}",
+    "startHere": "Start here"
+  },
+  "issue": {
+    "title": {
+      "one": "For authors: {count} note",
+      "other": "For authors: {count} notes"
+    },
+    "none": "For authors: the data of the map shows no problems.",
+    "level": {
+      "error": "Error",
+      "warning": "Warning",
+      "info": "Note"
+    },
+    "cycle": "Prerequisites go round in a circle (kept together): {names}",
+    "dangling": "A reference in „{field}” points to nothing: {names}",
+    "partAndPrerequisite": "Field „{field}” is marked both as part and as prerequisite — read as prerequisite only: {names}",
+    "partOfSeveral": "Part of several blocks: {names}",
+    "flowNoPlaces": "Story without recognisable places (not drawn): {names}",
+    "unknownCondition": "Unknown condition type „{type}” — treated as not met: {names}",
+    "unreachableSteps": {
+      "one": "{count} step can never be reached: {names}",
+      "other": "{count} steps can never be reached: {names}"
+    },
+    "flowStartsLate": "Story starts at step „{step}”, not at its first slide „{first}”: {names}",
+    "membersNotDetoured": {
+      "one": "{count} member of this thread has no detour leading to it: {names}",
+      "other": "{count} members of this thread have no detour leading to them: {names}"
+    },
+    "requiresSiblingPrerequisite": "Requires what a neighbouring stage requires instead of that stage: {names}",
+    "placesWithoutLine": {
+      "one": "{count} place has no line (learned directly): {names}",
+      "other": "{count} places have no line (learned directly): {names}"
+    },
+    "cardsWithoutSlide": {
+      "one": "{count} card without a slide (learned directly): {names}",
+      "other": "{count} cards without a slide (learned directly): {names}"
+    },
+    "lineStartsMid": "Line starts in the middle of the world (an interchange station there): {names}",
+    "noRoute": "No track found — drawn as a straight line: {names}",
+    "mislabelledRegion": "Colour area named after a topic that is not its centre: „{name}” (centre: {names}) — name it in the view",
+    "unitMissing": "The story’s part does not exist: {names}"
   }
 }

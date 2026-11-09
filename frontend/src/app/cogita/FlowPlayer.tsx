@@ -219,7 +219,7 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
    */
   presentationAs?: 'play' | 'link';
   /** Ein Schritt, der von aussen geöffnet wird (ein Auslöser im Spiel [J6]). */
-  jumpTo?: { readonly step: string; readonly at: number } | null;
+  jumpTo?: { readonly step: string; readonly at: number; readonly exit?: string } | null;
   /** Jede Antwort auch nach aussen (eine Sitzung mit Code sammelt sie für den Gastgeber). */
   onAnswer?: (step: string, card: Card, correctness: number, given: unknown) => void;
   /** 2026-11-03 (Prompt 5) — vor einer Erzählung ihre Sperre prüfen (aus nur in einer Sitzung, die der Gastgeber führt). */
@@ -416,9 +416,13 @@ function FlowPlayerIn({ flow: given, content, learner, onClose, jumpTo, onAnswer
     forgetPast();
     const s = runRef.current.state;
     const mine = s.flow === flow.id && s.stack.length === 0;
-    commit({ run: { root: flow.id, outer: [], state: enterAt(flow, { ...s, flow: flow.id, stack: [], chapter: null, queue: undefined, visited: mine ? s.visited : [] }, jumpTo.step, ctx) }, finished: [] });
+    const entered: StoryRun = { root: flow.id, outer: [], state: enterAt(flow, { ...s, flow: flow.id, stack: [], chapter: null, queue: undefined, visited: mine ? s.visited : [] }, jumpTo.step, ctx) };
+    /* 2026-11-09 (Weltkarte, Umsteigeort) — an einer Wahl gleich den Ausgang nehmen, den der Lernende auf der Karte gewählt hat. */
+    const exit = jumpTo.exit;
+    const atFork = exit !== undefined && entered.state.step === jumpTo.step && flow.graph.edges.some((e) => e.from === jumpTo.step && e.out === exit);
+    commit({ run: atFork ? stepRun(entered, flowOf, exit, ctx).run : entered, finished: [] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jumpTo?.at, jumpTo?.step, flow]);
+  }, [jumpTo?.at, jumpTo?.step, jumpTo?.exit, flow]);
 
   /* 2026-11-04 (Prompt 10) — steht der Lernende (Anfang, gemerkte Stelle, Sprung) auf einer Frage, die er kann: still weiter. */
   useEffect(() => {

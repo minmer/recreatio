@@ -3,9 +3,10 @@
  * Farben nur aus den Variablen des Bildes (hell und dunkel): --wk-* und --cg-ls-*.
  */
 
-.cg-wm-host { display: grid; gap: var(--wk-space-2); }
+/* Das Feld steht neben der Karte, wenn der Platz reicht (gemessen an der Karte selbst, nicht am Fenster) — sonst darunter. */
+.cg-wm-host { display: grid; gap: var(--wk-space-2); container-type: inline-size; }
 .cg-wm-body { display: grid; gap: var(--wk-space-3); grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 64rem) {
+@container (min-width: 50rem) {
   .cg-wm-body.has-side { grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem); align-items: start; }
 }
 .cg-wm-main { position: relative; display: grid; gap: var(--wk-space-2); min-width: 0; }
@@ -43,3 +44,57 @@
   .cg-wm-stage { height: 62vh; min-height: 300px; }
   .cg-wm-range input { width: 6rem; }
 }
+
+/* -- Die Felder daneben (spec §4.8): Ort, Abschnitt, Umsteigeort, Haus, Navigation ------------------------------------------- */
+.cg-wm-side { display: grid; gap: var(--wk-space-3); align-content: start; min-width: 0; }
+.cg-wm-panel { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); background: var(--wk-surface); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); min-width: 0; }
+.cg-wm-panel p { margin: 0; }
+.cg-wm-ptop { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--wk-space-2); }
+.cg-wm-ptop h3 { margin: 0; font-size: var(--wk-text-md); line-height: 1.3; display: flex; align-items: center; gap: var(--wk-space-2); min-width: 0; overflow-wrap: anywhere; }
+.cg-wm-meta { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.cg-wm-h { margin-top: var(--wk-space-1); font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-ink-2); }
+.cg-wm-ok { color: var(--wk-ok); font-weight: 600; font-size: var(--wk-text-sm); }
+.cg-wm-lock { color: var(--wk-ink); font-size: var(--wk-text-sm); }
+.cg-wm-rows { list-style: none; margin: 0; padding: 0; display: grid; }
+.cg-wm-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-2); padding: var(--wk-space-1) 0; border-top: 1px solid var(--wk-line); font-size: var(--wk-text-sm); }
+.cg-wm-rows > .cg-wm-row:first-child { border-top: 0; }
+.cg-wm-rowmain { display: inline-flex; align-items: center; gap: var(--wk-space-1); min-width: 0; overflow-wrap: anywhere; }
+.cg-wm-rowact { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); margin-left: auto; }
+.cg-wm-chip { display: inline-block; flex: none; width: 0.75rem; height: 0.75rem; border-radius: var(--wk-radius-pill); background: var(--wk-line-strong); }
+.cg-wm-lines { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-3); font-size: var(--wk-text-sm); }
+.cg-wm-linechip { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
+.cg-wm-tag { display: inline-flex; align-items: center; gap: var(--wk-space-1); padding: 0 var(--wk-space-2); border-radius: var(--wk-radius-pill); font-size: var(--wk-text-xs); line-height: 1.6; border: 1px solid var(--wk-line); color: var(--wk-ink-2); background: var(--wk-sunk); }
+.cg-wm-tag.is-ok { color: var(--wk-ok); border-color: var(--wk-ok); background: var(--wk-ok-soft); }
+.cg-wm-tag.is-done { color: var(--wk-muted); }
+.cg-wm-tag.is-lock, .cg-wm-tag.is-warning { color: var(--wk-ink); border-color: var(--wk-warn); background: var(--wk-warn-soft); }
+.cg-wm-tag.is-error { color: var(--wk-danger); border-color: var(--wk-danger); background: var(--wk-danger-soft); }
+.cg-wm-tag.is-info { color: var(--wk-info); border-color: var(--wk-info); background: var(--wk-info-soft); }
+.cg-wm-dot { display: inline-block; flex: none; width: 0.7rem; height: 0.7rem; border-radius: var(--wk-radius-pill); }
+.cg-wm-dot.is-green { background: var(--wk-ok); }
+.cg-wm-dot.is-yellow { background: var(--wk-warn); }
+.cg-wm-dot.is-orange { background: color-mix(in oklab, var(--wk-warn) 45%, var(--wk-danger)); }
+.cg-wm-conquer { display: grid; gap: var(--wk-space-2); }
+.cg-wm-order { counter-reset: none; }
+.cg-wm-ticket { display: grid; gap: var(--wk-space-2); }
+
+/* Der Fahrplan (§8.2): eine senkrechte Linie, ein Halt je Schritt; zwei erledigte darüber, der jetzige gross, vier danach. */
+.cg-wm-tt { position: relative; max-height: 24rem; overflow-y: auto; overscroll-behavior: contain; padding-right: var(--wk-space-1); }
+.cg-wm-ttlist { position: relative; list-style: none; margin: 0; padding: 0 0 0 var(--wk-space-5); display: grid; }
+.cg-wm-ttlist::before { content: ''; position: absolute; left: 0.55rem; top: 0.6rem; bottom: 0.6rem; width: 3px; border-radius: var(--wk-radius-pill); background: var(--wk-line-strong); }
+.cg-wm-stop { position: relative; padding: var(--wk-space-1) 0 var(--wk-space-2); }
+.cg-wm-stopdot { position: absolute; left: calc(-1 * var(--wk-space-5) + 0.25rem); top: 0.45rem; width: 0.65rem; height: 0.65rem; border-radius: var(--wk-radius-pill); background: var(--wk-surface); border: 2px solid var(--wk-line-strong); }
+.cg-wm-stopbody { display: grid; gap: 2px; min-width: 0; }
+.cg-wm-stoptext { font-size: var(--wk-text-sm); overflow-wrap: anywhere; }
+.cg-wm-stop.is-done .cg-wm-stoptext { color: var(--wk-muted); }
+.cg-wm-stop.is-done .cg-wm-stopdot { background: var(--wk-line-strong); }
+.cg-wm-stop.is-current { padding: var(--wk-space-2) var(--wk-space-2) var(--wk-space-3); margin: var(--wk-space-1) 0; border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft); }
+.cg-wm-stop.is-current .cg-wm-stoptext { font-size: var(--wk-text-md); font-weight: 600; }
+.cg-wm-stop.is-current .cg-wm-stopdot { left: calc(-1 * var(--wk-space-5) + 0.1rem); top: 0.7rem; width: 0.95rem; height: 0.95rem; border-color: var(--wk-accent); background: var(--wk-accent); }
+.cg-wm-turns { font-size: var(--wk-text-sm); }
+.cg-wm-turns > summary { cursor: pointer; color: var(--wk-accent); width: max-content; max-width: 100%; }
+.cg-wm-turns[open] > summary { margin-bottom: var(--wk-space-1); }
+
+/* Die Liste für Autoren (§11). */
+.cg-wm-authors { border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); padding: var(--wk-space-2) var(--wk-space-3); font-size: var(--wk-text-sm); }
+.cg-wm-authors > summary { cursor: pointer; font-weight: 600; }
+.cg-wm-authors[open] > summary { margin-bottom: var(--wk-space-2); }

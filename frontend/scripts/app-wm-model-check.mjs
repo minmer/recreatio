@@ -227,9 +227,12 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   check('plan: cards to go', pl.cards, missing.reduce((sum, p) => sum + world.places.get(p).cards.length, 0));
   const travelWarsz = pl.steps.find((s) => s.kind === 'travel' && s.place === 'warsz');
   check('plan: the cheapest section introduces the cards', travelWarsz.section, 'f/L1:14');
-  check('plan: other lines to the same knowledge are branch options', travelWarsz.alternatives.map((a) => a.section), ['f/L4:1']);
-  const chosen = P.plan(st, 'magone', { gaps: [0, 1, 1], choices: new Map([['warsz', 'f/L4:1']]) });
-  check('plan: choosing an option recomputes from there', chosen.steps.filter((s) => s.kind === 'travel' && s.place === 'warsz').map((s) => s.section)[0], 'f/L4:1');
+  /* 2026-11-09 (Teil 5) — zwei Linien bringen je andere Karten eines Ortes: fährt der Plan beide, ist die zweite eine Ergänzung. */
+  check('plan: a section the plan travels anyway for the same place is no branch option', [pl.steps.filter((s) => s.kind === 'travel' && s.place === 'warsz').map((s) => s.section), travelWarsz.alternatives.map((a) => a.section)], [['f/L1:14', 'f/L4:1'], []]);
+  const travelMagone = pl.steps.find((s) => s.kind === 'travel' && s.place === 'magone');
+  check('plan: other branches to the same knowledge are branch options', [travelMagone.section, travelMagone.alternatives.map((a) => a.section)], ['f/L4:4', ['f/L4:5', 'f/L4:6']]);
+  const chosen = P.plan(st, 'magone', { gaps: [0, 1, 1], choices: new Map([['magone', 'f/L4:6']]) });
+  check('plan: choosing an option recomputes from there', chosen.steps.filter((s) => s.kind === 'travel' && s.place === 'magone').map((s) => s.section)[0], 'f/L4:6');
   const zero = P.plan(S.stateOf(world, lines, learner, { levels: 0, knownShare: 1 }), 'magone');
   check('plan with 0 levels: no runs, learn until known', [zero.steps.some((s) => s.kind === 'run'), zero.steps.filter((s) => s.kind === 'know').map((s) => s.place)], [false, ['domkos', 'savio', 'warsz', 'magone']]);
   const one = P.plan(S.stateOf(world, lines, learner, { levels: 1, knownShare: 1 }), 'magone');

@@ -33,6 +33,8 @@ export interface KnowledgeInput {
   /** Eine andere Gestalt als gespeichert: `landscape`, `quilt`, `table`, `tree`, `matrix`, `map`, `outline` — oder die Wörter der Seite (`krajobraz`, `postepy` …). */
   readonly mode?: string | null;
   readonly progress?: string | null;
+  /** 2026-11-09 — als jemand, der dort schreibt (Werkzeuge für Autoren, etwa die Liste der Weltkarte); nichts verlässt den Browser. */
+  readonly author?: boolean | null;
 }
 
 export interface ViewSummary {
@@ -192,13 +194,13 @@ async function summaryOf(base: MemoryBase, doc: unknown): Promise<KnowledgeSumma
 
 /* -- Das Bild ----------------------------------------------------------------------------------------------------- */
 
-function KnowledgeFrame({ base, viewId, learner, title, sub }: { base: MemoryBase; viewId: string; learner: Learner; title: string; sub: string }) {
+function KnowledgeFrame({ base, viewId, learner, title, sub, writes = false }: { base: MemoryBase; viewId: string; learner: Learner; title: string; sub: string; writes?: boolean }) {
   const [opened, setOpened] = useState<string | null>(null);
   const ctx = useMemo<CogitaCtx>(() => ({
-    lib: base.lib, name: base.name, writes: false,
+    lib: base.lib, name: base.name, writes,
     keyOf: () => Promise.resolve(undefined), keyIn: () => Promise.resolve(undefined),
     me: null, who: null, learner, href: () => '#'
-  }), [base, learner]);
+  }), [base, learner, writes]);
   const entity = opened === null ? undefined : base.lib.entity(opened);
   /* Ein Krajobraz: die Ansicht der Nauka selbst (`LandscapeView`), mit allen Karten der Baza; jede andere Gestalt in der Liste der Nauka. */
   const doc = base.lib.docs('view').find((e) => e.id === viewId);
@@ -244,7 +246,7 @@ export async function renderKnowledge(node: HTMLElement, root: Root | null, inpu
   const counted = CARD_MOODS.filter((m) => pl.counts[m] > 0).map((m) => `${t(MOOD_WORD[m])} ${pl.counts[m]}`).join(' · ');
   /* Ohne StrictMode — wie die gebaute Seite: Effekte laufen einmal. */
   next.render(
-    <KnowledgeFrame base={base} viewId={picked.id} learner={pl.learner} title={base.name}
+    <KnowledgeFrame base={base} viewId={picked.id} learner={pl.learner} title={base.name} writes={input.author === true}
       sub={`${t('preview.knowledge.view', { name: picked.summary.name })} · ${LIST_MODE_LABEL[picked.summary.mode as ListMode] ?? picked.summary.mode} · ${PREVIEW_PROGRESS_LABEL[progress]}${counted === '' ? '' : ` — ${t('preview.knowledge.cards', { list: counted })}`}`} />
   );
   return {

@@ -114,6 +114,15 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
   const introduce = (p: string) => {
     let open = (world.places.get(p)?.cards ?? []).filter((k) => !known(k));
     let guard = 0;
+    const from = steps.length;
+    /* Was der Plan für diesen Ort ohnehin fährt, ist eine Ergänzung, keine Abzweigung (zwei Linien bringen je andere Karten). */
+    const settle = () => {
+      const used = new Set(steps.slice(from).flatMap((x) => (x.kind === 'travel' ? [x.section] : [])));
+      for (let i = from; i < steps.length; i += 1) {
+        const x = steps[i];
+        if (x.kind === 'travel' && x.alternatives.some((a) => used.has(a.section))) steps[i] = { ...x, alternatives: x.alternatives.filter((a) => !used.has(a.section)) };
+      }
+    };
     while (open.length > 0 && guard < 64) {
       guard += 1;
       const list = candidates(open);
@@ -135,6 +144,7 @@ export function plan(state: WorldState, target: string, opts: PlanOptions = {}):
       if (covered.length === 0) break;
       open = open.filter((k) => !introduced.has(k));
     }
+    settle();
   };
 
   let t = now;

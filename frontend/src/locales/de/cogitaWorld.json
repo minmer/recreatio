@@ -107,5 +107,132 @@
     "empty": "Noch keine Orte: ein Ort ist ein Thema, das Fragen in „about” nennen.",
     "computing": "Die Karte wird gelegt…",
     "relay": "Die ganze Karte neu legen"
+  },
+  "panel": {
+    "close": "Schließen",
+    "cards": {
+      "one": "{count} Karte",
+      "other": "{count} Karten"
+    },
+    "levelOf": "Stufe {level} von {levels}",
+    "partOf": "Teil von {name}",
+    "knowledge": "Kenntnis",
+    "dot": {
+      "green": "aktuell",
+      "yellow": "bald wiederholen",
+      "orange": "Wiederholung fällig"
+    },
+    "reviewN": "Wiederholen ({count})",
+    "conquer": "Erobern",
+    "startRun": "Durchgang für Stufe {level} starten",
+    "conquerFirst": "Zuerst erobern",
+    "orderTotal": {
+      "one": "{count} Karte insgesamt",
+      "other": "{count} Karten insgesamt"
+    },
+    "moreN": "und {count} weitere",
+    "neverSeen": {
+      "one": "{count} Karte ist noch nie erschienen",
+      "other": "{count} Karten sind noch nie erschienen"
+    },
+    "whereFrom": "woher sie kommen:",
+    "noSlide": "keine Folie — direkt lernen",
+    "openNow": "jetzt offen",
+    "needs": "braucht: {what}",
+    "learnDirectlyN": "Direkt lernen ({count})",
+    "learnN": "Lernen ({count})",
+    "linesHere": "Linien hier",
+    "station": "Umsteigeort",
+    "noLines": "Hier hält keine Linie — die Karten direkt lernen.",
+    "directions": "Von hier",
+    "choose": "Wählen",
+    "details": "Details",
+    "travel": "Fahren",
+    "travelAgain": "Nochmals fahren",
+    "travelled": "befahren",
+    "slides": {
+      "one": "{count} Folie",
+      "other": "{count} Folien"
+    },
+    "ticket": "Fahrkarte",
+    "ticketOk": "Fahrkarte gültig",
+    "ticketMissing": "Fahrkarte fehlt",
+    "ticketUnknown": "Nicht erfüllt — unbekannte Bedingung",
+    "reviewOnly": "Nur wiederholen",
+    "newCards": {
+      "one": "{count} neue Karte",
+      "other": "{count} neue Karten"
+    },
+    "branch": "Zweig: {label}",
+    "back": "zurück nach {name}",
+    "leadMe": "Bring mich hin",
+    "mySettings": "Meine Einstellungen",
+    "openEntry": "Eintrag öffnen",
+    "homeSays": "Linien, die hier beginnen",
+    "backToMap": "Zurück zur Karte",
+    "mapShort": "Karte",
+    "nothing": "Hier gibt es gerade nichts zu lernen."
+  },
+  "nav": {
+    "target": "Ziel: {name}",
+    "progress": "{done} von {all} Schritten",
+    "travel": "{line}: {from} → {to}",
+    "learn": "Direkt lernen: {place}",
+    "run": "Durchgang für Stufe {level}: {place}",
+    "wait": "{place}: Stufe {level} ab {date}",
+    "know": "Lernen, bis es sitzt: {place}",
+    "locked": "braucht erst Karten",
+    "turnHint": "Hier kannst du auch abbiegen",
+    "covers": {
+      "one": "{count} dieser Karten",
+      "other": "{count} dieser Karten"
+    },
+    "opens": "öffnet auch {names}",
+    "costMore": "+{n} Aufwand",
+    "costLess": "−{n} Aufwand",
+    "costSame": "gleicher Aufwand",
+    "end": "Navigation beenden",
+    "arrived": "Du bist da: {name}",
+    "startHere": "Hier beginnen"
+  },
+  "issue": {
+    "title": {
+      "one": "Für Autoren: {count} Hinweis",
+      "other": "Für Autoren: {count} Hinweise"
+    },
+    "none": "Für Autoren: die Daten der Karte zeigen keine Probleme.",
+    "level": {
+      "error": "Fehler",
+      "warning": "Warnung",
+      "info": "Hinweis"
+    },
+    "cycle": "Voraussetzungen im Kreis (zusammen gehalten): {names}",
+    "dangling": "Ein Verweis in „{field}” zeigt ins Leere: {names}",
+    "partAndPrerequisite": "Das Feld „{field}” ist zugleich Teil und Voraussetzung — nur als Voraussetzung gelesen: {names}",
+    "partOfSeveral": "Teil mehrerer Blöcke: {names}",
+    "flowNoPlaces": "Geschichte ohne erkennbare Orte (nicht gezeichnet): {names}",
+    "unknownCondition": "Unbekannter Bedingungstyp „{type}” — gilt als nicht erfüllt: {names}",
+    "unreachableSteps": {
+      "one": "{count} Schritt ist nie erreichbar: {names}",
+      "other": "{count} Schritte sind nie erreichbar: {names}"
+    },
+    "flowStartsLate": "Die Geschichte beginnt bei Schritt „{step}”, nicht bei ihrer ersten Folie „{first}”: {names}",
+    "membersNotDetoured": {
+      "one": "{count} Mitglied dieses Erzählstrangs hat keine Vertiefung, die zu ihm führt: {names}",
+      "other": "{count} Mitglieder dieses Erzählstrangs haben keine Vertiefung, die zu ihnen führt: {names}"
+    },
+    "requiresSiblingPrerequisite": "Verlangt, was eine Nachbaretappe verlangt, statt dieser Etappe: {names}",
+    "placesWithoutLine": {
+      "one": "{count} Ort ohne Linie (direkt gelernt): {names}",
+      "other": "{count} Orte ohne Linie (direkt gelernt): {names}"
+    },
+    "cardsWithoutSlide": {
+      "one": "{count} Karte ohne Folie (direkt gelernt): {names}",
+      "other": "{count} Karten ohne Folie (direkt gelernt): {names}"
+    },
+    "lineStartsMid": "Die Linie beginnt mitten in der Welt (dort ein Umsteigeort): {names}",
+    "noRoute": "Kein Gleis gefunden — gerade gezogen: {names}",
+    "mislabelledRegion": "Farbgebiet nach einem Thema benannt, das nicht seine Mitte ist: „{name}” (Mitte: {names}) — im Widok selbst benennen",
+    "unitMissing": "Der Teil der Geschichte existiert nicht: {names}"
   }
 }

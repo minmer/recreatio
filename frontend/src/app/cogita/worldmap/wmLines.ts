@@ -764,6 +764,9 @@ export function linesOf(world: World, flows: readonly Flow[]): Lines {
   return { lines, sections, stations, introducedBy, issues: [...once.values()], stepFlow };
 }
 
+/** Wo der Spieler einen Schritt der Linie öffnet: ein eingebetteter (`<subflow>>…`) am Unterablauf-Schritt der Linie selbst. */
+export const outerStep = (step: string): string => { const at = step.indexOf(SEP); return at < 0 ? step : step.slice(0, at); };
+
 /** Der Ablauf eines Schrittes in einem Abschnitt (ein eingebetteter gehört dem gerufenen Ablauf) und seine eigene Kennung. */
 export function stepOwner(lines: Lines, line: string, step: string): { flow: string; step: string } {
   const flow = lines.stepFlow.get(step) ?? line;

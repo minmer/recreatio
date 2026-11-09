@@ -49,6 +49,8 @@ export interface PillarsProps {
   /** Spätere Schritte nur blass (die Navigation, §8.3). */
   readonly faint?: readonly string[] | null;
   readonly chosen?: string | null;
+  /** Die Navigation auf der Karte (§8.3): ein Wimpel am jetzigen Schritt, eine Fahne am Ziel, Gabeln, wo man abbiegen kann. */
+  readonly marks?: { readonly start: string | null; readonly target: string | null; readonly forks: readonly string[] } | null;
   readonly memoryKey: string;
   readonly t: T;
   readonly onHover?: (place: string | null, at: { x: number; y: number } | null) => void;
@@ -196,9 +198,39 @@ interface GroundLayer {
 }
 
 const DOT: Readonly<Record<'green' | 'yellow' | 'orange', string>> = { green: '#2f9e57', yellow: '#d9ad12', orange: '#e2701b' };
+const HOME_MARK = '~home';
+
+/** Eine Fahne (das Ziel) oder ein Wimpel (der jetzige Schritt) auf einer Säule — Schirmpunkte, deckend. */
+function drawFlag(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Palette, colour: string, pennant = false): void {
+  const h = 26;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = rgbCss(pal.surface); ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h); ctx.stroke();
+  ctx.strokeStyle = rgbCss(pal.ink); ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h); ctx.stroke();
+  ctx.beginPath();
+  if (pennant) { ctx.moveTo(x + 1, y - h); ctx.lineTo(x + 13, y - h + 5); ctx.lineTo(x + 1, y - h + 10); }
+  else { ctx.moveTo(x + 1, y - h); ctx.lineTo(x + 15, y - h); ctx.lineTo(x + 11, y - h + 5.5); ctx.lineTo(x + 15, y - h + 11); ctx.lineTo(x + 1, y - h + 11); }
+  ctx.closePath();
+  ctx.fillStyle = colour; ctx.fill();
+  ctx.strokeStyle = rgbCss(pal.surface); ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.restore();
+}
+
+/** Das Gabelzeichen an einem Umsteigeort, an dem man abbiegen kann (§8.3). */
+function drawFork(ctx: CanvasRenderingContext2D, x: number, y: number, pal: Palette): void {
+  ctx.save();
+  ctx.fillStyle = rgbCss(pal.surface);
+  ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = rgbCss(pal.lit); ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.strokeStyle = rgbCss(pal.ink); ctx.lineWidth = 1.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y + 4.5); ctx.lineTo(x, y); ctx.lineTo(x - 3.8, y - 4); ctx.moveTo(x, y); ctx.lineTo(x + 3.8, y - 4); ctx.stroke();
+  ctx.restore();
+}
 
 export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function WorldPillars(props, ref) {
-  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, compact = false } = props;
+  const { scene, pillarWidth, heightScale, route = null, faint = null, chosen = null, marks = null, memoryKey, t, onHover, onPick, onPickLane, onPickHome, compact = false } = props;
   const boxRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -472,6 +504,36 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       ctx.lineWidth = 3; ctx.strokeStyle = rgbCss(pal.surface); ctx.strokeText(t('cogitaWorld.map.start'), hx, hy + 4);
       ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(t('cogitaWorld.map.start'), hx, hy + 4);
     }
+    /* Die Navigation (§8.3): Gabeln am Ring, die Fahne am Ziel, der Wimpel am jetzigen Schritt („Tu zacznij"). */
+    if (marks !== null) {
+      const topOf = (id: string): [number, number] | null => {
+        if (id === HOME_MARK && scene.home !== null) { const [hx, hy] = toScr(v, scene.home.x, scene.home.y, 0); return [hx, hy - Math.max(6, Math.min(16, scene.home.r * v.s * 0.55)) * 1.7]; }
+        const d = drawn.find((x) => x.id === id);
+        if (d !== undefined) return [d.x, d.top];
+        const p = scene.byId.get(id);
+        if (p === undefined) return null;
+        const [x, y] = toScr(v, p.x, p.y, 0);
+        return [x, y];
+      };
+      for (const id of marks.forks) {
+        const p = scene.byId.get(id);
+        const r = p === undefined ? (scene.home?.r ?? 0) : p.r * pillarWidth + 7;
+        const at = p ?? scene.home;
+        if (at === null || at === undefined) continue;
+        const [fx, fy] = toScr(v, at.x + r * 0.71, at.y - r * 0.71, 0);
+        drawFork(ctx, fx, fy, pal);
+      }
+      if (marks.target !== null) { const at = topOf(marks.target); if (at !== null) drawFlag(ctx, at[0], at[1], pal, rgbCss(pal.lit)); }
+      if (marks.start !== null && marks.start !== marks.target) {
+        const at = topOf(marks.start);
+        if (at !== null) {
+          drawFlag(ctx, at[0], at[1], pal, rgbCss(pal.ink), true);
+          ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.lineWidth = 3; ctx.strokeStyle = rgbCss(pal.surface); ctx.strokeText(t('cogitaWorld.nav.startHere'), at[0] + 14, at[1] - 22);
+          ctx.fillStyle = rgbCss(pal.ink); ctx.fillText(t('cogitaWorld.nav.startHere'), at[0] + 14, at[1] - 22);
+        }
+      }
+    }
     /* Namen: nie übereinander, die niedrigere Säule gewinnt. */
     const placed = placeLabels(labels, size.w, size.h);
     ctx.font = '600 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -486,8 +548,10 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     if (frames.current.ms.length > 600) frames.current.ms.splice(0, frames.current.ms.length - 600);
     canvas.dataset.wmFrame = String(frames.current.count);
     canvas.dataset.wmMs = (performance.now() - t0).toFixed(2);
+    canvas.dataset.wmPillar = pillarWidth.toFixed(3);
+    canvas.dataset.wmRadius = (scene.places.length === 0 ? 0 : scene.places[0].r * pillarWidth * v.s).toFixed(2);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, stampOf, t]);
+  }, [palette, size, scene, pillarWidth, heightScale, route, faint, chosen, marks, stampOf, t]);
 
   const request = useCallback(() => { cancelAnimationFrame(raf.current); raf.current = requestAnimationFrame(draw); }, [draw]);
   useEffect(() => { request(); }, [request, cam]);
@@ -630,6 +694,50 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     else return;
     e.preventDefault();
   };
+
+  /*
+    Für Klickpfade (scripts/wm-click-paths.mjs): wo auf dem Bild ein Ort, das Haus oder ein Abschnitt getroffen wird — ein
+    Punkt, den dieselben Treffer-Prüfungen wie ein Klick wirklich ergeben (sonst null).
+  */
+  useEffect(() => {
+    type Hooked = HTMLCanvasElement & {
+      wmLocate?: (kind: string, id: string) => [number, number] | null;
+      wmLanes?: () => { section: string; line: string; state: string; from: string; to: string }[];
+    };
+    const el = canvasRef.current as Hooked | null;
+    if (el === null) return undefined;
+    const label = (id: string) => (id === HOME_MARK ? HOME_MARK : scene.byId.get(id)?.label ?? id);
+    el.wmLanes = () => scene.lanes.map((l) => ({ section: l.section, line: l.line, state: l.state, from: label(l.fromId), to: label(l.toId) }));
+    el.wmLocate = (kind, id) => {
+      const c = camRef.current;
+      if (c === null) return null;
+      const v = viewOf(c, size.w, size.h);
+      const inside = (x: number, y: number) => x > 4 && y > 4 && x < size.w - 4 && y < size.h - 4;
+      if (kind === 'place' || kind === 'label') {
+        const want = kind === 'label' ? scene.places.find((p) => p.label === id)?.id : id;
+        const d = drawnRef.current.find((x) => x.id === want);
+        if (d === undefined) return null;
+        for (const y of [(d.top + d.bottom) / 2, d.top, d.bottom]) if (inside(d.x, y) && hit(d.x, y) === want) return [d.x, y];
+        return null;
+      }
+      if (kind === 'home') {
+        if (scene.home === null) return null;
+        const [hx, hy] = toScr(v, scene.home.x, scene.home.y, 0);
+        for (const [x, y] of [[hx, hy], [hx, hy + 4], [hx + 6, hy]]) if (inside(x, y) && hit(x, y) === null && hitHome(x, y)) return [x, y];
+        return null;
+      }
+      const lane = scene.lanes.find((l) => l.section === id);
+      if (lane === undefined) return null;
+      const pts = withRims(lane, pillarWidth);
+      for (const f of [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74]) {
+        const a = along(pts, f);
+        const [x, y] = toScr(v, a.x, a.y, 0);
+        if (inside(x, y) && hit(x, y) === null && !hitHome(x, y) && hitLane(x, y) === id) return [x, y];
+      }
+      return null;
+    };
+    return () => { delete el.wmLocate; delete el.wmLanes; };
+  });
 
   useImperativeHandle(ref, () => ({
     fit: () => { if (size.w > 0) setCam(fitCam(size.w, size.h, camRef.current?.rot ?? -20, camRef.current?.fore ?? FORE_FIRST)); },

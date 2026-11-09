@@ -42,6 +42,9 @@ export interface SceneLane {
   readonly section: string;
   readonly line: string;
   readonly branch: string;
+  /** Die Orte an beiden Enden (oder das Haus). */
+  readonly fromId: string;
+  readonly toId: string;
   /** Punkte in Weltkoordinaten, von `from` nach `to`, schon versetzt. */
   readonly points: readonly number[];
   /** Die Mitten der Säulen an beiden Enden (für das gerade Stück bis zum gezeichneten Rand). */
@@ -134,7 +137,7 @@ export function sceneOf(world: World, lines: Lines, state: WorldState, g: Geomet
       else { points = []; for (let i = shifted.length - 2; i >= 0; i -= 2) points.push(shifted[i], shifted[i + 1]); }
     }
     lanes.push({
-      section: s.id, line: s.line, branch: s.branch, points, from: centre(s.from), to: centre(s.to), fromHome: s.from === HOME_ID,
+      section: s.id, line: s.line, branch: s.branch, fromId: s.from, toId: s.to, points, from: centre(s.from), to: centre(s.to), fromHome: s.from === HOME_ID,
       fromR: s.from === HOME_ID ? 0 : g.radii[s.from] ?? 28, toR: g.radii[s.to] ?? 28,
       color: colour?.color ?? opts.fallback, deep: colour?.deep === true, state: laneState, symbol: laneState === 'locked' ? st?.ticket.symbol ?? 'knowledge' : null
     });

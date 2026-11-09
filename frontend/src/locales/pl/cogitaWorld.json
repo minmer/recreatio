@@ -123,5 +123,154 @@
     "empty": "Jeszcze brak miejsc: miejsce to temat, który pytania wskazują w „about”.",
     "computing": "Układanie mapy…",
     "relay": "Ułóż mapę od nowa"
+  },
+  "panel": {
+    "close": "Zamknij",
+    "cards": {
+      "one": "{count} karta",
+      "few": "{count} karty",
+      "many": "{count} kart",
+      "other": "{count} karty"
+    },
+    "levelOf": "Poziom {level} z {levels}",
+    "partOf": "Część: {name}",
+    "knowledge": "Wiedza",
+    "dot": {
+      "green": "aktualna",
+      "yellow": "wkrótce powtórka",
+      "orange": "czas na powtórkę"
+    },
+    "reviewN": "Powtórz ({count})",
+    "conquer": "Zdobywanie",
+    "startRun": "Rozpocznij przebieg na poziom {level}",
+    "conquerFirst": "Najpierw zdobądź",
+    "orderTotal": {
+      "one": "razem {count} karta",
+      "few": "razem {count} karty",
+      "many": "razem {count} kart",
+      "other": "razem {count} karty"
+    },
+    "moreN": "i jeszcze {count}",
+    "neverSeen": {
+      "one": "{count} karta jeszcze się nie pojawiła",
+      "few": "{count} karty jeszcze się nie pojawiły",
+      "many": "{count} kart jeszcze się nie pojawiło",
+      "other": "{count} karty jeszcze się nie pojawiło"
+    },
+    "whereFrom": "skąd je wziąć:",
+    "noSlide": "bez slajdu — ucz się bezpośrednio",
+    "openNow": "otwarte teraz",
+    "needs": "wymaga: {what}",
+    "learnDirectlyN": "Ucz się bezpośrednio ({count})",
+    "learnN": "Ucz się ({count})",
+    "linesHere": "Linie tutaj",
+    "station": "Węzeł przesiadkowy",
+    "noLines": "Żadna linia się tu nie zatrzymuje — ucz się kart bezpośrednio.",
+    "directions": "Stąd",
+    "choose": "Wybierz",
+    "details": "Szczegóły",
+    "travel": "Jedź",
+    "travelAgain": "Jedź jeszcze raz",
+    "travelled": "przejechany",
+    "slides": {
+      "one": "{count} slajd",
+      "few": "{count} slajdy",
+      "many": "{count} slajdów",
+      "other": "{count} slajdu"
+    },
+    "ticket": "Bilet",
+    "ticketOk": "Bilet ważny",
+    "ticketMissing": "Brak biletu",
+    "ticketUnknown": "Niespełnione — nieznany warunek",
+    "reviewOnly": "Tylko powtórka",
+    "newCards": {
+      "one": "{count} nowa karta",
+      "few": "{count} nowe karty",
+      "many": "{count} nowych kart",
+      "other": "{count} nowej karty"
+    },
+    "branch": "Odgałęzienie: {label}",
+    "back": "powrót do: {name}",
+    "leadMe": "Prowadź mnie tutaj",
+    "mySettings": "Moje ustawienia",
+    "openEntry": "Otwórz wpis",
+    "homeSays": "Linie, które tu się zaczynają",
+    "backToMap": "Wróć do mapy",
+    "mapShort": "Mapa",
+    "nothing": "Tu nie ma teraz nic do nauki."
+  },
+  "nav": {
+    "target": "Cel: {name}",
+    "progress": "{done} z {all} kroków",
+    "travel": "{line}: {from} → {to}",
+    "learn": "Ucz się bezpośrednio: {place}",
+    "run": "Przebieg na poziom {level}: {place}",
+    "wait": "{place}: poziom {level} od {date}",
+    "know": "Ucz się aż do opanowania: {place}",
+    "locked": "najpierw potrzebne karty",
+    "turnHint": "Tu możesz też skręcić",
+    "covers": {
+      "one": "{count} z tych kart",
+      "few": "{count} z tych kart",
+      "many": "{count} z tych kart",
+      "other": "{count} z tych kart"
+    },
+    "opens": "otwiera też: {names}",
+    "costMore": "+{n} wysiłku",
+    "costLess": "−{n} wysiłku",
+    "costSame": "ten sam wysiłek",
+    "end": "Zakończ nawigację",
+    "arrived": "Jesteś na miejscu: {name}",
+    "startHere": "Zacznij tutaj"
+  },
+  "issue": {
+    "title": {
+      "one": "Dla autorów: {count} uwaga",
+      "few": "Dla autorów: {count} uwagi",
+      "many": "Dla autorów: {count} uwag",
+      "other": "Dla autorów: {count} uwagi"
+    },
+    "none": "Dla autorów: dane mapy nie mają problemów.",
+    "level": {
+      "error": "Błąd",
+      "warning": "Ostrzeżenie",
+      "info": "Uwaga"
+    },
+    "cycle": "Wymagania tworzą koło (trzymane razem): {names}",
+    "dangling": "Odwołanie w „{field}” prowadzi donikąd: {names}",
+    "partAndPrerequisite": "Pole „{field}” jest jednocześnie częścią i wymaganiem — czytane tylko jako wymaganie: {names}",
+    "partOfSeveral": "Część kilku bloków: {names}",
+    "flowNoPlaces": "Opowieść bez rozpoznawalnych miejsc (nie rysowana): {names}",
+    "unknownCondition": "Nieznany typ warunku „{type}” — traktowany jako niespełniony: {names}",
+    "unreachableSteps": {
+      "one": "{count} krok jest nieosiągalny: {names}",
+      "few": "{count} kroki są nieosiągalne: {names}",
+      "many": "{count} kroków jest nieosiągalnych: {names}",
+      "other": "{count} kroku jest nieosiągalne: {names}"
+    },
+    "flowStartsLate": "Opowieść zaczyna się od kroku „{step}”, a nie od pierwszego slajdu „{first}”: {names}",
+    "membersNotDetoured": {
+      "one": "{count} część wątku nie ma prowadzącego do niej zagłębienia: {names}",
+      "few": "{count} części wątku nie mają prowadzącego do nich zagłębienia: {names}",
+      "many": "{count} części wątku nie ma prowadzącego do nich zagłębienia: {names}",
+      "other": "{count} części wątku nie ma prowadzącego do nich zagłębienia: {names}"
+    },
+    "requiresSiblingPrerequisite": "Wymaga tego, czego wymaga sąsiedni etap, zamiast samego etapu: {names}",
+    "placesWithoutLine": {
+      "one": "{count} miejsce bez linii (nauka bezpośrednia): {names}",
+      "few": "{count} miejsca bez linii (nauka bezpośrednia): {names}",
+      "many": "{count} miejsc bez linii (nauka bezpośrednia): {names}",
+      "other": "{count} miejsca bez linii (nauka bezpośrednia): {names}"
+    },
+    "cardsWithoutSlide": {
+      "one": "{count} karta bez slajdu (nauka bezpośrednia): {names}",
+      "few": "{count} karty bez slajdu (nauka bezpośrednia): {names}",
+      "many": "{count} kart bez slajdu (nauka bezpośrednia): {names}",
+      "other": "{count} karty bez slajdu (nauka bezpośrednia): {names}"
+    },
+    "lineStartsMid": "Linia zaczyna się w środku świata (tam węzeł przesiadkowy): {names}",
+    "noRoute": "Nie znaleziono toru — narysowany prosto: {names}",
+    "mislabelledRegion": "Obszar koloru nazwany od tematu, który nie jest jego środkiem: „{name}” (środek: {names}) — nadaj mu nazwę w widoku",
+    "unitMissing": "Część opowieści nie istnieje: {names}"
   }
 }
