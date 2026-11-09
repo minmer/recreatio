@@ -1,0 +1,332 @@
+[
+  {
+    "path": "1 lock",
+    "name": "Home opens its panel with the lines that start there",
+    "ok": true
+  },
+  {
+    "path": "1 lock",
+    "name": "the map shows a locked section (domkos → cagrua)",
+    "ok": true
+  },
+  {
+    "path": "1 lock",
+    "name": "the section panel shows the missing ticket",
+    "ok": true,
+    "detail": {
+      "ticket": "missing",
+      "conditions": [
+        "knowledge"
+      ],
+      "sources": [
+        {
+          "source": "section",
+          "cards": 10,
+          "open": "1"
+        },
+        {
+          "source": "direct",
+          "cards": 3,
+          "open": null
+        }
+      ],
+      "learn": 13,
+      "travel": true
+    }
+  },
+  {
+    "path": "1 lock",
+    "name": "the ticket names the sources: a line that introduces cards, and cards with no slide",
+    "ok": true,
+    "detail": [
+      {
+        "source": "section",
+        "cards": 10,
+        "open": "1"
+      },
+      {
+        "source": "direct",
+        "cards": 3,
+        "open": null
+      }
+    ]
+  },
+  {
+    "path": "1 lock",
+    "name": "travel is disabled while the ticket is missing",
+    "ok": true
+  },
+  {
+    "path": "1 lock",
+    "name": "learn directly asks the missing cards (13 answered)",
+    "ok": true,
+    "detail": {
+      "answered": 13,
+      "missing": 13
+    }
+  },
+  {
+    "path": "1 lock",
+    "name": "the lock is gone: the ticket is valid and the lane is open",
+    "ok": true,
+    "detail": {
+      "section": "01a1c17d-0712-79b3-99e1-16ee7cad0676:2",
+      "line": "01a1c17d-0712-79b3-99e1-16ee7cad0676",
+      "state": "open",
+      "from": "Dom i kościół (1850–1852)",
+      "to": "Cagliero, Rua i konwikt studentów"
+    }
+  },
+  {
+    "path": "1 lock",
+    "name": "travel is now possible",
+    "ok": true
+  },
+  {
+    "path": "2 station",
+    "name": "the station lists the 3 branches of the story that splits here",
+    "ok": true,
+    "detail": [
+      "Z chłopcami z warsztatów · Do warsztatów→ Pół tuzina warsztatów · 1 slajdBilet ważnyWybierzSzczegóły",
+      "Z chłopcami z warsztatów · Do studentów→ Cagliero, Rua i konwikt studentów · 1 slajdBrak biletu · 13 nowych kartSzczegóły",
+      "Z chłopcami z warsztatów · Z Dominikiem Savio→ Dominik Savio · 1 slajdBilet ważnyWybierzSzczegóły"
+    ]
+  },
+  {
+    "path": "2 station",
+    "name": "each direction shows its ticket (open branches can be chosen, a locked one cannot)",
+    "ok": true,
+    "detail": [
+      [
+        "ok",
+        true
+      ],
+      [
+        "locked",
+        false
+      ],
+      [
+        "ok",
+        true
+      ]
+    ]
+  },
+  {
+    "path": "2 station",
+    "name": "the player opens in the chosen branch (its first slide)",
+    "ok": true,
+    "detail": {
+      "step": "sh11",
+      "locked": false
+    }
+  },
+  {
+    "path": "3 navigate",
+    "name": "the target has 3 missing prerequisites (after learning 115 cards of the others)",
+    "ok": true,
+    "detail": {
+      "count": 3,
+      "names": [
+        "Dom i kościół (1850–1852)",
+        "Dominik Savio",
+        "Pół tuzina warsztatów"
+      ]
+    }
+  },
+  {
+    "path": "3 navigate",
+    "name": "the timetable lists every step, the current one first",
+    "ok": true,
+    "detail": {
+      "steps": 14,
+      "stops": [
+        "travel:01a1c17d-1c89-7da2-89c9-e2fc7c2ee26e:13",
+        "travel:01a1c17d-1c89-7362-a64b-257159ddd831:7",
+        "learn:01a1c17d-1c82-7c15-9c8b-1244eab6205a",
+        "know:01a1c17d-1c82-7c15-9c8b-1244eab6205a",
+        "travel:01a1c17d-1c89-7362-a64b-257159ddd831:8",
+        "travel:01a1c17d-1c89-7715-8b53-91315bbe3085:3",
+        "know:01a1c17d-1c82-7cf4-822a-35eaba192a2f",
+        "travel:01a1c17d-1c89-7da2-89c9-e2fc7c2ee26e:14",
+        "travel:01a1c17d-1c89-7715-8b53-91315bbe3085:1",
+        "learn:01a1c17d-1c82-73aa-91bc-41187322908d",
+        "know:01a1c17d-1c82-73aa-91bc-41187322908d",
+        "travel:01a1c17d-1c89-7715-8b53-91315bbe3085:4",
+        "learn:01a1c17d-1c82-7f2f-858a-c74592a0bd6b",
+        "know:01a1c17d-1c82-7f2f-858a-c74592a0bd6b"
+      ]
+    }
+  },
+  {
+    "path": "3 navigate",
+    "name": "a branch option is offered on the way",
+    "ok": true,
+    "detail": [
+      "travel:01a1c17d-1c89-7da2-89c9-e2fc7c2ee26e:13:0",
+      "travel:01a1c17d-1c89-7362-a64b-257159ddd831:7:0",
+      "learn:01a1c17d-1c82-7c15-9c8b-1244eab6205a:0",
+      "know:01a1c17d-1c82-7c15-9c8b-1244eab6205a:0",
+      "travel:01a1c17d-1c89-7362-a64b-257159ddd831:8:0",
+      "travel:01a1c17d-1c89-7715-8b53-91315bbe3085:3:0",
+      "know:01a1c17d-1c82-7cf4-822a-35eaba192a2f:0",
+      "travel:01a1c17d-1c89-7da2-89c9-e2fc7c2ee26e:14:0",
+      "travel:01a1c17d-1c89-7715-8b53-91315bbe3085:1:0",
+      "learn:01a1c17d-1c82-73aa-91bc-41187322908d:0",
+      "know:01a1c17d-1c82-73aa-91bc-41187322908d:0",
+      "travel:01a1c17d-1c89-7715-8b53-91315bbe3085:4:2",
+      "learn:01a1c17d-1c82-7f2f-858a-c74592a0bd6b:0",
+      "know:01a1c17d-1c82-7f2f-858a-c74592a0bd6b:0"
+    ]
+  },
+  {
+    "path": "3 navigate",
+    "name": "choosing the option recomputes the route from that stop (nothing marked done)",
+    "ok": true,
+    "detail": {
+      "turned": "travel:01a1c17d-1c89-7715-8b53-91315bbe3085:4",
+      "to": "01a1c17d-1c89-7715-8b53-91315bbe3085:5",
+      "steps": 14,
+      "done": 0,
+      "target": "01a1c17d-1c82-7f2f-858a-c74592a0bd6b",
+      "stops": [
+        "travel:01a1c17d-1c89-7da2-89c9-e2fc7c2ee26e:13",
+        "travel:01a1c17d-1c89-7362-a64b-257159ddd831:7",
+        "learn:01a1c17d-1c82-7c15-9c8b-1244eab6205a",
+        "know:01a1c17d-1c82-7c15-9c8b-1244eab6205a",
+        "travel:01a1c17d-1c89-7362-a64b-257159ddd831:8",
+        "travel:01a1c17d-1c89-7715-8b53-91315bbe3085:3",
+        "know:01a1c17d-1c82-7cf4-822a-35eaba192a2f",
+        "travel:01a1c17d-1c89-7da2-89c9-e2fc7c2ee26e:14",
+        "travel:01a1c17d-1c89-7715-8b53-91315bbe3085:1",
+        "learn:01a1c17d-1c82-73aa-91bc-41187322908d",
+        "know:01a1c17d-1c82-73aa-91bc-41187322908d",
+        "travel:01a1c17d-1c89-7715-8b53-91315bbe3085:5",
+        "learn:01a1c17d-1c82-7f2f-858a-c74592a0bd6b",
+        "know:01a1c17d-1c82-7f2f-858a-c74592a0bd6b"
+      ]
+    }
+  },
+  {
+    "path": "3 navigate",
+    "name": "the map shows the route: start pennant, target flag",
+    "ok": true
+  },
+  {
+    "path": "3 navigate",
+    "name": "the navigation persists within the session (after \"story\")",
+    "ok": true
+  },
+  {
+    "path": "4 pillar",
+    "name": "every one of 30 slider positions is drawn at once",
+    "ok": true,
+    "detail": []
+  },
+  {
+    "path": "4 pillar",
+    "name": "the drawn radius shrinks continuously",
+    "ok": true,
+    "detail": [
+      8.7,
+      8.53,
+      8.35,
+      8.17,
+      7.99,
+      7.81,
+      7.64,
+      7.46,
+      7.28,
+      7.1,
+      6.93,
+      6.75,
+      6.57,
+      6.39,
+      6.22,
+      6.04,
+      5.86,
+      5.68,
+      5.51,
+      5.33,
+      5.15,
+      4.97,
+      4.8,
+      4.62,
+      4.44,
+      4.26,
+      4.08,
+      3.91,
+      3.73,
+      3.55
+    ]
+  },
+  {
+    "path": "4 pillar",
+    "name": "positions and tracks are not recomputed (same geometry, no new layout)",
+    "ok": true,
+    "detail": {
+      "geo0": {
+        "version": "wm1-86d56e46d9b17124-50",
+        "runs": 1
+      },
+      "geo1": {
+        "version": "wm1-86d56e46d9b17124-50",
+        "runs": 1
+      }
+    }
+  },
+  {
+    "path": "4 pillar",
+    "name": "timing",
+    "ok": true,
+    "detail": {
+      "drawMedianMs": 2.9,
+      "drawMaxMs": 4.5
+    }
+  },
+  {
+    "path": "5 run",
+    "name": "with one level the place waits for its cards (run locked)",
+    "ok": true
+  },
+  {
+    "path": "5 run",
+    "name": "the run reaches level 1",
+    "ok": true,
+    "detail": {
+      "level": 1,
+      "reached": "1"
+    }
+  },
+  {
+    "path": "5 run",
+    "name": "the place is conquered (flat, full colour, knowledge dot)",
+    "ok": true
+  },
+  {
+    "path": "all",
+    "name": "no exceptions in the page",
+    "ok": true,
+    "detail": [
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4791/api/intake/podglad-obszaru)"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4791/api/intake/podglad-obszaru)"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4791/api/intake/podglad-obszaru)"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4791/api/intake/podglad-obszaru)"
+      },
+      {
+        "level": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error) (http://localhost:4791/api/intake/podglad-obszaru)"
+      }
+    ]
+  }
+]
