@@ -18,6 +18,8 @@ export interface GeometryInput {
   readonly blocks: readonly { readonly id: string; readonly parts: readonly string[] }[];
   /** Abschnitte (von, nach): Orte oder das Haus; gleiche Enden zählen nicht. */
   readonly sections: readonly (readonly [string, string])[];
+  /** Step 3 §2.1 — die Linie je Abschnitt (gleiche Reihenfolge): wie viele Linien ein Gleis trägt (die Breite des Bündels). */
+  readonly sectionLines?: readonly string[];
   /** Voraussetzungen zwischen Orten (Grundlage → Aufbau). */
   readonly prereqs: readonly (readonly [string, string])[];
   /** Gespeicherte Lage der Knoten (Orte, Blöcke, Haus). */
@@ -83,12 +85,16 @@ export function geometryOf(input: GeometryInput): Geometry {
 
   const trackPairs = new Map<string, [string, string]>();
   const inner = new Map<string, [string, string]>();
-  for (const [a, b] of input.sections) {
-    if (a === b) continue;
+  const bundle = new Map<string, Set<string>>();
+  input.sections.forEach(([a, b], i) => {
+    if (a === b) return;
     const na = node(a), nb = node(b);
-    if (na === nb) { inner.set(key(a, b), a < b ? [a, b] : [b, a]); continue; }
+    if (na === nb) { inner.set(key(a, b), a < b ? [a, b] : [b, a]); return; }
     trackPairs.set(key(na, nb), na < nb ? [na, nb] : [nb, na]);
-  }
+    const set = bundle.get(key(na, nb)) ?? new Set<string>();
+    set.add(input.sectionLines?.[i] ?? '');
+    bundle.set(key(na, nb), set);
+  });
   const prereqs: [string, string][] = [];
   for (const [a, b] of input.prereqs) { const na = node(a), nb = node(b); if (na !== nb) prereqs.push([na, nb]); }
 
@@ -119,7 +125,7 @@ export function geometryOf(input: GeometryInput): Geometry {
 
   const t1 = Date.now();
   const obstacles: Obstacle[] = layoutNodes.map((n) => ({ id: n.id, x: positions[n.id][0], y: positions[n.id][1], r: n.r }));
-  const routed = routeTracks(obstacles, [...trackPairs.values()]);
+  const routed = routeTracks(obstacles, [...trackPairs.values()], (a, b) => bundle.get(key(a, b))?.size ?? 1);
   const tracksMs = Date.now() - t1;
   return {
     version, positions, radii, nodeOf, tracks: routed.tracks, inner: [...inner.values()], noRoute: routed.noRoute, nodes, placed: lay.placed,
@@ -136,10 +142,11 @@ export function geometryInputOf(world: World, lines: Lines, opts: { readonly pre
   });
   const blocks = [...world.blocks.values()].map((b) => ({ id: b.id, parts: b.parts.filter((p) => world.places.has(p)) })).filter((b) => b.parts.length > 0);
   const sections: [string, string][] = [];
-  for (const s of lines.sections.values()) if (s.from !== s.to) sections.push([s.from, s.to]);
+  const sectionLines: string[] = [];
+  for (const s of lines.sections.values()) if (s.from !== s.to) { sections.push([s.from, s.to]); sectionLines.push(s.line); }
   const prereqs: [string, string][] = [];
   for (const p of world.places.values()) for (const n of p.needs) prereqs.push([n, p.id]);
-  return { places, blocks, sections, prereqs, ...(opts.previous === undefined ? {} : { previous: opts.previous }), ...(opts.mode === undefined ? {} : { mode: opts.mode }) };
+  return { places, blocks, sections, sectionLines, prereqs, ...(opts.previous === undefined ? {} : { previous: opts.previous }), ...(opts.mode === undefined ? {} : { mode: opts.mode }) };
 }
 
 /** Die Hindernisse einer fertigen Gestalt (für die Prüfung `clearance`). */

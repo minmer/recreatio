@@ -17,13 +17,14 @@ import { pathToFileURL } from 'node:url';
 const workspace = await mkdtemp(join(tmpdir(), 'app-wm-geometry-'));
 const entries = {
   graph: 'src/app/cogita/worldmap/wmGraph.ts', lines: 'src/app/cogita/worldmap/wmLines.ts', geo: 'src/app/cogita/worldmap/wmGeometry.ts',
-  tracks: 'src/app/cogita/worldmap/wmTracks.ts', layout: 'src/app/cogita/worldmap/wmLayout.ts', store: 'src/app/cogita/worldmap/wmStore.ts', fx: 'src/app/cogita/worldmap/wmFixtures.ts'
+  tracks: 'src/app/cogita/worldmap/wmTracks.ts', layout: 'src/app/cogita/worldmap/wmLayout.ts', store: 'src/app/cogita/worldmap/wmStore.ts', fx: 'src/app/cogita/worldmap/wmFixtures.ts',
+  scene: 'src/app/cogita/worldmap/wmScene.ts', state: 'src/app/cogita/worldmap/wmState.ts', colors: 'src/app/cogita/worldmap/wmColors.ts'
 };
 const define = { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) };
 await build({ entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' }, define });
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [G, L, GEO, T, LAY, ST, F] = await Promise.all(Object.keys(entries).map(load));
+const [G, L, GEO, T, LAY, ST, F, SC, S, C] = await Promise.all(Object.keys(entries).map(load));
 
 let failed = 0;
 let passed = 0;
@@ -69,6 +70,14 @@ for (const [name, input, budget] of worlds) {
   made[name] = { g, gi, input };
   const violations = T.clearance(GEO.obstaclesOf(g), g.tracks, 8);
   check(`${name}: track clearance (no point within full radius + 8 of another pillar)`, violations.slice(0, 3), []);
+  /* Step 3 §2.1 — dieselbe Prüfung auf den versetzten Spuren (was wirklich gezeichnet wird), nicht nur auf der Mitte des Gleises. */
+  {
+    const { w, ls } = shapeOf(input);
+    const scene = SC.sceneOf(w, ls, S.stateOf(w, ls, F.fakeLearner({}), { levels: 0, knownShare: 1 }), g, { placeColour: () => [1, 1, 1], lineColour: C.lineColours(ls, 'light'), fallback: [1, 1, 1] });
+    const laneTracks = scene.lanes.map((l) => ({ a: g.nodeOf[l.fromId] ?? l.fromId, b: g.nodeOf[l.toId] ?? l.toId, points: l.points }));
+    const worst = T.clearance(GEO.obstaclesOf(g), laneTracks, 8);
+    check(`Step 3 §2.1 · ${name}: offset lanes keep the clearance too`, worst.slice(0, 3).map((v) => Math.round(v.distance * 10) / 10), []);
+  }
   check(`${name}: A* found every track (no straight fallback)`, g.noRoute, []);
   check(`${name}: pillars never touch (rim gap ≥ 2.1 R)`, minGap(g) >= LAY.GAP - 0.01, true);
   check(`${name}: layout and tracks within ${budget} ms (took ${ms} ms: layout ${g.stats.layoutMs}, tracks ${g.stats.tracksMs})`, ms < budget, true);

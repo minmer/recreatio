@@ -129,11 +129,11 @@ class Heap {
 }
 
 /** Liegt die ganze Linie (alle 2 Einheiten abgetastet) frei — mindestens voller Radius + 8 von jeder anderen Säule? */
-function curveClear(ix: ObstacleIndex, pts: readonly number[], a: number, b: number, buf: number[]): boolean {
+function curveClear(ix: ObstacleIndex, pts: readonly number[], a: number, b: number, buf: number[], extra = 0): boolean {
   for (let k = 0; k < pts.length - 2; k += 2) {
     const dx = pts[k + 2] - pts[k], dy = pts[k + 3] - pts[k + 1];
     const n = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 2));
-    for (let s = 0; s <= n; s += 1) if (!clearAt(ix, pts[k] + (dx * s) / n, pts[k + 1] + (dy * s) / n, a, b, 3, buf)) return false;
+    for (let s = 0; s <= n; s += 1) if (!clearAt(ix, pts[k] + (dx * s) / n, pts[k + 1] + (dy * s) / n, a, b, 3 - extra, buf)) return false;
   }
   return true;
 }
@@ -170,7 +170,13 @@ function densify(w: readonly number[]): number[] {
 }
 
 /** DIE GLEISE zwischen den Orten (`pairs`: ungerichtete Paare). */
-export function routeTracks(obstacles: readonly Obstacle[], pairs: readonly (readonly [string, string])[]): TrackResult {
+/**
+ * Step 3 §2.1 — die halbe Breite eines Bündels (`lanes` Linien auf einem Gleis, LINE_GAP auseinander, dazu die Breite einer
+ * Spur): um so viel weiter bleibt ein belebtes Gleis von fremden Säulen weg, damit auch die äusserste versetzte Spur frei ist.
+ */
+export const bundleHalf = (lanes: number): number => (lanes <= 1 ? 0 : ((lanes - 1) / 2) * LINE_GAP + 1.5);
+
+export function routeTracks(obstacles: readonly Obstacle[], pairs: readonly (readonly [string, string])[], lanesOf?: (a: string, b: string) => number): TrackResult {
   const ix = new ObstacleIndex(obstacles);
   const byId = new Map(obstacles.map((o, i) => [o.id, i] as const));
   const buf: number[] = [];
@@ -184,6 +190,8 @@ export function routeTracks(obstacles: readonly Obstacle[], pairs: readonly (rea
   const blocked = new Uint8Array(N);
   const pen = new Float32Array(N);
   const used = new Uint8Array(N);
+  /* Wie weit jede Zelle vor dem Rand + MARGIN der nächsten Säule liegt (für die breiteren Bündel). */
+  const free = new Float32Array(N).fill(Infinity);
   obstacles.forEach((o) => {
     const reach = o.r + MARGIN + NEAR;
     const gx0 = Math.max(0, Math.floor((o.x - reach - x0) / CELL)), gx1 = Math.min(W - 1, Math.floor((o.x + reach - x0) / CELL));
@@ -192,6 +200,7 @@ export function routeTracks(obstacles: readonly Obstacle[], pairs: readonly (rea
       const cx = x0 + (gx + 0.5) * CELL, cy = y0 + (gy + 0.5) * CELL;
       const d = Math.hypot(cx - o.x, cy - o.y) - (o.r + MARGIN);
       const k = gy * W + gx;
+      if (d < free[k]) free[k] = d;
       if (d < 0) blocked[k] = 1;
       else if (d < NEAR) pen[k] = Math.max(pen[k], ((NEAR - d) / NEAR) * 2.2);
     }
@@ -205,7 +214,13 @@ export function routeTracks(obstacles: readonly Obstacle[], pairs: readonly (rea
   const cellOf = (x: number, y: number) => [Math.max(0, Math.min(W - 1, Math.floor((x - x0) / CELL))), Math.max(0, Math.min(H - 1, Math.floor((y - y0) / CELL)))] as const;
 
   /** A* in einem Fenster; die Zellen der Pfades (Indizes) oder `null`. */
-  const astar = (sx: number, sy: number, tx: number, ty: number, grow: number): number[] | null => {
+  const astar = (sx: number, sy: number, tx: number, ty: number, grow: number, extra = 0, ends: readonly Obstacle[] = []): number[] | null => {
+    /* Ein breites Bündel: auch Zellen näher als `extra` an einer fremden Säule sind zu (an den eigenen Enden nicht). */
+    const tight = (nk: number, ni: number, nj: number): boolean => {
+      if (extra <= 0 || free[nk] >= extra) return false;
+      const cx = x0 + (ni + 0.5) * CELL, cy = y0 + (nj + 0.5) * CELL;
+      return !ends.some((o) => Math.hypot(cx - o.x, cy - o.y) < o.r + MARGIN + extra + CELL * 2);
+    };
     const [si, sj] = cellOf(sx, sy);
     const [ti, tj] = cellOf(tx, ty);
     const pad = Math.ceil(grow / CELL);
@@ -229,7 +244,7 @@ export function routeTracks(obstacles: readonly Obstacle[], pairs: readonly (rea
         if (ni < wx0 || nj < wy0 || ni > wx1 || nj > wy1) continue;
         const nk = nj * W + ni;
         if (closed[nk] === stamp) continue;
-        if (blocked[nk] === 1 && nk !== t) continue;
+        if ((blocked[nk] === 1 || tight(nk, ni, nj)) && nk !== t) continue;
         if (di !== 0 && dj !== 0 && (blocked[j * W + ni] === 1 || blocked[nj * W + i] === 1)) continue;
         const c = (di !== 0 && dj !== 0 ? Math.SQRT2 : 1) * (1 + pen[nk] + (used[nk] === 1 ? -0.15 : 0));
         const ng = g[k] + c;
@@ -253,10 +268,10 @@ export function routeTracks(obstacles: readonly Obstacle[], pairs: readonly (rea
     }
     return { x: o.x + Math.cos(base) * (o.r + MARGIN + 3), y: o.y + Math.sin(base) * (o.r + MARGIN + 3), angle: base };
   };
-  const sight = (ax: number, ay: number, bx: number, by: number, a: number, b: number): boolean => {
+  const sight = (ax: number, ay: number, bx: number, by: number, a: number, b: number, extra = 0): boolean => {
     const d = Math.hypot(bx - ax, by - ay);
     const n = Math.max(2, Math.ceil(d / 3));
-    for (let i = 0; i <= n; i += 1) { const t = i / n; if (!clearAt(ix, ax + (bx - ax) * t, ay + (by - ay) * t, a, b, 1, buf)) return false; }
+    for (let i = 0; i <= n; i += 1) { const t = i / n; if (!clearAt(ix, ax + (bx - ax) * t, ay + (by - ay) * t, a, b, 1 - extra, buf)) return false; }
     return true;
   };
 
@@ -280,11 +295,12 @@ export function routeTracks(obstacles: readonly Obstacle[], pairs: readonly (rea
   let cornered = 0;
   for (const [a, b, dist] of list) {
     const A = obstacles[a], B = obstacles[b];
+    const extra = bundleHalf(lanesOf?.(A.id, B.id) ?? 1);
     const ga = gate(a, B.x, B.y, b);
     const gb = gate(b, A.x, A.y, a);
     let path: number[] | null = null;
     for (const grow of [Math.max(60, dist * 0.35), Math.max(160, dist * 0.8), Math.max(W, H) * CELL]) {
-      path = astar(ga.x, ga.y, gb.x, gb.y, grow);
+      path = astar(ga.x, ga.y, gb.x, gb.y, grow, extra, [A, B]) ?? (extra > 0 ? astar(ga.x, ga.y, gb.x, gb.y, grow) : null);
       if (path !== null) break;
     }
     const rimA = [A.x + Math.cos(ga.angle) * A.r, A.y + Math.sin(ga.angle) * A.r];
@@ -304,13 +320,13 @@ export function routeTracks(obstacles: readonly Obstacle[], pairs: readonly (rea
     let i = 0;
     while (i < count - 1) {
       let j = count - 1;
-      while (j > i + 1 && !sight(raw[i * 2], raw[i * 2 + 1], raw[j * 2], raw[j * 2 + 1], a, b)) j -= 1;
+      while (j > i + 1 && !sight(raw[i * 2], raw[i * 2 + 1], raw[j * 2], raw[j * 2 + 1], a, b, extra)) j -= 1;
       corners.push(raw[j * 2], raw[j * 2 + 1]);
       i = j;
     }
     let pts = catmull(corners);
     /* Geprüft wie in der Pflichtprüfung: alle 2 Einheiten, mindestens voller Radius + 8 (MARGIN − 3). */
-    const ok = curveClear(ix, pts, a, b, buf);
+    const ok = curveClear(ix, pts, a, b, buf, extra);
     if (ok) smoothed += 1;
     else { pts = densify(corners); cornered += 1; }
     tracks.push({ a: A.id, b: B.id, points: [...rimA, ...pts, ...rimB], ...(ok ? {} : { corners: true as const }) });
