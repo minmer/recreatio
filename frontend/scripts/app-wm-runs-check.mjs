@@ -190,6 +190,20 @@ const run = (id, place, startDay, first, after = 0, cards = 20) => ({ id, place,
   check('review scope: a card about an entry the world view does not show as a place stays in reviews', S.reviewable(w.aspect, w.scope), true);
   const hex = await scopeOf(false);
   check('review scope: a base without a world view — levels leave every card in reviews', [hex.scope, S.reviewable(hex.topic, hex.scope), S.reviewable(hex.aspect, hex.scope)], [null, true, true]);
+
+  /* -- Step 3 · 3: nach einem Durchgang (oder einer anderen Stufen-Einstellung) zählt der Dienst neu — mit frischem Bereich -- */
+  const made = await MB.memoryBase(docOf(true));
+  const cards = (await made.lib.cards()).cards;
+  const topicCard = cards.find((c) => (c.about ?? []).some((id) => made.lib.label(made.lib.entity(id)) === 'Temat A'));
+  const place = topicCard.about[0];
+  const reported = [];
+  const learnerWith = (runs) => ({ holder: { kind: 'local' }, progress: { values: { '~world.levels': 1 }, runs }, reportDue: async (cs, rename, now, scope) => { reported.push({ count: cs.length, scope }); return { next: null, count: 0 }; } });
+  const report = typeof RV.reportDueFor === 'function' ? RV.reportDueFor : async () => undefined;
+  await report(made.lib, cards, learnerWith(new Map()));
+  const conquering = { id: 'r1', place, participants: ['me'], startedAt: T0, finishedAt: T0 + 60_000, cards: 1, firstTry: 1, afterCorrection: 0, attempts: 1 };
+  await report(made.lib, cards, learnerWith(new Map([['r1', conquering]])));
+  check('due report: reported with all cards of the base and the scope of now (before the run: the topic card waits)', [reported.length, reported[0]?.count, reported[0] === undefined ? 'none' : S.reviewable(topicCard.key, reported[0].scope)], [2, cards.length, false]);
+  check('due report: after the conquering run the same card is a review again (a fresh scope, not a kept one)', reported[1] === undefined ? 'none' : S.reviewable(topicCard.key, reported[1].scope), true);
 }
 
 /* -- PR A: bis der Dienst Durchgänge speichert, gelten 0 Stufen (wmFeatures.ts) ---------------------------------------- */

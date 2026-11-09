@@ -329,6 +329,18 @@ export interface ReviewScope {
   readonly places: ReadonlyMap<string, { readonly conquered: boolean }>;
 }
 
+/**
+ * Step 3 · 3 — EIN BEREICH AUS EINER LISTE: was die Abschrift ohne Netz wiederholen darf (ohne Baza rechnet dort niemand Orte).
+ * Jede Karte ausserhalb der Liste gehört zu einem nicht eroberten Ort; die in der Liste zu keinem — `reviewable` bleibt dieselbe Regel.
+ */
+export function scopeOfKeys(cards: readonly string[], allowed: readonly string[]): ReviewScope {
+  const ok = new Set(allowed);
+  const waiting = '~waiting';
+  const cardPlaces = new Map<string, readonly string[]>();
+  for (const k of cards) if (!ok.has(k)) cardPlaces.set(k, [waiting]);
+  return { world: { cardPlaces }, settings: { levels: 1 }, places: new Map([[waiting, { conquered: false }]]) };
+}
+
 export function reviewable(card: string, state: ReviewScope | null | undefined): boolean {
   if (state === null || state === undefined || state.settings.levels === 0) return true;
   const places = state.world.cardPlaces.get(card);

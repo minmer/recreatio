@@ -55,7 +55,7 @@ import { worldInputOf } from './wmInput';
 import { linesOf, outerStep } from './wmLines';
 import { followPlan, keepNav, keptNav, navMarks, type NavSession, type Timetable } from './wmNav';
 import { plan as planRoute, type PlanStep } from './wmPlan';
-import { effectiveWorldFor } from './wmReview';
+import { effectiveWorldFor, reportDueFor } from './wmReview';
 import { levelsByPlace, type LevelRule } from './wmRuns';
 import { sceneOf } from './wmScene';
 import { reviewable, stateOf, type LearnerInput } from './wmState';
@@ -344,6 +344,20 @@ export function WorldLandscape({ view, cards, learner, onOpen, compact = false, 
   const shownNow = useMemo(() => new Map([...state.places].map(([id, ps]) => [id, shownOfPlace(ps)] as const)), [state]);
   const pointsRules = useMemo(() => rewards ?? rewardsFor(lib.docs('reward'), null, lib.settings().rewards ?? null).rules, [rewards, lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
+  /*
+    Step 3 · 3 — haben sich die Stufen seit der letzten Meldung dieses Lernenden geändert (die Baza, ein anderes Gerät, eine
+    neue Weltkarte), zählt der Dienst die fälligen Karten neu — sonst stünde bis zur nächsten Wiederholung die alte Zahl.
+  */
+  const dueKey = JSON.stringify([eff.levels, eff.rules]);
+  useEffect(() => {
+    if (learner === null) return;
+    const mark = `cg-wm2-due:${lib.libraryId}:${holderKey(learner.holder)}`;
+    let was: string | null = null;
+    try { was = localStorage.getItem(mark); } catch { /* ohne Speicher: jedes Mal */ }
+    if (was === dueKey) return;
+    try { localStorage.setItem(mark, dueKey); } catch { /* ohne Speicher */ }
+    void lib.cards().then((r) => reportDueFor(lib, r.cards, learner, rename), () => undefined);
+  }, [learner, lib, dueKey, rename]);
   const rw = useRewards(learner, pointsRules, { rename });
   const events = rw.state?.events ?? null;
   const orderIndex = useMemo(() => new Map(world.order.map((id, i) => [id, i] as const)), [world]);

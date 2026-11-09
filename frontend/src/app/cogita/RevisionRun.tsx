@@ -67,6 +67,8 @@ export interface RunSource {
    * eroberter Orte (`reviewable`). Eine Powtórka der Baza (`revisionId`) ist es immer; ein Lauf zum Lernen nie.
    */
   readonly review?: boolean;
+  /** Step 3 · 3 — ohne Baza (die Abschrift ohne Netz): was wiederholt werden darf, aus der Abschrift (`offlineSource`). */
+  readonly scope?: ReviewScope | null;
 }
 
 /** Den Plan einer Wiederholung der Bibliothek rechnen — mit dem Fortschritt dieses Lernenden. */
@@ -253,6 +255,8 @@ function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via
       answers: answersFor(cards, made.progress.answers.values(), rename),
       /* 2026-11-05 (Durchsicht) — die Abstände, die jetzt gelten (ohne Netz rechnete der Lauf sonst mit der Vorgabe). */
       spacing: { ...spacingFor(lib, made), locked: lib.settings().spacing?.locked === true },
+      /* Step 3 · 3 — ohne Netz rechnet niemand Orte: was wiederholt werden darf, geht als Liste mit. */
+      ...(scope === null ? {} : { reviewable: cards.filter((c) => reviewable(c.key, scope)).map((c) => c.key) }),
       savedAt: Date.now()
     };
     keptCopy.current = { copy, who: keeper };
@@ -307,7 +311,8 @@ function RevisionRunIn({ lib, source: outer, learner, onClose, keep = false, via
         if (plan.cards.length === 0) { if (alive) setFailed(t('cogitaLearnRun.run.noCards')); return; }
         const fp = new Map(all.map((c) => [c.key, c.fingerprint]));
         /* 2026-11-09 (Weltkarte, Korrektur 5) — eine Wiederholung: mit Stufen nur Karten eroberter Orte. */
-        const scope: ReviewScope | null = source.revisionId !== undefined || source.review === true ? reviewScopeFor(lib, all.length > 0 ? all : plan.cards, learner) : null;
+        const scope: ReviewScope | null = source.scope !== undefined ? source.scope
+          : source.revisionId !== undefined || source.review === true ? reviewScopeFor(lib, all.length > 0 ? all : plan.cards, learner) : null;
         reviewScope.current = scope;
         const session = start({
           review: scope,

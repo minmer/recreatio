@@ -55,7 +55,8 @@ export { newWrapPair } from '${app}core/crypto';
 export { idbPut, idbKeys } from '${app}core/idb';
 export { PRESET_SPACING, OWN_FIRST, OWN_GROWTH, OWN_STACK, DEFAULT_STACK } from '${app}cogita/spacing';
 export { DEFAULT_SPACING } from '${app}cogita/knowness';
-export { spacingOfCopy } from '${app}cogita/offline';
+export { spacingOfCopy, offlineSource } from '${app}cogita/offline';
+export { reviewable } from '${app}cogita/worldmap/wmState';
 `);
 await build({
   entryPoints: [entry],
@@ -423,6 +424,22 @@ try {
     const all = await d.reportDue(keys.map(card));
     const some = await d.reportDue(keys.map(card), undefined, Date.now(), scope);
     check('6 reportDue with levels counts only cards of conquered places (and cards of no place)', [all.count, some.count, service.due.at(-1)?.dueCount], [4, 3, 3]);
+  }
+
+  /* ══ 7. Step 3 · 3: die Abschrift ohne Netz nimmt mit, was wiederholt werden darf ══════════════════════════════════════ */
+  {
+    const O = await device('away3');
+    const card = (key) => ({ key, question: key, direction: 'd', fingerprint: 'f', explain: [], about: [] });
+    const [a, b] = [card('w:a'), card('w:b')];
+    const copy = { libraryId: LIB, revisionId: 'rev', name: 'R', plan: {}, cards: [a, b], deps: [], target: null, holder: null, savedAt: 0, reviewable: ['w:a'] };
+    const src = O.offlineSource(copy);
+    const may = (k, scope) => (typeof O.reviewable === 'function' ? O.reviewable(k, scope) : 'missing');
+    check('7 the copy keeps which cards may be reviewed: a yes, b (a place not yet conquered) no', [may('w:a', src.scope), may('w:b', src.scope)], [true, false]);
+    const off = new O.Learner(LIB, { kind: 'local', id: 'away3' }, null);
+    for (const c of [a, b]) off.record(c, 1, {}, Date.now() - 30 * 86_400_000);
+    const due = await off.reportDue([a, b], undefined, Date.now() + 365 * 86_400_000, src.scope);
+    check('7 offline the reminder counts only the cards the copy may review', due.count, 1);
+    check('7 an older copy without the list: every card may be reviewed (as before levels)', may('w:b', O.offlineSource({ ...copy, reviewable: undefined }).scope), true);
   }
 } finally {
   globalThis.fetch = realFetch;

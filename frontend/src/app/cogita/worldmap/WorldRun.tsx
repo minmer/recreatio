@@ -11,10 +11,10 @@ import { newId } from '../../core/ids';
 import type { Card } from '../cardBasics';
 import { CardFace, storedGiven } from '../CardFace';
 import { baseLang } from '../lang';
-import { learnFeatures, type Learner } from '../learn';
+import { learnFeatures, renamer, type Learner } from '../learn';
 import type { CogitaLibrary } from '../store';
 import { attemptsText } from './WorldLevels';
-import { effectiveWorldFor } from './wmReview';
+import { effectiveWorldFor, reportDueFor } from './wmReview';
 import { finishRun, levelOf, runAnswer, runCard, runDone, startRun, type RunRecord, type RunSession } from './wmRuns';
 import './worldmap.css';
 
@@ -99,7 +99,12 @@ export function WorldRun({ lib, learner, place, name, cards, onClose }: {
     const run = finishRun(s, Date.now(), learner.holder.kind === 'role' ? [learner.holder.roleId] : []);
     const after = levelOf([...mine, run], eff.rules, eff.levels).level;
     setSaving(true);
-    void learner.keepRun(run).catch(() => undefined).finally(() => { setSaving(false); setOutcome({ run, before: before.level, after }); });
+    void learner.keepRun(run).catch(() => undefined).finally(() => {
+      setSaving(false);
+      setOutcome({ run, before: before.level, after });
+      /* Step 3 · 3 — ein eroberter Ort ändert, was fällig ist: die Erinnerung des Dienstes gleich neu (alle Karten der Baza). */
+      void lib.cards().then((r) => reportDueFor(lib, r.cards, learner, renamer(lib.merges())), () => undefined);
+    });
   };
   const next = () => {
     if (key === null || last.current === null) return;

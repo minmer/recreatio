@@ -35,7 +35,8 @@ const ALLOWED = {
   'cogita/LearnView.tsx': 'due rows from the service (counted by reportDue)',
   'cogita/RunClosing.tsx': 'what a finished run unlocked (readiness), not a review list',
   'cogita/PathLearn.tsx': 'learning along the path — learning is not a regular review',
-  'cogita/worldmap/wmState.ts': 'defines reviewable'
+  'cogita/worldmap/wmState.ts': 'defines reviewable',
+  'cogita/worldmap/wmReview.ts': 'the scope of the rule itself: reportDueFor passes reviewScopeFor into reportDue (Step 3 · 3)'
 };
 
 async function* files(dir) {

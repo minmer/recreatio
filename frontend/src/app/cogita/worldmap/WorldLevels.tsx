@@ -5,14 +5,15 @@
  * Lernenden („Moja mapa świata": gilt sofort, gerechnet wird aus den rohen Durchgängen, nichts geht verloren).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Card } from '../cardBasics';
 import { tFor, type T } from '../../core/i18n';
 import { baseLang } from '../lang';
-import type { Learner } from '../learn';
+import { renamer, type Learner } from '../learn';
+import { useCtx } from '../ui';
 import type { CogitaLibrary } from '../store';
-import { effectiveWorldFor, leavingReviews, reviewWorldOf } from './wmReview';
+import { effectiveWorldFor, leavingReviews, reportDueFor, reviewWorldOf } from './wmReview';
 import { useServerRuns } from './useServerRuns';
 import { ATTEMPTS, DEFAULT_SETUP, defaultRules, levelsSetupDoc, MAX_LEVELS, PILLAR_MIN, type Attempts, type LevelRule, type LevelsSetup } from './wmRuns';
 import './worldmap.css';
@@ -97,6 +98,15 @@ export function AreaWorldSettings({ lib, busy, onSave }: { lib: CogitaLibrary; b
   const areaKey = JSON.stringify(area === undefined ? null : levelsSetupDoc(area));
   const [draft, setDraft] = useState<LevelsSetup>(area ?? DEFAULT_SETUP);
   useEffect(() => { setDraft(area ?? DEFAULT_SETUP); }, [areaKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* Step 3 · 3 — gespeichert (die Stufen der Baza änderten sich): die Erinnerung des Dienstes für den, der hier lernt, gleich neu. */
+  const { learner: here } = useCtx();
+  const savedKey = useRef(areaKey);
+  useEffect(() => {
+    if (savedKey.current === areaKey) return;
+    savedKey.current = areaKey;
+    if (here == null) return;
+    void lib.cards().then((r) => reportDueFor(lib, r.cards, here, renamer(lib.merges())), () => undefined);
+  }, [areaKey, here, lib]);
   const [cards, setCards] = useState<readonly Card[] | null>(lib.cardsReady() ?? null);
   useEffect(() => {
     let alive = true;
@@ -146,16 +156,18 @@ export function OwnWorldSettings({ lib, learner, onPillarLive }: { lib: CogitaLi
   const on = learner.holder.kind === 'local' || runs;
   const eff = effectiveWorldFor(lib, learner);
   const keep = (work: Promise<void>) => { setBusy(true); void work.catch(() => undefined).finally(() => setBusy(false)); };
+  /* Step 3 · 3 — eigene Stufen gespeichert: die Erinnerung des Dienstes gleich neu. */
+  const keepLevels = (next: Parameters<Learner['keepLevels']>[0]) => keep(learner.keepLevels(next).then(() => lib.cards()).then((r) => reportDueFor(lib, r.cards, learner, renamer(lib.merges()))));
   const from = eff.from === 'own' ? null : eff.from === 'area' ? t('cogitaWorld.settings.fromArea') : t('cogitaWorld.settings.fromDefault');
   return (
     <section className="cg-card" data-world-own={eff.from} data-world-levels={eff.levels}>
       <h3>{t('cogitaWorld.settings.own')}</h3>
       <p className="cg-muted">{t('cogitaWorld.settings.ownSays')}{from !== null && <> <span>({from})</span></>}</p>
       {!on && <p className="cg-muted" data-world-server-old="">{t('cogitaWorld.settings.serverOld')}</p>}
-      {on && eff.changeable && <LevelsEditor levels={eff.levels} rules={eff.rules} disabled={busy} t={t} onChange={(v) => keep(learner.keepLevels(v))} />}
+      {on && eff.changeable && <LevelsEditor levels={eff.levels} rules={eff.rules} disabled={busy} t={t} onChange={(v) => keepLevels(v)} />}
       {on && !eff.changeable && <p className="cg-muted" data-world-locked="">{t('cogitaWorld.settings.locked')} {t('cogitaWorld.settings.levels')}: {eff.levels}</p>}
       {on && eff.changeable && eff.from === 'own' && (
-        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => keep(learner.keepLevels(null))} data-world-own-reset="">{t('cogitaWorld.settings.useArea')}</button>
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => keepLevels(null)} data-world-own-reset="">{t('cogitaWorld.settings.useArea')}</button>
       )}
       <PillarSlider value={eff.pillarWidth} disabled={busy} t={t} onLive={onPillarLive} onCommit={(w) => keep(learner.keepPillar(w))} />
     </section>

@@ -100,6 +100,21 @@ export function reviewScopeFor(lib: CogitaLibrary | null | undefined, cards: rea
   return scope;
 }
 
+/** Was `reportDueFor` vom Lernenden braucht. */
+interface DueReporter extends LearnerLike {
+  reportDue(cards: readonly Card[], rename?: (key: string) => string, now?: number, scope?: ReviewScope | null): Promise<unknown>;
+}
+
+/**
+ * Step 3 · 3 — DIE ERINNERUNG DES DIENSTES NEU ZÄHLEN, mit dem Bereich von jetzt: nach einem Durchgang (ein Ort kann erobert
+ * sein), nach jeder Einstellung der Stufen (eigene oder der Baza) und wenn die Weltkarte öffnet und die Stufen sich seit der
+ * letzten Meldung änderten. Sonst stand dort bis zum Ende der nächsten Wiederholung die alte Zahl.
+ */
+export async function reportDueFor(lib: CogitaLibrary, cards: readonly Card[], learner: DueReporter, rename?: (key: string) => string): Promise<void> {
+  if (cards.length === 0) return;
+  await Promise.resolve(learner.reportDue(cards, rename, undefined, reviewScopeFor(lib, cards, learner))).catch(() => undefined);
+}
+
 /** Wie viele dieser Karten mit diesen Stufen aus den Wiederholungen gingen (die Seite der Einstellungen sagt es vor dem Speichern). */
 export function leavingReviews(world: Pick<ReviewWorld, 'cardPlaces'> | null, cards: readonly string[], runs: Iterable<RunRecord>, setup: Pick<EffectiveWorld, 'levels' | 'rules'>): number {
   if (setup.levels === 0 || world === null) return 0;

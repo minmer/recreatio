@@ -29,6 +29,7 @@ import { readCondition } from './logic';
 import { cardEntities, prerequisiteGraph } from './prerequisites';
 import { readPlan, type Plan } from './revision';
 import { readAreaSpacing, type AreaSpacing } from './spacing';
+import { scopeOfKeys, type ReviewScope } from './worldmap/wmState';
 
 export interface OfflineRevision {
   readonly libraryId: string;
@@ -56,6 +57,12 @@ export interface OfflineRevision {
    * vorher immer mit der Vorgabe. Eine ältere Abschrift ohne sie: die Vorgabe.
    */
   readonly spacing?: AreaSpacing;
+  /**
+   * Step 3 · 3 — mit Stufen der Weltkarte: welche dieser Karten wiederholt werden dürfen (`reviewable` beim Ablegen). Die
+   * übrigen sind nie gesehene Karten nicht eroberter Orte: ohne Netz gelernt, aber nicht wiederholt, und die Erinnerung
+   * zählt sie nicht. Fehlt die Liste (ohne Stufen, ältere Abschriften): jede Karte.
+   */
+  readonly reviewable?: readonly string[];
   readonly savedAt: number;
 }
 
@@ -79,17 +86,18 @@ export const needsFiles = (card: Card): boolean => card.prompt.some((p) => p.med
  * 2026-10-30 — die Bedingungen der Karten liegen mit ihren aufgelösten Beziehungen im Plan (`when`); eine ältere
  * Abschrift mit der Sperre (`gate`) bekommt dieselbe Bedingung „to, co wcześniej" — aus ihren Abhängigkeiten gerechnet.
  */
-export function offlineSource(copy: OfflineRevision): { plan: Plan; cards: readonly Card[]; deps: readonly Dependency[]; title: string } {
+export function offlineSource(copy: OfflineRevision): { plan: Plan; cards: readonly Card[]; deps: readonly Dependency[]; title: string; scope: ReviewScope | null } {
   const config = copy.plan;
+  const scope = Array.isArray(copy.reviewable) ? scopeOfKeys(copy.cards.map((c) => c.key), copy.reviewable) : null;
   const condition = typeof config.gate === 'number' && config.when === undefined ? readCondition({ type: 'knowness', rel: 'before', op: 'ge', than: config.gate }) : null;
   if (condition !== null) {
     const graph = prerequisiteGraph(copy.deps);
     const askable = new Set(copy.cards.flatMap(cardEntities));
     const src: RelSource = { entity: () => undefined, look: { kind: () => undefined, entity: () => undefined }, graph, askable: (id) => askable.has(id), cardsOf: () => [] };
     const when = Object.fromEntries(copy.cards.map((c) => [c.key, gateFor(c, [[condition]], src)]));
-    return { plan: readPlan(copy.cards, { ...config, order: config.order === 'given' ? 'given' : 'general' }, { when }), cards: copy.cards, deps: copy.deps, title: copy.name };
+    return { plan: readPlan(copy.cards, { ...config, order: config.order === 'given' ? 'given' : 'general' }, { when }), cards: copy.cards, deps: copy.deps, title: copy.name, scope };
   }
-  return { plan: readPlan(copy.cards, config), cards: copy.cards, deps: copy.deps, title: copy.name };
+  return { plan: readPlan(copy.cards, config), cards: copy.cards, deps: copy.deps, title: copy.name, scope };
 }
 
 /**
