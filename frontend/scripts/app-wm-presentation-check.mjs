@@ -109,7 +109,7 @@ for (const theme of ['light', 'dark']) {
   const lc = C.lineColours(lines, 'light');
   const scene = SC.sceneOf(world, lines, state, geometry, { placeColour: () => [120, 140, 160], lineColour: lc, fallback: [100, 100, 100] });
   const isl = IS.islandOf({ places: scene.places, home: scene.home, tracks: scene.tracks });
-  const onLand = (x, y) => isl.land.some(([cx, cy, r]) => Math.hypot(x - cx, y - cy) < r - IS.BEACH);
+  const onLand = (x, y) => isl.land.some(([cx, cy, r]) => Math.hypot(x - cx, y - cy) < r);
   check('island: every pillar stands on land', scene.places.every((p) => onLand(p.x, p.y)), true);
   check('island: there are trees, at most MAX_TREES', [isl.trees.length > 20, isl.trees.length <= IS.MAX_TREES], [true, true]);
   check('island: no tree on a pillar or its ring', isl.trees.every(([x, y]) => scene.places.every((p) => Math.hypot(x - p.x, y - p.y) >= p.r * 1.25 + 9)), true);

@@ -2,7 +2,7 @@
  * 2026-11-09 — DIE WELT ALS INSEL (Wunsch des Eigentümers): ein wenig Gelände, damit die Karte wie eine Landschaft wirkt.
  * <code>
  *   Insel    die Vereinigung von Scheiben um jede Säule, das Haus und die Gleise — so folgt die Küste der Gestalt der Welt;
- *            darum ein Strand, ringsum Wasser
+ *            der Strand liegt AUSSEN um das Land (BEACH breiter), ringsum Wasser
  *   Bäume    deterministisch gestreut (derselbe Stand, dieselben Bäume), nur auf festem Land, nie auf einer Säule, ihrem Ring
  *            oder einem Gleis; höchstens MAX_TREES
  * </code>
@@ -21,13 +21,13 @@ export interface IslandInput {
 }
 
 export interface Island {
-  /** Das Land (Strand: dieselben Scheiben, um BEACH grösser). */
+  /** Das Land (der Strand: dieselben Scheiben, um BEACH grösser, darunter gemalt). */
   readonly land: readonly Disc[];
   readonly trees: readonly Tree[];
 }
 
 /** Wie weit das Land über eine Säule hinausreicht, wie breit der Strand ist (Einheiten). */
-export const SHORE = 70;
+export const SHORE = 105;
 export const BEACH = 14;
 /** Abstand der Bäume von Säulen und Gleisen (Einheiten). */
 export const TREE_CLEAR = 14;
@@ -57,7 +57,7 @@ export function islandOf(input: IslandInput): Island {
     for (let i = 2; i < p.length; i += 2) {
       const len = Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]);
       const n = Math.max(1, Math.ceil(len / 40));
-      for (let j = 0; j <= n; j += 1) land.push([p[i - 2] + ((p[i] - p[i - 2]) * j) / n, p[i - 1] + ((p[i + 1] - p[i - 1]) * j) / n, 46]);
+      for (let j = 0; j <= n; j += 1) land.push([p[i - 2] + ((p[i] - p[i - 2]) * j) / n, p[i - 1] + ((p[i + 1] - p[i - 1]) * j) / n, 72]);
     }
   }
   if (land.length === 0) return { land, trees: [] };
@@ -84,7 +84,7 @@ export function islandOf(input: IslandInput): Island {
     }
   }
   /* Festes Land: innerhalb einer Scheibe, mindestens den Strand und etwas vom Rand entfernt. */
-  const onLand = (x: number, y: number) => (landGrid.get(key(x, y)) ?? []).some((d) => Math.hypot(x - d[0], y - d[1]) < d[2] - BEACH - 10);
+  const onLand = (x: number, y: number) => (landGrid.get(key(x, y)) ?? []).some((d) => Math.hypot(x - d[0], y - d[1]) < d[2] - 10);
   const clear = (x: number, y: number) => !(solidGrid.get(key(x, y)) ?? []).some((d) => Math.hypot(x - d[0], y - d[1]) < d[2])
     && !(segGrid.get(key(x, y)) ?? []).some((s) => segDist(x, y, s[0], s[1], s[2], s[3]) < TREE_CLEAR);
 

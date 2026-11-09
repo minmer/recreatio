@@ -383,8 +383,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     /* Ein Quadrat um die Mitte, das jede Drehung deckt; nie grösser als die Welt. */
     const half = Math.hypot(w, h) / (2 * v.s * v.fore) + 40;
     const e = scene.extent;
-    const x0 = Math.max(e.cx - e.radius - 80, v.cx - half), x1 = Math.min(e.cx + e.radius + 80, v.cx + half);
-    const y0 = Math.max(e.cy - e.radius - 80, v.cy - half), y1 = Math.min(e.cy + e.radius + 80, v.cy + half);
+    const x0 = Math.max(e.cx - e.radius - 140, v.cx - half), x1 = Math.min(e.cx + e.radius + 140, v.cx + half);
+    const y0 = Math.max(e.cy - e.radius - 140, v.cy - half), y1 = Math.min(e.cy + e.radius + 140, v.cy + half);
     if (x1 <= x0 || y1 <= y0) return null;
     const k = Math.min(v.s * dpr, 6000 / Math.max(x1 - x0, y1 - y0));
     const cw = Math.max(1, Math.ceil((x1 - x0) * k)), ch = Math.max(1, Math.ceil((y1 - y0) * k));
@@ -398,9 +398,9 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
     g.fillStyle = rgbCss(pal.water);
     g.fillRect(x0, y0, x1 - x0, y1 - y0);
     g.fillStyle = rgbCss(pal.sand);
-    for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2], 0, Math.PI * 2); g.fill(); }
+    for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2] + BEACH, 0, Math.PI * 2); g.fill(); }
     g.fillStyle = rgbCss(pal.land);
-    for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], Math.max(1, d[2] - BEACH), 0, Math.PI * 2); g.fill(); }
+    for (const d of island.land) { g.beginPath(); g.arc(d[0], d[1], d[2], 0, Math.PI * 2); g.fill(); }
     for (const [tx, ty, ts] of island.trees) {
       g.fillStyle = rgbCss(pal.treeShade);
       g.beginPath(); g.arc(tx + ts * 0.35, ty + ts * 0.3, ts, 0, Math.PI * 2); g.fill();
@@ -495,8 +495,8 @@ export const WorldPillars = forwardRef<PillarsHandle, PillarsProps>(function Wor
       if (layer === null || layer.stamp !== stamp || layer.deep !== (v.s >= DEEP_FROM)) return true;
       const half = Math.hypot(size.w, size.h) / (2 * v.s * v.fore);
       const e = scene.extent;
-      const wantX0 = Math.max(e.cx - e.radius - 80, v.cx - half), wantX1 = Math.min(e.cx + e.radius + 80, v.cx + half);
-      const wantY0 = Math.max(e.cy - e.radius - 80, v.cy - half), wantY1 = Math.min(e.cy + e.radius + 80, v.cy + half);
+      const wantX0 = Math.max(e.cx - e.radius - 140, v.cx - half), wantX1 = Math.min(e.cx + e.radius + 140, v.cx + half);
+      const wantY0 = Math.max(e.cy - e.radius - 140, v.cy - half), wantY1 = Math.min(e.cy + e.radius + 140, v.cy + half);
       const covers = wantX0 >= layer.x0 - 1 && wantY0 >= layer.y0 - 1 && wantX1 <= layer.x0 + layer.w / layer.k + 1 && wantY1 <= layer.y0 + layer.h / layer.k + 1;
       return !covers || layer.k < v.s * dpr * 0.45;
     };
