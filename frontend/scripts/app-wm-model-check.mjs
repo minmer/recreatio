@@ -197,6 +197,40 @@ const lineSecs = (line) => lines.lines.get(line).sections.map(sec);
   check('Step 3 · 4: every question of a section asked (its last slide not yet shown) — travelled', [asksB.length, toB.steps.at(-1) !== asksB.at(-1), qst.sections.get(toB.id).travelled], [2, true, true]);
   const one = S.stateOf(world, ql, F.fakeLearner({ progress: { 'f/q': { visited: [toB.steps[0]] } } }), { levels: 0, knownShare: 1 });
   check('Step 3 · 4: one step of a section is not the section', one.sections.get(toB.id).travelled, false);
+  /* Step 3 · 5 — ein Tor gilt für den nächsten Abschnitt, der den Halt verlässt, nicht für den, auf dem man schon ist. */
+  const gbld = new F.FlowBuilder('G');
+  const [ga, gp, gc] = world.order.slice(0, 3);
+  gbld.show(`s/${ga}`); gbld.show(`s/${gp}`);
+  gbld.gate({ type: 'knowness', of: ga, band: 'known' });
+  gbld.ask(world.places.get(gp).cards[0]);
+  gbld.show(`s/${gc}`); gbld.end();
+  const gfl = gbld.flow('f/g', { name: 'Brama', unit: 'u/L1' });
+  const gls = L.linesOf(world, [gfl]);
+  const gsecs = gls.lines.get('f/g').branches[0].sections.map((id) => gls.sections.get(id));
+  const gates = (s) => (s === undefined ? 'none' : s.ticket.filter((t) => t.source === 'gate').length);
+  check('Step 3 · 5: the gate at B goes to the section leaving B (B→C), not to the one already arrived (A→B)', [gates(gsecs.find((s) => s.from === ga && s.to === gp)), gates(gsecs.find((s) => s.from === gp && s.to === gc))], [0, 1]);
+  /* … in Zweigen: ein Tor vor allem Inhalt eines Zweiges sperrt seinen ersten Abschnitt (auch einen am Ort selbst); ein Tor nach dem ersten Inhalt nicht. */
+  const branchGates = (build) => {
+    const b = new F.FlowBuilder('H');
+    b.show(`s/${ga}`); b.show(`s/${gp}`);
+    build(b);
+    b.end();
+    const fl = b.flow('f/h', { name: 'Brama w gałęzi', unit: 'u/L1' });
+    const ls = L.linesOf(world, [fl]);
+    const line = ls.lines.get('f/h');
+    return line.branches.filter((x) => x.parent !== null).map((x) => x.sections.map((id) => ls.sections.get(id)).map((s) => [s.from === gp ? 'B' : s.from, s.to === gp ? 'B' : s.to === gc ? 'C' : s.to, gates(s)]))
+      .concat([line.branches.find((x) => x.parent === null).sections.map((id) => ls.sections.get(id)).filter((s) => s.to === gp).map((s) => ['A→B', gates(s)])]);
+  };
+  const KN = { type: 'knowness', of: ga, band: 'known' };
+  check('Step 3 · 5: a gate before a choice locks the first section of every branch (also one that stays at B)',
+    branchGates((b) => { b.gate(KN); b.choice([{ label: 'B' }, { label: 'C' }], [(x) => x.ask(world.places.get(gp).cards[0]), (x) => x.show(`s/${gc}`)]); }),
+    [[['B', 'B', 1]], [['B', 'C', 1]], [['A→B', 0]]]);
+  check('Step 3 · 5: a gate first in a branch locks that branch\'s section at B',
+    branchGates((b) => { b.choice([{ label: 'B' }, { label: 'C' }], [(x) => { x.gate(KN); x.ask(world.places.get(gp).cards[0]); }, (x) => x.show(`s/${gc}`)]); }),
+    [[['B', 'B', 1]], [['B', 'C', 0]], [['A→B', 0]]]);
+  check('Step 3 · 5: a gate after the first question of a branch does not lock the section the learner is already on',
+    branchGates((b) => { b.choice([{ label: 'B' }, { label: 'C' }], [(x) => { x.ask(world.places.get(gp).cards[0]); x.gate(KN); x.ask(world.places.get(gp).cards[1]); }, (x) => x.show(`s/${gc}`)]); }),
+    [[['B', 'B', 0]], [['B', 'C', 0]], [['A→B', 0]]]);
   check('conquest order: the unconquered base, base first', fresh.conquestOrder('kuglarz'), ['becchi', 'sen', 'kuglarz']);
 }
 

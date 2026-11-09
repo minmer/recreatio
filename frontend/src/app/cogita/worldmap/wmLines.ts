@@ -211,12 +211,29 @@ interface End {
   secs: Build[];
   pending: Pending;
   seen: Set<string>;
+  /**
+   * Step 3 · 5 — Tore nach Inhalt an diesem Halt (man ist schon auf einem Abschnitt): sie warten auf den nächsten Abschnitt, der
+   * den Halt verlässt. Ein Tor vor allem Inhalt hier steht dagegen in `pending.ticket` (der nächste Abschnitt, der hier entsteht).
+   */
   gate: TicketPart[];
   /** Nach einem Zusammentreffen: in welchem Zweig es weitergeht, sobald der nächste Halt erreicht ist. */
   converge: string | null;
 }
 
 const emptyPending = (): Pending => ({ steps: [], questions: [], slides: 0, asks: [], ticket: [] });
+/** Die Tore, die noch warten (aus dem Ticket von „pending" und den wartenden). */
+const gatesOf = (e: End): TicketPart[] => [...e.pending.ticket.filter((t) => t.source === 'gate'), ...e.gate];
+/** Dasselbe Tor (derselbe Schritt, dieselbe Bedingung), von mehreren Enden mitgebracht, zählt einmal. */
+const oneGateEach = (parts: readonly TicketPart[]): TicketPart[] => {
+  const seen = new Set<string>();
+  return parts.filter((p) => {
+    if (p.source !== 'gate') return true;
+    const k = `${p.step}|${JSON.stringify(p.condition)}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+};
 const mergePending = (list: readonly Pending[]): Pending => {
   if (list.length === 0) return emptyPending();
   const start = list.find((p) => p.start !== undefined)?.start;
@@ -325,16 +342,18 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
   const processed = new Set<string>();
 
   const newSection = (e: End, to: string, firstStep: string | null): Build => {
+    /* Step 3 · 5 — die wartenden Tore fahren nur mit einem Abschnitt, der den Halt verlässt. */
+    const leaves = to !== e.stop;
     const sec: Build = {
       id: `${flow.id}:${counter}`, line: flow.id, branch: e.branch, from: e.stop, to,
       kind: e.stop === START ? 'entry' : 'main',
       steps: [...e.pending.steps], questions: [...e.pending.questions], slides: e.pending.slides, introduces: [...e.pending.asks],
-      ticket: [...e.pending.ticket, ...e.gate],
+      ticket: oneGateEach([...e.pending.ticket, ...(leaves ? e.gate : [])]),
       ...(e.pending.start !== undefined ? { start: e.pending.start } : e.stop === START && flow.start !== null ? { start: { step: flow.start } } : firstStep !== null ? { start: { step: firstStep } } : {})
     };
     counter += 1;
     sections.push(sec);
-    e.gate = [];
+    if (leaves) e.gate = [];
     return sec;
   };
   const addTo = (e: End, step: string, slide: boolean, asks: readonly string[]) => {
@@ -347,14 +366,13 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
       for (const k of fresh) if (!e.pending.asks.includes(k)) e.pending.asks.push(k);
       return;
     }
+    /* Step 3 · 5 — ein Tor gilt nicht für den Abschnitt, auf dem man schon ist (es wartet in `e.gate`). */
     for (const s of e.secs) {
       s.steps.push(step);
       if (asks.length > 0) s.questions.push(step);
       s.slides += slide ? 1 : 0;
       for (const k of fresh) if (!s.introduces.includes(k)) s.introduces.push(k);
-      if (e.gate.length > 0) s.ticket.push(...e.gate);
     }
-    e.gate = [];
   };
   /** Was noch ohne Abschnitt ist, bekommt einen am Ort selbst (Inhalt ohne Weg). */
   const settle = (e: End) => {
@@ -374,7 +392,15 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
     const live = ends.filter((e) => freshBranches.has(e.branch));
     if (live.length === 0) return ends;
     const gate = gateOf(n);
-    if (gate !== null) { for (const e of live) e.gate.push({ source: 'gate', step: n.orig, condition: gate }); return ends; }
+    if (gate !== null) {
+      /*
+        Step 3 · 5 — vor allem Inhalt an diesem Halt (kein Abschnitt, nichts wartet): wie die Bedingung einer Möglichkeit, der nächste
+        Abschnitt, der hier entsteht, nimmt es. Nach Inhalt hier ist man schon unterwegs: es wartet auf den nächsten, der abfährt.
+      */
+      const part: TicketPart = { source: 'gate', step: n.orig, condition: gate };
+      for (const e of live) { if (e.secs.length === 0 && e.pending.steps.length === 0) e.pending.ticket.push(part); else e.gate.push(part); }
+      return ends;
+    }
     if (n.type === 'detour' || n.type === 'handoff') {
       const target = resolve(str(n.config.flow));
       if (target === undefined) {
@@ -420,7 +446,8 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
     const branch = converge ?? live[0].branch;
     const seen = new Set([...seenAll[0]].filter((k) => seenAll.every((s) => s.has(k))));
     if (live.length > 1) meetings.push(target);
-    const merged: End = { branch, stop: target, secs: created, pending: emptyPending(), seen, gate: [], converge: null };
+    /* Was an diesem Halt noch wartet (die Enden, die hier standen, sind schon auf ihren Abschnitten), wartet weiter. */
+    const merged: End = { branch, stop: target, secs: created, pending: emptyPending(), seen, gate: oneGateEach(staying.flatMap(gatesOf)), converge: null };
     if (branch === flow.id) markTrunk(target);
     return [...ends.filter((e) => !live.includes(e)), merged];
   };
@@ -462,9 +489,10 @@ function walkLine(flow: Flow, world: World, resolve: Resolve, placeOfShown: (id:
           /* (b) — die Bedingung der Möglichkeit, mit der der Zweig beginnt. */
           const option = n.type === 'choice' ? (Array.isArray(n.config.options) ? n.config.options : [])[Number(f.exit.slice(1))] : undefined;
           const ticket: TicketPart[] = isObject(option) && option.condition !== undefined && option.condition !== null ? [{ source: 'option', step: n.orig, condition: readTicketCondition(option.condition) }] : [];
+          /* Step 3 · 5 — ein Tor vor der Gabel kommt vor allem Inhalt des Zweiges: sein erster Abschnitt nimmt es (auch einer am Ort). */
           const spawned = ends.map((e): End => ({
-            branch: id, stop: e.stop, secs: [], pending: { ...emptyPending(), ticket: [...ticket], start: { step: n.orig, exit: f.exit } },
-            seen: new Set(e.seen), gate: [...e.gate], converge: null
+            branch: id, stop: e.stop, secs: [], pending: { ...emptyPending(), ticket: [...ticket, ...gatesOf(e)], start: { step: n.orig, exit: f.exit } },
+            seen: new Set(e.seen), gate: [], converge: null
           }));
           children.push(...walk(f.to, join, spawned));
         }
