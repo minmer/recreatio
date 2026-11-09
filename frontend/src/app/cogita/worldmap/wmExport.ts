@@ -22,14 +22,13 @@ import { readView, type ViewDoc } from '../views';
 import { geometryInputOf } from './wmGeometry';
 import { geometryFor } from './wmGeometryClient';
 import { readWorld } from './wmGraph';
-import { worldInputOf } from './wmInput';
+import { placeKindsOf, worldInputOf } from './wmInput';
 import { linesOf } from './wmLines';
 import { storedLayout } from './wmStore';
 import { HOME, type World } from './wmTypes';
 
-/** Welche Arten Orte sind: die Quellen des Widoku (`source.kind`) — leer: abgeleitet (Entscheidung 1). */
-export const placeKindsOf = (view: ViewDoc): string[] =>
-  (view.steps ?? []).filter((s) => s.type === 'source.kind').map((s) => String((s.config as Record<string, unknown>).kind ?? '')).filter((k) => k !== '');
+/** Welche Arten Orte sind (`wmInput.ts`; dieselbe Regel für Karte, Ausfuhr und Wiederholungen). */
+export { placeKindsOf };
 
 /** Der Graph der Orte, wie `regions.ts` ihn liest. */
 export function regionGraphOf(world: World): { ids: string[]; labels: string[]; needs: number[][] } {

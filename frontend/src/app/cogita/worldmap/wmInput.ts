@@ -11,7 +11,15 @@ import type { Card } from '../cardBasics';
 import { readFlow, resolveFlow, type Flow } from '../flow';
 import { fieldsOf, labelOf, valuesOf } from '../schema';
 import type { CogitaLibrary } from '../store';
+import type { ViewDoc } from '../views';
 import type { WmCardInput, WmEntry, WmRef, WorldInput } from './wmTypes';
+
+/**
+ * Welche Arten Orte sind: die Quellen des Widoku (`source.kind`) — leer: abgeleitet (Entscheidung 1). Hier (und nicht in
+ * `wmExport.ts`), damit die Regel der Wiederholungen (`wmReview.ts`) dieselben Orte nimmt wie die Karte, ohne die Gestalt zu laden.
+ */
+export const placeKindsOf = (view: Pick<ViewDoc, 'steps'>): string[] =>
+  (view.steps ?? []).filter((s) => s.type === 'source.kind').map((s) => String((s.config as Record<string, unknown>).kind ?? '')).filter((k) => k !== '');
 
 export interface InputOptions {
   /** Die Arten der Orte, wenn der Widok sie nennt (`source.kind`). */

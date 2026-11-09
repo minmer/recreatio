@@ -56,6 +56,7 @@
     "locked": "Kurs ustala te ustawienia.",
     "serverOld": "Poziomy i przebiegi zaczną działać po aktualizacji serwera. Do tego czasu powtórki działają jak dotąd.",
     "serverOldArea": "Serwer nie zapisuje jeszcze przebiegów, więc nie można włączyć poziomów. Do czasu aktualizacji wszyscy uczą się bez poziomów (0).",
+    "noWorldView": "Ta baza nie ma jeszcze widoku mapy świata. Poziomy wyłączają z powtórek tylko karty miejsc pokazanych na mapie świata, więc na razie w powtórkach nic się nie zmienia.",
     "useArea": "Użyj ustawienia kursu"
   },
   "run": {

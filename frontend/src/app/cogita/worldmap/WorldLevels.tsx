@@ -12,7 +12,7 @@ import { tFor, type T } from '../../core/i18n';
 import { baseLang } from '../lang';
 import type { Learner } from '../learn';
 import type { CogitaLibrary } from '../store';
-import { effectiveWorldFor, leavingReviews, worldOf } from './wmReview';
+import { effectiveWorldFor, leavingReviews, reviewWorldOf } from './wmReview';
 import { useServerRuns } from './useServerRuns';
 import { ATTEMPTS, DEFAULT_SETUP, defaultRules, levelsSetupDoc, MAX_LEVELS, PILLAR_MIN, type Attempts, type LevelRule, type LevelsSetup } from './wmRuns';
 import './worldmap.css';
@@ -104,7 +104,9 @@ export function AreaWorldSettings({ lib, busy, onSave }: { lib: CogitaLibrary; b
     return () => { alive = false; };
   }, [lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   /* Ein Lernender ohne Durchgänge (alle bestehenden): jede Karte eines Ortes verlässt die Wiederholungen, bis er erobert. */
-  const leaving = useMemo(() => (cards === null ? null : leavingReviews(worldOf(lib, cards), cards.map((c) => c.key), [], draft)), [cards, draft, lib]);
+  /* Step 3 · 2 — nur Karten, deren Ort eine Weltkarte der Baza zeigt; ohne Weltkarte wirken Stufen nicht auf Wiederholungen. */
+  const reviewWorld = useMemo(() => (cards === null ? null : reviewWorldOf(lib, cards)), [cards, lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  const leaving = useMemo(() => (cards === null ? null : leavingReviews(reviewWorld, cards.map((c) => c.key), [], draft)), [cards, draft, reviewWorld]);
   const changed = JSON.stringify(levelsSetupDoc(draft)) !== areaKey;
   return (
     <section className="cg-card" data-settings-world={area === undefined ? 'none' : area.levels}>
@@ -125,6 +127,7 @@ export function AreaWorldSettings({ lib, busy, onSave }: { lib: CogitaLibrary; b
       </label>
       {leaving !== null && <p className={leaving > 0 ? 'wk-note' : 'cg-muted'} data-world-leaving={leaving}>{leaving === 0 ? t('cogitaWorld.settings.leavingNone') : t('cogitaWorld.settings.leaving', { count: leaving })}</p>}
       {!runs && <p className="wk-note" data-world-server-old="">{t('cogitaWorld.settings.serverOldArea')}</p>}
+      {cards !== null && reviewWorld === null && draft.levels > 0 && <p className="cg-muted" data-world-no-world-view="">{t('cogitaWorld.settings.noWorldView')}</p>}
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={busy || !changed || (!runs && draft.levels > 0)} onClick={() => onSave(levelsSetupDoc(draft))} data-world-save="">{t('cogitaWorld.settings.save')}</button>
         {area !== undefined && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onSave(undefined)} data-world-clear="">{t('cogitaWorld.settings.clear')}</button>}

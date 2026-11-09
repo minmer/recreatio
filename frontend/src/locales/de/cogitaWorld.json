@@ -52,6 +52,7 @@
     "locked": "Der Kurs legt diese Einstellungen fest.",
     "serverOld": "Stufen und Durchgänge gibt es, sobald der Server aktualisiert ist. Bis dahin laufen die Wiederholungen wie bisher.",
     "serverOldArea": "Der Server kann noch keine Durchgänge speichern, deshalb lassen sich keine Stufen einschalten. Bis zur Aktualisierung lernen alle mit 0 Stufen.",
+    "noWorldView": "Diese Basis hat noch keine Weltkarte. Stufen halten nur Karten von Orten aus den Wiederholungen heraus, die eine Weltkarte zeigt — vorerst ändert sich an den Wiederholungen nichts.",
     "useArea": "Die Einstellung des Kurses verwenden"
   },
   "run": {

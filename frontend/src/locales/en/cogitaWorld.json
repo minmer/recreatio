@@ -52,6 +52,7 @@
     "locked": "The course fixes these settings.",
     "serverOld": "Levels and runs start once the server has been updated. Until then, reviews work as before.",
     "serverOldArea": "The server cannot store runs yet, so levels cannot be switched on. Until it is updated, every learner works with 0 levels.",
+    "noWorldView": "This base has no world map view yet. Levels only keep cards out of reviews for places shown on a world map, so for now nothing changes in reviews.",
     "useArea": "Use the course's setting"
   },
   "run": {

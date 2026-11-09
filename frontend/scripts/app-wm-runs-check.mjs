@@ -18,7 +18,7 @@ const workspace = await mkdtemp(join(tmpdir(), 'app-wm-runs-'));
 const entries = {
   runs: 'src/app/cogita/worldmap/wmRuns.ts', graph: 'src/app/cogita/worldmap/wmGraph.ts', lines: 'src/app/cogita/worldmap/wmLines.ts',
   state: 'src/app/cogita/worldmap/wmState.ts', fx: 'src/app/cogita/worldmap/wmFixtures.ts', store: 'src/app/cogita/store.ts',
-  review: 'src/app/cogita/worldmap/wmReview.ts', features: 'src/app/cogita/worldmap/wmFeatures.ts'
+  review: 'src/app/cogita/worldmap/wmReview.ts', features: 'src/app/cogita/worldmap/wmFeatures.ts', base: 'src/app/cogita/memoryBase.ts'
 };
 await build({
   entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' },
@@ -26,7 +26,7 @@ await build({
 });
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [R, G, L, S, F, ST, RV, FE] = await Promise.all(Object.keys(entries).map(load));
+const [R, G, L, S, F, ST, RV, FE, MB] = await Promise.all(Object.keys(entries).map(load));
 
 let failed = 0;
 let passed = 0;
@@ -159,6 +159,37 @@ const run = (id, place, startDay, first, after = 0, cards = 20) => ({ id, place,
   check('suspended: the height of a place built on it leaves the card out', h0 - h1, 1);
   const all = S.stateOf(world, lines, withOff({}, p.cards), { levels: 1, knownShare: 1 }).places.get(p.id);
   check('suspended: a place whose every card is suspended blocks nothing (it counts as conquered)', [all.conquered, all.height, all.dot], [true, 0, null]);
+}
+
+/* -- Step 3 · 2: Wiederholungen schliessen nur Orte aus, die eine Weltkarte der Baza zeigt (mit ihren Ortsarten) -------------- */
+{
+  const docOf = (world) => ({
+    format: 'recreatio.cogita.course', version: 1, name: 'Orte und Aspekte',
+    kinds: [
+      { ref: '@t/temat', name: 'Temat', label: '{name}', fields: [{ key: 'name', label: 'Name', type: 'line' }] },
+      { ref: '@t/aspekt', name: 'Aspekt', label: '{name}', fields: [{ key: 'name', label: 'Name', type: 'line' }] }
+    ],
+    entities: [
+      { ref: '@t/a', kinds: ['@t/temat'], data: { name: 'Temat A' } },
+      { ref: '@t/x', kinds: ['@t/aspekt'], data: { name: 'Aspekt X' } },
+      { ref: '@t/q1', kinds: ['question'], data: { form: 'one', prompt: 'O temacie', options: ['Tak', 'Nie'], correct: [0], about: ['@t/a'] } },
+      { ref: '@t/q2', kinds: ['question'], data: { form: 'one', prompt: 'O aspekcie', options: ['Tak', 'Nie'], correct: [0], about: ['@t/x'] } }
+    ],
+    views: [{ ref: '@t/v', name: 'Mapa', mode: 'landscape', steps: [{ type: 'source.kind', config: { kind: '@t/temat' } }], landscape: world ? { style: 'world' } : {} }]
+  });
+  const learner = { holder: { kind: 'local' }, progress: { values: { '~world.levels': 1 }, runs: new Map() } };
+  const scopeOf = async (world) => {
+    const made = await MB.memoryBase(docOf(world));
+    if ('error' in made) throw new Error(made.error);
+    const cards = (await made.lib.cards()).cards;
+    const by = (label) => cards.find((c) => (c.about ?? []).some((id) => made.lib.label(made.lib.entity(id)) === label))?.key;
+    return { scope: RV.reviewScopeFor(made.lib, cards, learner), topic: by('Temat A'), aspect: by('Aspekt X') };
+  };
+  const w = await scopeOf(true);
+  check('review scope: a card whose place the world view shows waits for its conquest (1 level, no run)', S.reviewable(w.topic, w.scope), false);
+  check('review scope: a card about an entry the world view does not show as a place stays in reviews', S.reviewable(w.aspect, w.scope), true);
+  const hex = await scopeOf(false);
+  check('review scope: a base without a world view — levels leave every card in reviews', [hex.scope, S.reviewable(hex.topic, hex.scope), S.reviewable(hex.aspect, hex.scope)], [null, true, true]);
 }
 
 /* -- PR A: bis der Dienst Durchgänge speichert, gelten 0 Stufen (wmFeatures.ts) ---------------------------------------- */
